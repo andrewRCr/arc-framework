@@ -50,7 +50,10 @@ import {
   IncrementalReviewScopeSchema,
   type IncrementalReviewScope,
 } from "../core/incremental-review-scope.js";
-import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
+import type {
+  IncrementalPredecessorApplicability,
+  IncrementalPredecessorResponseEvidence,
+} from "./incremental-coverage-basis.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 type EarlierApplicableAttempt = Extract<
@@ -75,6 +78,63 @@ export function incrementalApplicabilityFromEarlierRead(input: {
   return applicability === "retain-prior-attempt" || applicability === "request-review"
     ? "applicable"
     : "unavailable";
+}
+
+/** Confirm one predecessor against the current target's fresh applicability projection. */
+export async function confirmIncrementalPredecessorApplicability(input: {
+  readonly predecessor: ReviewResult;
+  readonly current: ReviewResult;
+  readonly readEarlierAttemptApplicability?: (
+    sourceId: string,
+  ) => Promise<EarlierHostedAttemptApplicabilityRead>;
+}): Promise<IncrementalPredecessorApplicability> {
+  const { predecessor, current } = input;
+  const scope = current.admission.correctionScope;
+  if (scope === undefined
+    || scope.headSha !== current.target.headSha) return "unavailable";
+  if (predecessor.target.headSha === current.target.headSha) return "applicable";
+  const sourceId = predecessor.kind === "hosted"
+    ? predecessor.sourceIdentity
+    : predecessor.kind === "attested-local"
+      ? predecessor.deliveryAdmission?.sourceId
+      : undefined;
+  if (sourceId === undefined || input.readEarlierAttemptApplicability === undefined) return "unavailable";
+  return incrementalApplicabilityFromEarlierRead({
+    producerId: predecessor.producerId,
+    producerTarget: predecessor.target,
+    earlier: await input.readEarlierAttemptApplicability(sourceId),
+  });
+}
+
+/** Build the next exact correction scope from one responded predecessor result. */
+export function buildIncrementalCorrectionScope(input: {
+  readonly predecessor: ReviewResult;
+  readonly currentHeadSha: string;
+  readonly response: IncrementalPredecessorResponseEvidence;
+}): IncrementalReviewScope | null {
+  const { predecessor, response } = input;
+  if (predecessor.kind === "frontline" || response.status !== "performed") return null;
+  const predecessorScope = predecessor.admission.correctionScope;
+  const basisHeadSha = predecessor.admission.effectiveCoverage === "complete"
+    ? predecessor.target.headSha
+    : predecessorScope?.headSha === predecessor.target.headSha
+      ? predecessorScope.basisHeadSha
+      : null;
+  if (basisHeadSha === null) return null;
+  const inheritedFindingIds = predecessor.admission.effectiveCoverage === "complete"
+    ? []
+    : predecessorScope?.requiredFindingIds ?? [];
+  return IncrementalReviewScopeSchema.parse({
+    schemaVersion: 1,
+    predecessorProducerId: predecessor.producerId,
+    predecessorHeadSha: predecessor.target.headSha,
+    basisHeadSha,
+    headSha: input.currentHeadSha,
+    requiredFindingIds: [...new Set([
+      ...inheritedFindingIds,
+      ...response.requiredFindingIds,
+    ])].sort(),
+  });
 }
 
 function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
@@ -587,8 +647,7 @@ export async function projectHostedReservationDischarge(input: {
       const earlier = activeEarlierBySource?.get(sourceId);
       return earlier?.status === "complete"
         ? earlier.attempts.filter((attempt) => (
-            attempt.effectiveCoverage === "complete"
-            && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
+            (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
             && (attempt.applicability === "request-review"
               || attempt.applicability === "retain-prior-attempt")
           ))
@@ -596,11 +655,10 @@ export async function projectHostedReservationDischarge(input: {
     }).sort((left, right) => right.logicalPass - left.logicalPass
       || right.updatedAt.localeCompare(left.updatedAt)
       || left.attemptId.localeCompare(right.attemptId));
-    for (const candidate of candidates) {
-      const correctionScope = await input.resolveIncrementalCorrectionScope(candidate, target.headSha);
-      if (correctionScope !== null) return { correctionScope };
-    }
-    return {};
+    const candidate = candidates[0];
+    if (candidate === undefined) return {};
+    const correctionScope = await input.resolveIncrementalCorrectionScope(candidate, target.headSha);
+    return correctionScope === null ? {} : { correctionScope };
   };
   const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
@@ -833,18 +891,8 @@ export async function projectHostedReservationDischarge(input: {
   };
 }
 
-/**
- * Bind the repository's durable lane progress and Candidate span to the discharge projection.
- *
- * @param input - The repository root and its Git boundary.
- * @returns A reader resolving discharge for one reservation over one Candidate span.
- */
-export function createHostedReservationDischargeReader(input: {
-  cwd: string;
-  exec: GitExec;
-  delivery?: DeliveryDischargeTargetLookup;
-  host?: Pick<DeliveryHostPort, "readRequest">;
-}): (args: {
+/** Exact inputs shared by discharge projection and evidence-bound applicability re-entry. */
+export interface HostedReservationDischargeReaderArgs {
   workUnitId?: string;
   reservation: StandardReviewReservationV1 | null;
   baseRevision: string;
@@ -852,7 +900,30 @@ export function createHostedReservationDischargeReader(input: {
   changeRequest: { repository: string; pullRequest: number } | null;
   vehicle?: DeliveryReviewMemberVehicle;
   candidate?: CandidateManagedRecordV1;
-}) => Promise<HostedReservationDischarge> {
+}
+
+/** Discharge projection plus its fresh predecessor-applicability boundary. */
+export interface HostedReservationDischargeReader {
+  (args: HostedReservationDischargeReaderArgs): Promise<HostedReservationDischarge>;
+  confirmIncrementalApplicability(
+    args: HostedReservationDischargeReaderArgs,
+    predecessor: ReviewResult,
+    current: ReviewResult,
+  ): Promise<IncrementalPredecessorApplicability>;
+}
+
+/**
+ * Bind the repository's durable lane progress and Candidate span to the discharge projection.
+ *
+ * @param input - The repository root and its Git boundary.
+ * @returns A reader resolving discharge and fresh incremental applicability for one Candidate target.
+ */
+export function createHostedReservationDischargeReader(input: {
+  cwd: string;
+  exec: GitExec;
+  delivery?: DeliveryDischargeTargetLookup;
+  host?: Pick<DeliveryHostPort, "readRequest">;
+}): HostedReservationDischargeReader {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
   const dispositions = new LocalApprovedDispositionRecordStore(publisher);
@@ -871,48 +942,13 @@ export function createHostedReservationDischargeReader(input: {
   };
   const rawExec = createRawGitExec(input.cwd);
 
-  const readTarget = async ({
-    reservation,
+  const createApplicabilityContext = async ({
     baseRevision,
     approvedHead,
     changeRequest,
     vehicle,
     candidate,
-  }: {
-    reservation: StandardReviewReservationV1 | null;
-    baseRevision: string;
-    approvedHead: string;
-    changeRequest: { repository: string; pullRequest: number } | null;
-    vehicle?: DeliveryReviewMemberVehicle;
-    candidate?: CandidateManagedRecordV1;
-  }): Promise<HostedReservationDischarge> => {
-    if (reservation === null) {
-      const unreachableTerminalPolicy = (): Promise<ReviewResolveEnvelope> => Promise.reject(
-        new Error("A reservation-free discharge has no terminal review policy."),
-      );
-      return projectHostedReservationDischarge({
-        reservation,
-        span: [],
-        target: null,
-        readLaneProgress: () => Promise.resolve({ status: "unrecorded" }),
-        resolveTerminalPolicy: unreachableTerminalPolicy,
-        resolveEarlierTerminalPolicy: unreachableTerminalPolicy,
-      });
-    }
-    let stdout: string;
-    try {
-      ({ stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
-        cwd: input.cwd,
-        objectAccess: "local-only",
-      }));
-    } catch {
-      return {
-        discharged: false,
-        detail: "The reserved hosted-review target span is unavailable.",
-        nextSource: null,
-      };
-    }
-    const span = [baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
+  }: Omit<HostedReservationDischargeReaderArgs, "workUnitId" | "reservation">) => {
     const currentRepositoryId = await repositoryId();
     const lineage = vehicle !== undefined
       ? {
@@ -997,28 +1033,60 @@ export function createHostedReservationDischargeReader(input: {
             readDispositionRecord: (attemptId) => dispositions.readDispositionRecord(attemptId),
           })
         );
+    return { currentRepositoryId, lineage, readEarlierAttemptApplicability };
+  };
+
+  const readTarget = async ({
+    reservation,
+    baseRevision,
+    approvedHead,
+    changeRequest,
+    vehicle,
+    candidate,
+  }: Omit<HostedReservationDischargeReaderArgs, "workUnitId">): Promise<HostedReservationDischarge> => {
+    if (reservation === null) {
+      const unreachableTerminalPolicy = (): Promise<ReviewResolveEnvelope> => Promise.reject(
+        new Error("A reservation-free discharge has no terminal review policy."),
+      );
+      return projectHostedReservationDischarge({
+        reservation,
+        span: [],
+        target: null,
+        readLaneProgress: () => Promise.resolve({ status: "unrecorded" }),
+        resolveTerminalPolicy: unreachableTerminalPolicy,
+        resolveEarlierTerminalPolicy: unreachableTerminalPolicy,
+      });
+    }
+    let stdout: string;
+    try {
+      ({ stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
+        cwd: input.cwd,
+        objectAccess: "local-only",
+      }));
+    } catch {
+      return {
+        discharged: false,
+        detail: "The reserved hosted-review target span is unavailable.",
+        nextSource: null,
+      };
+    }
+    const span = [baseRevision, ...stdout.trim().split("\n").filter((line) => line !== "")];
+    const { currentRepositoryId, lineage, readEarlierAttemptApplicability } =
+      await createApplicabilityContext({
+        baseRevision,
+        approvedHead,
+        changeRequest,
+        vehicle,
+        candidate,
+      });
     const confirmIncrementalApplicability = async (
       predecessor: ReviewResult,
       current: ReviewResult,
-    ): Promise<IncrementalPredecessorApplicability> => {
-      const scope = current.admission.correctionScope;
-      if (scope === undefined
-        || scope.predecessorProducerId !== predecessor.producerId
-        || scope.predecessorHeadSha !== predecessor.target.headSha
-        || scope.headSha !== current.target.headSha) return "unavailable";
-      if (predecessor.target.headSha === current.target.headSha) return "applicable";
-      const sourceId = predecessor.kind === "hosted"
-        ? predecessor.sourceIdentity
-        : predecessor.kind === "attested-local"
-          ? predecessor.deliveryAdmission?.sourceId
-          : undefined;
-      if (sourceId === undefined || readEarlierAttemptApplicability === undefined) return "unavailable";
-      return incrementalApplicabilityFromEarlierRead({
-        producerId: predecessor.producerId,
-        producerTarget: predecessor.target,
-        earlier: await readEarlierAttemptApplicability(sourceId),
-      });
-    };
+    ): Promise<IncrementalPredecessorApplicability> => confirmIncrementalPredecessorApplicability({
+      predecessor,
+      current,
+      readEarlierAttemptApplicability,
+    });
     const resolveTerminalPolicy = async (terminal: {
       readonly attemptId: string;
       readonly logicalPass: number;
@@ -1070,19 +1138,14 @@ export function createHostedReservationDischargeReader(input: {
       const predecessor = await resultReader.readResult(attempt.attemptId).catch(() => null);
       if (predecessor === null
         || predecessor.kind === "frontline"
-        || predecessor.admission.effectiveCoverage !== "complete"
         || predecessor.sourceIdentity !== attempt.sourceId
         || canonicalize(predecessor.target) !== canonicalize(attempt.producerTarget)) return null;
       const response = await readIncrementalPredecessorResponseEvidence(predecessor, dispositions)
         .catch(() => null);
-      if (response?.status !== "performed") return null;
-      return IncrementalReviewScopeSchema.parse({
-        schemaVersion: 1,
-        predecessorProducerId: predecessor.producerId,
-        predecessorHeadSha: predecessor.target.headSha,
-        basisHeadSha: predecessor.target.headSha,
-        headSha: currentHeadSha,
-        requiredFindingIds: [...new Set(response.requiredFindingIds)].sort(),
+      return response === null ? null : buildIncrementalCorrectionScope({
+        predecessor,
+        currentHeadSha,
+        response,
       });
     };
     return projectHostedReservationDischarge({
@@ -1168,7 +1231,7 @@ export function createHostedReservationDischargeReader(input: {
     });
   };
 
-  return async ({ workUnitId, ...target }) => {
+  const reader = async ({ workUnitId, ...target }: HostedReservationDischargeReaderArgs) => {
     if (workUnitId === undefined) return readTarget(target);
     if (input.delivery === undefined || input.host === undefined) {
       return {
@@ -1236,4 +1299,25 @@ export function createHostedReservationDischargeReader(input: {
             nextSource: null,
           };
   };
+  return Object.assign(reader, {
+    confirmIncrementalApplicability: async (
+      args: HostedReservationDischargeReaderArgs,
+      predecessor: ReviewResult,
+      current: ReviewResult,
+    ) => {
+      const target = {
+        baseRevision: args.baseRevision,
+        approvedHead: args.approvedHead,
+        changeRequest: args.changeRequest,
+        ...(args.vehicle === undefined ? {} : { vehicle: args.vehicle }),
+        ...(args.candidate === undefined ? {} : { candidate: args.candidate }),
+      };
+      const { readEarlierAttemptApplicability } = await createApplicabilityContext(target);
+      return confirmIncrementalPredecessorApplicability({
+        predecessor,
+        current,
+        readEarlierAttemptApplicability,
+      });
+    },
+  });
 }

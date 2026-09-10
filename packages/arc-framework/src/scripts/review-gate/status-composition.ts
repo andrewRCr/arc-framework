@@ -556,6 +556,19 @@ export async function readRoutedObligation(
           resultReader,
           dispositionStore,
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+          confirmIncrementalApplicability: (predecessor, current) => (
+            readDischarge.confirmIncrementalApplicability({
+              reservation,
+              baseRevision: firstTarget.baseRevision,
+              approvedHead: firstTarget.headSha,
+              changeRequest: {
+                repository: firstTarget.repository,
+                pullRequest: firstTarget.pullRequest,
+              },
+              vehicle: firstTarget.vehicle,
+              candidate: record,
+            }, predecessor, current)
+          ),
         });
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };

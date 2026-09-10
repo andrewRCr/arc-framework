@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { canonicalDigest } from
+  "../../../../../src/lib/kernel/index.js";
 import type { ReviewResultReader } from
   "../../../../../src/scripts/review-gate/core/ports.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   resolveIncrementalCoverageBasis,
   type IncrementalCoverageBasisDependencies,
@@ -11,7 +17,7 @@ import {
   "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 
 const oid = (character: string): string => character.repeat(40);
-const digest = (character: string): string => `sha256:${character.repeat(64)}`;
+const digest = (value: string): string => canonicalDigest({ value });
 
 function result(input: {
   id: string;
@@ -19,7 +25,6 @@ function result(input: {
   coverage: "complete" | "incremental";
   kind?: "attested-local" | "hosted";
   source?: string;
-  policy?: string;
   rubricDigest?: string;
   lineage?: ReviewResult["admission"]["lineage"];
   predecessor?: {
@@ -29,21 +34,38 @@ function result(input: {
     requiredFindingIds?: readonly string[];
   };
 }): ReviewResult {
+  const kind = input.kind ?? "hosted";
+  const target = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "delivery-member",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: oid("0"),
+    diffBaseTree: oid("1"),
+    headSha: input.head,
+    headTree: oid("2"),
+  });
+  const requirement = createReviewRequirement({
+    target,
+    projection: {
+      obligation: "required",
+      reasons: ["sensitive-change-set"],
+      rubricVersion: "standard-review/v1",
+      rubricDigest: input.rubricDigest ?? digest("r"),
+      retrigger: "full-final",
+      count: 1,
+    },
+    acceptableSources: kind === "attested-local"
+      ? [{ sourceKind: "agent", qualifier: "standard-review/v1" }]
+      : [{ sourceKind: "hosted", qualifier: input.source ?? "codex-pr" }],
+    initialAdmission: kind === "attested-local" ? "checkpoint" : "automatic",
+  });
+  if (requirement === null) throw new Error("expected standard-review requirement");
   const common = {
     producerId: input.id,
     repositoryId: "repo-1",
-    target: {
-      schemaVersion: 2 as const,
-      semanticsVersion: "review-gate/v2" as const,
-      kind: "delivery-member" as const,
-      repositoryId: "repo-1",
-      baseRef: "main",
-      diffBaseSha: oid("0"),
-      diffBaseTree: oid("1"),
-      headSha: input.head,
-      headTree: oid("2"),
-      targetId: digest(input.head[0] ?? "a"),
-    },
+    target,
     sourceIdentity: input.source ?? "codex-pr",
     originalOutcome: "clean" as const,
     findings: [],
@@ -58,7 +80,7 @@ function result(input: {
       requestedCoverage: input.coverage,
       effectiveCoverage: input.coverage,
       scopeMode: "whole-target" as const,
-      policyVersion: input.policy ?? digest("p"),
+      policyVersion: requirement.policyVersion,
       ...(input.predecessor === undefined
         ? {}
         : {
@@ -72,14 +94,7 @@ function result(input: {
             },
           }),
     },
-    requirement: {
-      obligation: "required",
-      reasons: ["sensitive-change-set"],
-      rubricVersion: "standard-review/v1",
-      rubricDigest: input.rubricDigest ?? digest("r"),
-      retrigger: "full-final",
-      count: 1,
-    } as never,
+    requirement,
   };
   if (input.kind === "attested-local") {
     return {
@@ -131,12 +146,13 @@ describe("incremental coverage basis", () => {
       id: "incremental-2",
       head: oid("c"),
       coverage: "incremental",
-      policy: digest("l"),
       kind: "attested-local",
       source: "delegated-agent",
       predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha },
     });
     const dependencies = harness([complete]);
+
+    expect(complete.admission.policyVersion).not.toBe(incremental.admission.policyVersion);
 
     await expect(resolveIncrementalCoverageBasis(incremental, dependencies)).resolves.toEqual({
       status: "adequate",

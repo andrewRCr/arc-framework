@@ -2729,12 +2729,13 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
           if (context.reservation === null) {
             throw new Error("Hosted delivery-member review requires a carried reservation.");
           }
-          const discharge = await createHostedReservationDischargeReader({
+          const dischargeReader = createHostedReservationDischargeReader({
             cwd: root,
             exec: gitExec,
             delivery: deliveryMemberLookup,
             host: new GhDeliveryHostPort(hostedGhRunner),
-          })({
+          });
+          const dischargeInput = {
             reservation: context.reservation,
             baseRevision: context.reviewTarget.diffBaseSha,
             approvedHead: request.target.headSha,
@@ -2744,7 +2745,8 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             },
             vehicle: deliveryVehicle,
             candidate: context.candidateRecord,
-          });
+          };
+          const discharge = await dischargeReader(dischargeInput);
           if (discharge.discharged
             || (request.invocation === undefined && discharge.nextSource !== request.provider)) {
             throw new Error("Hosted delivery-member request no longer matches the fresh discharge position.");
@@ -2769,6 +2771,13 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             resultReader: createRepositoryReviewResultReader(publisher),
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+            confirmIncrementalApplicability: (predecessor, current) => (
+              dischargeReader.confirmIncrementalApplicability(
+                dischargeInput,
+                predecessor,
+                current,
+              )
+            ),
           });
           const currentObligation = await readRoutedObligation(
             root,
@@ -2803,11 +2812,12 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
           throw new Error("Hosted review capacity lacks standard-review authority.");
         }
         if (context.candidateRecord !== null) {
-          const discharge = await createHostedReservationDischargeReader({
+          const dischargeReader = createHostedReservationDischargeReader({
             cwd: root,
             exec: gitExec,
             host: new GhDeliveryHostPort(hostedGhRunner),
-          })({
+          });
+          const dischargeInput = {
             reservation: context.reservation,
             baseRevision: context.reviewTarget.diffBaseSha,
             approvedHead: request.target.headSha,
@@ -2816,7 +2826,8 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
               pullRequest: request.target.pullRequest,
             },
             candidate: context.candidateRecord,
-          });
+          };
+          const discharge = await dischargeReader(dischargeInput);
           await assertEvidenceBoundCandidateHostedReservationPolicyAdmission({
             reservation: context.reservation,
             discharge,
@@ -2834,6 +2845,13 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             resultReader: createRepositoryReviewResultReader(publisher),
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+            confirmIncrementalApplicability: (predecessor, current) => (
+              dischargeReader.confirmIncrementalApplicability(
+                dischargeInput,
+                predecessor,
+                current,
+              )
+            ),
           });
           return;
         }

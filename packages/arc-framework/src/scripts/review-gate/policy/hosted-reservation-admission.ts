@@ -66,7 +66,7 @@ export type HostedReservationPolicyResolution =
 type HostedReservationPolicyInput = Parameters<typeof resolveHostedReservationPolicy>[0];
 type HostedReservationEvidenceDependencies = Pick<
   EvidenceBoundReviewPolicyDependencies,
-  "resultReader" | "dispositionStore" | "confirmTarget"
+  "resultReader" | "dispositionStore" | "confirmTarget" | "confirmIncrementalApplicability"
 >;
 
 /** Project driver-grade progress for one delivery member across exact head movement. */

@@ -21,11 +21,15 @@ import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 import {
   allHostedReservationTargetsDischarged,
+  buildIncrementalCorrectionScope,
+  confirmIncrementalPredecessorApplicability,
   createHostedReservationDischargeReader,
   incrementalApplicabilityFromEarlierRead,
   projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
+import type { ReviewResult } from
+  "../../../../../src/scripts/review-gate/core/review-result.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createHostedAdmission } from
   "../../../../../src/scripts/review-gate/hosted/request.js";
@@ -368,6 +372,73 @@ function earlierAttempt<T extends { readonly sourceId: string }>(input: T) {
     updatedAt: "2026-08-27T12:00:00.000Z",
     scopeMode: "whole-target" as const,
     ...input,
+  };
+}
+
+function hostedReviewResult(input: {
+  readonly producerId: string;
+  readonly headSha: string;
+  readonly coverage: "complete" | "incremental";
+  readonly correctionScope?: {
+    readonly predecessorProducerId: string;
+    readonly predecessorHeadSha: string;
+    readonly basisHeadSha: string;
+    readonly requiredFindingIds: readonly string[];
+  };
+}): ReviewResult {
+  const reviewTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: oid("0"),
+    diffBaseTree: oid("1"),
+    headSha: input.headSha,
+    headTree: oid("2"),
+  });
+  const requirement = createReviewRequirement({
+    target: reviewTarget,
+    projection: reservation("codex-pr", ["codex-pr"]).obligation,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("expected hosted requirement");
+  return {
+    kind: "hosted",
+    producerId: input.producerId,
+    repositoryId: "repo-1",
+    target: reviewTarget,
+    sourceIdentity: "codex-pr",
+    originalOutcome: "clean",
+    findings: [],
+    resultDigest: canonicalDigest({ producerId: input.producerId }),
+    admission: {
+      lineage: { kind: "candidate", candidateId: `sha256:${"f".repeat(64)}` },
+      logicalPass: 1,
+      retryGeneration: 0,
+      requestedCoverage: input.coverage,
+      effectiveCoverage: input.coverage,
+      scopeMode: "whole-target",
+      policyVersion: requirement.policyVersion,
+      ...(input.correctionScope === undefined
+        ? {}
+        : {
+            correctionScope: {
+              schemaVersion: 1 as const,
+              ...input.correctionScope,
+              headSha: input.headSha,
+              requiredFindingIds: [...input.correctionScope.requiredFindingIds],
+            },
+          }),
+    },
+    laneOperationId: `lane/${input.producerId}`,
+    actorIdentity: "reviewer-1",
+    hostedTarget: target(input.headSha),
+    requirement,
+    hostSettlementFindingIds: [],
+    noHostSettlementFindingIds: [],
+    settled: false,
   };
 }
 
@@ -1931,6 +2002,214 @@ describe("hosted reservation discharge", () => {
       nextSource: "delegated-agent",
       correctionScope,
     });
+  });
+
+  it("extends the latest incremental predecessor instead of skipping back to its complete root", async () => {
+    const completeTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const incrementalTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("b"),
+      headTree: oid("3"),
+    });
+    const complete = earlierAttempt({
+      attemptId: "hosted/complete-a",
+      logicalPass: 1,
+      updatedAt: "2026-08-27T12:00:00.000Z",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      producerTarget: completeTarget,
+      applicability: "request-review" as const,
+    });
+    const incremental = earlierAttempt({
+      attemptId: "hosted/incremental-b",
+      logicalPass: 2,
+      updatedAt: "2026-08-28T12:00:00.000Z",
+      sourceId: "codex-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "incremental" as const,
+      effectiveCoverage: "incremental" as const,
+      producerTarget: incrementalTarget,
+      applicability: "request-review" as const,
+    });
+    const expectedScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: incremental.attemptId,
+      predecessorHeadSha: incremental.producerTarget.headSha,
+      basisHeadSha: complete.producerTarget.headSha,
+      headSha: oid("c"),
+      requiredFindingIds: ["finding-a", "finding-b"],
+    };
+
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("codex-pr", ["codex-pr"]),
+      span: [oid("c")],
+      target: target(oid("c")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [complete, incremental],
+      }),
+      resolveIncrementalCorrectionScope: async (candidate) => candidate.attemptId === incremental.attemptId
+        ? expectedScope
+        : {
+            ...expectedScope,
+            predecessorProducerId: complete.attemptId,
+            predecessorHeadSha: complete.producerTarget.headSha,
+            requiredFindingIds: ["finding-a"],
+          },
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "codex-pr",
+      correctionScope: expectedScope,
+    });
+  });
+
+  it("does not skip an unusable latest predecessor to manufacture an older correction scope", async () => {
+    const producerTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const complete = earlierAttempt({
+      attemptId: "hosted/complete-a",
+      logicalPass: 1,
+      sourceId: "codex-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      producerTarget,
+      applicability: "request-review" as const,
+    });
+    const incremental = earlierAttempt({
+      attemptId: "hosted/incremental-b",
+      logicalPass: 2,
+      sourceId: "codex-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "incremental" as const,
+      effectiveCoverage: "incremental" as const,
+      producerTarget: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: oid("0"),
+        diffBaseTree: oid("1"),
+        headSha: oid("b"),
+        headTree: oid("3"),
+      }),
+      applicability: "request-review" as const,
+    });
+
+    const projected = await projectHostedReservationDischarge({
+      reservation: reservation("codex-pr", ["codex-pr"]),
+      span: [oid("c")],
+      target: target(oid("c")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [complete, incremental],
+      }),
+      resolveIncrementalCorrectionScope: async (candidate) => candidate.attemptId === complete.attemptId
+        ? {
+            schemaVersion: 1,
+            predecessorProducerId: complete.attemptId,
+            predecessorHeadSha: complete.producerTarget.headSha,
+            basisHeadSha: complete.producerTarget.headSha,
+            headSha: oid("c"),
+            requiredFindingIds: [],
+          }
+        : null,
+    });
+
+    expect(projected).not.toHaveProperty("correctionScope");
+  });
+
+  it("carries an incremental predecessor's basis and transitive material instructions", () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/incremental-b",
+      headSha: oid("b"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: "hosted/complete-a",
+        predecessorHeadSha: oid("a"),
+        basisHeadSha: oid("a"),
+        requiredFindingIds: ["finding-a"],
+      },
+    });
+
+    expect(buildIncrementalCorrectionScope({
+      predecessor,
+      currentHeadSha: oid("c"),
+      response: { status: "performed", requiredFindingIds: ["finding-b"] },
+    })).toEqual({
+      schemaVersion: 1,
+      predecessorProducerId: predecessor.producerId,
+      predecessorHeadSha: oid("b"),
+      basisHeadSha: oid("a"),
+      headSha: oid("c"),
+      requiredFindingIds: ["finding-a", "finding-b"],
+    });
+  });
+
+  it("confirms every chain predecessor against the current target rather than only the direct link", async () => {
+    const complete = hostedReviewResult({
+      producerId: "hosted/complete-a",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const current = hostedReviewResult({
+      producerId: "hosted/incremental-c",
+      headSha: oid("c"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: "hosted/incremental-b",
+        predecessorHeadSha: oid("b"),
+        basisHeadSha: oid("a"),
+        requiredFindingIds: [],
+      },
+    });
+
+    await expect(confirmIncrementalPredecessorApplicability({
+      predecessor: complete,
+      current,
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [earlierAttempt({
+          attemptId: complete.producerId,
+          sourceId: "codex-pr",
+          outcome: "clean",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          producerTarget: complete.target,
+          applicability: "request-review",
+        })],
+      }),
+    })).resolves.toBe("applicable");
   });
 
   it("recognizes an exact predecessor after retained or requested current-head review", () => {
