@@ -33,6 +33,7 @@ import {
 } from "../lib/delivery/git-lifecycle-contribution.js";
 import { CurrentDeliveryLifecycleContributionPathSource } from "../lib/delivery/lifecycle-contribution.js";
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
+import { projectDeliveryContributionEndpoints } from "../lib/delivery/contribution-proof.js";
 import {
   proveGitDeliveryContribution,
   proveGitDeliveryProviderRefreshContribution,
@@ -3741,7 +3742,10 @@ async function executeDeliveryCommand(
         const observed = await observeDeliveryEligibilityRef(exec, remoteRef.head);
         return observed?.head === remoteRef.head ? observed : null;
       },
-      proveContribution: (endpoints) => proveGitDeliveryContribution({ exec: rawExec, ...endpoints }),
+      proveContribution: (endpoints) => proveGitDeliveryContribution({
+        exec: rawExec,
+        ...projectDeliveryContributionEndpoints(endpoints),
+      }),
       observeMemberRefCheckouts: (refs) => observeDeliveryMemberRefCheckouts(exec, refs),
       absorbTop: (input) => absorbGitDeliveryChain({ exec: rawExec, ...input }),
       publishTop: (input) => publishDeliveryTopRef({ exec, remote, ...input }),
@@ -3895,7 +3899,7 @@ async function executeDeliveryCommand(
       ),
       proveContribution: (endpoints) => proveGitDeliveryContribution({
         exec: createRawGitExec(cwd),
-        ...endpoints,
+        ...projectDeliveryContributionEndpoints(endpoints),
       }),
     }, {
       ...(mode === "terminal-remedy"
@@ -5211,7 +5215,7 @@ async function executeDeliveryCommand(
         ),
         proveLandedContribution: (endpoints) => proveGitDeliveryContribution({
           exec: createRawGitExec(cwd),
-          ...endpoints,
+          ...projectDeliveryContributionEndpoints(endpoints),
         }),
       },
     });
@@ -5686,8 +5690,10 @@ async function executeDeliveryCommand(
             }
             const proof = await proveGitDeliveryContribution({
               exec: createRawGitExec(cwd),
-              before: { predecessor: beforeTarget, member: beforeMember.coordinates },
-              after: landed,
+              ...projectDeliveryContributionEndpoints({
+                before: { predecessor: beforeTarget, member: beforeMember.coordinates },
+                after: landed,
+              }),
             });
             if (proof.status !== "accepted") return proof;
             return {
@@ -5820,7 +5826,10 @@ async function executeDeliveryCommand(
           && observed.head === expected.head && observed.tree === expected.tree;
       },
       resolveCoordinate: (head) => observeDeliveryEligibilityRef(exec, head),
-      proveCarried: (endpoints) => proveGitDeliveryContribution({ exec: createRawGitExec(cwd), ...endpoints }),
+      proveCarried: (endpoints) => proveGitDeliveryContribution({
+        exec: createRawGitExec(cwd),
+        ...projectDeliveryContributionEndpoints(endpoints),
+      }),
       apply: async ({ plan, current, rewrite }) => {
         const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const requested = rewrite.requested.members[0];
@@ -5864,8 +5873,10 @@ async function executeDeliveryCommand(
           },
           proveContribution: () => proveGitDeliveryContribution({
             exec: createRawGitExec(cwd),
-            before: { predecessor, member: memberCoordinates },
-            after: { predecessor: afterPredecessor, member: requestedCoordinates },
+            ...projectDeliveryContributionEndpoints({
+              before: { predecessor, member: memberCoordinates },
+              after: { predecessor: afterPredecessor, member: requestedCoordinates },
+            }),
           }),
           stateStore,
         });
