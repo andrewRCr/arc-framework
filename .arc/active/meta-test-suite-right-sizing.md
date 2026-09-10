@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design — draft captured at `10ea5f6d1` (Class `Heavy`); stage advanced to create-spec
 - **Next Task:** [none]
 - **Blockers:** [none]
 
