@@ -3,7 +3,7 @@
   "slug": "fix-no-fix-delivery-settlement-replay",
   "claimId": "816d89743358e18554e59d87be3700d7",
   "createdAt": "2026-09-10T17:52:59.330Z",
-  "updatedAt": "2026-09-10T17:52:59.330Z",
+  "updatedAt": "2026-09-10T18:28:19.950Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "fix-no-fix-delivery-settlement-replay",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Fix no-fix delivery-member settlement replay at terminal merge",
   "originEntrySourceDigest": "sha256:b9493b6a37a2fd0cc200aef83dd1340b64205cb12ca54e603c7dbf2aa8656d9f",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/fix-no-fix-delivery-settlement-replay",
+    "headSha": "8897a82615a153e1e7ce5f3c58d38435fa5b3807"
+  }
 }
