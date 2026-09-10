@@ -13,8 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — detailed RFC finalized after two adversarial passes, draft retired to
-  `notes-evidence-applicability.md`, Class `Heavy` persisted, stage advanced to generate-tasks (`ba4706d93`)
+- **Last Completed:** activate-work-unit — task list finalized and WU activated on `feat/evidence-applicability`
 - **Next Task:** Task 1.1 — Unify path-treatment classification (line 60 in tasks-evidence-applicability.md)
 - **Blockers:** [none]
 
