@@ -601,7 +601,8 @@ supplies neither verdict.
 `payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
 This reuses ordinary delivery reconciliation and adds no new operation.
 
-`blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
+`blocked / stop` renders its typed reason, movement, feasibility and admission endpoints, diagnostic detail, and
+structured remedy when present, then stops. `ready / request-approval` continues at the ready checkpoint below.
 
 `blocked` with `retarget` or `reopen-and-retarget` renders the returned reason and remedy, then stops for explicit
 direction to apply that exact remedy. On direction, invoke `remedy.argv` with `remedy.stdin` unchanged.

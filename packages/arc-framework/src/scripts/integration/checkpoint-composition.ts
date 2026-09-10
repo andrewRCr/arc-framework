@@ -467,10 +467,18 @@ export function createIntegrationCheckpointDependencies(input: {
           workUnitPathTreatmentContext(workUnit),
         ).classifyReconciliation,
       });
-      return {
-        feasibility,
-        admission: await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort),
-      };
+      const admission = await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort);
+      if (
+        feasibility.base !== coordinates.base
+        || feasibility.head !== coordinates.head
+        || admission.repository !== coordinates.repository
+        || admission.changeRequest !== coordinates.changeRequest
+        || admission.base !== coordinates.base
+        || admission.head !== coordinates.head
+      ) {
+        throw new Error("Checkpoint merge observations do not share the exact request coordinates.");
+      }
+      return { feasibility, admission };
     },
     readLifecycle: async (workUnit) => {
       const config = await settings();
