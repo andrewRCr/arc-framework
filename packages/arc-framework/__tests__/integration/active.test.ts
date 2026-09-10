@@ -1300,6 +1300,34 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     });
   });
 
+  it("does not project Candidate fix authority outside Active prepublication", async () => {
+    const { candidateId } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "Continue task execution.",
+        candidateId,
+        currentWorkflow: "[none]",
+      }),
+    );
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: async () => {
+        throw new Error("Candidate projection must not run outside prepublication.");
+      },
+      readPendingCandidateReviewFixAuthority: async () => {
+        throw new Error("Candidate fix authority must not be read outside prepublication.");
+      },
+    });
+
+    expect(full.candidates[0]?.integrationBoundary).toBeNull();
+    expect(full.warnings).toEqual([]);
+  });
+
   it("refuses pending applicability when the Integrating boundary names another subject", async () => {
     const { candidateId } = await writeCandidate(fixture.root, "foo");
     await writeFile(

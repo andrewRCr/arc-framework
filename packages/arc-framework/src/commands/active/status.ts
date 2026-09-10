@@ -386,6 +386,10 @@ async function projectCandidateIntegrationBoundary(
   readPendingCandidateFix: CandidateReviewFixAuthorityReader,
 ): Promise<MetaFileCandidate> {
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
+  if (candidate.state === "Active"
+    && normalizeNullablePointer(candidate.currentWorkflow) !== "prepare-work-unit") {
+    return { ...candidate, integrationBoundary: null };
+  }
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
