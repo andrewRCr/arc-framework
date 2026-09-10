@@ -304,7 +304,7 @@ currentness and merge authority are re-established.
   depend on currentness against that advance; interacting movement and unavailable evidence still fail closed with
   the coordinates and path envelope needed to diagnose the refusal.
 
-### `[ ]` **3.3 Apply overlap-aware carry in review status** — D8
+### `[x]` **3.3 Apply overlap-aware carry in review status** — D8
 
 - _Goal:_ review status invalidates an earlier attempt only when fresh base movement overlaps its subject or cannot
   be classified, never because containment alone failed.
@@ -314,18 +314,14 @@ currentness and merge authority are re-established.
           emits a direct exact-coordinate `BaseMovementObservation` from shared overlap analysis using the resolved
           review subject's treatment context, with precise unknown evidence when head or overlap reads fail.
 
-    - `[ ]` **3.3.b Project the typed status result**
-        - Deterministically return `base-moved / rerun-checkpoint` for overlapping or unknown movement without
-          invoking `assess-evidence-applicability`; disjoint movement retains the attempt and contained-head behavior
-          stays unchanged. The actual reconciled checkpoint subject owns any later bounded-residual judgment.
-        - Carry movement, exact coordinates, overlap paths or precise unavailability detail through `status.ts` and
-          the handler, together with a structured return-to-checkpoint action or an explicit terminal explanation
-          when target-only status cannot safely construct one.
-        - Build `test-first` (one behavior at a time):
-            - disjoint movement retains the attempt and renders its classification;
-            - overlap and unknown movement rerun the checkpoint without a method fire-point and preserve actionable
-              diagnostics; and
-            - a contained head preserves today's result.
+    - `[x]` **3.3.b Project the typed status result**
+        - Review status now reduces the direct base-movement observation through the shared applicability substrate,
+          carries disjoint movement, fails closed on overlap or unknown evidence only with non-containment, and emits
+          exact movement evidence plus a typed checkpoint action or target-only terminal explanation through JSON.
+
+- _Outcome:_ exact containment and shared applicability now compose without a residual-judgment fire-point: disjoint
+  movement retains the review attempt, while overlapping or unavailable movement returns actionable checkpoint
+  guidance and contained-head outcomes remain unchanged.
 
 ## **Phase 4:** Terminal integration operations and doctrine
 

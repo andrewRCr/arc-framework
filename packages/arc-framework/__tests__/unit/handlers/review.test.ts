@@ -862,6 +862,16 @@ describe("handleReviewStatus", () => {
         detail: `Member one is selected for ${request.workUnitId}.`,
       },
       currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const,
+      baseMovement: {
+        coordinates: {
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: "c".repeat(40),
+        },
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
       state: "review-required" as const,
       nextAction: "run-review" as const,
     }));
@@ -880,6 +890,16 @@ describe("handleReviewStatus", () => {
       target: { headRef: "delivery/example/member-1" },
       state: "review-required",
       nextAction: "run-review",
+      movement: "disjoint",
+      baseMovement: {
+        coordinates: {
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: "c".repeat(40),
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
       routedObligation: { detail: "Member one is selected for example." },
     });
   });
@@ -900,6 +920,16 @@ describe("handleReviewStatus", () => {
         detail: `Selected ${request.sourceId ?? "default"}.`,
       },
       currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const,
+      baseMovement: {
+        coordinates: {
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: "c".repeat(40),
+        },
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
       state: "review-required" as const,
       nextAction: "run-review" as const,
     }));
@@ -959,6 +989,16 @@ describe("handleReviewStatus", () => {
               + `${request.coverage ?? "complete"} coverage.`,
         },
         currentBaseOid: "b".repeat(40),
+        movement: "disjoint",
+        baseMovement: {
+          coordinates: {
+            repository: statusTarget.repository,
+            changeRequest: 42,
+            base: "b".repeat(40),
+            head: statusTarget.headSha,
+          },
+          overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+        },
         state: "review-required",
         nextAction: "run-review",
       }),
