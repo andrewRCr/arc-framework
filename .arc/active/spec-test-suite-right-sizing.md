@@ -1,0 +1,420 @@
+# Spec (`detailed` · `RFC`): test-suite-right-sizing
+
+- **Origin:** [internal] — housekeep follow-up from recurring test-suite wall-clock friction.
+
+- **Purpose:** Make routine local verification cheap enough to run without hesitation, and keep it that way — by
+  taking E2E off the routine local path while CI keeps enforcing it, making cost measured data rather than
+  impression, cutting the fixed costs measurement identifies, and budgeting each tier so the suite cannot silently
+  regrow.
+
+---
+
+## Introduction / Context
+
+The full suite works, but running it is a multi-minute commitment locally and the dominant compute cost on CI, so
+it is run less often than the quality gates assume. Locally the cost compounds: the repository-wide heavy-test
+admission lock serializes subprocess-heavy tiers across worktrees, so every minute of E2E is queue latency for
+every other session.
+
+The presumed remedy was judging some eleven thousand cases one at a time — impractical. Measurement dissolves
+that, and reshapes the problem substantially. All figures below are tier-isolated on a quiet machine; the full
+method, per-file rankings, and caveats live in `analysis-test-suite-cost-baseline.md`.
+
+| Tier                  | Wall clock | Summed file time | Files | Cases  |
+| --------------------- | ---------- | ---------------- | ----- | ------ |
+| `unit` + `unit-mocks` | 25.3 s     | 74 s             | 685   | 9,854  |
+| `integration`         | 47.4 s     | 342 s            | 137   | 1,248  |
+| `e2e`                 | 280.3 s    | 1,784 s          | 53    | 528    |
+| **Full local run**    | **~353 s** | 2,200 s          | 875   | 11,630 |
+
+Three facts govern the design.
+
+**E2E is 79% of the local run.** Taking it off the routine local path — CI still enforces it before merge — moves
+the routine run from ~353 s to ~73 s on its own. No other lever is close, and it costs a policy decision plus one
+tier-runner mode rather than engineering.
+
+**The two slow tiers are slow for different reasons.** In `integration`, only four of 137 files spawn the CLI at
+all; they hold 29% of tier cost, while the other 133 hold 71% and are dominated by git fixture construction — 112
+files build repositories. In `e2e`, per-spawn CLI startup is the recurring term across roughly a thousand spawns.
+A single "reduce per-spawn cost" story does not fit both.
+
+**Cost concentrates hard, but not where a rubric would look.** Two `unit` files are 55% of that tier and neither
+spawns the CLI. Four `integration` files are 47%. Twelve `e2e` files are 72%. In every case the expensive thing is
+fixed overhead — process spawns, loader cost, repository construction — not assertions. Reducing it touches no
+test semantics.
+
+**Measurement discipline is itself a finding.** The same tier measured 51.1 s and 47.4 s on consecutive quiet
+runs: run-to-run variance is roughly 8%, so any lever below ~10% is not established by a single run. Separately,
+single-file, tier-isolated, and under-load measurements of the same file span 2.4×. Both traps produced wrong
+conclusions during this spec's own authoring before being caught.
+
+## Goals
+
+1. Routine local verification costs about a minute rather than about six.
+2. A full local run and CI heavy-lane compute both fall measurably, by margins derived from measurement rather
+   than guessed.
+3. Both lines hold over time — the suite cannot silently regrow past a recorded budget.
+4. Cost becomes measured data the project can act on, including for work that follows this one.
+5. Every behavior a removed or consolidated test protected remains protected by a retained test at some tier.
+
+Goal 2 is deliberately modest on the CI side. The lever that would move CI compute materially is not spawning the
+CLI a thousand times, and that is a separate work unit (see Coordination); what remains in scope here reaches
+single-digit percentages of the E2E tier.
+
+## Non-Goals
+
+_Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+
+- **No in-process CLI harness.** Driving verb cores in-process instead of spawning is the largest available CI
+  lever and is captured as its own successor work unit depending on this one. It needs a design authored — the
+  seam, the isolation model under Vitest's pools, the conversion criterion — which is drafting work, not spec
+  crystallization.
+- **No hygiene sweep.** Standards compliance — spy-call assertions, unmirrored unit files, internal-module mocks,
+  and assertions binding prose formatting rather than semantics — is worth doing but not here. It has its own
+  captured work-unit target; incidental observations route to `analysis-test-hygiene-observations.md`.
+- **No gate-model redesign.** Gate × kind vocabulary, pre-push dispatch, and the check-gates audit stay with
+  `quality-gate-hooks`. D1 touches only the project-layer selection rule and the wording that over-asserts
+  against it.
+- **No timeout, contention, or admission-lock policy** — `test-suite-contention-hardening`.
+- **No shard-count or runner-capacity changes** — `local-ci-capacity-qualification`,
+  `self-hosted-ci-qualification`. Anchor selection within the existing four legs is in scope; duration-aware shard
+  membership is not.
+- **No launcher entry, `bin` change, or dist-layout change** — `e2e-build-coordination` owns bundle freshness and
+  publication. `bin` continues to point at `dist/cli.js`, and `dist/` stays a single file.
+- **No DI migration of the quarantined `unit-mocks` files** — `test-di-migration`.
+- **No restructuring of the notes-substrate tests beyond fixture sharing and spawn consolidation** — they retire
+  with the substrate.
+- **No changes to test-first or testing-standards doctrine.** The per-test rubric is a triage aid for
+  cost-selected tests, not a new standard.
+- **No coverage-based suite minimization** as a deletion criterion.
+
+## Proposed Design
+
+Ordered by measured value, not by engineering interest. D1 and D2 carry the goals; D3 through D5 are the cost
+work; D6 makes the result durable, and D7 and D8 are contingent on what measurement finds.
+
+### D1 — Local verification lane and selection rule
+
+The largest lever, and the one that delivers Goal 1 almost entirely.
+
+**The lane needs a runnable form before it can be a rule.** Today `npm test` resolves through the tier runner's
+`full` mode, whose argument list is empty — every project including `e2e`, under one heavy-admission slot — and
+`LocalHeavyTestTier` has no unit-plus-integration variant. So this carries product code:
+
+- Add a `LocalHeavyTestTier` variant for the routine lane and its argument list (`--project unit --project
+  unit-mocks --project integration`), plus the npm script that invokes it.
+
+Then extend `DEV-RULES.PROJECT` § Selecting what to run — vocabulary-neutral and confirmed absent from the package
+source, so a project-local edit — with rows resolving from `git diff --name-only`:
+
+- At the per-task gate, `vitest --changed` over the unit projects replaces filename-fragment targeting.
+- Changes confined to one tier's test directory reach only that tier; source or tooling-config changes reach every
+  tier (the existing rule).
+- **The E2E tier is CI's enforcement**, run on the heavy lane before merge. Locally it runs only for changed E2E
+  files or on explicit request; the routine local run is unit plus integration.
+
+This changes _where and when_ a tier is enforced, never _whether_ — zero tolerance is untouched, and the existing
+rule already separates what must pass from how often each check is re-executed.
+
+**Four documents over-assert against this cut and must be amended.**
+
+- `DEV-RULES.PROJECT` § Selecting what to run closes with "it never licenses running a tier partially, and Tier 3
+  in particular is still run whole." Left alone, the section contradicts its own new rows one paragraph apart.
+- `QUICK-REFERENCE` § Quality Gate Commands states "Run it whole — the strategy's no-partial-Tier-3 rule holds"
+  and that `npm test` runs every Vitest project. `DEV-RULES.PROJECT` delegates gate commands to this section, so
+  leaving it would let the lane be established and then overridden in practice.
+- `strategy-quality-gates.md` § Tier 3 lists "Full integration/E2E test suite (all configurations)" and "Never
+  skip or partially run Tier 3".
+- `verify-work-unit.md` Step 1 asserts the full-suite run "serves as attestation that everything passes as a
+  whole".
+
+The first two are project-instance files, edited locally. The last two are shipped framework files, edited through
+the package source and synced — and amended only enough to stop over-asserting. **No framework-layer capability is
+minted:** a project designating a tier as CI-enforced remains `quality-gate-hooks` territory. `TECHNICAL-OVERVIEW`
+§ 4's command line is corrected at the same time, which also clears its existing staleness (it documents three
+tiers against four Vitest projects).
+
+**Prose-contract risk.** 40 test files read and assert on Markdown prose, and 27 reference the documents above. A
+sibling session has already hit an assertion that failed only because valid reflow split a phrase across a
+newline. Re-run those assertions after the amendments; treat any brittle assertion found as an incidental
+observation per D8, never as licence to sweep.
+
+### D2 — Cost instrument and baseline
+
+Everything measured after this point routes through one instrument, and every work unit downstream of this one
+depends on it existing.
+
+A repository-owned, read-only entry under `packages/arc-framework/src/scripts/` behind an npm script, alongside
+the existing tier runner `run-local-test-tier.ts`. Not an adopter-facing `arc` verb. It captures per-file and
+per-test durations per tier from Vitest's JSON reporter and reports:
+
+1. Per-tier and per-file summed time, **normalized across several retained runs** — not a single run.
+2. The exact effective E2E shard membership for every CI leg.
+3. Each test's headroom against its timeout ceiling.
+4. Heavy-slot wait time, recorded separately from run time.
+5. The share of tier cost that is substrate-bound (notes, sync, multi-clone), which has a known expiry.
+6. Per-tier budgets and each tier's standing against them (D6).
+
+**Measurement-mode discipline** · `[invariant]`. Every baseline records its mode — **single-file**,
+**tier-isolated**, or **under load** — and the instrument refuses to compare baselines whose modes differ. The
+same file measures 23.5 s single-file and 37.4 s tier-isolated; the same tier measures 4.4 s and 1.8 s per test
+under load versus isolated. **A single run cannot establish a lever below ~10%**, because run-to-run variance is
+roughly 8%; the instrument reports normalized multi-run figures and flags any claim inside that band.
+
+`analysis-test-suite-cost-baseline.md` already carries a hand-measured pre-instrument baseline. The instrument
+supersedes it and inherits its method notes.
+
+### D3 — Integration fixture cost
+
+The engineering core, because it owns the largest untouched measured cost: 257 s of the integration tier's 342 s
+sits in 133 files that never spawn the CLI, dominated by repository construction across 112 fixture-building
+files.
+
+- **Share a prepared repository per file** — build once, copy per test — rather than `git init` plus commits per
+  test. **The copy must be audited for absolute paths** · `[invariant]`: remote URLs, `objects/info/alternates`,
+  and worktree admin pointers (`$GIT_DIR/worktrees/<id>/gitdir` and a linked worktree's `.git` file are both
+  absolute by documented design) survive a copy pointing at the template. Since these fixtures build bare remotes
+  and worktrees, a naive copy silently couples every "independent" test to one shared object store. Freeze the
+  template after building it, and rewrite or omit any absolute reference.
+- **Isolate git configuration** — `GIT_CONFIG_GLOBAL` / `GIT_CONFIG_SYSTEM` pointed at a fixture-owned file with
+  fixed identity, `commit.gpgsign=false`, and `init.defaultBranch` set. Git's own test harness does exactly this.
+  A determinism lever before it is a speed one: without it a developer's real `~/.gitconfig` leaks into fixtures.
+- **Move genuine full-CLI cases to E2E**, where they belong by tier definition.
+- **Spawn the built bundle rather than the `tsx` loader.** The loader costs 1.23 s per spawn against the bundle's
+  0.36 s. `config-validate` is the only integration file paying it, at ~21 spawns. All 13 of its cases assert
+  clean stderr and its launcher-shim comparison sits inside the compatibility corpus, so the file cannot be split
+  by what each case proves — move it whole. Freshness comes from the tier's existing `globalSetup`, which already
+  runs `build:fast` precisely so other suites can spawn `dist/cli.js` and assert clean stderr. This trades a
+  structural guarantee (source entries cannot run the staleness guard) for a procedural one; record that trade.
+  There is no environment seam to suppress the guard — `dev-check.ts` reads no `process.env` — and minting one is
+  out of scope.
+
+**Two candidate levers sit inside the noise band and must be confirmed before adoption**, each measured once at
+~9% and ~6–12% respectively against ~8% variance: a tmpfs fixture root (`TMPDIR` on `/dev/shm`) and `isolate:
+false` for the integration project. The tmpfs run and the `--no-isolate` run each passed all 1,248 cases,
+including the three `vi.mock` files the unit tier's analogue quarantines — but mock leakage is order-sensitive, so
+one green run is not proof. Confirm both through D2 across several runs; adopt only what clears the band. **tmpfs
+on E2E measured 0.5% and is not a lever there.**
+
+### D4 — Per-spawn CLI startup cost
+
+Defer command-handler module bodies so a spawn stops constructing the whole CLI. Benefits every real `arc`
+invocation, not only tests.
+
+- **Commander registration stays eager.** `cli.ts` is already pure wiring; names, descriptions, and options must
+  be registered up front for parsing and `--help`.
+- **Handler bodies load lazily** through `await import()` at invocation. `cli.ts:1885` already calls
+  `parseAsync()` and two actions are already async, so no entry restructuring is needed. There are ~141
+  `.action()` sites, each converting independently.
+- **Set `splitting: false` explicitly in `tsup.config.ts`** · `[invariant]`. tsup defaults ESM splitting to
+  `true` and the config sets no key, so today's single-file `dist/` is a consequence of having no dynamic imports.
+  Adding them without this would silently produce the dist-layout change the Non-Goals forbid.
+- **The kernel stays eager**, as does `dev-check`, preserving the staleness guard `e2e-build-coordination` owns.
+
+**Measured yield: 0.36 s → 0.21 s per spawn on a real verb (~42%), RSS 205 MB → ~100 MB.** The remaining 0.12 s is
+structural: `dist/cli.js` carries 532 top-level imports of nine external dependencies, and ES module semantics
+evaluate them before any module body runs. What that saving is worth across the E2E tier depends on the tier's
+actual spawn count, which D2 measures — this spec does not project it.
+
+### D5 — Unit outliers and CI leg structure
+
+Two small, independent items.
+
+**Unit outliers.** Two files hold 55% of the tier: `classify-change.test.ts` (23.2 s, 122 cases) drives a shell
+script through `bash`, and `codex-cli.test.ts` (18.0 s, 37 cases) spawns `git` 18 times. Neither invokes the ARC
+CLI, so D4 does not reach them. Treat them individually — fewer fixtures, one shared prepared repository, or one
+source-graph scan per file instead of per case. Both use `it.each`, so take case counts from D2 rather than a grep.
+
+**CI leg structure.** Re-select the four pinned anchor files from D2's tier-isolated ranking. Measured, the
+largest four are `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand`, while the
+pinned set carries `lifecycle-exit` (5th) instead of `delivery-position` (2nd). Worth roughly 25 s of critical
+path. **Folding each leg's anchor and remainder into one invocation is not available**: Vitest applies file
+filters before sharding, so `vitest list --project unit classify-change --shard=1/4` fails with `--shard <count>
+must be a smaller than count of test files`. The eight Vitest boots per E2E run stay, recorded as accepted.
+
+### D6 — Per-tier budgets
+
+Record a budget per tier, per measurement mode, from the post-work baseline. The instrument reports each tier's
+standing locally; CI compares its own summed job duration against a CI-mode budget and surfaces a step-summary
+warning. **Advisory only — never a red gate**, so budget noise cannot block a merge.
+
+Budgets are per-mode because a local budget is meaningless against a CI runner, and because CI runs E2E as eight
+invocations across four sharded jobs, so no single job observes a per-tier total.
+
+### D7 — Contingent cost-ranked audit
+
+**Gated, not committed.** After D3 and D4 land, re-baseline through D2. Run a cost-ranked audit **only if** the
+re-baselined suite still shows concentration above the stop rule. The mechanical levers may reach the goals
+without judging individual tests, in which case the gate does not open and no deletions occur — a successful
+outcome, not a shortfall. Whether it opens is D2's finding, not a prediction made here.
+
+When it does open: work files in descending cost order, top decile first. **Stop rule:** stop when three
+consecutive ranked files each yield under 2% of their tier's summed time.
+
+**Per-test decision rubric** — applied only to cost-ranked candidates, never as a sweep:
+
+1. **What behavior does this test protect?** If no one can say, its coverage was already fictional — delete.
+2. **Is it already proven at a cheaper tier through the sanctioned seam?** Keep the E2E case when the behavior is
+   only observable through the real CLI; destructive verbs stay E2E · `[invariant]`.
+3. **Can several cases share one expensive setup or spawn?** Prefer this over deletion. **Headroom constraint:** a
+   consolidated test keeps at least 3× headroom against its timeout ceiling or carries an explicit per-test
+   timeout, and every stderr and exit-code assertion it replaces survives.
+4. **Does it still fail when the logic breaks?** For a deletion resting on "another test covers it", confirm the
+   retained test kills the same faults, by inspection or by mutation testing where inspection cannot settle it.
+5. **Record the retained protector.** Every deletion names the test that now carries the behavior.
+
+Coverage overlap alone never justifies deletion: coverage-minimized suites lose roughly half their fault detection
+for an ~80% size reduction. Deletion needs behavioral intent plus a named protector.
+
+**Mutation-testing trigger.** The first step-4 decision inspection cannot settle authorizes installing
+`@stryker-mutator/core` and `@stryker-mutator/vitest-runner` as devDependencies, used on the affected pair only —
+never across the corpus, never in CI. **Uninstall at verification**, retaining any config file written.
+
+### D8 — Incidental hygiene capture
+
+While working any file for cost, note standards-noncompliance patterns seen in passing; do not go looking. The
+deliverable is `analysis-test-hygiene-observations.md`, holding whatever was observed, plus a `USER-INBOX` capture
+naming it as input to the hygiene work unit. If nothing was observed, neither is created — an empty observations
+file is worse than none.
+
+### Delivery structure
+
+`assess-boundary-fit`: **stays one WU + delivery-plan candidate.** One concern — the cost of routine verification
+— designed as a whole. The in-process harness was assessed and routed out as an orthogonal successor rather than
+kept as an internal escalation. The sizing read finds distinct deliverables with a real dependency order, so
+authoring is slice-aware; this binds no delivery state and publishes nothing.
+
+| Surface                 | Contents | Depends on         |
+| ----------------------- | -------- | ------------------ |
+| S1 Lane and policy      | D1       | —                  |
+| S2 Instrument           | D2       | —                  |
+| S3 Integration fixtures | D3       | S2                 |
+| S4 CLI startup          | D4       | S2                 |
+| S5 Outliers and CI legs | D5       | S2                 |
+| S6 Budgets              | D6       | S2, S3, S4, S5     |
+| S7 Contingent audit     | D7, D8   | Gate on S2, S3, S4 |
+
+S1 delivers Goal 1 and depends on nothing — it can land first and alone. S4 is product code benefiting every `arc`
+invocation. S7 may never run.
+
+## Alternatives & Rationale
+
+- **Rubric sweep across all tests** — impractical at eleven thousand cases and aimed at the wrong population.
+  Measured, the cost is fixed overhead, not assertions.
+- **Coverage-subsumption minimization** — rejected as a deletion criterion on the fault-detection evidence.
+- **Selection instead of reduction** — static import graphs miss runtime wiring and CI still runs everything.
+  Adopted as a complement in D1, not as the plan.
+- **Infrastructure only** — more shards, a local runner. Owned elsewhere, and masks per-test cost.
+- **Node startup snapshots and Single Executable Applications** — **not viable for this CLI's shape.** An ESM
+  entry throws `SyntaxError`; the builder loads built-ins "but not additional user-land modules", excluding
+  externalized dependencies; `node:child_process` is unsupported and `execa` depends on it; the blob is locked to
+  an exact Node version, arch, and platform; SEA cannot back an npm `bin` that must stay a `.js` file. Tracking
+  issues `nodejs/node#44277` and `nodejs/help#3981` are both closed "not planned".
+- **`NODE_COMPILE_CACHE`** — caches compilation, not module evaluation, so it cannot reach the evaluation half of
+  the dependency floor. Measured 0.38 s → 0.29 s; published comparators sit at 6–20%; and D4 removes the modules
+  it would cache.
+- **esbuild code splitting** — measured ~0.02 s per real-verb spawn. Its apparent 6× advantage is a
+  `--version`-path artifact, and the suite never spawns `--version`. Not worth a dist-layout change.
+- **Duration-aware CI shard membership** — needs a custom `sequence.sequencer`; net-new test infrastructure whose
+  payoff shrinks once D4 lands. Recorded so a future imbalance has a known remedy.
+- **Bare repository plus `git worktree add` per fixture** — **rejected on correctness.** `refs/` is shared across
+  all worktrees of a repository except `refs/bisect`, `refs/worktree`, and `refs/rewritten` — which includes
+  `refs/notes/*`. A tool whose subject matter is notes, refs, and worktrees would have its "independent" parallel
+  tests silently sharing one namespace. `git clone --shared` / `--reference` carry the analogous alternates-plus-
+  prune corruption hazard.
+- **`init.templateDir`, `core.fsmonitor`, `untrackedCache`, `preloadIndex`** — not levers at fixture scale; they
+  address monorepo-sized working trees.
+- **An in-process CLI harness** — the largest available CI lever, routed to a successor work unit rather than
+  taken here. See Coordination.
+
+## Cross-cutting Considerations
+
+**Testing.** D4 changes when handler modules load, not what they do; the suite is its own regression test. D3's
+fixture sharing carries the real risk — a shared fixture leaking state between parallel tests — which the
+absolute-path audit and copy-per-test discipline exist to prevent.
+
+**Measurement validity.** D2's mode discipline and multi-run normalization are the correctness mechanism for every
+number this spec commits to. Two conclusions were drawn and retracted during authoring for want of them.
+
+**Substrate-bound cost.** The user-notes and sync substrate is interim, composing toward `arc-backend`. Its tests
+are real proofs of a concurrency-sensitive surface: prefer cheap fixture sharing over restructuring, and **never
+thin coverage of the notes mutators to save time**. D2 reports what share of cost is substrate-bound.
+
+**Parallelism shape.** Files run in parallel and tests within a file sequentially, so a large file is a shard's
+critical path however many workers exist. Splitting the largest files is a wall-clock win with no CPU saving.
+
+**User-facing impact.** D4 benefits every real `arc` invocation, not only tests — 0.36 s → 0.21 s of startup and
+205 MB → ~100 MB of RSS on the paths measured. Session-init and interactive commands inherit it.
+
+**Coordination.**
+
+- `in-process-cli-harness` — the successor this work unit enables. Captured with its seed, `Depends On` this work
+  unit on two grounds: it needs D2's instrument to choose scenarios, and its remaining prize must be re-derived
+  after D4 removes ~42% of per-spawn cost.
+- `quality-gate-hooks` — consumes D2's instrument and later lifts D1's rows to the framework layer; owns gate
+  policy beyond D1.
+- `evidence-applicability` — its path-treatment registry is the natural home for the path classes D1's rows key
+  on; when it lands, the rows consume that registry rather than carrying a second taxonomy.
+- `test-suite-contention-hardening` — owns the admission lock and load-relative timeouts. D2's headroom and
+  slot-wait data are input, and D2's mode discipline depends on the lock's behavior.
+- `e2e-build-coordination` — owns bundle freshness. D4 keeps `dist/` a single file and `dev-check` eager, so the
+  contract is preserved; D3's move of `config-validate` onto the built bundle leans on the integration
+  `globalSetup` build, which is worth confirming with that work unit.
+- `test-di-migration` — owns the quarantined `unit-mocks` files D3 leaves alone.
+- `arc-backend` / `strategy-storage-evolution` — the substrate-bound cost share is input to that transition.
+
+## Success Criteria
+
+Numeric targets are **derived, not guessed**, and the derivation must not close a loop. D2's first baseline
+records current per-tier cost, per-file ranking, and spawn counts in its stamped mode — it cannot observe a saving
+that has not happened. Targets are computed once from that baseline plus rates measured directly on the changed
+artifact, **written down before the run that scores them**, and landed by forward amendment to this section as
+`Amended YYYY-MM-DD — <numbers> — target derivation`. A criterion whose bar is set by the same run that scores it
+is not satisfied.
+
+1. **Measurement validity.** Every before/after pair in the completion record names its mode and compares like
+   with like, and no lever below ~10% is claimed from a single run. The instrument refuses cross-mode comparison.
+2. **Routine local run.** The routine lane exists as one command and completes in **at most half** its own
+   pre-work cost — the same unit-plus-integration projects, same mode. Stated as a fraction because the lane's
+   ~73 s starting point is reached by scope; this criterion measures the cost work on top of it.
+3. **Selection rule is live.** `DEV-RULES.PROJECT` § Selecting what to run carries the lane rows and no longer
+   closes by forbidding a partial Tier 3; `QUICK-REFERENCE` § Quality Gate Commands no longer instructs a whole
+   run; and the two shipped framework files no longer assert a whole-suite local attestation.
+4. **Integration fixture cost.** The integration tier falls by at least the target derived from D2's baseline,
+   measured tier-isolated across several runs.
+5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm,
+   tier-isolated, from the recorded 0.36 s baseline — above the 0.21 s probe and below the 0.36 s baseline, so it
+   discriminates rather than restating either.
+6. **The loader penalty is gone.** No integration or E2E test spawns the CLI through `tsx`, and
+   `config-validate`'s clean-stderr assertions and launcher-shim comparison all still run.
+7. **`dist/` is still one file.** `tsup.config.ts` sets `splitting: false` explicitly and the build emits a single
+   `dist/cli.js`.
+8. **CI heavy lane.** Summed E2E shard time and the critical-path shard both fall by at least the derived target;
+   the anchor set matches D2's tier-isolated ranking.
+9. **Budgets exist and are reported.** A wall-clock budget is recorded per tier per mode, the instrument reports
+   local standing, and CI warns on exceedance without failing.
+10. **No behavior loses its only proof.** Every deletion or case consolidation names the retained test covering
+    the behavior, and every consolidation keeps the rubric's timeout headroom and its replaced assertions. D3's
+    fixture sharing preserves assertions by construction. Vacuously satisfied if none occur.
+11. **Fixture independence.** No fixture shares an object store or ref namespace with another: the prepared-
+    template copy carries no absolute reference back to the template, and git configuration is fixture-isolated.
+12. **Dependency tree.** `package.json` devDependencies at completion match the pre-work baseline, or each
+    addition is justified in the completion record.
+13. **Evidence outlives the WU.** `analysis-test-suite-cost-baseline.md` carries the instrument's baseline with
+    its mode stamps. Where incidental hygiene observations were made they are in
+    `analysis-test-hygiene-observations.md` with its capture; where none were, neither exists and the completion
+    record says so.
+
+## Open Questions
+
+Implementation detail, resolved during the work — none blocks starting.
+
+- Per-file handling of the eight unit outliers beyond the two profiled.
+- Whether a tmpfs fixture root and `isolate: false` clear the ~10% noise band once measured across several runs,
+  and which files if any need quarantining under the latter.
+- The prepared-template shape for integration fixtures — one template for all, or a few by fixture class — and
+  which absolute references each must rewrite.
+- Whether `config-validate`'s move onto the built bundle needs any coordination change with
+  `e2e-build-coordination` beyond relying on the existing `globalSetup` build.
+
+---
