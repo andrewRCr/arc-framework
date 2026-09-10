@@ -513,7 +513,7 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           evidence; confined Frontline to whole-target capability; and carried prior scope plus aggregate completion
           through earlier-applicability policy reconstruction without adding chunk transport.
 
-    - `[ ]` **5.5.R.b Compose prospective conditional consent through production respond**
+    - `[x]` **5.5.R.b Compose prospective conditional consent through production respond**
 
         - Resolve the terminal findings response without treating its prospective next-pass override as authority for
           the completed pass, then prove the real composition and public command path.

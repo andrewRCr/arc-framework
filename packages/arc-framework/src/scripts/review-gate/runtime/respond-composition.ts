@@ -61,7 +61,8 @@ import {
   resolveCompletedCandidateWorkUnits,
 } from "../../../handlers/candidate-mutation-owner.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
-import { resolveEvidenceBoundReviewPolicy } from "../policy/review-policy-evidence.js";
+import { resolveEvidenceBoundReviewPolicyContinuation } from
+  "../policy/review-policy-evidence.js";
 import { createLocalFrontlineSourcePreferenceReader } from
   "../hosts/local/frontline-source-preferences.js";
 
@@ -329,7 +330,9 @@ export function createRespondDependencies(input: {
       const retainedSources = configured.sources.length === 0
         ? [...new Set(request.attempts.map(({ sourceId }) => sourceId))]
         : configured.sources;
-      return resolveEvidenceBoundReviewPolicy(request, {
+      return resolveEvidenceBoundReviewPolicyContinuation(request, {
+        terminalResponsePerformed: false,
+      }, {
         ...configured,
         sources: retainedSources,
         resultReader: createRepositoryReviewResultReader(publisher),

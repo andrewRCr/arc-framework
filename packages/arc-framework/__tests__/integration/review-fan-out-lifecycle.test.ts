@@ -2567,6 +2567,88 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
+  it("keeps prospective next-pass consent out of the terminal response policy", async () => {
+    const harness = await createHarness(["delegated-agent"]);
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const initial = await statusThroughHandler(harness, statusTarget);
+    if (initial.nextAction !== "review-local-prepare") throw new Error("expected local review admission");
+    await completeLocalReviewThroughHandlers(harness, initial.action, "findings");
+
+    const pendingResume = await statusThroughHandler(harness, statusTarget);
+    if (pendingResume.nextAction !== "review-local-resume") {
+      throw new Error("expected local result resumption");
+    }
+    const resumed = await resumeLocalThroughHandler(harness, pendingResume.action);
+    if (resumed.state !== "respond-to-findings") {
+      throw new Error("expected local findings response source");
+    }
+    const responseSource = resumed.payload.responsePlan.source;
+    const proposal = await respondThroughHandler(harness, {
+      schemaVersion: 1,
+      source: responseSource,
+      proposal: {
+        proposedVerification: "full",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: "finding-local-1",
+          sourceVerification: "verified",
+          verificationRefs: ["source:first.txt:1"],
+          verifiedSeverity: "major",
+          disposition: "defer",
+          rationale: "The current source supports the material concern.",
+          recommendation: "Carry the approved response before opening another pass.",
+          openQuestions: [],
+        }],
+      },
+    });
+    if (proposal.state !== "awaiting-approval") throw new Error("expected local disposition proposal");
+    const dispositions = approveDispositionState({
+      proposed: proposal.payload.proposal,
+      approvedBy: "andrew",
+      approvedAt: "2026-09-10T12:00:00.000Z",
+    });
+    const policyRequest = await responsePolicyRequest(harness.root, responseSource, repository);
+    const ceilingOverride = {
+      target: policyRequest.target,
+      lane: "standard" as const,
+      exhaustedPassCount: 1,
+      nextPass: 2,
+    };
+    await writeFile(
+      join(harness.root, ".arc", "system", "arc-config.yml"),
+      "branch:\n  base: main\nreview.standard_max_passes: 1\n",
+      "utf8",
+    );
+
+    const result = await respondThroughHandler(harness, {
+      schemaVersion: 1,
+      source: responseSource,
+      policyRequest: { ...policyRequest, ceilingOverride },
+      conditionalNextPassAuthorization: {
+        authorizedBy: "andrew",
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+      dispositions,
+    });
+    if (result.state !== "settled") throw new Error("expected settled response");
+    const authorizationId = result.payload.conditionalPassAuthorizationId;
+    expect(authorizationId).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(result.payload).toMatchObject({
+      policy: { state: "findings", nextAction: "respond" },
+      policyRequest: {
+        ceilingOverride: {
+          ...ceilingOverride,
+          conditionalPassAuthorizationId: authorizationId,
+        },
+      },
+    });
+  });
+
   it("keeps public hosted admissions separate for sibling members at one head", async () => {
     const harness = await createHarness(["coderabbit-pr"]);
     await bindDeliveryMembersToSharedHead(harness);
