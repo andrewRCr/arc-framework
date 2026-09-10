@@ -588,6 +588,42 @@ describe("review-fix Candidate lineage", () => {
     expect(candidateReviewResponses(record ?? { transitions: [] })).toHaveLength(1);
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
+  it("replays an already-settled no-fix member response at terminal settlement", async () => {
+    const root = await fixture();
+    await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+
+    const reviewedHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+    const review = await frontlineMemberReviewToFindings(root, reviewedHead);
+    const deferred = await approvedSet(root, review.source, "defer", review.findingId);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source: review.source,
+      dispositions: deferred,
+    })).resolves.toMatchObject({ state: "settled" });
+
+    const composed = await composeLineageReview(root, reviewedHead);
+    const action = composed.actions.find(({ dispositionId }) => (
+      dispositionId === deferred.dispositionSet.dispositionSetId
+    ));
+    expect(action).toMatchObject({
+      channel: "review-response",
+      originTarget: { kind: "delivery-member", headSha: reviewedHead },
+      fixTarget: { kind: "delivery-member", headSha: reviewedHead },
+    });
+    if (action?.channel !== "review-response") throw new Error("missing review-response settlement action");
+    expect(action.fixTarget?.targetId).toBe(action.originTarget.targetId);
+
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    await expect(inRepository(root, async () => production.executeSettlement({
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+    } as IntegrationCheckpointCompositionRecord))).resolves.toEqual({
+      state: "settled",
+      completedActions: 1,
+    });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
   it("keeps lifecycle-regenerated project state outside Candidate currentness", async () => {
     const root = await fixture();
     expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
