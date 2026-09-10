@@ -1067,6 +1067,8 @@ export async function checkpointIntegration(
       approvedHead: composition.approvedHead,
       repository: composition.statusSummary.changeRequest.repository,
       pullRequest: composition.statusSummary.changeRequest.pullRequest,
+      baseRef: composition.statusSummary.changeRequest.baseRef,
+      observedBase: observation.admission.base,
       method: mergeMethod.method,
       candidateTailReference: composition.candidateTailDiff.reference,
       reviewLanding: hostedReview?.detail ?? "Local carrier `local-attestation`.",

@@ -1676,7 +1676,24 @@ describe("review-bearing integration checkpoint and merge", () => {
         checks: [],
       }),
       resolveMergeMethod: async () => MERGE_METHOD,
-      readFinalDrift: async () => ({ verdict: "reconcile" }),
+      readFinalPlan: async (finalTarget) => ({
+        status: "available",
+        target: finalTarget,
+        baseOid: "b".repeat(40),
+        observation: {
+          movement: "overlapping",
+          integrationEvidenceComplete: true,
+          feasibility: { state: "clean", base: "b".repeat(40), head: finalTarget.headSha },
+          admission: {
+            state: "mergeable",
+            repository: finalTarget.repository,
+            changeRequest: finalTarget.pullRequest,
+            base: "b".repeat(40),
+            head: finalTarget.headSha,
+          },
+        },
+        plan: { state: "reconcile", nextAction: "reconcile-base" },
+      }),
       mergePinned: () => Promise.reject(new Error("unexpected merge")),
     };
 
@@ -1713,7 +1730,7 @@ describe("review-bearing integration checkpoint and merge", () => {
         }),
         awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
-        readFinalDrift: () => Promise.reject(new Error("unexpected drift read")),
+        readFinalPlan: () => Promise.reject(new Error("unexpected final plan read")),
         mergePinned: () => Promise.reject(new Error("unexpected merge")),
       },
     ))).resolves.toMatchObject({ state: "invalidated", reason: "checkpoint-missing" });

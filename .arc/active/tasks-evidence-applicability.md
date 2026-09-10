@@ -333,7 +333,7 @@ and shipped procedural guidance.
 _Exit criterion:_ disjoint work-unit, delivery, review, and Errand scenarios proceed without lifecycle serialization;
 overlap, stale bindings, failed checks, opaque refusals, and unavailable evidence retain their typed safe exits.
 
-### `[ ]` **4.1 Revalidate and classify terminal host merge outcomes** — D6
+### `[x]` **4.1 Revalidate and classify terminal host merge outcomes** — D6
 
 - _Goal:_ terminal release acts only on the exact approved head and current typed plan, while host policy, opaque
   refusal, uncertain mutation, and established operational failure retain distinct provider-neutral exits.
@@ -341,53 +341,29 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
 - **Additional Context:** `notes-evidence-applicability.md` § Applicability architecture and proportionality
   decisions
 
-    - `[ ]` **4.1.a Expand the terminal result and remedy contracts**
-        - Extend `integration/merge.ts` with semantic outcomes for `head-moved`, `base-currentness-required`,
-          `host-refused`, `host-pending`, `merge-outcome-unknown`, and confirmed merge success while retaining the
-          existing invalidation and established-operation-failure contracts.
-        - Build `test-first` (one behavior at a time):
-            - every definitively unapproved post-release exit re-holds the exact target, while uncertain mutation
-              neither claims failure nor re-locks solely from uncertainty;
-            - opaque refusal never selects reconciliation; and
-            - only independently established currency policy plus complete evidence returns the typed base reconcile;
-              every other exit retains its exact coordinates, sanitized cause detail, and structured next step or
-              explicit terminal explanation.
+    - `[x]` **4.1.a Expand the terminal result and remedy contracts**
+        - Terminal merge results now distinguish exact head movement, independently established strict currency,
+          opaque or pending host evidence, established operation failure, unknown mutation outcome, and confirmed
+          success; definitive non-success re-holds while uncertainty preserves approval without re-locking.
 
-    - `[ ]` **4.1.b Re-run the shared plan immediately before mutation**
-        - Expand `readFinalDrift` into the exact D2/D3/D5 observation and planner, invoking one complete observation
-          before the host call. After a definitive refusal, reuse the adapter's semantic result and reobserve only
-          the target coordinates needed to rerun the planner; invalidate a changed head, base, request identity,
-          lifecycle, settlement, or merge method.
-        - Build `test-first` (one behavior at a time):
-            - disjoint direct release survives unchanged reobservation;
-            - pre-call movement or admission mismatch invalidates;
-            - strict-host evidence selects reconcile; and
-            - unresolved or opaque refusal never derives cause from `behind` or repeats the full host observer.
+    - `[x]` **4.1.b Re-run the shared plan immediately before mutation**
+        - Production now composes fresh authoritative movement, Git feasibility, and exact host admission through the
+          shared checkpoint planner before release; post-refusal revalidation reuses semantic admission without
+          repeating its host observer and rejects changed or incomplete coordinates.
 
-    - `[ ]` **4.1.c Keep native semantics inside the pinned-merge adapter**
-        - Classify GitHub responses behind `mergePinned`, pin only the approved head the API supports, and confirm that
-          the exact change request and head merged into the named target; return the provider merge identity when
-          available. After any timeout, transport failure, or malformed response to the mutating request, perform the
-          same exact confirmation before classifying the result.
-        - Build `test-first` (one behavior at a time):
-            - native head movement, authoritative currency refusal, and opaque refusal remain distinct;
-            - confirmed exact merge after an ambiguous response returns success;
-            - confirmed-unmerged evidence returns the narrowest established non-success and re-holds the target;
-            - unavailable confirmation returns `merge-outcome-unknown` with mutation and confirmation diagnostics,
-              preserves the exact checkpoint approval, and does not re-lock;
-            - replay first resolves the exact merged state and cannot duplicate the mutation; and
-            - no confirmation or adapter failure is swallowed; and
-            - successful confirmation returns the exact merged request and provider identity despite the disclosed
-              observation-to-atomic-merge base race.
+    - `[x]` **4.1.c Keep native semantics inside the pinned-merge adapter**
+        - The GitHub adapter pins the approved head, confirms the exact request afterward, distinguishes head movement,
+          strict currency, refusal, established failure, and unknown outcome, and retains provider identity plus both
+          diagnostics when confirmation follows an ambiguous mutation.
 
-    - `[ ]` **4.1.d Make the external-seam authority visible**
-        - Add the exact head, change request, target ref, last observed base OID, configured-host-policy boundary, and
-          residual in-call race to the checkpoint approval surface; keep terminal success confirmation explicit
-          without claiming a base-OID pin or exact-pair required-check evidence.
-        - Build `test-first` (one behavior at a time):
-            - approval text names every authorized and observed coordinate;
-            - the residual race and host-policy boundary are present; and
-            - no surface describes head-bound checks as exact-pair evidence.
+    - `[x]` **4.1.d Make the external-seam authority visible**
+        - Checkpoint approval text now names the exact head, change request, target ref, last observed base, configured
+          host-policy boundary, head-bound check scope, and the residual observation-to-merge race without claiming a
+          base-OID pin or exact-pair check evidence.
+
+- _Outcome:_ terminal release now revalidates the complete shared plan and reports the narrowest established host
+  outcome, preserving exact approval through uncertainty while keeping definitive failures safely locked and
+  actionable.
 
 ### `[ ]` **4.2 Return prompt checkpoint continuations for required checks** — D16
 

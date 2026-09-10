@@ -120,7 +120,18 @@ describe("integration merge handler", () => {
         workUnit: "example",
         state: "merged",
         nextAction: "complete",
-        payload: { approvedHead: oid("a"), pullRequest: 42 },
+        payload: {
+          approvedHead: oid("a"),
+          pullRequest: 42,
+          target: {
+            repository: "owner/repo",
+            pullRequest: 42,
+            baseRef: "main",
+            headRef: "feat/example",
+            headSha: oid("a"),
+          },
+          providerMergeId: oid("d"),
+        },
       }),
       write,
     });
@@ -129,7 +140,7 @@ describe("integration merge handler", () => {
       mode: "integrate-merge",
       workUnit: "example",
       state: "merged",
-      payload: { approvedHead: oid("a"), pullRequest: 42 },
+      payload: { approvedHead: oid("a"), pullRequest: 42, providerMergeId: oid("d") },
     });
   });
 

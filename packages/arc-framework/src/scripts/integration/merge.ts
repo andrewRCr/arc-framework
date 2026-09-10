@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 
-import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
+import type {
+  CheckpointMovementObservation,
+  CheckpointMovementPlan,
+} from "./checkpoint.js";
 import { RequiredCheckSchema, type ChecksAwaitResult } from "../review-gate/checks-await.js";
 import type {
   MergeMethodResolveResult,
@@ -43,6 +46,57 @@ export const IntegrationMergeTargetSchema = z.strictObject({
 });
 export type IntegrationMergeTarget = z.infer<typeof IntegrationMergeTargetSchema>;
 
+export const PinnedMergeResultSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    state: z.literal("merged"),
+    target: IntegrationMergeTargetSchema,
+    providerMergeId: z.string().trim().min(1).nullable(),
+  }),
+  z.strictObject({
+    state: z.literal("head-moved"),
+    target: IntegrationMergeTargetSchema,
+    actualHead: ObjectIdSchema,
+    detail: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    state: z.literal("base-currentness-required"),
+    target: IntegrationMergeTargetSchema,
+    detail: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    state: z.literal("refused"),
+    target: IntegrationMergeTargetSchema,
+    detail: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    state: z.literal("merge-outcome-unknown"),
+    target: IntegrationMergeTargetSchema,
+    mutationDetail: z.string().trim().min(1),
+    confirmationDetail: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    state: z.literal("operation-failed"),
+    target: IntegrationMergeTargetSchema,
+    detail: z.string().trim().min(1),
+  }),
+]);
+export type PinnedMergeResult = z.infer<typeof PinnedMergeResultSchema>;
+
+export type IntegrationFinalPlan =
+  | {
+      readonly status: "available";
+      readonly target: IntegrationMergeTarget;
+      readonly baseOid: string;
+      readonly observation: CheckpointMovementObservation;
+      readonly plan: CheckpointMovementPlan;
+    }
+  | {
+      readonly status: "unavailable";
+      readonly target: IntegrationMergeTarget;
+      readonly baseOid: string | null;
+      readonly detail: string;
+    };
+
 export const IntegrationMergeInvalidationReasonSchema = z.enum([
   "checkpoint-missing",
   "settlement-invalidated",
@@ -53,10 +107,18 @@ export const IntegrationMergeInvalidationReasonSchema = z.enum([
   "merge-method-moved",
   "drift-reconcile",
   "merge-blocked",
+  "head-moved",
+  "base-currentness-required",
 ]);
 export type IntegrationMergeInvalidationReason = z.infer<typeof IntegrationMergeInvalidationReasonSchema>;
 
-export const MergeBlockedReasonSchema = z.enum(["relock-failed", "operation-failed"]);
+export const MergeBlockedReasonSchema = z.enum([
+  "relock-failed",
+  "operation-failed",
+  "host-refused",
+  "host-pending",
+  "merge-outcome-unknown",
+]);
 
 /** Every reason the merge verb refuses with — invalidation plus terminal block. */
 export type MergeRefusalReason =
@@ -115,10 +177,35 @@ const MERGE_REMEDIES: Record<Exclude<MergeRefusalReason, "relock-failed">, (work
     "Resolve the reported host refusal, then re-checkpoint",
     checkpointResumeArgv(workUnit),
   ),
+  "head-moved": (workUnit) => spineRemedy(
+    "A merge lands only the exact approved head.",
+    "Re-checkpoint over the current head",
+    checkpointResumeArgv(workUnit),
+  ),
+  "base-currentness-required": () => spineRemedy(
+    "A host-required current base is reconciled only through a fresh typed checkpoint.",
+    "Reconcile the current base, then re-checkpoint",
+    ["arc", "base", "merge", "--json"],
+  ),
   "operation-failed": (workUnit) => spineRemedy(
     "A merge either lands or leaves the candidate resumable.",
     "Resolve the reported operational failure, then re-checkpoint",
     checkpointResumeArgv(workUnit),
+  ),
+  "host-refused": (workUnit) => spineRemedy(
+    "The host must accept the exact approved-head merge under its configured policy.",
+    "Resolve the reported host refusal, then re-checkpoint",
+    checkpointResumeArgv(workUnit),
+  ),
+  "host-pending": (workUnit) => spineRemedy(
+    "Host admission must resolve for the exact approved target.",
+    "Retry the exact checkpoint merge",
+    ["arc", "integrate", "merge", workUnit, "--checkpoint", "<checkpoint-handle>", "--json"],
+  ),
+  "merge-outcome-unknown": (workUnit) => spineRemedy(
+    "An ambiguous mutating request is confirmed before another merge attempt.",
+    "Retry the exact checkpoint merge to confirm or resume",
+    ["arc", "integrate", "merge", workUnit, "--checkpoint", "<checkpoint-handle>", "--json"],
   ),
 };
 
@@ -157,12 +244,17 @@ export const IntegrationMergeResultSchema = z.union([
     ...ResultBaseShape,
     state: z.literal("merged"),
     nextAction: z.literal("complete"),
-    payload: z.strictObject({ approvedHead: ObjectIdSchema, pullRequest: z.number().int().positive() }),
+    payload: z.strictObject({
+      approvedHead: ObjectIdSchema,
+      pullRequest: z.number().int().positive(),
+      target: IntegrationMergeTargetSchema,
+      providerMergeId: z.string().trim().min(1).nullable(),
+    }),
   }),
   z.strictObject({
     ...ResultBaseShape,
     state: z.literal("invalidated"),
-    nextAction: z.literal("checkpoint"),
+    nextAction: z.enum(["checkpoint", "reconcile-base"]),
     reason: IntegrationMergeInvalidationReasonSchema,
     remedy: SpineRemedySchema,
     payload: z.record(z.string(), z.unknown()),
@@ -182,7 +274,7 @@ export const IntegrationMergeResultSchema = z.union([
   z.strictObject({
     ...ResultBaseShape,
     state: z.literal("blocked"),
-    nextAction: z.literal("stop"),
+    nextAction: z.enum(["stop", "retry"]),
     reason: MergeBlockedReasonSchema,
     remedy: SpineRemedySchema,
     payload: z.record(z.string(), z.unknown()),
@@ -259,8 +351,14 @@ export interface IntegrationMergeDependencies {
   awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
   resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   readConfiguredBase(): Promise<string>;
-  readFinalDrift(): Promise<Pick<BaseDriftResult, "verdict">>;
-  mergePinned(target: IntegrationMergeTarget, method: "merge" | "rebase" | "squash"): Promise<{ state: string }>;
+  readFinalPlan(
+    target: IntegrationMergeTarget,
+    admissionOverride?: { readonly state: "base-currentness-required" | "refused"; readonly detail: string },
+  ): Promise<IntegrationFinalPlan>;
+  mergePinned(
+    target: IntegrationMergeTarget,
+    method: "merge" | "rebase" | "squash",
+  ): Promise<PinnedMergeResult>;
 }
 
 async function invalidated(
@@ -333,7 +431,12 @@ export async function mergeIntegration(
         ...base,
         state: "merged",
         nextAction: "complete",
-        payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
+        payload: {
+          approvedHead: checkpoint.approvedHead,
+          pullRequest: target.pullRequest,
+          target,
+          providerMergeId: null,
+        },
       });
     }
     const settlement = await dependencies.executeSettlement(checkpoint);
@@ -434,9 +537,67 @@ export async function mergeIntegration(
       return await invalidated(base, "merge-method-moved", { mergeMethod }, dependencies, target);
     }
 
-    const drift = await dependencies.readFinalDrift();
-    if (drift.verdict !== "clean") {
-      return await invalidated(base, "drift-reconcile", { verdict: drift.verdict }, dependencies, target);
+    {
+      const final = await dependencies.readFinalPlan(target);
+      if (final.status === "unavailable") {
+        return await invalidated(base, "drift-reconcile", { final }, dependencies, target);
+      }
+      const exactTarget = final.target.repository.toLowerCase() === target.repository.toLowerCase()
+        && final.target.pullRequest === target.pullRequest
+        && final.target.baseRef === target.baseRef
+        && final.target.headRef === target.headRef
+        && final.target.headSha === target.headSha;
+      const exactObservation = final.observation.feasibility.base === final.baseOid
+        && final.observation.feasibility.head === target.headSha
+        && final.observation.admission.repository.toLowerCase() === target.repository.toLowerCase()
+        && final.observation.admission.changeRequest === target.pullRequest
+        && final.observation.admission.base === final.baseOid
+        && final.observation.admission.head === target.headSha;
+      if (!exactTarget || !exactObservation) {
+        return await invalidated(base, "head-mismatch", { target, final }, dependencies, target);
+      }
+      if (final.plan.state === "blocked" && final.plan.reason === "host-pending") {
+        return IntegrationMergeResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "retry",
+          reason: "host-pending",
+          remedy: spineRemedy(
+            "Host admission must resolve for the exact approved target.",
+            "Retry the exact checkpoint merge",
+            [
+              "arc", "integrate", "merge", request.workUnit,
+              "--checkpoint", request.checkpointHandle,
+              "--json",
+            ],
+          ),
+          payload: {
+            checkpointHandle: request.checkpointHandle,
+            target: final.target,
+            baseOid: final.baseOid,
+            detail: final.plan.detail,
+            observation: final.observation,
+          },
+        });
+      }
+      if (final.plan.state === "blocked" && final.plan.reason === "host-refused") {
+        return IntegrationMergeResultSchema.parse({
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "host-refused",
+          remedy: mergeRemedy("host-refused", request.workUnit),
+          payload: {
+            target: final.target,
+            baseOid: final.baseOid,
+            detail: final.plan.detail,
+            observation: final.observation,
+          },
+        });
+      }
+      if (final.plan.state !== "proceed") {
+        return await invalidated(base, "drift-reconcile", { final }, dependencies, target);
+      }
     }
     const configuredBaseBeforeMerge = await dependencies.readConfiguredBase();
     if (configuredBaseBeforeMerge !== target.baseRef) {
@@ -452,14 +613,122 @@ export async function mergeIntegration(
     }
 
     const merged = await dependencies.mergePinned(target, mergeMethod.method);
-    if (merged.state !== "merged") {
-      return await invalidated(base, "merge-blocked", { merge: merged }, dependencies, target);
+    if (merged.state === "refused") {
+      const final = await dependencies.readFinalPlan(target, {
+        state: "refused",
+        detail: merged.detail,
+      });
+      if (final.status === "unavailable"
+        || final.target.repository.toLowerCase() !== target.repository.toLowerCase()
+        || final.target.pullRequest !== target.pullRequest
+        || final.target.baseRef !== target.baseRef
+        || final.target.headRef !== target.headRef
+        || final.target.headSha !== target.headSha) {
+        return await invalidated(base, "head-mismatch", { target, final }, dependencies, target);
+      }
+      const relocked = await invalidated(base, "merge-blocked", { merge: merged }, dependencies, target);
+      if (relocked.state === "blocked") return relocked;
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "host-refused",
+        remedy: mergeRemedy("host-refused", request.workUnit),
+        payload: {
+          target: merged.target,
+          baseOid: final.baseOid,
+          detail: merged.detail,
+          observation: final.observation,
+        },
+      });
+    }
+    if (merged.state === "merge-outcome-unknown") {
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "retry",
+        reason: "merge-outcome-unknown",
+        remedy: spineRemedy(
+          "An ambiguous mutating request is confirmed before another merge attempt.",
+          "Retry the exact checkpoint merge to confirm or resume",
+          [
+            "arc", "integrate", "merge", request.workUnit,
+            "--checkpoint", request.checkpointHandle,
+            "--json",
+          ],
+        ),
+        payload: {
+          checkpointHandle: request.checkpointHandle,
+          target: merged.target,
+          mutationDetail: merged.mutationDetail,
+          confirmationDetail: merged.confirmationDetail,
+        },
+      });
+    }
+    if (merged.state === "base-currentness-required") {
+      const final = await dependencies.readFinalPlan(target, {
+        state: "base-currentness-required",
+        detail: merged.detail,
+      });
+      const reconcileAuthorized = final.status === "available"
+        && final.target.repository.toLowerCase() === target.repository.toLowerCase()
+        && final.target.pullRequest === target.pullRequest
+        && final.target.baseRef === target.baseRef
+        && final.target.headRef === target.headRef
+        && final.target.headSha === target.headSha
+        && final.observation.integrationEvidenceComplete
+        && final.plan.state === "reconcile"
+        && final.plan.nextAction === "reconcile-base";
+      const relocked = await invalidated(
+        base,
+        "base-currentness-required",
+        {
+          target: merged.target,
+          detail: merged.detail,
+          ...(final.status === "available"
+            ? { baseOid: final.baseOid, observation: final.observation }
+            : {}),
+          ...(reconcileAuthorized
+            ? {}
+            : { terminalExplanation: "Complete exact integration evidence did not authorize base reconciliation." }),
+        },
+        dependencies,
+        target,
+      );
+      if (relocked.state === "blocked") return relocked;
+      return reconcileAuthorized
+        ? IntegrationMergeResultSchema.parse({ ...relocked, nextAction: "reconcile-base" })
+        : relocked;
+    }
+    if (merged.state === "head-moved") {
+      return await invalidated(base, "head-moved", {
+        target: merged.target,
+        actualHead: merged.actualHead,
+        detail: merged.detail,
+      }, dependencies, target);
+    }
+    if (merged.state === "operation-failed") {
+      const relocked = await invalidated(base, "merge-blocked", { merge: merged }, dependencies, target);
+      if (relocked.state === "blocked") return relocked;
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "operation-failed",
+        remedy: mergeRemedy("operation-failed", request.workUnit),
+        payload: { target: merged.target, detail: merged.detail },
+      });
     }
     return IntegrationMergeResultSchema.parse({
       ...base,
       state: "merged",
       nextAction: "complete",
-      payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest },
+      payload: {
+        approvedHead: checkpoint.approvedHead,
+        pullRequest: target.pullRequest,
+        target: merged.target,
+        providerMergeId: merged.providerMergeId,
+      },
     });
   } catch (error) {
     if (target !== undefined) {
@@ -469,7 +738,12 @@ export async function mergeIntegration(
             ...base,
             state: "merged",
             nextAction: "complete",
-            payload: { approvedHead: checkpoint?.approvedHead ?? target.headSha, pullRequest: target.pullRequest },
+            payload: {
+              approvedHead: checkpoint?.approvedHead ?? target.headSha,
+              pullRequest: target.pullRequest,
+              target,
+              providerMergeId: null,
+            },
           });
         }
       } catch {

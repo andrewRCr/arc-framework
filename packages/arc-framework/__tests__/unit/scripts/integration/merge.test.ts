@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   mergeIntegration,
+  type IntegrationFinalPlan,
   type IntegrationMergeDependencies,
+  type IntegrationMergeTarget,
 } from "../../../../src/scripts/integration/merge.js";
 import { IntegrationCheckpointCompositionRecordSchema } from "../../../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
@@ -12,6 +14,30 @@ import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integrat
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 const checkpointHandle = `checkpoint-v1:${oid("c")}:${digest("e")}`;
+
+function directFinalPlan(
+  target: IntegrationMergeTarget,
+): Extract<IntegrationFinalPlan, { status: "available" }> {
+  const baseOid = oid("b");
+  return {
+    status: "available",
+    target,
+    baseOid,
+    observation: {
+      movement: "disjoint",
+      integrationEvidenceComplete: true,
+      feasibility: { state: "clean", base: baseOid, head: target.headSha },
+      admission: {
+        state: "mergeable",
+        repository: target.repository,
+        changeRequest: target.pullRequest,
+        base: baseOid,
+        head: target.headSha,
+      },
+    },
+    plan: { state: "proceed" },
+  };
+}
 
 function dependencies() {
   const state = { held: true, merged: false };
@@ -99,10 +125,30 @@ function dependencies() {
       allowedMethods: ["merge"],
       policyFingerprint: digest("d"),
     }),
-    readFinalDrift: async () => ({ verdict: "clean" }),
-    mergePinned: async () => {
+    readFinalPlan: async (target, admissionOverride) => {
+      const direct = directFinalPlan(target);
+      if (admissionOverride === undefined) return direct;
+      const observation = {
+        ...direct.observation,
+        admission: {
+          ...admissionOverride,
+          repository: target.repository,
+          changeRequest: target.pullRequest,
+          base: direct.baseOid,
+          head: target.headSha,
+        },
+      };
+      return {
+        ...direct,
+        observation,
+        plan: admissionOverride.state === "refused"
+          ? { state: "blocked", reason: "host-refused", detail: admissionOverride.detail }
+          : { state: "reconcile", nextAction: "reconcile-base" },
+      } as IntegrationFinalPlan;
+    },
+    mergePinned: async (target) => {
       state.merged = true;
-      return { state: "merged" };
+      return { state: "merged", target, providerMergeId: "merge-123" };
     },
   };
   return { value, state };
@@ -116,7 +162,12 @@ describe("integration merge", () => {
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({
       state: "merged",
-      payload: { approvedHead: oid("c"), pullRequest: 42 },
+      payload: {
+        approvedHead: oid("c"),
+        pullRequest: 42,
+        target: { repository: "owner/repo", baseRef: "main", headSha: oid("c") },
+        providerMergeId: "merge-123",
+      },
     });
     expect(state).toEqual({ held: false, merged: true });
   });
@@ -223,7 +274,7 @@ describe("integration merge", () => {
       headSha: oid("f"),
     };
     let heldTarget: typeof movedTarget | undefined;
-    value.readFinalDrift = async () => {
+    value.readFinalPlan = async () => {
       throw new Error("drift reader unavailable");
     };
     let refreshes = 0;
@@ -284,14 +335,247 @@ describe("integration merge", () => {
     expect(state).toEqual({ held: true, merged: false });
   });
 
-  it("keeps a nonterminal host merge response unmerged and re-locks the candidate", async () => {
+  it("returns an opaque host refusal without selecting reconciliation and re-locks the candidate", async () => {
     const { value, state } = dependencies();
-    value.mergePinned = async () => ({ state: "not-merged" });
+    value.mergePinned = async (target) => ({
+      state: "refused",
+      target,
+      detail: "The host rejected the exact merge without establishing a stricter cause.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-refused",
+      payload: {
+        target: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("c"),
+        },
+        detail: "The host rejected the exact merge without establishing a stricter cause.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("preserves approval and does not re-lock when the mutating outcome is unknown", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => ({
+      state: "merge-outcome-unknown",
+      target,
+      mutationDetail: "The mutating request timed out.",
+      confirmationDetail: "The exact merged state could not be read.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "retry",
+      reason: "merge-outcome-unknown",
+      payload: {
+        checkpointHandle,
+        target: { headSha: oid("c") },
+        mutationDetail: "The mutating request timed out.",
+        confirmationDetail: "The exact merged state could not be read.",
+      },
+    });
+    expect(state).toEqual({ held: false, merged: false });
+  });
+
+  it("returns a typed base reconcile only for independently established strict currency", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target, admissionOverride) => {
+      const direct = directFinalPlan(target);
+      if (admissionOverride === undefined) return direct;
+      const observation = {
+        ...direct.observation,
+        admission: {
+          state: "base-currentness-required" as const,
+          repository: target.repository,
+          changeRequest: target.pullRequest,
+          base: direct.baseOid,
+          head: target.headSha,
+          detail: admissionOverride.detail,
+        },
+      };
+      return {
+        ...direct,
+        observation,
+        plan: { state: "reconcile" as const, nextAction: "reconcile-base" as const },
+      };
+    };
+    value.mergePinned = async (target) => ({
+      state: "base-currentness-required",
+      target,
+      detail: "Applicable target policy requires the head to include the current base.",
+    });
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({
       state: "invalidated",
-      reason: "merge-blocked",
-      payload: { merge: { state: "not-merged" } },
+      nextAction: "reconcile-base",
+      reason: "base-currentness-required",
+      payload: {
+        target: { headSha: oid("c") },
+        baseOid: oid("b"),
+        detail: "Applicable target policy requires the head to include the current base.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("does not reconcile a strict-currency refusal from incomplete integration evidence", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target, admissionOverride) => {
+      const direct = directFinalPlan(target);
+      if (admissionOverride === undefined) return direct;
+      return {
+        ...direct,
+        observation: {
+          ...direct.observation,
+          integrationEvidenceComplete: false,
+          admission: {
+            state: "base-currentness-required",
+            repository: target.repository,
+            changeRequest: target.pullRequest,
+            base: direct.baseOid,
+            head: target.headSha,
+            detail: admissionOverride.detail,
+          },
+        },
+        plan: { state: "reconcile", nextAction: "reconcile-base" },
+      };
+    };
+    value.mergePinned = async (target) => ({
+      state: "base-currentness-required",
+      target,
+      detail: "Applicable target policy requires the head to include the current base.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "checkpoint",
+      reason: "base-currentness-required",
+      payload: {
+        terminalExplanation: "Complete exact integration evidence did not authorize base reconciliation.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("invalidates and re-locks when the host reports native head movement", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => ({
+      state: "head-moved",
+      target,
+      actualHead: oid("f"),
+      detail: "The change-request head moved before merge.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "checkpoint",
+      reason: "head-moved",
+      payload: {
+        target: { headSha: oid("c") },
+        actualHead: oid("f"),
+        detail: "The change-request head moved before merge.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns an established operation failure and re-locks the exact target", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => ({
+      state: "operation-failed",
+      target,
+      detail: "The host confirmed that the mutating request did not merge.",
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "operation-failed",
+      payload: {
+        target: { headSha: oid("c") },
+        detail: "The host confirmed that the mutating request did not merge.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns prompt host-pending detail before releasing the merge lock", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target) => ({
+      status: "available",
+      target,
+      baseOid: oid("b"),
+      observation: {
+        movement: "disjoint",
+        integrationEvidenceComplete: true,
+        feasibility: { state: "clean", base: oid("b"), head: target.headSha },
+        admission: {
+          state: "unresolved",
+          repository: target.repository,
+          changeRequest: target.pullRequest,
+          base: oid("b"),
+          head: target.headSha,
+          detail: "The host is still computing exact merge admission.",
+        },
+      },
+      plan: {
+        state: "blocked",
+        reason: "host-pending",
+        detail: "The host is still computing exact merge admission.",
+      },
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "retry",
+      reason: "host-pending",
+      payload: {
+        checkpointHandle,
+        target: { headSha: oid("c") },
+        baseOid: oid("b"),
+        detail: "The host is still computing exact merge admission.",
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("returns an exact host refusal before releasing the merge lock", async () => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target) => {
+      const direct = directFinalPlan(target);
+      return {
+        ...direct,
+        observation: {
+          ...direct.observation,
+          admission: {
+            state: "refused",
+            repository: target.repository,
+            changeRequest: target.pullRequest,
+            base: direct.baseOid,
+            head: target.headSha,
+            detail: "Repository policy refused this exact request.",
+          },
+        },
+        plan: { state: "blocked", reason: "host-refused", detail: "Repository policy refused this exact request." },
+      };
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-refused",
+      payload: {
+        target: { headSha: oid("c") },
+        baseOid: oid("b"),
+        detail: "Repository policy refused this exact request.",
+      },
     });
     expect(state).toEqual({ held: true, merged: false });
   });
@@ -428,7 +712,10 @@ describe("integration merge", () => {
       });
     }],
     ["drift-reconcile", (deps: IntegrationMergeDependencies) => {
-      deps.readFinalDrift = async () => ({ verdict: "reconcile" });
+      deps.readFinalPlan = async (target) => ({
+        ...directFinalPlan(target),
+        plan: { state: "reconcile", nextAction: "reconcile-base" },
+      });
     }],
   ] as const)("re-locks before returning %s", async (reason, arrange) => {
     const { value, state } = dependencies();
