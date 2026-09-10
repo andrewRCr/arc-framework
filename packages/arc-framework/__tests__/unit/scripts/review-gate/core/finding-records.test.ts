@@ -4,7 +4,7 @@ import {
   NormalizedReviewFindingSchema,
   NormalizedReviewFindingsSchema,
   captureReviewFindingSourceLabel,
-  escapeReviewFindingSourceLabel,
+  escapeReviewFindingDisplayText,
   normalizeProviderFindingClassification,
 } from "../../../../../src/scripts/review-gate/core/finding-records.js";
 import {
@@ -134,8 +134,8 @@ describe("normalized finding navigation", () => {
     expect(captureReviewFindingSourceLabel({ body: exact })).toEqual({ sourceLabel: exact });
   });
 
-  it("escapes provider labels as inert display text and validates truthful truncation metadata", () => {
-    expect(escapeReviewFindingSourceLabel("<script>*unsafe* [link](target)"))
+  it("escapes provider text as inert single-line display and validates truthful truncation metadata", () => {
+    expect(escapeReviewFindingDisplayText("<script>*unsafe*\n[link](target)"))
       .toBe("&lt;script&gt;\\*unsafe\\* \\[link\\]\\(target\\)");
 
     expect(NormalizedReviewFindingSchema.safeParse({

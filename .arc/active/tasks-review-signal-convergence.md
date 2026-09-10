@@ -359,7 +359,7 @@ changes.
   scope. Fresh-context exercises establish faithful standalone reports without synthetic producer identity and close
   the discovered renderer omission at its source.
 
-### `[ ]` **4.R Close Member 4 verification findings**
+### `[x]` **4.R Close Member 4 verification findings**
 
 - _Goal:_ Producer-backed proposals preserve reported judgment and effective gating while their human report remains
   structurally inert.
@@ -383,6 +383,14 @@ changes.
 
         - Removed the unused registered `finding-settlement` schema instead of preserving a second settlement record
           whose collapsed severity could not represent the canonical reported/verified judgment split.
+
+    - `[x]` **4.R.e Render producer display fields as inert single-line text**
+
+        - One shared projection now collapses line breaks and escapes markup across native labels, evidence references,
+          and loci, preventing any producer-owned field from injecting report structure.
+
+- _Outcome:_ Canonical proposal provenance, effective gating, and structurally inert reporting now hold without a
+  conflicting settlement contract; all five source-confirmed findings from the first two Member 4 passes are corrected.
 
 ### `[ ]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
 

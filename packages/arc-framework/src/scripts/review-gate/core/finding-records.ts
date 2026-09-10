@@ -88,13 +88,14 @@ export function captureReviewFindingSourceLabel(input: {
 }
 
 /**
- * Escape provider-owned navigation text for inert Markdown display.
+ * Escape provider-owned finding text for inert single-line Markdown display.
  *
- * @param value - Validated source label.
- * @returns Text with HTML delimiters encoded and Markdown punctuation escaped.
+ * @param value - Validated producer-owned text.
+ * @returns Text with line breaks collapsed, HTML delimiters encoded, and Markdown punctuation escaped.
  */
-export function escapeReviewFindingSourceLabel(value: string): string {
+export function escapeReviewFindingDisplayText(value: string): string {
   const encoded = value
+    .replace(/(?:\r\n|[\n\r\u2028\u2029])+/gu, " ")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");

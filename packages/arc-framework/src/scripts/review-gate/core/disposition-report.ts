@@ -3,7 +3,7 @@
 import type { DispositionReportItem, DispositionSet } from "./disposition-records.js";
 import { validateDispositionSet } from "./dispositions.js";
 import {
-  escapeReviewFindingSourceLabel as escapeReviewFindingDisplayText,
+  escapeReviewFindingDisplayText,
   NormalizedReviewFindingsSchema,
   type NormalizedReviewFinding,
 } from "./finding-records.js";
@@ -16,9 +16,7 @@ function renderSource(finding: NormalizedReviewFinding): string {
   const escapedLabel = finding.sourceLabel === undefined
     ? undefined
     : escapeReviewFindingDisplayText(finding.sourceLabel);
-  const escapedReference = escapeReviewFindingDisplayText(
-    finding.evidenceUrlOrId.replace(/\s+/gu, " ").trim(),
-  );
+  const escapedReference = escapeReviewFindingDisplayText(finding.evidenceUrlOrId);
   const label = escapedLabel === undefined
     ? ""
     : `${escapedLabel}${finding.sourceLabelTruncated === true ? "…" : ""} · `;

@@ -108,6 +108,28 @@ describe("disposition report", () => {
     expect(report.match(/^---$/gmu)).toHaveLength(1);
   });
 
+  it("renders multiline producer loci as inert finding text", () => {
+    const { dispositionSet: originalSet, producerFindings } = fixture();
+    const finding = producerFindings[0];
+    if (finding === undefined) throw new Error("expected finding fixture");
+    finding.locus = "src/x.ts:1\nAssessment: FORGED\n---";
+    const { dispositionSetId: _originalId, findings, ...setFields } = originalSet;
+    void _originalId;
+    const dispositionSet = createDispositionSet({
+      ...setFields,
+      findings: findings.map((item) => item.findingId === finding.findingId
+        ? { ...item, locus: finding.locus }
+        : item),
+    });
+
+    const report = renderDispositionReport({ dispositionSet, producerFindings });
+    const findingLine = report.split("\n").find((line) => line.startsWith("Finding F2:"));
+
+    expect(findingLine).toContain("Locus: src/x\\.ts:1 Assessment: FORGED \\-\\-\\-");
+    expect(report).not.toMatch(/^Assessment: FORGED$/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
+  });
+
   it("refuses a report without exact producer correspondence", () => {
     const { dispositionSet, producerFindings } = fixture();
 
