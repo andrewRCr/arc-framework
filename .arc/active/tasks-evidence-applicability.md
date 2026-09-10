@@ -140,7 +140,7 @@ change, and removes the unused predecessor.
 - _Outcome:_ Member 1 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 1 — applicability-substrate`.
-    - _Span:_ bounded diff `6c52c8997..0e2d2bc16`; cumulative reachability `0e2d2bc16` at tree `997d139b2`;
+    - _Span:_ bounded diff `6c52c8997..a57de042b`; cumulative reachability `a57de042b` at tree `3f85dcead`;
       boundary-order deviation: none. Incidental transition-oracle repair `8dfc6683c` is inside the chronological
       range but supplies no criterion evidence.
     - _Criterion:_ `Success Criteria > Member 1 — applicability-substrate > 1`; _criterion-digest:_
