@@ -13,11 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** draft-design — draft captured at `10ea5f6d1` (Class `Heavy`); stage advanced to create-spec
+- **Last Completed:** create-spec — spec drafted and cost baseline published at `2d84794fd`; two adversarial
+  passes folded
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** create-spec Gate 1 — review `spec-test-suite-right-sizing.md`; a third adversarial pass is
+  owed and user-authorized above the `Heavy` cap
 
 - **PR URL:** [none]
 - **Completed:** [none]
