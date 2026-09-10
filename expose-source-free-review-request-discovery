@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "expose-source-free-review-request-discovery",
+  "claimId": "cfe71471d3edbca7264f20d0bb5b6a93",
+  "createdAt": "2026-09-10T00:39:44.591Z",
+  "updatedAt": "2026-09-10T00:39:44.591Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "expose-source-free-review-request-discovery",
+  "branch": "chore/expose-source-free-review-request-discovery",
+  "origin": "inbox",
+  "originEntry": "Expose source-free request discovery for routine review orchestration",
+  "originEntrySourceDigest": "sha256:c717cb1abb9dfacfd6d7f594758842d0fb34b99e55ec94334a78ae4cd9499dd8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
