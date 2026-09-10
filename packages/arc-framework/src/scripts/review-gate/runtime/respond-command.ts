@@ -54,7 +54,7 @@ import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
-import { consumeFixAuthorization } from "../core/fix-authorization.js";
+import { consumeFixAuthorization, createFixAuthorization } from "../core/fix-authorization.js";
 import { projectReviewResponse } from "../core/response-plan.js";
 import {
   ReviewResponseSettlementRequestSchema,
@@ -149,6 +149,8 @@ export interface CandidateLineageBinding {
   /** Effective projection of the repository's current committed target. */
   effective: CandidateEffectiveTargetProjection;
   current: CandidateLineageTarget;
+  /** Exact current Candidate target retaining the reviewed target's kind and diff base. */
+  candidateFixTarget: ReviewTarget;
   /**
    * Reviewable paths the index does not carry, read alongside the subject it does.
    *
@@ -626,6 +628,33 @@ async function persistCandidateResponse(
       "a verified fix requires a work unit carrying the reviewed managed Candidate record",
     );
   }
+  const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  const candidateBinding = existing?.candidate;
+  let expectedAuthorization;
+  try {
+    expectedAuthorization = createFixAuthorization({
+      dispositionState: dispositions,
+      oldTarget: source.target,
+    });
+  } catch {
+    expectedAuthorization = null;
+  }
+  if (existing === null
+    || candidateBinding === null
+    || candidateBinding === undefined
+    || candidateBinding.workUnit !== lineage.workUnit
+    || candidateBinding.candidateId !== lineage.record.attestation.candidateId
+    || existing.errand !== null
+    || existing.deliveryMember !== null
+    || canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)
+    || canonicalize(existing.source) !== canonicalize(source.source)
+    || expectedAuthorization === null
+    || canonicalize(existing.fixAuthorization) !== canonicalize(expectedAuthorization)) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified Candidate fix requires its exact approved response record and fix authorization",
+    );
+  }
   if (lineage.unstagedReviewablePaths.length > 0) {
     throw new RespondCommandError(
       "invalid-input",
@@ -1023,6 +1052,15 @@ export async function respondToReviewCommand(
     throw new RespondCommandError("invalid-input", "hosted response proposal requires an unsettled findings attempt");
   }
   const confirmation = await dependencies.confirmTarget(source.target);
+  const recordedFix = verifiedFix === undefined
+    ? null
+    : await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  if (verifiedFix !== undefined && recordedFix === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified fix requires its exact approved response record",
+    );
+  }
   const currentTarget = confirmation.state === "stale-target"
     ? confirmation.currentTarget
     : confirmation.target;
@@ -1046,6 +1084,18 @@ export async function respondToReviewCommand(
     changedTarget = deliveryMemberFixTarget.currentTarget.targetId === source.target.targetId
       ? null
       : deliveryMemberFixTarget.currentTarget;
+  }
+  const candidateBoundFix = verifiedFix !== undefined
+    && recordedFix?.candidate !== null
+    && recordedFix?.candidate !== undefined
+    && source.hostedAttempt?.vehicle === undefined
+    && source.deliveryAdmission?.vehicle === undefined
+    ? await dependencies.readCandidateLineage(source.target)
+    : null;
+  if (candidateBoundFix !== null) {
+    changedTarget = candidateBoundFix.candidateFixTarget.targetId === source.target.targetId
+      ? null
+      : candidateBoundFix.candidateFixTarget;
   }
   if (verifiedFix !== undefined && changedTarget === null) {
     throw new RespondCommandError(
@@ -1135,10 +1185,9 @@ export async function respondToReviewCommand(
         dependencies,
       );
     }
-    if (await dependencies.readCandidateLineage(source.target) === null) {
-      return persistErrandResponse(source, dispositions, changedTarget, verifiedFix, dependencies);
-    }
-    return persistCandidateResponse(source, dispositions, verifiedFix, dependencies);
+    return recordedFix?.candidate === null || recordedFix?.candidate === undefined
+      ? persistErrandResponse(source, dispositions, changedTarget, verifiedFix, dependencies)
+      : persistCandidateResponse(source, dispositions, verifiedFix, dependencies);
   }
   const plan = projectApprovedResponse(source, dispositions);
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {

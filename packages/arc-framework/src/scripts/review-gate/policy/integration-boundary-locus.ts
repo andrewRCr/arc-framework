@@ -173,7 +173,7 @@ export const CandidateFixBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
   locus: z.literal("candidate-fix-pending"),
   nextAction: ContinuePrePublicationActionSchema,
-  policy: ReviewResolveEnvelopeSchema,
+  policy: ReviewResolveEnvelopeSchema.nullable(),
   reservation: z.null(),
 });
 export const CandidateConvergenceBoundarySchema = z.strictObject({
@@ -384,6 +384,38 @@ export function projectCandidateReviewResumeBoundary(input: {
     policy: null,
     reservation: input.reservation,
     terminus: input.terminus ?? null,
+  });
+}
+
+/**
+ * Recover an approved Candidate fix response before ordinary currentness can demand a new root.
+ *
+ * @param input - Work-unit and Candidate coordinates for the source-free recovery boundary.
+ * @returns A pre-publication boundary that keeps the approved response resumable.
+ */
+export function projectCandidateFixResumeBoundary(input: {
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+}): IntegrationBoundaryLocus {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  const candidateId = CandidateIdSchema.parse(input.candidateId);
+  const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
+  return IntegrationBoundaryLocusSchema.parse({
+    schemaVersion: 1,
+    mode: "pre-publication-review",
+    workUnit,
+    candidateId,
+    candidateSubjectDigest,
+    locus: "candidate-fix-pending",
+    nextAction: {
+      kind: "continue-pre-publication-review",
+      command: `arc review pre-publication ${workUnit} --json`,
+      interactionText: "Resume the approved Candidate review fix response.",
+    },
+    policy: null,
+    reservation: null,
+    terminus: null,
   });
 }
 
