@@ -192,7 +192,7 @@ and Errand paths.
 - _Outcome:_ base drift now exposes path interaction independently of raw distance across its public projections,
   while existing verdict and recommendation dispatch remains unchanged.
 
-### `[ ]` **2.2 Separate Git feasibility from provider-neutral host admission** — D5
+### `[x]` **2.2 Separate Git feasibility from provider-neutral host admission** — D5
 
 - _Goal:_ checkpoint planning combines exact local merge feasibility with an independently authoritative host
   admission observation, without allowing either source to impersonate the other.
@@ -212,25 +212,15 @@ and Errand paths.
         - Adapter failures, malformed/provider-shaped values, and coordinate mismatch normalize to actionable
           `unresolved` observations without leaking provider fields.
 
-    - `[ ]` **2.2.c Implement the supported GitHub adapter**
-        - Resolve native pull-request and test-merge data behind the port, validating the test-merge parents against
-          the observed pair before returning `mergeable`. Reuse the required-check adapter's applicable branch and
-          ruleset policy read to establish strict currentness from `required_status_checks.strict` or
-          `strict_required_status_checks_policy`; never treat raw distance, a generic `BEHIND` value, or an opaque
-          refusal as that policy. Keep actual merge-call refusal in Phase 4 and classify every unprovable read-side
-          negative conservatively.
-        - Implement one logical observation with at most three abortable adapter-internal re-reads while the provider
-          computes its test merge. Revalidate the unchanged request and coordinates on each read; exhaustion returns
-          `unresolved` with the last useful detail for the checkpoint's structured retry, never an agent-authored
-          loop.
-        - Build `test-first` (one behavior at a time):
-            - exact test-merge parents establish resolved mergeability;
-            - explicit applicable strict policy establishes `base-currentness-required`, while absent, ambiguous, or
-              unreadable policy never does;
-            - lagging, malformed, unavailable, stale-coordinate, or exhausted evidence is unresolved with actionable
-              detail; and
-            - success, early resolution, exhaustion, abort, and coordinate movement prove the three-read cap without
-              workflow polling.
+    - `[x]` **2.2.c Implement the supported GitHub adapter**
+        - Added an abortable GitHub observer that admits mergeability only from exact test-merge parents and reuses the
+          required-check policy reader for explicit classic or ruleset strict-currentness authority.
+        - Generic behind state, malformed or stale coordinates, unavailable policy, and exhausted computation remain
+          actionable `unresolved`; focused coverage proves early success/strict resolution, abort, and the three-read
+          cap without workflow polling.
+
+- _Outcome:_ Git feasibility and provider-neutral host admission are now independently typed and exact-coordinate
+  bound, with GitHub-specific interpretation confined to its adapter.
 
 ### `[ ]` **2.3 Compose the checkpoint action matrix and regenerable remedy** — D5
 
