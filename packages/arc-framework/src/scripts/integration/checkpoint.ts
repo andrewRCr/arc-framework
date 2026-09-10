@@ -513,6 +513,15 @@ export const IntegrationCheckpointResultSchema = z.union([
       }),
     }),
   }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("recompose-required"),
+    nextAction: z.literal("rerun-checkpoint"),
+    payload: z.strictObject({
+      expectedRecordVersion: DigestSchema,
+      observedRecordVersion: DigestSchema.nullable(),
+    }),
+  }),
   CandidatePublicationCheckpointResultSchema,
   CandidateApplicabilityCheckpointResultSchema,
   IntegrationCheckpointBlockedResultSchema,
@@ -584,14 +593,14 @@ export interface IntegrationCheckpointDependencies {
     admission: ChangeRequestMergeObservation;
   }>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
-  readCandidate(workUnit: string, baseRevision?: string): Promise<
+  readCandidate(workUnit: string, baseRevision: string): Promise<
     CandidateCurrentnessProjection | Exclude<CandidateApplicabilityResult, { state: "applicable" }> | null
   >;
   composeCandidateApplicabilityResolutionSelector(
     workUnit: string,
     decision: CandidateApplicabilityDecisionResult,
   ): Promise<CandidateApplicabilityResolutionSelector>;
-  readCandidatePublication(workUnit: string, baseRevision?: string): Promise<
+  readCandidatePublication(workUnit: string, baseRevision: string): Promise<
     { readonly status: "current" } | { readonly status: "refresh-required" }
   >;
   composeDelivery(input: {
@@ -602,6 +611,7 @@ export interface IntegrationCheckpointDependencies {
   resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   composeReady(input: {
     workUnit: string;
+    baseRevision: string;
     lifecycle: IntegrationLifecycleSummary;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
     delivery: Extract<DeliveryCheckpointArmResult, { status: "not-applicable" | "ready" }>;
@@ -615,7 +625,14 @@ export interface IntegrationCheckpointDependencies {
     workUnit: string;
     settlementPlan: CanonicalSettlementPlan;
     mergeMethod: Extract<MergeMethodResolveResult, { state: "validated" }>;
-  }): Promise<string>;
+  }): Promise<
+    | { readonly status: "created"; readonly handle: string }
+    | {
+        readonly status: "recompose-required";
+        readonly expectedRecordVersion: string;
+        readonly observedRecordVersion: string | null;
+      }
+  >;
 }
 
 async function candidateApplicabilityResult(
@@ -943,6 +960,7 @@ export async function checkpointIntegration(
     }
     const composition = CheckpointReadyCompositionSchema.parse(await dependencies.composeReady({
       workUnit: request.workUnit,
+      baseRevision: drift.baseOid,
       lifecycle,
       candidate,
       delivery,
@@ -997,12 +1015,24 @@ export async function checkpointIntegration(
       composition,
     }));
     const settledDispositions = settlementDispositionIds(settlementPlan);
-    const checkpointHandle = await dependencies.createHandle({
+    const handleResult = await dependencies.createHandle({
       workUnit: request.workUnit,
       ...composition,
       settlementPlan,
       mergeMethod,
     });
+    if (handleResult.status === "recompose-required") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "recompose-required",
+        nextAction: "rerun-checkpoint",
+        payload: {
+          expectedRecordVersion: handleResult.expectedRecordVersion,
+          observedRecordVersion: handleResult.observedRecordVersion,
+        },
+      });
+    }
+    const checkpointHandle = handleResult.handle;
     const checks = composition.statusSummary.requiredChecks;
     const interlockSurface = composeCheckpointInterlockSurface({
       approvedHead: composition.approvedHead,

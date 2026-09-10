@@ -18,7 +18,11 @@ const mocks = vi.hoisted(() => ({
   createHostedReservationDischargeReader: vi.fn(),
   projectEffectiveCandidateCurrentness: vi.fn(),
   projectGitCandidateEffectiveTarget: vi.fn(),
+  persistIntegrationCheckpointComposition: vi.fn(),
+  resolveIdentity: vi.fn(),
+  createUserSurfaceResolver: vi.fn(),
   resolveGitCandidateTargetBase: vi.fn(),
+  readCandidateRecordVersion: vi.fn(),
   readCandidateRecordVersioned: vi.fn(),
   readConfigSettings: vi.fn(),
   readLaneProgress: vi.fn(),
@@ -35,6 +39,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: mocks.readConfigSettings,
 }));
+vi.mock("../../../../src/lib/git/index.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/lib/git/index.js")>(),
+  resolveIdentity: mocks.resolveIdentity,
+}));
+vi.mock("../../../../src/lib/user-surfaces.js", () => ({
+  createUserSurfaceResolver: mocks.createUserSurfaceResolver,
+}));
 vi.mock("../../../../src/lib/work-unit/candidate-attestation.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-attestation.js")>(),
   projectCandidateCurrentness: mocks.projectCandidateCurrentness,
@@ -45,6 +56,7 @@ vi.mock("../../../../src/lib/work-unit/candidate-effective-target.js", async (im
 }));
 vi.mock("../../../../src/lib/work-unit/candidate-record-store.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/candidate-record-store.js")>(),
+  readCandidateRecordVersion: mocks.readCandidateRecordVersion,
   readCandidateRecordVersioned: mocks.readCandidateRecordVersioned,
 }));
 vi.mock("../../../../src/lib/work-unit/git-candidate-subject.js", async (importOriginal) => ({
@@ -104,18 +116,34 @@ vi.mock("../../../../src/scripts/review-gate/policy/hosted-reservation-discharge
 vi.mock("../../../../src/scripts/integration/delivery-checkpoint.js", () => ({
   composeDeliveryCheckpointArm: mocks.composeDeliveryCheckpointArm,
 }));
+vi.mock("../../../../src/scripts/integration/checkpoint-store.js", () => ({
+  persistIntegrationCheckpointComposition: mocks.persistIntegrationCheckpointComposition,
+}));
 
 import {
   createIntegrationCheckpointDependencies,
   deliveryCheckpointReviewIsDischarged,
 } from
   "../../../../src/scripts/integration/checkpoint-composition.js";
+import { composeCanonicalSettlementPlan } from
+  "../../../../src/scripts/integration/settlement-plan.js";
 
 const oid = (character: string): string => character.repeat(40);
 
 describe("delivery checkpoint composition", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    mocks.createHostedReservationDischargeReader.mockReturnValue(async () => ({
+      discharged: true,
+      detail: "The exact delivery review is discharged.",
+    }));
+    mocks.resolveIdentity.mockResolvedValue("andrew");
+    mocks.createUserSurfaceResolver.mockReturnValue({
+      workUnitRoot: () => "/repository/.arc/user/andrew/example",
+    });
+    mocks.persistIntegrationCheckpointComposition.mockResolvedValue(
+      `checkpoint-v1:${oid("c")}:sha256:${"d".repeat(64)}`,
+    );
   });
 
   it("honors an exact Owner terminus when the raw member discharge remains outstanding", () => {
@@ -213,6 +241,84 @@ describe("delivery checkpoint composition", () => {
     for (const [args] of rawExec.mock.calls) {
       expect(args.slice(0, 4)).toEqual(["diff", "--name-only", "-z", "--no-renames"]);
     }
+  });
+
+  it("refuses checkpoint persistence when the managed Candidate version moves", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateHead = oid("c");
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: { candidateId },
+      version: `sha256:${"1".repeat(64)}`,
+    });
+    mocks.readCandidateRecordVersion.mockResolvedValue(`sha256:${"2".repeat(64)}`);
+    mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
+    mocks.projectGitCandidateEffectiveTarget.mockResolvedValue({
+      state: "current",
+      candidateId,
+      recognizedTarget: { revision: candidateHead, subject: { subjectDigest: `sha256:${"b".repeat(64)}` } },
+    });
+    mocks.projectEffectiveCandidateCurrentness.mockReturnValue({
+      status: "current",
+      candidateId,
+      recognizedRevision: candidateHead,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+    });
+    const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    await dependencies.readCandidate(plan.workUnitId, oid("d"));
+
+    const result = await dependencies.createHandle({
+      workUnit: plan.workUnitId,
+      approvedHead: candidateHead,
+      candidateTailDiff: {
+        fromRevision: oid("a"),
+        throughRevision: candidateHead,
+        reference: `${oid("a")}..${candidateHead}`,
+      },
+      requirementSummary: { conclusion: "satisfied", requirements: [] },
+      statusSummary: {
+        lifecycle: {
+          workUnit: plan.workUnitId,
+          storageVersion: candidateHead,
+          archiveCadence: "manual",
+          state: "integrating",
+          position: { phase: "Integrating", location: "active" },
+          artifactFacts: [],
+          complete: true,
+        },
+        changeRequest: {
+          repository: "owner/repository",
+          pullRequest: 43,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: candidateHead,
+          state: "open",
+        },
+        requiredChecks: "green",
+      },
+      settlementPlan: composeCanonicalSettlementPlan([]),
+      mergeMethod: {
+        schemaVersion: 1,
+        mode: "review-merge-method-resolve",
+        repository: "owner/repository",
+        stackPosition: "non-delivery",
+        state: "validated",
+        nextAction: "use-method",
+        method: "merge",
+        allowedMethods: ["merge"],
+        policyFingerprint: `sha256:${"e".repeat(64)}`,
+      },
+    });
+
+    expect(result).toEqual({
+      status: "recompose-required",
+      expectedRecordVersion: `sha256:${"1".repeat(64)}`,
+      observedRecordVersion: `sha256:${"2".repeat(64)}`,
+    });
+    expect(mocks.persistIntegrationCheckpointComposition).not.toHaveBeenCalled();
+    expect(mocks.readCandidateRecordVersioned).toHaveBeenCalledTimes(1);
+    expect(mocks.readCandidateRecordVersion).toHaveBeenCalledTimes(1);
   });
 
   it("reads each exact member discharge for a multi-member delivery", async () => {

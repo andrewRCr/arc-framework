@@ -123,7 +123,10 @@ function dependencies(): IntegrationCheckpointDependencies {
       },
     }),
     composeSettlementPlan: async () => composeCanonicalSettlementPlan([]),
-    createHandle: async () => `checkpoint-v1:${oid("c")}:${digest("e")}`,
+    createHandle: async () => ({
+      status: "created",
+      handle: `checkpoint-v1:${oid("c")}:${digest("e")}`,
+    }),
   };
 }
 
@@ -561,6 +564,29 @@ describe("integration checkpoint", () => {
             },
             extensionReport: { label: "Extension report", content: null },
           },
+        },
+      });
+  });
+
+  it("returns a typed recompose result when the Candidate record moves before persistence", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.createHandle = async () => ({
+      status: "recompose-required",
+      expectedRecordVersion: digest("a"),
+      observedRecordVersion: digest("b"),
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toEqual({
+        schemaVersion: 1,
+        mode: "integrate-checkpoint",
+        workUnit: "example",
+        state: "recompose-required",
+        nextAction: "rerun-checkpoint",
+        payload: {
+          expectedRecordVersion: digest("a"),
+          observedRecordVersion: digest("b"),
         },
       });
   });

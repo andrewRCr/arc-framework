@@ -292,19 +292,10 @@ currentness and merge authority are re-established.
 
 - **Additional Context:** `notes-evidence-applicability.md` § Delivery drift classifier-ordering field evidence
 
-    - `[ ]` **3.2.a Separate the versioned Candidate record from effective currentness**
-        - Refactor `checkpoint-composition.ts` around one invocation-local, versioned managed-record read per work
-          unit and separate effective projections keyed by work unit plus explicit base revision. Remove the implicit
-          `candidateBaseRevisions` binding/sentinel and pass the authoritative base revision to every projection,
-          including `composeReady`.
-        - Immediately before `createHandle` persists the create-only checkpoint, re-read only to assert the managed
-          record version. Return a typed recompose result with expected and observed versions if it moved; never mix
-          record versions within one checkpoint.
-        - Build `test-first` (one behavior at a time):
-            - classification and downstream projections perform one record read and consume the same version;
-            - distinct base revisions receive distinct effective projections; and
-            - a record-version change immediately before checkpoint persistence returns the typed recompose result
-              without writing a handle.
+    - `[x]` **3.2.a Separate the versioned Candidate record from effective currentness**
+        - Checkpoint composition now shares one versioned managed-record snapshot per work unit, caches effective
+          projections by explicit base revision, passes that revision through readiness composition, and returns an
+          exact `recompose-required` result before persistence when the final version assertion observes movement.
 
     - `[ ]` **3.2.b Reorder the delivery drift decision**
         - Resolve the durable baseline revision with `reduceCandidateDurableBaseline`, return the disjoint continuation

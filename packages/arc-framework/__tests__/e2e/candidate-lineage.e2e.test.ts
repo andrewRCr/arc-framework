@@ -619,7 +619,7 @@ describe("review-fix Candidate lineage", () => {
       headSha: mergedHead,
     });
     await expect(createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec })
-      .readCandidate("example")).resolves.toMatchObject({
+      .readCandidate("example", currentBase)).resolves.toMatchObject({
         status: "current",
         recognizedRevision: mergedHead,
       });
@@ -1570,44 +1570,48 @@ async function composeLineageReview(
 /** Persist the composition through the production checkpoint store and return its handle. */
 async function persistComposition(root: string, approvedHead: string): Promise<string> {
   const composed = await composeLineageReview(root, approvedHead);
-  return inRepository(root, async () => createIntegrationCheckpointDependencies({
-    cwd: root,
-    exec: gitExec,
-  }).createHandle({
-    workUnit: "example",
-    approvedHead,
-    candidateTailDiff: {
-      fromRevision: approvedHead,
-      throughRevision: approvedHead,
-      reference: `${approvedHead}..${approvedHead}`,
-    },
-    requirementSummary: {
-      conclusion: "satisfied",
-      requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
-    },
-    statusSummary: {
-      lifecycle: {
-        workUnit: "example",
-        storageVersion: approvedHead,
-        archiveCadence: "manual",
-        state: "integrating",
-        position: { phase: "Integrating", location: "active" },
-        artifactFacts: [],
-        complete: true,
+  return inRepository(root, async () => {
+    const baseRevision = await git(root, ["rev-parse", "main^{commit}"]);
+    const dependencies = createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec });
+    await dependencies.readCandidate("example", baseRevision);
+    const persisted = await dependencies.createHandle({
+      workUnit: "example",
+      approvedHead,
+      candidateTailDiff: {
+        fromRevision: approvedHead,
+        throughRevision: approvedHead,
+        reference: `${approvedHead}..${approvedHead}`,
       },
-      changeRequest: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        baseRef: "main",
-        headRef: "feat/example",
-        headSha: approvedHead,
-        state: "open",
+      requirementSummary: {
+        conclusion: "satisfied",
+        requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
       },
-      requiredChecks: "green",
-    },
-    settlementPlan: composeCanonicalSettlementPlan(composed.actions),
-    mergeMethod: MERGE_METHOD,
-  }));
+      statusSummary: {
+        lifecycle: {
+          workUnit: "example",
+          storageVersion: approvedHead,
+          archiveCadence: "manual",
+          state: "integrating",
+          position: { phase: "Integrating", location: "active" },
+          artifactFacts: [],
+          complete: true,
+        },
+        changeRequest: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: approvedHead,
+          state: "open",
+        },
+        requiredChecks: "green",
+      },
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+      mergeMethod: MERGE_METHOD,
+    });
+    if (persisted.status !== "created") throw new Error("Candidate moved before checkpoint persistence");
+    return persisted.handle;
+  });
 }
 
 describe("review-bearing integration checkpoint and merge", () => {

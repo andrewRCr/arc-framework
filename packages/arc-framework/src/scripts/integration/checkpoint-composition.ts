@@ -28,7 +28,11 @@ import {
   type CandidateEffectiveCurrentnessProjection,
   type CandidateEffectiveTargetProjection,
 } from "../../lib/work-unit/candidate-effective-target.js";
-import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
+import {
+  readCandidateRecordVersion,
+  readCandidateRecordVersioned,
+  type VersionedCandidateRecord,
+} from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
   resolveGitCandidateTargetBase,
@@ -103,11 +107,90 @@ import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 
-interface CachedCandidate {
+export interface CachedCandidate {
   record: CandidateManagedRecordV1;
   recordVersion: string;
   effective: CandidateEffectiveTargetProjection;
   currentness: CandidateEffectiveCurrentnessProjection;
+}
+
+export interface CheckpointCandidateContext {
+  readRecord(workUnit: string): Promise<VersionedCandidateRecord>;
+  readEffective(workUnit: string, baseRevision: string): Promise<CachedCandidate | null>;
+  assertRecordVersion(workUnit: string): Promise<
+    | { readonly status: "unchanged"; readonly recordVersion: string }
+    | {
+        readonly status: "moved";
+        readonly expectedRecordVersion: string;
+        readonly observedRecordVersion: string | null;
+      }
+  >;
+}
+
+/** Bind managed Candidate bytes and explicit-base projections to one checkpoint invocation. */
+export function createCheckpointCandidateContext(input: {
+  readRecord(workUnit: string): Promise<VersionedCandidateRecord>;
+  readVersion(workUnit: string): Promise<string | null>;
+  project(input: {
+    workUnit: string;
+    baseRevision: string;
+    record: CandidateManagedRecordV1;
+    recordVersion: string;
+  }): Promise<{
+    effective: CandidateEffectiveTargetProjection;
+    currentness: CandidateEffectiveCurrentnessProjection;
+  }>;
+}): CheckpointCandidateContext {
+  const records = new Map<string, Promise<VersionedCandidateRecord>>();
+  const effective = new Map<string, Promise<CachedCandidate | null>>();
+  const readRecord = (workUnit: string): Promise<VersionedCandidateRecord> => {
+    let record = records.get(workUnit);
+    if (record === undefined) {
+      record = input.readRecord(workUnit);
+      records.set(workUnit, record);
+    }
+    return record;
+  };
+  return {
+    readRecord,
+    readEffective: (workUnit, baseRevision) => {
+      const cacheKey = `${workUnit}\0${baseRevision}`;
+      let value = effective.get(cacheKey);
+      if (value === undefined) {
+        value = (async () => {
+          const versioned = await readRecord(workUnit);
+          if (versioned.record === null || versioned.version === null) return null;
+          const projected = await input.project({
+            workUnit,
+            baseRevision,
+            record: versioned.record,
+            recordVersion: versioned.version,
+          });
+          return {
+            record: versioned.record,
+            recordVersion: versioned.version,
+            ...projected,
+          };
+        })();
+        effective.set(cacheKey, value);
+      }
+      return value;
+    },
+    assertRecordVersion: async (workUnit) => {
+      const expected = await readRecord(workUnit);
+      if (expected.record === null || expected.version === null) {
+        throw new Error("The managed Candidate record was not established before checkpoint persistence.");
+      }
+      const observedVersion = await input.readVersion(workUnit);
+      return observedVersion === expected.version
+        ? { status: "unchanged", recordVersion: expected.version }
+        : {
+            status: "moved",
+            expectedRecordVersion: expected.version,
+            observedRecordVersion: observedVersion,
+          };
+    },
+  };
 }
 
 /**
@@ -311,9 +394,27 @@ export function createIntegrationCheckpointDependencies(input: {
     settingsPromise ??= readConfigSettings(input.cwd);
     return settingsPromise;
   };
-  const candidates = new Map<string, Promise<CachedCandidate | null>>();
-  const candidateBaseRevisions = new Map<string, string>();
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
+  const candidateContext = createCheckpointCandidateContext({
+    readRecord: (workUnit) => readCandidateRecordVersioned(input.cwd, workUnit),
+    readVersion: (workUnit) => readCandidateRecordVersion(input.cwd, workUnit),
+    project: async ({ workUnit, baseRevision, record }) => {
+      const config = await settings();
+      const effective = await projectGitCandidateEffectiveTarget({
+        cwd: input.cwd,
+        name: workUnit,
+        baseBranch: config.settings["branch.base"],
+        baseRevision,
+        record,
+        exec: input.exec,
+        rawExec,
+      });
+      return {
+        effective,
+        currentness: projectEffectiveCandidateCurrentness(effective),
+      };
+    },
+  });
   let identityPromise: ReturnType<typeof resolveIdentity> | null = null;
   const identity = () => {
     identityPromise ??= resolveIdentity({ exec: input.exec });
@@ -343,43 +444,8 @@ export function createIntegrationCheckpointDependencies(input: {
       };
     },
   };
-  const candidate = (workUnit: string, baseRevision?: string): Promise<CachedCandidate | null> => {
-    const boundBase = candidateBaseRevisions.get(workUnit);
-    if (baseRevision !== undefined) {
-      if (boundBase !== undefined && boundBase !== baseRevision) {
-        throw new Error("The authoritative Candidate base changed during checkpoint composition.");
-      }
-      candidateBaseRevisions.set(workUnit, baseRevision);
-    }
-    const effectiveBase = baseRevision ?? boundBase;
-    const cacheKey = `${workUnit}\0${effectiveBase ?? "materialized"}`;
-    let value = candidates.get(cacheKey);
-    if (value === undefined) {
-      value = (async () => {
-        const versioned = await readCandidateRecordVersioned(input.cwd, workUnit);
-        if (versioned.record === null || versioned.version === null) return null;
-        const record = versioned.record;
-        const config = await settings();
-        const effective = await projectGitCandidateEffectiveTarget({
-          cwd: input.cwd,
-          name: workUnit,
-          baseBranch: config.settings["branch.base"],
-          baseRevision: effectiveBase,
-          record,
-          exec: input.exec,
-          rawExec,
-        });
-        return {
-          record,
-          recordVersion: versioned.version,
-          effective,
-          currentness: projectEffectiveCandidateCurrentness(effective),
-        };
-      })();
-      candidates.set(cacheKey, value);
-    }
-    return value;
-  };
+  const candidate = (workUnit: string, baseRevision: string): Promise<CachedCandidate | null> =>
+    candidateContext.readEffective(workUnit, baseRevision);
   const boundaries = new Map<string, ReturnType<typeof readSubmissionBoundary>>();
   const boundary = (workUnit: string) => {
     let value = boundaries.get(workUnit);
@@ -409,8 +475,11 @@ export function createIntegrationCheckpointDependencies(input: {
       if (drift.overlap?.status !== "available") {
         return { status: "unavailable", detail: "The delivery drift overlap is unavailable." };
       }
+      if (drift.baseOid === null) {
+        return { status: "unavailable", detail: "The delivery drift base revision is unavailable." };
+      }
       try {
-        const value = await candidate(workUnit, drift.baseOid ?? undefined);
+        const value = await candidate(workUnit, drift.baseOid);
         const currentness = value?.currentness ?? null;
         if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
           return { status: "unavailable", detail: "The current delivery Candidate is unavailable." };
@@ -799,9 +868,9 @@ export function createIntegrationCheckpointDependencies(input: {
         stackPosition,
       );
     },
-    composeReady: async ({ workUnit, lifecycle, candidate: currentness, delivery }) => {
+    composeReady: async ({ workUnit, lifecycle, candidate: currentness, delivery, baseRevision }) => {
       const [value, resolvedChangeRequest, publicationBoundary] = await Promise.all([
-        candidate(workUnit),
+        candidate(workUnit, baseRevision),
         openChangeRequest(),
         boundary(workUnit),
       ]);
@@ -916,12 +985,20 @@ export function createIntegrationCheckpointDependencies(input: {
       (await composeLineageReview(workUnit, composition.approvedHead, baseRevision)).actions,
     ),
     createHandle: async ({ workUnit, approvedHead, statusSummary, settlementPlan, mergeMethod }) => {
+      const recordVersion = await candidateContext.assertRecordVersion(workUnit);
+      if (recordVersion.status === "moved") {
+        return {
+          status: "recompose-required",
+          expectedRecordVersion: recordVersion.expectedRecordVersion,
+          observedRecordVersion: recordVersion.observedRecordVersion,
+        };
+      }
       const resolvedIdentity = await identity();
       if (resolvedIdentity === null) {
         throw new Error("An ARC identity is required to persist the integration checkpoint.");
       }
       const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity: resolvedIdentity });
-      return persistIntegrationCheckpointComposition(
+      const handle = await persistIntegrationCheckpointComposition(
         surfaces.workUnitRoot(SlugSchema.parse(workUnit)),
         {
           workUnit,
@@ -938,6 +1015,7 @@ export function createIntegrationCheckpointDependencies(input: {
           mergeMethod: ValidatedMergeMethodSchema.parse(mergeMethod),
         },
       );
+      return { status: "created", handle };
     },
   };
 }
