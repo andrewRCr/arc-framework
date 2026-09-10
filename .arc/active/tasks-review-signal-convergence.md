@@ -398,15 +398,14 @@ changes.
   share the same approval-bearing representation without a conflicting settlement contract; all source-confirmed
   Member 4 corrections are complete.
 
-### `[ ]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
+### `[x]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
 
 - _Goal:_ Verified judgment and report ergonomics criteria are supported by canonical and observed behavior evidence.
 
-- _Note:_ Spec § 4; SC 5, 6, 15, and 18.
-
-- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
-  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
-  markers unchanged; route any corrective work through normal task review, not this verifier.
+- _Outcome:_ The Member 4 boundary report in `notes-review-signal-convergence.md` resolves all three immutable criteria
+  over `005f2104d..3069d7e30` and the cumulative tree. It records the complete three-pass fresh-context companion,
+  source-confirmed corrections, final-fold residual, and observed producer-backed and self-review evidence while
+  leaving the Success Criteria markers unchanged.
 
 ## **Phase 5:** Activate evidence-derived convergence through every caller
 

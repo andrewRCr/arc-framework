@@ -1,5 +1,196 @@
 # Notes: Review Signal Convergence
 
+## Member 4 criteria report — 2026-09-09
+
+```yaml
+criteria-slice: "Success Criteria > Member 4 — `verified-finding-reports`"
+span:
+  diff: "005f2104dbc0e0467a5a8200f23e282e2d87b941..3069d7e3095e5e634504a090073b768e7e2537be"
+  reachability: >-
+    Repository tree at 3069d7e3095e5e634504a090073b768e7e2537be, including the upstream spec, all Member 4
+    disposition, navigation, report, caller, and source-confirmed correction commits, both methodology copies,
+    producer adapters and readers, public response consumers, focused fixtures, attended behavioral exercises,
+    integration/E2E paths, and the complete Tier 2 result.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 4 — `verified-finding-reports` > 1"
+    criterion-digest: sha256:994cd8da047cf97934a67894d9067f79912a107758e3072048f324781642fc37
+    evidence: >-
+      `DispositionReportItemSchema` models producer-reported and ARC-verified severity/nit independently, makes
+      unsupported allegations ungraded, rejected, and record-only, and refuses invalid cross-field combinations.
+      `prepareDispositionProposal` re-resolves the durable producer and copies its reported fields while the author
+      supplies explicit verified judgment; `normalizedFindings` derives gating only from that lane and the request's
+      required effective minor policy. Hosted normalization preserves CodeRabbit nit classifications. Schema,
+      response-command, response-plan, adapter, integration, and public E2E tests cover regrading, unsupported
+      allegations, independent nit directions, effective minor gating, approval, settlement, and replay.
+    state: "[x]"
+  - locus: "Success Criteria > Member 4 — `verified-finding-reports` > 2"
+    criterion-digest: sha256:10c8991d086fa6be0d6216108a8dc2c1fe438938bdb7eed0b6836aeadfb8511e
+    evidence: >-
+      Producer normalization assigns validated one-based capture ordinals, retains genuine labels, clips them at 512
+      Unicode code points, and leaves titleless local findings unlabeled. `renderDispositionReport` validates exact
+      one-for-one producer correspondence, joins by canonical finding identity, assigns report-local labels in
+      canonical order, preserves native labels/ordinals/references, and projects every producer display field as inert
+      single-line Markdown. Proposal, approval, and settlement replay call that same renderer. Focused tests cover
+      canonical-versus-capture order, duplicate labels, absent labels, clipping, markup and multiline injection,
+      combined hosted order, exact correspondence, and byte-identical replay; an attended command-produced report
+      exercise independently found no deviation after its stable-locus correction.
+    state: "[x]"
+  - locus: "Success Criteria > Member 4 — `verified-finding-reports` > 3"
+    criterion-digest: sha256:9cabbbd8352006e49e131e6567d554d84bdbb8db63bb12405f9e8dcc1692cd3b
+    evidence: >-
+      Disposition identity hashes canonical proposal content, source/result bindings, verification scope, and findings,
+      but no report-local labels, escaped text, or separators. Local, frontline, and hosted result identities include
+      navigation metadata, and tests prove a label change changes the producer digest. `ReviewFindingIdentitySchema`
+      requires NFC keys across producer, disposition, authorization, response, and hosted carriers so runtime equality
+      cannot diverge from canonical hashing. Both method copies retain author self-review's direct standalone
+      complete-set approval with no producer receipt or response command; workflow tests, retained fixtures, and an
+      attended fresh-context exercise cover that non-producer path. The corrected tree's complete Tier 2 run passed
+      875 test files with one skipped and 11,684 tests with one skipped.
+    state: "[x]"
+summary: "3 [x], 0 [~], 0 [ ]; no unresolved Member 4 criterion"
+```
+
+### Member 4 fresh-context companion
+
+**Pass 1 of 2 — three confirmed major findings; non-converged. Stop reason: suspended pending complete disposition
+approval and response performance.** The complete set was approved; all responses were performed, and the separately
+authorized Pass 2 was consumed after those corrections.
+
+```yaml
+findings:
+  - title: "Hosted CodeRabbit nitpick classification is lost before proposal composition"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/hosted/coderabbit.ts`, hosted finding schemas in `await.ts`,
+      and `projectHostedFinding`
+    source-verification: >-
+      Confirmed. CodeRabbit supplemental nitpick sections and explicit thread nit markers normalized to ordinary minor
+      findings because the hosted finding records and projection carried no `nit` field.
+    disposition: fix
+    approved-action: >-
+      Preserve the provider's minor-only nit classification through hosted validation, sealed identity, normalized
+      projection, and the reported lane without letting it control verified gating.
+    response: "Applied in 7d6f71c01 (`fix(review): preserve hosted nit classifications`)."
+  - title: "Public proposal composition ignores the effective blocking-minor policy"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/runtime/respond-command.ts` proposal schema and
+      `prepareDispositionProposal`
+    source-verification: >-
+      Confirmed. The public proposal accepted no effective gating policy and called `createDispositionSet` without
+      one, so the package default could silently replace a caller's blocking-minor policy.
+    disposition: fix
+    approved-action: >-
+      Require `proposal.severityGatingPolicy`, pass it into canonical construction, and derive ordinary verified-minor
+      gating from that policy while leaving verified nits and unsupported allegations record-only.
+    response: "Applied in 5544e2a53 (`fix(review): honor effective minor gating`)."
+  - title: "Multiline producer evidence references can inject report fields and separators"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/core/finding-records.ts` evidence-reference schema and
+      `disposition-report.ts` source rendering
+    source-verification: >-
+      Confirmed. A schema-valid multiline `evidenceUrlOrId` was interpolated directly, so producer text could create
+      apparent `Assessment:` fields or Markdown separators outside the intended source line.
+    disposition: fix
+    approved-action: >-
+      Collapse the reference to one display line and escape Markdown/HTML punctuation without changing canonical
+      producer content or identity.
+    response: "Applied in 2ef3c1954 (`fix(review): make report references inert`)."
+verdict: >-
+  The first complete Member 4 boundary did not withstand the rubric because reported nit provenance, effective minor
+  gating, and report structure each had a reachable contract gap.
+```
+
+Primary source verification confirmed all three accounts before mutation. The approved response set was complete;
+focused regression coverage and the corrected full Tier 2 run established response performance before Pass 2.
+
+**Pass 2 of 2 — two confirmed major findings; non-converged. Stop reason: cap-exhausted.** The complete set was
+approved and both responses were performed. One explicit over-cap Pass 3 was authorized for the corrected boundary and
+consumed only after the correction commits and gates existed.
+
+```yaml
+findings:
+  - title: "The shipped finding-settlement contract still collapses reported and verified judgment"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/core/finding-records.ts` `FindingSettlementV2Schema` and the
+      generated kernel `finding-settlement` schema
+    source-verification: >-
+      Confirmed. The exported, registered strict-current record retained one severity and optional nit, could not
+      represent unsupported judgment with null verified severity, and still shipped publicly despite having no active
+      production writer.
+    disposition: fix
+    approved-action: >-
+      Remove the dead parallel settlement schema and its inventory expectations instead of migrating an unused second
+      authority beside canonical dispositions.
+    response: "Applied in 96f4c540a (`fix(review): retire collapsed settlement contract`)."
+  - title: "Multiline producer loci can still inject report fields"
+    severity: major
+    locus: >-
+      `packages/arc-framework/src/scripts/review-gate/core/finding-records.ts` finding locus schema and
+      `disposition-report.ts` finding rendering
+    source-verification: >-
+      Confirmed. The locus admitted embedded line breaks, while the display helper escaped punctuation without
+      collapsing whitespace, so a producer could forge a top-level report field immediately before the real one.
+    disposition: fix
+    approved-action: >-
+      Use one shared single-line Markdown projection for producer labels, references, and loci, with focused multiline
+      locus coverage.
+    response: "Applied in 3b92a8a0f (`fix(review): make producer report fields inert`)."
+withstood:
+  - >-
+      Public proposal composition re-resolved the producer, preserved split judgment, required verified input, and
+      derived gating from the effective policy.
+  - >-
+      Canonical order, capture ordinals, proposal/approval/replay rendering, and hosted navigation identity otherwise
+      held across the inspected paths.
+verdict: >-
+  The corrected boundary still failed the rubric because one public settlement contract remained provenance-collapsed
+  and another producer-owned report field remained structurally injectable.
+```
+
+**Pass 3 — explicitly authorized over-cap pass; one confirmed major finding; non-converged. Stop reason:
+cap-exhausted.** The over-cap allowance was exhausted by this invocation. Its complete one-item disposition set was
+approved and the response was performed. No fourth general review pass was invoked; primary criteria closure instead
+used the corrected source, focused regressions, behavioral exercises, and complete Tier 2 evidence.
+
+```yaml
+findings:
+  - title: "Canonical-equivalent finding IDs let an approved report change without changing its identity"
+    severity: major
+    locus: >-
+      `finding-records.ts` finding identity; receipt and disposition duplicate checks; `normalizedFindings`;
+      `validateApprovedDispositionSetForResult`; and `renderDispositionReport`
+    source-verification: >-
+      Confirmed by direct reproduction. NFC-composed U+00E9 and decomposed U+0065 U+0301 were raw-distinct to runtime
+      sets/maps but canonicalized to the same digest. Swapping the two IDs preserved the disposition-set identity and
+      existing approval, passed exact-source validation for otherwise equal findings, and exchanged the native source
+      references in the rendered report.
+    disposition: fix
+    approved-action: >-
+      Require NFC-normalized finding identities at every current producer, disposition, authorization, response, and
+      hosted carrier so runtime duplicate/join equality matches canonical hash equality.
+    response: "Applied in 3069d7e30 (`fix(review): require canonical finding identities`)."
+withstood:
+  - >-
+      Verified judgment, unsupported-null handling, and effective-policy gating held across public proposal and
+      response paths.
+  - >-
+      For non-colliding IDs, canonical order, native navigation, inert display projection, and renderer reuse held.
+  - >-
+      Methodology parity and the direct non-producer author self-review path held.
+verdict: >-
+  The pass did not establish convergence because the confirmed identity collision broke exact approval/report binding;
+  the approved correction removed that reachable collision before the criteria walk above.
+```
+
+The Pass 3 reviewer spawned a child scout despite its one-reviewer assignment. Primary review excluded the scout's
+output from evidence and independently reproduced the sole reported defect against the actual functions. The final
+fold therefore remains explicitly non-converged under the adversarial method; the resolved criteria states above rest
+on primary source validation plus observed verification, not on a clean adversarial attestation.
+
 ## Member 3 criteria report — 2026-09-09
 
 ```yaml
