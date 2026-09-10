@@ -16,27 +16,32 @@
 
 ## Readiness
 
-**State:** `maturing` — scope is known and the fundamentals are settled (2026-09-10 consolidation); one `Heavy`
-adversarial pass run the same day, seven findings verified and folded (see § Adversarial pass). The open items below
-are one vocabulary confirmation and detail the spec resolves; a second pass over the repaired draft is owed before
-capture.
+**State:** `maturing` — scope is known and the fundamentals are settled (2026-09-10 consolidation). Both `Heavy`
+adversarial passes are run: pass one folded seven findings, pass two folded nine more plus four from a follow-on
+delivery-plan sweep (see § Adversarial passes). Four of pass two's nine were second-order breaks from pass one's
+repairs, so a third pass over the repaired draft is recommended before capture even though the `Heavy` cap is
+reached. The open items below are one vocabulary confirmation and detail the spec resolves.
 
-**Resolved (2026-09-10):** naming (`amend-design`; skill door `arc-amend-design`); responsive entry with the audit
-doors kept as detection; the entry floor, the statement-and-criteria decision tree, and the authority split by arm;
-the depth axis and the rigor ladder, with canonical procedures re-entered at scope and never whole; extraction as
-the ceiling, never lifecycle regression; the assurance invariant and the accretion guard; the three-way amendment
-record and its row grammar; revision placement and monotonic recovery across a failed segment verifier, a
-cross-member correction, and a review finding that reopens design; delta-only revalidation; closure composed with
-the project's gate-selection rule and `evidence-applicability`'s vocabulary; no lifecycle state and no meta field
-for the detour; one capture commit before corrective work; the three inbox captures and both inbound-buffer concerns
-adopted; forward-compat self-checks run against the procedure, knowledge, and composable-workflows check-docs;
-`Class` read as `Heavy`.
+**Resolved (2026-09-10):** the delivery-plan interaction as a first-class surface rather than a scope disclaimer (§
+10) — placement yielding to member immutability, the landed-element append exception, seam composition, the
+authoring-snapshot sequencing rule, and the classifier as a mechanical ceiling trigger; naming (`amend-design`; skill
+door `arc-amend-design`); responsive entry with the audit doors kept as detection; the entry floor, the
+statement-and-criteria decision tree, and the authority split by arm; the depth axis and the rigor ladder, with
+canonical procedures re-entered at scope and never whole; extraction as the ceiling, never lifecycle regression; the
+assurance invariant and the accretion guard; the three-way amendment record and its row grammar; revision placement
+and monotonic recovery across a failed segment verifier, a cross-member correction, and a review finding that reopens
+design; per-site closure with delta re-records where a base report exists; closure composed with the project's
+gate-selection rule and `evidence-applicability`'s vocabulary; no lifecycle state and no meta field for the detour;
+one capture commit before corrective work on the spec-changing arms; the three inbox captures and both inbound-buffer
+concerns adopted; forward-compat self-checks run against the procedure, knowledge, and composable-workflows
+check-docs; `Class` read as `Heavy`.
 
 **Open:** confirming the per-criterion reuse of `carries | supplemental | fresh` with `evidence-applicability`
 (planning-close coordination, not a design gap).
 
-**Next:** second adversarial pass over the repaired draft (re-attack the outcome-keyed tree and the placement
-rules), fold, post-settle coherence re-read, capture the draft and persist `Class`.
+**Next:** third adversarial pass over the repaired draft, deliberately over the `Heavy` cap — re-attack the § 10
+delivery surface, the per-site closure rules in § 6 / § 8, and the log-driven delta linkage. Then fold, post-settle
+coherence re-read, capture the draft and persist `Class`.
 
 ## Problem / Motivation
 
@@ -73,9 +78,10 @@ deserves, and what must be re-checked before resuming.
 ## Success signal
 
 The procedure has worked when, on the next work unit that hits a mid-implementation gap: the amendment lands as one
-log row plus revision work, and for a task gap nothing else; no revision work nests under a verifier, no completed
-task's marker reverses, every re-record is a delta; the spec body reads as the current design at every point, with the
-row as the only history inside it; a session resuming mid-detour orients from the open row and the cursor alone; and
+log row plus revision work — plus a plan revision wherever a delivery plan is bound — and nothing else; no revision
+work nests under a verifier, no completed task's marker reverses, every re-record is a delta; the spec body reads as
+the current design at every point, with the row as the only history inside it, except where a landed member has
+frozen an element; a session resuming mid-detour orients from the open row and the cursor alone; and
 the amended elements carry the same gate evidence the originals did, at the amendment's depth, with no whole-design
 re-review and no lifecycle regression. The archived delivery task list is the counter-example each clause is measured
 against.
@@ -85,12 +91,13 @@ against.
 ### 1. One responsive procedure, entered from the sites that detect
 
 A supplemental workflow, `amend-design`, owns the detour start to finish. Its target is the design record — the
-artifact the meta's `Design` field names, draft or spec — and its derivation, the task list; it never touches
-delivery-plan vocabulary. It is **responsive only**: entry presupposes a finding, and "the design holds, only its
-derivation was incomplete" is the shallow answer, so entering asks a question and commits to nothing. The five
-detection sites reference it as their correction route with directive lines — enter it when a verifier reports an
-unmet criterion, a task cannot complete as written, or a finding implicates the design; do not patch inline and do
-not nest revision work under the verifier. The skill door `arc-amend-design` covers ad-hoc entry, the common case of
+artifact the meta's `Design` field names, draft or spec — and its derivation, the task list. It authors no
+delivery-plan mechanics; it does perturb plan state when one is bound, and § 10 owns that interaction. It is
+**responsive only**: entry presupposes a finding, and "the design holds, only its derivation was incomplete" is the
+shallow answer, so entering asks a question and commits to nothing. The five detection sites reference it as their
+correction route with directive lines — enter it when a verifier reports an unmet criterion, a task cannot complete
+as written, or a finding implicates the design; do not patch inline and do not nest revision work under the
+verifier. The skill door `arc-amend-design` covers ad-hoc entry, the common case of
 a developer saying mid-session that a task or decision is wrong.
 
 The standalone audit doors are kept as **detection**, not absorbed. `arc-task-audit` and `arc-design-audit` are
@@ -114,9 +121,11 @@ first match wins, citing the statement or criterion that decided it:
 
 1. **The tasks as written still produce every stated outcome; only how changes.** Not an amendment: the loop's
    existing minor-deviation path.
-2. **A stated outcome is not produced, and a statement already requires it.** A Success Criterion, exit criterion,
-   lifecycle row, or design element covers the missing behavior; the task list failed to realize it (unwired
-   production callers, modules built but unreachable). **Task arm** — derivation incomplete; revision work only.
+2. **A stated outcome is not produced, a statement already requires it, and the settled design would have produced
+   it.** A Success Criterion, exit criterion, lifecycle row, or design element covers the missing behavior, and the
+   task list simply failed to realize it (unwired production callers, modules built but unreachable). **Task arm** —
+   derivation incomplete; revision work only. If producing the outcome means reversing a settled decision, this step
+   does not match; go to step 4.
 3. **A needed outcome is not produced, no statement requires it, and it sits inside the Goals.** The design's
    intent requires it but nothing is deep enough to generate it. **Spec-depth arm** — in-place elaboration, and the
    amendment **appends a criterion** to the affected group so the hole becomes checkable.
@@ -125,9 +134,11 @@ first match wins, citing the statement or criterion that decided it:
 5. **Outside the Goals, or it changes what the work unit is** — its purpose, a deliverable boundary, a landed
    member's contract. **Escalate** (§ 4).
 
-The criterion test is what makes arms 2 and 3 a lookup rather than a judgment: if the criterion that would have
-caught the gap exists, the derivation failed, not the design; if it does not, the record has a hole, and the
-amendment's first duty is to add the criterion. Segment exit criteria, member groups, and lifecycle rows all count
+The criterion test is what makes arms 2 and 3 a lookup rather than a judgment: where the settled design would have
+produced the outcome, an existing criterion means the derivation failed; where none exists, the record has a hole,
+and the amendment's first duty is to add the criterion. The test never settles whether the design itself is wrong —
+a criterion can exist, be faithfully derived, and still name a decision that has to be reversed. That is step 4's
+question, and step 2 defers to it. Segment exit criteria, member groups, and lifecycle rows all count
 as coverage, which is why segmentation shipping makes this tree sharper. **Coarse coverage routes to arm 3:** when
 the criteria are too coarse to decide whether the missing outcome is covered, treat it as uncovered and append the
 criterion, so the next occurrence is decidable; that is the conservative direction and costs one row and one
@@ -141,7 +152,8 @@ so it is never the agent's to discharge; adding revision subtasks inside the cur
 agent-doable under discovered-work routing and is reported at the interlock.
 
 - **Task arm** — the agent proceeds within the increment; the log row and revision work ride the increment's task
-  commit the way task-list edits already do, and land in the ordinary completion report. No prompt.
+  commit and land in the ordinary completion report. The row is a record rather than pre-commitment text, so
+  appending it needs no authorization of its own (§ 9). No prompt.
 - **Spec-depth and design arms** — Owner-authorized at a stop that already exists. Four of the five detection sites
   stop today (the member branch's `Fix now or amend/defer?`, terminal verification's unmet criterion, the finding
   loop's approval before any fix, the loop's must-stop on a design decision); the segment site's stop is the
@@ -195,14 +207,19 @@ are skipped by reference until `composable-workflows` lands the procedure-librar
 structural.
 
 **The assurance invariant:** an amendment's artifacts pass the gates the originals passed, over the amendment's
-footprint, at the amendment's depth. The adversarial rubric is `design-audit` plus the spec coherence slice, with
-prior findings carried through the method's existing `prior-findings` input so untouched elements are never
-re-attacked; closure re-runs the detecting verification. Nothing is skipped and nothing is repeated. Two guards
+footprint, at the amendment's depth. The adversarial rubric is `assess-design-proportionality` plus `design-audit`
+plus the spec coherence slice — the finalization rubric the original cleared, minus nothing. Dropping the
+proportionality method would leave that criterion unowned, because `design-audit` delegates material
+proportionality to it rather than duplicating it; and it runs standalone over the amended elements as it does at
+spec finalization, where `proportionate` is the boundary condition. Prior findings carry through the method's
+existing `prior-findings` input so untouched elements are never re-attacked; closure re-runs the detecting
+verification. Nothing is skipped and nothing is repeated. Two guards
 cover the two failure directions: the floor and the silent task arm make a `low` amendment cost an approval that
 was being given anyway, and the **accretion guard** covers many `low` amendments summing to a design nobody re-read —
 the log makes that visible, and the response is the lean `draft-design` already applies to accreting drafts, a
-suggested consolidation read (one coherence pass plus the adversarial offer over the union) when the log's footprint
-has touched a material share of the design. Suggest, never enforce.
+suggested consolidation read — one coherence pass, one proportionality pass over the accreted union, and the
+adversarial offer over that union — when the log's footprint has touched a material share of the design. Suggest,
+never enforce.
 
 ### 4. The ceiling is extraction, never lifecycle regression
 
@@ -222,6 +239,12 @@ carry the correction in-WU, in which case the design arm applies and the ceiling
 is really an unauthored design area, while the identity still holds, is the Owner's call between the design arm at
 `high` and re-entering the planning stage; the procedure never makes that call.
 
+The ceiling also has one **mechanical** trigger beside those judgment reads. When an amendment supersedes a design
+element covered by a landed member and neither an unlanded member nor the terminal can carry its replacement, the
+bound plan cannot express the change at all (§ 10) — there is nowhere admissible for the new element to live. That
+is a ceiling case on the record's own terms, and it is crisper than the judgment reads because the classifier
+decides it rather than the agent.
+
 ### 5. The amendment record is one identity with three projections
 
 Precedent splits by document type. Documents that steer active builders — Kubernetes KEPs, Oxide RFDs, Python PEPs
@@ -237,11 +260,17 @@ ARC's spec is both types and the corpus has already split it by section: Non-Goa
 Success Criteria are immutable and digest-bound, and the design body is what tasks derive from and what verification
 opens as the upstream design. Implementation starting makes the body more of a builders' document, not less. So:
 
-- **Spec — an `## Amendments` log.** One row per amendment, the amendment's identity and the only mandatory write.
-  The design body **revises in place** so it always reads as the current design, with the row's id marked in
-  parentheses at the edited locus. Frozen surfaces keep their existing rules and cross-reference the row: a Non-Goals
-  change appends its `Amended` line carrying the id; a criterion is never edited — a new row appends at the end of
-  its group per `validate-criteria`'s ordinal binding, and a superseded one is dispositioned `[~]` at verification.
+- **Spec — an `## Amendments` log.** One row per amendment, the amendment's identity and the only mandatory write —
+  on every arm, the task arm included. The design body **revises in place** so it always reads as the current
+  design, with the row's id marked in parentheses at the edited locus. Frozen surfaces keep their existing rules and
+  cross-reference the row: a Non-Goals change appends its `Amended` line carrying the id; a criterion is never
+  edited — a new row appends at the end of its group per `validate-criteria`'s ordinal binding, and a superseded one
+  is dispositioned `[~]` at verification.
+    - **One exception, and it is mechanical.** A design element covered by a **landed** delivery member is frozen
+      like those surfaces are, because the bound plan binds its text by digest (§ 10). Such an element is not
+      revised in place: the amendment appends its supersession line carrying the row id, outside the digested
+      extent, and authors the replacing design as a new element in an unlanded member or the terminal. The in-place
+      property is given up exactly where a landed member had already frozen the design, and nowhere else.
 - **Notes — the reasoning**, only when it exceeds a few lines, in a `notes-*` section keyed by the id, with the
   superseded text quoted there when the arm is design; the companion is created on first need, as `task-audit`
   already prescribes for significant findings. This is the ledger the archived work unit converged on, with the
@@ -261,10 +290,11 @@ The row is a bullet with fixed labels in the corpus's descriptor idiom, two line
 ```
 
 The arm token is `task`, `spec-depth`, or `design`, so ceremony depth is visible per row; `_Supersedes:_` is a
-section-and-paragraph locus or `none`; `_Revalidated:_ pending` is the open-detour marker a fresh session reads and
-becomes the task id at closure. Ceremony scales with the arm and the depth read: a task gap is one row plus revision
-tasks; a spec-depth gap adds an in-place elaboration and a criterion; a design gap adds a body rewrite and a notes
-entry. The grammar is fixed so a later CLI can parse and render it (record-versus-projection direction, ADR-022).
+section-and-paragraph locus or `none`; `_Revalidated:_` carries the closing check and resolves per site at closure (§
+8) — the detour's own open-ness is the corrective parent's marker, not this label. Ceremony scales with the arm and
+the depth read: a task gap is one row plus revision tasks; a spec-depth gap adds an in-place elaboration and a
+criterion; a design gap adds a body rewrite and a notes entry. The grammar is fixed so a later CLI can parse and
+render it (record-versus-projection direction, ADR-022).
 
 ### 6. Revision work anchors to the work it corrects; verifiers only re-record
 
@@ -277,15 +307,30 @@ revision work under it conflicts with that invariant and is retired here. The pl
 - **Corrective work** is an `X.R` parent inserted in the affected phase **before** that phase's verifiers, with its
   own Goal naming the amendment id and the task it corrects, and its increments as subtasks. `X.Y.R` is used only
   while `X.Y` is still open — the gap surfaced inside the increment in flight — so no marker moves either way.
-  Revision work is never nested under a verifier.
+  Revision work is never nested under a verifier. Under a bound delivery plan the affected phase may sit inside a
+  landed member's range, and **placement then yields to member immutability**: the parent goes in the earliest
+  unlanded member that can carry it, or the terminal, with `_Amended in:_` supplying the back-link from the
+  corrected task (§ 10).
+- **A second amendment gets its own parent.** Ids run `X.R`, `X.R2`, `X.R3` — one parent per amendment, reused only
+  while still open. A completed `X.R` can never absorb the next amendment: the cursor skips any parent whose marker
+  is not open, so work hung beneath it is unreachable, which is the same derived-state invariant this section rests
+  on. `task-list-conventions` carries the scheme extension.
+- **A corrected task's `_Goal:_` is never edited.** A bound plan digests parent Goal text, so rewriting one breaks
+  the binding silently (§ 10). `_Amended in:_` is the additive channel and sits outside the digested extent — the
+  same shape criterion immutability already takes, applied on the derivation side.
 - **A corrected task points forward.** When an amendment changes the behavior a completed task recorded, append
   `_Amended in:_ X.R (An)` beneath that task — one additive line, protected after completion exactly as
   `_Retired in:_` is — so the task's record stays honest without reversing its marker, and the sweep reads in both
   directions.
-- **Revalidation** is the `X.R` parent's closing subtask, recording only the delta against the detecting verifier's
-  report (§ 8). The verifier itself is not touched: it stays the evidence sink it was, and a revalidation is never a
-  second suffixed parent — the segmentation scan requires exactly one segment-suffixed parent as the last non-member
-  parent of a closing phase and refuses a second as `segment-verifier-orphan`.
+- **Revalidation** closes the corrective parent, but what it records is per-site (§ 8) rather than one shape. At a
+  **member** site it is the parent's closing subtask carrying the delta against the member's boundary report. At a
+  **segment** site the re-run verifier's own completion is the record. At a **terminal** site `verify-work-unit`
+  reruns its walk and there is no delta subtask at all. At the loop's **must-stop** and the **skill door** there is
+  no base report to delta against, so the parent closes on its own evidence and the row carries a forward pointer to
+  the next covering verifier. The verifier itself is never touched in any case: it stays the evidence sink it was,
+  and a revalidation is never a second suffixed parent — the segmentation scan requires exactly one
+  segment-suffixed parent as the last non-member parent of a closing phase and refuses a second as
+  `segment-verifier-orphan`.
 - **No revision phase by default.** A phase would need its own `_Mode:_` and `_Exit criterion:_` and would be a new
   segment. An amendment that adds a genuinely new capability is ordinary planning at scope — a new segment authored
   through `resolve-plan-segmentation`, which is that procedure's recorded extraction trigger.
@@ -294,21 +339,31 @@ revision work under it conflicts with that invariant and is retired here. The pl
   handoff, compaction seed, and session-init derive from the same cursor. That the cursor silently skips an open
   child under a `[x]` parent instead of diagnosing it is a separate seam, captured for its owner.
 
-The three cases the handoff notes named resolve under these rules. A **failed segment verifier** anchors its fix as
-`X.R` (or `X.Y.R` while `X.Y` is open), marks the corrected task `_Amended in:_`, and re-records the delta as
-`X.R`'s closing subtask. A **cross-member correction** under a bound delivery plan keeps the
-landed member's range immutable — the shipped amendment classifier refuses `landed-member-changed` — so the work
-lands in an unlanded member or terminal, the plan revision passes through that classifier, and a review-driven fix
-re-verifies through the shipped review-fix verification continuation; this procedure supplies the design-record
-side and re-derives none of the delivery mechanics. A **review finding that reopens design** takes the design arm
-and, when the work unit was withdrawn, returns to execution through `arc reopen --task "Task X.Y.R — …"`, which
-already accepts a revision task.
+The three cases the handoff notes named resolve under these rules. A **failed segment verifier** branches on whether
+the task it corrects is still open: while `X.Y` is open the fix is `X.Y.R` beneath it and no pointer is needed, since
+nothing has been recorded yet; once `X.Y` is complete the fix is an `X.R` parent and `X.Y` takes the `_Amended in:_`
+line, because its marker cannot reverse. Either way it closes by re-running the scenario — the verifier's own
+completion is the record at a segment site, not a criteria delta (§ 8). A
+**cross-member correction** under a bound delivery plan keeps the landed member's range immutable — the shipped
+amendment classifier refuses `landed-member-changed` — so the work lands in an unlanded member or terminal, the plan
+revision passes through that classifier, and a review-driven fix re-verifies through the shipped review-fix
+verification continuation; this procedure supplies the design-record side and re-derives none of the delivery
+mechanics. A **review finding that reopens design** takes the design arm and, when the work unit was withdrawn,
+returns to execution through `arc reopen --task`. Two mechanics bind that call. The anchor is the **cursor leaf**, so
+a parent authored with subtasks is reopened at `Task X.R.a — …` and never at the parent itself; and `--task` is
+refused outright while the list is closed, so the corrective parent must be authored and committed **before** `arc
+reopen` runs. `X.Y.R` is not available here — the list is closed, so no `X.Y` is open to hang it under.
 
 ### 7. Exit gate: a propagation sweep bounded by the amendment's footprint
 
 The amendment produces a diff of settled things. The sweep is `generate-tasks`' final suite-coherence pass bounded
-to what references or depends on the changed elements — remaining tasks, later phases' exit criteria, other spec
-sections, criteria rows — and classifies each hit: **unaffected** (recorded as checked), **fold into the same
+to what references or depends on the changed elements, and it runs in **both directions**: forward over remaining
+tasks, later phases' exit criteria, other spec sections and criteria rows, and backward over evidence already
+recorded for the amended behavior. The backward case that matters is a segment verifier that already passed — its
+completion recorded a scenario outcome that downstream Success Criteria consume, so an amendment changing that
+behavior leaves the record misdescribing what shipped. Such a verifier takes the same additive post-completion
+`_Amended in:_` line a corrected task does: its marker does not reverse and its recorded outcome is not rewritten.
+The sweep classifies each hit: **unaffected** (recorded as checked), **fold into the same
 revision batch** (one corrective loop, not many), or **reopens another design question** (stay in the loop; the
 detour never exits carrying a known unsettled thing). Cost scales with the amendment's real coupling, and the
 footprint is also what bounds the adversarial pass in § 3.
@@ -322,23 +377,44 @@ practice, which closes a change only when verified against the originating gap.
 ### 8. Closure re-runs the detecting check, recording a delta
 
 The detour is done when the check that opened it passes again — the TDD regression idiom and ECO verification
-stated once. `_Revalidated:_` names that check; when the entry site had none (the loop's must-stop, the skill door),
-it names the next verifier in the plan that covers the amended statement. At a **segment** site the re-record is
-the scenario's outcome, as the verifier's own completion is, not a criteria delta. At a **member** site the
+stated once. Two facts the row carries are distinct and must not be conflated: the **detour is open** while its
+corrective parent is open, and **`_Revalidated:_`** names the check that closes the loop. They coincide at a member
+site and diverge everywhere else, which is why the row needs both. `_Revalidated:_` resolves per site — at a member
+site the delta subtask's id; at a segment site the re-run verifier's own id; at a terminal site the
+`verify-work-unit` rerun; and when the entry site had no detecting check (the loop's must-stop, the skill door), the
+next verifier in the plan that covers the amended statement, written as a forward pointer that outlives the
+corrective parent (`_Revalidated:_ pending → X.Z`) so the row never reads open with nothing in flight.
+
+What the re-record itself contains varies with the same site. At a **segment** site it is the scenario's outcome,
+as the verifier's own completion is, not a criteria delta. At a **member** site the
 re-record is a **delta against the member's boundary report**: the changed criteria (including any the amendment
 appended, with their own evidence), the new span, and the summary; unchanged criteria are omitted, digests stay in
-the record where they exist and are never restated. Per criterion the delta uses `evidence-applicability`'s
-verdict vocabulary — `carries` (omitted), `supplemental` or `fresh` (listed with new evidence) — because the
-question is the same one that work unit defines, whether evidence bound to one target still covers the next; the
-reuse is confirmed with that work unit at planning close rather than assumed.
+the record where they exist and are never restated.
 
 The delta is a **supplement to** the member's report, never a second report. `validate-criteria` gains one
 composition rule alongside the re-entry form: a member's **effective report** is its base boundary report plus its
 ordered deltas — same-locus entries overridden by the latest delta, appended criteria present only in the delta,
 the span the latest delta's — and the work-unit-scope walk consumes the effective report where it consumes the base
-one today. Terminal closure itself is unchanged: after a terminal gap is fixed, `verify-work-unit` reruns its walk
-against the current work-unit subject as it already prescribes; the delta form is for member and segment
-re-records, and `verify-work-unit` is edited only for its entry directive.
+one today. **The walk finds the deltas through the log:** the `## Amendments` rows are the index, and each row's
+`_Work:_` locates the corrective parent whose closing subtask carries the delta. That linkage is load-bearing — a
+walk that discovered deltas positionally, or by scanning every revision parent in a member's range, would be a
+second authority over the same fact.
+
+Per criterion the delta reuses `evidence-applicability`'s verdict vocabulary, because the question is the one that
+work unit defines — whether evidence bound to one target still covers the next. The verdict says **why** an entry is
+present or absent: `carries` is why one is omitted, `supplemental` or `fresh` why one is listed with new evidence.
+It does not replace the entry's `state`, which stays `[x]` / `[~]` / `[ ]` as `validate-criteria`'s schema requires;
+a criterion superseded by the amendment is `[~]` citing the row id, and supersession has no applicability verdict
+because it needs none. The reuse is confirmed with that work unit at planning close rather than assumed.
+
+Terminal closure itself is unchanged: after a terminal gap is fixed, `verify-work-unit` reruns its walk against the
+current work-unit subject as it already prescribes; the delta form is for member and segment re-records, and
+`verify-work-unit` is edited only for its entry directive.
+
+**Seam groups compose the same way.** `validate-criteria` walks a seam group beside the member groups at work-unit
+scope, and a seam's criteria are amendable for the same reasons a member's are, so a seam group takes the same
+effective-report composition and the same log linkage. A seam's delivery-side constraints — the acceptance and
+design-coverage fields the classifier guards — are § 10's, not this section's.
 
 Which gates re-run is the project's selection rule (`DEV-RULES.PROJECT` § Selecting what to run, extended by
 `test-suite-right-sizing` and lifted later by `quality-gate-hooks`); this procedure names no tiers. Once a Candidate
@@ -356,10 +432,49 @@ notes entry, plus a `Class` ratchet when § 3 requires one — lands as **one co
 released at the stop where the Owner authorized it, so the point-in-time design is recoverable from git, which is
 the mitigation every in-place precedent relies on. That commit is a planning ceremony, so a `Class` write there
 honors meta-file timing (a hand edit today; no CLI writes `Class` outside start and task finalization, a seam
-rather than a defect). On the **task arm** nothing in the spec changes, so there is nothing to recover: the row and
-the revision tasks ride the increment's task commit as task-list edits always do.
+rather than a defect). On the **task arm** nothing in the spec **body** changes — the row is the one spec write,
+and a row is a record rather than pre-commitment text, so appending it rewrites nothing and needs no authorization
+of its own. There is no point-in-time design to recover, so the row and the revision tasks ride the increment's task
+commit and reach the ordinary completion report.
 
-## Adversarial pass (2026-09-10, pass one of two)
+### 10. Under a bound delivery plan
+
+The procedure authors no delivery mechanics, but an amendment perturbs plan state on four axes and the shipped
+classifier is unforgiving about three of them. Stating the interaction is this work unit's job; owning the mechanics
+is not — `delivery-native-stack-composition` shipped them and its contracts are the ones to read.
+
+- **Task ids and contiguity.** A corrective parent is an assignable task, so a bound plan must cover it. Leaving it
+  unassigned refuses as an uncovered assignable task on a task-derived plan; assigning it to a landed member refuses
+  as a landed-member change; assigning it to a later member while it sits physically inside an earlier member's
+  range breaks that member's contiguity. Placement therefore yields to member immutability (§ 6), and **every**
+  corrective parent under a bound plan costs a plan revision — accepted rather than replacement-forcing when it
+  lands in an unlanded member, but a revision all the same.
+- **Design-element digests.** The plan binds each design element's text by digest, so revising a landed member's
+  element in place breaks that binding — and breaks it **silently**, because nothing revalidates the recorded
+  digests against the live record. The damage surfaces at the next plan revision, whatever that revision is for,
+  which makes it worse than a refusal at the moment of the amendment. § 5's landed-element exception exists for
+  this: append the supersession outside the digested extent and author the replacement elsewhere. Parent task Goals
+  are digested the same way and frozen the same way (§ 6).
+- **Seams.** A seam's acceptance and design coverage are guarded exactly as a member's are, and a change touching a
+  landed incident refuses. An amendment reaching a seam is bounded by the same landed/unlanded split, and its
+  criteria compose through the same effective report (§ 8).
+- **Authoring snapshots.** A delivery-authoring pass pins per-phase task membership, and inserting a corrective
+  parent invalidates that pin. An amendment therefore does not land while an authoring pass is open — finish or
+  discard the pass first. A sequencing rule, not a conflict.
+
+Two consequences the rest of the draft states in its own terms. The **cost** of an amendment under a bound plan is
+never only "a row plus revision work": a plan revision rides along, and a revision the classifier answers with a
+replacement reaches every deliverable at or above the affected one on a stack. And the case where a landed
+element's replacement has nowhere admissible to live is the ceiling's mechanical trigger (§ 4).
+
+The digest's **semantics** are the one place with real latitude. Design-element digests are supplied by whoever
+authors the inventory rather than derived by the CLI, so what the digest covers is a convention this procedure may
+set — and it sets it as the element's settled statement text, excluding appended supersession lines, the same
+extent rule parent Goals already follow. Stated rather than assumed, because nothing enforces it today.
+
+## Adversarial passes
+
+### Pass one (2026-09-10)
 
 Seven findings, all verified against source and folded: the task-arm commit shape contradicted the capture rule
 (§ 9 now scopes the pre-corrective commit to the spec-changing arms); the decision tree's first step was not
@@ -370,7 +485,48 @@ now defines the effective report); closure was undefined at sites with no detect
 stop was asserted rather than authored (§ 2); and the ceiling was silent on landed-but-invalidated code and
 misattributed the design-cut reading (§ 4). Withstood: the segmentation-scan claims, the R-scheme ids, the delivery
 classifier and reopen contracts, the row grammar against lint, every `evidence-applicability` citation, the Class
-ratchet's authority, and proportionality. A second pass over the repaired draft is owed before capture.
+ratchet's authority, and proportionality.
+
+### Pass two (2026-09-10)
+
+Nine findings over the repaired draft — two blockers, seven majors — all verified against source and folded. Four
+of the nine were second-order breaks introduced by pass one's own repairs, which is what makes the third pass below
+worth running rather than optional.
+
+The two blockers: the default `X.R` placement was unsatisfiable under a bound delivery plan, since a corrective
+parent inside a landed member's range is refused by every available assignment (§ 6, § 10); and the
+criterion-exists-therefore-derivation-failed inference routed settled-decision reversals to the unprompted task
+arm, because step 2's qualifying clause sat outside its bold condition where a scanning agent would miss it (§ 2).
+The majors: the assurance rubric had dropped `assess-design-proportionality`, which `design-audit` delegates to
+rather than covering (§ 3); the task arm's "nothing in the spec changes" contradicted the log's own mandatory row
+(§ 9); the flat revalidation rule held at only one of five detection sites (§ 6, § 8); nothing told the criteria
+walk how to find a member's deltas, and the delta's applicability vocabulary could not express the `[~]`
+disposition the record depends on (§ 8); the `arc reopen` clause named an anchor the CLI refuses, since the anchor
+is the cursor leaf and the list is closed on the case it names (§ 6); a second amendment in one phase had no id
+(§ 6); and the propagation sweep looked only forward, leaving a closed segment verifier's consumed outcome
+misdescribing what shipped (§ 7).
+
+Two of the pass's readings were corrected before folding. The decision tree's ordering is sound — step 2's own
+qualifying clause already excludes the reversal case — so the repair moved that clause into the bold condition
+rather than reordering the tree. And the second-amendment finding's corpus evidence was a revision _phase_, a
+construct this draft already rejects by default, so the id gap is real but narrower than reported.
+
+A follow-on delivery-plan sweep, prompted by the first blocker, found four further considerations the draft had
+glossed behind § 1's scope disclaimer: design-element digests are bound into the plan, so in-place revision of a
+landed member's element breaks the binding silently; delivery seams were absent entirely, though they carry the
+same landed guard and their own criteria group; a corrective parent invalidates an open authoring snapshot; and
+`replacement-required` carries a stack-wide cost the draft never priced. All four are folded, mostly into the new
+§ 10, and one of them strengthened rather than patched the design — the classifier supplies a mechanical ceiling
+trigger the judgment-only ceiling lacked.
+
+Withstood: the cursor's document-order selection and its skipping of completed parents, the R-scheme ids against
+the parser, the segmentation scan's positional rules, `landed-member-changed`'s exact shape, `_Amended in:_`
+digest-safety, the `arc delivery entry inspect` state dispatch, meta-file timing for the capture commit, every
+corpus figure in § Problem, and proportionality as a whole.
+
+The `Heavy` pass cap of two is reached, so a third pass is a deliberate extension rather than the default. It is
+recommended: thirteen items folded across §§ 1–10 is well past what an in-context coherence re-read was designed to
+catch, and pass two's own second-order rate is the evidence.
 
 ## Alternatives
 
@@ -390,7 +546,8 @@ ratchet's authority, and proportionality. A second pass over the repaired draft 
   take a `high` amendment and a `Heavy` one a `low` fix; keying to `Class` would either over-tax the common case or
   under-review the rare one. `Class` ratchets from the depth read instead.
 - **Append amendment blocks inside the spec body.** Rejected — the corpus's own failure mode and the documented one
-  (design-doc archaeology). The body revises in place; the log carries history.
+  (design-doc archaeology). The body revises in place and the log carries history, with one mechanical exception
+  where a landed delivery member has frozen an element by digest (§ 5).
 - **A separate amendment document per change.** Rejected — the same archaeology cost, and it would sit outside the
   planning group that `evidence-applicability` treats as evidence-neutral.
 - **A dedicated `.R` revision phase.** Rejected as the default — a new segment under the shipped scan, detached
@@ -423,7 +580,10 @@ ratchet's authority, and proportionality. A second pass over the repaired draft 
   the decision tree, and the `resolve-plan-segmentation` extraction trigger. Its planning-close captures are adopted.
 - **`delivery-native-stack-composition`** (shipped) — the delivery amendment classifier and the review-fix
   verification continuation are the mechanics a cross-member or review-driven correction runs through; this
-  procedure supplies the design-record side only.
+  procedure supplies the design-record side only. Its landed-member, landed-seam, landed-projection, and
+  digest-binding contracts are what § 10 composes against — read them at the source, not from this draft's summary.
+- **Spec templates** — the `## Amendments` log is a new spec surface and no shipped spec form carries it. No other
+  work unit owns that edit, so it lands here, in the forms the log applies to.
 - **`evidence-applicability`** (active) — its path-treatment registry classifies the planning group as
   evidence-neutral, so an amendment record can never invalidate review, verification, or merge evidence, and the
   record must therefore live inside that group. Its scope and verdict vocabulary are consumed by name and its
@@ -451,6 +611,9 @@ ratchet's authority, and proportionality. A second pass over the repaired draft 
   author it by default for RFC-form specs is a `generate-tasks` question settled at spec.
 - **Cursor diagnostic.** An open child under a `[x]` parent is skipped silently today; a diagnostic would make the
   derived-state invariant visible. Captured for its owner; this work unit does not depend on it.
+- **Design-element digest extent.** Nothing derives a design element's semantic digest today — it is supplied with
+  the authoring inventory — so § 10's extent rule is a convention this procedure states rather than one it can
+  enforce. A checker that derives the digest from the record would close the gap; named as a seam, not built.
 - **Accretion threshold.** "A material share of the design" is a lean, not a number; the spec may name a heuristic
   (row count, footprint union) but never a gate.
 - **Assumption:** the decision tree is decidable at the moment of discovery because it keys to statements and
@@ -459,8 +622,8 @@ ratchet's authority, and proportionality. A second pass over the repaired draft 
 ## Boundary fit and Class
 
 `assess-boundary-fit`: **stays one WU** — one concern (correcting the design record mid-implementation) designed as
-a whole; the seams above are coordination, not orthogonal deliverables, and the ship surface is prose plus one
-method addition, so no delivery-plan candidate.
+a whole; the seams above are coordination, not orthogonal deliverables, and the ship surface is prose, one method
+addition, and one spec-template section, so no delivery-plan candidate.
 
 `classify-work-unit`: estimate corrected `Light → Heavy`. Derivation fires — the gate, the depth ladder, the record,
 placement, and closure rules had to be authored before a competent engineer could start — and the design composes
