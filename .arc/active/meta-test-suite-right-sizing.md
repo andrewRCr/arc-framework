@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** create-spec — spec drafted and cost baseline published at `2d84794fd`; two adversarial
-  passes folded
+- **Last Completed:** create-spec — spec approved through Gate 2 and finalized at `7ef959360`; three adversarial
+  passes folded, draft retired to `notes-test-suite-right-sizing.md`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
