@@ -179,6 +179,7 @@ import { readDeliveryPositionView } from "../lib/session-init/delivery-position.
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { observeDeliveryEligibilityRef } from "../lib/delivery/git-eligibility.js";
 import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import { projectDeliveryContributionEndpoints } from "../lib/delivery/contribution-proof.js";
 import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../lib/errand/change-request-lifecycle.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
@@ -1082,7 +1083,7 @@ export async function handleStatus(
                 ),
                 proveContribution: (endpoints) => proveGitDeliveryContribution({
                   exec: createRawGitExec(cwd),
-                  ...endpoints,
+                  ...projectDeliveryContributionEndpoints(endpoints),
                 }),
               });
           },

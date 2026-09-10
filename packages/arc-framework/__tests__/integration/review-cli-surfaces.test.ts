@@ -44,6 +44,7 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.exitCode).toBe(0);
     expect(reviewHelp.stdout).toContain("readiness");
     expect(reviewHelp.stdout).toContain("planning-lane");
+    expect(reviewHelp.stdout).toContain("planning-grooming");
     expect(reviewHelp.stdout).toContain("change-request");
     expect(reviewHelp.stdout).toContain("merge-method");
     expect(reviewHelp.stdout).toContain("checks");
@@ -57,9 +58,33 @@ describe("packaged review CLI surfaces", () => {
   });
 
   it.each([
-    [["review", "chunking", "resolve"], "review-chunking-resolve-request.schema.json"],
-    [["review", "frontline", "run"], "review-frontline-run-request.schema.json"],
-  ] as const)("emits a dependency-complete public request schema at %s", async (command, rootId) => {
+    [
+      ["review", "chunking", "resolve"],
+      "review-chunking-resolve-request.schema.json",
+      ["review-chunking-resolve-request"],
+    ],
+    [
+      ["review", "planning-grooming", "resolve"],
+      "review-planning-grooming-resolve-request.schema.json",
+      ["review-planning-grooming-resolve-request"],
+    ],
+    [
+      ["review", "frontline", "run"],
+      "review-frontline-run-request.schema.json",
+      [
+        "review-assurance-input",
+        "review-frontline-resolve-envelope",
+        "review-frontline-run-request",
+        "review-method-activity",
+        "review-routing-decision",
+        "review-routing-facts",
+      ],
+    ],
+  ] as const)("emits a dependency-complete public request schema at %s", async (
+    command,
+    rootId,
+    expectedSchemaIds,
+  ) => {
     const outsideProject = await mkdtemp(join(tmpdir(), "arc-review-schema-"));
     const [result, help] = await Promise.all([
       runCli([...command, "--schema"], { cwd: outsideProject }),
@@ -78,13 +103,29 @@ describe("packaged review CLI surfaces", () => {
     const validator = new Ajv2020({ strict: false, validateSchema: false });
     for (const schema of Object.values(output.schemas)) validator.addSchema(schema);
     expect(validator.getSchema(rootId)).toBeDefined();
+    expect(Object.keys(output.schemas)).toEqual(expectedSchemaIds);
   });
 
-  it("keeps schema discovery scoped to the two interim request boundaries", async () => {
+  it("keeps schema discovery scoped to explicit interim request boundaries", async () => {
     const help = await runCli(["review", "readiness", "--help"], { cwd: fixtureRoot });
 
     expect(help.exitCode).toBe(0);
     expect(help.stdout).not.toContain("--schema");
+  });
+
+  it("documents the directly invokable planning-grooming request at command help", async () => {
+    const help = await runCli(["review", "planning-grooming", "resolve", "--help"], {
+      cwd: fixtureRoot,
+    });
+
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("diffBaseSha");
+    expect(help.stdout).toContain("routingFacts");
+    expect(help.stdout).toContain("contentKind");
+    expect(help.stdout).toContain("reviewRisk");
+    expect(help.stdout).toContain("changeDeterminacy");
+    expect(help.stdout).toContain("ownership");
+    expect(help.stdout).toContain("surfaceAuthority");
   });
 
   it("rejects combining schema discovery with a request source", async () => {

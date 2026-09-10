@@ -17,6 +17,8 @@ import {
 import { SlugSchema } from "../lib/kernel/index.js";
 import { createUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { inspectRepositoryDeliveryEntry } from "../lib/delivery/repository-entry.js";
+import { readPendingCandidateReviewFixAuthority } from
+  "../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 export interface DerivedLocusStateProbeOptions {
   readonly cwd: string;
@@ -97,6 +99,13 @@ export async function runDerivedLocusStateProbe(
         exec: options.exec,
         rawExec: createRawGitExec(cwd),
       }),
+      readPendingCandidateReviewFixAuthority: ({ cwd, workUnitId, candidate }) =>
+        readPendingCandidateReviewFixAuthority({
+          cwd,
+          exec: options.exec,
+          workUnitId,
+          candidate,
+        }),
     },
   });
 }

@@ -233,7 +233,8 @@ describe("classify-change.sh portability", () => {
   }
 
   it("targets concurrency primitives and their focused tests", async () => {
-    expect(await portability(["packages/arc-framework/src/lib/user-sync/notes-lock.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/src/lib/advisory-lock.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/__tests__/unit/advisory-lock.test.ts"])).toBe("true");
     expect(await portability(["packages/arc-framework/src/lib/git/ref-tree.ts"])).toBe("true");
     expect(await portability(["packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"])).toBe("true");
   });
@@ -391,7 +392,7 @@ describe("classify-change.sh classify", () => {
     const command = manifest.scripts["test:arc-contracts"];
     const suites = ["framework-sync", "pr-open-extensions", "review-gate-workflows"];
 
-    expect(command).toBe(`vitest run --project integration ${suites.join(" ")}`);
+    expect(command).toBe("node --import tsx src/scripts/run-local-test-tier.ts arc-contracts");
     for (const suite of suites) {
       const path = `packages/arc-framework/__tests__/integration/${suite}.test.ts`;
       expect(await readFile(join(root, path), "utf8")).not.toBe("");

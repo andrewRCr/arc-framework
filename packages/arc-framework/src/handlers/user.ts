@@ -61,9 +61,9 @@ import {
 import type { GitExec } from "../lib/git/exec.js";
 import {
   acquireAdvisoryLock,
-  getNotesLockPath,
   releaseAdvisoryLock,
-} from "../lib/user-sync/notes-lock.js";
+} from "../lib/advisory-lock.js";
+import { getNotesLockPath } from "../lib/user-sync/notes-lock.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import { gitFailureText } from "../lib/git/process-error.js";
 import {

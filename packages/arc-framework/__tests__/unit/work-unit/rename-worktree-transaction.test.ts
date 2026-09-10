@@ -12,7 +12,7 @@ import {
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
 } from "../../../src/lib/git/worktree-marker.js";
-import { AdvisoryLockTimeoutError } from "../../../src/lib/user-sync/notes-lock.js";
+import { AdvisoryLockTimeoutError } from "../../../src/lib/advisory-lock.js";
 import {
   createNodeRenameWorktreeTransactionDriver,
   type RenameWorktreeTransactionRequest,

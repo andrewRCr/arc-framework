@@ -16,9 +16,10 @@ checklist, see [generate-tasks.md § Finalize the task list][generate-tasks].
 
 1. [Task List Headers](#task-list-headers)
 2. [Format Elements Reference](#format-elements-reference)
-3. [Test-First Task Structure](#test-first-task-structure)
-4. [Verification Phase](#verification-phase)
-5. [Success Criteria Section](#success-criteria-section)
+3. [Segments and Verification Boundaries](#segments-and-verification-boundaries)
+4. [Test-First Task Structure](#test-first-task-structure)
+5. [Verification Phase](#verification-phase)
+6. [Success Criteria Section](#success-criteria-section)
 
 ---
 
@@ -89,12 +90,19 @@ phase — see [§ Verification Phase](#verification-phase)). Count tracks the wo
 
 Lines between the phase heading and its first parent task heading. When a Delivery Plan is present, open with one
 `**Delivery member:**` pointer carrying the ordinal and a backticked chunk key for each member represented in the
-phase, then the required `_Purpose:_` line (italic) — what the phase delivers and why this granularity. The pointer
-is reader orientation,
-not assignment authority: members bind to tasks through the delivery coverage table, never to whole phases. It
-carries the stable ordinal and chunk key, never the free-text member title. Optional: `_Design decisions:_` block
-summarizing the key calls (one or two short paragraphs; link to `notes-{name}.md` for full rationale, alternatives
-considered, and risks). Soft cap ~12 lines per preamble — anything longer belongs in the notes file.
+phase. The required `_Purpose:_` line follows — what the phase delivers and why this granularity. The pointer is
+reader orientation, not assignment authority: members bind to tasks through the delivery coverage table, never to
+whole phases. It carries the stable ordinal and chunk key, never the free-text member title.
+
+For segmented plans, follow [§ Segments and Verification Boundaries](#segments-and-verification-boundaries) for the
+mode, span, exit-criterion, and closing-task contract. In the preamble, place those structural lines after
+`_Purpose:_` and before any optional `_Design decisions:_` block; a single-phase segment carries both with
+`_Mode:_` first. Separate every preamble entry with a blank line.
+
+Optional `_Design decisions:_` blocks summarize key calls in one or two short paragraphs; link to
+`notes-{name}.md` for full rationale, alternatives, and risks. Apply the soft cap of about 12 lines to the purpose
+and design-decision prose; delivery-member pointers, `_Mode:_`, and `_Exit criterion:_` are structural and do not
+count toward it. Anything longer belongs in the notes file.
 
 ### Parent Tasks
 
@@ -133,8 +141,9 @@ in preview/rendered views. Without backticks, parent tasks (in headings — wher
 render task lists) and subtasks (in bullets — where GFM does) would render inconsistently.
 Backticks on both keeps the marker as literal monospace text in all renderers.
 
-**Use when:** Parent task requires 2+ distinct, independently completable steps. For test-first
-work, group by concern — one subtask covers both test and implementation.
+**Use when:** Parent task requires 2+ distinct, independently completable steps. For test-first work, group by the
+segment's mode — behavior path for `slice`, module or concern for `layer`, repeatable transformation batch for
+`replication` — with one subtask covering both test and implementation.
 
 ### Numbering Hierarchy
 
@@ -201,18 +210,18 @@ references. Omit tenuous, general, or already-loaded references: ARC-supplied st
 task-local context and belong only when the task directly works in that strategy's domain. Do not use
 the field for generic test sequencing or project testing standards; those load through methods.
 
-**Goal preserved across completion; peer descriptors and body replaced.** At `[x]`, Goal stays
-verbatim. Peer descriptors (when present) and all Goal-children (description bullets, Build
-test-first lists) are pruned — replaced by a rolled-up `_Outcome:_` bullet at parent-Goal indent
-**placed after all subtasks** when the rollup carries signal (synthesis, verification, or
-cross-cutting), or simply removed when title + Goal already capture the work. Goal opens the
-post-completion shape; Outcome (when added) closes it from below; the two protected surfaces
-frame what was the pre-completion middle. See [process-task-loop § Completion notes content
-discipline][process-task-loop] for the threshold and granularity rules.
+**Goal and retiring-phase bullets are preserved across completion; other body content is replaced.** At `[x]`,
+Goal and every `_Retired in:_ Phase N` detail bullet stay verbatim. Peer descriptors (when present) and all other
+Goal-children (description bullets, Build test-first lists) are pruned — replaced by a rolled-up `_Outcome:_` bullet
+at parent-Goal indent **placed after all subtasks** when the rollup carries signal (synthesis, verification, or
+cross-cutting), or simply removed when title + Goal already capture the work. Goal opens the post-completion shape;
+Outcome (when added) closes it from below, with any retained retiring-phase bullet staying at its original depth.
+See [process-task-loop § Completion notes content discipline][process-task-loop] for the threshold and granularity
+rules.
 
-**Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's
-description bullets at indent +2 shift from plan-content to outcome-content — same shape,
-no label change. The parent's rolled-up Outcome at root summarizes the unit-level result.
+**Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's description bullets at
+indent +2 shift from plan-content to outcome-content — same shape, no label change — except a `_Retired in:_ Phase N`
+detail bullet, which stays verbatim. The parent's rolled-up Outcome at root summarizes the unit-level result.
 
 **Verification-task exception preserved.** The verification phase's single task (per
 [verify-work-unit.md][verify-work-unit]) carries two required completion-note categories
@@ -326,19 +335,82 @@ the target file.
 
 ---
 
+## Segments and Verification Boundaries
+
+A segmented task plan is an ordered sequence of contiguous segments. Each segment spans one or more phases and
+closes on one stated kind of progress. Modes attach to segments rather than work units, so mixed-mode plans are
+ordinary and a single-mode plan is the simplest case. Segments carry no identifiers: their opening and closing
+phases define them.
+
+Choose the mode from the dominant residual risk after planning closes:
+
+| Residual risk lies in                                           | Mode              | The segment closes on                              |
+| --------------------------------------------------------------- | ----------------- | -------------------------------------------------- |
+| **Composition** — do the parts assemble into intended behavior? | **`slice`**       | a thin end-to-end capability that can be exercised |
+| **Substrate contract** — is the shared thing underneath right?  | **`layer`**       | a complete, settled layer                          |
+| **Mechanics at scale** — does this transformation work N times? | **`replication`** | the enumerated surface exhausted, batch-verified   |
+
+### Recording a segment
+
+The opening phase carries `_Mode:_`; the closing phase carries `_Exit criterion:_`; a single-phase segment carries
+both. Their preamble order is any delivery-member pointers, `_Purpose:_`, `_Mode:_`, `_Exit criterion:_`, then any
+`_Design decisions:_` block, omitting either structural line when the phase is not that segment boundary. Separate
+every entry with a blank line.
+
+`_Mode:_` takes a backticked `slice`, `layer`, or `replication` token immediately after the label, an optional
+`through Phase N` span, then an em dash and a non-empty prose gloss naming what the segment closes on:
+
+```markdown
+_Mode:_ `slice` through Phase 3 — closes on exercisable end-to-end capability.
+```
+
+`_Exit criterion:_` takes the segment's specific, non-empty criterion as prose. A task list with no `_Mode:_` line,
+no `_Exit criterion:_` declaration, and no segment-scope verifier is unsegmented. A newly authored single-segment
+plan records both structural lines like any other segmented plan.
+
+### Verification family
+
+| Boundary      | Marker                                            | Position                         |
+| ------------- | ------------------------------------------------- | -------------------------------- |
+| **segment**   | `— validate exit criterion at segment scope`      | segment's closing phase          |
+| **member**    | `— validate criteria at member scope`             | final assigned task in its range |
+| **work unit** | terminal `Verification` phase and its single task | final phase                      |
+
+The segment and member markers are exact trailing role suffixes outside the bold actionable title:
+
+```markdown
+### `[ ]` **M.N {Segment closing title}** — validate exit criterion at segment scope
+
+### `[ ]` **M.N {Member closing title}** — validate criteria at member scope
+```
+
+A `slice` or `replication` segment ends with a segment verifier. A `layer` needs none. The segment verifier is the
+last parent in its closing phase that does not carry the member suffix. When the two boundaries coincide, the
+segment verifier immediately precedes the member verifier so member close-out can consume its evidence.
+
+The terminal `Verification` phase carries neither `_Mode:_` nor `_Exit criterion:_` and contains the sole terminal
+work-unit verification task. On a single-segment plan, that terminal task subsumes the segment verifier. No segment
+verifier appears in the terminal phase.
+
+A segment verifier is an evidence sink. Its completion records the scenario executed and its result as the ordinary
+`_Outcome:_`; it is not a criteria report and never hosts corrective work. Segment exit criteria therefore remain
+phase-preamble and closing-task evidence rather than Success Criteria entries. Mandatory lifecycle outcomes remain
+Success Criteria and consume that evidence at their assigned member or work-unit boundary.
+
+---
+
 ## Test-First Task Structure
 
 **Applies when** the [test-first method][arc-methods-tf] assessment selects test-first for this
 work. If your team has overridden test-first to test-after, this section's patterns don't apply
 — structure tasks however suits your workflow.
 
-**Core rule:** Group test and implementation together — by module or concern, not by activity.
-Name tasks for the module (`` `User` model ``), not the activity ("Write tests for User
-model"). A `` Build `test-first` (one behavior at a time): `` marker introduces the behavior
-list. The marker records the sequencing decision made at task generation: its presence means
-tests-first for that increment, its absence means the baseline (test-after or no tests).
-`test-first` is a stable approach keyword, not a reference to the method's name — it holds even
-if the method is renamed.
+**Core rule:** Group test and implementation together by the segment's mode: behavior path for `slice`, module or
+concern for `layer`, repeatable transformation batch for `replication` — never by testing-versus-implementation
+activity. Name tasks for that grouping locus. A `` Build `test-first` (one behavior at a time): `` marker introduces
+the behavior list. The marker records the sequencing decision made at task generation: its presence means tests-first
+for that increment, its absence means the baseline (test-after or no tests). `test-first` is a stable approach
+keyword, not a reference to the method's name — it holds even if the method is renamed.
 
 Marker absence is not "no testing discipline": a task that writes or modifies tests still gets
 the assertion / mocking discipline at execution, applied by the test-touch gate regardless of
@@ -348,24 +420,19 @@ Behavior bullets are coverage targets, not an execution sequence — each cycle 
 Implementation detail bullets (fields, file locations, architectural notes) precede the marker.
 No separate "implement" task — test and implementation form one vertical unit.
 
-**Multiple related components:** one task per component within a phase, each with its own
-behavior list and marker. **Multi-layer projects** (backend + frontend, API + CLI): separate
-phases per layer with the same grouped pattern in each, plus a cross-layer validation phase.
+Apply the same mode input to multi-component and multi-layer work. In a `slice`, name tasks by behavior path even
+when one crosses components or layers; its segment boundary closes with end-to-end validation. In a `layer`, name
+tasks by module or concern — multiple components may use one task per component, and multi-layer substrate work may
+use separate phases per layer. In `replication`, let each task own one repeatable transformation batch across the
+components or layers in that batch. Do not add a cross-layer validation phase by default; the resolved segment
+boundaries determine where that validation closes.
 
 ---
 
 ## Verification Phase
 
-When a Delivery Plan is present, each member task range ends with an assigned member-scope verification parent. It
-is the final assigned task in that member range, and its title ends with the exact role suffix
-`— validate criteria at member scope`:
-
-```markdown
-### `[ ]` **M.N {Member closing title} — validate criteria at member scope**
-```
-
-This member verifier records the boundary criteria report; it does not replace or multiply the sole terminal
-work-unit verification task.
+Segment, member, and work-unit verifier roles, markers, and ordering are defined together in
+[§ Segments and Verification Boundaries](#segments-and-verification-boundaries).
 
 The required final phase of every task list contains that single terminal task pointing to
 [`verify-work-unit.md`][verify-work-unit]:

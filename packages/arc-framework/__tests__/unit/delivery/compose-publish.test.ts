@@ -23,6 +23,7 @@ import type {
   DeliveryStateStore,
 } from "../../../src/lib/delivery/ports.js";
 import type { DeliveryTaskListRenderer } from "../../../src/lib/delivery/task-list-render.js";
+import type { DeliveryTaskInventoryEntry } from "../../../src/lib/delivery/task-inventory.js";
 import {
   canonicalDigest,
   canonicalize,
@@ -43,20 +44,20 @@ const OTHER_PLAN_ID = "9cd88752-ef99-4e21-a41f-234bc98f35e0";
 
 function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, memberCount: 1 | 2 = 1) {
   const taskDigest = canonicalDigest({ goal: "Implement" });
-  const memberParents = [
+  const memberParents: DeliveryTaskInventoryEntry[] = [
     {
       taskId: "1.1",
       semanticDigest: taskDigest,
-      role: { kind: "verification" as const, scope: "member" },
+      role: { kind: "verification" as const, scope: "member" as const },
     },
     ...(memberCount === 2 ? [{
       taskId: "2.1",
       semanticDigest: taskDigest,
-      role: { kind: "verification" as const, scope: "member" },
+      role: { kind: "verification" as const, scope: "member" as const },
     }] : []),
   ];
   const workUnitVerificationTaskId = memberCount === 1 ? "2.1" : "3.1";
-  const parents = [
+  const parents: DeliveryTaskInventoryEntry[] = [
     ...memberParents,
     {
       taskId: workUnitVerificationTaskId,

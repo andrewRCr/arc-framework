@@ -192,21 +192,45 @@ routing write.
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
   off that branch (split per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
   plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
-  [run-errand][run-errand] § Ship step 3. Immediately before creating it, invoke `arc merge lock resolve -` with
+  [run-errand][run-errand] § Ship step 3.
+
+  Before creating each routing PR, invoke `arc review planning-grooming resolve -` with its exact base ref,
+  diff-base SHA, head SHA, and only the caller-owned content kind, risk, determinacy, ownership, and surface
+  authority judgments. The command derives repository identity, immutable target trees, planning-lane eligibility,
+  transient assurance, method activity, and the standard-review obligation. Follow its typed result:
+
+    - `exempt / none` — skip both review lanes and continue to PR creation.
+    - `review-required / continue-review` — reuse its exact target, routing, and obligation payload in the
+      reviewed-lane settlement from [run-errand][run-errand]; do not retype those projections.
+    - `not-eligible / continue-review` — enter that reviewed-lane settlement through ordinary fact composition.
+    - A command error carries no action; stop.
+
+  Never infer exemption from `arc review planning-lane`, path intuition, or absence of a work unit. The later
+  planning-lane call still classifies merge presentation only. Immediately before creating the PR, invoke
+  `arc merge lock resolve -` with
   the exact tree root and create on its typed action: `locked / open-locked` opens the PR locked, `none /
   open-plain` opens it plain, and `blocked / stop` halts creation before any PR exists. A write touching a
   **foreign owner's** artifact is reviewed-lane and ships on its own.
 
+  On both newly-created and reused-open paths, recompose the PR's exact current base ref, diff-base SHA, and head
+  SHA, then re-invoke `arc review planning-grooming resolve -` with the same caller-owned judgments. This
+  opened-target result supersedes the pre-create result; follow the typed dispatch above and settle any ordinary
+  review it requires. Any head movement invalidates the exemption and returns here before the integration
+  interlock, including after a review fix or base reconciliation. Continue only when the current PR head, adapter
+  target, and settled review all name the same exact head.
+
   > [!IMPORTANT]
   > `integration-interlock`: Stop before arming auto-merge or merging the grooming PR. Surface PR status
-  > (checks, resolved lane) and await explicit integration approval — never infer it from the § 3 routing
-  > confirmation, which approved the _routing_, not the merge.
+  > (exact settled head, matching adapter target, checks, resolved lane) and await explicit integration approval —
+  > never infer it from the § 3 routing confirmation, which approved the _routing_, not the merge.
 
-  After approval, re-read the PR's exact base and head SHAs and run
-  `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming auto-merge; `reviewed`
-  follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure or malformed output
-  stops. Foreign ownership or another confidently recognized review condition may still move a planning result to
-  reviewed without another permission stop, but never the reverse. Immediately before arming, invoke
+  After approval, re-read the PR's exact base and head SHAs. If the head differs from the adapter target surfaced
+  at the interlock, invalidate approval and return to the opened-target adapter resolution and integration
+  interlock. Otherwise run `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming
+  auto-merge; `reviewed` follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure
+  or malformed output stops. Foreign ownership or another confidently recognized review condition may still move
+  a planning result to reviewed without another permission stop, but never the reverse. Immediately before arming,
+  invoke
   `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
   locked PR. `released / proceed` and `no-lock / none` both continue; `blocked / stop` invalidates approval.
 

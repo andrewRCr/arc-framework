@@ -30,7 +30,7 @@ import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
-import { projectKernelSchemas } from "../lib/kernel/schema/generate.js";
+import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
 import { resolveArcRoot } from "../lib/paths.js";
@@ -42,6 +42,7 @@ import {
   FrontlineResolveEnvelopeSchema,
   FrontlineRunEnvelopeSchema,
   ReviewChunkingResolveEnvelopeSchema,
+  PlanningGroomingReviewEnvelopeSchema,
   LocalAttestEnvelopeSchema,
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
@@ -61,6 +62,11 @@ import {
   type ReviewChunkingResolveCommandRequest,
   type ReviewChunkingResolveRequest,
 } from "../scripts/review-gate/core/review-chunking-command-schema.js";
+import {
+  REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID,
+  ReviewPlanningGroomingResolveRequestSchema,
+  type ReviewPlanningGroomingResolveRequest,
+} from "../scripts/review-gate/core/planning-grooming-command-schema.js";
 import {
   REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
   FrontlineRunRequestSchema,
@@ -160,6 +166,15 @@ import { resolveReviewHeadRef } from "../scripts/review-gate/core/review-subject
 import { readMergeLockSetting } from "../scripts/review-gate/hosts/local/merge-lock-config.js";
 import { FrontlineSourceRegistry } from "../scripts/review-gate/policy/frontline-source.js";
 import { resolveReviewChunkingCommand } from "../scripts/review-gate/policy/review-chunking-command.js";
+import {
+  composePlanningGroomingMethodActivity,
+  resolvePlanningGroomingReviewCommand,
+} from
+  "../scripts/review-gate/policy/planning-grooming-command.js";
+import { readLocalReviewLiveContext } from
+  "../scripts/review-gate/hosts/local/live-context.js";
+import { createLocalReviewMethodFilePort } from
+  "../scripts/review-gate/hosts/local/method-files.js";
 import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/providers/coderabbit/frontline-execution.js";
 import {
   HostedRequestEnvelopeSchema,
@@ -209,6 +224,8 @@ import {
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
+import { explainHostedSettlementBindingMismatch } from
+  "../scripts/review-gate/hosted/settlement-binding.js";
 import {
   GhHostedReviewPort,
   hostedGhRunner,
@@ -345,6 +362,7 @@ const REVIEW_JSON_COMMAND_PATHS = [
 /** Interim schema-discoverable request boundaries; the full family remains owned by P1 design. */
 export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review chunking resolve",
+  "review planning-grooming resolve",
   "review frontline run",
 ] as const;
 
@@ -1152,6 +1170,16 @@ export const reviewCommandInputPolicyDeclarations = [
     )],
   },
   {
+    commandPath: "review planning-grooming resolve", aliases: [], sites: [declareInteractionSite(
+      { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+      {
+        acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
+        automation: { noInput: "same", flags: [], acceptedSyntax: [] },
+        mutationBoundary: "planning-grooming exact diff read", subprocess: "close-stdin",
+      },
+    )],
+  },
+  {
     commandPath: "review frontline run", aliases: [], sites: [
       "scripts/review-gate/providers/coderabbit/executable.ts",
       "scripts/review-gate/providers/coderabbit/process.ts",
@@ -1236,6 +1264,92 @@ export async function handleReviewPlanningLane(
     return;
   }
   dependencies.write(`${result}\n`);
+}
+
+export interface ReviewPlanningGroomingResolveHandlerDependencies {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  resolve(
+    request: ReviewPlanningGroomingResolveRequest,
+    root: string,
+    interaction: InteractionContext,
+  ): Promise<unknown>;
+  write(text: string): void;
+  setExitCode(code: number): void;
+}
+
+function defaultReviewPlanningGroomingResolveDependencies(
+): ReviewPlanningGroomingResolveHandlerDependencies {
+  return {
+    ...defaultReviewHandlerBoundary(),
+    resolve: async (request, root, interaction) => {
+      const exec = createGitExec(interaction.subprocess);
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const [repositoryId, config] = await Promise.all([
+        resolveRepositoryIdentity(publisher),
+        readConfigSettings(root),
+      ]);
+      const target = await deriveLocalReviewTarget({
+        exec,
+        cwd: root,
+        repositoryId,
+        baseRef: config.settings["branch.base"],
+      });
+      const [changeSet, live] = await Promise.all([
+        resolveChangeSet(createRawGitExec(root), target.diffBaseSha, target.headSha),
+        readLocalReviewLiveContext({ exec, cwd: root }),
+      ]);
+      const context = live.context.workUnit === null && live.context.errand !== null
+        ? (() => {
+            const activity = composePlanningGroomingMethodActivity(
+              createLocalReviewMethodFilePort({ cwd: root }),
+            );
+            return {
+              state: "resolved" as const,
+              assurance: { workContext: "errand" as const, workClass: "none" as const },
+              activity: activity.activity,
+              diagnostics: activity.diagnostics,
+            };
+          })()
+        : {
+            state: "not-applicable" as const,
+            reason: "transient-vehicle-required" as const,
+          };
+      return resolvePlanningGroomingReviewCommand({ request, target, changeSet, context });
+    },
+  };
+}
+
+/**
+ * Resolve one exact transient planning-grooming change to a closed exemption or
+ * a fail-closed continuation into the ordinary review protocol.
+ */
+export async function handleReviewPlanningGroomingResolve(
+  source: string,
+  overrides: Partial<ReviewPlanningGroomingResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
+): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = {
+    ...defaultReviewPlanningGroomingResolveDependencies(),
+    ...overrides,
+  };
+  await executeReviewHandler({
+    mode: "review-planning-grooming-resolve",
+    source,
+    requestSchema: ReviewPlanningGroomingResolveRequestSchema,
+    resultSchema: PlanningGroomingReviewEnvelopeSchema,
+    dependencies,
+    execute: (request, root) => dependencies.resolve(
+      ReviewPlanningGroomingResolveRequestSchema.parse(request),
+      root,
+      context,
+    ),
+  });
 }
 
 interface ReviewHandlerBoundary {
@@ -2127,9 +2241,10 @@ export async function handleReviewFrontlineRun(
 
 export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID;
 
-/** Emit one public request root together with the complete registry bundle its refs require. */
+/** Emit one public request root together with only the registry documents its refs require. */
 export function handleReviewRequestSchema(
   schemaId: ReviewPublicRequestSchemaId,
   source?: string,
@@ -2142,7 +2257,7 @@ export function handleReviewRequestSchema(
     reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
     const registry = registerReviewDomainSchemas(createKernelRegistry());
     if (registry.get(schemaId) === undefined) throw new Error(`Review request schema unavailable: ${schemaId}`);
-    const bundle = projectKernelSchemas(registry);
+    const bundle = projectKernelSchemaClosure(registry, schemaId);
     overrides.write(`${JSON.stringify({ rootId: `${schemaId}.schema.json`, ...bundle })}\n`);
   } catch (error) {
     overrides.write(`${JSON.stringify({
@@ -2651,18 +2766,18 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
         ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
         : undefined;
       const hosted = attempt?.hosted;
-      const finding = hosted?.findings.find(({ findingId }) => findingId === request.response.findingId);
-      if (persisted.state?.kind !== "lane-progress"
-        || persisted.state.lane !== "standard"
-        || attempt === undefined
-        || hosted === undefined
-        || hosted.dispositionSetId !== request.response.dispositionSetId
-        || finding?.origin !== "review-thread"
-        || finding.commentId !== request.finding.commentId
-        || finding.threadId !== request.finding.threadId
-        || hosted.actorIdentity !== request.actorIdentity
-        || canonicalize(hosted.target) !== canonicalize(request.target)) {
-        throw new Error("Hosted settlement does not match its approved findings attempt.");
+      if (persisted.state?.kind !== "lane-progress" || persisted.state.lane !== "standard") {
+        throw new Error("Hosted settlement requires a persisted standard-lane operation.");
+      }
+      if (attempt === undefined) {
+        throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
+      }
+      if (hosted === undefined) {
+        throw new Error(`Hosted settlement attempt has no hosted binding: ${reference.durableRef}`);
+      }
+      const bindingMismatch = explainHostedSettlementBindingMismatch(hosted, request);
+      if (bindingMismatch !== null) {
+        throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
       }
       const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
         .readDispositionRecord(attempt.attemptId);

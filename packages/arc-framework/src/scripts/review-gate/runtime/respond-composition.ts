@@ -40,7 +40,10 @@ import {
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
-import { composeDeliveryMemberTarget } from "../hosts/local/repository-target.js";
+import {
+  composeDeliveryMemberTarget,
+  deriveLocalReviewTargetFromCoordinates,
+} from "../hosts/local/repository-target.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
@@ -242,6 +245,17 @@ export function createRespondDependencies(input: {
           exec: input.exec,
         }),
       ]);
+      const candidateFixTarget = await deriveLocalReviewTargetFromCoordinates({
+        exec: input.exec,
+        cwd: input.cwd,
+        repositoryId: target.repositoryId,
+        coordinates: {
+          kind: target.kind,
+          baseRef: target.baseRef,
+          diffBaseSha: target.diffBaseSha,
+          headSha: current.revision,
+        },
+      });
       return {
         workUnit: selected.workUnit,
         record: selected.record,
@@ -249,6 +263,7 @@ export function createRespondDependencies(input: {
         reviewed: selected.reviewed,
         effective,
         current,
+        candidateFixTarget,
         unstagedReviewablePaths,
       };
     },

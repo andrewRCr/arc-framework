@@ -24,6 +24,7 @@ import {
   createCandidateSubjectSnapshot,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
+import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
 
@@ -50,6 +51,7 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     lstat: async () => ({ isSymbolicLink: () => false }),
     projectDeliveryCorrection: async () => ({ status: "none" }),
     projectCandidateTarget: projectDurableCandidateTarget,
+    readPendingCandidateReviewFixAuthority: async () => ({ status: "none" }),
   };
 }
 
@@ -702,6 +704,66 @@ describe("checkout subject active-extension seam", () => {
       kind: "unresolved",
       code: "subject-unresolved",
       message: "Candidate target requires request-authority.",
+    });
+  });
+
+  it("recovers Active prepublication at the pending Candidate fix before re-root", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    await expect(projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: {
+        ...options.io,
+        projectCandidateTarget: projectCandidateApplicabilityDecision,
+        readPendingCandidateReviewFixAuthority: async () => ({
+          status: "selected" as const,
+          candidateId: candidate.candidateId,
+          operationId: "operation-1",
+          reviewedHead: "a".repeat(40),
+          reviewedTarget: createReviewTarget({
+            schemaVersion: 2,
+            semanticsVersion: "review-gate/v2",
+            kind: "delivery-member",
+            repositoryId: "arc-framework/example",
+            baseRef: "main",
+            diffBaseSha: "b".repeat(40),
+            diffBaseTree: "c".repeat(40),
+            headSha: "a".repeat(40),
+            headTree: "d".repeat(40),
+          }),
+        }),
+      },
+    })).resolves.toMatchObject({
+      kind: "resolved",
+      sessionType: "prepublication",
+      workflow: "prepare-work-unit",
+      integrationBoundary: {
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest: candidate.subjectDigest,
+        locus: "candidate-fix-pending",
+        policy: null,
+        nextAction: { command: "arc review pre-publication demo --json" },
+      },
     });
   });
 

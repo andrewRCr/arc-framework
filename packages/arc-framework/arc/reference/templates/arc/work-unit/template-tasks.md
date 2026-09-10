@@ -31,6 +31,13 @@ no field edit. The design is canonical for Scope (Will Do / Won't Do); the task 
 
 _Purpose:_ {what this phase delivers and why this granularity}
 
+<!-- `_Mode:_` appears on a segment's opening phase; add `through Phase N` for a multi-phase span.
+     `_Exit criterion:_` appears on its closing phase. This single-phase example carries both. -->
+
+_Mode:_ `slice` — closes on exercisable end-to-end capability.
+
+_Exit criterion:_ {specific scenario that proves the segment's capability}
+
 ### `[ ]` **1.1 {Subtaskless parent task title}**
 
 - _Goal:_ {one-line outcome the task targets — protected across completion}
@@ -53,9 +60,14 @@ _Purpose:_ {what this phase delivers and why this granularity}
     - `[ ]` **1.2.b {Subtask description}**
         - {detail bullet}
 
+<!-- In a multi-segment plan, end every `slice` or `replication` segment with this ordinary parent task;
+     `layer` segments need none, and the terminal task subsumes it for a single-segment plan:
+### `[ ]` **{task-id} {Segment closing title}** — validate exit criterion at segment scope
+     It is the closing phase's last non-member parent and immediately precedes a coincident member verifier. -->
+
 <!-- With a Delivery Plan, end each member task range with an assigned verification parent. It is the final
      assigned task in that member range, and its title must end with this exact suffix:
-### `[ ]` **{task-id} {Member closing title} — validate criteria at member scope**
+### `[ ]` **{task-id} {Member closing title}** — validate criteria at member scope
      Repeat for every member. These member verifiers are distinct from the sole terminal work-unit verification
      task below. -->
 
