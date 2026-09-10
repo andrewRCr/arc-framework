@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { canonicalDigest } from "../kernel/index.js";
 import type { DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
@@ -35,6 +36,7 @@ import {
   DeliveryPlanIdSchema,
   DeliveryStateV1Schema,
 } from "./schema.js";
+import { DeliveryPendingVerificationSupersessionIdentitySchema } from "./suffix-rematerialization.js";
 
 const DeliveryRecoverySelectorCommonV1Shape = {
   planId: DeliveryPlanIdSchema,
@@ -57,6 +59,7 @@ const DeliveryReviewFixRecoverySelectorV1Schema = z.union([
     mode: z.literal("review-fix"),
     reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema,
     reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    supersedePendingReviewFixVerification: DeliveryPendingVerificationSupersessionIdentitySchema,
   }),
 ]);
 
@@ -638,7 +641,10 @@ export async function applyDeliveryLanding(input: {
   return persisted.status === "ok" ? { status: "landed", state: persisted.value } : landingRefused();
 }
 
-function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
+function recoveryRerun(
+  state: DeliveryStateV1,
+  cleared?: DeliveryRevisionedRecord<DeliveryStateV1>,
+): DeliveryRecoveryRerunV1 | null {
   const operation = state.activeOperation;
   if (operation === null) return null;
   const selector = {
@@ -676,10 +682,17 @@ function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
               mode: "review-fix",
               ...(operation.reviewFixSelectedDeliverableId === undefined
                 || operation.reviewFixVerificationDeliverableIds === undefined
+                || cleared === undefined
+                || cleared.value.pendingReviewFixVerification === null
                 ? {}
                 : {
                     reviewFixSelectedDeliverableId: operation.reviewFixSelectedDeliverableId,
                     reviewFixVerificationDeliverableIds: operation.reviewFixVerificationDeliverableIds,
+                    supersedePendingReviewFixVerification: {
+                      pendingVerification: cleared.value.pendingReviewFixVerification,
+                      expectedStateRevision: cleared.revision,
+                      continuationDigest: canonicalDigest(cleared.value),
+                    },
                   }),
             },
             recommendedActionText:
@@ -817,7 +830,7 @@ export async function reconcileDeliveryExecution(input: {
         recommendedActionText: "Retry-state persistence failed; retain and reconcile the reservation.",
       };
     }
-    return rerun;
+    return recoveryRerun(input.current.value, cleared.value) ?? rerun;
   }
   if (reconciled.status !== "adopt") {
     return {

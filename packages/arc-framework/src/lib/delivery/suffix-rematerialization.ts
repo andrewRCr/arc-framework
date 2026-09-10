@@ -1,5 +1,7 @@
 /** Preparation of a complete review-fix suffix from the delivery top. */
 
+import { z } from "zod";
+
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import { classifyDeliveryPlanAmendment, type DeliveryPlanAmendmentResult } from "./amendment.js";
 import type { DeliveryChainAdoptionResult } from "./chain-adoption.js";
@@ -20,7 +22,12 @@ import type {
   DeliveryPendingReviewFixVerificationV1,
   DeliveryPlanV1,
 } from "./schema.js";
-import { DeliveryStateV1Schema, type DeliveryStateV1 } from "./schema.js";
+import {
+  DeliveryCanonicalDigestSchema,
+  DeliveryPendingReviewFixVerificationV1Schema,
+  DeliveryStateV1Schema,
+  type DeliveryStateV1,
+} from "./schema.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
   installDeliveryReviewFixVerification,
@@ -56,11 +63,14 @@ export interface DeliverySuffixRematerializedResult {
 }
 
 /** Projected pending-verification identity that one rematerialization may supersede. */
-export interface DeliveryPendingVerificationSupersessionIdentity {
-  readonly pendingVerification: DeliveryPendingReviewFixVerificationV1;
-  readonly expectedStateRevision: number;
-  readonly continuationDigest: string;
-}
+export const DeliveryPendingVerificationSupersessionIdentitySchema = z.strictObject({
+  pendingVerification: DeliveryPendingReviewFixVerificationV1Schema,
+  expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  continuationDigest: DeliveryCanonicalDigestSchema,
+});
+export type DeliveryPendingVerificationSupersessionIdentity = z.infer<
+  typeof DeliveryPendingVerificationSupersessionIdentitySchema
+>;
 
 /** Final rematerialization result after the top and recoverable verification continuation settle together. */
 export type DeliverySuffixRematerializedSettledResult = Omit<

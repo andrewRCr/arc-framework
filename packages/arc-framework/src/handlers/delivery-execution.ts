@@ -90,7 +90,6 @@ import {
   DeliveryChangeRequestV1Schema,
   DeliveryMergePolicyBindingV1Schema,
   DeliveryOperationSnapshotV1Schema,
-  DeliveryPendingReviewFixVerificationV1Schema,
   DeliveryPlanIdSchema,
   DeliveryPlanV1Schema,
   DeliveryStateV1Schema,
@@ -175,6 +174,7 @@ import {
 import { validateDeliveryStateAgainstPlan } from "../lib/delivery/state.js";
 import {
   completeDeliverySuffixMutationTail,
+  DeliveryPendingVerificationSupersessionIdentitySchema,
   executeFreshDeliverySuffixRematerialization,
 } from "../lib/delivery/suffix-rematerialization.js";
 import {
@@ -472,11 +472,7 @@ const RematerializeSchema = z.strictObject({
   protectedBaseRef: RefSchema,
   topRef: RefSchema,
   selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
-  supersedePendingReviewFixVerification: z.strictObject({
-    pendingVerification: DeliveryPendingReviewFixVerificationV1Schema,
-    expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-    continuationDigest: DeliveryCanonicalDigestSchema,
-  }).optional(),
+  supersedePendingReviewFixVerification: DeliveryPendingVerificationSupersessionIdentitySchema.optional(),
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
 });

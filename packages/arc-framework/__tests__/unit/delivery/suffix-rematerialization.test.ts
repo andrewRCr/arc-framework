@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { reconcileDeliveryExecution } from "../../../src/lib/delivery/landing.js";
+import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
@@ -551,6 +553,101 @@ describe("delivery suffix rematerialization", () => {
       verification: { memberDeliverableIds: pendingReviewFixVerification.memberDeliverableIds },
     });
     expect(supersessions).toEqual([pendingReviewFixVerification, pendingReviewFixVerification]);
+  });
+
+  it("executes a cleared predecessor recovery through its returned supersession identity", async () => {
+    const { plan, state, snapshot, first, second } = fixture();
+    const pendingReviewFixVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const pending = { ...state, pendingReviewFixVerification };
+    const before = { target: state.target, members: [first] };
+    const requested = {
+      ...before,
+      members: [{
+        ...first,
+        coordinates: first.coordinates === null
+          ? null
+          : { ...first.coordinates, head: "e".repeat(40) },
+      }],
+    };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: pending }, plan, {
+      operationId: "operation-rematerialize-predecessor",
+      kind: "rewrite",
+      mode: "review-fix",
+      affectedDeliverableIds: [first.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested,
+      supersedePendingReviewFixVerification: pendingReviewFixVerification,
+      reviewFixSelectedDeliverableId: second.deliverableId,
+      reviewFixVerificationDeliverableIds: pendingReviewFixVerification.memberDeliverableIds,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve the predecessor rewrite");
+    let current: { revision: number; value: DeliveryStateV1 } = { revision: 8, value: reserved.state };
+    const recovery = await reconcileDeliveryExecution({
+      planId: plan.planId,
+      current,
+      observation: { observe: async () => ({ status: "observed" as const, value: before }) },
+      stateStore: { publish: async (_planId, value, expectedRevision) => {
+        if (expectedRevision !== current.revision) {
+          return { status: "refused" as const, reason: "version-conflict" as const };
+        }
+        current = { revision: current.revision + 1, value };
+        return { status: "ok" as const, value: current };
+      } },
+    });
+    if (recovery.status !== "retryable" || recovery.action !== "delivery-rematerialize") {
+      throw new Error("recovery must return a rematerialization rerun");
+    }
+    if (!("reviewFixSelectedDeliverableId" in recovery.selector)) {
+      throw new Error("recovery must retain the selected rematerialization subject");
+    }
+    const selector = recovery.selector;
+    const supersession = selector.supersedePendingReviewFixVerification;
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [selector.reviewFixSelectedDeliverableId],
+      supersedePendingReviewFixVerification: supersession,
+    }, {
+      reobserve: async () => ({
+        status: "observed",
+        plan,
+        current,
+        facts: {
+          target: current.value.target,
+          members: current.value.members,
+          landedDeliverableIds: [first.deliverableId],
+        },
+        snapshot,
+      }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      apply: async ({ current: input, rewrite, supersedePendingReviewFixVerification }) => {
+        if (JSON.stringify(supersedePendingReviewFixVerification)
+          !== JSON.stringify(pendingReviewFixVerification)) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
+        }
+        current = {
+          revision: input.revision + 1,
+          value: {
+            ...input.value,
+            members: input.value.members.map((member) => member.deliverableId === rewrite.deliverableId
+              ? { ...member, ...rewrite.requested.members[0] }
+              : member),
+          },
+        };
+        return { status: "applied", state: current };
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "rematerialized",
+      selectedDeliverableId: second.deliverableId,
+      verification: { memberDeliverableIds: pendingReviewFixVerification.memberDeliverableIds },
+    });
   });
 
   it("refuses a delayed supersession when pending verification has expanded", async () => {
