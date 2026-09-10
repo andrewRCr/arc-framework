@@ -237,6 +237,31 @@ describe("evidence delta composition", () => {
     });
   });
 
+  it("rejects normalized base movement with an incomplete overlap residual", () => {
+    const paths = Array.from(
+      { length: 201 },
+      (_, index) => `path-${String(index).padStart(3, "0")}.ts`,
+    );
+    const normalized = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: paths, regenerablePaths: [] },
+      },
+    });
+    expect(EvidenceDeltaSchema.safeParse({ ...normalized, residual: [paths[0]] }).success)
+      .toBe(false);
+
+    const bounded = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: ["a.ts", "b.ts"], regenerablePaths: [] },
+      },
+    });
+    expect(EvidenceDeltaSchema.safeParse({ ...bounded, residual: ["a.ts"] }).success).toBe(false);
+  });
+
   it("canonicalizes valid Unicode paths by UTF-8 byte order", () => {
     const bmpPath = "\uE000.ts";
     const astralPath = "\u{10000}.ts";

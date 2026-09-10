@@ -266,6 +266,18 @@ const ApplicableRelationSchema = z.enum([
 ]);
 const ResidualSchema = BoundedEvidenceResidualSchema.nullable();
 
+function baseMovementResidualMatchesOverlap(
+  overlap: EvidenceOverlap,
+  residual: readonly string[] | null,
+): boolean {
+  if (overlap.kind !== "overlapping") return residual === null;
+  const bounded = BoundedEvidenceResidualSchema.safeParse(overlap.substantivePaths);
+  if (!bounded.success) return residual === null;
+  return residual !== null
+    && residual.length === bounded.data.length
+    && residual.every((path, index) => path === bounded.data[index]);
+}
+
 const BaseMovementDeltaSchema = z.strictObject({
   cause: z.literal("base-movement"),
   relation: z.literal("not-applicable"),
@@ -284,6 +296,13 @@ const BaseMovementDeltaSchema = z.strictObject({
       code: "custom",
       path: ["hostAdmission", "coordinates"],
       message: "host admission coordinates must match the observed integration coordinates",
+    });
+  }
+  if (!baseMovementResidualMatchesOverlap(value.overlap, value.residual)) {
+    context.addIssue({
+      code: "custom",
+      path: ["residual"],
+      message: "base-movement residual must equal the complete bounded substantive overlap",
     });
   }
 });

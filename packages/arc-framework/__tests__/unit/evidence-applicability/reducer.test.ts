@@ -212,6 +212,19 @@ describe("evidence applicability reducer", () => {
       .toMatchObject({ verdict: "fresh", judgmentRequired: false, residual: null });
   });
 
+  it("rejects a normalized overlap whose residual hides over-bound paths", () => {
+    const paths = Array.from(
+      { length: 201 },
+      (_, index) => `path-${String(index).padStart(3, "0")}.ts`,
+    );
+    const delta = baseMovement({ paths });
+    if (delta.cause !== "base-movement") throw new Error("expected base movement");
+    const truncated = { ...delta, residual: [paths[0]!] };
+
+    expect(EvidenceDeltaSchema.safeParse(truncated).success).toBe(false);
+    expect(() => reduceEvidenceApplicability(truncated, "verification")).toThrow();
+  });
+
   it("rejects impossible result pairs and unknown evidence kinds", () => {
     expect(EvidenceKindSchema.safeParse("deployment").success).toBe(false);
     expect(EvidenceApplicabilityResultSchema.safeParse({
