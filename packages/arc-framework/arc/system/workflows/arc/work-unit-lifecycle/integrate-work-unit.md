@@ -613,9 +613,11 @@ stops.
 `reconcile / reconcile-base` and `reconcile / reconcile-regenerable` enter the base-merge arm with the checkpoint's
 exact movement observation. The regenerable arm alone adds `--regenerate-roadmap`.
 
-Invoke
+For `reconcile-base`, invoke
+`arc base merge --expected-base {payload.observation.feasibility.base} --expected-head {payload.candidateHead} --json`.
+For `reconcile-regenerable`, invoke
 `arc base merge --expected-base {payload.observation.feasibility.base} --expected-head {payload.candidateHead}
-{--regenerate-roadmap only for reconcile-regenerable} --json`.
+--regenerate-roadmap --json`.
 `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
 `head-contained-by-base / rerun-checkpoint` restart this step.
 `blocked / stop`, `conflict / stop`, and `regenerable-refused / stop` stop before every later fire point.

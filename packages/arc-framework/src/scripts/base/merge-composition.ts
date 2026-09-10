@@ -164,25 +164,33 @@ export function createBaseMergePort(input: {
               if (await hasUnmergedEntries(input.exec, input.cwd)) {
                 remedyRefusal = "The readiness conflict remedy left unmerged paths.";
               } else {
-                await input.exec("git", ["diff", "--quiet", "--", ".arc/backlog/ROADMAP.md"], {
-                  cwd: input.cwd,
-                  objectAccess: "local-only",
-                });
-                await input.exec("git", ["commit", "--no-edit"], { cwd: input.cwd });
-                const after = await resolveOid(input.exec, input.cwd, "HEAD");
-                const parents = await resolveParents(input.exec, input.cwd, after);
-                const clean = (await input.exec("git", ["status", "--porcelain=v1"], {
-                  cwd: input.cwd,
-                  objectAccess: "local-only",
-                })).stdout === "";
-                if (parents.length === 2 && parents[0] === headOid && parents[1] === baseOid && clean) {
-                  return { status: "merged", headOid: after };
+                const [currentHead, currentMergeHead] = await Promise.all([
+                  resolveOid(input.exec, input.cwd, "HEAD"),
+                  resolveOid(input.exec, input.cwd, "MERGE_HEAD"),
+                ]);
+                if (currentHead !== headOid || currentMergeHead !== baseOid) {
+                  remedyRefusal = "The merge coordinates moved during readiness regeneration.";
+                } else {
+                  await input.exec("git", ["diff", "--quiet", "--", ".arc/backlog/ROADMAP.md"], {
+                    cwd: input.cwd,
+                    objectAccess: "local-only",
+                  });
+                  await input.exec("git", ["commit", "--no-edit"], { cwd: input.cwd });
+                  const after = await resolveOid(input.exec, input.cwd, "HEAD");
+                  const parents = await resolveParents(input.exec, input.cwd, after);
+                  const clean = (await input.exec("git", ["status", "--porcelain=v1"], {
+                    cwd: input.cwd,
+                    objectAccess: "local-only",
+                  })).stdout === "";
+                  if (parents.length === 2 && parents[0] === headOid && parents[1] === baseOid && clean) {
+                    return { status: "merged", headOid: after };
+                  }
+                  if (parents[0] === headOid && await resolveOid(input.exec, input.cwd, "HEAD") === after) {
+                    await input.exec("git", ["update-ref", "HEAD", headOid, after], { cwd: input.cwd });
+                    await input.exec("git", ["reset", "--hard", "HEAD"], { cwd: input.cwd });
+                  }
+                  remedyRefusal = "The regenerated merge did not preserve the exact parents and clean tree.";
                 }
-                if (parents[0] === headOid && await resolveOid(input.exec, input.cwd, "HEAD") === after) {
-                  await input.exec("git", ["update-ref", "HEAD", headOid, after], { cwd: input.cwd });
-                  await input.exec("git", ["reset", "--hard", "HEAD"], { cwd: input.cwd });
-                }
-                remedyRefusal = "The regenerated merge did not preserve the exact parents and clean tree.";
               }
             }
           } catch (remedyError) {

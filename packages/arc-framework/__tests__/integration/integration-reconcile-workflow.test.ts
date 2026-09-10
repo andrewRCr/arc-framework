@@ -78,7 +78,7 @@ describe("integration current-WU reconcile workflow", () => {
     const orderedSurfaces = [
       "arc wu reconcile {name} --apply --json",
       "arc integrate checkpoint {name} --json",
-      "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
+      "arc base merge --expected-base {payload.observation.feasibility.base} --expected-head {payload.candidateHead} --json",
       "payload.interlockSurface.machineEvidence.text",
       "**Extension report** · `#pre-merge`",
       "`integration-interlock`:",
