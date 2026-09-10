@@ -2,6 +2,7 @@
 
 import {
   BoundedEvidenceResidualSchema,
+  compareEvidencePaths,
   EvidenceDeltaProducerSchema,
   EvidenceDeltaSchema,
   integrationCoordinatesEqual,
@@ -26,12 +27,8 @@ const NOT_APPLICABLE_HOST = {
   detail: null,
 } as const;
 
-function compareUtf8(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
-}
-
 function canonicalPaths(paths: readonly string[]): string[] {
-  return [...new Set(paths)].sort(compareUtf8);
+  return [...new Set(paths)].sort(compareEvidencePaths);
 }
 
 function boundedResidual(paths: readonly string[]): string[] | null {

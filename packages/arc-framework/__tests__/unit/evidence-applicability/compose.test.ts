@@ -237,6 +237,25 @@ describe("evidence delta composition", () => {
     });
   });
 
+  it("canonicalizes valid Unicode paths by UTF-8 byte order", () => {
+    const bmpPath = "\uE000.ts";
+    const astralPath = "\u{10000}.ts";
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: {
+          status: "available",
+          substantivePaths: [astralPath, bmpPath],
+          regenerablePaths: [],
+        },
+      },
+    })).toMatchObject({
+      overlap: { substantivePaths: [bmpPath, astralPath] },
+      residual: [bmpPath, astralPath],
+    });
+  });
+
   it("fails strict producer and host boundaries closed", () => {
     expect(EvidenceDeltaProducerSchema.safeParse({
       cause: "base-movement",

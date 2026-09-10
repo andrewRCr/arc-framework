@@ -19,11 +19,16 @@ const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const EvidencePathSchema = z.string().min(1)
   .refine((value): boolean => isManagedPath(value), "must be a managed repository path");
 
+/** Compare evidence paths by their repository-facing UTF-8 bytes. */
+export function compareEvidencePaths(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
 function canonicalPathArray(minimum: number) {
   return z.array(EvidencePathSchema).min(minimum).superRefine((paths, context) => {
     let previous: string | undefined;
     if (paths.some((path) => {
-      const invalid = previous !== undefined && path <= previous;
+      const invalid = previous !== undefined && compareEvidencePaths(previous, path) >= 0;
       previous = path;
       return invalid;
     })) {
