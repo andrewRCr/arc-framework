@@ -359,13 +359,10 @@ changes.
   scope. Fresh-context exercises establish faithful standalone reports without synthetic producer identity and close
   the discovered renderer omission at its source.
 
-### `[ ]` **4.R Close Member 4 verification findings**
+### `[x]` **4.R Close Member 4 verification findings**
 
 - _Goal:_ Producer-backed proposals preserve reported judgment and effective gating while their human report remains
   structurally inert.
-
-- _Note:_ Member 4 adversarial Pass 1 confirmed three material gaps; the complete correction set and a full Pass 2
-  were approved before mutation.
 
     - `[x]` **4.R.a Preserve hosted provider nit judgments**
 
@@ -377,10 +374,13 @@ changes.
         - Public proposals now require the existing `severityGatingPolicy`; command construction derives ordinary
           verified-minor gating from that effective policy while verified nits remain record-only.
 
-    - `[ ]` **4.R.c Render source references as inert report text**
+    - `[x]` **4.R.c Render source references as inert report text**
 
-        - Prevent multiline or Markdown-bearing source references from creating fake report fields or separators while
-          leaving canonical producer content and identity unchanged.
+        - Report projection now collapses source-reference whitespace and escapes Markdown/HTML punctuation, preventing
+          injected fields or separators while canonical producer content and identity remain unchanged.
+
+- _Outcome:_ Producer-backed proposals now preserve hosted nit provenance, apply caller-effective verified-minor
+  gating, and render structurally inert source references; the three source-confirmed Member 4 findings are corrected.
 
 ### `[ ]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
 

@@ -76,15 +76,36 @@ describe("disposition report", () => {
     expect(report).toContain("Verification: targeted");
     expect(report).toContain(
       `Finding F1: Standalone account for finding-a. · Locus: &lt;src/\\*a\\*\\.ts:4&gt;\n`
-        + `Source: ${clippedLabel}… · source #2 · review:finding-a`,
+        + `Source: ${clippedLabel}… · source #2 · review:finding\\-a`,
     );
     expect(report).toContain(
       "Finding F2: Standalone account for finding-z. · Locus: src/z\\.ts:9\n"
-        + "Source: &lt;unsafe \\*title\\*&gt; · source #1 · review:finding-z",
+        + "Source: &lt;unsafe \\*title\\*&gt; · source #1 · review:finding\\-z",
     );
     expect(report).toContain("Assessment: CONFIRMED · minor nit (ARC) · minor nit (reviewer)");
     expect(report.match(/^---$/gmu)).toHaveLength(1);
     expect(report).not.toMatch(/^---|---$/u);
+  });
+
+  it("renders multiline Markdown evidence references as inert source text", () => {
+    const { dispositionSet, producerFindings } = fixture();
+    const finding = producerFindings[0];
+    if (finding === undefined) throw new Error("expected producer finding fixture");
+    finding.evidenceUrlOrId = [
+      "provider [link](https://example.test)",
+      "Assessment: FORGED",
+      "---",
+      "<unsafe> *reference*",
+    ].join("\n");
+
+    const report = renderDispositionReport({ dispositionSet, producerFindings });
+    const sourceLine = report.split("\n").find((line) => line.includes("source #1"));
+
+    expect(sourceLine).toContain("provider \\[link\\]\\(https://example\\.test\\)");
+    expect(sourceLine).toContain("Assessment: FORGED \\-\\-\\-");
+    expect(sourceLine).toContain("&lt;unsafe&gt; \\*reference\\*");
+    expect(report).not.toMatch(/^Assessment: FORGED$/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
   });
 
   it("refuses a report without exact producer correspondence", () => {

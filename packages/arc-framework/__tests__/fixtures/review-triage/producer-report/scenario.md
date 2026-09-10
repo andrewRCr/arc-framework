@@ -19,7 +19,7 @@ report bytes:
 Verification: full
 
 Finding F1: The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs. · Locus: src/index\.ts:7
-Source: N\-7 · source #1 · review:finding-1
+Source: N\-7 · source #1 · review:finding\-1
 Assessment: NOT SUPPORTED · no ARC severity (ARC) · major (reviewer)
 Recommendation: REJECT [record-only] — Reject the finding without changing code.
 Open questions: Should the reviewer clarify the cited execution path?

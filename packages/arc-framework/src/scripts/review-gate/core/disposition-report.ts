@@ -16,10 +16,13 @@ function renderSource(finding: NormalizedReviewFinding): string {
   const escapedLabel = finding.sourceLabel === undefined
     ? undefined
     : escapeReviewFindingDisplayText(finding.sourceLabel);
+  const escapedReference = escapeReviewFindingDisplayText(
+    finding.evidenceUrlOrId.replace(/\s+/gu, " ").trim(),
+  );
   const label = escapedLabel === undefined
     ? ""
     : `${escapedLabel}${finding.sourceLabelTruncated === true ? "…" : ""} · `;
-  return `Source: ${label}source #${finding.sourceOrdinal} · ${finding.evidenceUrlOrId}`;
+  return `Source: ${label}source #${finding.sourceOrdinal} · ${escapedReference}`;
 }
 
 function renderAssessment(item: DispositionReportItem): string {
