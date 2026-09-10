@@ -451,37 +451,69 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
 - _Outcome:_ always-loaded rules, integration doctrine, concurrent-work guidance, and executing workflow prose now
   share one content-based terminal policy without lifecycle-wide serialization.
 
-### `[ ]` **4.6 Exercise integration slice** — D3-D11, D14-D16 — validate exit criterion at segment scope
+### `[x]` **4.6 Exercise integration slice** — D3-D11, D14-D16 — validate exit criterion at segment scope
 
 - _Goal:_ one executable scenario family demonstrates that the composed integration slice removes disjoint waiting
   without turning unknown, overlapping, stale, failed, or host-refused evidence into authority.
 
-    - Exercise a disjoint singleton through direct checkpoint approval and confirmed exact-head merge.
-    - Exercise an overlapping and a host-required-currentness case through exactly one typed base reconcile and fresh
-      approval, plus a regenerable-only conflict through the bounded readiness remedy.
-    - Exercise a real three-member unlinked delivery with the custom readiness merge driver disabled: land an
-      ordinary nonterminal after sibling-only readiness regeneration without changing its reviewed head, reject a
-      nonterminal competing render, route a terminal dual-sided render through `reconcile-regenerable`, and retain an
-      interacting predecessor refusal.
-    - Exercise an Errand direct merge and a pending-check continuation that later resumes green, recording the absence
-      of workflow or CLI polling and native auto-merge.
-    - Exercise an ambiguous mutating response through exact merged confirmation and through unavailable confirmation,
-      proving retry settlement, preserved approval, both diagnostics, and no uncertainty-only re-lock.
-    - Exercise the complete changed public-operation inventory—`arc base drift`, `arc base merge`,
-      `arc integrate checkpoint`, `arc integrate merge`, delivery eligibility and terminal status,
-      `arc review status`, required-check observation, `arc errand merge`, `arc attest`, and pre-publication action
-      composition—through both JSON and interactive projections. For every non-success variant, assert the stable
-      semantic cause, most specific sanitized detail, decisive coordinates, and executable structured remedy argv or
-      explicit reason no safe automated continuation exists; no adapter exception may survive only in logs or a
-      generic fallback.
+- _Outcome:_ the executable integration family proves direct disjoint approval and exact merge, one bounded reconcile
+  for overlap or host currentness, three-member chain preservation with the custom driver disabled, Errand direct
+  merge with resumable checks, and exact confirmation after ambiguous mutation. Unknown, stale, failed, conflicting,
+  and host-refused variants retain typed coordinates, diagnostics, and safe remedies across JSON and interactive
+  projections without acquiring authority.
 
-### `[ ]` **4.7 Close the concurrent-integration member** — D3-D11, D14-D16 — validate criteria at member scope
+### `[x]` **4.7 Close the concurrent-integration member** — D3-D11, D14-D16 — validate criteria at member scope
 
 - _Goal:_ Member 2's criteria are validated against its terminal-operation, delivery, review, workflow, and doctrine
   evidence before the scoped-verification member lands.
 
-- _Note:_ Run `validate-criteria` over `Success Criteria` § Member 2 — `concurrent-integration` and record the
-  member-scope report without changing criterion markers.
+- _Outcome:_ Member 2 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 2 — concurrent-integration`.
+    - _Span:_ bounded diff `effb42974..4742e3ed5`; cumulative reachability `4742e3ed5` at tree `cb67efedd`;
+      boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 1`; _criterion-digest:_
+      `sha256:00a73f3ec0279c6dc519a3a1dd2d02e93c479ac0bf9c8a6d8094fcf8fea053a2`; _State:_ `[x]`; _Evidence:_
+      checkpoint movement planning and terminal checkpoint composition carry exact disjoint Git and host evidence
+      directly to approval; focused tests prove no reconcile, re-judgment, or recompose action is emitted.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 2`; _criterion-digest:_
+      `sha256:e438666a5795f44e0d5e1e5d092083a23636bd4ec356792944deab4f2ae2175e`; _State:_ `[x]`; _Evidence:_
+      checkpoint and merge planning select one typed reconcile for complete overlap or strict-currentness evidence,
+      retain the bounded regenerable remedy, and stop on substantive conflict or incomplete evidence.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 3`; _criterion-digest:_
+      `sha256:22401bddcbe865761ae37c51ae6af2278883ddf766f857f2fdfa3640f6469db1`; _State:_ `[x]`; _Evidence:_
+      closed terminal result unions distinguish host refusal, unavailability, operation failure, uncertain mutation,
+      and changed coordinates; exact confirmation settles success or preserves both diagnostics without replay.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 4`; _criterion-digest:_
+      `sha256:1fbaf3b4039f8fd667c70014c1eb66e8c471ea56c4987710ff0b1633e70153d3`; _State:_ `[x]`; _Evidence:_
+      delivery eligibility, predecessor relation, materialization, and terminal integration retain distinct tips and
+      chain bases; the real unlinked three-member exercise proves one-sided landing, competing-render refusal,
+      regenerable terminal reconciliation, and interacting-predecessor refusal with the custom driver disabled.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 5`; _criterion-digest:_
+      `sha256:9d2ea1a9e5c7792699c2d8b8914799fc86721019b46591b7e86fd1db0f258dd8`; _State:_ `[x]`; _Evidence:_
+      checkpoint delivery composition classifies drift from the durable Candidate before currentness, uses the
+      shared versioned record for explicit-base projections, and refuses persistence with a typed recompose result
+      when the record version moves.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 6`; _criterion-digest:_
+      `sha256:c07e55b326c5933edf0764996c85ec98282709870a617707213dfd5c84462bc6`; _State:_ `[x]`; _Evidence:_
+      review-status composition retains a settled attempt across disjoint movement and routes overlap or unavailable
+      evidence through the exact checkpoint continuation with preserved coordinates, detail, and terminal reason.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 7`; _criterion-digest:_
+      `sha256:5f78f2fb4e03af820cb133648dfcc33dbea3a8eb0bbfc6bc7c085aee905b948a`; _State:_ `[x]`; _Evidence:_
+      work-unit and Errand merge composition bind approved head, named target, repository, method, and host policy;
+      both confirm the exact request, disclose the provider race, and the Errand path requires bounded judgment and
+      direct merge without a native auto-merge arm.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 8`; _criterion-digest:_
+      `sha256:101b6fa864dd672e6bc4a6cfc1414d02cfcfb444a4e9a88a494c05f79a099c71`; _State:_ `[x]`; _Evidence:_
+      one-shot required-check observation returns pending or unavailable with the same idempotent checkpoint action;
+      terminal merge tests prove failed or moved-head bindings invalidate, re-lock, and retain actionable remedies.
+    - _Criterion:_ `Success Criteria > Member 2 — concurrent-integration > 9`; _criterion-digest:_
+      `sha256:b6965adc194684e923088f8194344211926d778f87c10f70ed31fc3b9ac44d11`; _State:_ `[x]`; _Evidence:_
+      `assess-evidence-applicability` is classified, installed, manifest-registered, reverse-indexed, and inventoried;
+      workflow and doctrine contract tests prove typed dispatch, marked fire-points, and no ARC policy engine or queue.
+    - _Adversarial companion:_ not run; the Heavy-class neutral offer was delegated to agent judgment, and the focused
+      segment exercise plus the composed suite exposed no unresolved criterion warranting a third pass.
+    - _Summary:_ nine met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 5:** Scoped Candidate verification
 
