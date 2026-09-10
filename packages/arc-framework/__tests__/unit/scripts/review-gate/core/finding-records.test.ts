@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  FindingSettlementV2Schema,
   NormalizedReviewFindingSchema,
   NormalizedReviewFindingsSchema,
   captureReviewFindingSourceLabel,
@@ -30,7 +29,7 @@ describe("provider finding classification", () => {
     expect(normalizeProviderFindingClassification("critical", true)).toEqual({ severity: "critical" });
   });
 
-  it("accepts critical and rejects retired blocker across normalized findings and settlements", () => {
+  it("accepts critical and rejects retired blocker in normalized findings", () => {
     const finding = {
       findingId: "finding-1",
       severity: "critical",
@@ -40,35 +39,6 @@ describe("provider finding classification", () => {
     };
     expect(NormalizedReviewFindingSchema.safeParse(finding).success).toBe(true);
     expect(NormalizedReviewFindingSchema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
-
-    const targetId = `sha256:${"a".repeat(64)}`;
-    const dispositionSetId = `sha256:${"b".repeat(64)}`;
-    const settlement = {
-      schemaVersion: 2,
-      semanticsVersion: "review-gate/v2",
-      targetId,
-      dispositionSetId,
-      approval: {
-        schemaVersion: 2,
-        semanticsVersion: "review-gate/v2",
-        targetId,
-        dispositionSetId,
-        approvedBy: "maintainer-1",
-        approvedAt: "2026-07-23T15:00:00Z",
-      },
-      findingId: "finding-1",
-      sourceIdentity: "delegated-agent",
-      severity: "critical",
-      disposition: "defer",
-      rationale: "The finding remains valid and is durably deferred.",
-      settledBy: "maintainer-1",
-      settledAt: "2026-07-23T15:01:00Z",
-      fixTargetId: null,
-      fixConsumption: null,
-      verificationRefs: ["review:finding-1"],
-    };
-    expect(FindingSettlementV2Schema.safeParse(settlement).success).toBe(true);
-    expect(FindingSettlementV2Schema.safeParse({ ...settlement, severity: "blocker" }).success).toBe(false);
   });
 
   function dispositionItem(overrides: Record<string, unknown> = {}) {

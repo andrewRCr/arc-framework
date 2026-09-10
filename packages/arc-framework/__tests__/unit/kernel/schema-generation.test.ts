@@ -71,7 +71,6 @@ describe("kernel schema artifact generation", () => {
       "disposition-set-state",
       "finding-classification",
       "finding-disposition",
-      "finding-settlement",
       "fix-authorization",
       "fix-authorization-consumption",
       "fix-authorization-preimage",

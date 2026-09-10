@@ -40,7 +40,6 @@ describe("production schema artifact", () => {
       "errand-staleness-sweep",
       "finding-classification",
       "finding-disposition",
-      "finding-settlement",
       "fix-authorization",
       "fix-authorization-consumption",
       "fix-authorization-preimage",
