@@ -100,32 +100,21 @@ change, and removes the unused predecessor.
 - _Outcome:_ all five producer causes now normalize through one strict, computed-only envelope without changing
   durable producer records or leaking provider mechanics into core.
 
-### `[ ]` **1.3 Implement exhaustive evidence-applicability reduction** — D3
+### `[x]` **1.3 Implement exhaustive evidence-applicability reduction** — D3
 
 - _Goal:_ deterministic evidence applicability is decided once in TypeScript, while only a bounded residual that
   truly requires judgment escapes into procedural prose.
 
-    - `[ ]` **1.3.a Encode the closed precedence table**
-        - Implement `reduceEvidenceApplicability(delta, evidence)` as an exhaustive pure reducer over review
-          clearance, verification, and merge-safety evidence.
-        - Build `test-first` (one behavior at a time):
-            - unexplained causes and unknown or unavailable values on an axis relevant to the selected cause/evidence
-              pair are always final `fresh`;
-            - cause-inapplicable axes are fixed to `not-applicable` and cannot spuriously stale otherwise valid
-              review or verification evidence;
-            - verification over approved-fix scope maps to targeted carry, focused supplementation, or full
-              freshness while review clearance remains fresh;
-            - base movement carries for disjoint review and verification evidence without a D4 relation;
-            - merge safety carries only on the bound disjoint, host-mergeable row and never enters judgment; and
-            - other movement causes follow the equal, mechanical, clean-divergence, interaction, and unavailable rows.
+    - `[x]` **1.3.a Encode the closed precedence table**
+        - Added the pure closed-row reducer for review clearance, verification, and merge safety, including approved
+          scope, base movement, D4 relation, overlap, and conservative unavailable behavior.
 
-    - `[ ]` **1.3.b Bound the judgment handoff**
-        - Return `judgmentRequired: true` only for a bounded non-base clean divergence or bounded overlapping
-          base-movement residual over review/verification evidence, using `supplemental` as the minimum/default
-          recommendation; every merge-safety, interaction, unavailable, unknown, absent-residual, or over-bound arm
-          returns a final conservative verdict when that state is evidence-relevant.
-        - Add exhaustive type and runtime fixtures so a new cause, relation, overlap, host state, scope, or evidence
-          kind fails compilation or the closed-row tests until explicitly handled.
+    - `[x]` **1.3.b Bound the judgment handoff**
+        - Limited judgment output to bounded overlap and clean-divergence residuals; every other arm returns a final
+          typed verdict, with compile-time axis exhaustiveness and runtime impossible-pair rejection.
+
+- _Outcome:_ deterministic applicability now resolves through one exhaustive reducer, and only a bounded residual
+  with a `supplemental` minimum can escape to procedural judgment.
 
 ### `[ ]` **1.4 Retire the unused review-applicability core** — D2
 

@@ -8,6 +8,14 @@ export {
 } from "./path-treatment.js";
 export { composeEvidenceDelta } from "./compose.js";
 export {
+  EvidenceApplicabilityResultSchema,
+  EvidenceApplicabilityVerdictSchema,
+  EvidenceKindSchema,
+  reduceEvidenceApplicability,
+  type EvidenceApplicabilityResult,
+  type EvidenceKind,
+} from "./reducer.js";
+export {
   BoundedEvidenceResidualSchema,
   BaseMovementObservationSchema,
   EvidenceOverlapObservationSchema,
