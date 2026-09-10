@@ -3,14 +3,20 @@
   "slug": "route-delivery-followups",
   "claimId": "7ef40e64026470985a95731081bed7c9",
   "createdAt": "2026-09-09T23:35:47.036Z",
-  "updatedAt": "2026-09-09T23:35:47.036Z",
+  "updatedAt": "2026-09-10T00:00:03.090Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route post-integration delivery follow-ups and refresh the execute-bound order",
   "branch": "chore/route-delivery-followups",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-delivery-followups",
+    "headSha": "ad0f0d6b3bf973514e420e151a6f053a4c23741e"
+  }
 }
