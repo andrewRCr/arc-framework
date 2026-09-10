@@ -966,10 +966,13 @@ export async function checkpointIntegration(
       composition.approvedHead !== candidate.recognizedRevision
       || composition.candidateTailDiff.throughRevision !== composition.approvedHead
       || composition.statusSummary.changeRequest.headSha !== composition.approvedHead
+      || composition.statusSummary.changeRequest.repository.toLowerCase()
+        !== observation.admission.repository.toLowerCase()
+      || composition.statusSummary.changeRequest.pullRequest !== observation.admission.changeRequest
       || composition.statusSummary.lifecycle.workUnit !== lifecycle.workUnit
       || composition.requirementSummary.conclusion !== "satisfied"
     ) {
-      throw new Error("ready composition does not bind the exact satisfied Candidate head");
+      throw new Error("ready composition does not bind the exact approved request and Candidate head");
     }
     const stackPosition = delivery.status === "ready" ? "top" : "non-delivery";
     const mergeMethod = await dependencies.resolveMergeMethod(

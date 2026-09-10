@@ -841,6 +841,28 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it("refuses a ready change request that differs from the host-admission request", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const composeReady = deps.composeReady;
+    deps.composeReady = async (input) => {
+      const ready = await composeReady(input);
+      return {
+        ...ready,
+        statusSummary: {
+          ...ready.statusSummary,
+          changeRequest: { ...ready.statusSummary.changeRequest, pullRequest: 43 },
+        },
+      };
+    };
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        payload: { detail: "ready composition does not bind the exact approved request and Candidate head" },
+      });
+  });
+
   it("blocks a reserved hosted review that has produced no verdict, naming its corrective command", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
