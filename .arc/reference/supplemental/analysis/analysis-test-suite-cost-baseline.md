@@ -57,15 +57,29 @@ above. What is preserved here is the derived per-file ranking and the method.
 
 ## Tier baselines
 
-| Tier                  | Wall clock | Summed file time | Files | Cases  |
-| --------------------- | ---------- | ---------------- | ----- | ------ |
-| `unit` + `unit-mocks` | 25.3 s     | 74 s             | 685   | 9,854  |
-| `integration`         | 47.4 s     | 342 s            | 137   | 1,248  |
-| `e2e`                 | 280.3 s    | 1,784 s          | 53    | 528    |
-| **Full local run**    | **~353 s** | 2,200 s          | 875   | 11,630 |
-| Routine lane (no E2E) | ~72.7 s    | 416 s            | 822   | 11,102 |
+| Tier                  | Wall clock      | Summed file time | Files | Cases  |
+| --------------------- | --------------- | ---------------- | ----- | ------ |
+| `unit` + `unit-mocks` | 25.3 s          | 74 s             | 685   | 9,854  |
+| `integration`         | 47.4 s          | 342 s            | 137   | 1,248  |
+| `e2e`                 | 280.3 s         | 1,784 s          | 53    | 528    |
+| **Full local run**    | **~353 s**      | 2,200 s          | 875   | 11,630 |
+| Routine lane (no E2E) | 55.5 s / 58.3 s | 408 s / 429 s    | 822   | 11,102 |
 
 The full local run is sequential across tiers, as the tier runner drives it. E2E is 79% of it.
+
+The routine lane row is two measured runs of `vitest run --project unit --project unit-mocks --project integration`
+as one command, not the two tiers summed (which would read ~72.7 s). The projects interleave in one worker pool:
+integration files start ~31 s before the first unit file and unit files are still finishing in the lane's last
+second. Two split runs taken in the same session summed to 68.2 s, so the single command is ~15% cheaper than
+running the tiers back to back. An earlier draft of this document carried the arithmetic figure.
+
+**Wall clock is floored by the longest file.** Files run in parallel and tests within a file run sequentially, so
+no tier finishes before its longest file. Integration measured 44.0 s wall against `user.test.ts` at 40.3 s, while
+its summed time over the 12 local workers (50% of 24 cores) would be ~28 s; unit measured 24.2 s wall against
+`classify-change.test.ts` at 22.3 s. Reducing summed time does not move these tiers' wall clock until the longest
+files shrink or split.
+
+`build:fast`, which the integration global setup runs on every invocation, costs 1.2 s warm.
 
 ## Where the time concentrates
 
@@ -112,6 +126,39 @@ carry a repo-building signal. Any lever aimed at CLI startup reaches at most the
 
 `config-validate` is the exception that pays a different tax: it spawns the CLI from TypeScript source through the
 `tsx` loader, at ~1.4 spawns per test.
+
+### Fixture construction probe (`user.test.ts`, `init.test.ts`)
+
+Both files build one fixture per test through `__tests__/helpers/integration.ts`, which delegates repository
+creation to `createTempRepoCore` in `temp-repo.ts`. Spawn counts were verified with a logging `git` shim on
+`PATH`; timings are ten sequential builds on an idle machine (mode: **single**, not comparable to in-tier figures)
+under the config's hermetic environment (`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`).
+
+| Fixture shape                               | git spawns | Mean build | Used by                        |
+| ------------------------------------------- | ---------- | ---------- | ------------------------------ |
+| `createTempRepo` only                       | 4          | 9.5 ms     | `init` — 5 cases               |
+| `createTempRepo` + `runInit`                | 9          | 106.4 ms   | `init` — 34 cases; `user` — 12 |
+| `initInTempRepo` + `makeCommit`             | 11         | 110.5 ms   | `user` — 33 cases              |
+| `initInTempRepo` + commit + `addBareRemote` | 14         | 137.6 ms   | `user` — 48 cases              |
+| `fs.cpSync` of a built `user` fixture       | 0          | 7.3 ms     | 3.5 MB, 187 files              |
+
+A single `git --version` costs 2.4 ms and `git init -q` 4.5 ms, so the nine spawns in the `runInit` path are
+~24 ms of its ~106 ms; the remainder is the init command writing the `.arc/` tree. Spawn batching is therefore not
+a lever; a template copy is, bounded by the fixture share below.
+
+| File                     | Duration (tier-isolated) | Cases | Fixture share (weighted by shape) |
+| ------------------------ | ------------------------ | ----- | --------------------------------- |
+| `user.test.ts`           | 40.3 s                   | 94    | 28.6% (25.8% uniform)             |
+| `init.test.ts`           | 11.6 s                   | 39    | 31.6% (35.8% uniform)             |
+
+**Absolute-path audit.** A built `initInTempRepo` + `makeCommit` fixture contains no occurrence of its own
+absolute path anywhere, `.git/` included. The `addBareRemote` shape does: `.git/config` records the remote's
+absolute `/tmp/arc-remote-*` path, and the remote is a sibling temp directory, not nested in the fixture. Note
+that `ugrep`-backed `grep` functions skip hidden files under `-r` and return a false clean; use `/usr/bin/grep`.
+
+**Remote leak.** `addBareRemote` returns its temp directory and leaves removal to the caller; of the twelve test
+files that call it, one removes the directory. The measuring machine held 1,210 leaked `arc-remote-*` directories
+(213 MB) from prior runs.
 
 ### `e2e` — 1,784 s over 53 files
 
@@ -176,6 +223,10 @@ Keeping one output file once dynamic imports exist requires setting `splitting: 
 | tmpfs fixture root, `e2e`                  | 280.3 s → 278.9 s (**0.5%**)        | High — effectively nil           |
 | CI anchor re-selection                     | ~25 s of critical path              | Medium — from tier-isolated rank |
 | Code splitting, on top of lazy loading     | ~0.02 s per real-verb spawn         | High — direct measurement        |
+| Running the lane as one command            | 68.2 s → 55.5 s (**~15%**)          | High — same-session pair         |
+| Fixture template copy, `user` / `init`     | ≤26–36% of those files' time        | High — probe; share is the bound |
+| Skipping `build:fast` when `dist/` fresh   | 1.2 s                               | High — effectively nil           |
+| Batching git spawns per fixture            | ~24 ms of ~106 ms per build         | High — effectively nil           |
 
 The two low-confidence rows are the reason the variance caveat matters: both sit at or below the ~8% run-to-run
 spread and neither is established by the single runs recorded here.

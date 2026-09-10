@@ -20,23 +20,31 @@ The presumed remedy was judging some eleven thousand cases one at a time — imp
 that, and reshapes the problem substantially. All figures below are tier-isolated on a quiet machine; the full
 method, per-file rankings, and caveats live in `analysis-test-suite-cost-baseline.md`.
 
-| Tier                  | Wall clock | Summed file time | Files | Cases  |
-| --------------------- | ---------- | ---------------- | ----- | ------ |
-| `unit` + `unit-mocks` | 25.3 s     | 74 s             | 685   | 9,854  |
-| `integration`         | 47.4 s     | 342 s            | 137   | 1,248  |
-| `e2e`                 | 280.3 s    | 1,784 s          | 53    | 528    |
-| **Full local run**    | **~353 s** | 2,200 s          | 875   | 11,630 |
+| Tier                      | Wall clock  | Summed file time | Files | Cases  |
+| ------------------------- | ----------- | ---------------- | ----- | ------ |
+| `unit` + `unit-mocks`     | 25.3 s      | 74 s             | 685   | 9,854  |
+| `integration`             | 47.4 s      | 342 s            | 137   | 1,248  |
+| `e2e`                     | 280.3 s     | 1,784 s          | 53    | 528    |
+| **Full local run**        | **~353 s**  | 2,200 s          | 875   | 11,630 |
+| Routine lane, one command | **56–58 s** | ~410–430 s       | 822   | 11,102 |
 
-Three facts govern the design.
+Four facts govern the design.
 
 **E2E is 79% of the local run.** Taking it off the routine local path — CI still enforces it before merge — moves
-the routine run from ~353 s to ~73 s on its own. No other lever is close, and it costs a policy decision plus one
-tier-runner mode rather than engineering.
+the routine run from ~353 s to a measured 56–58 s when the unit and integration projects run as one command (the
+projects interleave in one worker pool, so the lane costs less than the two tiers summed). No other lever is close,
+and it costs a policy decision plus one tier-runner mode rather than engineering.
+
+**Wall clock is floored by the longest file, not the total.** Files run in parallel and tests within a file run
+sequentially, so a tier cannot finish before its longest file does. `user.test.ts` at 40–48 s is the floor of a
+44 s integration tier whose summed time over 12 workers would be ~28 s; `classify-change.test.ts` at 23 s is the
+floor of a 24 s unit tier. Reducing summed time lowers CPU cost, contention under load, and CI job-seconds; it does
+not move the routine lane's wall clock until the longest files shrink or split.
 
 **The two slow tiers are slow for different reasons.** In `integration`, only four of 137 files spawn the CLI at
-all; they hold 29% of tier cost, while the other 133 hold 71% and are dominated by git fixture construction — 112
-files build repositories. In `e2e`, per-spawn CLI startup is the recurring term across roughly a thousand spawns.
-A single "reduce per-spawn cost" story does not fit both.
+all; they hold 29% of tier cost, while the other 133 hold 71%. Probing the two largest non-spawning files puts
+per-test fixture construction at 26–36% of their time; the rest is test-body work. In `e2e`, per-spawn CLI startup
+is the recurring term across roughly a thousand spawns. A single "reduce per-spawn cost" story does not fit both.
 
 **Cost concentrates hard, but not where a rubric would look.** Two `unit` files are 55% of that tier and neither
 spawns the CLI. Four `integration` files are 47%. Twelve `e2e` files are 72%. In every case the expensive thing is
@@ -46,20 +54,27 @@ test semantics.
 **Measurement discipline is itself a finding.** The same tier measured 51.1 s and 47.4 s on consecutive quiet
 runs: run-to-run variance is roughly 8%, so any lever below ~10% is not established by a single run. Separately,
 single-file, tier-isolated, and under-load measurements of the same file span 2.4×. Both traps produced wrong
-conclusions during this spec's own authoring before being caught.
+conclusions during this spec's own authoring before being caught, and a third followed: the routine lane's
+starting point was first stated as the two tiers summed (~73 s) and measured as one command at 56–58 s. Every
+number here that describes a path the suite takes was measured on that path; where a number is still an estimate,
+the text says so.
 
 ## Goals
 
-1. Routine local verification costs about a minute rather than about six.
-2. A full local run and CI heavy-lane compute both fall measurably, by margins derived from measurement rather
+1. Routine local verification costs well under a minute rather than about six. The lane alone reaches ~56 s; the
+   cost work on top of it is measured against that, not against the full run.
+2. A full local run and CI heavy-lane wall time both fall measurably, by margins derived from measurement rather
    than guessed.
 3. Both lines hold over time — the suite cannot silently regrow past a recorded budget.
 4. Cost becomes measured data the project can act on, including for work that follows this one.
 5. Every behavior a removed or consolidated test protected remains protected by a retained test at some tier.
 
-Goal 2 is deliberately modest on the CI side. The lever that would move CI compute materially is not spawning the
-CLI a thousand times, and that is a separate work unit (see Coordination); what remains in scope here reaches
-single-digit percentages of the E2E tier.
+Goal 2's CI side follows the runner's shape. The self-hosted mini runs two job slots at one Vitest worker each — a
+measured ceiling owned by `local-ci-capacity-qualification` — and a heavy run packs roughly 1,300 job-seconds onto
+them, so heavy-lane wall time is total job-seconds over two slots. Every CPU-second D3 and D4 remove is CI wall
+clock there, which is why summed-time levers count on CI even where they do not move the local lane. The lever that
+would move CI by a large factor is not spawning the CLI a thousand times, and that is a separate work unit (see
+Coordination).
 
 ## Non-Goals
 
@@ -76,9 +91,11 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   `quality-gate-hooks`. D1 touches only the project-layer selection rule and the wording that over-asserts
   against it.
 - **No timeout, contention, or admission-lock policy** — `test-suite-contention-hardening`.
-- **No shard-count or runner-capacity changes** — `local-ci-capacity-qualification`,
-  `self-hosted-ci-qualification`. Anchor selection within the existing four legs is in scope; duration-aware shard
-  membership is not.
+- **No shard-count, runner-capacity, or CI worker-cap changes** — `local-ci-capacity-qualification` measured the
+  mini's guest saturating at two to three concurrent jobs at one Vitest worker each, a property of the chip's four
+  performance cores that no worker setting or allocation change recovers; its two-slot, one-worker decision stands.
+  Anchor selection within the existing four legs is in scope, and so is the **local** worker cap (D5);
+  duration-aware shard membership is not.
 - **No launcher entry, `bin` change, or dist-layout change** — `e2e-build-coordination` owns bundle freshness and
   publication. `bin` continues to point at `dist/cli.js`, and `dist/` stays a single file.
 - **No DI migration of the quarantined `unit-mocks` files** — `test-di-migration`.
@@ -164,21 +181,28 @@ roughly 8%; the instrument reports normalized multi-run figures and flags any cl
 `analysis-test-suite-cost-baseline.md` already carries a hand-measured pre-instrument baseline. The instrument
 supersedes it and inherits its method notes.
 
-### D3 — Integration fixture cost
+### D3 — Integration fixture cost and file floors
 
-The engineering core, because it owns the largest untouched measured cost: 257 s of the integration tier's 342 s
-sits in 133 files that never spawn the CLI, dominated by repository construction across 112 fixture-building
-files.
+Two levers with different metrics. Fixture sharing cuts summed time — CI job-seconds on a throughput-bound runner,
+and the CPU floor locally. File splitting cuts the per-file floor, which is what the routine lane's wall clock
+actually sits on. Neither substitutes for the other.
 
-- **Share a prepared repository per file** — build once, copy per test — rather than `git init` plus commits per
-  test. **The copy must be audited for absolute paths** · `[invariant]`: remote URLs, `objects/info/alternates`,
-  and worktree admin pointers (`$GIT_DIR/worktrees/<id>/gitdir` and a linked worktree's `.git` file are both
-  absolute by documented design) survive a copy pointing at the template. Since these fixtures build bare remotes
-  and worktrees, a naive copy silently couples every "independent" test to one shared object store. Freeze the
-  template after building it, and rewrite or omit any absolute reference.
-- **Isolate git configuration** — `GIT_CONFIG_GLOBAL` / `GIT_CONFIG_SYSTEM` pointed at a fixture-owned file with
-  fixed identity, `commit.gpgsign=false`, and `init.defaultBranch` set. Git's own test harness does exactly this.
-  A determinism lever before it is a speed one: without it a developer's real `~/.gitconfig` leaks into fixtures.
+**Fixture sharing — a bounded lever, measured.** The two largest non-spawning files build one fixture per test
+through the tier helper: `initInTempRepo` plus a commit (~110 ms, 11 git spawns), or the same plus a bare remote
+(~140 ms, 14 spawns). Git spawns are not the cost — nine of them are ~24 ms of the ~106 ms `runInit` path; the
+rest is the init command writing a 187-file `.arc/` tree. Copying a built fixture costs ~7 ms. Fixture construction
+is 26–29% of `user.test.ts` and 32–36% of `init.test.ts`, so per-file yield is bounded near that share; across the
+133 non-spawning files it is the largest summed-time lever the tier has, not a dominant one.
+
+- **Share a frozen prepared repository per fixture shape** — build once per file (or once per shape, where a few
+  shapes cover most files), copy per test. **The copy must be audited for absolute paths** · `[invariant]`: the
+  plain fixture carries none, but the bare-remote shape records the remote's absolute path in `.git/config`, and a
+  linked worktree's `.git` file and `$GIT_DIR/worktrees/<id>/gitdir` are absolute by documented design. A naive
+  copy of those shapes silently couples every "independent" test to one shared remote or object store. Create the
+  remote per test (three cheap spawns) or rewrite the reference on copy; never share it.
+- **Fix the remote leak in the same helper.** `addBareRemote` returns its temp directory and leaves removal to
+  the caller; of a dozen calling files, one removes it. One developer machine had accumulated over a thousand
+  `arc-remote-*` directories. Same-concern cleanup of code D3 already touches, not a rider.
 - **Move genuine full-CLI cases to E2E**, where they belong by tier definition.
 - **Spawn the built bundle rather than the `tsx` loader.** The loader costs 1.23 s per spawn against the bundle's
   0.36 s. `config-validate` is the only integration file paying it, at ~21 spawns. All 13 of its cases assert
@@ -188,6 +212,14 @@ files.
   structural guarantee (source entries cannot run the staleness guard) for a procedural one; record that trade.
   There is no environment seam to suppress the guard — `dev-check.ts` reads no `process.env` — and minting one is
   out of scope.
+
+**File splitting — the wall-clock lever.** Split the four longest integration files (`user`,
+`decompose-v3-repository-plan`, `review-fan-out-lifecycle`, `config-validate`; 34–48 s each) until no file exceeds
+the tier's summed-time floor — ~28 s at 12 workers today, lower once fixtures are shared. `user` has eleven
+`describe` blocks to cut along; `decompose-v3-repository-plan` and `review-fan-out-lifecycle` are one flat block
+each, so their seams are chosen by fixture shape and case count rather than found. Pure wall clock, no CPU
+saving, and the only thing that moves the lane after sharing: with templating alone `user.test.ts` stays near
+30 s and so does the tier. A split changes no test body and no assertion; SC10 is satisfied by construction.
 
 **Two candidate levers sit inside the noise band and must be confirmed before adoption**, each measured once at
 ~9% and ~6–12% respectively against ~8% variance: a tmpfs fixture root (`TMPDIR` on `/dev/shm`) and `isolate:
@@ -216,14 +248,31 @@ structural: `dist/cli.js` carries 532 top-level imports of nine external depende
 evaluate them before any module body runs. What that saving is worth across the E2E tier depends on the tier's
 actual spawn count, which D2 measures — this spec does not project it.
 
-### D5 — Unit outliers and CI leg structure
+**Why it is here.** The routine lane gains nothing from D4: only four integration files spawn the CLI. Its value
+is product startup and memory on every real `arc` invocation, plus E2E job-seconds on CI, where the mini's two-slot
+runner turns summed savings directly into wall time. The spec keeps it on those two grounds, not on the local lane.
 
-Two small, independent items.
+**Regression risk to name.** Registration that runs at import time — a kernel or domain schema registered as a
+module-body side effect — changes behavior when its module loads lazily: it would run only once its handler is
+invoked. The build step registers schemas explicitly today, but enumerate import-time side effects across the
+handler set before converting, and keep any module that has one in the eager set.
 
-**Unit outliers.** Two files hold 55% of the tier: `classify-change.test.ts` (23.2 s, 122 cases) drives a shell
-script through `bash`, and `codex-cli.test.ts` (18.0 s, 37 cases) spawns `git` 18 times. Neither invokes the ARC
-CLI, so D4 does not reach them. Treat them individually — fewer fixtures, one shared prepared repository, or one
-source-graph scan per file instead of per case. Both use `it.each`, so take case counts from D2 rather than a grep.
+### D5 — Tier placement, worker sizing, and CI leg structure
+
+Three small, independent items.
+
+**Unit outliers move tiers rather than getting tuned.** Two files hold 55% of the unit tier and floor its wall
+clock: `classify-change.test.ts` (23.2 s, 122 cases) drives a shell script through `bash`, and `codex-cli.test.ts`
+(18.0 s, 37 cases) spawns `git` 18 times. Both spawn subprocesses, so by tier definition they are integration
+tests. Moving them costs nothing there — integration's floor is already ~44 s and they run in parallel under it —
+and it drops the unit tier from ~24 s to a few seconds, which is what makes per-task `vitest --changed` runs feel
+instant. Tune them only if they later become the integration floor. Both use `it.each`, so take case counts from
+D2 rather than a grep.
+
+**Local worker sizing.** The vitest config caps local runs at 50% of cores, a guard written before the heavy-test
+admission lock existed; the lock now serializes heavy tiers across worktrees, so the cap protects against the same
+thing twice. Measure the routine lane at 50%, 75%, and native sizing through D2 and raise the local default only if
+a run clears the noise band. The CI cap is untouched (Non-Goals).
 
 **CI leg structure.** Re-select the four pinned anchor files from D2's tier-isolated ranking. Measured, the
 largest four are `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand`, while the
@@ -290,7 +339,7 @@ authoring is slice-aware; this binds no delivery state and publishes nothing.
 | S2 Instrument           | D2       | —                  |
 | S3 Integration fixtures | D3       | S2                 |
 | S4 CLI startup          | D4       | S2                 |
-| S5 Outliers and CI legs | D5       | S2                 |
+| S5 Tiers, workers, legs | D5       | S2                 |
 | S6 Budgets              | D6       | S2, S3, S4, S5     |
 | S7 Contingent audit     | D7, D8   | Gate on S2, S3, S4 |
 
@@ -324,6 +373,13 @@ invocation. S7 may never run.
   prune corruption hazard.
 - **`init.templateDir`, `core.fsmonitor`, `untrackedCache`, `preloadIndex`** — not levers at fixture scale; they
   address monorepo-sized working trees.
+- **Batching git spawns in fixture construction** — a spawn costs ~2.4 ms and nine of them are ~24 ms of a
+  ~106 ms build; the cost is the init command's file writes, which a template copy removes and batching cannot.
+- **Skipping `build:fast` in the integration global setup when `dist/` is fresh** — measured at 1.2 s warm; not a
+  lever, and bundle freshness belongs to `e2e-build-coordination`.
+- **Isolating git configuration per fixture** — already done: the vitest config sets `GIT_CONFIG_NOSYSTEM` and
+  points the global config at `/dev/null` for every project, so nothing from a developer's `~/.gitconfig` reaches
+  a fixture today.
 - **An in-process CLI harness** — the largest available CI lever, routed to a successor work unit rather than
   taken here. See Coordination.
 
@@ -341,7 +397,8 @@ are real proofs of a concurrency-sensitive surface: prefer cheap fixture sharing
 thin coverage of the notes mutators to save time**. D2 reports what share of cost is substrate-bound.
 
 **Parallelism shape.** Files run in parallel and tests within a file sequentially, so a large file is a shard's
-critical path however many workers exist. Splitting the largest files is a wall-clock win with no CPU saving.
+critical path however many workers exist. Splitting the largest files is a wall-clock win with no CPU saving; D3
+owns the integration splits, and the same reading selects the E2E anchors in D5.
 
 **User-facing impact.** D4 benefits every real `arc` invocation, not only tests — 0.36 s → 0.21 s of startup and
 205 MB → ~100 MB of RSS on the paths measured. Session-init and interactive commands inherit it.
@@ -351,6 +408,9 @@ critical path however many workers exist. Splitting the largest files is a wall-
 - `in-process-cli-harness` — the successor this work unit enables. Captured with its seed, `Depends On` this work
   unit on two grounds: it needs D2's instrument to choose scenarios, and its remaining prize must be re-derived
   after D4 removes ~42% of per-spawn cost.
+- `local-ci-capacity-qualification` — complete, awaiting integration; owns the mini runner's slot count and the
+  CI worker cap. This work unit inherits its two-slot, one-worker decision and measures nothing against it; that
+  throughput model is why summed-time savings score as CI wall clock here.
 - `quality-gate-hooks` — consumes D2's instrument and later lifts D1's rows to the framework layer; owns gate
   policy beyond D1.
 - `evidence-applicability` — its path-treatment registry is the natural home for the path classes D1's rows key
@@ -374,14 +434,21 @@ is not satisfied.
 
 1. **Measurement validity.** Every before/after pair in the completion record names its mode and compares like
    with like, and no lever below ~10% is claimed from a single run. The instrument refuses cross-mode comparison.
-2. **Routine local run.** The routine lane exists as one command and completes in **at most half** its own
-   pre-work cost — the same unit-plus-integration projects, same mode. Stated as a fraction because the lane's
-   ~73 s starting point is reached by scope; this criterion measures the cost work on top of it.
+2. **Routine local run (wall clock).** The routine lane exists as one command and completes in at most half its
+   measured pre-work wall clock — 56–58 s across two quiet tier-isolated runs, same projects, same mode — so
+   **≤29 s**, re-baselined by D2 before scoring. Half is derived, not guessed. The lane runs both projects in one
+   pool, so its floors are its longest file (`user.test.ts`, 40–48 s) and its summed time over the workers (~410
+   s over 12, ~34 s). Reaching 29 s needs fixture sharing and the `tsx` move (D3) pulling the summed floor under
+   the bar, splitting (D3) bringing every file under it, and local worker sizing (D5) where a run clears the
+   noise band. D5's tier moves do not move the lane — they move unit-only runs. If D2's re-baseline moves the
+   starting point, the bar moves with it by forward amendment.
 3. **Selection rule is live.** `DEV-RULES.PROJECT` § Selecting what to run carries the lane rows and no longer
    closes by forbidding a partial Tier 3; `QUICK-REFERENCE` § Quality Gate Commands no longer instructs a whole
    run; and the two shipped framework files no longer assert a whole-suite local attestation.
-4. **Integration fixture cost.** The integration tier falls by at least the target derived from D2's baseline,
-   measured tier-isolated across several runs.
+4. **Integration tier, two metrics.** Summed file time falls by at least the target derived from D2's baseline
+   (fixture sharing), and no single file exceeds the tier's post-work summed-time floor (splitting) — both
+   measured tier-isolated across several runs. Wall clock follows from the second and is scored under SC2, not
+   here.
 5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm,
    tier-isolated, from the recorded 0.36 s baseline — above the 0.21 s probe and below the 0.36 s baseline, so it
    discriminates rather than restating either.
@@ -396,8 +463,9 @@ is not satisfied.
 10. **No behavior loses its only proof.** Every deletion or case consolidation names the retained test covering
     the behavior, and every consolidation keeps the rubric's timeout headroom and its replaced assertions. D3's
     fixture sharing preserves assertions by construction. Vacuously satisfied if none occur.
-11. **Fixture independence.** No fixture shares an object store or ref namespace with another: the prepared-
-    template copy carries no absolute reference back to the template, and git configuration is fixture-isolated.
+11. **Fixture independence.** No fixture shares an object store, ref namespace, or remote with another: the
+    prepared-template copy carries no absolute reference back to the template or to a shared remote, and no
+    fixture's bare remote outlives its test.
 12. **Dependency tree.** `package.json` devDependencies at completion match the pre-work baseline, or each
     addition is justified in the completion record.
 13. **Evidence outlives the WU.** `analysis-test-suite-cost-baseline.md` carries the instrument's baseline with
@@ -414,6 +482,8 @@ Implementation detail, resolved during the work — none blocks starting.
   and which files if any need quarantining under the latter.
 - The prepared-template shape for integration fixtures — one template for all, or a few by fixture class — and
   which absolute references each must rewrite.
+- Which `describe` seams the four longest integration files split along, and whether the local worker cap clears
+  the noise band at 75% or native sizing.
 - Whether `config-validate`'s move onto the built bundle needs any coordination change with
   `e2e-build-coordination` beyond relying on the existing `globalSetup` build.
 
