@@ -841,6 +841,44 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("recognizes an exact same-head predecessor without external applicability evidence", async () => {
+    const predecessor = cleanHostedResult();
+    const incremental: ReviewResult = {
+      ...predecessor,
+      producerId: "hosted/attempt-same-head",
+      admission: {
+        ...predecessor.admission,
+        logicalPass: 2,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        correctionScope: {
+          schemaVersion: 1,
+          predecessorProducerId: predecessor.producerId,
+          predecessorHeadSha: predecessor.target.headSha,
+          basisHeadSha: predecessor.target.headSha,
+          headSha: predecessor.target.headSha,
+          requiredFindingIds: [],
+        },
+      },
+    };
+    const evidence = dependencies(incremental);
+    evidence.resultReader.readResult = vi.fn(async (producerId: string) => (
+      producerId === predecessor.producerId ? predecessor : incremental
+    ));
+
+    await expect(resolveEvidenceBoundReviewPolicy({
+      ...cleanRequest(incremental),
+      completedPasses: 2,
+    }, {
+      ...evidence,
+      sources: ["codex-pr"],
+      maxPasses: 3,
+    })).resolves.toMatchObject({
+      state: "pass-complete",
+      payload: { verifiedTerminalSignal: { coverageAdequate: true } },
+    });
+  });
+
   it("refuses missing, unbound, or incomplete approved finding sets", async () => {
     const result = findingsHostedResult(["major", "minor"]);
     await expect(resolveEvidenceBoundReviewPolicy(findingsRequest(result), {

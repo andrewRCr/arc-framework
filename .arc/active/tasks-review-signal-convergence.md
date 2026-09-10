@@ -589,27 +589,16 @@ Coverage labels and contribution applicability cannot substitute for evaluator s
   CodeRabbit's unscoped incremental command is refused before dispatch with capable-source/complete-coverage guidance;
   inadequate terminal incremental results remain available to response, pass accounting, and later coverage selection.
 
-### `[ ]` **6.3 Compose adequate incremental signal with member selection and distinct Owner authority**
+### `[x]` **6.3 Compose adequate incremental signal with member selection and distinct Owner authority**
 
 - _Goal:_ Adequate fresh incremental signal advances the right member without confusing convergence, Owner acceptance,
   or pass authority.
 
-- _Note:_ Spec §§ 6–7; SC 9, 13, 14, and 17.
-
-- _Approach:_ Use the common policy/discharge path from Member 5. Replace its conservative inadequate-basis result only
-  when the predecessor/scope validator supplies adequate evidence; retain refusal for every invalid basis.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Complete-plus-incremental no-material evidence may advance; material settlement cannot.
-
-        - Same/member-head movement preserves logical counts, coverage, and ordered sibling selection.
-
-        - Hosted complete evidence can support a compatible local incremental successor, including at the same head.
-          Use the common explicit producer resolver; preserve separate source histories and reject incompatible bases.
-
-        - Exact Owner acceptance stays accepted risk rather than clean evidence; a one-pass override permits only that
-          pass.
+- _Outcome:_ The common evidence path now recognizes compatible same-head predecessor coverage directly and resolves
+  changed-head successors through the exact immutable producer's Candidate applicability projection. Adequate fresh
+  no-material correction signal can therefore discharge only its member and expose the next ordered sibling, while
+  material settlement remains outstanding; Owner-accepted risk and exact one-pass ceiling authority retain their
+  existing distinct status, count, and continuation contracts.
 
 ### `[ ]` **6.4 Exercise multi-pass members, insufficient scope, sibling completion, and exact overrides**
 

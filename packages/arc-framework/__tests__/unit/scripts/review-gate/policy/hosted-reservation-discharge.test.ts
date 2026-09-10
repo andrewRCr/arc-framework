@@ -22,6 +22,7 @@ import { classifyReviewContributionApplicability } from
 import {
   allHostedReservationTargetsDischarged,
   createHostedReservationDischargeReader,
+  incrementalApplicabilityFromEarlierRead,
   projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
@@ -1930,6 +1931,45 @@ describe("hosted reservation discharge", () => {
       nextSource: "delegated-agent",
       correctionScope,
     });
+  });
+
+  it("recognizes an exact predecessor after retained or requested current-head review", () => {
+    const producerTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const projected = (applicability: "retain-prior-attempt" | "request-review" | "stop") => ({
+      status: "complete" as const,
+      attempts: [earlierAttempt({
+        attemptId: "hosted/prior-complete",
+        sourceId: "codex-pr",
+        outcome: "clean",
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
+        producerTarget,
+        applicability,
+      })],
+    });
+
+    for (const applicability of ["retain-prior-attempt", "request-review"] as const) {
+      expect(incrementalApplicabilityFromEarlierRead({
+        producerId: "hosted/prior-complete",
+        producerTarget,
+        earlier: projected(applicability),
+      })).toBe("applicable");
+    }
+    expect(incrementalApplicabilityFromEarlierRead({
+      producerId: "hosted/prior-complete",
+      producerTarget,
+      earlier: projected("stop"),
+    })).toBe("unavailable");
   });
 
   it("does not spend provider capacity for an unresolved or unavailable prior projection", async () => {

@@ -32,6 +32,7 @@ import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-app
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
+import type { ReviewResult } from "../core/review-result.js";
 import { projectHostedFinding, type HostedAwaitEnvelope } from "../hosted/await.js";
 import type { HostedReviewCoverage } from "../hosted/request.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
@@ -49,12 +50,32 @@ import {
   IncrementalReviewScopeSchema,
   type IncrementalReviewScope,
 } from "../core/incremental-review-scope.js";
+import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 type EarlierApplicableAttempt = Extract<
   EarlierHostedAttemptApplicabilityRead,
   { status: "complete" }
 >["attempts"][number];
+
+/** Resolve one immutable predecessor against the current Candidate applicability projection. */
+export function incrementalApplicabilityFromEarlierRead(input: {
+  readonly producerId: string;
+  readonly producerTarget: NonNullable<EarlierApplicableAttempt["producerTarget"]>;
+  readonly earlier: EarlierHostedAttemptApplicabilityRead;
+}): IncrementalPredecessorApplicability {
+  if (input.earlier.status !== "complete") return "unavailable";
+  const exact = input.earlier.attempts.filter((attempt) => (
+    attempt.attemptId === input.producerId
+    && attempt.producerTarget !== undefined
+    && canonicalize(attempt.producerTarget) === canonicalize(input.producerTarget)
+  ));
+  if (exact.length !== 1) return "unavailable";
+  const applicability = exact[0]?.applicability;
+  return applicability === "retain-prior-attempt" || applicability === "request-review"
+    ? "applicable"
+    : "unavailable";
+}
 
 function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
   return attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
@@ -950,6 +971,54 @@ export function createHostedReservationDischargeReader(input: {
       );
       return { head: observed.request.headSha, base: observedBase.trim() };
     };
+    const readEarlierAttemptApplicability = snapshot === null
+      || changeRequest === null
+      || candidate === undefined
+      || lineage === undefined
+      ? undefined
+      : async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead> => (
+          projectEarlierReviewApplicability({
+            query: {
+              schemaVersion: 1,
+              repositoryId: currentRepositoryId,
+              repository: changeRequest.repository,
+              pullRequest: changeRequest.pullRequest,
+              currentHead: approvedHead,
+              lane: "standard",
+              sourceId,
+              lineage,
+              ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
+            },
+            currentBase: baseRevision,
+            snapshot: await snapshot,
+            candidate,
+            exec: rawExec,
+            observeEndpoints,
+            readDispositionRecord: (attemptId) => dispositions.readDispositionRecord(attemptId),
+          })
+        );
+    const confirmIncrementalApplicability = async (
+      predecessor: ReviewResult,
+      current: ReviewResult,
+    ): Promise<IncrementalPredecessorApplicability> => {
+      const scope = current.admission.correctionScope;
+      if (scope === undefined
+        || scope.predecessorProducerId !== predecessor.producerId
+        || scope.predecessorHeadSha !== predecessor.target.headSha
+        || scope.headSha !== current.target.headSha) return "unavailable";
+      if (predecessor.target.headSha === current.target.headSha) return "applicable";
+      const sourceId = predecessor.kind === "hosted"
+        ? predecessor.sourceIdentity
+        : predecessor.kind === "attested-local"
+          ? predecessor.deliveryAdmission?.sourceId
+          : undefined;
+      if (sourceId === undefined || readEarlierAttemptApplicability === undefined) return "unavailable";
+      return incrementalApplicabilityFromEarlierRead({
+        producerId: predecessor.producerId,
+        producerTarget: predecessor.target,
+        earlier: await readEarlierAttemptApplicability(sourceId),
+      });
+    };
     const resolveTerminalPolicy = async (terminal: {
       readonly attemptId: string;
       readonly logicalPass: number;
@@ -990,6 +1059,7 @@ export function createHostedReservationDischargeReader(input: {
         resultReader,
         dispositionStore: dispositions,
         confirmTarget: () => Promise.resolve(terminal.producerTarget),
+        confirmIncrementalApplicability,
       });
     };
     const resolveIncrementalCorrectionScope = async (
@@ -1074,28 +1144,13 @@ export function createHostedReservationDischargeReader(input: {
         });
       },
       resolveIncrementalCorrectionScope,
-      ...(snapshot === null || changeRequest === null || candidate === undefined || lineage === undefined
+      ...(readEarlierAttemptApplicability === undefined
+        || changeRequest === null
+        || candidate === undefined
+        || lineage === undefined
         ? {}
         : {
-            readEarlierAttemptApplicability: async (sourceId: string) => projectEarlierReviewApplicability({
-              query: {
-                schemaVersion: 1,
-                repositoryId: currentRepositoryId,
-                repository: changeRequest.repository,
-                pullRequest: changeRequest.pullRequest,
-                currentHead: approvedHead,
-                lane: "standard",
-                sourceId,
-                lineage,
-                ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
-              },
-              currentBase: baseRevision,
-              snapshot: await snapshot,
-              candidate,
-              exec: rawExec,
-              observeEndpoints,
-              readDispositionRecord: (attemptId) => dispositions.readDispositionRecord(attemptId),
-            }),
+            readEarlierAttemptApplicability,
             requireEarlierApplicabilityEvidence: (sourceId: string) => (
               candidateExpectsEarlierReviewAttempt(candidate, {
                 schemaVersion: 1,

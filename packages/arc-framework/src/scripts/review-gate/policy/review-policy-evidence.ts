@@ -181,7 +181,9 @@ async function deriveVerifiedTerminalSignal(
   const coverage = await resolveIncrementalCoverageBasis(result, {
     resultReader: dependencies.resultReader,
     confirmApplicability: dependencies.confirmIncrementalApplicability
-      ?? (() => Promise.resolve("unavailable")),
+      ?? ((predecessor, current) => Promise.resolve(
+        predecessor.target.headSha === current.target.headSha ? "applicable" : "unavailable",
+      )),
     readResponseEvidence: (predecessor) => readIncrementalPredecessorResponseEvidence(
       predecessor,
       dependencies.dispositionStore,
