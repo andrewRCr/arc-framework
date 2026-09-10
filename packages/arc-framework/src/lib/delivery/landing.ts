@@ -871,6 +871,13 @@ export async function reconcileDeliveryExecution(input: {
     };
   }
   const persisted = await input.stateStore.publish(input.planId, reconciled.state, input.current.revision);
+  if (persisted.status === "ok" && operation?.kind === "rewrite" && operation.mode === "review-fix") {
+    return recoveryRerun(input.current.value, persisted.value) ?? {
+      status: "blocked",
+      reason: "operation-result-ambiguous",
+      recommendedActionText: "The applied review-fix continuation is invalid; inspect it explicitly.",
+    };
+  }
   return persisted.status === "ok"
     ? selectedChangeDeliverableId !== null
       ? {

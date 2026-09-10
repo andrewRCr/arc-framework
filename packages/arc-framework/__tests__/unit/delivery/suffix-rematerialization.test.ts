@@ -555,7 +555,7 @@ describe("delivery suffix rematerialization", () => {
     expect(supersessions).toEqual([pendingReviewFixVerification, pendingReviewFixVerification]);
   });
 
-  it("executes a cleared predecessor recovery through its returned supersession identity", async () => {
+  async function expectPredecessorRecovery(recoveryKind: "cleared" | "adopted"): Promise<void> {
     const { plan, state, snapshot, first, second } = fixture();
     const pendingReviewFixVerification = {
       selectedDeliverableId: second.deliverableId,
@@ -589,7 +589,12 @@ describe("delivery suffix rematerialization", () => {
     const recovery = await reconcileDeliveryExecution({
       planId: plan.planId,
       current,
-      observation: { observe: async () => ({ status: "observed" as const, value: before }) },
+      observation: {
+        observe: async () => ({
+          status: "observed" as const,
+          value: recoveryKind === "cleared" ? before : requested,
+        }),
+      },
       stateStore: { publish: async (_planId, value, expectedRevision) => {
         if (expectedRevision !== current.revision) {
           return { status: "refused" as const, reason: "version-conflict" as const };
@@ -648,6 +653,14 @@ describe("delivery suffix rematerialization", () => {
       selectedDeliverableId: second.deliverableId,
       verification: { memberDeliverableIds: pendingReviewFixVerification.memberDeliverableIds },
     });
+  }
+
+  it("executes a cleared predecessor recovery through its returned supersession identity", async () => {
+    await expectPredecessorRecovery("cleared");
+  });
+
+  it("executes an adopted predecessor recovery through its returned supersession identity", async () => {
+    await expectPredecessorRecovery("adopted");
   });
 
   it("refuses a delayed supersession when pending verification has expanded", async () => {
