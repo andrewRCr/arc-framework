@@ -1913,9 +1913,14 @@ describe("hosted await lane recording", () => {
       conditionalPassAuthorizations: {
         authorizations: [expect.objectContaining({
           status: "pending",
-          responseHeadSha: objectId("d"),
-          responsePerformedAt: "2026-08-15T12:01:30Z",
         })],
+      },
+      responsePerformance: {
+        producerId: attemptId,
+        dispositionSetId: `sha256:${"f".repeat(64)}`,
+        originatingHeadSha: handle.target.headSha,
+        producedHeadSha: objectId("d"),
+        performedAt: "2026-08-15T12:01:30Z",
       },
     });
     const settled = await settleHostedAttemptFinding(store, {
@@ -2051,6 +2056,193 @@ describe("hosted await lane recording", () => {
       }],
       now: "2026-08-15T12:06:00Z",
     })).rejects.toThrow("does not advance the current predecessor");
+  });
+
+  it("joins record-only fix performance with hosted settlement in either order", async () => {
+    for (const withAuthorization of [false, true]) {
+      for (const settlementFirst of [false, true]) {
+        const store = createStore();
+        await seedAcknowledgedRequest(store, handle);
+        const progress = await recordHostedAwaitAttempt(store, {
+          repositoryId: "repo-1",
+          ...hostedContext,
+          result: {
+            schemaVersion: 1,
+            mode: "review-hosted-await",
+            handle,
+            state: "findings",
+            nextAction: "triage",
+            reviewUrl: "https://example.invalid/review",
+            findings: [{
+              findingId: "thread-1",
+              origin: "review-thread",
+              commentId: "comment-1",
+              threadId: "thread-1",
+              settlement: "reply-and-resolve",
+              severity: "minor",
+              locus: "src/index.ts:7",
+              url: "https://example.invalid/thread-1",
+              sourceOrdinal: 1,
+              sourceLabel: "Thread native label",
+            }, {
+              findingId: "body-1",
+              origin: "review-body",
+              reviewId: "review-1",
+              fingerprint: "body-fingerprint",
+              settlement: "not-applicable",
+              severity: "major",
+              locus: "pull-request review body",
+              url: "https://example.invalid/review-1",
+              body: "Body finding",
+              sourceOrdinal: 2,
+              sourceLabel: "Body native label",
+            }],
+          },
+          now: "2026-08-15T12:00:00Z",
+        });
+        if (progress === null) throw new Error("expected hosted lane progress");
+        const attemptId = hostedLaneAttemptId(handle);
+        const dispositionSetId = `sha256:${"f".repeat(64)}`;
+        if (withAuthorization) {
+          await captureConditionalNextPassAuthorization(store, {
+            lane: "standard",
+            repositoryId: "repo-1",
+            headSha: handle.target.headSha,
+            lineage: hostedAdmission.lineage,
+            producerId: attemptId,
+            dispositionSetId,
+            authorizedBy: hostedContext.actorIdentity,
+            exhaustedPassCount: 1,
+            nextPass: 2,
+            now: "2026-08-15T12:00:15Z",
+          });
+        }
+        await bindHostedAttemptDisposition(store, {
+          operationId: progress.operationId,
+          attemptId,
+          dispositionSetId,
+          findingDispositions: [{
+            findingId: "thread-1",
+            disposition: "defer",
+            channelAction: "reply-and-resolve",
+          }, {
+            findingId: "body-1",
+            disposition: "fix",
+            channelAction: "record-only",
+          }],
+          now: "2026-08-15T12:00:30Z",
+        });
+        const perform = () => recordLaneResponsePerformance(store, {
+          lane: "standard" as const,
+          repositoryId: "repo-1",
+          headSha: handle.target.headSha,
+          lineage: hostedAdmission.lineage,
+          attemptId,
+          dispositionSetId,
+          producedHeadSha: objectId("d"),
+          now: "2026-08-15T12:01:00Z",
+        });
+        const settle = () => settleHostedAttemptFinding(store, {
+          operationId: progress.operationId,
+          attemptId,
+          dispositionSetId,
+          findingId: "thread-1",
+          disposition: "defer" as const,
+          actorIdentity: hostedContext.actorIdentity,
+          target: handle.target,
+          fixTarget: null,
+          commentId: "comment-1",
+          threadId: "thread-1",
+          replyDigest: `sha256:${"1".repeat(64)}`,
+          replyId: "reply-1",
+          now: "2026-08-15T12:02:00Z",
+        });
+
+        const partial = settlementFirst ? await settle() : await perform();
+        expect(partial.attempts[0]).toMatchObject({ outcome: "findings" });
+        const completed = settlementFirst ? await perform() : await settle();
+        expect(completed.attempts[0]).toMatchObject({
+          outcome: "settled-findings",
+          responsePerformance: {
+            dispositionSetId,
+            producedHeadSha: objectId("d"),
+          },
+          hosted: { settledFindingIds: ["body-1", "thread-1"] },
+        });
+        expect(currentAuthorization(completed.attempts[0])?.status)
+          .toBe(withAuthorization ? "bound" : undefined);
+      }
+    }
+  });
+
+  it("refuses a host-addressable fix settled at a different response head", async () => {
+    const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
+    const progress = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "findings",
+        nextAction: "triage",
+        reviewUrl: "https://example.invalid/review",
+        findings: [{
+          findingId: "thread-1",
+          origin: "review-thread",
+          commentId: "comment-1",
+          threadId: "thread-1",
+          settlement: "reply-and-resolve",
+          severity: "major",
+          locus: "src/index.ts:7",
+          url: "https://example.invalid/thread-1",
+          sourceOrdinal: 1,
+          sourceLabel: "Thread native label",
+        }],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+    if (progress === null) throw new Error("expected hosted lane progress");
+    const attemptId = hostedLaneAttemptId(handle);
+    const dispositionSetId = `sha256:${"f".repeat(64)}`;
+    await bindHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId,
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
+      now: "2026-08-15T12:00:30Z",
+    });
+    await recordLaneResponsePerformance(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: handle.target.headSha,
+      lineage: hostedAdmission.lineage,
+      attemptId,
+      dispositionSetId,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    await expect(settleHostedAttemptFinding(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId,
+      findingId: "thread-1",
+      disposition: "fix",
+      actorIdentity: hostedContext.actorIdentity,
+      target: handle.target,
+      fixTarget: { ...handle.target, headSha: objectId("e") },
+      commentId: "comment-1",
+      threadId: "thread-1",
+      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyId: "reply-1",
+      now: "2026-08-15T12:02:00Z",
+    })).rejects.toThrow("does not match durable response-head evidence");
   });
 });
 

@@ -254,8 +254,6 @@ export const ConditionalPassAuthorizationSchema = z.union([
   z.strictObject({
     ...ConditionalPassAuthorizationBaseShape,
     status: z.literal("pending"),
-    responseHeadSha: GitObjectIdSchema.optional(),
-    responsePerformedAt: z.iso.datetime({ offset: true }).optional(),
   }),
   z.strictObject({
     ...ConditionalPassAuthorizationBaseShape,
@@ -286,15 +284,6 @@ export const ConditionalPassAuthorizationSchema = z.union([
     invalidatedAt: z.iso.datetime({ offset: true }),
   }),
 ]).superRefine((authorization, context) => {
-  if (authorization.status === "pending"
-    && ((authorization.responseHeadSha === undefined)
-      !== (authorization.responsePerformedAt === undefined))) {
-    context.addIssue({
-      code: "custom",
-      path: ["responseHeadSha"],
-      message: "conditional response head and performance time must be recorded together",
-    });
-  }
   if (authorization.nextPass !== authorization.exhaustedPassCount + 1) {
     context.addIssue({
       code: "custom",
@@ -352,6 +341,16 @@ export const ConditionalPassAuthorizationsSchema = z.strictObject({
   });
 });
 export type ConditionalPassAuthorizations = z.infer<typeof ConditionalPassAuthorizationsSchema>;
+
+export const LaneResponsePerformanceSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  producerId: IdentifierSchema,
+  dispositionSetId: CanonicalDigestSchema,
+  originatingHeadSha: GitObjectIdSchema,
+  producedHeadSha: GitObjectIdSchema,
+  performedAt: z.iso.datetime({ offset: true }),
+});
+export type LaneResponsePerformance = z.infer<typeof LaneResponsePerformanceSchema>;
 
 export const HostedSealedResultSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -625,6 +624,7 @@ const LaneAttemptSchema = z.strictObject({
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
   conditionalPassAuthorizations: ConditionalPassAuthorizationsSchema.optional(),
+  responsePerformance: LaneResponsePerformanceSchema.optional(),
   chunkSeriesComplete: z.boolean().optional(),
   hosted: HostedLaneAttemptBindingSchema.optional(),
   local: LocalLaneAttemptBindingSchema.optional(),
@@ -687,6 +687,17 @@ const LaneAttemptSchema = z.strictObject({
         message: "frontline coverage and terminal authority must match a complete result",
       });
     }
+  }
+  if (attempt.responsePerformance !== undefined
+    && (attempt.responsePerformance.producerId !== attempt.attemptId
+      || attempt.responsePerformance.originatingHeadSha !== attempt.headSha
+      || !attempt.terminalProducer
+      || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings"))) {
+    context.addIssue({
+      code: "custom",
+      path: ["responsePerformance"],
+      message: "lane response performance must bind its terminal findings producer",
+    });
   }
   if (attempt.hosted === undefined) return;
   try {
@@ -854,7 +865,13 @@ const LaneAttemptSchema = z.strictObject({
       message: "hosted terminal request failure must retain exactly one reason",
     });
   }
-  const complete = findingIds.length > 0 && attempt.hosted.settledFindingIds.length === findingIds.length;
+  const currentNode = attempt.hosted.dispositionSetLineage.at(-1);
+  const dispositionHasFix = currentNode?.findingActions.some(({ disposition }) => disposition === "fix") ?? false;
+  const responseComplete = !dispositionHasFix
+    || attempt.responsePerformance?.dispositionSetId === attempt.hosted.dispositionSetId;
+  const complete = findingIds.length > 0
+    && attempt.hosted.settledFindingIds.length === findingIds.length
+    && responseComplete;
   if ((attempt.outcome === "settled-findings") !== complete) {
     context.addIssue({
       code: "custom",

@@ -101,6 +101,7 @@ function bindCompletedConditionalPassAuthorization(
   const authorization = currentConditionalPassAuthorization(attempt);
   if (authorization === undefined) return attempt;
   if (authorization.dispositionSetId !== input.dispositionSetId) {
+    if (authorization.status === "invalidated") return attempt;
     throw new Error("conditional pass authorization does not match the performed response");
   }
   if (authorization.status === "invalidated") {
@@ -111,10 +112,6 @@ function bindCompletedConditionalPassAuthorization(
       throw new Error("conditional pass authorization response-head replay conflicts");
     }
     return attempt;
-  }
-  if (authorization.responseHeadSha !== undefined
-    && authorization.responseHeadSha !== input.producedHeadSha) {
-    throw new Error("conditional pass authorization response-head evidence conflicts");
   }
   return replaceConditionalPassAuthorization(attempt, {
       schemaVersion: authorization.schemaVersion,
@@ -132,6 +129,89 @@ function bindCompletedConditionalPassAuthorization(
       capturedAt: authorization.capturedAt,
       producedHeadSha: input.producedHeadSha,
       boundAt: input.now,
+  });
+}
+
+function recordResponsePerformanceOnAttempt(
+  attempt: LaneAttempt,
+  input: { dispositionSetId: string; producedHeadSha: string; now: string },
+): LaneAttempt {
+  const current = attempt.responsePerformance;
+  if (current !== undefined) {
+    if (current.producerId !== attempt.attemptId
+      || current.dispositionSetId !== input.dispositionSetId
+      || current.originatingHeadSha !== attempt.headSha
+      || current.producedHeadSha !== input.producedHeadSha) {
+      throw new Error("lane response performance replay conflicts");
+    }
+    return attempt;
+  }
+  return {
+    ...attempt,
+    responsePerformance: {
+      schemaVersion: 1,
+      producerId: attempt.attemptId,
+      dispositionSetId: input.dispositionSetId,
+      originatingHeadSha: attempt.headSha,
+      producedHeadSha: input.producedHeadSha,
+      performedAt: input.now,
+    },
+  };
+}
+
+function hostedDispositionHasFix(attempt: LaneAttempt): boolean {
+  return attempt.hosted?.dispositionSetLineage.at(-1)?.findingActions
+    .some(({ disposition }) => disposition === "fix") ?? false;
+}
+
+function hostedSettlementComplete(attempt: LaneAttempt): boolean {
+  const findingCount = attempt.hosted?.sealedResult?.findings.length ?? 0;
+  return findingCount > 0 && attempt.hosted?.settledFindingIds.length === findingCount;
+}
+
+function confirmHostedFixSettlementHeads(attempt: LaneAttempt): void {
+  const hosted = attempt.hosted;
+  const performance = attempt.responsePerformance;
+  if (hosted === undefined || performance === undefined) {
+    throw new Error("hosted fix settlement lacks durable response-head evidence");
+  }
+  const hostFixFindingIds = hosted.dispositionSetLineage.at(-1)?.findingActions
+    .filter(({ disposition, channelAction }) =>
+      disposition === "fix" && channelAction === "reply-and-resolve")
+    .map(({ findingId }) => findingId) ?? [];
+  const fixEvidence = hosted.settlementEvidence.filter((evidence) =>
+    evidence.dispositionSetId === hosted.dispositionSetId
+    && hostFixFindingIds.includes(evidence.findingId));
+  if (fixEvidence.length !== hostFixFindingIds.length
+    || fixEvidence.some((evidence) =>
+      evidence.channelAction !== "reply-and-resolve"
+      || evidence.fixTarget?.headSha !== performance.producedHeadSha)) {
+    throw new Error("hosted fix settlement does not match durable response-head evidence");
+  }
+}
+
+function completeHostedAttemptIfReady(attempt: LaneAttempt, now: string): LaneAttempt {
+  if (attempt.hosted === undefined || !hostedSettlementComplete(attempt)) {
+    return { ...attempt, outcome: "findings" };
+  }
+  const dispositionHasFix = hostedDispositionHasFix(attempt);
+  if (dispositionHasFix) {
+    if (attempt.responsePerformance?.dispositionSetId !== attempt.hosted.dispositionSetId) {
+      return { ...attempt, outcome: "findings" };
+    }
+    confirmHostedFixSettlementHeads(attempt);
+  }
+  const dispositionSetId = attempt.hosted.dispositionSetId;
+  if (dispositionSetId === null) {
+    throw new Error("hosted settlement lacks an approved disposition set");
+  }
+  const settled = { ...attempt, outcome: "settled-findings" as const };
+  return bindCompletedConditionalPassAuthorization(settled, {
+    dispositionSetId,
+    producedHeadSha: dispositionHasFix
+      ? attempt.responsePerformance?.producedHeadSha ?? attempt.headSha
+      : attempt.headSha,
+    now,
   });
 }
 
@@ -1210,7 +1290,6 @@ export async function bindHostedAttemptDisposition(
   if (settledFindingIds.some((findingId) => !recordedFindingIds.includes(findingId))) {
     throw new Error("hosted settlement references an unknown finding");
   }
-  const complete = settledFindingIds.length === recordedFindingIds.length;
   const settlementEvidence = [
     ...attempt.hosted.settlementEvidence,
     ...noHostSettlementFindingIds
@@ -1230,10 +1309,9 @@ export async function bindHostedAttemptDisposition(
       }),
   ];
   const attempts = [...state.attempts];
-  const dispositionHasFix = input.findingDispositions.some(({ disposition }) => disposition === "fix");
   const boundAttempt: LaneAttempt = {
     ...attempt,
-    outcome: complete ? "settled-findings" : "findings",
+    outcome: "findings",
     hosted: {
       ...attempt.hosted,
       dispositionSetId: input.dispositionSetId,
@@ -1249,13 +1327,7 @@ export async function bindHostedAttemptDisposition(
       settlementEvidence,
     },
   };
-  attempts[index] = complete && !dispositionHasFix
-    ? bindCompletedConditionalPassAuthorization(boundAttempt, {
-        dispositionSetId: input.dispositionSetId,
-        producedHeadSha: attempt.headSha,
-        now: input.now,
-      })
-    : boundAttempt;
+  attempts[index] = completeHostedAttemptIfReady(boundAttempt, input.now);
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(next, version);
   return next;
@@ -1327,49 +1399,14 @@ export async function settleHostedAttemptFinding(
   const attempts = [...state.attempts];
   const settledAttempt: LaneAttempt = {
     ...attempt,
-    outcome: settledFindingIds.length === attempt.hosted.sealedResult.findings.length
-      ? "settled-findings"
-      : "findings",
+    outcome: "findings",
     hosted: {
       ...attempt.hosted,
       settledFindingIds,
       settlementEvidence: [...attempt.hosted.settlementEvidence, evidence],
     },
   };
-  if (settledAttempt.outcome === "settled-findings") {
-    const dispositionHasFix = attempt.hosted.dispositionSetLineage.at(-1)?.findingActions
-      .some(({ disposition }) => disposition === "fix") ?? false;
-    let producedHeadSha = attempt.headSha;
-    const authorization = currentConditionalPassAuthorization(attempt);
-    if (dispositionHasFix && authorization !== undefined) {
-      const responseHeadSha = authorization.status === "pending"
-        ? authorization.responseHeadSha
-        : authorization.status === "bound"
-          || authorization.status === "consumed"
-          ? authorization.producedHeadSha
-          : undefined;
-      if (responseHeadSha === undefined) {
-        throw new Error("hosted fix settlement lacks durable response-head evidence");
-      }
-      const fixHeadShas = [...attempt.hosted.settlementEvidence, evidence]
-        .flatMap((candidate) => candidate.disposition === "fix"
-          && candidate.channelAction === "reply-and-resolve"
-          && candidate.fixTarget !== null
-          ? [candidate.fixTarget.headSha]
-          : []);
-      if (fixHeadShas.length === 0 || fixHeadShas.some((headSha) => headSha !== responseHeadSha)) {
-        throw new Error("hosted fix settlement does not match durable response-head evidence");
-      }
-      producedHeadSha = responseHeadSha;
-    }
-    attempts[index] = bindCompletedConditionalPassAuthorization(settledAttempt, {
-      dispositionSetId: input.dispositionSetId,
-      producedHeadSha,
-      now: input.now,
-    });
-  } else {
-    attempts[index] = settledAttempt;
-  }
+  attempts[index] = completeHostedAttemptIfReady(settledAttempt, input.now);
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(next, version);
   return next;
@@ -2145,6 +2182,15 @@ export async function settleLaneAttempt(
   let settledAttempt: LaneAttempt = attempt.outcome === "settled-findings"
     ? attempt
     : { ...attempt, outcome: "settled-findings" };
+  if (input.dispositionSetId !== undefined && input.producedHeadSha !== undefined) {
+    settledAttempt = recordResponsePerformanceOnAttempt(settledAttempt, {
+      dispositionSetId: input.dispositionSetId,
+      producedHeadSha: input.producedHeadSha,
+      now: input.now,
+    });
+  } else if (input.dispositionSetId !== undefined || input.producedHeadSha !== undefined) {
+    throw new Error("lane settlement requires complete response-performance evidence");
+  }
   const authorization = currentConditionalPassAuthorization(attempt);
   if (authorization !== undefined) {
     if (input.dispositionSetId === undefined || input.producedHeadSha === undefined) {
@@ -2200,42 +2246,19 @@ export async function recordLaneResponsePerformance(
       throw new Error("lane response performance does not match its findings producer");
     }
     const authorization = currentConditionalPassAuthorization(attempt);
-    let performedAttempt = attempt;
-    if (attempt.hosted === undefined) {
-      performedAttempt = { ...attempt, outcome: "settled-findings" };
+    if (authorization !== undefined
+      && authorization.dispositionSetId === input.dispositionSetId
+      && authorization.status === "invalidated") {
+      throw new Error("invalidated conditional pass authorization cannot record response performance");
     }
-    if (authorization !== undefined) {
-      if (authorization.dispositionSetId !== input.dispositionSetId) {
-        throw new Error("conditional pass authorization does not match the performed response");
-      }
-      if (authorization.status === "invalidated") {
-        throw new Error("invalidated conditional pass authorization cannot record response performance");
-      }
-      if (authorization.status === "consumed") {
-        if (authorization.producedHeadSha !== input.producedHeadSha) {
-          throw new Error("conditional pass authorization response-head replay conflicts");
-        }
-        return state;
-      }
-      if (attempt.hosted === undefined || attempt.outcome === "settled-findings") {
-        performedAttempt = bindCompletedConditionalPassAuthorization(performedAttempt, {
-          dispositionSetId: input.dispositionSetId,
-          producedHeadSha: input.producedHeadSha,
-          now: input.now,
-        });
-      } else if (authorization.status === "pending") {
-        if (authorization.responseHeadSha !== undefined) {
-          if (authorization.responseHeadSha !== input.producedHeadSha) {
-            throw new Error("conditional pass authorization response-head replay conflicts");
-          }
-          return state;
-        }
-        performedAttempt = replaceConditionalPassAuthorization(performedAttempt, {
-            ...authorization,
-            responseHeadSha: input.producedHeadSha,
-            responsePerformedAt: input.now,
-        });
-      }
+    let performedAttempt = recordResponsePerformanceOnAttempt(attempt, input);
+    if (attempt.hosted === undefined) {
+      performedAttempt = bindCompletedConditionalPassAuthorization({
+        ...performedAttempt,
+        outcome: "settled-findings",
+      }, input);
+    } else {
+      performedAttempt = completeHostedAttemptIfReady(performedAttempt, input.now);
     }
     if (canonicalize(performedAttempt) === canonicalize(attempt)) return state;
     const attempts = [...state.attempts];

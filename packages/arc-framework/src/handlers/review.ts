@@ -3043,57 +3043,84 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
       const request = HostedSettleEnvelopeSchema.parse(input);
       const reference = parseReviewSourceReference(request.response.attemptRef, "hosted");
       const operationStore = new LocalReviewOperationStateStore(publisher);
-      const persisted = await operationStore.readOperation(reference.operationId);
-      const attempt = persisted.state?.kind === "lane-progress"
-        ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
-        : undefined;
-      const hosted = attempt?.hosted;
-      if (persisted.state?.kind !== "lane-progress" || persisted.state.lane !== "standard") {
+      const initial = await operationStore.readOperation(reference.operationId);
+      if (initial.state?.kind !== "lane-progress" || initial.state.lane !== "standard") {
         throw new Error("Hosted settlement requires a persisted standard-lane operation.");
       }
-      if (attempt === undefined) {
+      const initialAttempt = initial.state.attempts
+        .find(({ attemptId }) => attemptId === reference.durableRef);
+      if (initialAttempt === undefined) {
         throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
       }
-      if (hosted === undefined) {
-        throw new Error(`Hosted settlement attempt has no hosted binding: ${reference.durableRef}`);
-      }
-      const bindingMismatch = explainHostedSettlementBindingMismatch(hosted, request);
-      if (bindingMismatch !== null) {
-        throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
-      }
-      const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
-        .readDispositionRecord(attempt.attemptId);
-      const currentDisposition = dispositionRecord === null
-        ? null
-        : currentApprovedDispositionNode(dispositionRecord).approvedDisposition;
-      const disposition = currentDisposition?.dispositionSet.findings
-        .find(({ findingId }) => findingId === request.response.findingId);
-      if (currentDisposition?.dispositionSet.dispositionSetId !== request.response.dispositionSetId
-        || disposition?.disposition !== request.disposition) {
-        throw new Error("Hosted settlement does not match its approved disposition.");
-      }
-      const result = await settleHostedFinding(request, { port });
-      if (result.state === "settled" || result.state === "already-settled") {
-        await settleHostedAttemptFinding(operationStore, {
-          operationId: reference.operationId,
-          attemptId: reference.durableRef,
-          dispositionSetId: request.response.dispositionSetId,
-          findingId: request.response.findingId,
-          disposition: request.disposition,
-          actorIdentity: request.actorIdentity,
-          target: request.target,
-          fixTarget: request.fixTarget,
-          commentId: request.finding.commentId,
-          threadId: request.finding.threadId,
-          replyDigest: canonicalDigest({
-            domain: "arc.review.hosted-settlement-reply/v1",
-            body: request.reply,
-          }),
-          replyId: result.replyId,
-          now: new Date().toISOString(),
-        });
-      }
-      return result;
+      return withRepositoryReviewOperationLock(
+        gitExec,
+        root,
+        laneContinuationOperationId({
+          lane: "standard",
+          repositoryId: initial.state.repositoryId,
+          headSha: initialAttempt.headSha,
+          lineage: initial.state.lineage,
+        }),
+        10_000,
+        async () => {
+          const persisted = await operationStore.readOperation(reference.operationId);
+          const attempt = persisted.state?.kind === "lane-progress"
+            ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
+            : undefined;
+          const hosted = attempt?.hosted;
+          if (persisted.state?.kind !== "lane-progress" || persisted.state.lane !== "standard") {
+            throw new Error("Hosted settlement requires a persisted standard-lane operation.");
+          }
+          if (attempt === undefined) {
+            throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
+          }
+          if (hosted === undefined) {
+            throw new Error(`Hosted settlement attempt has no hosted binding: ${reference.durableRef}`);
+          }
+          const bindingMismatch = explainHostedSettlementBindingMismatch(hosted, request);
+          if (bindingMismatch !== null) {
+            throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
+          }
+          const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
+            .readDispositionRecord(attempt.attemptId);
+          const currentDisposition = dispositionRecord === null
+            ? null
+            : currentApprovedDispositionNode(dispositionRecord).approvedDisposition;
+          const disposition = currentDisposition?.dispositionSet.findings
+            .find(({ findingId }) => findingId === request.response.findingId);
+          if (currentDisposition?.dispositionSet.dispositionSetId !== request.response.dispositionSetId
+            || disposition?.disposition !== request.disposition) {
+            throw new Error("Hosted settlement does not match its approved disposition.");
+          }
+          if (disposition.disposition === "fix"
+            && attempt.responsePerformance !== undefined
+            && request.fixTarget?.headSha !== attempt.responsePerformance.producedHeadSha) {
+            throw new Error("Hosted fix settlement does not match durable response-head evidence.");
+          }
+          const result = await settleHostedFinding(request, { port });
+          if (result.state === "settled" || result.state === "already-settled") {
+            await settleHostedAttemptFinding(operationStore, {
+              operationId: reference.operationId,
+              attemptId: reference.durableRef,
+              dispositionSetId: request.response.dispositionSetId,
+              findingId: request.response.findingId,
+              disposition: request.disposition,
+              actorIdentity: request.actorIdentity,
+              target: request.target,
+              fixTarget: request.fixTarget,
+              commentId: request.finding.commentId,
+              threadId: request.finding.threadId,
+              replyDigest: canonicalDigest({
+                domain: "arc.review.hosted-settlement-reply/v1",
+                body: request.reply,
+              }),
+              replyId: result.replyId,
+              now: new Date().toISOString(),
+            });
+          }
+          return result;
+        },
+      );
     },
   };
 }

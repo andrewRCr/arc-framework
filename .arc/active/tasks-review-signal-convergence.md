@@ -542,18 +542,11 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           admission through the existing repository advisory lock. Conditional authority now retains ordered history
           with one current pointer, allowing an exact successor after predecessor invalidation without revival.
 
-    - `[ ]` **5.5.R.f Persist response performance independently and join hosted completion**
+    - `[x]` **5.5.R.f Persist response performance independently and join hosted completion**
 
-        - Record exact performed-fix evidence for every approved fix response independently of conditional pass authority.
-          Make hosted completion join that fact with required provider settlement, preserving partial evidence and
-          convergence in either order; record-only fixes need no provider receipt, while host-addressable fixes require
-          settlement at the produced response head.
-
-        - Build `test-first` (one behavior at a time):
-            - Prove record-only fix plus host-addressable defer/reject completes only after both response performance and
-              channel settlement, with and without conditional next-pass consent and in both arrival orders.
-            - Prove host-addressable fix settlement must match the performed response head, and neither partial side may
-              report the hosted attempt settled.
+        - Persisted performed-fix evidence independently of conditional pass authority and made hosted completion join
+          exact response performance with channel settlement in either order. Record-only fixes need no provider receipt;
+          host-addressable fixes require the produced response head, and settlement shares the stable continuation lock.
 
     - `[ ]` **5.5.R.g Publish supersession choreography and close the regression boundary**
 
