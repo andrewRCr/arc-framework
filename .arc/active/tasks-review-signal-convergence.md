@@ -389,8 +389,14 @@ changes.
         - One shared projection now collapses line breaks and escapes markup across native labels, evidence references,
           and loci, preventing any producer-owned field from injecting report structure.
 
-- _Outcome:_ Canonical proposal provenance, effective gating, and structurally inert reporting now hold without a
-  conflicting settlement contract; all five source-confirmed findings from the first two Member 4 passes are corrected.
+    - `[x]` **4.R.f Refuse canonically ambiguous finding identities**
+
+        - Require one NFC spelling for finding identities across producer, disposition, authorization, response, and
+          hosted carriers so canonical hashing, duplicate checks, approval binding, and report joins share one key.
+
+- _Outcome:_ Canonical proposal provenance, effective gating, structurally inert reporting, and finding identity now
+  share the same approval-bearing representation without a conflicting settlement contract; all source-confirmed
+  Member 4 corrections are complete.
 
 ### `[ ]` **4.5 Verify judgment provenance and finding presentation** — validate criteria at member scope
 

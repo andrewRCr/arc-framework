@@ -34,6 +34,7 @@ import {
   validateDispositionState,
 } from "../core/dispositions.js";
 import { renderDispositionReport } from "../core/disposition-report.js";
+import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
 import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
@@ -79,7 +80,7 @@ import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
 
 const AuthorDispositionFieldsSchema = z.strictObject({
-  findingId: z.string().trim().min(1).max(512),
+  findingId: ReviewFindingIdentitySchema,
   verificationRefs: z.array(z.string().trim().min(1)).min(1),
   rationale: z.string().trim().min(1).max(4096),
   recommendation: z.string().trim().min(1).max(4096),

@@ -7,7 +7,10 @@ import {
   ApprovedDispositionSetSchema,
   DispositionSetStateSchema,
 } from "./disposition-records.js";
-import { NormalizedReviewFindingsSchema } from "./finding-records.js";
+import {
+  NormalizedReviewFindingsSchema,
+  ReviewFindingIdentitySchema,
+} from "./finding-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { ReviewRoutingDecisionSchema } from "../policy/routing-schema.js";
@@ -93,7 +96,7 @@ export const ReviewResponseSettlementActionSchema = z.strictObject({
     approverIdentity: z.string().trim().min(1),
     proposerIdentity: z.string().trim().min(1),
   }),
-  findingIds: z.array(z.string().trim().min(1)).min(1),
+  findingIds: z.array(ReviewFindingIdentitySchema).min(1),
   request: ReviewResponseSettlementRequestSchema,
 }).superRefine((action, context) => {
   const dispositions = action.request.dispositions;

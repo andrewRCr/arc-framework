@@ -8,6 +8,7 @@ import {
 } from "../bounded-wait.js";
 import {
   NormalizedReviewFindingSchema,
+  ReviewFindingIdentitySchema,
   ReviewFindingSourceLabelSchema,
   ReviewFindingSourceOrdinalSchema,
   type NormalizedReviewFinding,
@@ -62,7 +63,7 @@ function validateHostedFinding(
 }
 
 export const HostedThreadFindingSchema = z.strictObject({
-  findingId: z.string().min(1),
+  findingId: ReviewFindingIdentitySchema,
   origin: z.literal("review-thread"),
   commentId: z.string().min(1),
   threadId: z.string().min(1),
@@ -74,7 +75,7 @@ export const HostedThreadFindingSchema = z.strictObject({
 }).superRefine(validateHostedFinding);
 
 export const HostedReviewBodyFindingSchema = z.strictObject({
-  findingId: z.string().min(1),
+  findingId: ReviewFindingIdentitySchema,
   origin: z.literal("review-body"),
   reviewId: z.string().min(1),
   fingerprint: z.string().min(1),

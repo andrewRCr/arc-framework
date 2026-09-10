@@ -9,7 +9,11 @@ import {
 } from "./review-primitives.js";
 
 const EvidenceReferenceSchema = z.string().trim().min(1);
-const FindingIdentitySchema = z.string().trim().min(1).max(512);
+/** One finding key whose runtime equality matches canonical identity equality. */
+export const ReviewFindingIdentitySchema = z.string().trim().min(1).max(512)
+  .refine((value) => value.normalize("NFC") === value, {
+    message: "finding identity must use NFC-normalized Unicode",
+  });
 const FindingLocusSchema = z.string().trim().min(1).max(2048);
 const MarkdownPunctuation = new Set(Array.from("\\`*_{}[]()#+.!|-"));
 export const ReviewFindingSourceOrdinalSchema = z.int().positive();
@@ -17,12 +21,12 @@ export const ReviewFindingSourceLabelSchema = z.string()
   .refine((value) => value.trim().length > 0, { message: "source label must contain visible text" })
   .refine((value) => Array.from(value).length <= 512, { message: "source label exceeds 512 Unicode code points" });
 export const ReviewFindingContentSchema = z.strictObject({
-  findingId: FindingIdentitySchema,
+  findingId: ReviewFindingIdentitySchema,
   severity: ReviewSeveritySchema,
   nit: z.literal(true).optional(),
   locus: FindingLocusSchema,
   evidenceUrlOrId: EvidenceReferenceSchema,
-  recursFindingId: FindingIdentitySchema.optional(),
+  recursFindingId: ReviewFindingIdentitySchema.optional(),
 }).superRefine((finding, context) => {
   const classification = FindingClassificationSchema.safeParse({
     severity: finding.severity,

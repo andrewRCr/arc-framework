@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { CandidateVerificationApplicabilitySchema } from
   "../../../lib/work-unit/candidate-attestation.js";
+import { ReviewFindingIdentitySchema } from "./finding-records.js";
 import { FindingDispositionSchema, ReviewSeveritySchema } from "./review-primitives.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -13,7 +14,7 @@ const NonEmptyTextSchema = z.string().trim().min(1).max(4096);
 const ReferenceSchema = z.string().trim().min(1);
 
 const DispositionReportItemFieldsSchema = z.strictObject({
-  findingId: z.string().trim().min(1).max(512),
+  findingId: ReviewFindingIdentitySchema,
   sourceIdentity: IdentifierSchema,
   locus: z.string().trim().min(1).max(2048),
   verificationRefs: z.array(ReferenceSchema).min(1),

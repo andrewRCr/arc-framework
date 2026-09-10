@@ -41,6 +41,26 @@ describe("provider finding classification", () => {
     expect(NormalizedReviewFindingSchema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
   });
 
+  it("requires one NFC spelling for finding identities before canonical hashing", () => {
+    const finding = {
+      findingId: "finding-\u00e9",
+      severity: "major" as const,
+      locus: "src/review.ts:42",
+      evidenceUrlOrId: "review:finding",
+      sourceOrdinal: 1,
+    };
+
+    expect(NormalizedReviewFindingSchema.safeParse(finding).success).toBe(true);
+    expect(NormalizedReviewFindingSchema.safeParse({
+      ...finding,
+      findingId: "finding-e\u0301",
+    }).success).toBe(false);
+    expect(NormalizedReviewFindingSchema.safeParse({
+      ...finding,
+      recursFindingId: "finding-e\u0301",
+    }).success).toBe(false);
+  });
+
   function dispositionItem(overrides: Record<string, unknown> = {}) {
     return {
       findingId: "finding-1",

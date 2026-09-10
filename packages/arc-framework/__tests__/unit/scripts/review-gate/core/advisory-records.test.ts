@@ -95,6 +95,19 @@ describe("advisory review records", () => {
     expect(second.dispositionSetId).not.toBe(first.dispositionSetId);
   });
 
+  it("refuses non-NFC finding identities in approval-bearing disposition content", () => {
+    const { dispositionSetId, ...fields } = approvedDisposition.dispositionSet;
+    void dispositionSetId;
+
+    expect(() => createDispositionSet({
+      ...fields,
+      findings: fields.findings.map((finding) => ({
+        ...finding,
+        findingId: "finding-e\u0301",
+      })),
+    })).toThrow(/NFC-normalized/u);
+  });
+
   it("requires exactly one rubric or frontline disposition binding", () => {
     const dispositionSet = approvedDisposition.dispositionSet;
     const fields = {
