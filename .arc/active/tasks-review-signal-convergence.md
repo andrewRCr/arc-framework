@@ -7,8 +7,8 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `1`
-- **Plan Digest:** `sha256:a8e7fe7fea41deb38482d04483fba11ec5b9f6bd73a27de2bb9fdcd211c6cd24`
+- **Plan Revision:** `2`
+- **Plan Digest:** `sha256:e71cadb7bce7b7c7dccedfcdd1d665402e135852dfcc17e9b7eeda13b7b9d52f`
 - **Projection:** `stack-to-main`
 - **Landability:** All members are `independently-landable`.
 
@@ -26,15 +26,15 @@
 
 #### Member coverage
 
-| #   | Tasks                                    | Design elements                                                |
-| --- | ---------------------------------------- | -------------------------------------------------------------- |
-| 1   | `1.1`, `1.2`, `1.3`, `1.4`               | `rfc:design-1`, `rfc:design-2`, `rfc:design-3`, `rfc:design-7` |
-| 2   | `2.1`, `2.2`, `2.3`, `2.4`, `2.5`, `2.6` | `rfc:design-3`, `rfc:design-5`, `rfc:design-7`                 |
-| 3   | `3.1`, `3.2`, `3.3`, `3.4`               | `rfc:design-4`, `rfc:design-5`                                 |
-| 4   | `4.1`, `4.2`, `4.3`, `4.4`, `4.5`        | `rfc:design-4`, `rfc:design-7`                                 |
-| 5   | `5.1`, `5.2`, `5.3`, `5.4`, `5.5`        | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
-| 6   | `6.1`, `6.2`, `6.3`, `6.4`, `6.5`        | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
-| 7   | `7.1`, `7.2`, `7.3`, `7.4`               | `rfc:design-7`, `rfc:design-8`                                 |
+| #   | Tasks                                      | Design elements                                                                |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| 1   | `1.1`, `1.2`, `1.3`, `1.4`                 | `rfc:design-1`, `rfc:design-2`, `rfc:design-3`, `rfc:design-7`                 |
+| 2   | `2.1`, `2.2`, `2.3`, `2.4`, `2.5`, `2.6`   | `rfc:design-3`, `rfc:design-5`, `rfc:design-7`                                 |
+| 3   | `3.1`, `3.2`, `3.3`, `3.4`                 | `rfc:design-4`, `rfc:design-5`                                                 |
+| 4   | `4.1`, `4.2`, `4.3`, `4.4`, `4.5`, `4.R`   | `rfc:design-4`, `rfc:design-7`                                                 |
+| 5   | `5.1`, `5.1.R`, `5.2`, `5.3`, `5.4`, `5.5` | `rfc:design-3`, `rfc:design-4`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
+| 6   | `6.1`, `6.2`, `6.3`, `6.4`, `6.5`          | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7`                 |
+| 7   | `7.1`, `7.2`, `7.3`, `7.4`                 | `rfc:design-7`, `rfc:design-8`                                                 |
 
 ### Named seams
 
@@ -61,9 +61,10 @@
   call; premature commits stop, explicit recovery grants no clearance, and post-readiness replay preserves advanced
   authority.
 
-- **4. Approved judgment to convergence signal:** The exact complete producer-bound approved finding set survives the
-  grade migration and supplies verified-only materiality to every policy/discharge path. Clean needs no empty
-  disposition; report styling is not authority and no approved response is discarded.
+- **4. Approved judgment to convergence signal:** The exact complete producer-bound current approved finding set
+  survives correction and supplies verified-only materiality to every policy/discharge path. Clean needs no empty
+  disposition; provider completion is not clearance, report styling is not authority, and no approved response is
+  discarded.
 <!-- arc:delivery-plan:end -->
 
 ## **Phase 1:** Establish review vocabulary and advisory loop semantics
@@ -423,6 +424,43 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   exact native results plus complete approved dispositions. Settlement projects back to its original findings producer,
   partial chunks remain nonterminal, and unbased incremental evidence selects coverage while retaining response intent.
 
+### `[ ]` **5.1.R Close live terminal-normalization and approved-correction gaps**
+
+- _Goal:_ Hosted completion retains every request-bound observation, and a disproved approved judgment has one typed,
+  auditable successor path before incompatible response consumption.
+
+- _Note:_ Forward amendments in Spec §§ 4 and 7; SC 20 and 21. Preserve completed Tasks 4.R.a and 5.1 as historical
+  outcomes; this revision closes behavior their executable contracts did not provide.
+
+- _Approach:_ Land the provider normalization and disposition-lineage foundation as separate atomic leaves before their
+  shared policy and response consumers. Reuse the Git-common publisher transaction and shared advisory-lock abstraction;
+  do not add a response-specific lock or a general amendment framework.
+
+    - `[ ]` **5.1.R.a Preserve CodeRabbit observations across one terminal review sequence**
+
+        - Build `test-first` (one behavior at a time):
+
+            - Normalize a request-bound `COMMENTED` supplemental nitpick followed by empty `APPROVED` at the same exact
+              head as findings with provider completion, retaining each observation once in capture order. Approval-only
+              remains clean; verified severity and gating, not provider approval, control convergence.
+
+            - Bound aggregation to the admitted attempt's provider, actor, head, and request-generation interval.
+              Exclude another request/head and refuse overlap that cannot be attributed exactly. Keep fixture finding-ID
+              derivation independent without exporting a production helper solely for tests.
+
+    - `[ ]` **5.1.R.b Add immutable approved-set lineage and successor publication**
+
+        - Build `test-first` (one behavior at a time):
+
+            - Evolve the shared local/frontline/hosted advisory record into immutable approved-set lineage with one
+              current pointer and explicit predecessor/successor binding. Publish and advance producer/lane bindings
+              coherently through the existing Git-common transaction; exact replay repairs, while stale or conflicting
+              successors refuse.
+
+            - Mark a superseded predecessor non-current and make its unconsumed fix authorization, response continuation,
+              and ceiling capture permanently unusable. Refuse after incompatible fix consumption or ambiguous external
+              settlement. Carry only exact compatible performed settlement; changed channel action reopens the finding.
+
 ### `[ ]` **5.2 Close direct policy callers, independent discharge, status, and checkpoint**
 
 - _Goal:_ All policy, discharge, status, and checkpoint paths apply the same verified signal and preserve outstanding
@@ -431,7 +469,8 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
 - _Note:_ Spec §§ 6–7; SC 9, 10, and 14.
 
 - _Approach:_ Close every direct `resolveReviewPolicy` consumer plus independent reservation discharge. Reuse common
-  evidence composition; do not implement another hosted materiality algorithm.
+  evidence composition; resolve only the current approved-set lineage node and do not implement another hosted
+  materiality algorithm.
 
     - `[ ]` **5.2.a Switch the complete control graph**
 
@@ -460,6 +499,10 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
               result without applicability cannot discharge; retaining historical material findings cannot create a
               no-material signal. Preserve exact-head merge and Owner authority separately.
 
+            - A superseded approved set cannot supply convergence, discharge, status, checkpoint, response continuation,
+              or pass authority. Exact historical evidence remains readable while every control path selects the same
+              current successor or returns a typed lineage refusal.
+
 ### `[ ]` **5.3 Compose policy inside approved respond and preserve response-first continuations**
 
 - _Goal:_ An approved response command selects policy internally and returns approved response work before continuation;
@@ -470,7 +513,8 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
 - _Approach:_ Keep approved-record append before policy and response performance after it in `respond-command.ts` and
   existing resolve/status composition. Reuse existing response/fix continuations and preserve human execution gates.
   Carry caller-owned judgments through the existing prepublication resume context and corresponding lifecycle inputs;
-  do not infer pending context from the source reference or add another session store.
+  do not infer pending context from the source reference or add another session store. Add supersession as a narrow
+  request/result arm of the existing public response verb, not a parallel correction coordinator.
 
     - `[ ]` **5.3.a Compose approval, policy, and selected response action**
 
@@ -488,6 +532,11 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
               owner, bound to authorizer, repository/lane/lineage, producer, approved set, count, and next ordinal.
               Disposition-only approval cannot manufacture it. Capture-write failure dispatches nothing; exact replay
               repairs without replacing withdrawn, superseded, or consumed state. No separate response-plan store.
+
+            - A correction proposal names its current predecessor and reuses the same immutable producer and exact HEAD.
+              It may be rendered beside expected authorized uncommitted fix paths without treating those bytes as
+              proposal evidence or authority; unrelated dirt and head movement refuse. Fresh approval publishes the
+              successor and returns its carry/reopen response plan through the canonical response envelope.
 
     - `[ ]` **5.3.b Resume or reroute after response performance**
 
@@ -533,6 +582,11 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
 
         - Public returned actions survive restart without schema imports or invented IDs/counters; status/checkpoint
           agree, and complete manual aggregates retain all findings while incomplete evidence refuses.
+
+        - Public supersession scenarios cover unconsumed fix correction, record-only correction, partial hosted
+          settlement, changed-action reopening, interrupted replay, conflicting successor, consumed authorization,
+          ambiguous settlement, and expected-fix dirty-worktree proposal behavior across local, frontline, and hosted
+          bindings. The predecessor's authority never revives.
 
         - Run status and checkpoint over the same producer-backed multi-member state: completed all-refuted and
           minors-only responses advance the member, material or unperformed responses keep it outstanding, and missing

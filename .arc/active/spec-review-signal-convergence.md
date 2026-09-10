@@ -349,6 +349,21 @@ producer content and its result digest, not to separate disposition-item fields 
 decisions. The producer digest is already part of approval binding: changed source content requires a newly bound
 proposal, while merely reordering or styling the report changes no identity.
 
+**Forward amendment — provider completion and observation fragments.** A hosted provider's completion marker and its
+reported observations are distinct facts. For CodeRabbit, an empty `APPROVED` review may close the admitted request
+while a preceding `COMMENTED` review for that same request and exact head carries supplemental nitpicks. Normalize the
+complete request-bounded terminal sequence: retain each observation once in capture order and use the approval only as
+the completion signal. A request with approval and no observations remains clean; a request with any observations
+returns findings, and only ARC's verified severity and effective gating decide whether those findings withhold
+convergence.
+
+Correlation is bounded by the exact admitted hosted attempt, provider, actor, head, and request-generation interval.
+When the provider exposes no request identifier, use the admitted dispatch time and the next known request-generation
+boundary; overlapping or otherwise ambiguous intervals refuse rather than combining records. Never aggregate across a
+different request generation or head. Thread and review-body observations deduplicate by their stable provider identity
+before the existing combined-order ordinal assignment. This extends the completed supplemental-nitpick contract to the
+provider's multi-review terminal protocol; it does not widen production APIs solely to share fixture helpers.
+
 **Forward amendment — approved verification scope.** Add required `proposedVerification` to the immutable canonical
 disposition-set content, at set level beside `proposedBy` and `findings`, using the existing
 `CandidateVerificationApplicabilitySchema` (`targeted | focused | full`). The proposal request supplies it as
@@ -768,6 +783,38 @@ after the approved response is complete; unfinished work preserves it, while wit
 Capturing the decision with the disposition report keeps one operator turn per pass instead of two, without making
 any pass beyond the cap automatic.
 
+**Forward amendment — approved disposition supersession.** Add one narrow post-approval/pre-performance correction
+transition for an unchanged producer and exact target when new source evidence or fix verification disproves part of
+the approved judgment before an incompatible fix is consumed. This is not a generic amendment framework. The proposal
+arm of `arc review respond -` names the predecessor disposition-set ID and supplies a fresh complete proposal; the
+ordinary approval arm then requires a distinct fresh approval and returns a typed supersession result. Neither call may
+edit the predecessor or infer approval from the earlier set.
+
+The Git-common advisory record retains an immutable ordered lineage of approved sets plus one current-set pointer.
+Each successor binds its predecessor, the same repository, producer, source result, and exact target. Publishing the
+successor and advancing any local, frontline, or hosted producer/lane binding occur through the existing Git-common
+transaction boundary and shared advisory-lock abstraction; do not add a response-specific lock. Exact replay returns
+the recorded successor. A second different successor, stale predecessor, moved target, different producer, or partial
+proposal refuses without rewriting history.
+
+Supersession marks the predecessor non-current and invalidates its unconsumed fix authorization, pending continuation,
+and ceiling-override capture. Every reader and admission path checks current-set status, so replay of the predecessor
+cannot restore or consume its authority. Refuse supersession after any incompatible fix consumption or when external
+settlement cannot be attributed exactly. A record-only predecessor or compatible already-performed hosted action may
+carry forward only with its exact settlement evidence and unchanged required channel action; a changed disposition or
+channel action reopens that finding for new performance. Ambiguous settlement never carries.
+
+Successor proposal materialization reads the immutable producer and confirms that the repository HEAD still equals the
+approved target. It does not materialize Candidate content or treat the authorized, uncommitted fix increment as the
+proposal's source, so expected dirty paths do not block proposal construction. The transition grants no authority over
+those bytes: the successor approval, fix authorization, staging, verification, and commit gates still decide whether
+they may land. Unrelated dirty paths and a moved HEAD remain typed refusals.
+
+Expose the transition, its replay/conflict/refusal states, and its settlement carry/reopen plan through the public
+`arc review respond -` envelope and `review-response` guidance. Apply the same lineage semantics to local, frontline,
+and hosted producer bindings wherever they share this record shape. Interrupted publication repairs idempotently from
+the current pointer and successor edge; no direct Git-common state surgery is part of the workflow.
+
 The no-outstanding-set completion arm confirms the exact target is still current before completing. Convergence,
 suspension, and cap exhaustion therefore end only an unchanged-target loop and never discard approved work.
 
@@ -1090,6 +1137,13 @@ mechanical continuation introduces no new permission turn.
   cannot revive through old approval replay; pending-pass retry/fallback does not require a second permission.
 - Native-navigation cases cover duplicate labels, titleless sources, bounded verbatim clipping, mixed thread/body
   capture order, canonical proposal reordering, stable evidence links, and metadata/result-digest tampering.
+- CodeRabbit terminal-sequence cases cover a supplemental `COMMENTED` review followed by an empty `APPROVED` review for
+  one admitted request/head, exact-once retention, approval-only clean, stable capture order, and refusal or exclusion
+  for another request generation or head.
+- Supersession store and command cases cover fresh complete approval over an unconsumed predecessor, record-only
+  correction, partial hosted settlement with exact compatible carry, changed-action reopening, replay, conflicting
+  successors, consumed-authorization refusal, ambiguous settlement refusal, and expected authorized fix dirt beside
+  proposal materialization. Local, frontline, and hosted binding tests prove the predecessor cannot regain authority.
 - Coverage cases prove complete basis plus a fresh bounded correction can converge, incremental-only evidence cannot,
   historical materiality is not a lifetime maximum, unreviewed material loci cannot disappear from scope, and missing,
   stale, cyclic, incompatible, or interrupted predecessor history cannot manufacture complete coverage.
@@ -1229,6 +1283,14 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
 19. Every canonical disposition proposal includes one approved verification scope in immutable set content and its
     report. A verified fix refuses verification narrower than that scope, forwards it as `approvedVerification`, and
     preserves it through ready-to-fix and changed-target continuation without yet narrowing Candidate verification.
+20. A CodeRabbit request whose terminal sequence contains supplemental `COMMENTED` observations followed by an empty
+    `APPROVED` marker retains those observations exactly once while preserving provider completion. Approval-only is
+    clean, and no record from another request generation or head enters the result.
+21. An approved disposition set may be superseded before incompatible fix consumption only by a fresh complete proposal
+    and fresh approval over the same producer and target. The immutable predecessor and exact compatible settlement
+    remain historical evidence; stale authorization cannot replay, changed actions reopen, ambiguous or consumed state
+    refuses, and the public response path repairs the successor transition idempotently beside expected uncommitted fix
+    work.
 
 ## Open Questions
 
