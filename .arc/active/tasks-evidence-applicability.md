@@ -116,23 +116,21 @@ change, and removes the unused predecessor.
 - _Outcome:_ deterministic applicability now resolves through one exhaustive reducer, and only a bounded residual
   with a `supplemental` minimum can escape to procedural judgment.
 
-### `[ ]` **1.4 Retire the unused review-applicability core** — D2
+### `[x]` **1.4 Retire the unused review-applicability core** — D2
 
 - _Goal:_ the new substrate has one live authority surface, with the unused predecessor removed and the unrelated
   gate `applicabilityId` contract preserved exactly.
 
-    - `[ ]` **1.4.a Remove the dead classifier and proof schema**
-        - Delete `packages/arc-framework/src/scripts/review-gate/core/applicability.ts`, its import/call from
-          `register-review-schemas.ts`, the `review-applicability` durable-inventory row, both registered schema
-          identities, and `packages/arc-framework/__tests__/unit/scripts/review-gate/core/applicability.test.ts`.
+    - `[x]` **1.4.a Remove the dead classifier and proof schema**
+        - Removed the unused classifier, proof schema registrations, durable inventory row, canonical-caller entry,
+          and isolated unit coverage.
 
-    - `[ ]` **1.4.b Prove the removal boundary**
-        - Update `review-schema-registration.test.ts`, `review-semantic-schemas.test.ts`,
-          `kernel/schema-generation.test.ts`, and `schema-artifact.e2e.test.ts`; search every gate contract,
-          projection, and local-review result to confirm their `applicabilityId` fields and consumers remain
-          unchanged.
-        - Run the focused review-gate schema/registration suites plus schema-generation and schema-artifact coverage
-          after the deletion.
+    - `[x]` **1.4.b Prove the removal boundary**
+        - Updated schema inventories and generated-artifact expectations; focused unit and E2E schema coverage passes
+          while the unrelated gate-contract `applicabilityId` field and every consumer remain present.
+
+- _Outcome:_ the new applicability substrate is the only live core authority surface, with the obsolete registered
+  schema identities removed and the distinct gate receipt identity preserved.
 
 ### `[ ]` **1.5 Close the applicability substrate member** — D1-D3 — validate criteria at member scope
 

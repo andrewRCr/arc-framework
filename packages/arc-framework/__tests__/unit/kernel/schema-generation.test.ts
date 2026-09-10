@@ -95,8 +95,6 @@ describe("kernel schema artifact generation", () => {
       "proposed-disposition-set",
       "remote-evidence",
       "remote-failure-reason",
-      "review-applicability",
-      "review-applicability-id-preimage",
       "review-assurance-input",
       "review-change-request-resolve-result",
       "review-checks-await-result",

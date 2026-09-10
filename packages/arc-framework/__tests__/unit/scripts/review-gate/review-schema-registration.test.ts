@@ -72,8 +72,6 @@ const reviewIdentities = [
   "project-routing-promotion",
   "proposed-disposition-set",
   "normalized-review-finding",
-  "review-applicability",
-  "review-applicability-id-preimage",
   "review-command-error-envelope",
   "review-chunking-resolve-envelope",
   "review-chunking-resolve-request",
@@ -143,7 +141,6 @@ describe("review schema registration", () => {
     expect(registry.meta("review-policy-version-preimage")?.version).toBe(2);
     expect(registry.meta("review-lifecycle-tail-proof")?.version).toBe(2);
     expect(registry.meta("review-response-plan")?.version).toBe(2);
-    expect(registry.meta("review-applicability")?.version).toBe(2);
     expect(registry.meta("canonical-change-set")?.version).toBe(1);
   });
 

@@ -74,8 +74,6 @@ describe("production schema artifact", () => {
       "remote-evidence",
       "remote-failure-reason",
       "retired-subdir-detection",
-      "review-applicability",
-      "review-applicability-id-preimage",
       "review-assurance-input",
       "review-change-request-resolve-result",
       "review-checks-await-result",
