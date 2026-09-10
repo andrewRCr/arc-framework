@@ -35,6 +35,7 @@ import {
   type ErrandAbandonOptions,
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
+import { handleErrandMerge, type ErrandMergeOptions } from "./handlers/errand-merge.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import {
   handleBaseDrift,
@@ -670,6 +671,16 @@ errand
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     (context, slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts, context),
+  ));
+
+errand
+  .command("merge <slug> <input>")
+  .description("Merge one exact approved Errand target through the typed terminal operation")
+  .option("--json", "Emit the typed terminal result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    (context, slug: string, input: string, opts: ErrandMergeOptions) =>
+      handleErrandMerge(slug, input, opts, context),
   ));
 
 errand

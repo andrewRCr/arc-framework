@@ -386,7 +386,7 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
 - _Outcome:_ required-check observation is now separate from optional waiting, so terminal integration promptly
   yields a complete checkpoint continuation and the command and workflow surfaces preserve its typed evidence.
 
-### `[ ]` **4.3 Add the typed Errand terminal merge operation** — D9
+### `[x]` **4.3 Add the typed Errand terminal merge operation** — D9
 
 - _Goal:_ the Errand lane receives the same evidence and host-policy behavior as work-unit integration through one
   typed operation, with no workflow-authored state machine.
@@ -403,14 +403,13 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
           checkpoint planners, both typed reconcile arms, direct pinned merge, exact confirmation, and compensating
           re-hold semantics; only an indeterminate mutating outcome preserves approval without re-locking.
 
-    - `[ ]` **4.3.c Publish `arc errand merge` through the CLI boundary**
-        - Add the thin handler, Commander registration, input-policy declarations, JSON formatter, and focused unit/E2E
-          coverage without extending the Errand lifecycle record or introducing another approval store.
-        - Build `test-first` (one behavior at a time):
-            - valid JSON input reaches the typed operation and preserves its result;
-            - invalid identity, target, and lane inputs return typed refusals; and
-            - interactive rendering uses the operation's precomposed detail, next action, and argv without swallowing
-              adapter failures.
+    - `[x]` **4.3.c Publish `arc errand merge` through the CLI boundary**
+        - Published the exact request through a thin file-or-stdin handler, Commander, command-input registration and
+          policy declarations, JSON and interactive formatting, typed validation/adapter refusals, and built-CLI E2E
+          coverage without adding Errand lifecycle or approval storage.
+
+- _Outcome:_ the Errand terminal lane now composes the shared evidence policy and host semantics behind one
+  exact-effect command whose machine and interactive surfaces preserve the same typed continuation.
 
 ### `[ ]` **4.4 Wire typed terminal results and residual judgment through workflows** — D3, D6, D9-D11, D15
 

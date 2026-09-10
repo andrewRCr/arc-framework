@@ -311,6 +311,21 @@ function operationFailedResult(
   return result;
 }
 
+/** Compose a typed adapter-boundary failure for one otherwise valid exact request. */
+export function errandMergeOperationRefusal(
+  requestInput: ErrandMergeRequest,
+  detail: string,
+): ErrandMergeResult {
+  const request = ErrandMergeRequestSchema.parse(requestInput);
+  return operationFailedResult(
+    request,
+    "provider-operation-failed",
+    detail,
+    request.approvedTarget,
+    null,
+  );
+}
+
 function finalPlanIsExact(
   final: Extract<ErrandMergeFinalPlan, { status: "available" }>,
   target: IntegrationMergeTarget,
