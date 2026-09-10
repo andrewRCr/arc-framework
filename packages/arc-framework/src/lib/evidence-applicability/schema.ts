@@ -49,6 +49,17 @@ export const IntegrationCoordinateSchema = z.strictObject({
 });
 export type IntegrationCoordinate = z.infer<typeof IntegrationCoordinateSchema>;
 
+/** Compare every authority-bearing field in two integration coordinates. */
+export function integrationCoordinatesEqual(
+  left: IntegrationCoordinate,
+  right: IntegrationCoordinate,
+): boolean {
+  return left.repository === right.repository
+    && left.changeRequest === right.changeRequest
+    && left.base === right.base
+    && left.head === right.head;
+}
+
 export const EvidenceOverlapObservationSchema = z.union([
   z.strictObject({
     status: z.literal("available"),
@@ -261,6 +272,15 @@ const BaseMovementDeltaSchema = z.strictObject({
     coordinates: IntegrationCoordinateSchema,
   }),
   residual: ResidualSchema,
+}).superRefine((value, context) => {
+  const coordinates = value.hostAdmission.coordinates;
+  if (coordinates !== null && !integrationCoordinatesEqual(coordinates, value.observed.coordinates)) {
+    context.addIssue({
+      code: "custom",
+      path: ["hostAdmission", "coordinates"],
+      message: "host admission coordinates must match the observed integration coordinates",
+    });
+  }
 });
 const BaseMergeDeltaSchema = z.strictObject({
   cause: z.literal("base-merge"),
@@ -274,6 +294,15 @@ const BaseMergeDeltaSchema = z.strictObject({
     after: IntegrationCoordinateSchema,
   }),
   residual: ResidualSchema,
+}).superRefine((value, context) => {
+  const coordinates = value.hostAdmission.coordinates;
+  if (coordinates !== null && !integrationCoordinatesEqual(coordinates, value.observed.after)) {
+    context.addIssue({
+      code: "custom",
+      path: ["hostAdmission", "coordinates"],
+      message: "host admission coordinates must match the observed post-merge coordinates",
+    });
+  }
 });
 const MemberRewriteDeltaSchema = z.strictObject({
   cause: z.literal("member-rewrite"),

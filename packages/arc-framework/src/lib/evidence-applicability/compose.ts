@@ -4,6 +4,7 @@ import {
   BoundedEvidenceResidualSchema,
   EvidenceDeltaProducerSchema,
   EvidenceDeltaSchema,
+  integrationCoordinatesEqual,
   type EvidenceDelta,
   type EvidenceDeltaProducer,
   type EvidenceOverlap,
@@ -52,20 +53,13 @@ function normalizeOverlap(input: EvidenceOverlapObservation): EvidenceOverlap {
   } as EvidenceOverlap;
 }
 
-function coordinatesEqual(left: IntegrationCoordinate, right: IntegrationCoordinate): boolean {
-  return left.repository === right.repository
-    && left.changeRequest === right.changeRequest
-    && left.base === right.base
-    && left.head === right.head;
-}
-
 function normalizeHostAdmission(
   input: HostMergeAdmission | undefined,
   expected: IntegrationCoordinate,
 ): NormalizedHostAdmission {
   if (input === undefined) return NOT_APPLICABLE_HOST;
   const evidenceRef = input.evidenceRef ?? null;
-  if (!coordinatesEqual(input.coordinates, expected)) {
+  if (!integrationCoordinatesEqual(input.coordinates, expected)) {
     return {
       state: "unresolved",
       coordinates: null,

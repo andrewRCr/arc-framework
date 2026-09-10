@@ -75,6 +75,44 @@ describe("evidence delta composition", () => {
     });
   });
 
+  it("rejects normalized host authority bound to different coordinates", () => {
+    const movement = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+      hostAdmission: {
+        state: "mergeable",
+        coordinates: coordinates(),
+      },
+    });
+    expect(EvidenceDeltaSchema.safeParse({
+      ...movement,
+      hostAdmission: {
+        ...movement.hostAdmission,
+        coordinates: { ...coordinates(), changeRequest: 99 },
+      },
+    }).success).toBe(false);
+
+    const before = coordinates(oid("a"), oid("b"));
+    const after = coordinates(oid("c"), oid("b"));
+    const merge = composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      hostAdmission: { state: "mergeable", coordinates: after },
+    });
+    expect(EvidenceDeltaSchema.safeParse({
+      ...merge,
+      hostAdmission: {
+        ...merge.hostAdmission,
+        coordinates: { ...after, repository: "other/repo" },
+      },
+    }).success).toBe(false);
+  });
+
   it("maps D4 proof relations and preserves only bounded residuals", () => {
     const endpoints = {
       before: {

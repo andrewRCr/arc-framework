@@ -8,6 +8,7 @@ import {
   reduceEvidenceApplicability,
 } from "../../../src/lib/evidence-applicability/reducer.js";
 import { composeEvidenceDelta } from "../../../src/lib/evidence-applicability/compose.js";
+import { EvidenceDeltaSchema } from "../../../src/lib/evidence-applicability/schema.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): string => `sha256:${character.repeat(64)}`;
@@ -121,6 +122,23 @@ describe("evidence applicability reducer", () => {
       baseMovement({ admitted: true, paths: ["a.ts"] }),
       "merge-safety",
     )).toMatchObject({ verdict: "fresh", judgmentRequired: false });
+  });
+
+  it("refuses merge safety over coordinate-mismatched normalized authority", () => {
+    const delta = baseMovement({ admitted: true });
+    if (delta.cause !== "base-movement" || delta.hostAdmission.state !== "mergeable") {
+      throw new Error("expected the fixture to produce admitted base movement");
+    }
+    const mismatched = {
+      ...delta,
+      hostAdmission: {
+        ...delta.hostAdmission,
+        coordinates: { ...coordinates(), changeRequest: 99 },
+      },
+    };
+
+    expect(EvidenceDeltaSchema.safeParse(mismatched).success).toBe(false);
+    expect(() => reduceEvidenceApplicability(mismatched, "merge-safety")).toThrow();
   });
 
   it("reduces D4 relation rows without turning interaction into judgment", () => {
