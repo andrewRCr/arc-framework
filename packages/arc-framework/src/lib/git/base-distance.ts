@@ -27,6 +27,7 @@ import type {
   BaseDriftMode,
   BaseDriftResult,
   BaseDriftUnavailableReason,
+  BaseMovement,
   IntegrationEvidenceResolver,
   IntegrationEvidenceResolverFactory,
   PathTreatmentClassifier,
@@ -265,6 +266,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
       behind: analysis.behind,
       base: analysis.base,
       baseOid: analysis.baseOid,
+      movement: analysis.movement,
       unavailableReason: analysis.unavailableReason,
       integrationEvidence: analysis.integrationEvidence,
       overlap: analysis.overlap,
@@ -306,6 +308,7 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
       behind,
       base: baseBranch,
       baseOid,
+      movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 0,
@@ -329,6 +332,7 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
       classify: classifyReconciliation,
     }),
   ]);
+  const movement = classifyBaseMovement(overlap);
   return {
     mode,
     verdict: "reconcile",
@@ -337,10 +341,16 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
     behind,
     base: baseBranch,
     baseOid,
+    movement,
     integrationEvidence,
     overlap,
     register: composeBaseDriftRegister(baseBranch, behind, integrationEvidence, overlap),
   };
+}
+
+function classifyBaseMovement(overlap: NonNullable<BaseDriftResult["overlap"]>): BaseMovement {
+  if (overlap.status === "unavailable") return "unknown";
+  return overlap.substantivePaths.length === 0 ? "disjoint" : "overlapping";
 }
 
 function resolveResolver(
@@ -383,6 +393,7 @@ export type {
   BaseDriftMode,
   BaseDriftResult,
   BaseDriftUnavailableReason,
+  BaseMovement,
   IntegrationEvidenceResolver,
   IntegrationEvidenceResolverFactory,
   PathTreatmentClassifier,

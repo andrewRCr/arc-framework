@@ -62,6 +62,7 @@ describe("snapshot-driven base distance", () => {
       history: { kind: "complete" },
     })).resolves.toMatchObject({
       verdict: "clean",
+      movement: "disjoint",
       state: "local-ahead",
       ahead: 2,
       behind: 0,
@@ -77,9 +78,7 @@ describe("snapshot-driven base distance", () => {
         throw new Error(`lazy object access allowed: ${args.join(" ")}`);
       }
       if (args[0] === "rev-list") return { stdout: "0\t1\n" };
-      if (args[0] === "log") {
-        return { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` };
-      }
+      if (args[0] === "log") return { stdout: `${MERGE_OID}\0${PARENT_A}\0ordinary base commit\0` };
       if (args[0] === "merge-base") return { stdout: `${PARENT_A}\n` };
       if (args[0] === "diff") return { stdout: "shared.ts\0" };
       throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
@@ -97,7 +96,9 @@ describe("snapshot-driven base distance", () => {
       ahead: 0,
       behind: 1,
       baseOid: BASE_OID,
-      integrationEvidence: { coverage: "complete", scannedCommitCount: 1 },
+      movement: "disjoint",
+      integrationEvidence: { coverage: "partial", scannedCommitCount: 1 },
+      overlap: { status: "available", substantivePaths: [] },
       remoteEvidence: "exact",
     });
   });
@@ -293,6 +294,20 @@ describe("base drift raw-distance boundary", () => {
     expect(result.register?.kind).toBe("calm");
   });
 
+  it("classifies any substantive overlap as overlapping movement", async () => {
+    const { exec } = gitMock({ distance: "1\t1\n" });
+    const result = await runBaseDrift({
+      exec,
+      baseBranch: "main",
+      mode: "authoritative",
+    });
+    expect(result).toMatchObject({
+      verdict: "reconcile",
+      movement: "overlapping",
+      overlap: { status: "available", substantivePaths: ["shared.ts"] },
+    });
+  });
+
   it("keeps a healthy reconcile verdict when the resolver factory fails", async () => {
     const { exec } = gitMock({ distance: "0\t1\n" });
     const result = await runBaseDrift({
@@ -318,6 +333,7 @@ describe("base drift raw-distance boundary", () => {
     });
     expect(result).toMatchObject({
       verdict: "reconcile",
+      movement: "unknown",
       ahead: 1,
       behind: 1,
       baseOid: BASE_OID,

@@ -9,6 +9,7 @@ import type { PathTreatment } from "../evidence-applicability/index.js";
 
 export type BaseDriftMode = "advisory" | "authoritative";
 export type BaseDriftVerdict = "clean" | "reconcile" | "unavailable" | "skipped";
+export type BaseMovement = "disjoint" | "overlapping" | "unknown";
 
 export type BaseDriftUnavailableReason =
   | "config-unavailable"
@@ -74,6 +75,8 @@ export interface BaseDriftResult {
   behind: number;
   base: string | null;
   baseOid: string | null;
+  /** Path interaction for a healthy base-drift reading; omitted when drift is unavailable or skipped. */
+  movement?: BaseMovement;
   unavailableReason?: BaseDriftUnavailableReason;
   integrationEvidence: IntegrationEvidence | null;
   overlap: OverlapEvidence | null;

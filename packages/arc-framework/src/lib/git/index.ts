@@ -52,6 +52,7 @@ export {
   runBaseDrift,
   type BaseDriftMode,
   type BaseDriftResult,
+  type BaseMovement,
   type BaseDriftUnavailableReason,
   type BaseDistanceStatusResult,
   type IntegrationEvidenceResolver,

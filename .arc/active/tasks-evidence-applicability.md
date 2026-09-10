@@ -177,14 +177,11 @@ and Errand paths.
 - _Goal:_ base drift reports path interaction independently of its distance verdict, allowing aware consumers to
   distinguish harmless movement while unaware consumers retain their current fail-closed behavior.
 
-    - `[ ]` **2.1.a Produce `movement` from the existing overlap read**
-        - Extend `BaseDriftResult` and `analyzeAvailableBase` with `disjoint | overlapping | unknown`, excluding
-          `evidence-neutral` paths through the shared registry without making integration-evidence completeness a read
-          precondition.
-        - Build `test-first` (one behavior at a time):
-            - empty substantive overlap is `disjoint` even when integration evidence is incomplete;
-            - any substantive path is `overlapping`; and
-            - unavailable overlap is `unknown`.
+    - `[x]` **2.1.a Produce `movement` from the existing overlap read**
+        - Added the orthogonal `disjoint | overlapping | unknown` result projection beside the existing overlap read;
+          unavailable and skipped readings continue to omit it, and authoritative materialization preserves it.
+        - Test-first coverage proves incomplete integration evidence does not prevent `disjoint`, any substantive path
+          yields `overlapping`, unavailable overlap yields `unknown`, and clean readings are `disjoint`.
 
     - `[ ]` **2.1.b Carry movement without changing verdict dispatch**
         - Render the field through `composeBaseDriftRegister`, `arc base drift`, and the session-init value schema,
