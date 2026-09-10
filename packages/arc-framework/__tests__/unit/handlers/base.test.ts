@@ -11,18 +11,19 @@ const headOid = "b".repeat(40);
 describe("base merge handler", () => {
   it("carries the checkpoint Candidate head through the typed command contract", async () => {
     const write = vi.fn();
-    const merge = async (...args: string[]) => ({
+    const merge = vi.fn(async (...args: [string, string, string, "regenerate-roadmap"?]) => ({
       schemaVersion: 1,
       mode: "base-merge",
       state: "skipped-clean",
       nextAction: "continue-reconcile",
-      expectedBase: args[1] ?? "",
-      expectedHead: args[2] ?? "",
-    }) as const;
+      expectedBase: args[1],
+      expectedHead: args[2],
+    }) as const);
 
     await handleBaseMerge({
       expectedBase: oid,
       expectedHead: headOid,
+      regenerateRoadmap: true,
       json: true,
     } as Parameters<typeof handleBaseMerge>[0], undefined, {
       resolveRoot: () => "/repo",
@@ -35,6 +36,7 @@ describe("base merge handler", () => {
       expectedBase: oid,
       expectedHead: headOid,
     });
+    expect(merge).toHaveBeenCalledWith("/repo", oid, headOid, "regenerate-roadmap");
   });
 
   it("emits a schema-valid invalid-input refusal", async () => {

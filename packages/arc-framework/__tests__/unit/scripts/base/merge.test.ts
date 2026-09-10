@@ -167,4 +167,33 @@ describe("base merge", () => {
     });
     expect(state).toMatchObject({ history: before, merging: false });
   });
+
+  it("passes the checkpoint-authorized regenerable remedy into the append-only merge", async () => {
+    const { port } = repository();
+    let observedRemedy: string | undefined;
+    port.mergeAppendOnly = async (_base, _head, remedy) => {
+      observedRemedy = remedy;
+      return { status: "merged", headOid: oid("d") };
+    };
+    await expect(mergeExpectedBase({
+      expectedBase: oid("a"),
+      expectedHead: oid("c"),
+      conflictRemedy: "regenerate-roadmap",
+    }, port)).resolves.toMatchObject({ state: "merged", nextAction: "run-quality-gates" });
+    expect(observedRemedy).toBe("regenerate-roadmap");
+  });
+
+  it("preserves a refused regenerable remedy with useful detail", async () => {
+    const { port } = repository();
+    port.mergeAppendOnly = async () => ({ status: "remedy-refused", detail: "Render was indeterminate." });
+    await expect(mergeExpectedBase({
+      expectedBase: oid("a"),
+      expectedHead: oid("c"),
+      conflictRemedy: "regenerate-roadmap",
+    }, port)).resolves.toMatchObject({
+      state: "regenerable-refused",
+      nextAction: "stop",
+      detail: "Render was indeterminate.",
+    });
+  });
 });

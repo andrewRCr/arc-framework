@@ -741,6 +741,7 @@ baseCmd
   .description("Merge one checkpointed base revision append-only")
   .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
   .requiredOption("--expected-head <oid>", "Exact Candidate head approved by the checkpoint")
+  .option("--regenerate-roadmap", "Apply the checkpoint-authorized ROADMAP-only conflict remedy")
   .requiredOption("--json", "Emit the typed merge outcome as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

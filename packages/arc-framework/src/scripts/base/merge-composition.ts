@@ -1,8 +1,14 @@
 /** Production Git composition for the exact-base merge procedure. */
 
+import { writeFile } from "node:fs/promises";
+
 import { boundedGitInvocation, type GitExec } from "../../lib/git/exec.js";
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../../lib/git/remote-ref-reader.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
+import {
+  applyRoadmapConflictAutoRemedy,
+  type RoadmapConflictAutoRemedyResult,
+} from "../../lib/status/roadmap-conflict-auto-remedy.js";
 import type { BaseMergePort } from "./merge.js";
 
 async function resolveOid(exec: GitExec, cwd: string, ref: string): Promise<string> {
@@ -57,6 +63,10 @@ export function createBaseMergePort(input: {
   baseBranch: string;
   exec: GitExec;
   fetchTimeoutMs?: number;
+  applyRegenerableConflict?: (
+    baseOid: string,
+    headOid: string,
+  ) => Promise<RoadmapConflictAutoRemedyResult>;
 }): BaseMergePort {
   const remoteBaseRef = `refs/remotes/origin/${input.baseBranch}`;
   return {
@@ -91,7 +101,7 @@ export function createBaseMergePort(input: {
         throw error;
       }
     },
-    mergeAppendOnly: async (baseOid, headOid) => {
+    mergeAppendOnly: async (baseOid, headOid, conflictRemedy) => {
       const status = (await input.exec("git", ["status", "--porcelain=v1"], {
         cwd: input.cwd,
         objectAccess: "local-only",
@@ -132,6 +142,69 @@ export function createBaseMergePort(input: {
       } catch (error) {
         if (!await mergeInProgress(input.exec, input.cwd)) throw error;
         const contentConflict = await hasUnmergedEntries(input.exec, input.cwd);
+        let remedyRefusal: string | null = null;
+        if (contentConflict && conflictRemedy === "regenerate-roadmap") {
+          try {
+            const remedy = input.applyRegenerableConflict === undefined
+              ? await applyRoadmapConflictAutoRemedy({
+                  cwd: input.cwd,
+                  exec: input.exec,
+                  writeFile,
+                  baseBranch: input.baseBranch,
+                  baseRevision: baseOid,
+                  renderedRef: baseOid,
+                })
+              : await input.applyRegenerableConflict(baseOid, headOid);
+            remedyRefusal = remedy.status === "applied"
+              ? remedy.indeterminate ? "The readiness render was indeterminate." : null
+              : remedy.status === "skipped"
+                ? `The readiness conflict remedy was skipped (${remedy.reason}).`
+                : `The readiness conflict remedy failed: ${remedy.message}`;
+            if (remedyRefusal === null) {
+              if (await hasUnmergedEntries(input.exec, input.cwd)) {
+                remedyRefusal = "The readiness conflict remedy left unmerged paths.";
+              } else {
+                await input.exec("git", ["diff", "--quiet", "--", ".arc/backlog/ROADMAP.md"], {
+                  cwd: input.cwd,
+                  objectAccess: "local-only",
+                });
+                await input.exec("git", ["commit", "--no-edit"], { cwd: input.cwd });
+                const after = await resolveOid(input.exec, input.cwd, "HEAD");
+                const parents = await resolveParents(input.exec, input.cwd, after);
+                const clean = (await input.exec("git", ["status", "--porcelain=v1"], {
+                  cwd: input.cwd,
+                  objectAccess: "local-only",
+                })).stdout === "";
+                if (parents.length === 2 && parents[0] === headOid && parents[1] === baseOid && clean) {
+                  return { status: "merged", headOid: after };
+                }
+                if (parents[0] === headOid && await resolveOid(input.exec, input.cwd, "HEAD") === after) {
+                  await input.exec("git", ["update-ref", "HEAD", headOid, after], { cwd: input.cwd });
+                  await input.exec("git", ["reset", "--hard", "HEAD"], { cwd: input.cwd });
+                }
+                remedyRefusal = "The regenerated merge did not preserve the exact parents and clean tree.";
+              }
+            }
+          } catch (remedyError) {
+            remedyRefusal = remedyError instanceof Error ? remedyError.message : String(remedyError);
+          }
+        }
+        if (!await mergeInProgress(input.exec, input.cwd)) {
+          if (remedyRefusal !== null) {
+            const [restored, clean] = await Promise.all([
+              resolveOid(input.exec, input.cwd, "HEAD"),
+              input.exec("git", ["status", "--porcelain=v1"], {
+                cwd: input.cwd,
+                objectAccess: "local-only",
+              }).then(({ stdout }) => stdout === ""),
+            ]);
+            if (restored !== before || !clean) {
+              throw new Error("Git could not restore the pre-merge candidate state.", { cause: error });
+            }
+            return { status: "remedy-refused", detail: remedyRefusal };
+          }
+          throw error;
+        }
         await input.exec("git", ["merge", "--abort"], { cwd: input.cwd });
         const [after, clean, stillMerging] = await Promise.all([
           resolveOid(input.exec, input.cwd, "HEAD"),
@@ -144,6 +217,7 @@ export function createBaseMergePort(input: {
         if (after !== before || !clean || stillMerging) {
           throw new Error("Git could not restore the pre-merge candidate state.", { cause: error });
         }
+        if (remedyRefusal !== null) return { status: "remedy-refused", detail: remedyRefusal };
         if (!contentConflict) throw error;
         return { status: "conflict" };
       }

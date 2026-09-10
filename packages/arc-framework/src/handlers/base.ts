@@ -48,6 +48,8 @@ export interface BaseMergeOptions {
   expectedBase: string;
   /** Exact checkpoint Candidate head the merge is allowed to extend. */
   expectedHead: string;
+  /** Apply the checkpoint-authorized readiness-projection conflict remedy. */
+  regenerateRoadmap?: boolean;
   /** Emit the typed merge outcome as JSON. */
   json?: boolean;
 }
@@ -58,10 +60,25 @@ const baseJsonPolicy = declareCliOptionSite("json", {
   mutationBoundary: "output selection", subprocess: "none",
 });
 
+const baseRegenerateRoadmapPolicy = declareCliOptionSite("regenerate-roadmap", {
+  acquisition: "safe-default",
+  schemaOwnership: "owned",
+  schemaField: "conflictRemedy",
+  defaultSource: "omitted",
+  cancellation: "not-applicable",
+  automation: {
+    noInput: "same",
+    flags: ["--regenerate-roadmap"],
+    acceptedSyntax: ["--regenerate-roadmap"],
+  },
+  mutationBoundary: "ROADMAP-only merge conflict remedy",
+  subprocess: "none",
+});
+
 /** Machine-output policies owned by the base command adapters. */
 export const baseCommandInputPolicyDeclarations = [
   { commandPath: "base drift", aliases: [], sites: [baseJsonPolicy] },
-  { commandPath: "base merge", aliases: [], sites: [baseJsonPolicy] },
+  { commandPath: "base merge", aliases: [], sites: [baseJsonPolicy, baseRegenerateRoadmapPolicy] },
   { commandPath: "base sync", aliases: [], sites: [baseJsonPolicy] },
 ] satisfies readonly CommandInputDeclaration[];
 
@@ -72,12 +89,18 @@ export const baseCommandInputRegistrations = [{
   schemaFields: {
     "option.expected-base": "expectedBase",
     "option.expected-head": "expectedHead",
+    "option.regenerate-roadmap": "conflictRemedy",
   },
 }] as const satisfies readonly CommandInputRegistration[];
 
 export interface BaseMergeHandlerDependencies {
   resolveRoot(): string | null;
-  merge(cwd: string, expectedBase: string, expectedHead: string): Promise<BaseMergeResult>;
+  merge(
+    cwd: string,
+    expectedBase: string,
+    expectedHead: string,
+    conflictRemedy?: "regenerate-roadmap",
+  ): Promise<BaseMergeResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -91,13 +114,13 @@ export async function handleBaseMerge(
   const exec = createGitExec(interaction?.subprocess);
   const dependencies: BaseMergeHandlerDependencies = {
     resolveRoot: () => resolveArcRoot(),
-    merge: async (root, expectedBase, expectedHead) => {
+    merge: async (root, expectedBase, expectedHead, conflictRemedy) => {
       const { settings, warnings } = await readConfigSettings(root);
       if (warnings.some((warning) => warning.startsWith("Unable to read arc-config.yml:"))) {
         throw new Error("The configured base branch is unavailable because arc-config.yml could not be read.");
       }
       return mergeExpectedBase(
-        { expectedBase, expectedHead },
+        { expectedBase, expectedHead, ...(conflictRemedy === undefined ? {} : { conflictRemedy }) },
         createBaseMergePort({ cwd: root, baseBranch: settings["branch.base"], exec }),
       );
     },
@@ -108,6 +131,7 @@ export async function handleBaseMerge(
   const parsed = BaseMergeInputSchema.safeParse({
     expectedBase: options.expectedBase,
     expectedHead: options.expectedHead,
+    ...(options.regenerateRoadmap === true ? { conflictRemedy: "regenerate-roadmap" } : {}),
   });
   if (!parsed.success) {
     dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
@@ -140,7 +164,12 @@ export async function handleBaseMerge(
   }
   let result: BaseMergeResult;
   try {
-    result = await dependencies.merge(cwd, parsed.data.expectedBase, parsed.data.expectedHead);
+    result = await dependencies.merge(
+      cwd,
+      parsed.data.expectedBase,
+      parsed.data.expectedHead,
+      parsed.data.conflictRemedy,
+    );
   } catch (error) {
     result = {
       schemaVersion: 1,

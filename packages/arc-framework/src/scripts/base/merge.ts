@@ -7,6 +7,7 @@ const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 export const BaseMergeInputSchema = z.strictObject({
   expectedBase: ObjectIdSchema,
   expectedHead: ObjectIdSchema,
+  conflictRemedy: z.literal("regenerate-roadmap").optional(),
 });
 export type BaseMergeInput = z.infer<typeof BaseMergeInputSchema>;
 
@@ -64,6 +65,14 @@ export const BaseMergeResultSchema = z.discriminatedUnion("state", [
   }),
   z.strictObject({
     ...BaseMergeResultCommon,
+    state: z.literal("regenerable-refused"),
+    nextAction: z.literal("stop"),
+    expectedBase: ObjectIdSchema,
+    expectedHead: ObjectIdSchema,
+    detail: z.string().min(1),
+  }),
+  z.strictObject({
+    ...BaseMergeResultCommon,
     state: z.literal("blocked"),
     nextAction: z.literal("stop"),
     reason: z.enum(["invalid-input", "operational-failure"]),
@@ -79,9 +88,10 @@ export interface BaseMergePort {
   refreshBase(): Promise<string>;
   refreshHead(): Promise<string>;
   isAncestor(ancestorOid: string, descendantOid: string): Promise<boolean>;
-  mergeAppendOnly(baseOid: string, headOid: string): Promise<
+  mergeAppendOnly(baseOid: string, headOid: string, conflictRemedy?: "regenerate-roadmap"): Promise<
     | { status: "merged"; headOid: string }
     | { status: "conflict" }
+    | { status: "remedy-refused"; detail: string }
     | { status: "head-moved"; actualHead: string }
   >;
 }
@@ -176,7 +186,11 @@ export async function mergeExpectedBase(
   if (preMergeMovement !== null) return preMergeMovement;
   let outcome: Awaited<ReturnType<BaseMergePort["mergeAppendOnly"]>>;
   try {
-    outcome = await port.mergeAppendOnly(request.expectedBase, request.expectedHead);
+    outcome = await port.mergeAppendOnly(
+      request.expectedBase,
+      request.expectedHead,
+      request.conflictRemedy,
+    );
   } catch (error) {
     return blocked(request.expectedBase, request.expectedHead, error);
   }
@@ -204,6 +218,17 @@ export async function mergeExpectedBase(
       expectedBase: request.expectedBase,
       expectedHead: request.expectedHead,
       actualHead: actualHead.data,
+    };
+  }
+  if (outcome.status === "remedy-refused") {
+    return {
+      schemaVersion: 1,
+      mode: "base-merge",
+      state: "regenerable-refused",
+      nextAction: "stop",
+      expectedBase: request.expectedBase,
+      expectedHead: request.expectedHead,
+      detail: outcome.detail,
     };
   }
   return {

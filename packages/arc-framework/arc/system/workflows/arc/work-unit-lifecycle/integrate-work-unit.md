@@ -610,13 +610,15 @@ path with its exact `selectedDeliverableId`. `blocked / trigger-ref-restore-requ
 stops for Owner approval before restoring only that missing ref, then reruns the same remedy. Every other result
 stops.
 
-`reconcile / reconcile-base` enters the base-merge arm with the checkpoint's validated safety facts.
+`reconcile / reconcile-base` and `reconcile / reconcile-regenerable` enter the base-merge arm with the checkpoint's
+exact movement observation. The regenerable arm alone adds `--regenerate-roadmap`.
 
 Invoke
-`arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json`.
+`arc base merge --expected-base {payload.observation.feasibility.base} --expected-head {payload.candidateHead}
+{--regenerate-roadmap only for reconcile-regenerable} --json`.
 `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
 `head-contained-by-base / rerun-checkpoint` restart this step.
-`blocked / stop` and `conflict / stop` stop before every later fire point.
+`blocked / stop`, `conflict / stop`, and `regenerable-refused / stop` stop before every later fire point.
 `skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, run Tier 1
 over the exact merged head. These are the ordinary new-head automated checks; make no applicability or review
 judgment before the checkpoint classifies the exact target.

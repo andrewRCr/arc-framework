@@ -782,7 +782,7 @@ describe("trusted review-gate workflows", () => {
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
     const checkpoint = gate.indexOf("arc integrate checkpoint {name} --json");
     const baseMerge = gate.indexOf(
-      "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
+      "arc base merge --expected-base {payload.observation.feasibility.base}",
     );
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
     const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
@@ -824,13 +824,16 @@ describe("trusted review-gate workflows", () => {
       "head-moved": "rerun-checkpoint",
       "head-contained-by-base": "rerun-checkpoint",
       conflict: "stop",
+      "regenerable-refused": "stop",
       blocked: "stop",
     } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;
 
     for (const [state, nextAction] of Object.entries(actions)) {
       expect(gate).toContain(`\`${state} / ${nextAction}\``);
     }
-    const stop = gate.search(/`blocked \/ stop` and `conflict \/ stop` stop before every later\s+fire point/u);
+    const stop = gate.search(
+      /`blocked \/ stop`, `conflict \/ stop`, and `regenerable-refused \/ stop` stop before every later\s+fire point/u,
+    );
     expect(stop).toBeGreaterThan(-1);
     expect(gate.indexOf("`push-interlock`", stop)).toBeGreaterThan(stop);
   });

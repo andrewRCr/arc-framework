@@ -222,7 +222,7 @@ and Errand paths.
 - _Outcome:_ Git feasibility and provider-neutral host admission are now independently typed and exact-coordinate
   bound, with GitHub-specific interpretation confined to its adapter.
 
-### `[ ]` **2.3 Compose the checkpoint action matrix and regenerable remedy** — D5
+### `[x]` **2.3 Compose the checkpoint action matrix and regenerable remedy** — D5
 
 - _Goal:_ one checkpoint result selects the only authorized continuation for every movement, feasibility, admission,
   and evidence-completeness combination.
@@ -239,21 +239,15 @@ and Errand paths.
         - Result schemas carry movement, endpoints, semantic causes, detail, and remedies; checkpoint tests prove
           coordinate refusal and public JSON projection while session-init remains outside the host boundary.
 
-    - `[ ]` **2.3.c Reuse the bounded readiness-projection conflict remedy**
-        - Extend the typed base-merge composition so `reconcile-regenerable` invokes
-          `applyRoadmapConflictAutoRemedy` only when its existing eligibility guard proves the project readiness
-          document is the sole conflict. Bind the attempt to the checkpoint's exact `expectedHead` and
-          `expectedBase`, render from the candidate index under that observation, and accept `applied` only when the
-          render is determinate and its staged bytes and exact `[expectedHead, expectedBase]` merge parents revalidate.
-          On coordinate movement, indeterminate render, skipped, failed, wider, commit, or verification failure,
-          abort and prove restoration of the pre-merge head and tree.
-        - Build `test-first` (one behavior at a time):
-            - the sole regenerable conflict is determinately regenerated from the exact candidate index, staged,
-              committed with the bound parents, and returned through the existing Tier 1, push, and recheckpoint
-              handoff;
-            - a moved parent, indeterminate render, wider conflict, skipped/failed remedy, unavailable eligibility
-              read, or malformed merge result refuses with useful detail; and
-            - every non-success arm aborts cleanly and restores the exact pre-merge state.
+    - `[x]` **2.3.c Reuse the bounded readiness-projection conflict remedy**
+        - Added the checkpoint-authorized `--regenerate-roadmap` base-merge arm, binding the existing eligibility and
+          staged-index renderer to the exact expected base/head before committing only determinate, clean output with
+          exact `[expectedHead, expectedBase]` parents.
+        - Skipped, failed, indeterminate, wider, malformed, or verification-failed remedies return typed detail after
+          abort/CAS restoration; successful merges retain the existing Tier 1, push, and recheckpoint continuation.
+
+- _Outcome:_ the checkpoint now selects one exact, typed continuation from independent movement, Git, host, and
+  applicability evidence, including a bounded regenerate-wins merge path with restoration on every non-success.
 
 ## **Phase 3:** Delivery and review applicability
 
