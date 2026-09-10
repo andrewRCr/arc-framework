@@ -203,6 +203,29 @@ describe("evidence applicability reducer", () => {
     )).toMatchObject({ verdict: "supplemental", judgmentRequired: true, residual: ["a.ts"] });
   });
 
+  it("rejects carried evidence across normalized base-merge discontinuity", () => {
+    const before = coordinates();
+    const after = { ...coordinates(), base: oid("c") };
+    const delta = composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      projection: { endpoints, proof: { status: "accepted", proof: "tree-equality" } },
+    });
+    if (delta.cause !== "base-merge") throw new Error("expected base merge");
+    const discontinuous = {
+      ...delta,
+      observed: {
+        ...delta.observed,
+        after: { ...after, repository: "other/repo", changeRequest: 99, head: oid("d") },
+      },
+    };
+
+    expect(EvidenceDeltaSchema.safeParse(discontinuous).success).toBe(false);
+    expect(() => reduceEvidenceApplicability(discontinuous, "verification")).toThrow();
+  });
+
   it("fails closed when overlapping evidence cannot carry a bounded residual", () => {
     const paths = Array.from(
       { length: 201 },

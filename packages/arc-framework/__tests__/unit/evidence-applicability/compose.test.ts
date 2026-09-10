@@ -311,4 +311,28 @@ describe("evidence delta composition", () => {
       overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
     }).success).toBe(false);
   });
+
+  it("rejects normalized base-merge coordinate discontinuity", () => {
+    const before = coordinates(oid("a"), oid("b"));
+    const after = coordinates(oid("c"), oid("b"));
+    const normalized = composeEvidenceDelta({
+      cause: "base-merge",
+      before,
+      after,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+    });
+
+    expect(EvidenceDeltaSchema.safeParse({
+      ...normalized,
+      observed: {
+        ...normalized.observed,
+        after: {
+          ...after,
+          repository: "other/repo",
+          changeRequest: 99,
+          head: oid("d"),
+        },
+      },
+    }).success).toBe(false);
+  });
 });

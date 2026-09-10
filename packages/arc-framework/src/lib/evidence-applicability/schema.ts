@@ -65,6 +65,15 @@ export function integrationCoordinatesEqual(
     && left.head === right.head;
 }
 
+function baseMergeCoordinatesContinuous(
+  before: IntegrationCoordinate,
+  after: IntegrationCoordinate,
+): boolean {
+  return before.repository === after.repository
+    && before.changeRequest === after.changeRequest
+    && before.head === after.head;
+}
+
 export const EvidenceOverlapObservationSchema = z.union([
   z.strictObject({
     status: z.literal("available"),
@@ -130,9 +139,7 @@ const BaseMergeProducerSchema = z.strictObject({
     proof: DeliveryContributionProofResultSchema,
   }).optional(),
 }).superRefine((value, context) => {
-  if (value.before.repository !== value.after.repository
-    || value.before.changeRequest !== value.after.changeRequest
-    || value.before.head !== value.after.head) {
+  if (!baseMergeCoordinatesContinuous(value.before, value.after)) {
     context.addIssue({
       code: "custom",
       message: "base-merge observations must retain repository, change request, and head coordinates",
@@ -319,6 +326,13 @@ const BaseMergeDeltaSchema = z.strictObject({
   }),
   residual: ResidualSchema,
 }).superRefine((value, context) => {
+  if (!baseMergeCoordinatesContinuous(value.observed.before, value.observed.after)) {
+    context.addIssue({
+      code: "custom",
+      path: ["observed", "after"],
+      message: "base-merge observations must retain repository, change request, and head coordinates",
+    });
+  }
   const coordinates = value.hostAdmission.coordinates;
   if (coordinates !== null && !integrationCoordinatesEqual(coordinates, value.observed.after)) {
     context.addIssue({
