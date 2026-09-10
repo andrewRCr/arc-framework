@@ -595,6 +595,7 @@ export async function executeDeliverySuffixRewrite(input: {
       readonly reason:
         | "position-mismatch"
         | "lifecycle-contribution"
+        | "pending-review-fix-verification"
         | "reservation-refused"
         | "state-conflict"
         | "precondition-mismatch"
@@ -631,7 +632,14 @@ export async function executeDeliverySuffixRewrite(input: {
     before,
     requested: input.requested,
   });
-  if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
+  if (reserved.status !== "reserved") {
+    return {
+      status: "refused",
+      reason: reserved.reason === "pending-review-fix-verification"
+        ? reserved.reason
+        : "reservation-refused",
+    };
+  }
   const persistedReservation = await input.stateStore.publish(
     input.plan.planId, reserved.state, input.current.revision,
   );

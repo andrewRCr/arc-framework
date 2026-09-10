@@ -679,6 +679,9 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         protectedBaseRef,
         topRef: `refs/heads/${input.activeBranch}`,
         selectedDeliverableIds: [entry.selectedDeliverableId],
+        selectedOperationMode: entry.derivedFrom.kind === "pending-verification"
+          ? "selected-change" as const
+          : "review-fix" as const,
         repository: request.repository,
         remote: request.remote,
       },

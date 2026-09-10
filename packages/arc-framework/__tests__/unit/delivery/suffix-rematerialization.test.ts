@@ -436,6 +436,35 @@ describe("delivery suffix rematerialization", () => {
     expect(proveCarried).toHaveBeenCalledTimes(6);
   });
 
+  it("carries the selected operation mode and preserves its exact reservation refusal", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    const apply = vi.fn(async () => ({
+      status: "refused" as const,
+      reason: "pending-review-fix-verification" as const,
+    }));
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+      selectedOperationMode: "selected-change",
+    }, {
+      reobserve: async () => ({
+        status: "observed",
+        plan,
+        current: { revision: 7, value: state },
+        facts,
+        snapshot,
+      }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply,
+    });
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({
+      operationMode: "selected-change",
+      rewrite: expect.objectContaining({ deliverableId: second.deliverableId }),
+    }));
+  });
+
   it("resumes after a persisted predecessor rewrite without weakening carried contribution proof", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const initial = deliveryStateFixture(plan);

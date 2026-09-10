@@ -99,9 +99,11 @@ export interface DeliverySuffixRematerializationDependencies {
     readonly plan: DeliveryPlanV1;
     readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
     readonly rewrite: DeliverySuffixRewritePlan;
+    readonly operationMode: "review-fix" | "selected-change";
   }): Promise<
     | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-    | { readonly status: "refused" }
+    | { readonly status: "refused"; readonly reason: "pending-review-fix-verification" }
+    | { readonly status: "refused"; readonly reason?: never }
   >;
 }
 
@@ -225,6 +227,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
 /** Reclose, reprove, and apply every non-terminal suffix rewrite in persisted order. */
 export async function executeFreshDeliverySuffixRematerialization(input: {
   readonly selectedDeliverableIds: readonly string[];
+  readonly selectedOperationMode?: "review-fix" | "selected-change";
 }, dependencies: DeliverySuffixRematerializationDependencies): Promise<
   | DeliverySuffixRematerializedResult
   | DeliveryContributionRefusal
@@ -242,6 +245,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
         | "snapshot-mismatch"
         | "suffix-incomplete"
         | "selected-member-invalid"
+        | "pending-review-fix-verification"
         | "direct-delivery-ref";
     }
 > {
@@ -304,8 +308,20 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
     if (rewrite === undefined || !(await dependencies.reobserveCandidate(rewrite))) {
       return { status: "refused", reason: "candidate-moved" };
     }
-    const applied = await dependencies.apply({ plan: fresh.plan, current: fresh.current, rewrite });
-    if (applied.status !== "applied") return { status: "refused", reason: "rewrite-refused" };
+    const applied = await dependencies.apply({
+      plan: fresh.plan,
+      current: fresh.current,
+      rewrite,
+      operationMode: rewrite.selectedChange
+        ? input.selectedOperationMode ?? "review-fix"
+        : "review-fix",
+    });
+    if (applied.status !== "applied") {
+      if (applied.reason === "pending-review-fix-verification") {
+        return { status: "refused", reason: applied.reason };
+      }
+      return { status: "refused", reason: "rewrite-refused" };
+    }
     expectedState = applied.state;
     nextIndex += 1;
   }
