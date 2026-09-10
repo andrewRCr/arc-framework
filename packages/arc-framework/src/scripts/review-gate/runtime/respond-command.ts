@@ -58,7 +58,7 @@ import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
-import { consumeFixAuthorization } from "../core/fix-authorization.js";
+import { consumeFixAuthorization, createFixAuthorization } from "../core/fix-authorization.js";
 import { projectReviewResponse } from "../core/response-plan.js";
 import {
   ReviewResponseSettlementRequestSchema,
@@ -234,6 +234,8 @@ export interface CandidateLineageBinding {
   /** Effective projection of the repository's current committed target. */
   effective: CandidateEffectiveTargetProjection;
   current: CandidateLineageTarget;
+  /** Exact current Candidate target retaining the reviewed target's kind and diff base. */
+  candidateFixTarget: ReviewTarget;
   /**
    * Reviewable paths the index does not carry, read alongside the subject it does.
    *
@@ -724,6 +726,35 @@ async function persistCandidateResponse(
     throw new RespondCommandError(
       "invalid-input",
       "a verified fix requires a work unit carrying the reviewed managed Candidate record",
+    );
+  }
+  const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  const candidateBinding = existing?.candidate;
+  const current = existing === null ? null : currentApprovedDispositionNode(existing);
+  let expectedAuthorization;
+  try {
+    expectedAuthorization = createFixAuthorization({
+      dispositionState: dispositions,
+      oldTarget: source.target,
+    });
+  } catch {
+    expectedAuthorization = null;
+  }
+  if (existing === null
+    || candidateBinding === null
+    || candidateBinding === undefined
+    || candidateBinding.workUnit !== lineage.workUnit
+    || candidateBinding.candidateId !== lineage.record.attestation.candidateId
+    || existing.errand !== null
+    || existing.deliveryMember !== null
+    || current === null
+    || canonicalize(current.approvedDisposition) !== canonicalize(dispositions)
+    || canonicalize(existing.source) !== canonicalize(source.source)
+    || expectedAuthorization === null
+    || canonicalize(current.fixAuthorization) !== canonicalize(expectedAuthorization)) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified Candidate fix requires its exact approved response record and fix authorization",
     );
   }
   if (lineage.unstagedReviewablePaths.length > 0) {
@@ -1247,6 +1278,15 @@ async function respondToResolvedReviewCommand(
     }
     confirmation = { state: "current", target: correctionConfirmation.target };
   }
+  const recordedFix = verifiedFix === undefined
+    ? null
+    : await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  if (verifiedFix !== undefined && recordedFix === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified fix requires its exact approved response record",
+    );
+  }
   const currentTarget = confirmation.state === "stale-target"
     ? confirmation.currentTarget
     : confirmation.target;
@@ -1270,6 +1310,18 @@ async function respondToResolvedReviewCommand(
     changedTarget = deliveryMemberFixTarget.currentTarget.targetId === source.target.targetId
       ? null
       : deliveryMemberFixTarget.currentTarget;
+  }
+  const candidateBoundFix = verifiedFix !== undefined
+    && recordedFix?.candidate !== null
+    && recordedFix?.candidate !== undefined
+    && source.hostedAttempt?.vehicle === undefined
+    && source.deliveryAdmission?.vehicle === undefined
+    ? await dependencies.readCandidateLineage(source.target)
+    : null;
+  if (candidateBoundFix !== null) {
+    changedTarget = candidateBoundFix.candidateFixTarget.targetId === source.target.targetId
+      ? null
+      : candidateBoundFix.candidateFixTarget;
   }
   if (verifiedFix !== undefined && changedTarget === null) {
     throw new RespondCommandError(
@@ -1439,7 +1491,7 @@ async function respondToResolvedReviewCommand(
         dependencies,
       );
     }
-    if (await dependencies.readCandidateLineage(source.target) === null) {
+    if (recordedFix?.candidate === null || recordedFix?.candidate === undefined) {
       return persistErrandResponse(
         source,
         dispositions,

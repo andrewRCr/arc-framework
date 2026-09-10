@@ -7,6 +7,26 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+### Carry exact-effect landing approval across a proven no-effect retry
+
+_Routed from `USER-INBOX § Errand`, 2026-09-09._
+
+After an approved delivery-member landing returned a generic refusal, reconciliation proved that no host effect
+landed, cleared the reservation, and required a fresh operation ID. The new preparation described the same member,
+head, change request, strategy, lock release, and consequence, but the earlier approval was lost solely because the
+internal operation identity changed.
+
+Settle whether integration approval can bind to a canonical exact-effect digest, or an equivalent authorization
+receipt, so a reconcile-proven no-effect retry may reuse approval only while every externally meaningful field is
+identical. Any changed member, head, request, strategy, consequence, ambiguous or partial effect, or unproved host
+state must require a fresh interlock. Preserve one-shot mutation execution and optimistic operation-state
+concurrency; approval continuity must not make an old operation ID executable or broaden authority to another
+member or head.
+
+---
+
 ## Problem / Motivation
 
 A work unit that reopens for an approved correction currently loses all prior forward direction. Verification,

@@ -51,6 +51,7 @@ import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-l
 import {
   composeDeliveryMemberTarget,
   confirmLocalReviewCorrectionTarget,
+  deriveLocalReviewTargetFromCoordinates,
 } from "../hosts/local/repository-target.js";
 import { withRepositoryReviewOperationLock } from "../hosts/local/git-common-state.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
@@ -261,6 +262,17 @@ export function createRespondDependencies(input: {
           exec: input.exec,
         }),
       ]);
+      const candidateFixTarget = await deriveLocalReviewTargetFromCoordinates({
+        exec: input.exec,
+        cwd: input.cwd,
+        repositoryId: target.repositoryId,
+        coordinates: {
+          kind: target.kind,
+          baseRef: target.baseRef,
+          diffBaseSha: target.diffBaseSha,
+          headSha: current.revision,
+        },
+      });
       return {
         workUnit: selected.workUnit,
         record: selected.record,
@@ -268,6 +280,7 @@ export function createRespondDependencies(input: {
         reviewed: selected.reviewed,
         effective,
         current,
+        candidateFixTarget,
         unstagedReviewablePaths,
       };
     },

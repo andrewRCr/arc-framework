@@ -12,6 +12,7 @@ import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
+  projectCandidateFixResumeBoundary,
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
   projectCorrectiveDeliveryStatusBoundary,
@@ -60,6 +61,32 @@ const standardReview = {
 };
 
 describe("integration boundary locus", () => {
+  it("projects a source-free Candidate fix re-entry from durable pending authority", () => {
+    const candidateId = `sha256:${"c".repeat(64)}`;
+
+    expect(projectCandidateFixResumeBoundary({
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+    })).toEqual({
+      schemaVersion: 1,
+      mode: "pre-publication-review",
+      workUnit: "example",
+      candidateId,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      locus: "candidate-fix-pending",
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: "arc review pre-publication example --json",
+        interactionText: "Resume the approved Candidate review fix response.",
+      },
+      policy: null,
+      reservation: null,
+      terminus: null,
+      deliveryReviewTermini: [],
+    });
+  });
+
   it("continues publication while no reservation is carried across the boundary", () => {
     expect(projectPublicationBoundary({
       workUnit: "example",

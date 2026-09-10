@@ -144,6 +144,10 @@ continuation. The scope does not select fewer checks here. Approved fixes run Ti
 ([`quality-gate-commands`][arc-methods-qg]), commit atomically, and produce a new target. Clearance never carries.
 If the response carries `conditionalPassAuthorizationId`, retain its returned `payload.policyRequest` unchanged; the
 next pre-publication admission projects its exact ceiling override into the selected lane request.
+After the fix commit, re-invoke the exact approved `arc review respond -` request with `verifiedFix` carrying the
+approved applicability and verification evidence. Require `candidate-advanced / continue-review` or idempotent
+`candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
+before any Candidate-currentness or delivery-preparation read.
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates when directed before re-invoking pre-publication review.
 

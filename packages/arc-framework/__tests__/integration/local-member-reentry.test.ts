@@ -192,6 +192,7 @@ function operationOver(target: ReviewTarget) {
         target: state.target,
         requestedCoverage: "complete",
         effectiveCoverage: null,
+        scopeMode: state.scopeMode,
       },
     }],
   });

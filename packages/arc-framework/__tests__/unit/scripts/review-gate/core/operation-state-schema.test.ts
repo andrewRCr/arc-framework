@@ -133,6 +133,7 @@ const localReview = {
   policyVersion: localRequirement.policyVersion,
   policyBindingDigest: digest("binding"),
   laneSourceId: "delegated-agent",
+  scopeMode: "whole-target" as const,
   attestationRuntimeKind: "arc-cli",
   sourceRef: "refs/arc/review/local-1",
   sourceDigest: digest("source"),
@@ -406,6 +407,7 @@ describe("review operation state schemas", () => {
         target: localTarget,
         requestedCoverage: "complete" as const,
         effectiveCoverage: "complete" as const,
+        scopeMode: localReview.scopeMode,
       },
     };
     expect(LaneProgressStateSchema.parse({

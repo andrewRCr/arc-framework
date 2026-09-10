@@ -159,6 +159,7 @@ function fixture() {
         target: operation.target,
         requestedCoverage: "complete",
         effectiveCoverage: null,
+        scopeMode: operation.scopeMode,
       },
     }],
   });

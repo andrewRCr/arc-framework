@@ -3,6 +3,11 @@
 import { canonicalDigest, type CanonicalDigest } from "../kernel/index.js";
 import { scanTaskDescriptorExtents } from "../markdown/descriptor-spacing.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
+import {
+  hasMemberVerifierSuffix,
+  hasSegmentVerifierSuffix,
+} from "../task-list/segmentation.js";
+import type { DeliveryTaskVerificationScope } from "./schema.js";
 
 /** One parent task and the normalized intent its semantic digest covers. */
 export interface TaskGoalInventoryEntry {
@@ -14,7 +19,7 @@ export interface TaskGoalInventoryEntry {
 /** One task's role in the ordered delivery inventory. */
 export type DeliveryTaskRole =
   | { readonly kind: "implementation" }
-  | { readonly kind: "verification"; readonly scope: string };
+  | { readonly kind: "verification"; readonly scope: DeliveryTaskVerificationScope };
 
 /** One normalized parent task bound into a delivery plan. */
 export interface DeliveryTaskInventoryEntry {
@@ -129,13 +134,17 @@ export function buildDeliveryTaskInventory(content: string): DeliveryTaskInvento
         role: { kind: "verification", scope: "work-unit" },
       };
     }
-    const memberVerification = /— validate criteria at member scope\s*$/u.test(lines[parent.line - 1] ?? "");
+    const rawLine = lines[parent.line - 1] ?? "";
+    const segmentVerification = hasSegmentVerifierSuffix(rawLine);
+    const memberVerification = hasMemberVerifierSuffix(rawLine);
     return {
       taskId: parent.item.id,
       semanticDigest: semanticDigestByTaskId.get(parent.item.id) ?? null,
-      role: memberVerification
-        ? { kind: "verification", scope: "member" }
-        : { kind: "implementation" },
+      role: segmentVerification
+        ? { kind: "verification", scope: "segment" }
+        : memberVerification
+          ? { kind: "verification", scope: "member" }
+          : { kind: "implementation" },
     };
   });
   return {

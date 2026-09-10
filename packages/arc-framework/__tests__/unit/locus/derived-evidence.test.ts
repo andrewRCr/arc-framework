@@ -137,6 +137,7 @@ describe("derived locus evidence", () => {
         lstat: async () => ({ isSymbolicLink: () => false }),
         projectDeliveryCorrection: async () => ({ status: "none" }),
         projectCandidateTarget: async () => { throw new Error("unexpected Candidate read"); },
+        readPendingCandidateReviewFixAuthority: async () => ({ status: "none" }),
       },
     });
 

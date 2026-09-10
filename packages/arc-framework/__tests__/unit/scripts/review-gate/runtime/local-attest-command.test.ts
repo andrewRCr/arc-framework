@@ -167,6 +167,7 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
         target: operation.target,
         requestedCoverage: "complete",
         effectiveCoverage: null,
+        scopeMode: operation.scopeMode,
       },
     }],
   });
@@ -308,6 +309,7 @@ describe("local attest command", () => {
           target: records.operation.target,
           requestedCoverage: "complete",
           effectiveCoverage: "complete",
+          scopeMode: records.operation.scopeMode,
         },
       })],
     });
@@ -407,6 +409,7 @@ describe("local attest command", () => {
             target: records.operation.target,
             requestedCoverage: "complete",
             effectiveCoverage: null,
+            scopeMode: records.operation.scopeMode,
           },
         })],
       });

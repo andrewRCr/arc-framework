@@ -30,6 +30,7 @@ import {
   createCandidateSubjectSnapshot,
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
+import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   projectCandidateApplicabilityDecision,
   projectDurableCandidateTarget,
@@ -291,6 +292,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
         state: "Active",
         branch: "main",
         candidateId,
+        currentWorkflow: "prepare-work-unit",
       }),
     );
     await writeFile(
@@ -1236,6 +1238,95 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       integrationBoundary: null,
     });
     expect(result.warnings).toContainEqual(expect.stringMatching(/requires request-authority/u));
+  });
+
+  it("projects pending Candidate fix authority before the Active re-root fallback", async () => {
+    const { candidateId, subjectDigest } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "stale narrative",
+        candidateId,
+        currentWorkflow: "prepare-work-unit",
+      }),
+    );
+    const readPendingCandidateReviewFixAuthority = async () => ({
+      status: "selected" as const,
+      candidateId,
+      operationId: "operation-1",
+      reviewedHead: "a".repeat(40),
+      reviewedTarget: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "delivery-member",
+        repositoryId: "arc-framework/example",
+        baseRef: "main",
+        diffBaseSha: "b".repeat(40),
+        diffBaseTree: "c".repeat(40),
+        headSha: "a".repeat(40),
+        headTree: "d".repeat(40),
+      }),
+    });
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: projectCandidateApplicabilityDecision,
+      readPendingCandidateReviewFixAuthority,
+    });
+    expect(full.candidates[0]?.integrationBoundary).toMatchObject({
+      candidateId,
+      candidateSubjectDigest: subjectDigest,
+      locus: "candidate-fix-pending",
+      policy: null,
+    });
+
+    const session = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: defaultExec,
+      projectCandidateTarget: projectCandidateApplicabilityDecision,
+      readPendingCandidateReviewFixAuthority,
+    });
+    expect(session).toMatchObject({
+      sessionType: "prepublication",
+      currentWorkflow: "prepare-work-unit",
+      integrationBoundary: {
+        candidateId,
+        candidateSubjectDigest: subjectDigest,
+        locus: "candidate-fix-pending",
+        policy: null,
+      },
+    });
+  });
+
+  it("does not project Candidate fix authority outside Active prepublication", async () => {
+    const { candidateId } = await writeCandidate(fixture.root, "foo");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "Continue task execution.",
+        candidateId,
+        currentWorkflow: "[none]",
+      }),
+    );
+
+    const full = await runActiveStatus({
+      cwd: fixture.root,
+      projectCandidateTarget: async () => {
+        throw new Error("Candidate projection must not run outside prepublication.");
+      },
+      readPendingCandidateReviewFixAuthority: async () => {
+        throw new Error("Candidate fix authority must not be read outside prepublication.");
+      },
+    });
+
+    expect(full.candidates[0]?.integrationBoundary).toBeNull();
+    expect(full.warnings).toEqual([]);
   });
 
   it("refuses pending applicability when the Integrating boundary names another subject", async () => {

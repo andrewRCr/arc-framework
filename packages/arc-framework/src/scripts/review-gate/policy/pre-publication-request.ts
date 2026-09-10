@@ -110,6 +110,8 @@ export type CandidateRead =
     implementationChanged: boolean;
     convergenceVerification: "satisfied" | "pending";
     lineageHeadShas: readonly string[];
+    /** Exact originating target retained only while an approved fix awaits response settlement. */
+    pendingReviewTarget?: ReviewTarget;
   };
 
 export type AssuranceRead =
@@ -354,14 +356,22 @@ export async function composePrePublicationReviewRequest(
       reason: "The resolved review target does not identify the Candidate head.",
     };
   }
-  const reservationTarget = await dependencies.readReservationTarget(input.workUnit, {
+  const singletonReservation = {
     repository: target.repository,
     headSha: target.headSha,
-  });
+  };
+  const reservationTarget = candidate.pendingReviewTarget === undefined
+    ? await dependencies.readReservationTarget(input.workUnit, singletonReservation)
+    : {
+        status: "resolved" as const,
+        target: { kind: "pinned-head" as const, ...singletonReservation },
+      };
   if (reservationTarget.status === "refused") {
     return { status: "refused", reason: reservationTarget.reason };
   }
-  const deliveryTargets = await dependencies.readDeliveryReviewTargets(input.workUnit);
+  const deliveryTargets = candidate.pendingReviewTarget === undefined
+    ? await dependencies.readDeliveryReviewTargets(input.workUnit)
+    : { status: "absent" as const };
   if (deliveryTargets.status === "refused") {
     return {
       status: "refused",
@@ -380,7 +390,9 @@ export async function composePrePublicationReviewRequest(
     };
   }
   const immutable = deliveryTargets.status === "absent"
-    ? await dependencies.deriveImmutableTarget()
+    ? candidate.pendingReviewTarget === undefined
+      ? await dependencies.deriveImmutableTarget()
+      : { status: "resolved" as const, target: candidate.pendingReviewTarget }
     : null;
   if (immutable?.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
     return {

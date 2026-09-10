@@ -19,6 +19,7 @@ export type ResponsePolicySource =
 
 interface ResponsePolicyRequestFixtureInput {
   readonly headSha: string;
+  readonly lane?: "frontline" | "standard";
   readonly repository?: string;
   readonly pullRequest?: number | null;
   readonly sourceId?: string;
@@ -38,7 +39,7 @@ export function responsePolicyRequestFixture(
       pullRequest: input.pullRequest ?? null,
       headSha: input.headSha,
     },
-    lane: "standard",
+    lane: input.lane ?? "standard",
     frontlineActive: false,
     standardReview: input.standardReview ?? {
       obligation: "recommended",

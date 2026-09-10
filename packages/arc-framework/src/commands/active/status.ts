@@ -46,10 +46,15 @@ import {
 import { projectGitCandidateEffectiveTarget } from
   "../../lib/work-unit/git-candidate-effective-target.js";
 import {
+  projectCandidateFixResumeBoundary,
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
   recoverIntegratingBoundary,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  readPendingCandidateReviewFixAuthority,
+  type CandidateReviewFixAuthorityReader,
+} from "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
   "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
@@ -119,10 +124,19 @@ export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
   const { layout, candidates: rawCandidates, warnings } = await readActiveMetaCandidates(options.cwd);
+  const exec = options.exec ?? gitExec;
   const projectCandidateTarget = options.projectCandidateTarget
-    ?? createRepositoryCandidateTargetProjector(options.exec ?? gitExec);
+    ?? createRepositoryCandidateTargetProjector(exec);
+  const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
+    ?? ((input) => readPendingCandidateReviewFixAuthority({ ...input, exec }));
   const candidates = await Promise.all(rawCandidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate, warnings, projectCandidateTarget)));
+    projectCandidateIntegrationBoundary(
+      options.cwd,
+      candidate,
+      warnings,
+      projectCandidateTarget,
+      readPendingCandidateFix,
+    )));
   return {
     mode: "full",
     layout,
@@ -188,8 +202,16 @@ export async function runActiveSessionInitStatusInternal(
   ]);
   const projectCandidateTarget = options.projectCandidateTarget
     ?? createRepositoryCandidateTargetProjector(options.exec);
+  const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
+    ?? ((input) => readPendingCandidateReviewFixAuthority({ ...input, exec: options.exec }));
   const projected = await Promise.all(scan.candidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate, scan.warnings, projectCandidateTarget)));
+    projectCandidateIntegrationBoundary(
+      options.cwd,
+      candidate,
+      scan.warnings,
+      projectCandidateTarget,
+      readPendingCandidateFix,
+    )));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
   const resolved = result.resolution === "single"
@@ -361,8 +383,13 @@ async function projectCandidateIntegrationBoundary(
   candidate: MetaFileCandidate,
   warnings: string[],
   projectCandidateTarget: CandidateTargetProjector,
+  readPendingCandidateFix: CandidateReviewFixAuthorityReader,
 ): Promise<MetaFileCandidate> {
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
+  if (candidate.state === "Active"
+    && normalizeNullablePointer(candidate.currentWorkflow) !== "prepare-work-unit") {
+    return { ...candidate, integrationBoundary: null };
+  }
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
@@ -375,6 +402,7 @@ async function projectCandidateIntegrationBoundary(
   }
   let candidateSubjectDigest: string;
   let requireExactDurableBoundary = false;
+  let pendingCandidateFix = false;
   try {
     const effective = await projectCandidateTarget({ cwd, name: slug, record });
     if (effective.state === "current") {
@@ -382,6 +410,18 @@ async function projectCandidateIntegrationBoundary(
     } else if (candidate.state === "Integrating") {
       candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
       requireExactDurableBoundary = true;
+    } else if (effective.state === "changed" || effective.state === "decision-required") {
+      const pending = await readPendingCandidateFix({ cwd, workUnitId: slug, candidate: record });
+      if (pending.status === "refused") {
+        warnings.push(`Candidate review-fix authority for ${candidate.filename} is unavailable (${pending.reason}).`);
+        return { ...candidate, integrationBoundary: null };
+      }
+      if (pending.status === "none") {
+        warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
+        return { ...candidate, integrationBoundary: null };
+      }
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      pendingCandidateFix = true;
     } else {
       warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
       return { ...candidate, integrationBoundary: null };
@@ -414,6 +454,16 @@ async function projectCandidateIntegrationBoundary(
     };
   }
   if (candidate.state !== "Active") return candidate;
+  if (pendingCandidateFix) {
+    return {
+      ...candidate,
+      integrationBoundary: projectCandidateFixResumeBoundary({
+        workUnit: slug,
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest,
+      }),
+    };
+  }
   const stored = await readSubmissionBoundary(cwd, slug);
   const recovered = recoverPrePublicationBoundary({
     stored,
