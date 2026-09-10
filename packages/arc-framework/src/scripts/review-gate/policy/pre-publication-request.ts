@@ -100,6 +100,8 @@ export type CandidateRead =
     implementationChanged: boolean;
     convergenceVerification: "satisfied" | "pending";
     lineageHeadShas: readonly string[];
+    /** Exact originating target retained only while an approved fix awaits response settlement. */
+    pendingReviewTarget?: ReviewTarget;
   };
 
 export type AssuranceRead =
@@ -358,7 +360,9 @@ export async function composePrePublicationReviewRequest(
     };
   }
   const immutable = deliveryTargets.status === "absent"
-    ? await dependencies.deriveImmutableTarget()
+    ? candidate.pendingReviewTarget === undefined
+      ? await dependencies.deriveImmutableTarget()
+      : { status: "resolved" as const, target: candidate.pendingReviewTarget }
     : null;
   if (immutable?.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
     return {

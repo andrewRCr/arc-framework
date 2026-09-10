@@ -32,11 +32,14 @@ import {
 import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
 import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
 import {
+  projectCandidateFixResumeBoundary,
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
   recoverIntegratingBoundary,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import type { PendingCandidateReviewFixAuthority } from
+  "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 export interface SubjectMetaIO {
   readFile(path: string): Promise<string>;
@@ -44,6 +47,11 @@ export interface SubjectMetaIO {
   realpath(path: string): Promise<string>;
   lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
   projectCandidateTarget: CandidateTargetProjector;
+  readPendingCandidateReviewFixAuthority(input: {
+    cwd: string;
+    workUnitId: string;
+    candidate: NonNullable<ReturnType<typeof parseCandidateManagedRecord>>;
+  }): Promise<PendingCandidateReviewFixAuthority>;
   projectDeliveryCorrection(input: {
     cwd: string;
     workUnitId: string;
@@ -138,6 +146,7 @@ export async function projectCheckoutSubjectMeta(options: {
   }
   let candidateSubjectDigest: string | null = null;
   let requireExactDurableBoundary = false;
+  let pendingCandidateFix = false;
   const candidateAuthorityRequired = record.state === "Integrating"
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
   if (record.candidateId !== null && candidateAuthorityRequired) {
@@ -160,6 +169,20 @@ export async function projectCheckoutSubjectMeta(options: {
       } else if (record.state === "Integrating") {
         candidateSubjectDigest = reduceCandidateDurableBaseline(candidateRecord).target.subject.subjectDigest;
         requireExactDurableBoundary = true;
+      } else if (effective.state === "changed" || effective.state === "decision-required") {
+        const pending = await options.io.readPendingCandidateReviewFixAuthority({
+          cwd: options.cwd,
+          workUnitId: options.subjectKey,
+          candidate: candidateRecord,
+        });
+        if (pending.status === "refused") {
+          throw new Error(`Candidate review-fix authority is unavailable (${pending.reason}).`);
+        }
+        if (pending.status === "none") {
+          throw new Error(`Candidate target requires ${effective.nextAction}.`);
+        }
+        candidateSubjectDigest = reduceCandidateDurableBaseline(candidateRecord).target.subject.subjectDigest;
+        pendingCandidateFix = true;
       } else {
         throw new Error(`Candidate target requires ${effective.nextAction}.`);
       }
@@ -192,20 +215,28 @@ export async function projectCheckoutSubjectMeta(options: {
           candidateSubjectDigest,
         });
   } else if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
-    const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
-      readFile: (path) => options.io.readFile(path),
-    });
-    const recovered = recoverPrePublicationBoundary({
-      stored,
-      workUnit: options.subjectKey,
-      candidateId: record.candidateId,
-      candidateSubjectDigest,
-    });
-    integrationBoundary = recovered ?? projectCandidateReviewBoundary({
-      workUnit: options.subjectKey,
-      candidateId: record.candidateId,
-      candidateSubjectDigest,
-    });
+    if (pendingCandidateFix) {
+      integrationBoundary = projectCandidateFixResumeBoundary({
+        workUnit: options.subjectKey,
+        candidateId: record.candidateId,
+        candidateSubjectDigest,
+      });
+    } else {
+      const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
+        readFile: (path) => options.io.readFile(path),
+      });
+      const recovered = recoverPrePublicationBoundary({
+        stored,
+        workUnit: options.subjectKey,
+        candidateId: record.candidateId,
+        candidateSubjectDigest,
+      });
+      integrationBoundary = recovered ?? projectCandidateReviewBoundary({
+        workUnit: options.subjectKey,
+        candidateId: record.candidateId,
+        candidateSubjectDigest,
+      });
+    }
   }
   const taskListPath = resolveTaskListPath(expectedPath, record.taskList);
   const taskCursor = taskListPath === null
