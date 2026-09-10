@@ -230,26 +230,44 @@ const CandidateApplicabilityCheckpointResultSchema = z.strictObject({
   }
 });
 
-const CandidatePublicationCheckpointResultSchema = z.strictObject({
-  ...ResultBaseShape,
-  state: z.literal("candidate-publication-required"),
-  nextAction: z.literal("resume-pre-publication"),
-  payload: z.strictObject({
-    attestArgv: z.union([
-      z.tuple([
+const CandidatePublicationCheckpointResultSchema = z.union([
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("candidate-publication-required"),
+    nextAction: z.literal("resume-pre-publication"),
+    payload: z.strictObject({
+      attestArgv: z.tuple([
         z.literal("arc"),
         z.literal("attest"),
         SlugSchema,
         z.literal("--json"),
       ]),
-      z.tuple([
+      recommendedActionText: z.string().min(1),
+    }),
+  }),
+  z.strictObject({
+    ...ResultBaseShape,
+    state: z.literal("candidate-publication-required"),
+    nextAction: z.literal("refresh-shipped-delivery"),
+    payload: z.strictObject({
+      attestArgv: z.tuple([
         z.literal("arc"),
         z.literal("attest"),
         SlugSchema,
         z.literal("--new-root"),
         z.literal("--json"),
       ]),
-    ]),
+      recommendedActionText: z.string().min(1),
+    }),
+  }),
+]);
+
+const CandidatePublicationCommitCheckpointResultSchema = z.strictObject({
+  ...ResultBaseShape,
+  state: z.literal("candidate-publication-commit-required"),
+  nextAction: z.literal("commit-boundary"),
+  payload: z.strictObject({
+    boundaryPath: z.string().min(1),
     recommendedActionText: z.string().min(1),
   }),
 });
@@ -423,6 +441,7 @@ export const IntegrationCheckpointResultSchema = z.union([
     }),
   }),
   CandidatePublicationCheckpointResultSchema,
+  CandidatePublicationCommitCheckpointResultSchema,
   CandidateApplicabilityCheckpointResultSchema,
   IntegrationCheckpointBlockedResultSchema,
   z.strictObject({
@@ -498,13 +517,20 @@ export interface IntegrationCheckpointDependencies {
     decision: CandidateApplicabilityDecisionResult,
   ): Promise<CandidateApplicabilityResolutionSelector>;
   readCandidatePublication(workUnit: string, baseRevision?: string): Promise<
-    { readonly status: "current" } | { readonly status: "refresh-required" }
+    | { readonly status: "current" }
+    | { readonly status: "refresh-required"; readonly kind: "delivery" | "singleton" }
   >;
   composeDelivery(input: {
     workUnit: string;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
     baseRevision: string;
   }): Promise<DeliveryCheckpointArmResult>;
+  readShippedDeliveryPublicationCommit(workUnit: string, baseRevision: string): Promise<
+    | { readonly status: "none" }
+    | { readonly status: "refresh-required" }
+    | { readonly status: "commit-required"; readonly boundaryPath: string }
+    | { readonly status: "blocked"; readonly detail: string }
+  >;
   resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   composeReady(input: {
     workUnit: string;
@@ -782,19 +808,21 @@ export async function checkpointIntegration(
   try {
     const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid);
     if (publication.status === "refresh-required") {
+      const shippedDelivery = lifecycle.state === "shipped" && publication.kind === "delivery";
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "candidate-publication-required",
-        nextAction: "resume-pre-publication",
+        nextAction: shippedDelivery ? "refresh-shipped-delivery" : "resume-pre-publication",
         payload: {
           attestArgv: [
-            ...(lifecycle.state === "shipped"
+            ...(shippedDelivery
               ? attestNewRootArgv(request.workUnit)
               : attestArgv(request.workUnit)),
             "--json",
           ],
-          recommendedActionText:
-            "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
+          recommendedActionText: shippedDelivery
+            ? "Refresh the recognized shipped delivery boundary, then rerun checkpoint."
+            : "Refresh the recognized Candidate boundary, settle ordinary pre-publication review, then rerun checkpoint.",
         },
       });
     }
@@ -826,6 +854,39 @@ export async function checkpointIntegration(
         remedy: terminal.remedy,
         payload: delivery,
       });
+    }
+    if (lifecycle.state === "shipped" && delivery.status === "ready") {
+      const publicationCommit = await dependencies.readShippedDeliveryPublicationCommit(
+        request.workUnit,
+        drift.baseOid,
+      );
+      if (publicationCommit.status === "blocked") {
+        return checkpointOperationRefusal(request.workUnit, publicationCommit.detail);
+      }
+      if (publicationCommit.status === "refresh-required") {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "candidate-publication-required",
+          nextAction: "refresh-shipped-delivery",
+          payload: {
+            attestArgv: [...attestNewRootArgv(request.workUnit), "--json"],
+            recommendedActionText:
+              "Refresh the recognized shipped delivery boundary after delivery-state movement, then rerun checkpoint.",
+          },
+        });
+      }
+      if (publicationCommit.status === "commit-required") {
+        return IntegrationCheckpointResultSchema.parse({
+          ...base,
+          state: "candidate-publication-commit-required",
+          nextAction: "commit-boundary",
+          payload: {
+            boundaryPath: publicationCommit.boundaryPath,
+            recommendedActionText:
+              "Commit and push the exact staged shipped delivery publication boundary, then rerun checkpoint.",
+          },
+        });
+      }
     }
     const composition = CheckpointReadyCompositionSchema.parse(await dependencies.composeReady({
       workUnit: request.workUnit,
