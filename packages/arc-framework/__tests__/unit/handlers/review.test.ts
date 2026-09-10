@@ -1942,6 +1942,46 @@ describe("handleReviewRespond", () => {
       payload: { operationId: "local-operation" },
     });
   });
+
+  it("accepts and emits the typed conditional-authority withdrawal arm", async () => {
+    const write = vi.fn();
+    const authorizationId = `sha256:${"1".repeat(64)}`;
+    const dispositionSetId = `sha256:${"2".repeat(64)}`;
+
+    await handleReviewRespond("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({
+        schemaVersion: 1,
+        source: respondProposalRequest.source,
+        conditionalNextPassWithdrawal: {
+          conditionalPassAuthorizationId: authorizationId,
+          dispositionSetId,
+          withdrawnBy: "author-1",
+        },
+      }),
+      respond: async () => ({
+        schemaVersion: 1,
+        mode: "review-respond",
+        diagnostics: [],
+        state: "conditional-authority-withdrawn",
+        nextAction: "stop",
+        payload: {
+          operationId: "local-operation",
+          authorizationId,
+          dispositionSetId,
+          replayed: false,
+        },
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      state: "conditional-authority-withdrawn",
+      nextAction: "stop",
+      payload: { authorizationId, dispositionSetId, replayed: false },
+    });
+  });
 });
 
 describe("handleReviewReduce", () => {

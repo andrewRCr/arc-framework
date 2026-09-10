@@ -2624,7 +2624,7 @@ describe("hosted review fan-out lifecycle", () => {
       "utf8",
     );
 
-    const result = await respondThroughHandler(harness, {
+    const approvedRequest = {
       schemaVersion: 1,
       source: responseSource,
       policyRequest: { ...policyRequest, ceilingOverride },
@@ -2634,7 +2634,8 @@ describe("hosted review fan-out lifecycle", () => {
         nextPass: 2,
       },
       dispositions,
-    });
+    } as const;
+    const result = await respondThroughHandler(harness, approvedRequest);
     if (result.state !== "settled") throw new Error("expected settled response");
     const authorizationId = result.payload.conditionalPassAuthorizationId;
     expect(authorizationId).toMatch(/^sha256:[0-9a-f]{64}$/u);
@@ -2646,6 +2647,37 @@ describe("hosted review fan-out lifecycle", () => {
           conditionalPassAuthorizationId: authorizationId,
         },
       },
+    });
+
+    const withdrawalRequest = {
+      schemaVersion: 1,
+      source: responseSource,
+      conditionalNextPassWithdrawal: {
+        conditionalPassAuthorizationId: authorizationId!,
+        dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        withdrawnBy: "andrew",
+      },
+    } as const;
+    await expect(respondThroughHandler(harness, withdrawalRequest)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawn",
+      nextAction: "stop",
+      payload: { replayed: false },
+    });
+    await expect(respondThroughHandler(harness, withdrawalRequest)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawn",
+      payload: { replayed: true },
+    });
+
+    const replayDependencies = createRespondDependencies({ cwd: harness.root, exec: harness.exec });
+    replayDependencies.resolveLocalActors = async () => ({
+      approverIdentity: "andrew",
+      proposerIdentity: "arc-cli/integration-test",
+    });
+    await expect(respondToReviewCommand(approvedRequest, replayDependencies))
+      .rejects.toThrow("invalidated conditional pass authorization");
+    await expect(respondThroughHandler(harness, withdrawalRequest)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawn",
+      payload: { replayed: true },
     });
   });
 

@@ -34,6 +34,7 @@ import {
   settleLaneAttempt,
   settleHostedAttemptFinding,
   supersedeHostedAttemptDisposition,
+  withdrawConditionalNextPassAuthorization,
 } from "../../../../src/scripts/review-gate/lane-progress.js";
 import {
   createHostedAdmission,
@@ -82,6 +83,45 @@ const attempt = {
   sourceId: "coderabbit-pr",
   now: "2026-08-15T12:00:00Z",
 };
+
+async function seedConditionalAuthorization(
+  store: ReturnType<typeof createStore>,
+  options: { bind?: boolean } = {},
+) {
+  const lineage = {
+    kind: "candidate" as const,
+    candidateId: `sha256:${"5".repeat(64)}`,
+  };
+  const dispositionSetId = `sha256:${"6".repeat(64)}`;
+  await recordLaneAttempt(store, {
+    ...attempt,
+    lineage,
+    outcome: "findings",
+    consumedPass: true,
+  });
+  const captured = await captureConditionalNextPassAuthorization(store, {
+    lane: attempt.lane,
+    repositoryId: attempt.repositoryId,
+    headSha: attempt.headSha,
+    lineage,
+    producerId: attempt.attemptId,
+    dispositionSetId,
+    authorizedBy: "author-1",
+    exhaustedPassCount: 1,
+    nextPass: 2,
+    now: "2026-08-15T12:01:00Z",
+  });
+  if (options.bind === true) {
+    await settleLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      dispositionSetId,
+      producedHeadSha: attempt.headSha,
+      now: "2026-08-15T12:02:00Z",
+    });
+  }
+  return { captured, lineage, dispositionSetId };
+}
 
 describe("lane progress", () => {
   it("creates the record on a lane's first recorded attempt", async () => {
@@ -516,6 +556,136 @@ describe("lane progress", () => {
       admissionId: "attempt-2",
       now: "2026-08-15T12:05:00Z",
     }, async () => true)).rejects.toThrow("named pass is already complete");
+  });
+
+  it("withdraws exact pending or bound next-pass authority and replays without mutation", async () => {
+    for (const bind of [false, true]) {
+      const store = createStore();
+      const seeded = await seedConditionalAuthorization(store, { bind });
+      const input = {
+        authorizationId: seeded.captured.authorizationId,
+        lane: attempt.lane,
+        repositoryId: attempt.repositoryId,
+        headSha: attempt.headSha,
+        lineage: seeded.lineage,
+        producerId: attempt.attemptId,
+        dispositionSetId: seeded.dispositionSetId,
+        withdrawnBy: "author-1",
+        now: "2026-08-15T12:03:00Z",
+      };
+
+      const withdrawn = await withdrawConditionalNextPassAuthorization(
+        store,
+        input,
+        async () => true,
+      );
+      expect(withdrawn).toMatchObject({
+        state: "withdrawn",
+        authorizationId: seeded.captured.authorizationId,
+        dispositionSetId: seeded.dispositionSetId,
+        progress: {
+          attempts: [expect.objectContaining({
+            conditionalPassAuthorization: expect.objectContaining({
+              status: "invalidated",
+              reason: "withdrawn",
+              withdrawnBy: "author-1",
+            }),
+          })],
+        },
+      });
+      if (withdrawn.state === "refused") throw new Error("expected conditional authority withdrawal");
+      await expect(withdrawConditionalNextPassAuthorization(
+        store,
+        { ...input, now: "2026-08-15T12:04:00Z" },
+        async () => true,
+      )).resolves.toMatchObject({ state: "already-withdrawn", progress: withdrawn.progress });
+      const supersession = {
+        lane: attempt.lane,
+        repositoryId: attempt.repositoryId,
+        headSha: attempt.headSha,
+        lineage: seeded.lineage,
+        producerId: attempt.attemptId,
+        dispositionSetId: seeded.dispositionSetId,
+        successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+      };
+      await expect(inspectConditionalNextPassInvalidation(store, supersession))
+        .resolves.toEqual({ state: "ready" });
+      await expect(invalidateConditionalNextPassAuthorization(store, {
+        ...supersession,
+        now: "2026-08-15T12:05:00Z",
+      })).resolves.toEqual(withdrawn.progress);
+    }
+  });
+
+  it("refuses consumed, superseded, stale, and foreign withdrawal without rewriting authority", async () => {
+    const consumedStore = createStore();
+    const consumed = await seedConditionalAuthorization(consumedStore, { bind: true });
+    await consumeConditionalNextPassAuthorization(consumedStore, {
+      authorizationId: consumed.captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage: consumed.lineage,
+      producedHeadSha: attempt.headSha,
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:03:00Z",
+    }, async () => true);
+    const withdrawal = {
+      authorizationId: consumed.captured.authorizationId,
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: consumed.lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: consumed.dispositionSetId,
+      withdrawnBy: "author-1",
+      now: "2026-08-15T12:04:00Z",
+    };
+    await expect(withdrawConditionalNextPassAuthorization(
+      consumedStore,
+      withdrawal,
+      async () => true,
+    )).resolves.toMatchObject({ state: "refused", reason: "consumed" });
+
+    const supersededStore = createStore();
+    const superseded = await seedConditionalAuthorization(supersededStore);
+    await invalidateConditionalNextPassAuthorization(supersededStore, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: superseded.lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: superseded.dispositionSetId,
+      successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+      now: "2026-08-15T12:03:00Z",
+    });
+    await expect(withdrawConditionalNextPassAuthorization(supersededStore, {
+      ...withdrawal,
+      authorizationId: superseded.captured.authorizationId,
+      lineage: superseded.lineage,
+      dispositionSetId: superseded.dispositionSetId,
+    }, async () => true)).resolves.toMatchObject({ state: "refused", reason: "superseded" });
+
+    const pendingStore = createStore();
+    const pending = await seedConditionalAuthorization(pendingStore);
+    const pendingInput = {
+      ...withdrawal,
+      authorizationId: pending.captured.authorizationId,
+      lineage: pending.lineage,
+      dispositionSetId: pending.dispositionSetId,
+    };
+    await expect(withdrawConditionalNextPassAuthorization(
+      pendingStore,
+      pendingInput,
+      async () => false,
+    )).resolves.toMatchObject({ state: "refused", reason: "stale-current-set" });
+    await expect(withdrawConditionalNextPassAuthorization(pendingStore, {
+      ...pendingInput,
+      authorizationId: `sha256:${"9".repeat(64)}`,
+    }, async () => true)).resolves.toMatchObject({ state: "refused", reason: "foreign-authority" });
+    expect((pendingStore.state?.kind === "lane-progress"
+      ? pendingStore.state.attempts[0]?.conditionalPassAuthorization
+      : null)).toMatchObject({ status: "pending" });
   });
 
   it("does not confuse another lineage's terminal pass with the authorized admission", async () => {

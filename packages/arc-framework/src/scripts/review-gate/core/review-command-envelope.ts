@@ -724,6 +724,19 @@ const DeliveryCorrectionActionSchema = z.strictObject({
     remote: z.string().trim().min(1),
   }),
 });
+const ConditionalAuthorityWithdrawalPayloadSchema = z.strictObject({
+  operationId: IdentifierSchema,
+  authorizationId: CanonicalDigestSchema,
+  dispositionSetId: CanonicalDigestSchema,
+  replayed: z.boolean(),
+});
+const ConditionalAuthorityWithdrawalRefusalPayloadSchema = z.strictObject({
+  operationId: IdentifierSchema,
+  authorizationId: CanonicalDigestSchema,
+  dispositionSetId: CanonicalDigestSchema,
+  reason: z.enum(["consumed", "superseded", "stale-current-set", "foreign-authority"]),
+  detail: z.string().trim().min(1),
+});
 export const RespondEnvelopeSchema = z.union([
   envelopeVariant(
     "review-respond",
@@ -774,6 +787,18 @@ export const RespondEnvelopeSchema = z.union([
     "supersession-refused",
     "stop",
     DispositionSupersessionRefusalPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-respond",
+    "conditional-authority-withdrawn",
+    "stop",
+    ConditionalAuthorityWithdrawalPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-respond",
+    "conditional-authority-withdrawal-refused",
+    "stop",
+    ConditionalAuthorityWithdrawalRefusalPayloadSchema,
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),
   envelopeVariant("review-respond", "already-settled", "reduce", DispositionPayloadSchema),

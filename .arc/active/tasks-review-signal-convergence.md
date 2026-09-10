@@ -502,7 +502,7 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   carry the persisted provider actor identity unchanged, so callers replay exact actions without translating logins or
   inventing identifiers; the accumulated lane, aggregate, cap, supersession, and checkpoint matrix closes the boundary.
 
-### `[ ]` **5.5.R Close Member 5 adversarial conformance gaps**
+### `[x]` **5.5.R Close Member 5 adversarial conformance gaps**
 
 - _Goal:_ Terminal scope and conditional pass authority remain exact through production response, supersession,
   withdrawal, concurrency, and earlier-evidence carry.
@@ -524,10 +524,15 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
           operation lock; consumption now confirms the exact disposition set is still current, preventing crash or
           race replay from spending predecessor authority.
 
-    - `[ ]` **5.5.R.d Add explicit pending-authority withdrawal**
+    - `[x]` **5.5.R.d Add explicit pending-authority withdrawal**
 
-        - Expose one typed, idempotent response-continuation withdrawal that invalidates only matching pending authority
-          and cannot revive or rewrite consumed, superseded, stale, or foreign state.
+        - Added a strict `conditionalNextPassWithdrawal` response arm that revokes exact pending or bound authority,
+          preserves the invalidation as audit evidence, and returns typed success, replay, or refusal without target-head
+          movement blocking a legitimate post-fix withdrawal.
+
+- _Outcome:_ Exact producer scope and conditional next-pass authority now survive every supported response path without
+  becoming ambient permission. Canonical lane locking, current-disposition checks, immutable invalidation, and typed
+  withdrawal keep supersession, concurrency, replay, and earlier-evidence carry aligned across the member boundary.
 
 ### `[ ]` **5.5 Verify convergence and response precedence** — validate criteria at member scope
 

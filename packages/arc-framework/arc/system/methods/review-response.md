@@ -58,6 +58,13 @@ performance and target rerouting. At the named next-pass admission, carry the ex
 `policyJudgment.ceilingOverride` for local or Frontline work, or as `ceilingOverride` for a hosted request. Never
 reconstruct the identity or treat it as authority for another admission; the lane owner consumes it before dispatch.
 
+When the governing approver retracts that unconsumed authority, or the performed fix exceeds the approved scope,
+submit the original source plus `conditionalNextPassWithdrawal` through `arc review respond -`. Copy its exact
+`conditionalPassAuthorizationId` and disposition-set identity, and name the withdrawing approver; do not resubmit the
+approved response or edit its disposition set. Only `conditional-authority-withdrawn` confirms withdrawal, with
+`payload.replayed` distinguishing an exact replay. A stale-disposition, foreign, consumed, or superseded refusal
+stops. Withdrawal preserves the invalidated capture as audit evidence and can never create authority for another pass.
+
 When building the disposition set, copy `reportedSeverity` and optional `reportedNit` from the producer while triage
 supplies explicit nullable `verifiedSeverity` and optional `verifiedNit`. Derive gating only from the verified lane plus
 project policy: `critical` and `major` are blocking, a verified nit is record-only, and an ordinary verified `minor`

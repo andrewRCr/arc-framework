@@ -9,11 +9,13 @@ import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-g
 import { LaneSubjectLineageSchema } from
   "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import {
+  ConditionalPassAuthorizationSchema,
   FrontlineRunStateSchema,
   LaneProgressStateSchema,
   LocalReviewStateSchema,
   ReviewOperationStateSchema,
   ReviewSuspensionStateSchema,
+  computeConditionalPassAuthorizationId,
   type ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
@@ -239,6 +241,36 @@ const memberReview = {
 };
 
 describe("review operation state schemas", () => {
+  it("records explicit conditional-pass withdrawal without a successor identity", () => {
+    const identity = {
+      authorizedBy: "author-1",
+      repositoryId: "repo-1",
+      lane: "standard" as const,
+      lineage: localLineage,
+      producerId: "review-pass-1",
+      dispositionSetId: digest("disposition"),
+      originatingHeadSha: localTarget.headSha,
+      exhaustedPassCount: 1,
+      nextPass: 2,
+    };
+    const withdrawn = {
+      schemaVersion: 1 as const,
+      authorizationId: computeConditionalPassAuthorizationId(identity),
+      ...identity,
+      status: "invalidated" as const,
+      capturedAt: "2026-09-10T12:00:00Z",
+      reason: "withdrawn" as const,
+      withdrawnBy: "author-1",
+      invalidatedAt: "2026-09-10T12:01:00Z",
+    };
+
+    expect(ConditionalPassAuthorizationSchema.parse(withdrawn)).toEqual(withdrawn);
+    expect(() => ConditionalPassAuthorizationSchema.parse({
+      ...withdrawn,
+      successorDispositionSetId: digest("successor"),
+    })).toThrow();
+  });
+
   it("round-trips the immutable local-review operation and rejects missing or extra fields", () => {
     expect(LocalReviewStateSchema.parse(localReview)).toEqual(localReview);
     expect(() => LocalReviewStateSchema.parse({ ...localReview, sourceRef: undefined })).toThrow();

@@ -30,6 +30,7 @@ import {
   collectUnstagedReviewablePaths,
 } from "../../../lib/work-unit/git-candidate-subject.js";
 import {
+  confirmCurrentDispositionSet,
   LocalApprovedDispositionRecordStore,
 } from "../hosts/local/disposition-record-store.js";
 import {
@@ -42,6 +43,7 @@ import {
   recordLaneResponsePerformance,
   settleLaneAttempt,
   supersedeHostedAttemptDisposition,
+  withdrawConditionalNextPassAuthorization,
 } from "../lane-progress.js";
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
@@ -74,6 +76,7 @@ export function createRespondDependencies(input: {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
+  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = async () => {
@@ -108,7 +111,7 @@ export function createRespondDependencies(input: {
       action,
     ),
     resultReader: createRepositoryReviewResultReader(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    dispositionStore,
     confirmTarget: (target) => prepare.confirmTarget(target),
     confirmCorrectionTarget: (target, expectedFixPaths) => confirmLocalReviewCorrectionTarget({
       exec: input.exec,
@@ -351,6 +354,23 @@ export function createRespondDependencies(input: {
         now: new Date().toISOString(),
       });
       return { authorizationId: captured.authorizationId };
+    },
+    withdrawConditionalNextPass: async (withdrawal) => {
+      const result = await withdrawConditionalNextPassAuthorization(
+        prepare.operationStore,
+        { ...withdrawal, now: new Date().toISOString() },
+        (producerId, dispositionSetId) => confirmCurrentDispositionSet(
+          dispositionStore,
+          producerId,
+          dispositionSetId,
+        ),
+      );
+      if (result.state === "refused") return result;
+      return {
+        state: result.state,
+        authorizationId: result.authorizationId,
+        dispositionSetId: result.dispositionSetId,
+      };
     },
     invalidateConditionalNextPass: async (authorization) => {
       await invalidateConditionalNextPassAuthorization(prepare.operationStore, {

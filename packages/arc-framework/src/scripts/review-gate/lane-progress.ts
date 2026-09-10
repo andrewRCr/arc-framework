@@ -1583,6 +1583,134 @@ export async function captureConditionalNextPassAuthorization(
   throw new Error("conditional pass authorization exceeded version-conflict retry attempts");
 }
 
+export type ConditionalPassWithdrawalResult =
+  | {
+      state: "withdrawn" | "already-withdrawn";
+      progress: LaneProgressState;
+      authorizationId: string;
+      dispositionSetId: string;
+    }
+  | {
+      state: "refused";
+      reason: "consumed" | "superseded" | "stale-current-set" | "foreign-authority";
+      detail: string;
+    };
+
+/**
+ * Withdraw one exact unconsumed response-gated pass authorization.
+ *
+ * @param store - Versioned lane-progress owner to update.
+ * @param input - Exact source, authorization, and withdrawing-authority binding.
+ * @param confirmDispositionSetCurrent - Current approved-disposition confirmation boundary.
+ * @returns A typed withdrawal, replay, or refusal without rewriting other authority.
+ */
+export async function withdrawConditionalNextPassAuthorization(
+  store: ReviewOperationStateStore,
+  input: {
+    authorizationId: string;
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    withdrawnBy: string;
+    now: string;
+  },
+  confirmDispositionSetCurrent: (
+    producerId: string,
+    dispositionSetId: string,
+  ) => Promise<boolean>,
+): Promise<ConditionalPassWithdrawalResult> {
+  const operationId = laneProgressOperationId(input);
+  const refuse = (
+    reason: Extract<ConditionalPassWithdrawalResult, { state: "refused" }>["reason"],
+    detail: string,
+  ): ConditionalPassWithdrawalResult => ({ state: "refused", reason, detail });
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const { version, state } = await store.readOperation(operationId);
+    if (state === null
+      || state.kind !== "lane-progress"
+      || state.lane !== input.lane
+      || state.repositoryId !== input.repositoryId
+      || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+      return refuse("foreign-authority", "conditional pass authorization owner does not match the response source");
+    }
+    const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
+    const attempt = state.attempts[index];
+    const authorization = attempt?.conditionalPassAuthorization;
+    if (attempt === undefined
+      || authorization === undefined
+      || !attempt.terminalProducer
+      || attempt.headSha !== input.headSha
+      || authorization.authorizationId !== input.authorizationId
+      || authorization.authorizedBy !== input.withdrawnBy
+      || authorization.repositoryId !== input.repositoryId
+      || authorization.lane !== input.lane
+      || canonicalize(authorization.lineage) !== canonicalize(input.lineage)
+      || authorization.producerId !== input.producerId
+      || authorization.dispositionSetId !== input.dispositionSetId
+      || authorization.originatingHeadSha !== input.headSha) {
+      return refuse("foreign-authority", "conditional pass authorization does not match the withdrawal request");
+    }
+    if (authorization.status === "invalidated") {
+      if (authorization.reason === "superseded") {
+        return refuse("superseded", "superseded conditional pass authorization cannot be withdrawn");
+      }
+      if (authorization.withdrawnBy !== input.withdrawnBy) {
+        return refuse("foreign-authority", "conditional pass authorization was withdrawn by another authority");
+      }
+      return {
+        state: "already-withdrawn",
+        progress: state,
+        authorizationId: authorization.authorizationId,
+        dispositionSetId: authorization.dispositionSetId,
+      };
+    }
+    if (authorization.status === "consumed") {
+      return refuse("consumed", "consumed conditional pass authorization cannot be withdrawn");
+    }
+    if (!await confirmDispositionSetCurrent(input.producerId, input.dispositionSetId)) {
+      return refuse("stale-current-set", "conditional pass authorization disposition set is not current");
+    }
+    const attempts = [...state.attempts];
+    attempts[index] = {
+      ...attempt,
+      conditionalPassAuthorization: {
+        schemaVersion: authorization.schemaVersion,
+        authorizationId: authorization.authorizationId,
+        status: "invalidated",
+        authorizedBy: authorization.authorizedBy,
+        repositoryId: authorization.repositoryId,
+        lane: authorization.lane,
+        lineage: authorization.lineage,
+        producerId: authorization.producerId,
+        dispositionSetId: authorization.dispositionSetId,
+        originatingHeadSha: authorization.originatingHeadSha,
+        exhaustedPassCount: authorization.exhaustedPassCount,
+        nextPass: authorization.nextPass,
+        capturedAt: authorization.capturedAt,
+        reason: "withdrawn",
+        withdrawnBy: input.withdrawnBy,
+        invalidatedAt: input.now,
+      },
+    };
+    const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
+    try {
+      await store.publishOperation(progress, version);
+      return {
+        state: "withdrawn",
+        progress,
+        authorizationId: authorization.authorizationId,
+        dispositionSetId: authorization.dispositionSetId,
+      };
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  throw new Error("conditional pass withdrawal exceeded version-conflict retry attempts");
+}
+
 /**
  * Invalidate a pending response-gated pass authorization when its approved set is superseded.
  *
@@ -1620,6 +1748,7 @@ export async function invalidateConditionalNextPassAuthorization(
       throw new Error("conditional pass authorization does not match the superseded disposition");
     }
     if (authorization.status === "invalidated") {
+      if (authorization.reason === "withdrawn") return state;
       if (authorization.successorDispositionSetId !== input.successorDispositionSetId) {
         throw new Error("conditional pass authorization invalidation replay conflicts");
       }
@@ -1698,6 +1827,7 @@ export async function inspectConditionalNextPassInvalidation(
     throw new Error("conditional pass authorization does not match the superseded disposition");
   }
   if (authorization.status === "invalidated") {
+    if (authorization.reason === "withdrawn") return { state: "ready" };
     if (authorization.successorDispositionSetId !== input.successorDispositionSetId) {
       throw new Error("conditional pass authorization invalidation replay conflicts");
     }

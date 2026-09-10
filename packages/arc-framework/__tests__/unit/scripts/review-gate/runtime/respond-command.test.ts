@@ -416,6 +416,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
         originatingHeadSha: input.headSha,
       }),
     }),
+    withdrawConditionalNextPass: () => Promise.reject(new Error("unexpected conditional withdrawal")),
     invalidateConditionalNextPass: async () => undefined,
     preflightConditionalNextPassInvalidation: async () => ({ state: "ready" }),
     preflightHostedDisposition: async () => ({ state: "ready" }),
@@ -1153,6 +1154,85 @@ describe("review response command", () => {
     await Promise.all([response, admission]);
 
     expect(overlappedPublication).toBe(false);
+  });
+
+  it("returns typed conditional-authority withdrawal and refusal results", async () => {
+    const records = fixture();
+    const authorizationId = digest("conditional-authorization");
+    const dispositionSetId = digest("approved-disposition");
+    const request = {
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      conditionalNextPassWithdrawal: {
+        conditionalPassAuthorizationId: authorizationId,
+        dispositionSetId,
+        withdrawnBy: records.authority.authorIdentity,
+      },
+    } as const;
+    const withdrawn = Object.assign(dependencies(records), {
+      withdrawConditionalNextPass: async () => ({
+        state: "withdrawn" as const,
+        authorizationId,
+        dispositionSetId,
+      }),
+    });
+
+    await expect(respondToReviewCommand(request, withdrawn)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawn",
+      nextAction: "stop",
+      payload: {
+        operationId: records.operation.operationId,
+        authorizationId,
+        dispositionSetId,
+        replayed: false,
+      },
+    });
+    const producedTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: records.target.kind,
+      repositoryId: records.target.repositoryId,
+      baseRef: records.target.baseRef,
+      diffBaseSha: records.target.diffBaseSha,
+      diffBaseTree: records.target.diffBaseTree,
+      headSha: objectId("9"),
+      headTree: objectId("8"),
+    });
+    const movedHead = Object.assign(dependencies(records), {
+      confirmTarget: async () => ({
+        state: "stale-target" as const,
+        attemptedTarget: records.target,
+        currentTarget: producedTarget,
+      }),
+      withdrawConditionalNextPass: withdrawn.withdrawConditionalNextPass,
+    });
+    await expect(respondToReviewCommand(request, movedHead)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawn",
+      payload: { authorizationId, dispositionSetId },
+    });
+    const refused = Object.assign(dependencies(records), {
+      withdrawConditionalNextPass: async () => ({
+        state: "refused" as const,
+        reason: "consumed" as const,
+        detail: "consumed conditional pass authorization cannot be withdrawn",
+      }),
+    });
+    await expect(respondToReviewCommand(request, refused)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawal-refused",
+      nextAction: "stop",
+      payload: { operationId: records.operation.operationId, reason: "consumed" },
+    });
+    await expect(respondToReviewCommand({
+      ...request,
+      conditionalNextPassWithdrawal: {
+        ...request.conditionalNextPassWithdrawal,
+        withdrawnBy: "another-approver",
+      },
+    }, withdrawn)).resolves.toMatchObject({
+      state: "conditional-authority-withdrawal-refused",
+      nextAction: "stop",
+      payload: { operationId: records.operation.operationId, reason: "foreign-authority" },
+    });
   });
 
   it("returns typed refusals when correction proposal target preconditions fail", async () => {

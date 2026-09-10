@@ -163,6 +163,15 @@ const RespondConditionalNextPassAuthorizationSchema = z.strictObject({
   exhaustedPassCount: z.number().int().nonnegative(),
   nextPass: z.number().int().positive(),
 });
+const RespondConditionalNextPassWithdrawalRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  source: ReviewResponseSettlementSourceSchema,
+  conditionalNextPassWithdrawal: z.strictObject({
+    conditionalPassAuthorizationId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    dispositionSetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    withdrawnBy: z.string().trim().min(1),
+  }),
+});
 
 const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.extend({
   policyRequest: ReviewPolicyCommandRequestSchema,
@@ -218,6 +227,7 @@ const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.exten
 export const RespondRequestSchema = z.union([
   RespondProposalRequestSchema,
   RespondApprovedRequestSchema,
+  RespondConditionalNextPassWithdrawalRequestSchema,
 ]);
 
 interface ResponseActors {
@@ -322,6 +332,27 @@ export interface RespondCommandDependencies {
     exhaustedPassCount: number;
     nextPass: number;
   }): Promise<{ authorizationId: string }>;
+  withdrawConditionalNextPass(input: {
+    authorizationId: string;
+    lane: "frontline" | "standard";
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    withdrawnBy: string;
+  }): Promise<
+    | {
+        state: "withdrawn" | "already-withdrawn";
+        authorizationId: string;
+        dispositionSetId: string;
+      }
+    | {
+        state: "refused";
+        reason: "consumed" | "superseded" | "stale-current-set" | "foreign-authority";
+        detail: string;
+      }
+  >;
   invalidateConditionalNextPass(input: {
     lane: "frontline" | "standard";
     repositoryId: string;
@@ -1252,6 +1283,64 @@ async function respondToResolvedReviewCommand(
   const verifiedFix = "verifiedFix" in request ? request.verifiedFix : undefined;
   const settledFixTarget = "settledFixTarget" in request ? request.settledFixTarget : undefined;
   const supersession = "supersedes" in request ? request.supersedes : undefined;
+  if ("conditionalNextPassWithdrawal" in request) {
+    const withdrawal = request.conditionalNextPassWithdrawal;
+    if (withdrawal.withdrawnBy !== source.actors.approverIdentity) {
+      return RespondEnvelopeSchema.parse({
+        schemaVersion: 1,
+        mode: "review-respond",
+        diagnostics: [],
+        state: "conditional-authority-withdrawal-refused",
+        nextAction: "stop",
+        payload: {
+          operationId: source.operationId,
+          authorizationId: withdrawal.conditionalPassAuthorizationId,
+          dispositionSetId: withdrawal.dispositionSetId,
+          reason: "foreign-authority",
+          detail: "conditional pass withdrawal actor is not the active approval authority",
+        },
+      });
+    }
+    const result = await dependencies.withdrawConditionalNextPass({
+      authorizationId: withdrawal.conditionalPassAuthorizationId,
+      lane: source.result.kind === "frontline" ? "frontline" : "standard",
+      repositoryId: source.repositoryId,
+      headSha: source.target.headSha,
+      lineage: source.result.admission.lineage,
+      producerId: source.operationId,
+      dispositionSetId: withdrawal.dispositionSetId,
+      withdrawnBy: withdrawal.withdrawnBy,
+    });
+    if (result.state === "refused") {
+      return RespondEnvelopeSchema.parse({
+        schemaVersion: 1,
+        mode: "review-respond",
+        diagnostics: [],
+        state: "conditional-authority-withdrawal-refused",
+        nextAction: "stop",
+        payload: {
+          operationId: source.operationId,
+          authorizationId: withdrawal.conditionalPassAuthorizationId,
+          dispositionSetId: withdrawal.dispositionSetId,
+          reason: result.reason,
+          detail: result.detail,
+        },
+      });
+    }
+    return RespondEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-respond",
+      diagnostics: [],
+      state: "conditional-authority-withdrawn",
+      nextAction: "stop",
+      payload: {
+        operationId: source.operationId,
+        authorizationId: result.authorizationId,
+        dispositionSetId: result.dispositionSetId,
+        replayed: result.state === "already-withdrawn",
+      },
+    });
+  }
   if ("proposal" in request && supersession === undefined && source.hostedAttempt?.settled === true) {
     throw new RespondCommandError("invalid-input", "hosted response proposal requires an unsettled findings attempt");
   }

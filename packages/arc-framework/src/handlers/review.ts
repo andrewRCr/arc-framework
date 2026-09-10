@@ -2619,7 +2619,7 @@ function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
   };
 }
 
-/** Prepare or persist one source-bound disposition set. */
+/** Prepare, persist, or withdraw one source-bound disposition or continuation. */
 export async function handleReviewRespond(
   source: string,
   overrides: Partial<ReviewRespondHandlerDependencies> = {},

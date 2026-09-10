@@ -250,7 +250,7 @@ const ConditionalPassAuthorizationBaseShape = {
   ...ConditionalPassAuthorizationIdentitySchema.shape,
   capturedAt: z.iso.datetime({ offset: true }),
 };
-export const ConditionalPassAuthorizationSchema = z.discriminatedUnion("status", [
+export const ConditionalPassAuthorizationSchema = z.union([
   z.strictObject({
     ...ConditionalPassAuthorizationBaseShape,
     status: z.literal("pending"),
@@ -276,6 +276,13 @@ export const ConditionalPassAuthorizationSchema = z.discriminatedUnion("status",
     status: z.literal("invalidated"),
     reason: z.literal("superseded"),
     successorDispositionSetId: CanonicalDigestSchema,
+    invalidatedAt: z.iso.datetime({ offset: true }),
+  }),
+  z.strictObject({
+    ...ConditionalPassAuthorizationBaseShape,
+    status: z.literal("invalidated"),
+    reason: z.literal("withdrawn"),
+    withdrawnBy: IdentifierSchema,
     invalidatedAt: z.iso.datetime({ offset: true }),
   }),
 ]).superRefine((authorization, context) => {
