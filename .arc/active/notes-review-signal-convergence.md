@@ -1,5 +1,77 @@
 # Notes: Review Signal Convergence
 
+## Member 5 initial criteria report — 2026-09-10
+
+```yaml
+criteria-slice: "Success Criteria > Member 5 — `evidence-driven-convergence`"
+span:
+  diff: "33df7ac6493cf6e5218ce49733d120826ba642f8..f446f59888f2f7896a9e91ac7205a62d58b58632"
+  reachability: >-
+    Repository tree at f446f59888f2f7896a9e91ac7205a62d58b58632, including the upstream spec, all Member 5
+    terminal-evidence, normalization, supersession, policy-caller, response-continuation, and public-path commits,
+    the Git-common result/disposition/lane stores, Candidate, Errand, delivery, status, and checkpoint consumers,
+    both methodology copies, focused fixtures, integration/E2E scenarios, and the complete Tier 2 result.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 1"
+    criterion-digest: sha256:30527c7aedda94a87a8a807186d4d81951c510211f6fb9d3055758176d02ac96
+    evidence: >-
+      `LocalReviewResultReader` resolves local receipts, frontline outcomes, and hosted sealed attempts from their
+      native durable stores while retaining original target, lane source, logical pass, retry, scope, policy, and
+      rubric facts. `bindReviewPolicyEvidence` then requires the terminal operation identity and validates exact
+      current target, source/lane, outcome, pass, scope, policy, and complete producer contents; findings additionally
+      require the current immutable approved-disposition node and exact one-for-one source binding. Command and
+      real-store tests cover clean and findings admission plus missing, ambiguous, stale, wrong-source/pass/scope,
+      incomplete, unrelated, conflicting, and caller-authored evidence refusals across all three durable lanes.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 2"
+    criterion-digest: sha256:95a84466d93d1ca23e6362b2c9263b4c8d6bac262c9a51f6d148505e5e388438
+    evidence: >-
+      `deriveVerifiedTerminalSignal` reads only source-verified, non-null current judgments and preserves their
+      severity regardless of fix, defer, reject, or settlement. The shared reducer converges all-refuted and
+      record-only-minor results, keeps every supported material result outstanding, and returns coverage selection
+      for inadequate incremental evidence without losing its response. Focused evidence tests admit one complete
+      manual aggregate with every finding, refuse missing/incomplete records and independent terminal unions, and
+      reject partial-only clearance. Producer-backed handler tests additionally prove local all-refuted and
+      minors-only members advance only after their approved response is recorded, while Candidate E2E retains a
+      settled material member until a later complete clean pass.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 3"
+    criterion-digest: sha256:f703750477899e20ca683d5b77d608c1e452c6f62e924cced7c60bdd70f103d0
+    evidence: >-
+      `respondToResolvedReviewCommand` publishes the approved immutable record under the shared operation lock before
+      resolving evidence-bound policy, then returns that exact policy request/result behind the selected fix,
+      settlement, reduction, or delivery-correction action. Durable response nodes retain the continuation and
+      performed head, and current-only successor lineage prevents an older approval from resuming. Response-command,
+      continuation, Candidate, Errand, delivery, workflow, and public handler tests cover response-first ordering,
+      record-only work, material fixes, hosted settlement, Owner and ceiling arms, coverage selection, changed-target
+      rerouting, and restart without a second agent-composed policy call.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 4"
+    criterion-digest: sha256:5b286e7602fb54e6f80f7c4014ddcf8bedb864ca56dbe5feda6369fca9b00318
+    evidence: >-
+      The lane owner stores conditional consent beside its exact producer as pending, binds it only from durable
+      complete response evidence and that response's produced head, and consumes it once at the named next-pass
+      admission before provider dispatch. Version-checked replay returns the same capture or consumption; competing
+      admission, stale lineage/count/head, withdrawal, supersession, completed-pass reuse, and conflicting replay
+      refuse or invalidate it. Response-command tests prove approval alone cannot manufacture consent and a failed
+      capture dispatches nothing; lane-progress and hosted admission tests cover restart, response-before-binding,
+      concurrent revalidation, single-use consumption, invalidation, exact repair, and no revival of superseded state.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 5"
+    criterion-digest: sha256:e8f33a1a6a00e51055aaba77d28f911b22a24d971087c65f2a8e98cf9884c116
+    evidence: >-
+      Verified Candidate, Errand, and delivery response paths persist the produced target and return canonical reroute
+      continuations rather than reusing the old policy action; replay requires the durable exact binding. Shared
+      status/prepublication and checkpoint composition select the first outstanding member from the same producer and
+      applicability evidence, retain carried/equivalent-head progress and judgments without another pass, reject
+      missing applicability, and keep exact Owner acceptance distinct from convergence and pass overrides. Public
+      multi-member scenarios cover clean carry, a changed contribution and explicit applicability decision, material
+      settlement, fresh adequate completion, exact Owner termination, cap stops, and inadequate incremental coverage.
+    state: "[x]"
+summary: "5 [x], 0 [~], 0 [ ]; no unresolved Member 5 criterion"
+```
+
 ## Member 4 criteria report — 2026-09-09
 
 ```yaml
