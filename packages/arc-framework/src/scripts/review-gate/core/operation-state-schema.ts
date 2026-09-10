@@ -30,6 +30,10 @@ import {
 import { DeliveryLocalReviewAdmissionSchema } from "../policy/delivery-local-review-admission.js";
 import { laneSubjectLineageId, LaneSubjectLineageSchema } from "./lane-admission.js";
 import { StandardReviewGuidanceProjectionSchema } from "../policy/standard-review-guidance.js";
+import {
+  CompletedReviewPassCountSchema,
+  ReviewPassSchema,
+} from "./review-pass.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -195,6 +199,83 @@ const LaneAttemptOutcomeSchema = z.enum([
   "source-unbound",
   "terminal-failure",
 ]);
+
+const ConditionalPassAuthorizationIdentitySchema = z.strictObject({
+  authorizedBy: IdentifierSchema,
+  repositoryId: IdentifierSchema,
+  lane: z.enum(["frontline", "standard"]),
+  lineage: LaneSubjectLineageSchema,
+  producerId: IdentifierSchema,
+  dispositionSetId: CanonicalDigestSchema,
+  originatingHeadSha: GitObjectIdSchema,
+  exhaustedPassCount: CompletedReviewPassCountSchema,
+  nextPass: ReviewPassSchema,
+});
+
+type ConditionalPassAuthorizationIdentity = z.infer<
+  typeof ConditionalPassAuthorizationIdentitySchema
+>;
+
+/**
+ * Compute the stable identity of one response-gated pass authorization.
+ *
+ * @param input - Immutable approval, producer, lineage, and pass bindings.
+ * @returns The canonical authorization digest.
+ */
+export function computeConditionalPassAuthorizationId(
+  input: ConditionalPassAuthorizationIdentity,
+): string {
+  return canonicalDigest({
+    domain: "arc.review.conditional-pass-authorization/v1",
+    authorization: ConditionalPassAuthorizationIdentitySchema.parse({
+      authorizedBy: input.authorizedBy,
+      repositoryId: input.repositoryId,
+      lane: input.lane,
+      lineage: input.lineage,
+      producerId: input.producerId,
+      dispositionSetId: input.dispositionSetId,
+      originatingHeadSha: input.originatingHeadSha,
+      exhaustedPassCount: input.exhaustedPassCount,
+      nextPass: input.nextPass,
+    }),
+  });
+}
+
+const ConditionalPassAuthorizationBaseShape = {
+  schemaVersion: z.literal(1),
+  authorizationId: CanonicalDigestSchema,
+  ...ConditionalPassAuthorizationIdentitySchema.shape,
+  capturedAt: z.iso.datetime({ offset: true }),
+};
+export const ConditionalPassAuthorizationSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    ...ConditionalPassAuthorizationBaseShape,
+    status: z.literal("pending"),
+  }),
+  z.strictObject({
+    ...ConditionalPassAuthorizationBaseShape,
+    status: z.literal("invalidated"),
+    reason: z.literal("superseded"),
+    successorDispositionSetId: CanonicalDigestSchema,
+    invalidatedAt: z.iso.datetime({ offset: true }),
+  }),
+]).superRefine((authorization, context) => {
+  if (authorization.nextPass !== authorization.exhaustedPassCount + 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextPass"],
+      message: "conditional pass authorization must name the next logical pass",
+    });
+  }
+  if (authorization.authorizationId !== computeConditionalPassAuthorizationId(authorization)) {
+    context.addIssue({
+      code: "custom",
+      path: ["authorizationId"],
+      message: "conditional pass authorization identity does not match its binding",
+    });
+  }
+});
+export type ConditionalPassAuthorization = z.infer<typeof ConditionalPassAuthorizationSchema>;
 
 export const HostedSealedResultSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -465,6 +546,7 @@ const LaneAttemptSchema = z.strictObject({
   terminalProducer: z.boolean(),
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
+  conditionalPassAuthorization: ConditionalPassAuthorizationSchema.optional(),
   chunkSeriesComplete: z.boolean().optional(),
   hosted: HostedLaneAttemptBindingSchema.optional(),
   local: LocalLaneAttemptBindingSchema.optional(),
@@ -724,6 +806,22 @@ export const LaneProgressStateSchema = z.strictObject({
     });
   }
   state.attempts.forEach((attempt, index) => {
+    const authorization = attempt.conditionalPassAuthorization;
+    if (authorization !== undefined
+      && (authorization.repositoryId !== state.repositoryId
+        || authorization.lane !== state.lane
+        || canonicalize(authorization.lineage) !== canonicalize(state.lineage)
+        || authorization.producerId !== attempt.attemptId
+        || authorization.originatingHeadSha !== attempt.headSha
+        || authorization.exhaustedPassCount !== attempt.logicalPass
+        || authorization.nextPass !== attempt.logicalPass + 1
+        || !attempt.terminalProducer)) {
+      context.addIssue({
+        code: "custom",
+        path: ["attempts", index, "conditionalPassAuthorization"],
+        message: "conditional pass authorization must bind its terminal producer and lane owner",
+      });
+    }
     if (state.lane === "frontline" && attempt.frontline === undefined) {
       context.addIssue({
         code: "custom",

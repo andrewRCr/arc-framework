@@ -483,27 +483,13 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
   do not infer pending context from the source reference or add another session store. Add supersession as a narrow
   request/result arm of the existing public response verb, not a parallel correction coordinator.
 
-    - `[ ]` **5.3.a Compose approval, policy, and selected response action**
+    - `[x]` **5.3.a Compose approval, policy, and selected response action**
 
-        - Build `test-first` (one behavior at a time):
-
-            - canonical approval append, post-append policy resolution, and returned response action without an extra
-              agent policy call or repeated triage. Remove premature settlement and preserve fixes, record-only
-              responses, and hosted thread actions under their existing authority.
-
-            - Internal policy receives the governing caller's scope, invocation, and ceiling context without default
-              substitution. Validate it through existing composition and return exact continuation inputs; preserve
-              override and Owner-terminus invalidation rules rather than treating the resume token as authority.
-
-            - After approved-record append, persist explicit conditional next-pass consent in the existing lane-progress
-              owner, bound to authorizer, repository/lane/lineage, producer, approved set, count, and next ordinal.
-              Disposition-only approval cannot manufacture it. Capture-write failure dispatches nothing; exact replay
-              repairs without replacing withdrawn, superseded, or consumed state. No separate response-plan store.
-
-            - A correction proposal names its current predecessor and reuses the same immutable producer and exact HEAD.
-              It may be rendered beside expected authorized uncommitted fix paths without treating those bytes as
-              proposal evidence or authority; unrelated dirt and head movement refuse. Fresh approval publishes the
-              successor and returns its carry/reopen response plan through the canonical response envelope.
+        - Approved respond now appends current immutable evidence before resolving the caller's exact policy request and
+          returns response-first fix, hosted-settlement, or delivery actions. Explicit conditional pass consent persists
+          with its terminal lane producer, while capture failure dispatches nothing. Exact-head correction publishes one
+          immutable successor, invalidates predecessor continuation, and carries or reopens attributable hosted work
+          under the shared review-operation lock; predictable conflicts return typed refusal envelopes.
 
     - `[ ]` **5.3.b Resume or reroute after response performance**
 

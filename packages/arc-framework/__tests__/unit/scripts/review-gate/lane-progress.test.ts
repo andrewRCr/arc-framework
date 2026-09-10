@@ -15,8 +15,10 @@ import { createFrontlineAdmission } from
 import {
   frontlineLaneOutcome,
   bindHostedAttemptDisposition,
+  captureConditionalNextPassAuthorization,
   hostedAwaitLaneOutcome,
   hostedLaneAttemptId,
+  invalidateConditionalNextPassAuthorization,
   laneProgressOperationId,
   acknowledgeHostedRequest,
   recordFrontlineAttempt,
@@ -350,6 +352,95 @@ describe("lane progress", () => {
     expect(settled.attempts[0]?.outcome).toBe("settled-findings");
     expect(settled.completedPasses).toBe(1);
     expect(replay).toEqual(settled);
+  });
+
+  it("captures one response-gated next pass beside its exact terminal producer", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const input = {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: `sha256:${"6".repeat(64)}`,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    };
+
+    const captured = await captureConditionalNextPassAuthorization(store, input);
+    expect(captured.progress.attempts[0]?.conditionalPassAuthorization).toMatchObject({
+      authorizationId: captured.authorizationId,
+      status: "pending",
+      authorizedBy: "author-1",
+      producerId: attempt.attemptId,
+      dispositionSetId: input.dispositionSetId,
+      exhaustedPassCount: 1,
+      nextPass: 2,
+    });
+    await expect(captureConditionalNextPassAuthorization(store, {
+      ...input,
+      now: "2026-08-15T12:02:00Z",
+    })).resolves.toEqual(captured);
+    await expect(captureConditionalNextPassAuthorization(store, {
+      ...input,
+      dispositionSetId: `sha256:${"7".repeat(64)}`,
+    })).rejects.toThrow("replay conflicts");
+  });
+
+  it("invalidates a predecessor's pending pass authorization on disposition supersession", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    const successorDispositionSetId = `sha256:${"7".repeat(64)}`;
+
+    const invalidated = await invalidateConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      successorDispositionSetId,
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(invalidated?.attempts[0]?.conditionalPassAuthorization).toMatchObject({
+      status: "invalidated",
+      reason: "superseded",
+      successorDispositionSetId,
+    });
   });
 
   it("maps every concluded hosted await state onto the driver's vocabulary", () => {
@@ -1131,6 +1222,42 @@ describe("hosted await lane recording", () => {
           carriedFromDispositionSetId: null,
         }],
       },
+    });
+    const ambiguousStore = createStore();
+    const ambiguousAttempt = bound.attempts[0];
+    if (ambiguousAttempt?.hosted === undefined) throw new Error("expected hosted findings attempt");
+    ambiguousStore.records.set(bound.operationId, {
+      version: 1,
+      state: {
+        ...bound,
+        attempts: [{
+          ...ambiguousAttempt,
+          outcome: "settled-findings",
+          hosted: {
+            ...ambiguousAttempt.hosted,
+            settledFindingIds: ["body-1", "thread-1"],
+          },
+        }],
+      },
+    });
+    await expect(supersedeHostedAttemptDisposition(ambiguousStore, {
+      operationId: progress.operationId,
+      attemptId,
+      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      successorDispositionSetId: `sha256:${"2".repeat(64)}`,
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+      }, {
+        findingId: "body-1",
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:01:30Z",
+    })).rejects.toMatchObject({
+      code: "hosted-settlement-conflict",
+      reason: "ambiguous-settlement",
     });
     await expect(bindHostedAttemptDisposition(store, {
       operationId: progress.operationId,

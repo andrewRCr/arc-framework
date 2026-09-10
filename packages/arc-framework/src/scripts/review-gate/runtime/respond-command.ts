@@ -64,7 +64,10 @@ import {
   ReviewResponseSettlementSourceSchema,
   type ReviewResponseInput,
 } from "../core/response-plan-schema.js";
-import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
+import type {
+  LocalCorrectionTargetConfirmation,
+  LocalTargetConfirmation,
+} from "../hosts/local/repository-target.js";
 import type { HostedTarget } from "../hosted/request.js";
 import {
   projectCandidateDeltaVerification,
@@ -79,6 +82,11 @@ import {
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
 import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
+import {
+  ReviewPolicyCommandRequestSchema,
+  type ReviewPolicyCommandRequest,
+  type ReviewResolveEnvelope,
+} from "../policy/review-policy-driver.js";
 
 const AuthorDispositionFieldsSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
@@ -101,9 +109,22 @@ const AuthorDispositionSchema = z.union([
   }),
 ]);
 
+const ExpectedFixPathSchema = z.string().trim().min(1).refine((path) => (
+  !path.startsWith("/")
+  && !path.includes("\\")
+  && path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..")
+), { message: "expected fix path must be repository-relative and normalized" });
+const RespondSupersessionSchema = z.strictObject({
+  predecessorDispositionSetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  expectedFixPaths: z.array(ExpectedFixPathSchema).refine((paths) => (
+    paths.length === new Set(paths).size
+  ), { message: "expected fix paths must be unique" }),
+});
+
 const RespondProposalRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: ReviewResponseSettlementSourceSchema,
+  supersedes: RespondSupersessionSchema.optional(),
   proposal: z.strictObject({
     proposedVerification: CandidateVerificationApplicabilitySchema,
     severityGatingPolicy: SeverityGatingPolicySchema,
@@ -135,8 +156,16 @@ const VerificationApplicabilityRank = {
  * so it names the target that must still be current instead of the applicability a fix pass owns.
  */
 const RespondSettledFixTargetSchema = ReviewTargetSchema;
+const RespondConditionalNextPassAuthorizationSchema = z.strictObject({
+  authorizedBy: z.string().trim().min(1),
+  exhaustedPassCount: z.number().int().nonnegative(),
+  nextPass: z.number().int().positive(),
+});
 
 const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.extend({
+  policyRequest: ReviewPolicyCommandRequestSchema,
+  supersedes: RespondSupersessionSchema.optional(),
+  conditionalNextPassAuthorization: RespondConditionalNextPassAuthorizationSchema.optional(),
   verifiedFix: RespondVerifiedFixSchema.optional(),
   settledFixTarget: RespondSettledFixTargetSchema.optional(),
 }).superRefine((request, context) => {
@@ -154,6 +183,23 @@ const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.exten
       code: "custom",
       path: ["verifiedFix", "applicability"],
       message: "verified fix applicability is narrower than the approved scope",
+    });
+  }
+  const ceilingOverride = request.policyRequest.ceilingOverride;
+  const conditional = request.conditionalNextPassAuthorization;
+  if ((ceilingOverride === undefined) !== (conditional === undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["conditionalNextPassAuthorization"],
+      message: "a ceiling override on an approved response requires explicit conditional next-pass authorization",
+    });
+  } else if (ceilingOverride !== undefined && conditional !== undefined
+    && (ceilingOverride.exhaustedPassCount !== conditional.exhaustedPassCount
+      || ceilingOverride.nextPass !== conditional.nextPass)) {
+    context.addIssue({
+      code: "custom",
+      path: ["conditionalNextPassAuthorization"],
+      message: "conditional next-pass authorization does not match the carried ceiling override",
     });
   }
 });
@@ -194,9 +240,14 @@ interface HostedDispositionFindingBinding {
 }
 
 export interface RespondCommandDependencies {
+  withOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
+  confirmCorrectionTarget(
+    target: ReviewTarget,
+    expectedFixPaths: readonly string[],
+  ): Promise<LocalCorrectionTargetConfirmation>;
   resolveLocalActors(
     evaluatorIdentity: string,
     admittedAuthorIdentity?: string,
@@ -232,6 +283,51 @@ export interface RespondCommandDependencies {
     dispositionSetId: string;
     findingDispositions: readonly HostedDispositionFindingBinding[];
   }): Promise<void>;
+  resolvePolicy(request: ReviewPolicyCommandRequest): Promise<ReviewResolveEnvelope>;
+  captureConditionalNextPass(input: {
+    lane: "frontline" | "standard";
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    authorizedBy: string;
+    exhaustedPassCount: number;
+    nextPass: number;
+  }): Promise<{ authorizationId: string }>;
+  invalidateConditionalNextPass(input: {
+    lane: "frontline" | "standard";
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    successorDispositionSetId: string;
+  }): Promise<void>;
+  preflightHostedDisposition(input: {
+    operationId: string;
+    attemptId: string;
+    predecessorDispositionSetId: string;
+    successorDispositionSetId: string;
+    findingDispositions: readonly HostedDispositionFindingBinding[];
+  }): Promise<
+    | { state: "ready" }
+    | { state: "refused"; reason: "hosted-settlement-conflict"; detail: string }
+  >;
+  supersedeHostedDisposition(input: {
+    operationId: string;
+    attemptId: string;
+    predecessorDispositionSetId: string;
+    successorDispositionSetId: string;
+    findingDispositions: readonly HostedDispositionFindingBinding[];
+  }): Promise<
+    | {
+        state: "advanced";
+        carriedFindingIds: readonly string[];
+        reopenedFindingIds: readonly string[];
+      }
+    | { state: "refused"; reason: "hosted-settlement-conflict"; detail: string }
+  >;
 }
 
 /** Stable durable-authority failure for response source or replay mismatches. */
@@ -469,12 +565,14 @@ async function resolveHostedSource(
 function projectHostedSettlementPlan(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
+  carriedFindingIds: readonly string[] = [],
 ) {
   if (source.hostedAttempt === undefined) return undefined;
   const hostSettlementFindingIds = new Set(source.hostedAttempt.hostSettlementFindingIds);
+  const carried = new Set(carriedFindingIds);
   const findings = dispositions.dispositionSet.findings.filter(({ findingId }) =>
-    hostSettlementFindingIds.has(findingId));
-  return {
+    hostSettlementFindingIds.has(findingId) && !carried.has(findingId));
+  const plan = {
     beforeFixFindingIds: findings
       .filter(({ disposition }) => disposition !== "fix")
       .map(({ findingId }) => findingId),
@@ -482,6 +580,9 @@ function projectHostedSettlementPlan(
       .filter(({ disposition }) => disposition === "fix")
       .map(({ findingId }) => findingId),
   };
+  return plan.beforeFixFindingIds.length === 0 && plan.afterFixFindingIds.length === 0
+    ? undefined
+    : plan;
 }
 
 function projectHostedDispositionBindings(
@@ -918,6 +1019,34 @@ function staleTargetEnvelope(
   });
 }
 
+function supersessionRefusalEnvelope(input: {
+  operationId: string;
+  predecessorDispositionSetId: string;
+  reason:
+    | "head-moved"
+    | "unexpected-dirty-paths"
+    | "predecessor-unavailable"
+    | "predecessor-not-current"
+    | "fix-consumed"
+    | "dirty-paths-without-fix-authorization"
+    | "successor-conflict"
+    | "hosted-settlement-conflict";
+  detail: string;
+  attemptedTarget?: ReviewTarget;
+  currentHeadSha?: string;
+  unexpectedPaths?: readonly string[];
+  currentDispositionSetId?: string;
+}): z.infer<typeof RespondEnvelopeSchema> {
+  return RespondEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-respond",
+    diagnostics: [],
+    state: "supersession-refused",
+    nextAction: "stop",
+    payload: input,
+  });
+}
+
 /**
  * Settle one approved set the durable record already carries, at the head the response settled at.
  *
@@ -961,7 +1090,13 @@ async function settleApprovedReplay(
   });
 }
 
-/** Validate one approved set against its durable source and append its advisory record. */
+/**
+ * Validate one approved set, append its advisory record, and compose the response-first continuation.
+ *
+ * @param requestInput - Untrusted public response request.
+ * @param dependencies - Durable source, policy, lane-progress, and response boundaries.
+ * @returns The typed proposal, response, correction, or refusal envelope.
+ */
 export async function respondToReviewCommand(
   requestInput: unknown,
   dependencies: RespondCommandDependencies,
@@ -985,12 +1120,52 @@ export async function respondToReviewCommand(
       error instanceof Error ? error.message : "review response source cannot be validated",
     );
   }
+  return dependencies.withOperationLock(
+    source.operationId,
+    () => respondToResolvedReviewCommand(request, source, dependencies),
+  );
+}
+
+async function respondToResolvedReviewCommand(
+  request: z.infer<typeof RespondRequestSchema>,
+  source: ResolvedResponseSource,
+  dependencies: RespondCommandDependencies,
+): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const verifiedFix = "verifiedFix" in request ? request.verifiedFix : undefined;
   const settledFixTarget = "settledFixTarget" in request ? request.settledFixTarget : undefined;
-  if ("proposal" in request && source.hostedAttempt?.settled === true) {
+  const supersession = "supersedes" in request ? request.supersedes : undefined;
+  if ("proposal" in request && supersession === undefined && source.hostedAttempt?.settled === true) {
     throw new RespondCommandError("invalid-input", "hosted response proposal requires an unsettled findings attempt");
   }
-  const confirmation = await dependencies.confirmTarget(source.target);
+  let confirmation: LocalTargetConfirmation;
+  if (supersession === undefined) {
+    confirmation = await dependencies.confirmTarget(source.target);
+  } else {
+    const correctionConfirmation = await dependencies.confirmCorrectionTarget(
+      source.target,
+      supersession.expectedFixPaths,
+    );
+    if (correctionConfirmation.state === "stale-head") {
+      return supersessionRefusalEnvelope({
+        operationId: source.operationId,
+        predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+        reason: "head-moved",
+        detail: "disposition successor requires the unchanged reviewed head",
+        attemptedTarget: correctionConfirmation.attemptedTarget,
+        currentHeadSha: correctionConfirmation.currentHeadSha,
+      });
+    }
+    if (correctionConfirmation.state === "unexpected-dirty-paths") {
+      return supersessionRefusalEnvelope({
+        operationId: source.operationId,
+        predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+        reason: "unexpected-dirty-paths",
+        detail: `disposition successor found unrelated dirty paths: ${correctionConfirmation.unexpectedPaths.join(", ")}`,
+        unexpectedPaths: correctionConfirmation.unexpectedPaths,
+      });
+    }
+    confirmation = { state: "current", target: correctionConfirmation.target };
+  }
   const currentTarget = confirmation.state === "stale-target"
     ? confirmation.currentTarget
     : confirmation.target;
@@ -1040,6 +1215,54 @@ export async function respondToReviewCommand(
     unchangedCandidateLineage = lineage;
   }
   if ("proposal" in request) {
+    if (supersession !== undefined) {
+      const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+      if (existing === null) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "predecessor-unavailable",
+          detail: "disposition successor predecessor is unavailable",
+        });
+      }
+      validateApprovedDispositionRecordForResult(existing, source.result);
+      const current = currentApprovedDispositionNode(existing);
+      if (existing.currentDispositionSetId !== supersession.predecessorDispositionSetId) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "predecessor-not-current",
+          detail: "disposition successor predecessor is not current",
+          currentDispositionSetId: existing.currentDispositionSetId,
+        });
+      }
+      if (current.errandFixResponse !== null || current.deliveryMemberFixResponse !== null) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "fix-consumed",
+          detail: "disposition successor predecessor fix was already consumed",
+        });
+      }
+      const lineage = await dependencies.readCandidateLineage(source.target);
+      if (lineage !== null && candidateReviewResponses(lineage.record).some((response) =>
+        response.dispositionId === supersession.predecessorDispositionSetId)) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "fix-consumed",
+          detail: "disposition successor predecessor fix was already consumed",
+        });
+      }
+      if (supersession.expectedFixPaths.length > 0 && current.fixAuthorization === null) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "dirty-paths-without-fix-authorization",
+          detail: "record-only predecessor cannot authorize dirty fix paths",
+        });
+      }
+    }
     const proposal = prepareDispositionProposal(request, source);
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -1050,6 +1273,7 @@ export async function respondToReviewCommand(
       payload: {
         operationId: source.operationId,
         proposal,
+        ...(supersession === undefined ? {} : { supersession }),
         dispositionReportText: renderDispositionReport({
           dispositionSet: proposal.dispositionSet,
           producerFindings: source.findings,
@@ -1091,6 +1315,14 @@ export async function respondToReviewCommand(
   }
   validateActors(dispositions, source.actors);
   validateFindings(dispositions, source);
+  const conditionalAuthorization = request.conditionalNextPassAuthorization;
+  if (conditionalAuthorization !== undefined
+    && conditionalAuthorization.authorizedBy !== source.actors.approverIdentity) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "conditional next-pass authorizer is not the active local identity",
+    );
+  }
   const dispositionReportText = renderDispositionReport({
     dispositionSet: dispositions.dispositionSet,
     producerFindings: source.findings,
@@ -1147,11 +1379,6 @@ export async function respondToReviewCommand(
     ? await dependencies.resolveActiveErrand()
     : null;
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
-  if (existing !== null
-    && canonicalize(currentApprovedDispositionNode(existing).approvedDisposition)
-      !== canonicalize(dispositions)) {
-    throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
-  }
   const initialNode = {
     approvedDisposition: dispositions,
     fixAuthorization: plan.fixAuthorization,
@@ -1160,36 +1387,183 @@ export async function respondToReviewCommand(
     predecessorDispositionSetId: null,
     successorDispositionSetId: null,
   };
-  const record = ApprovedDispositionRecordSchema.parse({
-    schemaVersion: 1,
-    semanticsVersion: "review-advisory/v1",
-    repositoryId: source.repositoryId,
-    operationId: source.operationId,
-    candidate: lineage === null
-      ? null
-      : {
-          workUnit: lineage.workUnit,
-          candidateId: lineage.record.attestation.candidateId,
-        },
-    errand,
-    deliveryMember,
-    source: source.source,
-    currentDispositionSetId: dispositions.dispositionSet.dispositionSetId,
-    approvedDispositionLineage: existing?.approvedDispositionLineage ?? [initialNode],
-  });
-  if (existing !== null && canonicalize(existing) !== canonicalize(record)
-    && !isExactDeliveryMemberBindingAdvance(existing, record)) {
-    throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
+  let record: ApprovedDispositionRecord;
+  let supersessionReplay = false;
+  if (supersession === undefined) {
+    if (existing !== null
+      && canonicalize(currentApprovedDispositionNode(existing).approvedDisposition)
+        !== canonicalize(dispositions)) {
+      throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
+    }
+    record = ApprovedDispositionRecordSchema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: source.repositoryId,
+      operationId: source.operationId,
+      candidate: lineage === null
+        ? null
+        : {
+            workUnit: lineage.workUnit,
+            candidateId: lineage.record.attestation.candidateId,
+          },
+      errand,
+      deliveryMember,
+      source: source.source,
+      currentDispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: existing?.approvedDispositionLineage ?? [initialNode],
+    });
+    if (existing !== null && canonicalize(existing) !== canonicalize(record)
+      && !isExactDeliveryMemberBindingAdvance(existing, record)) {
+      throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
+    }
+  } else {
+    if (existing === null) {
+      return supersessionRefusalEnvelope({
+        operationId: source.operationId,
+        predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+        reason: "predecessor-unavailable",
+        detail: "disposition successor predecessor is unavailable",
+      });
+    }
+    validateApprovedDispositionRecordForResult(existing, source.result);
+    const successorDispositionSetId = dispositions.dispositionSet.dispositionSetId;
+    const existingCurrent = currentApprovedDispositionNode(existing);
+    if (existing.currentDispositionSetId === successorDispositionSetId) {
+      if (existingCurrent.predecessorDispositionSetId !== supersession.predecessorDispositionSetId
+        || canonicalize(existingCurrent.approvedDisposition) !== canonicalize(dispositions)) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "successor-conflict",
+          detail: "disposition successor replay conflicts with current state",
+          currentDispositionSetId: existing.currentDispositionSetId,
+        });
+      }
+      record = existing;
+      supersessionReplay = true;
+    } else {
+      if (existing.currentDispositionSetId !== supersession.predecessorDispositionSetId) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "predecessor-not-current",
+          detail: "disposition successor predecessor is not current",
+          currentDispositionSetId: existing.currentDispositionSetId,
+        });
+      }
+      if (existingCurrent.errandFixResponse !== null || existingCurrent.deliveryMemberFixResponse !== null) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "fix-consumed",
+          detail: "disposition successor predecessor fix was already consumed",
+        });
+      }
+      if (lineage !== null && candidateReviewResponses(lineage.record).some((response) =>
+        response.dispositionId === supersession.predecessorDispositionSetId)) {
+        return supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "fix-consumed",
+          detail: "disposition successor predecessor fix was already consumed",
+        });
+      }
+      const historical = existing.approvedDispositionLineage.map((node) => (
+        node.approvedDisposition.dispositionSet.dispositionSetId === supersession.predecessorDispositionSetId
+          ? { ...node, successorDispositionSetId }
+          : node
+      ));
+      record = ApprovedDispositionRecordSchema.parse({
+        ...existing,
+        currentDispositionSetId: successorDispositionSetId,
+        approvedDispositionLineage: [...historical, {
+          ...initialNode,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+        }],
+      });
+    }
+  }
+  const hostedSupersessionInput = supersession === undefined || source.hostedAttempt === undefined
+    ? undefined
+    : {
+        operationId: source.hostedAttempt.operationId,
+        attemptId: source.hostedAttempt.attemptId,
+        predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+        successorDispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        findingDispositions: projectHostedDispositionBindings(source, dispositions),
+      };
+  const hostedPreflight = hostedSupersessionInput === undefined
+    ? undefined
+    : await dependencies.preflightHostedDisposition(hostedSupersessionInput);
+  if (supersession !== undefined && hostedPreflight?.state === "refused") {
+    return supersessionRefusalEnvelope({
+      operationId: source.operationId,
+      predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+      reason: hostedPreflight.reason,
+      detail: hostedPreflight.detail,
+    });
   }
   const appended = await dependencies.dispositionStore.appendDispositionRecord(record);
-  if (source.hostedAttempt !== undefined && !source.hostedAttempt.settled) {
+  const policyContinuation = {
+    policyRequest: request.policyRequest,
+    policy: await dependencies.resolvePolicy(request.policyRequest),
+  };
+  if (supersession !== undefined) {
+    await dependencies.invalidateConditionalNextPass({
+      lane: request.policyRequest.lane,
+      repositoryId: source.repositoryId,
+      headSha: source.target.headSha,
+      lineage: source.result.admission.lineage,
+      producerId: source.operationId,
+      dispositionSetId: supersession.predecessorDispositionSetId,
+      successorDispositionSetId: dispositions.dispositionSet.dispositionSetId,
+    });
+  }
+  const capturedConditionalAuthorization = conditionalAuthorization === undefined
+    ? undefined
+    : await dependencies.captureConditionalNextPass({
+        lane: request.policyRequest.lane,
+        repositoryId: source.repositoryId,
+        headSha: source.target.headSha,
+        lineage: source.result.admission.lineage,
+        producerId: source.operationId,
+        dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        authorizedBy: conditionalAuthorization.authorizedBy,
+        exhaustedPassCount: conditionalAuthorization.exhaustedPassCount,
+        nextPass: conditionalAuthorization.nextPass,
+      });
+  const hostedSupersessionResolution = hostedSupersessionInput === undefined
+    ? undefined
+    : await dependencies.supersedeHostedDisposition(hostedSupersessionInput);
+  if (supersession !== undefined && hostedSupersessionResolution?.state === "refused") {
+    return supersessionRefusalEnvelope({
+      operationId: source.operationId,
+      predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+      reason: hostedSupersessionResolution.reason,
+      detail: hostedSupersessionResolution.detail,
+    });
+  }
+  const hostedSupersession = hostedSupersessionResolution?.state === "advanced"
+    ? hostedSupersessionResolution
+    : undefined;
+  if (supersession === undefined && source.hostedAttempt !== undefined && !source.hostedAttempt.settled) {
     await dependencies.bindHostedDisposition({
       operationId: source.hostedAttempt.operationId,
       attemptId: source.hostedAttempt.attemptId,
       dispositionSetId: dispositions.dispositionSet.dispositionSetId,
       findingDispositions: projectHostedDispositionBindings(source, dispositions),
     });
-  } else if (plan.state === "ready-to-close") {
+  }
+  const supersessionResult = supersession === undefined
+    ? undefined
+    : {
+        status: supersessionReplay ? "replayed" as const : "published" as const,
+        predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+        successorDispositionSetId: dispositions.dispositionSet.dispositionSetId,
+        carriedFindingIds: [...hostedSupersession?.carriedFindingIds ?? []],
+        reopenedFindingIds: [...hostedSupersession?.reopenedFindingIds ?? []],
+      };
+  if (source.hostedAttempt === undefined && plan.state === "ready-to-close") {
     await dependencies.settleLaneFindings({
       lane: source.frontlineOutcome === undefined ? "standard" : "frontline",
       repositoryId: source.repositoryId,
@@ -1198,8 +1572,12 @@ export async function respondToReviewCommand(
       attemptId: source.operationId,
     });
   }
-  const alreadySettled = existing !== null;
-  const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
+  const alreadySettled = supersession === undefined ? existing !== null : supersessionReplay;
+  const hostedSettlementPlan = projectHostedSettlementPlan(
+    source,
+    dispositions,
+    hostedSupersession?.carriedFindingIds,
+  );
   if (plan.state === "ready-to-fix" && deliveryMember !== null) {
     const repository = source.hostedAttempt?.target.repository ?? source.deliveryAdmission?.target.repository;
     if (repository === undefined || plan.fixAuthorization === null) {
@@ -1220,11 +1598,40 @@ export async function respondToReviewCommand(
         fixAuthorization: plan.fixAuthorization,
         deliveryMember,
         dispositionReportText,
+        ...policyContinuation,
+        ...(supersessionResult === undefined ? {} : { supersession: supersessionResult }),
+        ...(capturedConditionalAuthorization === undefined
+          ? {}
+          : { conditionalPassAuthorizationId: capturedConditionalAuthorization.authorizationId }),
         correctionAction: {
           argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
           input: { repository, remote: "origin" },
         },
         ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
+      },
+    });
+  }
+  if (plan.state === "ready-to-close"
+    && source.hostedAttempt !== undefined
+    && (!source.hostedAttempt.settled || (hostedSupersession?.reopenedFindingIds.length ?? 0) > 0)
+    && hostedSettlementPlan !== undefined
+    && hostedSettlementPlan.beforeFixFindingIds.length > 0) {
+    return RespondEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-respond",
+      diagnostics: [],
+      state: "ready-to-settle",
+      nextAction: "settle-hosted",
+      payload: {
+        operationId: source.operationId,
+        dispositionRecordRef: appended.dispositionRecordRef,
+        dispositionReportText,
+        ...policyContinuation,
+        ...(supersessionResult === undefined ? {} : { supersession: supersessionResult }),
+        ...(capturedConditionalAuthorization === undefined
+          ? {}
+          : { conditionalPassAuthorizationId: capturedConditionalAuthorization.authorizationId }),
+        hostedSettlementPlan,
       },
     });
   }
@@ -1238,6 +1645,11 @@ export async function respondToReviewCommand(
       operationId: source.operationId,
       dispositionRecordRef: appended.dispositionRecordRef,
       dispositionReportText,
+      ...policyContinuation,
+      ...(supersessionResult === undefined ? {} : { supersession: supersessionResult }),
+      ...(capturedConditionalAuthorization === undefined
+        ? {}
+        : { conditionalPassAuthorizationId: capturedConditionalAuthorization.authorizationId }),
       ...(plan.fixAuthorization === null ? {} : { fixAuthorization: plan.fixAuthorization }),
       ...(plan.fixAuthorization === null
         ? {}

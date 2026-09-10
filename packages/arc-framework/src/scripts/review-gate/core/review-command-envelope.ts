@@ -21,7 +21,10 @@ import {
   FrontlineUnavailableRetryReasonSchema,
 } from "../policy/frontline-outcome.js";
 import { FrontlineFollowUpAdviceSchema } from "../policy/frontline-follow-up.js";
-import { ReviewResolveEnvelopeSchema } from "../policy/review-policy-driver.js";
+import {
+  ReviewPolicyCommandRequestSchema,
+  ReviewResolveEnvelopeSchema,
+} from "../policy/review-policy-driver.js";
 import { PrePublicationReviewEnvelopeSchema } from "../policy/pre-publication-procedure.js";
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
@@ -666,11 +669,41 @@ const HostedSettlementPlanSchema = z.strictObject({
   beforeFixFindingIds: z.array(IdentifierSchema),
   afterFixFindingIds: z.array(IdentifierSchema),
 });
+const DispositionSupersessionResultSchema = z.strictObject({
+  status: z.enum(["published", "replayed"]),
+  predecessorDispositionSetId: CanonicalDigestSchema,
+  successorDispositionSetId: CanonicalDigestSchema,
+  carriedFindingIds: z.array(IdentifierSchema),
+  reopenedFindingIds: z.array(IdentifierSchema),
+});
+const DispositionSupersessionRefusalPayloadSchema = z.strictObject({
+  operationId: IdentifierSchema,
+  predecessorDispositionSetId: CanonicalDigestSchema,
+  reason: z.enum([
+    "head-moved",
+    "unexpected-dirty-paths",
+    "predecessor-unavailable",
+    "predecessor-not-current",
+    "fix-consumed",
+    "dirty-paths-without-fix-authorization",
+    "successor-conflict",
+    "hosted-settlement-conflict",
+  ]),
+  detail: z.string().trim().min(1),
+  attemptedTarget: ReviewTargetSchema.optional(),
+  currentHeadSha: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u).optional(),
+  unexpectedPaths: z.array(z.string().trim().min(1)).optional(),
+  currentDispositionSetId: CanonicalDigestSchema.optional(),
+});
 
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
   dispositionReportText: z.string().trim().min(1),
+  policyRequest: ReviewPolicyCommandRequestSchema.optional(),
+  policy: ReviewResolveEnvelopeSchema.optional(),
+  conditionalPassAuthorizationId: CanonicalDigestSchema.optional(),
+  supersession: DispositionSupersessionResultSchema.optional(),
   frontlineFollowUp: FrontlineFollowUpAdviceSchema.optional(),
   hostedSettlementPlan: HostedSettlementPlanSchema.optional(),
 });
@@ -698,6 +731,10 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       operationId: IdentifierSchema,
       proposal: ProposedDispositionSetSchema,
+      supersession: z.strictObject({
+        predecessorDispositionSetId: CanonicalDigestSchema,
+        expectedFixPaths: z.array(z.string().trim().min(1)),
+      }).optional(),
       dispositionReportText: z.string().trim().min(1),
     }),
   ),
@@ -721,6 +758,21 @@ export const RespondEnvelopeSchema = z.union([
       deliveryMember: DeliveryReviewMemberVehicleSchema,
       correctionAction: DeliveryCorrectionActionSchema,
     }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "ready-to-settle",
+    "settle-hosted",
+    z.strictObject({
+      ...DispositionPayloadSchema.shape,
+      hostedSettlementPlan: HostedSettlementPlanSchema,
+    }),
+  ),
+  envelopeVariant(
+    "review-respond",
+    "supersession-refused",
+    "stop",
+    DispositionSupersessionRefusalPayloadSchema,
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),
   envelopeVariant("review-respond", "already-settled", "reduce", DispositionPayloadSchema),

@@ -6,6 +6,7 @@ import { canonicalize } from "../../lib/kernel/index.js";
 import { validateReviewReceipt } from "./core/gate-contract-v2.js";
 import type { ReviewReceiptV2 } from "./core/gate-contract-v2-schema.js";
 import {
+  computeConditionalPassAuthorizationId,
   createHostedSealedResult,
   LaneProgressStateSchema,
   type LocalReviewState,
@@ -1195,21 +1196,42 @@ export interface HostedDispositionSupersessionResult {
   readonly reopenedFindingIds: readonly string[];
 }
 
-/** Advance one hosted attempt from an approved disposition set to its exact successor. */
+export interface HostedDispositionSupersessionInput {
+  readonly operationId: string;
+  readonly attemptId: string;
+  readonly predecessorDispositionSetId: string;
+  readonly successorDispositionSetId: string;
+  readonly findingDispositions: readonly {
+    readonly findingId: string;
+    readonly disposition: "fix" | "defer" | "reject";
+    readonly channelAction: "record-only" | "reply-and-resolve";
+  }[];
+  readonly now: string;
+}
+
+/** Typed hosted-settlement refusal that a response successor can expose without masking I/O failures. */
+export class HostedDispositionSupersessionError extends Error {
+  readonly code = "hosted-settlement-conflict" as const;
+
+  constructor(
+    readonly reason: "ambiguous-settlement" | "conflicting-successor",
+    message: string,
+  ) {
+    super(message);
+    this.name = "HostedDispositionSupersessionError";
+  }
+}
+
+/**
+ * Advance one hosted attempt from an approved disposition set to its exact successor.
+ *
+ * @param store - Versioned lane-progress owner to update.
+ * @param input - Exact predecessor, successor, and approved finding-action bindings.
+ * @returns Updated progress plus settlement carry/reopen projection.
+ */
 export async function supersedeHostedAttemptDisposition(
   store: ReviewOperationStateStore,
-  input: {
-    operationId: string;
-    attemptId: string;
-    predecessorDispositionSetId: string;
-    successorDispositionSetId: string;
-    findingDispositions: readonly {
-      findingId: string;
-      disposition: "fix" | "defer" | "reject";
-      channelAction: "record-only" | "reply-and-resolve";
-    }[];
-    now: string;
-  },
+  input: HostedDispositionSupersessionInput,
 ): Promise<HostedDispositionSupersessionResult> {
   const { version, state } = await store.readOperation(input.operationId);
   if (state === null || state.kind !== "lane-progress" || state.lane !== "standard") {
@@ -1238,7 +1260,10 @@ export async function supersedeHostedAttemptDisposition(
     ? hosted.settledFindingIds
     : predecessorEvidence.map(({ findingId }) => findingId);
   if (predecessorSettledFindingIds.some((findingId) => !predecessorEvidenceByFindingId.has(findingId))) {
-    throw new Error("hosted predecessor settlement cannot be attributed exactly");
+    throw new HostedDispositionSupersessionError(
+      "ambiguous-settlement",
+      "hosted predecessor settlement cannot be attributed exactly",
+    );
   }
   const carriedEvidence = predecessorSettledFindingIds.flatMap((findingId) => {
     const evidence = predecessorEvidenceByFindingId.get(findingId);
@@ -1270,17 +1295,26 @@ export async function supersedeHostedAttemptDisposition(
       || canonicalize(successorNode.findingActions) !== canonicalize(input.findingDispositions)
       || canonicalize(currentEvidence) !== canonicalize(carriedEvidence)
       || canonicalize([...hosted.settledFindingIds].sort()) !== canonicalize(carriedFindingIds)) {
-      throw new Error("hosted disposition successor replay conflicts with recorded progress");
+      throw new HostedDispositionSupersessionError(
+        "conflicting-successor",
+        "hosted disposition successor replay conflicts with recorded progress",
+      );
     }
     return { progress: state, carriedFindingIds, reopenedFindingIds };
   }
   if (hosted.dispositionSetId !== input.predecessorDispositionSetId) {
-    throw new Error("hosted disposition successor does not advance the current predecessor");
+    throw new HostedDispositionSupersessionError(
+      "conflicting-successor",
+      "hosted disposition successor does not advance the current predecessor",
+    );
   }
   const predecessorNode = hosted.dispositionSetLineage.at(-1);
   if (predecessorNode?.dispositionSetId !== input.predecessorDispositionSetId
     || predecessorNode.successorDispositionSetId !== null) {
-    throw new Error("hosted disposition predecessor is stale or already superseded");
+    throw new HostedDispositionSupersessionError(
+      "conflicting-successor",
+      "hosted disposition predecessor is stale or already superseded",
+    );
   }
   const dispositionSetLineage = [
     ...hosted.dispositionSetLineage.slice(0, -1),
@@ -1309,6 +1343,174 @@ export async function supersedeHostedAttemptDisposition(
   const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(progress, version);
   return { progress, carriedFindingIds, reopenedFindingIds };
+}
+
+/**
+ * Validate and project a hosted disposition successor without publishing it.
+ *
+ * @param store - Versioned lane-progress owner to inspect.
+ * @param input - Exact predecessor, successor, and approved finding-action bindings.
+ * @returns The same carry/reopen projection that publication would produce.
+ */
+export async function inspectHostedAttemptDispositionSupersession(
+  store: ReviewOperationStateStore,
+  input: HostedDispositionSupersessionInput,
+): Promise<HostedDispositionSupersessionResult> {
+  return supersedeHostedAttemptDisposition({
+    readOperation: (operationId) => store.readOperation(operationId),
+    publishOperation: (_state, expectedVersion) => Promise.resolve({ version: expectedVersion + 1 }),
+  }, input);
+}
+
+/**
+ * Persist one explicit next-pass authorization beside its terminal producer.
+ *
+ * @param store - Versioned lane-progress owner to update.
+ * @param input - Authorizer, producer, lineage, and named-pass bindings.
+ * @returns Updated progress and the stable authorization identity.
+ */
+export async function captureConditionalNextPassAuthorization(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    authorizedBy: string;
+    exhaustedPassCount: number;
+    nextPass: number;
+    now: string;
+  },
+): Promise<{ progress: LaneProgressState; authorizationId: string }> {
+  const operationId = laneProgressOperationId(input);
+  const authorizationId = computeConditionalPassAuthorizationId({
+    authorizedBy: input.authorizedBy,
+    repositoryId: input.repositoryId,
+    lane: input.lane,
+    lineage: input.lineage,
+    producerId: input.producerId,
+    dispositionSetId: input.dispositionSetId,
+    originatingHeadSha: input.headSha,
+    exhaustedPassCount: input.exhaustedPassCount,
+    nextPass: input.nextPass,
+  });
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const { version, state } = await store.readOperation(operationId);
+    if (state === null
+      || state.kind !== "lane-progress"
+      || state.lane !== input.lane
+      || state.repositoryId !== input.repositoryId
+      || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+      throw new Error("conditional pass authorization lane owner is unavailable");
+    }
+    const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
+    const attempt = state.attempts[index];
+    if (attempt === undefined
+      || !attempt.terminalProducer
+      || attempt.headSha !== input.headSha
+      || attempt.logicalPass !== input.exhaustedPassCount
+      || input.nextPass !== input.exhaustedPassCount + 1) {
+      throw new Error("conditional pass authorization does not match its terminal producer");
+    }
+    const authorization = {
+      schemaVersion: 1 as const,
+      authorizationId,
+      status: "pending" as const,
+      authorizedBy: input.authorizedBy,
+      repositoryId: input.repositoryId,
+      lane: input.lane,
+      lineage: input.lineage,
+      producerId: input.producerId,
+      dispositionSetId: input.dispositionSetId,
+      originatingHeadSha: input.headSha,
+      exhaustedPassCount: input.exhaustedPassCount,
+      nextPass: input.nextPass,
+      capturedAt: input.now,
+    };
+    if (attempt.conditionalPassAuthorization !== undefined) {
+      const replay = { ...authorization, capturedAt: attempt.conditionalPassAuthorization.capturedAt };
+      if (canonicalize(attempt.conditionalPassAuthorization) !== canonicalize(replay)) {
+        throw new Error("conditional pass authorization replay conflicts with recorded authority");
+      }
+      return { progress: state, authorizationId };
+    }
+    const attempts = [...state.attempts];
+    attempts[index] = { ...attempt, conditionalPassAuthorization: authorization };
+    const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
+    try {
+      await store.publishOperation(progress, version);
+      return { progress, authorizationId };
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  throw new Error("conditional pass authorization exceeded version-conflict retry attempts");
+}
+
+/**
+ * Invalidate a pending response-gated pass authorization when its approved set is superseded.
+ *
+ * @param store - Versioned lane-progress owner to update.
+ * @param input - Superseded authorization binding and successor disposition identity.
+ * @returns Updated progress, unchanged progress when no capture exists, or null when the lane owner is absent.
+ */
+export async function invalidateConditionalNextPassAuthorization(
+  store: ReviewOperationStateStore,
+  input: {
+    lane: LaneProgressState["lane"];
+    repositoryId: string;
+    headSha: string;
+    lineage: LaneSubjectLineage;
+    producerId: string;
+    dispositionSetId: string;
+    successorDispositionSetId: string;
+    now: string;
+  },
+): Promise<LaneProgressState | null> {
+  const operationId = laneProgressOperationId(input);
+  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
+    const { version, state } = await store.readOperation(operationId);
+    if (state === null
+      || state.kind !== "lane-progress"
+      || state.lane !== input.lane
+      || state.repositoryId !== input.repositoryId
+      || canonicalize(state.lineage) !== canonicalize(input.lineage)) return null;
+    const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
+    const attempt = state.attempts[index];
+    const authorization = attempt?.conditionalPassAuthorization;
+    if (attempt === undefined || authorization === undefined) return state;
+    if (authorization.producerId !== input.producerId
+      || authorization.dispositionSetId !== input.dispositionSetId) {
+      throw new Error("conditional pass authorization does not match the superseded disposition");
+    }
+    if (authorization.status === "invalidated") {
+      if (authorization.successorDispositionSetId !== input.successorDispositionSetId) {
+        throw new Error("conditional pass authorization invalidation replay conflicts");
+      }
+      return state;
+    }
+    const attempts = [...state.attempts];
+    attempts[index] = {
+      ...attempt,
+      conditionalPassAuthorization: {
+        ...authorization,
+        status: "invalidated",
+        reason: "superseded",
+        successorDispositionSetId: input.successorDispositionSetId,
+        invalidatedAt: input.now,
+      },
+    };
+    const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
+    try {
+      await store.publishOperation(progress, version);
+      return progress;
+    } catch (error) {
+      if (!isReviewVersionConflict(error)) throw error;
+    }
+  }
+  throw new Error("conditional pass authorization invalidation exceeded version-conflict retry attempts");
 }
 
 /**

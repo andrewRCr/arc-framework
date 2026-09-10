@@ -1,5 +1,7 @@
 /** Production assembly for approved review dispositions. */
 
+import { readFile } from "node:fs/promises";
+
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   projectTransientInFlightRead,
@@ -31,20 +33,33 @@ import {
 } from "../hosts/local/disposition-record-store.js";
 import {
   bindHostedAttemptDisposition,
+  captureConditionalNextPassAuthorization,
+  HostedDispositionSupersessionError,
+  inspectHostedAttemptDispositionSupersession,
+  invalidateConditionalNextPassAuthorization,
   settleLaneAttempt,
+  supersedeHostedAttemptDisposition,
 } from "../lane-progress.js";
 import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
-import { composeDeliveryMemberTarget } from "../hosts/local/repository-target.js";
+import {
+  composeDeliveryMemberTarget,
+  confirmLocalReviewCorrectionTarget,
+} from "../hosts/local/repository-target.js";
+import { withRepositoryReviewOperationLock } from "../hosts/local/git-common-state.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
 } from "../../../handlers/candidate-mutation-owner.js";
+import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
+import { resolveEvidenceBoundReviewPolicy } from "../policy/review-policy-evidence.js";
+import { createLocalFrontlineSourcePreferenceReader } from
+  "../hosts/local/frontline-source-preferences.js";
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
 export function createRespondDependencies(input: {
@@ -80,9 +95,22 @@ export function createRespondDependencies(input: {
     throw new Error("Candidate mutation is not owned by the entering checkout.");
   };
   return {
+    withOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
+      input.exec,
+      input.cwd,
+      operationId,
+      10_000,
+      action,
+    ),
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
     confirmTarget: (target) => prepare.confirmTarget(target),
+    confirmCorrectionTarget: (target, expectedFixPaths) => confirmLocalReviewCorrectionTarget({
+      exec: input.exec,
+      cwd: input.cwd,
+      attemptedTarget: target,
+      expectedFixPaths,
+    }),
     resolveLocalActors: async (evaluatorIdentity, admittedAuthorIdentity) => {
       try {
         const { authority } = await prepare.resolveAuthority(evaluatorIdentity);
@@ -265,6 +293,82 @@ export function createRespondDependencies(input: {
         ...binding,
         now: new Date().toISOString(),
       });
+    },
+    resolvePolicy: async (request) => {
+      const configured = await resolveConfiguredLanePolicy({
+        lane: request.lane,
+        settings: await settings(),
+        preferences: createLocalFrontlineSourcePreferenceReader({
+          cwd: input.cwd,
+          exec: input.exec,
+          readFile: (path) => readFile(path, "utf8"),
+        }),
+      });
+      return resolveEvidenceBoundReviewPolicy(request, {
+        ...configured,
+        resultReader: createRepositoryReviewResultReader(publisher),
+        dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+        confirmTarget: async (attemptedTarget) => {
+          const confirmation = await prepare.confirmTarget(attemptedTarget);
+          if (confirmation.state !== "current") {
+            throw new Error("review producer target does not match the current exact target");
+          }
+          return confirmation.target;
+        },
+      });
+    },
+    captureConditionalNextPass: async (authorization) => {
+      const captured = await captureConditionalNextPassAuthorization(prepare.operationStore, {
+        ...authorization,
+        now: new Date().toISOString(),
+      });
+      return { authorizationId: captured.authorizationId };
+    },
+    invalidateConditionalNextPass: async (authorization) => {
+      await invalidateConditionalNextPassAuthorization(prepare.operationStore, {
+        ...authorization,
+        now: new Date().toISOString(),
+      });
+    },
+    preflightHostedDisposition: async (supersession) => {
+      try {
+        await inspectHostedAttemptDispositionSupersession(prepare.operationStore, {
+          ...supersession,
+          now: new Date().toISOString(),
+        });
+        return { state: "ready" as const };
+      } catch (error) {
+        if (error instanceof HostedDispositionSupersessionError) {
+          return {
+            state: "refused" as const,
+            reason: "hosted-settlement-conflict" as const,
+            detail: error.message,
+          };
+        }
+        throw error;
+      }
+    },
+    supersedeHostedDisposition: async (supersession) => {
+      try {
+        const result = await supersedeHostedAttemptDisposition(prepare.operationStore, {
+          ...supersession,
+          now: new Date().toISOString(),
+        });
+        return {
+          state: "advanced" as const,
+          carriedFindingIds: result.carriedFindingIds,
+          reopenedFindingIds: result.reopenedFindingIds,
+        };
+      } catch (error) {
+        if (error instanceof HostedDispositionSupersessionError) {
+          return {
+            state: "refused" as const,
+            reason: "hosted-settlement-conflict" as const,
+            detail: error.message,
+          };
+        }
+        throw error;
+      }
     },
   };
 }
