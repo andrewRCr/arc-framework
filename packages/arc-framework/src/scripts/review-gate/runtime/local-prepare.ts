@@ -14,6 +14,7 @@ import { projectStandardReviewObligation } from "../policy/standard-review-proje
 import type { StandardReviewObligationProjection } from
   "../policy/standard-review-projection-schema.js";
 import {
+  projectReviewPolicyAttempt,
   ReviewLaneJudgmentSchema,
   type ReviewLaneJudgment,
   type ReviewPolicyCommandRequest,
@@ -505,13 +506,7 @@ export async function prepareLocalReview(
       || attempt.local === undefined
       || attempt.sourceId !== dependencies.laneSourceId
       || attempt.logicalPass !== retryingLocalFailure.logicalPass
-    )).map((attempt) => ({
-      sourceId: attempt.sourceId,
-      outcome: attempt.outcome,
-      ...(attempt.chunkSeriesComplete === undefined
-        ? {}
-        : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
-    }));
+    )).map(projectReviewPolicyAttempt);
     const logicalPass = request.deliveryAdmission?.pass ?? await dependencies.validatePolicyAdmission({
       repositoryId,
       target,

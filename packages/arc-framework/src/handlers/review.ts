@@ -135,11 +135,13 @@ import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import {
   assertStandardReviewExecutionAdmission,
+  projectReviewPolicyAttempt,
   ReviewPolicyCommandRequestSchema,
   ReviewResolveEnvelopeSchema,
-  resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
 } from "../scripts/review-gate/policy/review-policy-driver.js";
+import { resolveEvidenceBoundReviewPolicy } from
+  "../scripts/review-gate/policy/review-policy-evidence.js";
 import {
   evaluateReviewReadiness,
   ReviewReadinessEnvelopeSchema,
@@ -227,6 +229,8 @@ import { createHostedReservationDischargeReader } from
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
+import { createRepositoryReviewResultReader } from
+  "../scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import {
   HostedSettleEnvelopeSchema,
   HostedSettleResultSchema,
@@ -283,6 +287,7 @@ import {
 import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
 import {
   composeDeliveryMemberTarget,
+  confirmLocalReviewTarget,
   deriveLocalReviewTarget,
   deriveLocalReviewTargetFromCoordinates,
 } from "../scripts/review-gate/hosts/local/repository-target.js";
@@ -1408,7 +1413,24 @@ async function resolveConfiguredReviewPolicy(
       readFile: (path) => readFile(path, "utf8"),
     }),
   });
-  return resolveReviewPolicy({ ...request, sources, maxPasses });
+  const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+  return resolveEvidenceBoundReviewPolicy(request, {
+    sources,
+    maxPasses,
+    resultReader: createRepositoryReviewResultReader(publisher),
+    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    confirmTarget: async (attemptedTarget) => {
+      const confirmation = await confirmLocalReviewTarget({
+        exec: gitExec,
+        cwd: root,
+        attemptedTarget,
+      });
+      if (confirmation.state !== "current") {
+        throw new Error("review producer target does not match the current exact target");
+      }
+      return confirmation.target;
+    },
+  });
 }
 
 export interface ReviewReadinessHandlerDependencies {
@@ -2795,13 +2817,8 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         currentAttempts.forEach((attempt, index) => {
           if (attempt.outcome === "settled-findings") lastSettledIndex = index;
         });
-        const attempts = currentAttempts.slice(lastSettledIndex + 1).map((attempt) => ({
-          sourceId: attempt.sourceId,
-          outcome: attempt.outcome,
-          ...(attempt.chunkSeriesComplete === undefined
-            ? {}
-            : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
-        }));
+        const attempts = currentAttempts.slice(lastSettledIndex + 1)
+          .map(projectReviewPolicyAttempt);
         const admission = assertStandardReviewExecutionAdmission({
           target: request.target,
           frontlineActive: false,

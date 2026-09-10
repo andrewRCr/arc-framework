@@ -8,7 +8,15 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
+import { ApprovedDispositionRecordSchema } from
+  "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  approveDispositionState,
+  createDispositionSet,
+  proposeDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import {
   applyCarriedOwnerAcceptedTerminus,
   applyCarriedStandardReviewReservation,
@@ -21,11 +29,22 @@ import {
   type TargetRead,
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
-import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ReviewResult } from
+  "../../../../../src/scripts/review-gate/core/review-result.js";
+import { bindReviewSourceReference } from
+  "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { selectPrePublicationReservationTarget } from
   "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { resolveReviewRouting } from
+  "../../../../../src/scripts/review-gate/policy/routing.js";
+import { projectStandardReviewObligation } from
+  "../../../../../src/scripts/review-gate/policy/standard-review-projection.js";
 
 const HEAD = "a".repeat(40);
 const PREPUBLICATION_HEAD = "b".repeat(40);
@@ -40,6 +59,7 @@ const OWNER_TERMINUS = {
   acceptedBy: "andrew",
   completedPasses: 5,
 };
+const digest = (value: string): string => canonicalDigest({ value });
 
 const currentCandidate: CandidateRead = {
   status: "current",
@@ -105,10 +125,208 @@ function deliveryMemberTarget(input: {
   };
 }
 
+function frontlineCleanResult(
+  producerId: string,
+  member: ReturnType<typeof deliveryMemberTarget>,
+): ReviewResult {
+  const source = {
+    sourceId: "coderabbit-cli",
+    kind: "command" as const,
+    executable: "coderabbit",
+    argv: ["review"],
+  };
+  const outcome = {
+    schemaVersion: 1 as const,
+    semanticsVersion: "frontline-review/v1" as const,
+    source,
+    target: member.target,
+    pass: 1,
+    maxPasses: 2,
+    outcome: "clean" as const,
+    findings: [],
+    reason: null,
+  };
+  return {
+    kind: "frontline",
+    producerId,
+    repositoryId: member.target.repositoryId,
+    target: member.target,
+    sourceIdentity: source.sourceId,
+    originalOutcome: "clean",
+    findings: [],
+    resultDigest: digest(producerId),
+    admission: {
+      lineage: {
+        kind: "delivery-member",
+        planId: member.vehicle.planId,
+        deliverableId: member.vehicle.deliverableId,
+        workUnitId: member.vehicle.workUnitId,
+      },
+      logicalPass: 1,
+      retryGeneration: 0,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      policyVersion: digest("frontline-policy"),
+    },
+    outcomeRef: `frontline/${producerId}`,
+    sourceBindingId: digest(source.sourceId),
+    executableIdentity: null,
+    outcome,
+  };
+}
+
+const defaultStandardReview = projectStandardReviewObligation(resolveReviewRouting({
+  schemaVersion: 1,
+  changeSetState: "unknown",
+  contentKind: "code-bearing",
+  reviewRisk: "routine",
+  changeDeterminacy: "ordinary",
+  ownership: "self",
+  surfaceAuthority: "ordinary",
+  assurance: resolvedAssurance.assurance,
+  activity: resolvedAssurance.activity,
+}).decision);
+
+function hostedFindingsResult(
+  producerId: string,
+  pullRequest: number,
+): ReviewResult {
+  if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
+  const requirement = createReviewRequirement({
+    target: immutableTarget.target,
+    projection: defaultStandardReview,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("expected requirement");
+  return {
+    kind: "hosted",
+    producerId,
+    repositoryId: immutableTarget.target.repositoryId,
+    target: immutableTarget.target,
+    sourceIdentity: "codex-pr",
+    originalOutcome: "findings",
+    findings: [{
+      findingId: "finding-1",
+      severity: "major",
+      locus: "src/example.ts:1",
+      evidenceUrlOrId: "hosted:finding-1",
+      sourceOrdinal: 1,
+    }],
+    resultDigest: digest(`${producerId}-result`),
+    admission: {
+      lineage: { kind: "candidate", candidateId: CANDIDATE_ID },
+      logicalPass: 1,
+      retryGeneration: 0,
+      requestedCoverage: "complete",
+      effectiveCoverage: "complete",
+      policyVersion: requirement.policyVersion,
+    },
+    laneOperationId: "lane-progress-standard",
+    hostedTarget: {
+      repository: "arc-framework/example",
+      pullRequest,
+      headSha: HEAD,
+    },
+    requirement,
+    hostSettlementFindingIds: [],
+    noHostSettlementFindingIds: [],
+    settled: false,
+  };
+}
+
+function approvedRecord(result: ReviewResult) {
+  if (result.kind !== "hosted") throw new Error("expected hosted result");
+  const finding = result.findings[0];
+  if (finding === undefined) throw new Error("expected finding");
+  const set = createDispositionSet({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    targetId: result.target.targetId,
+    producerId: result.producerId,
+    resultDigest: result.resultDigest,
+    policyVersion: result.admission.policyVersion,
+    rubricVersion: result.requirement.rubricVersion,
+    rubricDigest: result.requirement.rubricDigest,
+    proposedBy: "arc-cli/0.1.0",
+    proposedVerification: "full",
+    findings: [{
+      findingId: finding.findingId,
+      sourceIdentity: result.sourceIdentity,
+      locus: finding.locus,
+      verificationRefs: [`source:${finding.locus}`],
+      reportedSeverity: finding.severity,
+      sourceVerification: "verified",
+      verifiedSeverity: "minor",
+      rationale: "The source check established this disposition.",
+      recommendation: "Record the approved response.",
+      disposition: "fix",
+      openQuestions: [],
+    }],
+  });
+  return ApprovedDispositionRecordSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-advisory/v1",
+    repositoryId: result.repositoryId,
+    operationId: result.producerId,
+    candidate: null,
+    errand: null,
+    deliveryMember: null,
+    source: {
+      kind: "hosted",
+      attemptRef: bindReviewSourceReference({
+        kind: "hosted",
+        operationId: result.laneOperationId,
+        durableRef: result.producerId,
+      }),
+      hostedResultId: result.resultDigest,
+    },
+    approvedDisposition: approveDispositionState({
+      proposed: proposeDispositionSet(set),
+      approvedBy: "andrew",
+      approvedAt: "2026-09-09T20:00:00Z",
+    }),
+    fixAuthorization: null,
+    errandFixResponse: null,
+    deliveryMemberFixResponse: null,
+  });
+}
+
+function evidenceDependencies(results: readonly ReviewResult[]) {
+  const dispositions = new Map(results.filter((result) => result.originalOutcome === "findings")
+    .map((result) => [result.producerId, approvedRecord(result)]));
+  return {
+    resultReader: {
+      readResult: vi.fn(async (producerId: string) => {
+        const result = results.find((candidate) => candidate.producerId === producerId);
+        if (result === undefined) throw new Error("missing result");
+        return result;
+      }),
+    },
+    dispositionStore: {
+      readDispositionRecord: vi.fn(async (producerId: string) => dispositions.get(producerId) ?? null),
+      appendDispositionRecord: vi.fn(async () => {
+        throw new Error("unexpected disposition write");
+      }),
+    },
+  };
+}
+
 function dependencies(
   overrides: Partial<PrePublicationCompositionDependencies> = {},
 ): PrePublicationCompositionDependencies {
   return {
+    resultReader: {
+      readResult: vi.fn(async () => {
+        throw new Error("unexpected review result read");
+      }),
+    },
+    dispositionStore: {
+      readDispositionRecord: vi.fn(async () => null),
+      appendDispositionRecord: vi.fn(async () => {
+        throw new Error("unexpected disposition write");
+      }),
+    },
     readCandidate: vi.fn(async () => currentCandidate),
     readAssurance: vi.fn(async () => resolvedAssurance),
     resolveTarget: vi.fn(async () => resolvedTarget),
@@ -289,6 +507,7 @@ describe("composePrePublicationReviewRequest", () => {
       headCharacter: "5",
     });
     const deriveImmutableTarget = vi.fn(async () => immutableTarget);
+    const firstResult = frontlineCleanResult("first-clean", first);
     const readLaneProgress = vi.fn(async (
       lane: ReviewLane,
       headSha: string,
@@ -301,6 +520,7 @@ describe("composePrePublicationReviewRequest", () => {
         }
       : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] });
     const deps = Object.assign(dependencies({
+      ...evidenceDependencies([firstResult]),
       deriveImmutableTarget,
       readAssurance: async () => ({
         ...resolvedAssurance,
@@ -354,7 +574,12 @@ describe("composePrePublicationReviewRequest", () => {
       baseCharacter: "3",
       headCharacter: "5",
     });
+    const results = [
+      frontlineCleanResult(`clean-${first.target.headSha}`, first),
+      frontlineCleanResult(`clean-${terminal.target.headSha}`, terminal),
+    ];
     const deps = Object.assign(dependencies({
+      ...evidenceDependencies(results),
       readAssurance: async () => ({
         ...resolvedAssurance,
         activity: { selfReview: true, frontlineReview: true },
@@ -416,7 +641,9 @@ describe("composePrePublicationReviewRequest", () => {
       baseCharacter: "3",
       headCharacter: "5",
     });
+    const firstResult = frontlineCleanResult("first-clean", first);
     const deps = Object.assign(dependencies({
+      ...evidenceDependencies([firstResult]),
       readAssurance: async () => ({
         ...resolvedAssurance,
         activity: { selfReview: true, frontlineReview: true },
@@ -826,6 +1053,7 @@ describe("composePrePublicationReviewRequest", () => {
   });
 
   it("replays each lane's durable progress rather than accepting caller-supplied attempts", async () => {
+    const result = hostedFindingsResult("attempt-1", 42);
     const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> =>
       lane === "standard"
         ? {
@@ -839,6 +1067,7 @@ describe("composePrePublicationReviewRequest", () => {
     const composition = await composePrePublicationReviewRequest(
       { workUnit: "example" },
       dependencies({
+        ...evidenceDependencies([result]),
         readLaneProgress,
         resolveTarget: async () => ({
           status: "resolved",
@@ -886,7 +1115,9 @@ describe("composePrePublicationReviewRequest", () => {
   it("refuses when recorded progress cannot compose against the current target", async () => {
     // A hosted attempt is recorded at this head, but the change request is no longer open — the
     // two reads disagree, and the request schema is what detects it.
+    const result = hostedFindingsResult("attempt-1", 42);
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+      ...evidenceDependencies([result]),
       readLaneProgress: async (lane) => lane === "standard"
         ? {
             status: "recorded",

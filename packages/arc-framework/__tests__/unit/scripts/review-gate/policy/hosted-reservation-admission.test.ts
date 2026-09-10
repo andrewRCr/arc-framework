@@ -550,7 +550,11 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 1,
       completePasses: 1,
-      attempts: [{ sourceId: "coderabbit-pr", outcome: "clean" }],
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        reviewOperationId: "attempt-upgraded",
+      }],
       attemptHistory: [expect.objectContaining({
         updatedAt: "2026-08-27T12:00:00.000Z",
         headSha: deliveryVehicle.head,
@@ -991,6 +995,7 @@ describe("hosted reservation admission", () => {
       progress: {
         completedPasses: 0,
         attempts: [{
+          attemptId: "hosted/coderabbit-attempt",
           headSha: "d".repeat(40),
           sourceId: "coderabbit-pr",
           outcome: "rate-limited",

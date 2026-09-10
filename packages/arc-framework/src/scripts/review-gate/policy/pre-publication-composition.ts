@@ -32,8 +32,11 @@ import { resolveChangeRequest } from "../change-request.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
+import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../hosts/local/frontline-source-preferences.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import {
   createLocalReviewMethodFilePort,
   createLocalReviewRubricBindingPort,
@@ -224,6 +227,8 @@ export function createPrePublicationCompositionDependencies(input: {
   };
 
   return {
+    resultReader: createRepositoryReviewResultReader(publisher),
+    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
       const record = await readCandidateRecord(input.cwd, name);

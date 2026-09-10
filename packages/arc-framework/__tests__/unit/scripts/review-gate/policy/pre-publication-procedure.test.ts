@@ -557,7 +557,17 @@ describe("projectPrePublicationReview", () => {
       frontline: {
         ...frontline,
         completedPasses: 1,
-        attempts: [{ sourceId: "coderabbit-cli", outcome: "clean" }],
+        attempts: [{
+          sourceId: "coderabbit-cli",
+          outcome: "clean",
+          reviewOperationId: "frontline/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "frontline/attempt-1",
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          coverageAdequate: true,
+        },
       },
       standard: {
         ...standard,
@@ -701,7 +711,17 @@ describe("projectPrePublicationReview", () => {
         ...(base.standard as Record<string, unknown>),
         sources: ["delegated-agent", "codex-pr"],
         completedPasses: 1,
-        attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
+        attempts: [{
+          sourceId: "delegated-agent",
+          outcome: "clean",
+          reviewOperationId: "local/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "local/attempt-1",
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          coverageAdequate: true,
+        },
       },
     });
 
@@ -719,7 +739,17 @@ describe("projectPrePublicationReview", () => {
       frontline: {
         ...(base.frontline as Record<string, unknown>),
         completedPasses: 1,
-        attempts: [{ sourceId: "coderabbit-cli", outcome: "findings" }],
+        attempts: [{
+          sourceId: "coderabbit-cli",
+          outcome: "findings",
+          reviewOperationId: "frontline/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "frontline/attempt-1",
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major",
+          coverageAdequate: true,
+        },
       },
     });
 

@@ -67,6 +67,7 @@ describe("review-gate canonical serializer inventory", () => {
       "policy/frontline-operation.ts",
       "policy/local-review-guidance.ts",
       "policy/local-review-policy.ts",
+      "policy/review-policy-evidence.ts",
       "policy/standard-review-guidance.ts",
       "policy/standard-review-schema.ts",
       "policy/standard-review.ts",

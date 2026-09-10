@@ -414,29 +414,14 @@ changes.
 _Purpose:_ Switch terminal evidence, verified materiality, discharge, and response-first continuation as one boundary.
 No local-only activation leaves hosted/member settlement-as-clearance in place.
 
-### `[ ]` **5.1 Admit one terminal producer and derive verified signal for the shared policy**
+### `[x]` **5.1 Admit one terminal producer and derive verified signal for the shared policy**
 
 - _Goal:_ Policy accepts terminal signal only from an exact complete producer and, for findings, its complete approved
   record.
 
-- _Note:_ Spec §§ 5–6; SC 8, 9, and 13.
-
-- _Approach:_ Use the common immutable reader at command composition; add singular `reviewOperationId` to terminal
-  attempts and close all required request constructors. The pure reducer consumes only derived validated state.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Clean and findings reject missing/ambiguous producer, wrong target/source/pass/policy/rubric/scope, or outcome
-          mismatch.
-
-        - Findings resolve the complete approved set; verified-only maximum includes fix/defer/reject and excludes
-          unsupported allegations. Neither an unbound set nor a caller severity/count summary supplies convergence.
-
-        - A complete manual chunk aggregate includes every finding; partial progress and independent producer unions
-          cannot close.
-
-        - All-refuted and minors-only adequately covered results converge; material results retain response/next-pass
-          intent; incremental evidence without validated basis selects coverage rather than synthesizing clearance.
+- _Outcome:_ Terminal policy inputs now retain one immutable producer and derive verified-only severity and coverage from
+  exact native results plus complete approved dispositions. Settlement projects back to its original findings producer,
+  partial chunks remain nonterminal, and unbased incremental evidence selects coverage while retaining response intent.
 
 ### `[ ]` **5.2 Close direct policy callers, independent discharge, status, and checkpoint**
 

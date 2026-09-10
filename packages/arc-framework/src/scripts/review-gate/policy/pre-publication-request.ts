@@ -7,13 +7,22 @@ import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import type {
+  ApprovedDispositionRecordStore,
+  ReviewResultReader,
+} from "../core/ports.js";
 import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
 import type { PreBindingDeliveryReviewTargets } from "./pre-publication-delivery-targets.js";
 import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
 } from "./pre-publication-procedure.js";
-import { resolveReviewPolicy, ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
+import {
+  projectReviewPolicyAttempt,
+  resolveReviewPolicy,
+  ReviewLaneJudgmentSchema,
+} from "./review-policy-driver.js";
+import { bindReviewPolicyEvidence } from "./review-policy-evidence.js";
 import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
@@ -151,6 +160,8 @@ export interface PrePublicationCompositionDependencies {
     lineage?: LaneSubjectLineage,
   ): Promise<LaneProgressProjection>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
+  resultReader: ReviewResultReader;
+  dispositionStore: ApprovedDispositionRecordStore;
 }
 
 export interface PrePublicationCompositionInput {
@@ -267,6 +278,15 @@ function unavailableTargetAdvisory(reason: string): string {
 function rejectedRoutingAdvisory(paths: readonly string[]): string {
   return `Rejected or missing routing input at ${paths.join(", ")}; the change set routes as `
     + "unestablished, so standard review stays required.";
+}
+
+function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
+  const detail = error instanceof Error ? error.message : String(error);
+  return {
+    status: "refused",
+    reason: "The recorded lane progress does not compose against the current review target: "
+      + detail,
+  };
 }
 
 /**
@@ -400,6 +420,7 @@ export async function composePrePublicationReviewRequest(
   const composeLane = async (
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
+    exactTarget: ReviewTarget | null,
     lineageHeadShas: readonly string[],
     lineage?: LaneSubjectLineage,
   ) => {
@@ -412,7 +433,7 @@ export async function composePrePublicationReviewRequest(
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
     const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
-    return {
+    return bindReviewPolicyEvidence({
       schemaVersion: 1,
       target: policyTarget,
       lane,
@@ -420,14 +441,8 @@ export async function composePrePublicationReviewRequest(
       standardReview,
       completedPasses,
       attempts: progress.status === "recorded"
-        ? progress.attempts.map(({ sourceId, outcome, chunkSeriesComplete }) => ({
-            sourceId,
-            outcome,
-            ...(chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete }),
-          }))
+        ? progress.attempts.map(projectReviewPolicyAttempt)
         : [],
-      sources: policy.sources,
-      maxPasses: policy.maxPasses,
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
@@ -448,7 +463,15 @@ export async function composePrePublicationReviewRequest(
               completedPasses,
             } satisfies OwnerAcceptedReviewTerminus,
           }),
-    };
+    }, {
+      sources: policy.sources,
+      maxPasses: policy.maxPasses,
+      resultReader: dependencies.resultReader,
+      dispositionStore: dependencies.dispositionStore,
+      confirmTarget: () => exactTarget === null
+        ? Promise.reject(new Error("terminal review progress requires a current exact review target"))
+        : Promise.resolve(exactTarget),
+    });
   };
   const withCeilingOverride = <Request extends Awaited<ReturnType<typeof composeLane>>>(
     lane: ReviewLane,
@@ -484,11 +507,17 @@ export async function composePrePublicationReviewRequest(
         pullRequest: null,
         headSha: member.target.headSha,
       };
-      const memberFrontline = await composeLane(
-        "frontline",
-        memberPolicyTarget,
-        [member.target.headSha],
-      );
+      let memberFrontline: Awaited<ReturnType<typeof composeLane>>;
+      try {
+        memberFrontline = await composeLane(
+          "frontline",
+          memberPolicyTarget,
+          member.target,
+          [member.target.headSha],
+        );
+      } catch (error) {
+        return evidenceCompositionRefusal(error);
+      }
       selected = {
         exactTarget: member.target,
         policyTarget: memberPolicyTarget,
@@ -519,17 +548,27 @@ export async function composePrePublicationReviewRequest(
     policyTarget = target;
     policyLineage = candidate.lineageHeadShas;
     selectedLineage = { kind: "candidate", candidateId: candidate.candidateId };
-    frontline = withCeilingOverride(
-      "frontline",
-      policyTarget,
-      await composeLane("frontline", policyTarget, policyLineage),
-    );
+    let singletonFrontline: Awaited<ReturnType<typeof composeLane>>;
+    try {
+      singletonFrontline = await composeLane("frontline", policyTarget, exactTarget, policyLineage);
+    } catch (error) {
+      return evidenceCompositionRefusal(error);
+    }
+    frontline = withCeilingOverride("frontline", policyTarget, singletonFrontline);
   }
-  const standard = withCeilingOverride(
-    "standard",
-    policyTarget,
-    await composeLane("standard", policyTarget, policyLineage, selectedLineage),
-  );
+  let standardRequest: Awaited<ReturnType<typeof composeLane>>;
+  try {
+    standardRequest = await composeLane(
+      "standard",
+      policyTarget,
+      exactTarget,
+      policyLineage,
+      selectedLineage,
+    );
+  } catch (error) {
+    return evidenceCompositionRefusal(error);
+  }
+  const standard = withCeilingOverride("standard", policyTarget, standardRequest);
 
   const composed = {
     schemaVersion: 1,

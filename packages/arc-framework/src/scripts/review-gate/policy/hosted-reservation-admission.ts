@@ -8,6 +8,7 @@ import {
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import {
   assertStandardReviewExecutionAdmission,
+  projectReviewPolicyAttempt,
   resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
   type ReviewResolveEnvelope,
@@ -83,6 +84,7 @@ export function projectHostedReservationPolicyProgress(input: {
     readonly updatedAt: string;
     readonly operationId: string;
     readonly attemptIndex: number;
+    readonly settled: boolean;
     readonly attempt: ReviewPolicyCommandRequest["attempts"][number];
   }> = [];
   for (const { state } of input.snapshot.records) {
@@ -146,13 +148,8 @@ export function projectHostedReservationPolicyProgress(input: {
           updatedAt: state.updatedAt,
           operationId: state.operationId,
           attemptIndex,
-          attempt: {
-            sourceId: attempt.sourceId,
-            outcome: attempt.outcome,
-            ...(attempt.chunkSeriesComplete === undefined
-              ? {}
-              : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
-          },
+          settled: attempt.outcome === "settled-findings",
+          attempt: projectReviewPolicyAttempt(attempt),
         });
       }
     }
@@ -170,7 +167,7 @@ export function projectHostedReservationPolicyProgress(input: {
   currentTimeline.sort(compareTimeline);
   let latestSettledIndex = -1;
   for (const [index, entry] of currentTimeline.entries()) {
-    if (entry.attempt.outcome === "settled-findings") latestSettledIndex = index;
+    if (entry.settled) latestSettledIndex = index;
   }
   const attempts = currentTimeline.slice(latestSettledIndex + 1).map(({ attempt }) => attempt);
   const attemptHistory = historyTimeline.map(({ progress }) => progress);
@@ -263,9 +260,11 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly progress: {
     readonly completedPasses: number;
     readonly attempts: ReadonlyArray<{
+      readonly attemptId: string;
       readonly headSha: string;
       readonly sourceId: string;
-      readonly outcome: "pending" | ReviewPolicyCommandRequest["attempts"][number]["outcome"];
+      readonly outcome: "pending" | "settled-findings"
+        | ReviewPolicyCommandRequest["attempts"][number]["outcome"];
       readonly chunkSeriesComplete?: boolean;
     }>;
   } | null;
@@ -292,7 +291,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
     throw new Error("Hosted review capacity is already held by a pending request.");
   }
   const completedCurrentHeadAttempts = currentHeadAttempts.filter((attempt): attempt is typeof attempt & {
-    outcome: ReviewPolicyCommandRequest["attempts"][number]["outcome"];
+    outcome: Exclude<typeof attempt.outcome, "pending">;
   } => attempt.outcome !== "pending");
   let lastSettledIndex = -1;
   completedCurrentHeadAttempts.forEach((attempt, index) => {
@@ -303,13 +302,9 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
     ...input.discharge.requestAttempts ?? [],
     ...completedCurrentHeadAttempts.slice(lastSettledIndex + 1),
   ]) {
-    attemptsBySource.set(attempt.sourceId, {
-      sourceId: attempt.sourceId,
-      outcome: attempt.outcome,
-      ...(!("chunkSeriesComplete" in attempt) || attempt.chunkSeriesComplete === undefined
-        ? {}
-        : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
-    });
+    attemptsBySource.set(attempt.sourceId, "attemptId" in attempt
+      ? projectReviewPolicyAttempt(attempt)
+      : attempt);
   }
   const attempts = input.reservation.sources.flatMap((sourceId) => {
     const attempt = attemptsBySource.get(sourceId);

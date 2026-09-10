@@ -806,7 +806,11 @@ describe("handleReviewResolve", () => {
       resolveRoot: () => "/repo",
       readText: async () => JSON.stringify({
         ...request,
-        attempts: [{ sourceId: "codex-pr", outcome: "clean" }],
+        attempts: [{
+          sourceId: "codex-pr",
+          outcome: "clean",
+          reviewOperationId: "hosted/attempt-1",
+        }],
       }),
       resolve,
       write,
@@ -2292,7 +2296,17 @@ describe("handleReviewPrePublication", () => {
         ...request.standard,
         completedPasses: 1,
         sources: ["delegated-agent"],
-        attempts: [{ sourceId: "delegated-agent", outcome: "findings" as const }],
+        attempts: [{
+          sourceId: "delegated-agent",
+          outcome: "findings" as const,
+          reviewOperationId: "local/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "local/attempt-1",
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major" as const,
+          coverageAdequate: true,
+        },
       },
     };
     const lanes = {
