@@ -9,7 +9,12 @@ import {
 import type { RawGitExec } from "../../lib/change-facts.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
-import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
+import {
+  getCurrentBranch,
+  observeGitMergeFeasibility,
+  resolveIdentity,
+  type GitExec,
+} from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
@@ -44,9 +49,14 @@ import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
 import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
-import { resolveChangeRequest } from "../review-gate/change-request.js";
+import {
+  observeChangeRequestMergeAdmission,
+  resolveChangeRequest,
+} from "../review-gate/change-request.js";
 import { lifecycleArtifactFacts, type ReviewReadinessFact } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
+import { createGhChangeRequestMergeObservationPort } from
+  "../review-gate/hosts/github/merge-observation.js";
 import { aggregateChecks } from "../review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
 import { GitObjectIdSchema } from "../review-gate/core/gate-contract-v2-schema.js";
@@ -84,11 +94,9 @@ import {
   CheckpointReadyCompositionSchema,
   HOSTED_REVIEW_REQUIREMENT_ID,
   IntegrationLifecycleSummarySchema,
-  ReconcileHostFactSchema,
   ValidatedMergeMethodSchema,
   type IntegrationCheckpointDependencies,
   type IntegrationLifecycleSummary,
-  type ReconcileHostFact,
 } from "./checkpoint.js";
 import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
@@ -158,19 +166,6 @@ export interface IntegrationLifecycleStoragePort {
   readSnapshot(): Promise<IntegrationLifecycleStorageSnapshot>;
 }
 
-function parseRecord(text: string, path: string): Record<string, unknown> {
-  let value: unknown;
-  try {
-    value = JSON.parse(text) as unknown;
-  } catch (error) {
-    throw new Error(`${path}: malformed JSON`, { cause: error });
-  }
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${path}: expected an object`);
-  }
-  return value as Record<string, unknown>;
-}
-
 async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string; head: string }> {
   const branch = await getCurrentBranch(exec);
   if (branch === null) throw new Error("The integration checkpoint requires an attached branch.");
@@ -235,31 +230,6 @@ async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
     throw new Error(`The exact integration head has no reusable open change request (${result.state}).`);
   }
   return { changeRequest: result, acceptableBaseRefs };
-}
-
-async function readHostFact(exec: GitExec, cwd: string): Promise<ReconcileHostFact> {
-  try {
-    const { changeRequest } = await resolveOpenChangeRequest(exec, cwd);
-    const repository = changeRequest.targetRef.repository;
-    const pullRequest = changeRequest.candidate.number;
-    const live = parseRecord(
-      (await hostedGhRunner.run(["api", `repos/${repository}/pulls/${pullRequest}`])).stdout,
-      "pull-request",
-    );
-    if (live.mergeable === true) return ReconcileHostFactSchema.parse({ state: "mergeable" });
-    if (live.mergeable !== false) {
-      return ReconcileHostFactSchema.parse({
-        state: "unavailable",
-        detail: "The host has not resolved pull-request mergeability.",
-      });
-    }
-    return ReconcileHostFactSchema.parse({ state: "conflicting" });
-  } catch (error) {
-    return ReconcileHostFactSchema.parse({
-      state: "unavailable",
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
 
 /**
@@ -358,6 +328,12 @@ export function createIntegrationCheckpointDependencies(input: {
     host: deliveryHost,
   });
   const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd);
+  const mergeObservationPort = createGhChangeRequestMergeObservationPort(hostedGhRunner);
+  let openChangeRequestPromise: ReturnType<typeof resolveOpenChangeRequest> | null = null;
+  const openChangeRequest = () => {
+    openChangeRequestPromise ??= resolveOpenChangeRequest(input.exec, input.cwd);
+    return openChangeRequestPromise;
+  };
   const lifecycleStorage = input.lifecycleStorage ?? {
     readSnapshot: async () => {
       const { head } = await currentHead(input.exec, input.cwd);
@@ -473,7 +449,29 @@ export function createIntegrationCheckpointDependencies(input: {
         };
       }
     },
-    readReconcileHost: async () => readHostFact(input.exec, input.cwd),
+    readMovementObservation: async (workUnit, drift) => {
+      if (drift.baseOid === null) throw new Error("The base drift reading has no exact base.");
+      const { changeRequest } = await openChangeRequest();
+      const coordinates = {
+        repository: changeRequest.targetRef.repository,
+        changeRequest: changeRequest.candidate.number,
+        base: drift.baseOid,
+        head: changeRequest.targetRef.headSha,
+      };
+      const feasibility = await observeGitMergeFeasibility({
+        exec: rawExec,
+        base: coordinates.base,
+        head: coordinates.head,
+        classify: createCurrentBaseDriftAdapters(
+          input.exec,
+          workUnitPathTreatmentContext(workUnit),
+        ).classifyReconciliation,
+      });
+      return {
+        feasibility,
+        admission: await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort),
+      };
+    },
     readLifecycle: async (workUnit) => {
       const config = await settings();
       const snapshot = await lifecycleStorage.readSnapshot();
@@ -796,7 +794,7 @@ export function createIntegrationCheckpointDependencies(input: {
     composeReady: async ({ workUnit, lifecycle, candidate: currentness, delivery }) => {
       const [value, resolvedChangeRequest, publicationBoundary] = await Promise.all([
         candidate(workUnit),
-        resolveOpenChangeRequest(input.exec, input.cwd),
+        openChangeRequest(),
         boundary(workUnit),
       ]);
       if (value === null) throw new Error("The managed Candidate record disappeared during checkpoint composition.");

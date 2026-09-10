@@ -227,31 +227,17 @@ and Errand paths.
 - _Goal:_ one checkpoint result selects the only authorized continuation for every movement, feasibility, admission,
   and evidence-completeness combination.
 
-    - `[ ]` **2.3.a Replace the conflated reconcile fact with the closed matrix**
-        - Replace `ReconcileHostFact` and `reconcileSafety` in `integration/checkpoint.ts` with exact Git-feasibility,
-          host-admission, and applicability inputs plus typed results for direct approval, base reconcile,
-          regenerable reconcile, host pending, host refusal, conflict, and unsafe reconcile.
-        - Build `test-first` (one behavior at a time):
-            - disjoint + clean + mergeable requests approval directly;
-            - a reducer carry is not actionable unless the exact-pair Git-feasibility result is `clean`;
-            - overlapping + clean + mergeable reconciles only with complete integration evidence;
-            - `base-currentness-required` maps clean movement to base reconcile and regenerable-only conflict to its
-              own reconcile arm;
-            - substantive conflict blocks; and
-            - unknown, unavailable, unresolved, mismatched, or incomplete evidence never carries, and every
-              non-success result preserves the decisive coordinates, useful detail, and one structured remedy or
-              explicit terminal explanation.
+    - `[x]` **2.3.a Replace the conflated reconcile fact with the closed matrix**
+        - Replaced the host-only safety flag with one exhaustive movement × feasibility × admission × completeness
+          reducer and typed direct-approval, base/regenerable reconcile, host, conflict, and unsafe results.
+        - Focused matrix and checkpoint coverage proves exact disjoint continuation, completeness-gated reconciliation,
+          distinct cause preservation, Candidate-head binding, and fail-closed unknown/unavailable/mismatched evidence.
 
-    - `[ ]` **2.3.b Bind production observations to one checkpoint invocation**
-        - Rework `checkpoint-composition.ts` to resolve the exact open request, drift observation, Git feasibility,
-          and one logical host admission observation once and reject any coordinate disagreement before invoking the
-          planner. Memoize the exact request within that invocation for later ready composition rather than resolving
-          it a second time.
-        - Build `test-first` (one behavior at a time):
-            - all admitted facts share the checkpoint's exact coordinates;
-            - a mismatched observation refuses before planning;
-            - handler JSON and prose render the new reasons, movement, endpoints, and remedies; and
-            - session-init remains host-read-free.
+    - `[x]` **2.3.b Bind production observations to one checkpoint invocation**
+        - Production composition now memoizes one exact open request and binds its head with the drift base across the
+          shared Git-feasibility and bounded host-admission reads; the ready composer reuses that same request.
+        - Result schemas carry movement, endpoints, semantic causes, detail, and remedies; checkpoint tests prove
+          coordinate refusal and public JSON projection while session-init remains outside the host boundary.
 
     - `[ ]` **2.3.c Reuse the bounded readiness-projection conflict remedy**
         - Extend the typed base-merge composition so `reconcile-regenerable` invokes

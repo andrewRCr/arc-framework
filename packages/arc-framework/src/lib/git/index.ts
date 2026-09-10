@@ -79,6 +79,7 @@ export {
 
 export {
   observeGitMergeFeasibility,
+  GitMergeFeasibilitySchema,
   type GitMergeFeasibility,
   type ObserveGitMergeFeasibilityOptions,
 } from "./merge-feasibility.js";

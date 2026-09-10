@@ -2,7 +2,11 @@
 
 import { z } from "zod";
 
-import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
+import type { BaseDriftResult, BaseMovement } from "../../lib/git/base-drift-types.js";
+import {
+  GitMergeFeasibilitySchema,
+  type GitMergeFeasibility,
+} from "../../lib/git/merge-feasibility.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
 import {
   CandidateApplicabilityDecisionResultSchema,
@@ -21,6 +25,10 @@ import {
   type MergeMethodStackPosition,
 } from "../review-gate/merge-method.js";
 import { RequiredCheckStatusSchema } from "../review-gate/status.js";
+import {
+  ChangeRequestMergeObservationSchema,
+  type ChangeRequestMergeObservation,
+} from "../review-gate/change-request.js";
 import {
   CanonicalSettlementPlanSchema,
   settlementDispositionIds,
@@ -80,23 +88,71 @@ export const IntegrationLifecycleSummarySchema = z.strictObject({
 });
 export type IntegrationLifecycleSummary = z.infer<typeof IntegrationLifecycleSummarySchema>;
 
-export const ReconcileHostFactSchema = z.discriminatedUnion("state", [
-  z.strictObject({ state: z.literal("mergeable") }),
-  z.strictObject({ state: z.literal("conflicting") }),
-  z.strictObject({ state: z.literal("unavailable"), detail: z.string().min(1) }),
-]);
-export type ReconcileHostFact = z.infer<typeof ReconcileHostFactSchema>;
-
-export const ReconcileSafetyFactsSchema = z.strictObject({
-  baseOid: ObjectIdSchema.nullable(),
+export const CheckpointMovementObservationSchema = z.strictObject({
+  movement: z.enum(["disjoint", "overlapping", "unknown"]),
   integrationEvidenceComplete: z.boolean(),
-  overlapAvailable: z.boolean(),
-  substantivePaths: z.array(z.string().min(1)),
-  regenerablePaths: z.array(z.string().min(1)),
-  host: ReconcileHostFactSchema,
-  safe: z.boolean(),
+  feasibility: GitMergeFeasibilitySchema,
+  admission: ChangeRequestMergeObservationSchema,
 });
-export type ReconcileSafetyFacts = z.infer<typeof ReconcileSafetyFactsSchema>;
+export type CheckpointMovementObservation = z.infer<typeof CheckpointMovementObservationSchema>;
+
+export type CheckpointMovementPlan =
+  | { state: "proceed" }
+  | { state: "reconcile"; nextAction: "reconcile-base" | "reconcile-regenerable" }
+  | {
+      state: "blocked";
+      reason: "unsafe-reconcile" | "host-pending" | "host-refused" | "conflict";
+      detail?: string;
+      paths?: string[];
+    };
+
+function coordinatesAgree(
+  feasibility: GitMergeFeasibility,
+  admission: ChangeRequestMergeObservation,
+): boolean {
+  return feasibility.base === admission.base && feasibility.head === admission.head;
+}
+
+/** Reduce movement, feasibility, admission, and mutation evidence to one continuation. */
+export function composeCheckpointMovementPlan(input: {
+  movement: BaseMovement;
+  integrationEvidenceComplete: boolean;
+  feasibility: GitMergeFeasibility;
+  admission: ChangeRequestMergeObservation;
+}): CheckpointMovementPlan {
+  const observation = CheckpointMovementObservationSchema.parse(input);
+  if (!coordinatesAgree(observation.feasibility, observation.admission)) {
+    return { state: "blocked", reason: "unsafe-reconcile", detail: "Checkpoint evidence coordinates disagree." };
+  }
+  if (observation.movement === "unknown") {
+    return { state: "blocked", reason: "unsafe-reconcile", detail: "Base movement is unknown." };
+  }
+  if (observation.feasibility.state === "unavailable") {
+    return { state: "blocked", reason: "unsafe-reconcile", detail: observation.feasibility.detail };
+  }
+  if (observation.feasibility.state === "substantive-conflict") {
+    return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
+  }
+  if (observation.admission.state === "unresolved") {
+    return { state: "blocked", reason: "host-pending", detail: observation.admission.detail };
+  }
+  if (observation.admission.state === "refused") {
+    return { state: "blocked", reason: "host-refused", detail: observation.admission.detail };
+  }
+  const reconcileAction = observation.feasibility.state === "regenerable-conflict"
+    ? "reconcile-regenerable"
+    : observation.admission.state === "base-currentness-required" || observation.movement === "overlapping"
+      ? "reconcile-base"
+      : null;
+  if (reconcileAction === null) return { state: "proceed" };
+  return observation.integrationEvidenceComplete
+    ? { state: "reconcile", nextAction: reconcileAction }
+    : {
+        state: "blocked",
+        reason: "unsafe-reconcile",
+        detail: "A mutating reconciliation requires complete integration evidence.",
+      };
+}
 
 export const CandidateTailDiffReferenceSchema = z.strictObject({
   fromRevision: ObjectIdSchema,
@@ -264,7 +320,26 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
   z.strictObject({
     ...CheckpointBlockedBaseShape,
     reason: z.literal("unsafe-reconcile"),
-    payload: z.strictObject({ drift: z.custom<BaseDriftResult>(), safety: ReconcileSafetyFactsSchema }),
+    payload: z.strictObject({
+      drift: z.custom<BaseDriftResult>(),
+      observation: CheckpointMovementObservationSchema,
+      detail: z.string().min(1).optional(),
+    }),
+  }),
+  z.strictObject({
+    ...CheckpointBlockedBaseShape,
+    reason: z.literal("host-pending"),
+    payload: z.strictObject({ observation: CheckpointMovementObservationSchema, detail: z.string().min(1) }),
+  }),
+  z.strictObject({
+    ...CheckpointBlockedBaseShape,
+    reason: z.literal("host-refused"),
+    payload: z.strictObject({ observation: CheckpointMovementObservationSchema, detail: z.string().min(1) }),
+  }),
+  z.strictObject({
+    ...CheckpointBlockedBaseShape,
+    reason: z.literal("conflict"),
+    payload: z.strictObject({ observation: CheckpointMovementObservationSchema, paths: z.array(z.string().min(1)) }),
   }),
   z.strictObject({
     ...CheckpointBlockedBaseShape,
@@ -331,9 +406,24 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
     ["arc", "base", "drift", "--json"],
   ),
   "unsafe-reconcile": (workUnit) => spineRemedy(
-    "A candidate behind its base reconciles before it is checkpointed.",
-    "Resolve the reported substantive overlap with an append-only base merge, then re-run",
+    "Checkpoint movement, feasibility, admission, and integration evidence must authorize one continuation.",
+    "Refresh the typed drift and checkpoint observations, then re-run",
     checkpointResumeArgv(workUnit),
+  ),
+  "host-pending": (workUnit) => spineRemedy(
+    "Host admission must resolve for the exact base and head.",
+    "Retry the bounded checkpoint observation",
+    checkpointResumeArgv(workUnit),
+  ),
+  "host-refused": () => spineRemedy(
+    "Host admission must permit the exact change request and coordinates.",
+    "Resolve the reported host policy refusal before retrying",
+    ["arc", "review", "status", "--json"],
+  ),
+  conflict: () => spineRemedy(
+    "The exact base and head must be Git-mergeable without substantive conflicts.",
+    "Resolve the reported conflict paths before retrying",
+    ["arc", "base", "drift", "--json"],
   ),
   "lifecycle-incomplete": (workUnit) => spineRemedy(
     "Completion Notes and the lifecycle position are verified before merge.",
@@ -399,15 +489,16 @@ export const IntegrationCheckpointResultSchema = z.union([
       ),
       mergeMethod: ValidatedMergeMethodSchema,
       interlockSurface: CheckpointInterlockSurfaceSchema,
+      movementObservation: CheckpointMovementObservationSchema,
     }),
   }),
   z.strictObject({
     ...ResultBaseShape,
     state: z.literal("reconcile"),
-    nextAction: z.literal("reconcile-base"),
+    nextAction: z.enum(["reconcile-base", "reconcile-regenerable"]),
     payload: z.strictObject({
       drift: z.custom<BaseDriftResult>(),
-      safety: ReconcileSafetyFactsSchema,
+      observation: CheckpointMovementObservationSchema,
       candidateHead: ObjectIdSchema,
     }),
   }),
@@ -488,7 +579,10 @@ export interface IntegrationCheckpointDependencies {
     | { readonly status: "unavailable"; readonly detail: string }
     | DeliveryTerminalDriftResult
   >;
-  readReconcileHost(workUnit: string, drift: BaseDriftResult): Promise<ReconcileHostFact>;
+  readMovementObservation(workUnit: string, drift: BaseDriftResult): Promise<{
+    feasibility: GitMergeFeasibility;
+    admission: ChangeRequestMergeObservation;
+  }>;
   readLifecycle(workUnit: string): Promise<IntegrationLifecycleSummary>;
   readCandidate(workUnit: string, baseRevision?: string): Promise<
     CandidateCurrentnessProjection | Exclude<CandidateApplicabilityResult, { state: "applicable" }> | null
@@ -553,33 +647,6 @@ async function candidateApplicabilityResult(
   }
 }
 
-function reconcileSafety(
-  drift: BaseDriftResult,
-  host: ReconcileHostFact,
-  safetyClass: "generic" | "residual-contained",
-): ReconcileSafetyFacts {
-  const integrationEvidenceComplete = drift.integrationEvidence?.coverage === "complete";
-  const overlapAvailable = drift.overlap?.status === "available";
-  const substantivePaths = drift.overlap?.status === "available" ? drift.overlap.substantivePaths : [];
-  const regenerablePaths = drift.overlap?.status === "available" ? drift.overlap.regenerablePaths : [];
-  const analyzerSafe = drift.baseOid !== null
-    && integrationEvidenceComplete
-    && overlapAvailable
-    && (substantivePaths.length === 0 || safetyClass === "residual-contained");
-  // Host mergeability is the whole host signal: the host reports that the merge conflicts, never
-  // which paths conflict, so nothing here can be measured against the regenerable set.
-  const hostSafe = host.state === "mergeable";
-  return ReconcileSafetyFactsSchema.parse({
-    baseOid: drift.baseOid,
-    integrationEvidenceComplete,
-    overlapAvailable,
-    substantivePaths,
-    regenerablePaths,
-    host,
-    safe: analyzerSafe && hostSafe,
-  });
-}
-
 function deliveryTerminalDisposition(
   workUnit: string,
   delivery: Extract<DeliveryCheckpointArmResult, { readonly status: "blocked" }>,
@@ -628,6 +695,18 @@ export async function checkpointIntegration(
     workUnit: request.workUnit,
   };
   const drift = await dependencies.readDrift(request.workUnit);
+  if ((drift.verdict !== "clean" && drift.verdict !== "reconcile")
+    || drift.baseOid === null || drift.movement === undefined) {
+    return IntegrationCheckpointResultSchema.parse({
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "drift-unavailable",
+      remedy: checkpointRemedy("drift-unavailable", request.workUnit),
+      payload: { drift },
+    });
+  }
+  let applicabilityAllowsReconcile = true;
   if (drift.verdict === "reconcile") {
     const deliveryDrift = await dependencies.classifyDeliveryDrift(request.workUnit, drift);
     if (deliveryDrift.status === "unavailable") {
@@ -660,78 +739,103 @@ export async function checkpointIntegration(
         },
       });
     }
-    const safety = reconcileSafety(
-      drift,
-      ReconcileHostFactSchema.parse(await dependencies.readReconcileHost(request.workUnit, drift)),
-      deliveryDrift.status === "reconcile" ? deliveryDrift.safetyClass : "generic",
-    );
-    if (safety.safe) {
-      const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid ?? undefined);
-      if (candidate === null) {
-        return IntegrationCheckpointResultSchema.parse({
-          ...base,
-          state: "blocked",
-          nextAction: "stop",
-          reason: "candidate-missing",
-          remedy: checkpointRemedy("candidate-missing", request.workUnit),
-          payload: { workUnit: request.workUnit },
-        });
+    applicabilityAllowsReconcile = deliveryDrift.status !== "reconcile"
+      || deliveryDrift.safetyClass === "residual-contained";
+  }
+  const observed = await dependencies.readMovementObservation(request.workUnit, drift);
+  const observation = CheckpointMovementObservationSchema.parse({
+    movement: drift.movement,
+    integrationEvidenceComplete: drift.integrationEvidence?.coverage === "complete",
+    feasibility: observed.feasibility,
+    admission: observed.admission,
+  });
+  const projectedPlan = observation.feasibility.base === drift.baseOid
+    ? composeCheckpointMovementPlan(observation)
+    : {
+        state: "blocked" as const,
+        reason: "unsafe-reconcile" as const,
+        detail: "Git feasibility belongs to a different base than the drift observation.",
+      };
+  const movementPlan = projectedPlan.state === "reconcile" && !applicabilityAllowsReconcile
+    ? {
+        state: "blocked" as const,
+        reason: "unsafe-reconcile" as const,
+        detail: "The applicability result does not authorize this reconciliation.",
       }
-      if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies);
-      if (candidate.status === "blocked") {
-        return IntegrationCheckpointResultSchema.parse({
-          ...base,
-          state: "blocked",
-          nextAction: "stop",
-          reason: "candidate-unexplained-delta",
-          remedy: checkpointRemedy("candidate-unexplained-delta", request.workUnit),
-          payload: { candidate },
-        });
-      }
-      if (candidate.convergenceVerification === "pending") {
-        return IntegrationCheckpointResultSchema.parse({
-          ...base,
-          state: "blocked",
-          nextAction: "stop",
-          reason: "candidate-convergence-pending",
-          remedy: checkpointRemedy("candidate-convergence-pending", request.workUnit),
-          payload: { candidate },
-        });
-      }
+    : projectedPlan;
+  if (movementPlan.state === "blocked") {
+    const common = {
+      ...base,
+      state: "blocked" as const,
+      nextAction: "stop" as const,
+      reason: movementPlan.reason,
+      remedy: checkpointRemedy(movementPlan.reason, request.workUnit),
+    };
+    if (movementPlan.reason === "host-pending" || movementPlan.reason === "host-refused") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...common,
+        payload: { observation, detail: movementPlan.detail },
+      });
+    }
+    if (movementPlan.reason === "conflict") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...common,
+        payload: { observation, paths: movementPlan.paths },
+      });
+    }
+    return IntegrationCheckpointResultSchema.parse({
+      ...common,
+      payload: { drift, observation, detail: movementPlan.detail },
+    });
+  }
+  if (movementPlan.state === "reconcile") {
+    const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
+    if (candidate === null) {
       return IntegrationCheckpointResultSchema.parse({
         ...base,
-        state: "reconcile",
-        nextAction: "reconcile-base",
-        payload: { drift, safety, candidateHead: candidate.recognizedRevision },
+        state: "blocked",
+        nextAction: "stop",
+        reason: "candidate-missing",
+        remedy: checkpointRemedy("candidate-missing", request.workUnit),
+        payload: { workUnit: request.workUnit },
+      });
+    }
+    if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies);
+    if (candidate.status === "blocked") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "candidate-unexplained-delta",
+        remedy: checkpointRemedy("candidate-unexplained-delta", request.workUnit),
+        payload: { candidate },
+      });
+    }
+    if (candidate.convergenceVerification === "pending") {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "candidate-convergence-pending",
+        remedy: checkpointRemedy("candidate-convergence-pending", request.workUnit),
+        payload: { candidate },
+      });
+    }
+    if (candidate.recognizedRevision !== observation.feasibility.head) {
+      return IntegrationCheckpointResultSchema.parse({
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "unsafe-reconcile",
+        remedy: checkpointRemedy("unsafe-reconcile", request.workUnit),
+        payload: { drift, observation, detail: "The Candidate head does not match merge observations." },
       });
     }
     return IntegrationCheckpointResultSchema.parse({
       ...base,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "unsafe-reconcile",
-      remedy: checkpointRemedy("unsafe-reconcile", request.workUnit),
-      payload: { drift, safety },
-    });
-  }
-  if (drift.verdict !== "clean") {
-    return IntegrationCheckpointResultSchema.parse({
-      ...base,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "drift-unavailable",
-      remedy: checkpointRemedy("drift-unavailable", request.workUnit),
-      payload: { drift },
-    });
-  }
-  if (drift.baseOid === null) {
-    return IntegrationCheckpointResultSchema.parse({
-      ...base,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "drift-unavailable",
-      remedy: checkpointRemedy("drift-unavailable", request.workUnit),
-      payload: { drift },
+      state: "reconcile",
+      nextAction: movementPlan.nextAction,
+      payload: { drift, observation, candidateHead: candidate.recognizedRevision },
     });
   }
   const lifecycle = IntegrationLifecycleSummarySchema.parse(
@@ -777,6 +881,16 @@ export async function checkpointIntegration(
       reason: "candidate-convergence-pending",
       remedy: checkpointRemedy("candidate-convergence-pending", request.workUnit),
       payload: { candidate },
+    });
+  }
+  if (candidate.recognizedRevision !== observation.feasibility.head) {
+    return IntegrationCheckpointResultSchema.parse({
+      ...base,
+      state: "blocked",
+      nextAction: "stop",
+      reason: "unsafe-reconcile",
+      remedy: checkpointRemedy("unsafe-reconcile", request.workUnit),
+      payload: { drift, observation, detail: "The Candidate head does not match merge observations." },
     });
   }
   try {
@@ -898,8 +1012,11 @@ export async function checkpointIntegration(
         {
           kind: "base-drift",
           label: "Base drift",
-          clean: true,
-          evidence: "The authoritative drift read is clean.",
+          clean: observation.movement === "disjoint"
+            && observation.feasibility.state === "clean"
+            && observation.admission.state === "mergeable",
+          evidence: `Movement is ${observation.movement}; Git feasibility is ${observation.feasibility.state}; `
+            + `host admission is ${observation.admission.state}.`,
         },
         {
           kind: "candidate",
@@ -957,7 +1074,13 @@ export async function checkpointIntegration(
       ...base,
       state: "ready",
       nextAction: "request-approval",
-      payload: { ...composition, checkpointHandle, mergeMethod, interlockSurface },
+      payload: {
+        ...composition,
+        checkpointHandle,
+        mergeMethod,
+        interlockSurface,
+        movementObservation: observation,
+      },
     });
   } catch (error) {
     return IntegrationCheckpointResultSchema.parse({

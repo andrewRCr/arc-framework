@@ -1,20 +1,35 @@
 /** Exact-coordinate Git merge feasibility, independent of host admission. */
 
+import { z } from "zod";
+
 import type { RawGitExec } from "../change-facts.js";
 import type { PathTreatmentClassifier } from "./base-drift-types.js";
 import { isGitObjectId } from "./object-id.js";
 import { readMergeTreeComposition } from "./merge-tree.js";
 
-interface GitMergeFeasibilityCoordinates {
-  base: string;
-  head: string;
-}
+const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
+const GitMergeFeasibilityCoordinatesSchema = z.strictObject({
+  base: ObjectIdSchema,
+  head: ObjectIdSchema,
+});
+type GitMergeFeasibilityCoordinates = z.infer<typeof GitMergeFeasibilityCoordinatesSchema>;
 
-export type GitMergeFeasibility = GitMergeFeasibilityCoordinates & (
-  | { state: "clean" }
-  | { state: "regenerable-conflict" | "substantive-conflict"; paths: string[] }
-  | { state: "unavailable"; detail: string }
-);
+export const GitMergeFeasibilitySchema = z.discriminatedUnion("state", [
+  GitMergeFeasibilityCoordinatesSchema.extend({ state: z.literal("clean") }),
+  GitMergeFeasibilityCoordinatesSchema.extend({
+    state: z.literal("regenerable-conflict"),
+    paths: z.array(z.string().min(1)).min(1),
+  }),
+  GitMergeFeasibilityCoordinatesSchema.extend({
+    state: z.literal("substantive-conflict"),
+    paths: z.array(z.string().min(1)).min(1),
+  }),
+  GitMergeFeasibilityCoordinatesSchema.extend({
+    state: z.literal("unavailable"),
+    detail: z.string().min(1),
+  }),
+]);
+export type GitMergeFeasibility = z.infer<typeof GitMergeFeasibilitySchema>;
 
 export interface ObserveGitMergeFeasibilityOptions extends GitMergeFeasibilityCoordinates {
   exec: RawGitExec;

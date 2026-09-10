@@ -403,11 +403,40 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
   const shipped = cadence === "with-integration";
   const dependencies: IntegrationCheckpointDependencies = {
     ...production,
-    readDrift: async (workUnit) => ({
-      ...await production.readDrift(workUnit),
+    readDrift: async () => ({
+      mode: "authoritative",
       verdict: "clean",
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      base: "main",
       baseOid: await resolveGitCandidateBaseRevision({ cwd: root, baseBranch: "main", exec: gitExec }),
+      movement: "disjoint",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 0,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
     }),
+    readMovementObservation: async (_workUnit, drift) => {
+      if (drift.baseOid === null) throw new Error("expected an exact base");
+      const head = await git(root, ["rev-parse", "HEAD"]);
+      return {
+        feasibility: { state: "clean", base: drift.baseOid, head },
+        admission: {
+          state: "mergeable",
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: drift.baseOid,
+          head,
+        },
+      };
+    },
     readLifecycle: async (workUnit) => ({
       workUnit,
       storageVersion: await git(root, ["rev-parse", "HEAD"]),
