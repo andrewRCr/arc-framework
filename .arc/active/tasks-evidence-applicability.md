@@ -527,28 +527,21 @@ _Mode:_ `slice` — closes on exercisable scoped convergence over constructed Ca
 _Exit criterion:_ targeted, focused, full, missing-field, and unexplained-delta lineages produce their specified
 currentness and attestation outcomes without requiring the separately owned proposal-side producer.
 
-### `[ ]` **5.1 Extend review-response evidence with optional approved scope** — D12
+### `[x]` **5.1 Extend review-response evidence with optional approved scope** — D12
 
 - _Goal:_ a Candidate transition can carry the approver-bound verification scope when supplied, while older and
   independently produced transitions continue to parse and conservatively require full verification.
 
-- **Additional Context:** `notes-evidence-applicability.md` § Scoped verification decisions
+    - `[x]` **5.1.a Add the optional transition field and identity binding**
+        - Added the optional closed scope to the schema, constructor input, and canonical response preimage; all three
+          values round-trip distinctly and malformed scope fails before construction.
 
-- _Note:_ This task owns only the Candidate schema, constructor, guards, and tests. It does not edit the disposition
-  producer or `respond-command.ts`; `review-signal-convergence` remains the sole owner of that pass-through.
+    - `[x]` **5.1.b Preserve independent landing compatibility**
+        - Managed-record parsing, serialization, and constructed-transition coverage accept both scoped and omitted
+          records without changing the sibling-owned writer or adding compatibility machinery.
 
-    - `[ ]` **5.1.a Add the optional transition field and identity binding**
-        - Extend `CandidateReviewResponseEvidenceV1Schema`, its input type, and
-          `createCandidateReviewResponseEvidence` with `approvedVerification?: targeted | focused | full`, including
-          the value in the `responseId` preimage when present.
-        - Build `test-first` (one behavior at a time):
-            - each supplied scope round-trips and changes response identity;
-            - omission remains schema-valid and reduces as `full`; and
-            - malformed or out-of-contract values fail before record write.
-
-    - `[ ]` **5.1.b Preserve independent landing compatibility**
-        - Update Candidate fixtures, record guards, serialization, and constructed-transition coverage without
-          requiring a production writer to emit the field or adding a migration reader for development records.
+- _Outcome:_ review-response transitions can bind an approved verification scope into their identity while omission
+  remains a valid independently landable input for the conservative lineage default.
 
 ### `[ ]` **5.2 Define the scoped lineage-attestation contract** — D12
 

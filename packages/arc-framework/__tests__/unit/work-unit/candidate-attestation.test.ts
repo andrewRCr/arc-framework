@@ -171,6 +171,55 @@ describe("Candidate attestation", () => {
     }).success).toBe(false);
   });
 
+  it("round-trips an optional approved verification scope and binds it to response identity", () => {
+    const root = attestation();
+    const common = {
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_A, subject: snapshot() },
+      newTarget: { revision: SHA_B, subject: snapshot(canonicalDigest({ source: "review-fix" })) },
+      dispositionId: canonicalDigest({ dispositions: "scoped" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused" as const,
+      verificationEvidenceRefs: ["test://candidate/scoped"],
+      implementationChanged: true,
+    };
+    const omitted = createCandidateReviewResponseEvidence(common);
+    const scoped = (["targeted", "focused", "full"] as const).map((approvedVerification) =>
+      createCandidateReviewResponseEvidence({ ...common, approvedVerification }));
+
+    expect(omitted).not.toHaveProperty("approvedVerification");
+    expect(new Set([omitted.responseId, ...scoped.map(({ responseId }) => responseId)]).size).toBe(4);
+    expect(scoped.map(({ approvedVerification }) => approvedVerification)).toEqual([
+      "targeted",
+      "focused",
+      "full",
+    ]);
+    for (const transition of scoped) {
+      const record = CandidateManagedRecordV1Schema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: root,
+        subject: snapshot(),
+        transitions: [transition],
+        lineageAttestations: [],
+      });
+      expect(parseCandidateManagedRecord(serializeCandidateManagedRecord(record))).toEqual(record);
+    }
+    expect(CandidateManagedRecordV1Schema.safeParse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [omitted],
+      lineageAttestations: [],
+    }).success).toBe(true);
+    expect(() => createCandidateReviewResponseEvidence({
+      ...common,
+      approvedVerification: "broad" as never,
+    })).toThrow();
+  });
+
   it("retains convergence attestations for every recognized lineage subject", () => {
     const root = attestation();
     const firstSubject = snapshot(canonicalDigest({ source: "first-review-fix" }));

@@ -72,6 +72,7 @@ export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
   approvedBy: z.string().trim().min(1),
   appliedBy: z.string().trim().min(1),
   applicability: CandidateVerificationApplicabilitySchema,
+  approvedVerification: CandidateVerificationApplicabilitySchema.optional(),
   verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
   implementationChanged: z.boolean(),
 });
@@ -418,6 +419,7 @@ export interface CreateCandidateReviewResponseEvidenceInput {
   approvedBy: string;
   appliedBy: string;
   applicability: CandidateVerificationApplicability;
+  approvedVerification?: CandidateVerificationApplicability;
   verificationEvidenceRefs: readonly string[];
   implementationChanged: boolean;
 }
@@ -478,6 +480,9 @@ export function createCandidateReviewResponseEvidence(
     approvedBy: input.approvedBy,
     appliedBy: input.appliedBy,
     applicability: input.applicability,
+    ...(input.approvedVerification === undefined
+      ? {}
+      : { approvedVerification: CandidateVerificationApplicabilitySchema.parse(input.approvedVerification) }),
     verificationEvidenceRefs: [...input.verificationEvidenceRefs],
     implementationChanged: input.implementationChanged,
   };
