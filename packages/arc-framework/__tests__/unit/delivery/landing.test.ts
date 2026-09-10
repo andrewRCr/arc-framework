@@ -877,6 +877,67 @@ describe("delivery landing", () => {
     }
   });
 
+  it("restores the selected rematerialization subject when a predecessor reservation is cleared", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const predecessor = state.members[0]!;
+    const selected = state.members[1]!;
+    const pendingReviewFixVerification = {
+      selectedDeliverableId: selected.deliverableId,
+      memberDeliverableIds: [selected.deliverableId],
+    };
+    const pending = { ...state, pendingReviewFixVerification };
+    const before = { target: state.target, members: [predecessor] };
+    const requested = {
+      ...before,
+      members: [{
+        ...predecessor,
+        coordinates: predecessor.coordinates === null
+          ? null
+          : { ...predecessor.coordinates, head: "e".repeat(40) },
+      }],
+    };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: pending }, plan, {
+      operationId: "operation-rematerialize-predecessor",
+      kind: "rewrite",
+      mode: "review-fix",
+      affectedDeliverableIds: [predecessor.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested,
+      supersedePendingReviewFixVerification: pendingReviewFixVerification,
+      reviewFixSelectedDeliverableId: selected.deliverableId,
+      reviewFixVerificationDeliverableIds: pendingReviewFixVerification.memberDeliverableIds,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve the predecessor rewrite");
+    const writes: DeliveryStateV1[] = [];
+
+    const result = await reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: { observe: async () => ({ status: "observed" as const, value: before }) },
+      stateStore: { publish: async (_planId, value) => {
+        writes.push(value);
+        return { status: "ok" as const, value: { revision: 9, value } };
+      } },
+    });
+
+    expect(DeliveryRecoveryRerunV1Schema.parse(result)).toMatchObject({
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-rematerialize",
+      selector: {
+        affectedDeliverableIds: [predecessor.deliverableId],
+        reviewFixSelectedDeliverableId: selected.deliverableId,
+        reviewFixVerificationDeliverableIds: pendingReviewFixVerification.memberDeliverableIds,
+      },
+    });
+    expect(writes).toEqual([expect.objectContaining({
+      activeOperation: null,
+      pendingReviewFixVerification,
+    })]);
+  });
+
   it("leaves closeout-residue reservations to the closeout verb", async () => {
     const plan = deliveryPlanFixture();
     const state = deliveryStateFixture(plan);

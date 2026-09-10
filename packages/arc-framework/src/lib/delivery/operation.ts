@@ -12,6 +12,7 @@ import {
   DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
   DeliveryOperationSnapshotV1Schema,
+  DeliveryPendingReviewFixVerificationV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
   DeliveryTerminalAuthoringMovementV1Schema,
@@ -35,6 +36,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       ...reservationFields,
       kind: z.literal("rewrite"),
       mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+      supersedePendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.optional(),
       terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
       reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
       reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
@@ -235,14 +237,49 @@ function reviewFixSelectionMatchesState(
   const stateOrder = state.members
     .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
     .map(({ deliverableId }) => deliverableId);
-  return (operation.mode === "provider-refresh" || operation.mode === "provider-adoption")
-    && selectedIndex >= 0
+  const validSelection = selectedIndex >= 0
     && selectedIndex < state.members.length - 1
-    && operation.affectedDeliverableIds.includes(operation.reviewFixSelectedDeliverableId)
     && verificationIds.includes(operation.reviewFixSelectedDeliverableId)
     && new Set(verificationIds).size === verificationIds.length
-    && canonicalize(stateOrder) === canonicalize(verificationIds)
+    && canonicalize(stateOrder) === canonicalize(verificationIds);
+  if (!validSelection) return false;
+  if (operation.mode === "review-fix") return true;
+  return (operation.mode === "provider-refresh" || operation.mode === "provider-adoption")
+    && operation.affectedDeliverableIds.includes(operation.reviewFixSelectedDeliverableId)
     && verificationIds.every((deliverableId) => operation.affectedDeliverableIds.includes(deliverableId));
+}
+
+function clearDeliveryOperationReservation(state: DeliveryStateV1): DeliveryStateV1 | null {
+  const operation = state.activeOperation;
+  const selectedDeliverableId = operation?.kind === "rewrite" && operation.mode === "review-fix"
+    ? operation.reviewFixSelectedDeliverableId
+    : undefined;
+  const memberDeliverableIds = operation?.kind === "rewrite" && operation.mode === "review-fix"
+    ? operation.reviewFixVerificationDeliverableIds
+    : undefined;
+  if ((selectedDeliverableId === undefined) !== (memberDeliverableIds === undefined)) return null;
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...state,
+    activeOperation: null,
+    pendingReviewFixVerification: selectedDeliverableId === undefined
+      || memberDeliverableIds === undefined
+      ? state.pendingReviewFixVerification
+      : { selectedDeliverableId, memberDeliverableIds },
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Project the cleared state for one validated retryable reservation.
+ *
+ * @param current - Published reservation state and its store-owned revision
+ * @returns Cleared state with any carried rematerialization verification restored, or null when invalid
+ */
+export function projectDeliveryOperationRetryState(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+): DeliveryStateV1 | null {
+  const active = validateDeliveryActiveOperation(current);
+  return active.status === "valid" ? clearDeliveryOperationReservation(active.state) : null;
 }
 
 /**
@@ -304,7 +341,7 @@ function applyObservedSnapshot(
   const observedByDeliverable = new Map(
     observed.members.map((member) => [member.deliverableId, member]),
   );
-  const parsed = DeliveryStateV1Schema.safeParse({
+  return clearDeliveryOperationReservation({
     ...state,
     target: observed.target,
     members: state.members.map((member) => {
@@ -316,9 +353,7 @@ function applyObservedSnapshot(
         coordinates: result.coordinates,
       };
     }),
-    activeOperation: null,
   });
-  return parsed.success ? parsed.data : null;
 }
 
 function matchesHostAssignedResult(
@@ -387,13 +422,36 @@ export function reserveDeliveryOperation(
     return { status: "refused", reason: "operation-active" };
   }
   const pendingVerification = parsedState.data.pendingReviewFixVerification;
-  const supersedesPendingVerification = pendingVerification !== null
-    && parsedRequest.data.kind === "rewrite"
-    && parsedRequest.data.mode === "selected-change"
-    && canonicalize(parsedRequest.data.affectedDeliverableIds)
+  const rewriteRequest = parsedRequest.data.kind === "rewrite" ? parsedRequest.data : null;
+  const explicitPendingVerificationSupersession = rewriteRequest?.supersedePendingReviewFixVerification;
+  if (explicitPendingVerificationSupersession !== undefined
+    && (rewriteRequest === null || rewriteRequest.mode !== "review-fix" || pendingVerification === null)) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  const supersedesSelectedChangeVerification = pendingVerification !== null
+    && rewriteRequest !== null
+    && rewriteRequest.mode === "selected-change"
+    && canonicalize(rewriteRequest.affectedDeliverableIds)
       === canonicalize(pendingVerification.memberDeliverableIds)
-    && parsedRequest.data.affectedDeliverableIds.length === 1
-    && parsedRequest.data.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+    && rewriteRequest.affectedDeliverableIds.length === 1
+    && rewriteRequest.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+  const supersedesExactPendingVerification = pendingVerification !== null
+    && explicitPendingVerificationSupersession !== undefined
+    && canonicalize(explicitPendingVerificationSupersession) === canonicalize(pendingVerification);
+  const carriesReviewFixContinuation = rewriteRequest?.mode === "review-fix"
+    && (rewriteRequest.reviewFixSelectedDeliverableId !== undefined
+      || rewriteRequest.reviewFixVerificationDeliverableIds !== undefined);
+  if (carriesReviewFixContinuation && explicitPendingVerificationSupersession === undefined) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  if (supersedesExactPendingVerification && rewriteRequest !== null
+    && (rewriteRequest.reviewFixSelectedDeliverableId !== pendingVerification.selectedDeliverableId
+      || canonicalize(rewriteRequest.reviewFixVerificationDeliverableIds)
+        !== canonicalize(pendingVerification.memberDeliverableIds))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  const supersedesPendingVerification = supersedesSelectedChangeVerification
+    || supersedesExactPendingVerification;
   if (pendingVerification !== null && !supersedesPendingVerification) {
     return { status: "refused", reason: "pending-review-fix-verification" };
   }

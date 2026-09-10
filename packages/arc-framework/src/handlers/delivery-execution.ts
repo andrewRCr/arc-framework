@@ -174,6 +174,7 @@ import {
 import { validateDeliveryStateAgainstPlan } from "../lib/delivery/state.js";
 import {
   completeDeliverySuffixMutationTail,
+  DeliveryPendingVerificationSupersessionIdentitySchema,
   executeFreshDeliverySuffixRematerialization,
 } from "../lib/delivery/suffix-rematerialization.js";
 import {
@@ -471,6 +472,7 @@ const RematerializeSchema = z.strictObject({
   protectedBaseRef: RefSchema,
   topRef: RefSchema,
   selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  supersedePendingReviewFixVerification: DeliveryPendingVerificationSupersessionIdentitySchema.optional(),
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
 });
@@ -5738,6 +5740,9 @@ async function executeDeliveryCommand(
     const gitCommonDir = await resolveGitCommonDir(exec, cwd);
     const rematerialized = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: parsed.selectedDeliverableIds,
+      ...(parsed.supersedePendingReviewFixVerification === undefined
+        ? {}
+        : { supersedePendingReviewFixVerification: parsed.supersedePendingReviewFixVerification }),
     }, {
       reobserve: async () => {
         const [planRead, stateRead] = await Promise.all([
@@ -5830,7 +5835,7 @@ async function executeDeliveryCommand(
         exec: createRawGitExec(cwd),
         ...projectDeliveryContributionEndpoints(endpoints),
       }),
-      apply: async ({ plan, current, rewrite }) => {
+      apply: async ({ plan, current, rewrite, supersedePendingReviewFixVerification }) => {
         const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const requested = rewrite.requested.members[0];
         const snapshot = latestSnapshot;
@@ -5853,6 +5858,7 @@ async function executeDeliveryCommand(
           deliverableId: rewrite.deliverableId,
           requested: rewrite.requested,
           contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
+          supersedePendingReviewFixVerification,
           revalidateLifecycle: async () => {
             const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
             if (candidate === undefined) return { status: "refused" as const };
@@ -5880,7 +5886,11 @@ async function executeDeliveryCommand(
           }),
           stateStore,
         });
-        return result.status === "applied" ? result : { status: "refused" as const };
+        if (result.status === "applied") return result;
+        if (result.reason === "pending-review-fix-verification") {
+          return { status: "refused" as const, reason: result.reason };
+        }
+        return { status: "refused" as const };
       },
     });
     if (rematerialized.status !== "rematerialized") return rematerialized;
