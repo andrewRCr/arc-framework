@@ -2,10 +2,12 @@
 
 import { z } from "zod";
 
+import { canonicalDigest } from "../kernel/index.js";
 import type { DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
   checkDeliveryOperationPrecondition,
+  projectDeliveryOperationRetryState,
   reconcileDeliveryOperation,
   reserveDeliveryOperation,
 } from "./operation.js";
@@ -34,6 +36,7 @@ import {
   DeliveryPlanIdSchema,
   DeliveryStateV1Schema,
 } from "./schema.js";
+import { DeliveryPendingVerificationSupersessionIdentitySchema } from "./suffix-rematerialization.js";
 
 const DeliveryRecoverySelectorCommonV1Shape = {
   planId: DeliveryPlanIdSchema,
@@ -44,8 +47,23 @@ const DeliveryRecoveryRerunCommonV1Shape = {
   status: z.literal("retryable"),
   recommendedActionText: z.string().min(1),
 };
+const DeliveryReviewFixRecoverySelectorV1Schema = z.union([
+  z.strictObject({
+    ...DeliveryRecoverySelectorCommonV1Shape,
+    operationKind: z.literal("rewrite"),
+    mode: z.literal("review-fix"),
+  }),
+  z.strictObject({
+    ...DeliveryRecoverySelectorCommonV1Shape,
+    operationKind: z.literal("rewrite"),
+    mode: z.literal("review-fix"),
+    reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema,
+    reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    supersedePendingReviewFixVerification: DeliveryPendingVerificationSupersessionIdentitySchema,
+  }),
+]);
 
-/** Closed executable rerun plus the minimum exact reservation-subject selector. */
+/** Closed executable rerun plus the minimum exact reservation and correction-subject selector. */
 export const DeliveryRecoveryRerunV1Schema = z.union([
   z.strictObject({
     ...DeliveryRecoveryRerunCommonV1Shape,
@@ -69,11 +87,7 @@ export const DeliveryRecoveryRerunV1Schema = z.union([
     ...DeliveryRecoveryRerunCommonV1Shape,
     transition: z.literal("cleared"),
     action: z.literal("delivery-rematerialize"),
-    selector: z.strictObject({
-      ...DeliveryRecoverySelectorCommonV1Shape,
-      operationKind: z.literal("rewrite"),
-      mode: z.literal("review-fix"),
-    }),
+    selector: DeliveryReviewFixRecoverySelectorV1Schema,
   }),
   z.strictObject({
     ...DeliveryRecoveryRerunCommonV1Shape,
@@ -627,7 +641,10 @@ export async function applyDeliveryLanding(input: {
   return persisted.status === "ok" ? { status: "landed", state: persisted.value } : landingRefused();
 }
 
-function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
+function recoveryRerun(
+  state: DeliveryStateV1,
+  cleared?: DeliveryRevisionedRecord<DeliveryStateV1>,
+): DeliveryRecoveryRerunV1 | null {
   const operation = state.activeOperation;
   if (operation === null) return null;
   const selector = {
@@ -659,7 +676,25 @@ function recoveryRerun(state: DeliveryStateV1): DeliveryRecoveryRerunV1 | null {
             status: "retryable",
             transition: "cleared",
             action: "delivery-rematerialize",
-            selector: { ...selector, operationKind: "rewrite", mode: "review-fix" },
+            selector: {
+              ...selector,
+              operationKind: "rewrite",
+              mode: "review-fix",
+              ...(operation.reviewFixSelectedDeliverableId === undefined
+                || operation.reviewFixVerificationDeliverableIds === undefined
+                || cleared === undefined
+                || cleared.value.pendingReviewFixVerification === null
+                ? {}
+                : {
+                    reviewFixSelectedDeliverableId: operation.reviewFixSelectedDeliverableId,
+                    reviewFixVerificationDeliverableIds: operation.reviewFixVerificationDeliverableIds,
+                    supersedePendingReviewFixVerification: {
+                      pendingVerification: cleared.value.pendingReviewFixVerification,
+                      expectedStateRevision: cleared.revision,
+                      continuationDigest: canonicalDigest(cleared.value),
+                    },
+                  }),
+            },
             recommendedActionText:
               "Rerun `arc delivery rematerialize` for the exact review-fix reservation subject.",
           }
@@ -779,10 +814,15 @@ export async function reconcileDeliveryExecution(input: {
       };
     }
     if (rerun.transition === "preserved") return rerun;
-    const cleared = await input.stateStore.publish(input.planId, {
-      ...input.current.value,
-      activeOperation: null,
-    }, input.current.revision);
+    const clearedState = projectDeliveryOperationRetryState(input.current);
+    if (clearedState === null) {
+      return {
+        status: "blocked",
+        reason: "operation-result-ambiguous",
+        recommendedActionText: "The retry state is invalid; retain and inspect the reservation.",
+      };
+    }
+    const cleared = await input.stateStore.publish(input.planId, clearedState, input.current.revision);
     if (cleared.status !== "ok") {
       return {
         status: "blocked",
@@ -790,7 +830,7 @@ export async function reconcileDeliveryExecution(input: {
         recommendedActionText: "Retry-state persistence failed; retain and reconcile the reservation.",
       };
     }
-    return rerun;
+    return recoveryRerun(input.current.value, cleared.value) ?? rerun;
   }
   if (reconciled.status !== "adopt") {
     return {
@@ -831,6 +871,13 @@ export async function reconcileDeliveryExecution(input: {
     };
   }
   const persisted = await input.stateStore.publish(input.planId, reconciled.state, input.current.revision);
+  if (persisted.status === "ok" && operation?.kind === "rewrite" && operation.mode === "review-fix") {
+    return recoveryRerun(input.current.value, persisted.value) ?? {
+      status: "blocked",
+      reason: "operation-result-ambiguous",
+      recommendedActionText: "The applied review-fix continuation is invalid; inspect it explicitly.",
+    };
+  }
   return persisted.status === "ok"
     ? selectedChangeDeliverableId !== null
       ? {

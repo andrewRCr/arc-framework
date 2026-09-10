@@ -125,6 +125,7 @@ describe("eight-member delivery integration rehearsal", () => {
         candidateSubjectDigest: candidate.recognizedTarget.subject.subjectDigest,
       },
       repository: "owner/repo",
+      protectedTargetRef: initial.target!.ref,
       request: {
         binding: terminal.changeRequest!,
         repository: "owner/repo",

@@ -8,7 +8,11 @@ import {
   findExactPendingSelectedRefresh,
   hasExactPendingSelectedRefresh,
 } from "./suffix-reconciliation.js";
-import { canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
+import {
+  canonicalDigest,
+  canonicalize,
+  sortByCanonicalBytes,
+} from "../kernel/index.js";
 import type { CandidateVerificationApplicability } from
   "../work-unit/candidate-attestation.js";
 import {
@@ -692,6 +696,27 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (protectedBaseRef === null || input.activeBranch === undefined) {
       return { status: "refused" as const, reason: "review-fix-rematerialization-unavailable" };
     }
+    const pendingVerificationDerivation = entry.derivedFrom.kind === "pending-verification"
+      ? entry.derivedFrom
+      : null;
+    const pendingVerification = pendingVerificationDerivation !== null
+      ? input.state?.value.pendingReviewFixVerification ?? null
+      : null;
+    if (pendingVerificationDerivation !== null
+      && (input.state === undefined
+        || canonicalDigest(input.state.value) !== pendingVerificationDerivation.continuationDigest
+        || pendingVerification === null
+        || pendingVerification.selectedDeliverableId !== entry.selectedDeliverableId)) {
+      return { status: "refused" as const, reason: "review-fix-rematerialization-unavailable" };
+    }
+    const pendingVerificationSupersession = pendingVerificationDerivation === null
+      || pendingVerification === null
+      ? null
+      : {
+          pendingVerification,
+          expectedStateRevision: entry.stateRevision,
+          continuationDigest: pendingVerificationDerivation.continuationDigest,
+        };
     return dispatch({
       kind: "delivery-rematerialize" as const,
       argv: ["arc", "delivery", "rematerialize", "-", "--json"] as const,
@@ -700,6 +725,11 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         protectedBaseRef,
         topRef: `refs/heads/${input.activeBranch}`,
         selectedDeliverableIds: [entry.selectedDeliverableId],
+        ...(pendingVerificationSupersession === null
+          ? {}
+          : {
+              supersedePendingReviewFixVerification: pendingVerificationSupersession,
+            }),
         repository: request.repository,
         remote: request.remote,
       },
