@@ -2,6 +2,12 @@
 
 import { validateDeliveryPlanRecord } from "./plan.js";
 import type { DeliveryPlanV1 } from "./schema.js";
+import { classifyPathTreatment } from "../evidence-applicability/index.js";
+import type { RevisionOverlapResult } from "../git/base-overlap.js";
+import {
+  predecessorRelation,
+  type DeliveryPredecessorRelation,
+} from "./predecessor-relation.js";
 
 /** Exact ref coordinates pinned during one eligibility observation window. */
 export interface DeliveryEligibilityCoordinates {
@@ -28,25 +34,37 @@ export interface DeliveryEligibilitySnapshot {
   readonly planRevision: number;
   readonly planDigest: string;
   readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
+  readonly chainBase: DeliveryEligibilityCoordinates;
+  readonly predecessorRelation: DeliveryPredecessorRelation;
   readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
   readonly members: readonly DeliveryEligibilityMember[];
   readonly lifecyclePaths: readonly string[];
+  readonly regenerablePaths: readonly string[];
 }
 
 /** Read-only dependencies used by eligibility preparation, gate bracketing, and close. */
 export interface DeliveryEligibilityDependencies {
   observeRef(ref: string): Promise<DeliveryEligibilityCoordinates | null>;
   readAncestry(ancestor: string, descendant: string): Promise<"ancestor" | "not-ancestor" | "unresolvable">;
+  readOverlap(input: {
+    readonly leftRevision: string;
+    readonly rightRevision: string;
+    readonly workUnitId: string;
+  }): Promise<RevisionOverlapResult>;
   revalidateLifecycleContribution(input: {
     readonly protectedBaseRef: string;
+    readonly chainBaseRef: string;
     readonly candidateRef: string;
     readonly paths: readonly string[];
+    readonly regenerablePaths: readonly string[];
   }): Promise<{ readonly status: "ok" } | { readonly status: "refused"; readonly paths: readonly string[] }>;
   compareNormalizedCompleteness(input: {
     readonly protectedBase: DeliveryEligibilityCoordinates & { readonly ref: string };
+    readonly chainBase: DeliveryEligibilityCoordinates;
     readonly top: DeliveryEligibilityCoordinates & { readonly ref: string };
     readonly finalCandidate: DeliveryEligibilityMember;
     readonly lifecyclePaths: readonly string[];
+    readonly regenerablePaths: readonly string[];
   }): Promise<
     | { readonly status: "match" }
     | { readonly status: "refused"; readonly reason: "dropped" | "invented" | "mismatched" | "unavailable" }
@@ -94,6 +112,25 @@ export interface DeliveryEligibilityRefusal {
   readonly deliverableId?: string;
   /** Every mismatching lifecycle-contribution path; present only for `lifecycle-contribution` refusals. */
   readonly paths?: readonly string[];
+  readonly relation?: DeliveryPredecessorRelation;
+  readonly detail?: string;
+  readonly source?: {
+    readonly ref: string;
+    readonly expected: DeliveryEligibilityCoordinates;
+    readonly observed: DeliveryEligibilityCoordinates | null;
+  };
+  readonly nextAction?: {
+    readonly kind: "reprepare-delivery-eligibility";
+    readonly planId: string;
+    readonly protectedBaseRef: string;
+    readonly topRef: string;
+    readonly candidates: readonly { readonly deliverableId: string; readonly ref: string }[];
+    readonly lifecyclePaths: readonly string[];
+  };
+  readonly remedy?: {
+    readonly kind: "delivery-authoring-rebuild-required";
+    readonly automatedCommand: null;
+  };
 }
 
 /** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
@@ -253,15 +290,64 @@ export async function prepareDeliveryEligibility(input: {
   const protectedBase = observed[0];
   const top = observed[1];
   if (protectedBase === null || top === null) return { status: "refused", reason: "evidence-unavailable" };
+  const firstCoordinates = observed[2];
+  const firstCandidate = input.candidates[0];
+  if (firstCoordinates === null || firstCoordinates === undefined || firstCandidate === undefined) {
+    return { status: "refused", reason: "candidate-unavailable", deliverableId: firstCandidate?.deliverableId };
+  }
+  const predecessorRead = await predecessorRelation({
+    memberHead: firstCoordinates.head,
+    observedTip: protectedBase.head,
+  }, {
+    readAncestry: (ancestor, descendant) => deps.readAncestry(ancestor, descendant),
+    readOverlap: (leftRevision, rightRevision) => deps.readOverlap({
+      leftRevision,
+      rightRevision,
+      workUnitId: input.plan.workUnitId,
+    }),
+  });
+  if (predecessorRead.status === "unavailable") {
+    return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
+  }
+  const observedRelation = predecessorRead.relation;
+  if (observedRelation.kind === "overlapping-ahead" || observedRelation.kind === "unrelated") {
+    return {
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: firstCandidate.deliverableId,
+      relation: observedRelation,
+      ...(observedRelation.kind === "overlapping-ahead"
+        ? {
+            paths: observedRelation.overlap.substantivePaths,
+            detail: "The observed protected-base movement overlaps this delivery member. Rebuild the delivery "
+              + "chain against the observed tip; no safe automated rebuild command is available.",
+          }
+        : {
+            detail: `${observedRelation.detail} Rebuild the delivery chain from a common lineage; no safe automated `
+              + "rebuild command is available.",
+          }),
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    };
+  }
+  const chainBase = observedRelation.kind === "exact"
+    ? { head: protectedBase.head, tree: protectedBase.tree }
+    : await deps.observeRef(observedRelation.chainBase);
+  if (chainBase === null || chainBase.head !== observedRelation.chainBase) {
+    return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
+  }
+  const lifecyclePaths = [...new Set(input.lifecyclePaths)].sort(byteSort);
+  const regenerablePaths = lifecyclePaths.filter((path) => (
+    classifyPathTreatment(path, { workUnit: input.plan.workUnitId }) === "regenerable"
+  ));
   const members: DeliveryEligibilityMember[] = [];
   for (const [index, candidate] of input.candidates.entries()) {
     const coordinates = observed[index + 2];
     if (coordinates === null || coordinates === undefined) {
       return { status: "refused", reason: "candidate-unavailable", deliverableId: candidate.deliverableId };
     }
-    const predecessor = index === 0 ? protectedBase : members[index - 1];
+    const predecessor = index === 0 ? chainBase : members[index - 1];
     if (predecessor === undefined) return { status: "refused", reason: "evidence-unavailable" };
-    const ancestry = await deps.readAncestry(predecessor.head, coordinates.head);
+    const ancestry = index === 0 ? "ancestor" : await deps.readAncestry(predecessor.head, coordinates.head);
     if (ancestry !== "ancestor") {
       return {
         status: "refused",
@@ -275,8 +361,10 @@ export async function prepareDeliveryEligibility(input: {
     }
     const lifecycle = await deps.revalidateLifecycleContribution({
       protectedBaseRef: input.protectedBaseRef,
+      chainBaseRef: predecessor.head,
       candidateRef: candidate.ref,
-      paths: input.lifecyclePaths,
+      paths: lifecyclePaths,
+      regenerablePaths,
     });
     if (lifecycle.status !== "ok") {
       return {
@@ -296,9 +384,12 @@ export async function prepareDeliveryEligibility(input: {
       planRevision: input.plan.planRevision,
       planDigest: input.plan.planDigest,
       protectedBase: { ref: input.protectedBaseRef, ...protectedBase },
+      chainBase,
+      predecessorRelation: observedRelation,
       top: { ref: input.topRef, ...top },
       members,
-      lifecyclePaths: [...new Set(input.lifecyclePaths)].sort(byteSort),
+      lifecyclePaths,
+      regenerablePaths,
     },
   };
 }
@@ -367,13 +458,72 @@ async function closeMechanicalDeliveryEligibility(
   snapshot: DeliveryEligibilitySnapshot,
   deps: DeliveryEligibilityDependencies,
 ): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
+  const refs = [snapshot.protectedBase, snapshot.top, ...snapshot.members];
+  const currentRefs = await Promise.all(refs.map((entry) => deps.observeRef(entry.ref)));
+  for (const [index, entry] of currentRefs.entries()) {
+    const expected = refs[index];
+    if (expected === undefined) return { status: "refused", reason: "evidence-unavailable" };
+    if (entry === null || entry.head !== expected.head || entry.tree !== expected.tree) {
+      return {
+        status: "refused",
+        reason: "source-moved",
+        source: {
+          ref: expected.ref,
+          expected: { head: expected.head, tree: expected.tree },
+          observed: entry ?? null,
+        },
+        nextAction: {
+          kind: "reprepare-delivery-eligibility",
+          planId: snapshot.planId,
+          protectedBaseRef: snapshot.protectedBase.ref,
+          topRef: snapshot.top.ref,
+          candidates: snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
+          lifecyclePaths: snapshot.lifecyclePaths,
+        },
+      };
+    }
+  }
+  const firstMember = snapshot.members[0];
   const finalCandidate = snapshot.members.at(-1);
-  if (finalCandidate === undefined) return { status: "refused", reason: "candidate-unavailable" };
+  if (firstMember === undefined || finalCandidate === undefined) {
+    return { status: "refused", reason: "candidate-unavailable" };
+  }
+  const currentRelation = await predecessorRelation({
+    memberHead: firstMember.head,
+    observedTip: snapshot.protectedBase.head,
+  }, {
+    readAncestry: (ancestor, descendant) => deps.readAncestry(ancestor, descendant),
+    readOverlap: (leftRevision, rightRevision) => deps.readOverlap({
+      leftRevision,
+      rightRevision,
+      workUnitId: snapshot.workUnitId,
+    }),
+  });
+  if (currentRelation.status === "unavailable") return { status: "refused", reason: "evidence-unavailable" };
+  if (!samePredecessorRelation(currentRelation.relation, snapshot.predecessorRelation)) {
+    return {
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: firstMember.deliverableId,
+      relation: currentRelation.relation,
+      detail: "The reobserved predecessor relation does not match the prepared snapshot.",
+    };
+  }
+  if (snapshot.chainBase.head !== snapshot.protectedBase.head
+    || snapshot.chainBase.tree !== snapshot.protectedBase.tree) {
+    const currentChainBase = await deps.observeRef(snapshot.chainBase.head);
+    if (currentChainBase === null || currentChainBase.head !== snapshot.chainBase.head
+      || currentChainBase.tree !== snapshot.chainBase.tree) {
+      return { status: "refused", reason: "evidence-unavailable" };
+    }
+  }
   const completeness = await deps.compareNormalizedCompleteness({
     protectedBase: snapshot.protectedBase,
+    chainBase: snapshot.chainBase,
     top: snapshot.top,
     finalCandidate,
     lifecyclePaths: snapshot.lifecyclePaths,
+    regenerablePaths: snapshot.regenerablePaths,
   });
   if (completeness.status !== "match") {
     return {
@@ -382,15 +532,6 @@ async function closeMechanicalDeliveryEligibility(
         ? "evidence-unavailable"
         : `completeness-${completeness.reason}`,
     };
-  }
-  const refs = [snapshot.protectedBase, snapshot.top, ...snapshot.members];
-  const currentRefs = await Promise.all(refs.map((entry) => deps.observeRef(entry.ref)));
-  for (const [index, entry] of currentRefs.entries()) {
-    const expected = refs[index];
-    if (entry === null || expected === undefined
-      || entry.head !== expected.head || entry.tree !== expected.tree) {
-      return { status: "refused", reason: "source-moved" };
-    }
   }
   const currentPlan = await deps.readCurrentPlan(snapshot.planId);
   if (currentPlan === null || currentPlan.planRevision !== snapshot.planRevision
@@ -407,6 +548,33 @@ async function closeMechanicalDeliveryEligibility(
     }
   }
   return { status: "eligible", snapshot };
+}
+
+function samePredecessorRelation(
+  left: DeliveryPredecessorRelation,
+  right: DeliveryPredecessorRelation,
+): boolean {
+  if (left.kind !== right.kind || left.observedTip !== right.observedTip) return false;
+  if (left.kind === "exact" && right.kind === "exact") return left.chainBase === right.chainBase;
+  if (left.kind === "unrelated" && right.kind === "unrelated") return left.detail === right.detail;
+  if (left.kind === "disjoint-ahead" && right.kind === "disjoint-ahead") {
+    return left.chainBase === right.chainBase && left.mergeBase === right.mergeBase
+      && sameOverlap(left.overlap, right.overlap);
+  }
+  if (left.kind === "overlapping-ahead" && right.kind === "overlapping-ahead") {
+    return left.mergeBase === right.mergeBase && sameOverlap(left.overlap, right.overlap);
+  }
+  return false;
+}
+
+function sameOverlap(
+  left: Extract<RevisionOverlapResult, { readonly status: "available" }>["overlap"],
+  right: Extract<RevisionOverlapResult, { readonly status: "available" }>["overlap"],
+): boolean {
+  return left.substantivePaths.length === right.substantivePaths.length
+    && left.substantivePaths.every((path, index) => path === right.substantivePaths[index])
+    && left.regenerablePaths.length === right.regenerablePaths.length
+    && left.regenerablePaths.every((path, index) => path === right.regenerablePaths[index]);
 }
 
 function validateDeliveryCandidateGateResults(

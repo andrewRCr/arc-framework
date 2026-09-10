@@ -926,13 +926,13 @@ describe("delivery terminal integration", () => {
     });
   });
 
-  it("reconciles drift outside the residual without whole-work-unit verification", () => {
+  it("continues when terminal overlap is regenerable-only", () => {
     expect(classifyDeliveryTerminalDrift({
       substantivePaths: [],
       regenerablePaths: ["ROADMAP.md"],
       residualPaths: ["terminal.ts"],
-      predecessorPaths: [],
-    })).toEqual({ status: "reconcile", nextAction: "reconcile-base", safetyClass: "generic" });
+      predecessorPaths: ["ROADMAP.md"],
+    })).toEqual({ status: "disjoint", nextAction: "continue" });
   });
 
   it("keeps substantive paths outside the residual under generic reconcile safety", () => {

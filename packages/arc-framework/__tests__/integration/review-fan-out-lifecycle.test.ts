@@ -561,6 +561,8 @@ async function createHarness(
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
+    chainBase: { head: baseHead, tree: baseTree },
+    predecessorRelation: { kind: "exact", observedTip: baseHead, chainBase: baseHead },
     top: { ref: "refs/heads/prior-top", head: priorSecond, tree: priorSecondTree },
     members: [
       {
@@ -577,6 +579,7 @@ async function createHarness(
       },
     ],
     lifecyclePaths: [],
+    regenerablePaths: [],
   });
   if (materialization.status !== "derived") throw new Error("expected delivery materialization");
   const bindingOrder: string[] = [];
@@ -763,6 +766,8 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
+    chainBase: { head: baseHead, tree: baseTree },
+    predecessorRelation: { kind: "exact", observedTip: baseHead, chainBase: baseHead },
     top: { ref: "refs/heads/feat/eight-member", head: heads.at(-1)!, tree: trees.at(-1)! },
     members: plan.members.map((planned, index) => ({
       deliverableId: planned.deliverableId,
@@ -773,6 +778,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
       tree: trees[index]!,
     })),
     lifecyclePaths: [],
+    regenerablePaths: [],
   });
   if (materialization.status !== "derived") throw new Error("expected eight-member materialization");
   const refs = {

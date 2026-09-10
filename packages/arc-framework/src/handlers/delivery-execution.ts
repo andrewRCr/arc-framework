@@ -15,6 +15,7 @@ import type { InteractionContext } from "../lib/command-input/interaction-contex
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { parseMetaFile } from "../lib/active/meta-reader.js";
+import { workUnitPathTreatmentContext } from "../lib/base-drift/current-adapters.js";
 import {
   closeDeliveryEligibilityForPublication,
   executeWithFreshDeliveryEligibility,
@@ -254,6 +255,7 @@ import { parseIntegrationBoundaryLocus } from
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
 import type { GitExec } from "../lib/git/exec.js";
+import { analyzeRevisionOverlap } from "../lib/git/base-overlap.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { GhDeliveryProviderRefreshPort } from "../scripts/delivery/hosts/github-refresh.js";
 import { deliveryProviderGhRunner } from "../scripts/delivery/provider-process.js";
@@ -355,15 +357,77 @@ const CandidateGateResultSchema = z.strictObject({
   ...CoordinateSchema.shape,
   status: z.enum(["passed", "failed"]),
 });
+const DeliveryOverlapSchema = z.strictObject({
+  status: z.literal("available"),
+  substantivePaths: z.array(z.string().min(1)),
+  regenerablePaths: z.array(z.string().min(1)),
+});
+const PredecessorRelationSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("exact"),
+    observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("disjoint-ahead"),
+    observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema,
+    mergeBase: GitObjectIdSchema,
+    overlap: DeliveryOverlapSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("overlapping-ahead"),
+    observedTip: GitObjectIdSchema,
+    mergeBase: GitObjectIdSchema,
+    overlap: DeliveryOverlapSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("unrelated"),
+    observedTip: GitObjectIdSchema,
+    detail: z.string().min(1),
+  }),
+]);
 const EligibilitySnapshotSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   workUnitId: z.string().min(1),
   planRevision: z.number().int().positive(),
   planDigest: DeliveryCanonicalDigestSchema,
   protectedBase: CoordinateSchema.extend({ ref: RefSchema }),
+  chainBase: CoordinateSchema,
+  predecessorRelation: PredecessorRelationSchema,
   top: CoordinateSchema.extend({ ref: RefSchema }),
   members: z.array(EligibilityMemberSchema).min(1),
   lifecyclePaths: z.array(z.string().min(1)),
+  regenerablePaths: z.array(z.string().min(1)),
+});
+const DeliveryEligibilitySourceMovedSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("source-moved"),
+  source: z.strictObject({
+    ref: RefSchema,
+    expected: CoordinateSchema,
+    observed: CoordinateSchema.nullable(),
+  }),
+  nextAction: z.strictObject({
+    kind: z.literal("reprepare-delivery-eligibility"),
+    planId: DeliveryPlanIdSchema,
+    protectedBaseRef: RefSchema,
+    topRef: RefSchema,
+    candidates: z.array(CandidateSchema).min(1),
+    lifecyclePaths: z.array(z.string().min(1)),
+  }),
+});
+const DeliveryWrongPredecessorSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("wrong-predecessor"),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  relation: PredecessorRelationSchema,
+  paths: z.array(z.string().min(1)).optional(),
+  detail: z.string().min(1).max(1_000),
+  remedy: z.strictObject({
+    kind: z.literal("delivery-authoring-rebuild-required"),
+    automatedCommand: z.null(),
+  }).optional(),
 });
 
 const PrepareSchema = z.strictObject({
@@ -1120,6 +1184,8 @@ const ResultSchema = z.union([
   DeliveryRecoveryResultV1Schema,
   NativePreparedRecoveryResultSchema,
   NativeMemberNotReadyResultSchema,
+  DeliveryEligibilitySourceMovedSchema,
+  DeliveryWrongPredecessorSchema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({
@@ -3755,21 +3821,39 @@ async function executeDeliveryCommand(
   const eligibilityDeps = {
     observeRef: (ref: string) => observeDeliveryEligibilityRef(exec, ref),
     readAncestry: (ancestor: string, descendant: string) => readAncestry(exec, ancestor, descendant),
-    revalidateLifecycleContribution: (input: { protectedBaseRef: string; candidateRef: string; paths: readonly string[] }) => (
+    readOverlap: (input: { leftRevision: string; rightRevision: string; workUnitId: string }) => (
+      analyzeRevisionOverlap({
+        exec,
+        leftRevision: input.leftRevision,
+        rightRevision: input.rightRevision,
+        treatmentContext: workUnitPathTreatmentContext(input.workUnitId),
+      })
+    ),
+    revalidateLifecycleContribution: (input: {
+      protectedBaseRef: string;
+      chainBaseRef: string;
+      candidateRef: string;
+      paths: readonly string[];
+      regenerablePaths: readonly string[];
+    }) => (
       revalidateDeliveryLifecycleContribution({ exec, ...input })
     ),
     compareNormalizedCompleteness: async (input: z.infer<typeof EligibilitySnapshotSchema> extends never ? never : {
       protectedBase: { ref: string; head: string; tree: string };
+      chainBase: { head: string; tree: string };
       top: { ref: string; head: string; tree: string };
       finalCandidate: { deliverableId: string; ref: string; head: string; tree: string };
       lifecyclePaths: readonly string[];
+      regenerablePaths: readonly string[];
     }) => {
       const compared = await compareGitNormalizedDeliveryTrees({
         exec,
         protectedBaseTree: input.protectedBase.tree,
+        chainBaseTree: input.chainBase.tree,
         topTree: input.top.tree,
         finalCandidateTree: input.finalCandidate.tree,
         lifecyclePaths: input.lifecyclePaths,
+        regenerablePaths: input.regenerablePaths,
       });
       if (compared.status === "unavailable") return { status: "refused" as const, reason: "unavailable" as const };
       if (compared.status === "match") return compared;
@@ -4168,8 +4252,10 @@ async function executeDeliveryCommand(
         const checked = await revalidateDeliveryLifecycleContribution({
           exec,
           protectedBaseRef,
+          chainBaseRef: protectedBaseRef,
           candidateRef: locator.candidateRef,
           paths: lifecyclePaths,
+          regenerablePaths: [],
         });
         return { status: checked.status };
       },
@@ -4989,7 +5075,7 @@ async function executeDeliveryCommand(
           const adoption = await adoptGitDeliveryChain({
             exec: createRawGitExec(cwd),
             topRef: parsed.topRef,
-            commonBase: snapshot.protectedBase,
+            commonBase: snapshot.chainBase,
             highestMember: { head: highestMember.head, tree: highestMember.tree },
             finalCandidate,
             lifecyclePaths: snapshot.lifecyclePaths,
@@ -5834,7 +5920,7 @@ async function executeDeliveryCommand(
         const requestedCoordinates = requested.coordinates;
         const predecessor = await observeDeliveryEligibilityRef(exec, memberCoordinates.base);
         const snapshotIndex = snapshot.members.findIndex((entry) => entry.deliverableId === rewrite.deliverableId);
-        const afterPredecessor = snapshotIndex === 0 ? snapshot.protectedBase : snapshot.members[snapshotIndex - 1];
+        const afterPredecessor = snapshotIndex === 0 ? snapshot.chainBase : snapshot.members[snapshotIndex - 1];
         if (predecessor === null || predecessor.head !== memberCoordinates.base || afterPredecessor === undefined) {
           return { status: "refused" as const };
         }
@@ -5850,8 +5936,10 @@ async function executeDeliveryCommand(
             const checked = await revalidateDeliveryLifecycleContribution({
               exec,
               protectedBaseRef: parsed.protectedBaseRef,
+              chainBaseRef: parsed.protectedBaseRef,
               candidateRef: candidate.ref,
               paths: snapshot.lifecyclePaths,
+              regenerablePaths: [],
             });
             return { status: checked.status };
           },
@@ -5877,7 +5965,7 @@ async function executeDeliveryCommand(
     if (snapshot === null) return { status: "refused", reason: "observation-unavailable" };
     return completeDeliverySuffixMutationTail({
       rematerialized,
-      commonBase: snapshot.protectedBase,
+      commonBase: snapshot.chainBase,
       topRef: parsed.topRef,
       top: snapshot.top,
       finalCandidate: snapshot.members.at(-1),
@@ -5908,8 +5996,10 @@ async function executeDeliveryCommand(
         const checked = await revalidateDeliveryLifecycleContribution({
           exec,
           protectedBaseRef: parsed.protectedBaseRef,
+          chainBaseRef: parsed.protectedBaseRef,
           candidateRef: parsed.candidateRef,
           paths: parsed.lifecyclePaths,
+          regenerablePaths: [],
         });
         return { status: checked.status };
       },

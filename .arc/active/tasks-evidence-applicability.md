@@ -256,7 +256,7 @@ and Errand paths.
 _Purpose:_ let delivery eligibility and review status distinguish disjoint target movement before ordinary downstream
 currentness and merge authority are re-established.
 
-### `[ ]` **3.1 Admit disjoint protected-base movement in delivery eligibility** — D7
+### `[x]` **3.1 Admit disjoint protected-base movement in delivery eligibility** — D7
 
 - _Goal:_ a delivery member remains eligible when the live target advanced without touching its contribution, while
   recorded predecessor coordinates and every interacting-movement refusal remain authoritative.
@@ -266,56 +266,24 @@ currentness and merge authority are re-established.
           predecessor classifier whose exact, disjoint, overlapping, unrelated, and unavailable arms retain the
           coordinates and evidence they establish; base drift delegates without changing its public contract.
 
-    - `[ ]` **3.1.b Preserve lifecycle contribution across regenerable movement**
-        - Extend `compareDeliveryLifecycleContribution` and `compareNormalizedDeliveryTree` so a `disjoint-ahead`
-          member reads registry-classified regenerable entries from `chainBase`, while every other lifecycle path
-          remains compared with `protectedBase`. Require every disposable nonterminal member's regenerable entry to
-          equal that chain baseline; this lifecycle-neutral invariant admits a sibling-only readiness update as an
-          ordinary one-sided host merge and rejects a member-authored competing render.
-        - Update both Git adapters and every direct caller. Preserve `chain-containment.ts` by supplying its already
-          closed common base for both coordinates rather than imposing delivery-eligibility semantics on that path.
-          Preserve the invariant through initial materialization, pre-binding review-target composition, suffix
-          rematerialization, and ordinary nonterminal landing. Route a terminal dual-sided readiness conflict through
-          D5's exact-parent `reconcile-regenerable` arm and fresh approval.
-        - Build `test-first` (one behavior at a time):
-            - a sibling-only readiness regeneration stays eligible and lands with the custom merge driver disabled;
-            - a nonterminal member that changes readiness relative to `chainBase` refuses with the exact path;
-            - a terminal candidate and base carrying divergent readiness renders take D5's typed remedy;
-            - another lifecycle-path change still refuses; and
-            - exact predecessor behavior and chain-containment's common-base comparison remain unchanged across all
-              comparator call sites.
+    - `[x]` **3.1.b Preserve lifecycle contribution across regenerable movement**
+        - Lifecycle comparators and both Git adapters now source registry-classified regenerable entries from the
+          chain baseline while retaining protected-tip comparison elsewhere; real-Git coverage proves a base-only
+          readiness regeneration lands one-sided with its custom merge driver disabled and competing renders refuse.
 
-    - `[ ]` **3.1.c Preserve observed-tip and chain-base authority through materialization**
-        - Carry `protectedBase`, `chainBase`, and `predecessorRelation` separately through
-          `prepareDeliveryEligibility`, eligibility close, and the handler snapshot schema. Treat the round-tripped
-          snapshot as untrusted: close reobserves the protected and member refs, recomputes the exact relation and
-          merge-base, and rejects caller-altered or stale facts before completeness or mutation.
-        - Update initial materialization, pre-binding review-target composition, and suffix rematerialization so the
-          chain base is persisted as the real predecessor while the observed tip is independently verified as the
-          protected-ref snapshot; suffix work compares the chain base with the persisted target, and nonterminal
-          delivery projections cannot introduce a new regenerable entry.
-        - Build `test-first` (one behavior at a time):
-            - exact and disjoint relations preserve distinct observed-tip and chain-base coordinates through the
-              handler schema and initial materialization;
-            - suffix rematerialization accepts the persisted chain base while still detecting observed-tip movement;
-            - a tampered relation, merge-base, or chain base and movement between prepare and close refuse before
-              mutation, with moved source returning the exact re-prepare action; and
-            - pre-binding composition preserves caught failure detail instead of collapsing it to an unexplained
-              evidence-unavailable token.
+    - `[x]` **3.1.c Preserve observed-tip and chain-base authority through materialization**
+        - Eligibility snapshots, strict handler schemas, initial materialization, review-target composition, and
+          suffix rematerialization now preserve the two coordinates independently; close reobserves sources and
+          relation evidence before completeness, returning exact re-prepare input or sanitized failure detail.
 
-    - `[ ]` **3.1.d Align eligibility and terminal refusal contracts**
-        - Add the terminal classifier's `disjoint / continue` arm, exclude regenerable paths from predecessor
-          overlap, preserve persisted delivery coordinates on every eligibility arm, and keep terminal
-          regenerable-conflict routing distinct from nonterminal lifecycle neutrality.
-        - Make `wrong-predecessor` distinguish `overlapping-ahead` from `unrelated`, retaining exact coordinates,
-          merge-base and overlap paths when present, and useful sanitized detail. Explain that the separately owned
-          chain rebuild is required and that this work unit supplies no safe automated rebuild command.
-        - Build `test-first` (one behavior at a time):
-            - all four predecessor relations flow through eligibility without mutating persisted coordinates;
-            - inert-only terminal overlap continues while a real terminal readiness conflict returns the typed D5
-              continuation; and
-            - overlapping, unrelated, and predecessor-overlap refusals remain distinct and give the agent decisive
-              evidence plus an executable remedy or explicit terminal explanation.
+    - `[x]` **3.1.d Align eligibility and terminal refusal contracts**
+        - Terminal drift now continues on regenerable-only overlap and counts only substantive predecessor
+          intersection; eligibility distinguishes overlapping from unrelated predecessor evidence and returns exact
+          paths, coordinates, detail, and the explicit no-automated-rebuild boundary.
+
+- _Outcome:_ delivery eligibility can admit disjoint protected-base movement without rewriting the member's real
+  predecessor, while every source, relation, lifecycle, and terminal-conflict boundary remains independently typed
+  and freshly revalidated.
 
 ### `[ ]` **3.2 Classify terminal delivery drift from the durable Candidate baseline** — D7
 

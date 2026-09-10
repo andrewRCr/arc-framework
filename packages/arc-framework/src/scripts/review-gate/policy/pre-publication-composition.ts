@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { parseMetaRecord, toMetaRecord } from "../../../lib/active/meta-reader.js";
+import { workUnitPathTreatmentContext } from "../../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   compareGitNormalizedDeliveryTrees,
@@ -18,7 +19,7 @@ import { CurrentDeliveryLifecycleContributionPathSource } from "../../../lib/del
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
+import { analyzeRevisionOverlap, getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
@@ -120,6 +121,12 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
     eligibility: {
       observeRef: (ref) => observeDeliveryEligibilityRef(input.exec, ref),
       readAncestry: (ancestor, descendant) => readAncestry(input.exec, ancestor, descendant),
+      readOverlap: (coordinates) => analyzeRevisionOverlap({
+        exec: input.exec,
+        leftRevision: coordinates.leftRevision,
+        rightRevision: coordinates.rightRevision,
+        treatmentContext: workUnitPathTreatmentContext(coordinates.workUnitId),
+      }),
       revalidateLifecycleContribution: (candidate) => revalidateDeliveryLifecycleContribution({
         exec: input.exec,
         ...candidate,
@@ -128,9 +135,11 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
         const compared = await compareGitNormalizedDeliveryTrees({
           exec: input.exec,
           protectedBaseTree: candidate.protectedBase.tree,
+          chainBaseTree: candidate.chainBase.tree,
           topTree: candidate.top.tree,
           finalCandidateTree: candidate.finalCandidate.tree,
           lifecyclePaths: candidate.lifecyclePaths,
+          regenerablePaths: candidate.regenerablePaths,
         });
         if (compared.status === "unavailable") {
           return { status: "refused" as const, reason: "unavailable" as const };

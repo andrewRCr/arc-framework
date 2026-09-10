@@ -139,7 +139,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
   if (snapshot.planId !== input.plan.planId || snapshot.workUnitId !== input.plan.workUnitId
     || snapshot.planRevision !== input.plan.planRevision || snapshot.planDigest !== input.plan.planDigest
     || input.state.target?.coordinates === null || input.state.target === null
-    || canonicalize(snapshot.protectedBase) !== canonicalize({
+    || canonicalize({ ref: snapshot.protectedBase.ref, ...snapshot.chainBase }) !== canonicalize({
       ref: input.state.target.ref,
       ...input.state.target.coordinates,
     })) return { status: "refused", reason: "snapshot-mismatch" };
@@ -167,7 +167,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
     const beforePredecessor = stored?.coordinates === null || stored?.coordinates === undefined
       ? null
       : await input.resolveCoordinate(stored.coordinates.base);
-    const afterPredecessor = suffixIndex === 0 ? snapshot.protectedBase : snapshot.members[suffixIndex - 1];
+    const afterPredecessor = suffixIndex === 0 ? snapshot.chainBase : snapshot.members[suffixIndex - 1];
     if (stored?.coordinates === null || stored?.coordinates === undefined
       || beforePredecessor === null || afterPredecessor === undefined
       || beforePredecessor.head !== stored.coordinates.base) {
@@ -184,7 +184,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
   const rewrites: DeliverySuffixRewritePlan[] = [];
   for (const [suffixIndex, candidate] of snapshot.members.slice(0, -1).entries()) {
     const stored = input.state.members[landedCount + suffixIndex];
-    const predecessor = suffixIndex === 0 ? snapshot.protectedBase : snapshot.members[suffixIndex - 1];
+    const predecessor = suffixIndex === 0 ? snapshot.chainBase : snapshot.members[suffixIndex - 1];
     if (stored?.ref === null || stored?.ref === undefined || stored.coordinates === null || predecessor === undefined) {
       return { status: "refused", reason: "snapshot-mismatch" };
     }

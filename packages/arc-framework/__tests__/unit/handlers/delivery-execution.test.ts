@@ -222,6 +222,12 @@ describe("delivery execution handler", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
+      chainBase: { head: "1".repeat(40), tree: "2".repeat(40) },
+      predecessorRelation: {
+        kind: "exact",
+        observedTip: "1".repeat(40),
+        chainBase: "1".repeat(40),
+      },
       top: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
       members: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
@@ -230,6 +236,7 @@ describe("delivery execution handler", () => {
         tree: String(index + 7).repeat(40),
       })),
       lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
+      regenerablePaths: [],
     };
     const write = vi.fn();
     const setExitCode = vi.fn();

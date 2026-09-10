@@ -31,6 +31,8 @@ function eligible(plan = deliveryPlanFixture()) {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: protectedHead, tree: protectedTree },
+    chainBase: { head: protectedHead, tree: protectedTree },
+    predecessorRelation: { kind: "exact" as const, observedTip: protectedHead, chainBase: protectedHead },
     top: { ref: "refs/heads/feat/example", head: topHead, tree: topTree },
     members: plan.members.map((member, index) => ({
       deliverableId: member.deliverableId,
@@ -39,6 +41,7 @@ function eligible(plan = deliveryPlanFixture()) {
       tree: index === 0 ? firstTree : topTree,
     })),
     lifecyclePaths: [],
+    regenerablePaths: [],
   };
 }
 
@@ -57,6 +60,33 @@ function memoryStateStore() {
 }
 
 describe("deriveDeliveryMaterialization", () => {
+  it("persists a disjoint chain base independently of the protected request ref", () => {
+    const plan = deliveryPlanFixture();
+    const chainHead = "7".repeat(40);
+    const chainTree = "8".repeat(40);
+    const snapshot = {
+      ...eligible(plan),
+      protectedBase: { ref: "refs/heads/main", head: "9".repeat(40), tree: "a".repeat(40) },
+      chainBase: { head: chainHead, tree: chainTree },
+      predecessorRelation: {
+        kind: "disjoint-ahead" as const,
+        observedTip: "9".repeat(40),
+        chainBase: chainHead,
+        mergeBase: chainHead,
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
+    };
+
+    const result = deriveDeliveryMaterialization(plan, snapshot);
+    expect(result.status).toBe("derived");
+    if (result.status !== "derived") return;
+    expect(result.value.target).toEqual({ ref: "refs/heads/main", head: chainHead, tree: chainTree });
+    expect(result.value.members[0]).toMatchObject({
+      requestBaseRef: "refs/heads/main",
+      coordinates: { base: chainHead },
+    });
+  });
+
   it("derives ordered member refs and binds the terminal to the originating top ref", () => {
     const plan = deliveryPlanFixture();
     const result = deriveDeliveryMaterialization(plan, eligible(plan));
