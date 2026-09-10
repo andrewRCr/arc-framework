@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "carry-pending-verification-supersession-into-rematerialization-as-selected-change",
+  "claimId": "a0c277819abab4cbbd7337c81fcff712",
+  "createdAt": "2026-09-10T03:54:22.036Z",
+  "updatedAt": "2026-09-10T03:54:22.036Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Carry pending-verification supersession into rematerialization as selected-change and preserve typed refusal",
+  "branch": "chore/carry-pending-verification-supersession-into-rematerialization-as-selected-change",
+  "origin": "inbox",
+  "originEntry": "Carry pending-verification supersession into rematerialization as `selected-change`",
+  "originEntrySourceDigest": "sha256:97531a2e68e2fd4211ec31631ffa127f0be862b34330d07f3bc20c41f197cd85",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
