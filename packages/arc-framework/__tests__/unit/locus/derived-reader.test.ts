@@ -60,6 +60,7 @@ function subjectIO(files: ReadonlyMap<string, string>): SubjectMetaIO {
     lstat: async () => ({ isSymbolicLink: () => false }),
     projectDeliveryCorrection: async () => ({ status: "none" }),
     projectCandidateTarget: projectDurableCandidateTarget,
+    readPendingCandidateReviewFixAuthority: async () => ({ status: "none" }),
   };
 }
 

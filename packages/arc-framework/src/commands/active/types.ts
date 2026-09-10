@@ -13,6 +13,8 @@ import type { Slug } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type { IntegrationBoundaryLocus } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { CandidateTargetProjector } from "../../lib/work-unit/candidate-effective-target.js";
+import type { CandidateReviewFixAuthorityReader } from
+  "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 export {
   PrioritySchema,
@@ -185,6 +187,8 @@ export interface ActiveStatusOptions {
   cwd: string;
   exec?: GitExec;
   projectCandidateTarget?: CandidateTargetProjector;
+  /** Override for resolving durable pending Candidate fix authority. */
+  readPendingCandidateReviewFixAuthority?: CandidateReviewFixAuthorityReader;
 }
 
 /**
@@ -213,4 +217,6 @@ export interface ActiveSessionInitOptions {
    */
   exec: GitExec;
   projectCandidateTarget?: CandidateTargetProjector;
+  /** Override for resolving durable pending Candidate fix authority. */
+  readPendingCandidateReviewFixAuthority?: CandidateReviewFixAuthorityReader;
 }

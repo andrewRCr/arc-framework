@@ -12,6 +12,7 @@ import {
   type DeliveryPlanAuthoringInputV1,
   type DeliveryPlanV1,
 } from "../../../src/lib/delivery/schema.js";
+import type { DeliveryTaskInventoryEntry } from "../../../src/lib/delivery/task-inventory.js";
 import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { deliverySingleMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 
@@ -59,7 +60,9 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
   });
 }
 
-function constructionInput(overrides: Partial<Parameters<typeof constructDeliveryPlanRevision>[0]> = {}) {
+function constructionInput(
+  overrides: Partial<Parameters<typeof constructDeliveryPlanRevision>[0]> = {},
+): Parameters<typeof constructDeliveryPlanRevision>[0] {
   const design = bindDesignInventory({
     artifacts: [{
       artifactId: "spec-delivery-plan-record.md",
@@ -72,7 +75,7 @@ function constructionInput(overrides: Partial<Parameters<typeof constructDeliver
     }],
   });
   if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const parents = [
+  const parents: DeliveryTaskInventoryEntry[] = [
     {
       taskId: "1.1",
       semanticDigest: canonicalDigest({ goal: "First" }),
@@ -343,7 +346,7 @@ describe("validateDeliveryPlanRevision", () => {
     authoredTask.role = { kind: "verification", scope: "segment" };
     const parents = next.taskInventory.parents.map((task) => (
       task.taskId === "1.1"
-        ? { ...task, role: { kind: "verification" as const, scope: "segment" } }
+        ? { ...task, role: { kind: "verification" as const, scope: "segment" as const } }
         : task
     ));
     const result = constructDeliveryPlanRevision({

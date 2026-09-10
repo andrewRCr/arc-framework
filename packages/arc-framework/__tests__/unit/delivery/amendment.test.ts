@@ -8,6 +8,7 @@ import {
   type DeliveryPlanAuthoringInputV1,
   type DeliveryPlanV1,
 } from "../../../src/lib/delivery/schema.js";
+import type { DeliveryTaskInventoryEntry } from "../../../src/lib/delivery/task-inventory.js";
 import { canonicalDigest, SlugSchema, type CanonicalDigest } from "../../../src/lib/kernel/index.js";
 
 const planId = "123e4567-e89b-42d3-a456-426614174000";
@@ -104,7 +105,7 @@ function constructPlan(
     }],
   });
   if (design.status !== "bound") throw new Error("fixture design inventory must bind");
-  const parents = [
+  const parents: DeliveryTaskInventoryEntry[] = [
     {
       taskId: "1.1",
       semanticDigest: canonicalDigest({ goal: semantics.task?.["1.1"] ?? "First" }),
