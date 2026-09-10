@@ -1027,11 +1027,11 @@ export function createIntegrationCheckpointDependencies(input: {
       const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
         && !discharge.discharged;
       const checksPort = createGhRequiredChecksPort(hostedGhRunner);
-      const repository = await checksPort.resolveRepository();
+      const signal = new AbortController().signal;
+      const repository = await checksPort.resolveRepository(signal);
       if (repository.toLowerCase() !== changeRequest.targetRef.repository.toLowerCase()) {
         throw new Error("The required-check repository does not match the change request.");
       }
-      const signal = new AbortController().signal;
       const observedHead = await checksPort.readHead(repository, changeRequest.candidate.number, signal);
       if (observedHead !== currentness.recognizedRevision) {
         throw new Error("The required-check observation belongs to a different head.");

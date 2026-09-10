@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateChecks,
   awaitRequiredChecks,
+  observeRequiredChecks,
   type RequiredCheck,
   type RequiredChecksPort,
 } from "../../../../src/scripts/review-gate/checks-await.js";
@@ -34,6 +35,231 @@ describe("aggregateChecks", () => {
     { checks: [{ state: "green" }, { state: "pending" }], expected: "pending" },
   ] as const)("reduces $expected", ({ checks, expected }) => {
     expect(aggregateChecks(checks)).toBe(expected);
+  });
+});
+
+describe("required-checks observation", () => {
+  it("returns a complete head-bound not-required observation", async () => {
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: port([]),
+      signal: new AbortController().signal,
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "not-required",
+      nextAction: "complete",
+      checks: [],
+    });
+  });
+
+  it("returns every green required row on the observed head", async () => {
+    const checks = [
+      { name: "build", state: "green" },
+      { name: "test", state: "green" },
+    ] satisfies RequiredCheck[];
+
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: port(checks),
+      signal: new AbortController().signal,
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "green",
+      nextAction: "complete",
+      checks,
+    });
+  });
+
+  it("returns failed required rows without losing the observed target", async () => {
+    const checks = [
+      { name: "build", state: "green" },
+      { name: "test", state: "failed" },
+    ] satisfies RequiredCheck[];
+
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: port(checks),
+      signal: new AbortController().signal,
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "failed",
+      nextAction: "stop",
+      checks,
+    });
+  });
+
+  it("retains diagnostic failures beneath a pending required rollup", async () => {
+    const checks = [{ name: "merge-ok", state: "pending" }] satisfies RequiredCheck[];
+    const diagnosticPort = {
+      ...port(checks),
+      readObservedChecks: async () => [
+        ...checks,
+        { name: "E2E shard 3", state: "failed" },
+      ],
+    } satisfies RequiredChecksPort;
+
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: diagnosticPort,
+      signal: new AbortController().signal,
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "pending",
+      nextAction: "retry",
+      checks,
+      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+    });
+  });
+
+  it("returns sanitized provider detail with rows already observed", async () => {
+    const checks = [{ name: "merge-ok", state: "pending" }] satisfies RequiredCheck[];
+
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: {
+        ...port(checks),
+        readObservedChecks: async () => { throw new Error("  provider\n  unavailable  "); },
+      },
+      signal: new AbortController().signal,
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "unavailable",
+      nextAction: "retry",
+      cause: "provider",
+      detail: "Required-check evidence was unavailable: provider unavailable",
+      checks,
+      diagnosticFailures: [],
+    });
+  });
+
+  it.each([
+    ["aborted", new DOMException("operator stopped the read", "AbortError")],
+    ["deadline", new DOMException("read deadline elapsed", "TimeoutError")],
+  ] as const)("preserves an injected %s cause", async (cause, reason) => {
+    const controller = new AbortController();
+    controller.abort(reason);
+
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: port([]),
+      signal: controller.signal,
+    })).resolves.toMatchObject({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "unavailable",
+      nextAction: "retry",
+      cause,
+      detail: expect.stringContaining(reason.message),
+      checks: [],
+      diagnosticFailures: [],
+    });
+  });
+
+  it("passes the injected signal through the repository observation", async () => {
+    const controller = new AbortController();
+    const reason = new DOMException("operator stopped the repository read", "AbortError");
+    const boundaryPort: RequiredChecksPort = {
+      ...port([]),
+      resolveRepository: async (signal) => {
+        if (signal !== controller.signal) throw new Error("unexpected signal");
+        controller.abort(reason);
+        signal.throwIfAborted();
+        return "owner/repo";
+      },
+    };
+
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: boundaryPort,
+      signal: controller.signal,
+    })).resolves.toMatchObject({
+      state: "unavailable",
+      cause: "aborted",
+      detail: expect.stringContaining(reason.message),
+    });
+  });
+
+  it("returns changed repository coordinates before reading the pull request", async () => {
+    let reads = 0;
+    await expect(observeRequiredChecks({
+      repository: "owner/expected",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: {
+        ...port([]),
+        readHead: async () => { reads += 1; return headSha; },
+      },
+      signal: new AbortController().signal,
+    })).resolves.toMatchObject({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "target-mismatch",
+      nextAction: "stop",
+      actualRepository: "owner/repo",
+    });
+    expect(reads).toBe(0);
+  });
+
+  it("returns both approved and observed heads when the pull request moved", async () => {
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: { ...port([]), readHead: async () => "b".repeat(40) },
+      signal: new AbortController().signal,
+    })).resolves.toMatchObject({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "stale-target",
+      nextAction: "stop",
+      actualHeadSha: "b".repeat(40),
+    });
   });
 });
 
@@ -154,5 +380,34 @@ describe("required-checks await", () => {
       actualRepository: "owner/repo",
     });
     expect(reads).toBe(0);
+  });
+
+  it("adds elapsed time while preserving an unavailable observation", async () => {
+    await expect(awaitRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      port: {
+        ...port([]),
+        readRequiredChecks: async () => { throw new Error("provider unavailable"); },
+      },
+      clock: clock(),
+    })).resolves.toMatchObject({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "unavailable",
+      nextAction: "retry",
+      cause: "provider",
+      detail: "Required-check evidence was unavailable: provider unavailable",
+      checks: [],
+      diagnosticFailures: [],
+      elapsedMs: 0,
+    });
   });
 });

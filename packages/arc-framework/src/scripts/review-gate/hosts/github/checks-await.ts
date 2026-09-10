@@ -243,9 +243,9 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
   }
 
   return {
-    resolveRepository: async () => {
+    resolveRepository: async (signal) => {
       const value = record(parse(
-        (await runner.run(["repo", "view", "--json", "nameWithOwner"])).stdout,
+        (await runner.run(["repo", "view", "--json", "nameWithOwner"], { signal })).stdout,
         "repository",
       ), "repository");
       if (typeof value.nameWithOwner !== "string" || value.nameWithOwner === "") {

@@ -373,17 +373,10 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
 - **Additional Context:** `notes-evidence-applicability.md` § Terminal checks-wait field evidence;
   § Terminal integration decisions
 
-    - `[ ]` **4.2.a Extract one required-check observation**
-        - Refactor `checks-await.ts` around a coordinate-only observation input (`repository`, pull request, exact
-          `headSha`) plus injected port and abort signal. Its closed result owns required-row aggregation,
-          stale-target and target-mismatch detection, failed details, pending, unavailable, green, and not-required;
-          keep timing policy and `elapsedMs` only on `awaitRequiredChecks`, which composes the observer through
-          `boundedWait` for callers that explicitly await.
-        - Build `test-first` (one behavior at a time):
-            - each observation kind is complete and head-bound;
-            - pending can retain already-failed diagnostic rows without becoming green; and
-            - unavailable preserves actionable sanitized provider detail and abort/deadline cause; and
-            - the explicit await wrapper retains bounded polling and elapsed-time behavior independently.
+    - `[x]` **4.2.a Extract one required-check observation**
+        - Added a coordinate-only, abortable observer whose closed union preserves exact-target rows, diagnostic
+          failures, sanitized provider detail, and provider/abort/deadline causes; the explicit await API now composes
+          that observer through `boundedWait` and alone adds polling policy and elapsed time.
 
     - `[ ]` **4.2.b Replace integration polling with the continuation contract**
         - Remove the integration-specific ten-minute budget and poll interval from `merge-composition.ts`, invoke one
