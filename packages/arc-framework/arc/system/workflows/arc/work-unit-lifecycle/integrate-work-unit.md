@@ -314,6 +314,8 @@ arc review checks await \
 ```
 
 Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+`unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
+hosted-review `action`, and ends this foreground attempt.
 `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
 that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
 action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
@@ -660,12 +662,12 @@ After approval, invoke:
 arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
 ```
 
-`merged / complete` proceeds to the tail. `awaiting-checks / retry` keeps the checkpoint and draft lock, surfaces
-`payload.checks` and any `payload.diagnosticFailures`, and ends the current foreground attempt;
-`payload.elapsedMs` discloses the bounded wait already served. Do not re-invoke recursively. A later retry invokes
-the same command with the same checkpoint handle; the verb revalidates exact head and lifecycle, so the prior
-approval carries only while both remain unchanged. `invalidated / checkpoint` returns to the checkpoint;
-`blocked / stop` stops. The integration interlock is the sole merge authority.
+`merged / complete` proceeds to the tail. `awaiting-checks / retry` keeps the checkpoint and draft lock; surface
+`payload.observationKind`, `payload.checks`, any `payload.diagnosticFailures`, and `payload.detail` when present, then
+end the foreground attempt. Do not re-invoke recursively. A later retry invokes `payload.retry.argv` unchanged; the
+verb revalidates the exact approved target and lifecycle, so the prior approval carries only while both remain
+unchanged. `invalidated / checkpoint` returns to the checkpoint; `blocked / stop` stops.
+The integration interlock is the sole merge authority.
 
 **Skip the merge when the PR is already merged** — the resume path's `merged-at-head` arm (Step 1) enters here with the
 merge already landed (attended elsewhere, or unattended on the auto-merge lane); enter the same cleanup tail below.

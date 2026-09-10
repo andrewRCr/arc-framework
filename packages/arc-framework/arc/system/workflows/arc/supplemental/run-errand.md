@@ -344,6 +344,8 @@ remote base all name the same exact head. Any tracked change continues through t
    ```
 
    Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+   `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
+   hosted-review `action`, and ends this foreground attempt.
    `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
    that action re-enters hosted await.
    `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This observation does
@@ -466,8 +468,9 @@ action.
 
    `green / complete` and `not-required / complete` proceed. `pending / await` retains approval for the same exact
    head, keeps the lock, surfaces the checks, diagnostic failures, and elapsed wait, and ends the foreground attempt;
-   a later retry invokes the same command with no second ARC approval while the head remains unchanged. `failed /
-   stop`, `stale-target / stop`, `target-mismatch / stop`, and `blocked / stop` stop with the lock held.
+   `unavailable / retry` does the same while also surfacing its typed `cause` and `detail`. A later retry invokes the
+   same command with no second ARC approval while the head remains unchanged. `failed / stop`, `stale-target / stop`,
+   `target-mismatch / stop`, and `blocked / stop` stop with the lock held.
 
    After checks permit merge, invoke `arc base drift --json` again while the lock remains held. Only authoritative
    `clean` continues; `reconcile` returns to Step 5, while unavailable or malformed output stops.

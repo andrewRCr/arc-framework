@@ -6,7 +6,10 @@ import type {
   CheckpointMovementObservation,
   CheckpointMovementPlan,
 } from "./checkpoint.js";
-import { RequiredCheckSchema, type ChecksAwaitResult } from "../review-gate/checks-await.js";
+import {
+  RequiredCheckSchema,
+  type RequiredChecksObservationResult,
+} from "../review-gate/checks-await.js";
 import type {
   MergeMethodResolveResult,
   MergeMethodStackPosition,
@@ -131,7 +134,10 @@ export const MERGE_REFUSAL_REASONS: readonly MergeRefusalReason[] = [
   ...MergeBlockedReasonSchema.options,
 ];
 
-const MERGE_REMEDIES: Record<Exclude<MergeRefusalReason, "relock-failed">, (workUnit: string) => SpineRemedy> = {
+const MERGE_REMEDIES: Record<
+  Exclude<MergeRefusalReason, "relock-failed" | "host-pending" | "merge-outcome-unknown">,
+  (workUnit: string) => SpineRemedy
+> = {
   "checkpoint-missing": (workUnit) => spineRemedy(
     "A merge executes only a persisted checkpoint composition.",
     "Compose a fresh checkpoint",
@@ -197,16 +203,6 @@ const MERGE_REMEDIES: Record<Exclude<MergeRefusalReason, "relock-failed">, (work
     "Resolve the reported host refusal, then re-checkpoint",
     checkpointResumeArgv(workUnit),
   ),
-  "host-pending": (workUnit) => spineRemedy(
-    "Host admission must resolve for the exact approved target.",
-    "Retry the exact checkpoint merge",
-    ["arc", "integrate", "merge", workUnit, "--checkpoint", "<checkpoint-handle>", "--json"],
-  ),
-  "merge-outcome-unknown": (workUnit) => spineRemedy(
-    "An ambiguous mutating request is confirmed before another merge attempt.",
-    "Retry the exact checkpoint merge to confirm or resume",
-    ["arc", "integrate", "merge", workUnit, "--checkpoint", "<checkpoint-handle>", "--json"],
-  ),
 };
 
 /**
@@ -214,12 +210,15 @@ const MERGE_REMEDIES: Record<Exclude<MergeRefusalReason, "relock-failed">, (work
  *
  * @param reason - The typed invalidation or blocked reason.
  * @param workUnit - The refused work unit, interpolated into slug-bearing commands.
+ * @param relockRequest - Exact lock request required only by a re-lock failure.
+ * @param checkpointHandle - Exact continuation handle required by retryable terminal outcomes.
  * @returns The remedy naming the failed invariant and one corrective command.
  */
 export function mergeRemedy(
   reason: MergeRefusalReason,
   workUnit: string,
   relockRequest?: MergeLockTransitionRequest,
+  checkpointHandle?: string,
 ): SpineRemedy {
   if (reason === "relock-failed") {
     const request = MergeLockTransitionRequestSchema.parse(relockRequest);
@@ -229,6 +228,20 @@ export function mergeRemedy(
       ["arc", "merge", "lock", "hold", "-"],
       request,
     );
+  }
+  if (reason === "host-pending" || reason === "merge-outcome-unknown") {
+    const handle = CheckpointHandleSchema.parse(checkpointHandle);
+    return reason === "host-pending"
+      ? spineRemedy(
+          "Host admission must resolve for the exact approved target.",
+          "Retry the exact checkpoint merge",
+          ["arc", "integrate", "merge", workUnit, "--checkpoint", handle, "--json"],
+        )
+      : spineRemedy(
+          "An ambiguous mutating request is confirmed before another merge attempt.",
+          "Retry the exact checkpoint merge to confirm or resume",
+          ["arc", "integrate", "merge", workUnit, "--checkpoint", handle, "--json"],
+        );
   }
   return MERGE_REMEDIES[reason](workUnit);
 }
@@ -263,13 +276,25 @@ export const IntegrationMergeResultSchema = z.union([
     ...ResultBaseShape,
     state: z.literal("awaiting-checks"),
     nextAction: z.literal("retry"),
-    payload: z.strictObject({
+    payload: z.discriminatedUnion("observationKind", [z.strictObject({
+      checkpointHandle: CheckpointHandleSchema,
       approvedHead: ObjectIdSchema,
-      pullRequest: z.number().int().positive(),
-      elapsedMs: z.number().int().nonnegative(),
+      approvedTarget: IntegrationMergeTargetSchema,
+      observationKind: z.literal("pending"),
       checks: z.array(RequiredCheckSchema),
       diagnosticFailures: z.array(RequiredCheckSchema),
-    }),
+      retry: SpineRemedySchema,
+    }), z.strictObject({
+      checkpointHandle: CheckpointHandleSchema,
+      approvedHead: ObjectIdSchema,
+      approvedTarget: IntegrationMergeTargetSchema,
+      observationKind: z.literal("unavailable"),
+      checks: z.array(RequiredCheckSchema),
+      diagnosticFailures: z.array(RequiredCheckSchema),
+      cause: z.enum(["provider", "aborted", "deadline"]),
+      detail: z.string().trim().min(1),
+      retry: SpineRemedySchema,
+    })]),
   }),
   z.strictObject({
     ...ResultBaseShape,
@@ -348,7 +373,7 @@ export interface IntegrationMergeDependencies {
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
   createLockRequest(target?: IntegrationMergeTarget): Promise<MergeLockTransitionRequest>;
-  awaitChecks(target: IntegrationMergeTarget): Promise<ChecksAwaitResult>;
+  observeChecks(target: IntegrationMergeTarget): Promise<RequiredChecksObservationResult>;
   resolveMergeMethod(repository: string, stackPosition: MergeMethodStackPosition): Promise<MergeMethodResolveResult>;
   readConfiguredBase(): Promise<string>;
   readFinalPlan(
@@ -476,18 +501,52 @@ export async function mergeIntegration(
       }, dependencies, target);
     }
 
-    const checks = await dependencies.awaitChecks(target);
+    const checks = await dependencies.observeChecks(target);
     if (checks.state === "pending") {
       return IntegrationMergeResultSchema.parse({
         ...base,
         state: "awaiting-checks",
         nextAction: "retry",
         payload: {
+          checkpointHandle: request.checkpointHandle,
           approvedHead: checkpoint.approvedHead,
-          pullRequest: target.pullRequest,
-          elapsedMs: checks.elapsedMs,
+          approvedTarget: target,
+          observationKind: "pending",
           checks: checks.checks,
           diagnosticFailures: checks.diagnosticFailures,
+          retry: spineRemedy(
+            "Required checks must settle on the exact approved target before merge.",
+            "Retry the same checkpoint after external check progress",
+            [
+              "arc", "integrate", "merge", request.workUnit,
+              "--checkpoint", request.checkpointHandle, "--json",
+            ],
+          ),
+        },
+      });
+    }
+    if (checks.state === "unavailable") {
+      return IntegrationMergeResultSchema.parse({
+        ...base,
+        state: "awaiting-checks",
+        nextAction: "retry",
+        payload: {
+          checkpointHandle: request.checkpointHandle,
+          approvedHead: checkpoint.approvedHead,
+          approvedTarget: target,
+          observationKind: "unavailable",
+          checks: checks.checks,
+          diagnosticFailures: checks.diagnosticFailures,
+          cause: checks.cause,
+          detail: checks.detail,
+          retry: spineRemedy(
+            "Required checks must be observable on the exact approved target before merge.",
+            "Retry the same checkpoint after host evidence is available",
+            [
+              "arc", "integrate", "merge", request.workUnit,
+              "--checkpoint", request.checkpointHandle, "--json",
+            ],
+          ),
         },
       });
     }
@@ -562,14 +621,11 @@ export async function mergeIntegration(
           state: "blocked",
           nextAction: "retry",
           reason: "host-pending",
-          remedy: spineRemedy(
-            "Host admission must resolve for the exact approved target.",
-            "Retry the exact checkpoint merge",
-            [
-              "arc", "integrate", "merge", request.workUnit,
-              "--checkpoint", request.checkpointHandle,
-              "--json",
-            ],
+          remedy: mergeRemedy(
+            "host-pending",
+            request.workUnit,
+            undefined,
+            request.checkpointHandle,
           ),
           payload: {
             checkpointHandle: request.checkpointHandle,
@@ -648,14 +704,11 @@ export async function mergeIntegration(
         state: "blocked",
         nextAction: "retry",
         reason: "merge-outcome-unknown",
-        remedy: spineRemedy(
-          "An ambiguous mutating request is confirmed before another merge attempt.",
-          "Retry the exact checkpoint merge to confirm or resume",
-          [
-            "arc", "integrate", "merge", request.workUnit,
-            "--checkpoint", request.checkpointHandle,
-            "--json",
-          ],
+        remedy: mergeRemedy(
+          "merge-outcome-unknown",
+          request.workUnit,
+          undefined,
+          request.checkpointHandle,
         ),
         payload: {
           checkpointHandle: request.checkpointHandle,

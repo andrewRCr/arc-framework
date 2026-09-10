@@ -104,9 +104,9 @@ function dependencies() {
       },
       vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
     }),
-    awaitChecks: async () => ({
+    observeChecks: async () => ({
       schemaVersion: 1,
-      mode: "review-checks-await",
+      mode: "review-checks-observe",
       repository: "owner/repo",
       pullRequest: 42,
       headSha: oid("c"),
@@ -332,6 +332,29 @@ describe("integration merge", () => {
       payload: { configuredBase: "release", targetBase: "main" },
     });
     expect(reads).toBe(2);
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it("invalidates and re-locks when the checks observation sees a moved head", async () => {
+    const { value, state } = dependencies();
+    state.held = false;
+    value.observeChecks = async () => ({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: oid("c"),
+      state: "stale-target",
+      nextAction: "stop",
+      actualHeadSha: oid("f"),
+    });
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "checkpoint",
+      reason: "head-mismatch",
+      payload: { approvedHead: oid("c"), actualHead: oid("f") },
+    });
     expect(state).toEqual({ held: true, merged: false });
   });
 
@@ -700,9 +723,9 @@ describe("integration merge", () => {
       });
     }],
     ["checks-failed", (deps: IntegrationMergeDependencies) => {
-      deps.awaitChecks = async () => ({
+      deps.observeChecks = async () => ({
         schemaVersion: 1,
-        mode: "review-checks-await",
+        mode: "review-checks-observe",
         repository: "owner/repo",
         pullRequest: 42,
         headSha: oid("c"),
@@ -726,28 +749,27 @@ describe("integration merge", () => {
     expect(state.merged).toBe(false);
   });
 
-  it("resumes the same checkpoint after required checks reach their deadline", async () => {
+  it("returns the same checkpoint authorization after one pending observation", async () => {
     const { value, state } = dependencies();
     let attempts = 0;
-    value.awaitChecks = async () => {
+    value.observeChecks = async () => {
       attempts += 1;
       if (attempts === 1) {
         return {
           schemaVersion: 1,
-          mode: "review-checks-await",
+          mode: "review-checks-observe",
           repository: "owner/repo",
           pullRequest: 42,
           headSha: oid("c"),
           state: "pending",
-          nextAction: "await",
+          nextAction: "retry",
           checks: [{ name: "merge-ok", state: "pending" }],
           diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
-          elapsedMs: 600_000,
         };
       }
       return {
         schemaVersion: 1,
-        mode: "review-checks-await",
+        mode: "review-checks-observe",
         repository: "owner/repo",
         pullRequest: 42,
         headSha: oid("c"),
@@ -757,18 +779,79 @@ describe("integration merge", () => {
       };
     };
 
-    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+    const pending = await mergeIntegration(request, value);
+    expect(pending).toMatchObject({
       state: "awaiting-checks",
       payload: {
+        checkpointHandle,
+        approvedHead: oid("c"),
+        approvedTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("c"),
+        },
+        observationKind: "pending",
         checks: [{ name: "merge-ok", state: "pending" }],
         diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+        retry: {
+          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle, "--json"],
+        },
       },
     });
+    expect(pending.payload).not.toHaveProperty("elapsedMs");
+    expect(attempts).toBe(1);
     expect(state.held).toBe(true);
     expect(state.merged).toBe(false);
 
     await expect(mergeIntegration(request, value)).resolves.toMatchObject({ state: "merged" });
     expect(state.held).toBe(false);
     expect(state.merged).toBe(true);
+  });
+
+  it("preserves authorization and diagnostics when required-check evidence is unavailable", async () => {
+    const { value, state } = dependencies();
+    value.observeChecks = async () => ({
+      schemaVersion: 1,
+      mode: "review-checks-observe",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: oid("c"),
+      state: "unavailable",
+      nextAction: "retry",
+      cause: "deadline",
+      detail: "Required-check evidence was unavailable: hosted process timed out",
+      checks: [{ name: "merge-ok", state: "pending" }],
+      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+    });
+
+    const unavailable = await mergeIntegration(request, value);
+
+    expect(unavailable).toMatchObject({
+      state: "awaiting-checks",
+      nextAction: "retry",
+      payload: {
+        checkpointHandle,
+        approvedHead: oid("c"),
+        approvedTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: oid("c"),
+        },
+        observationKind: "unavailable",
+        cause: "deadline",
+        detail: "Required-check evidence was unavailable: hosted process timed out",
+        checks: [{ name: "merge-ok", state: "pending" }],
+        diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+        retry: {
+          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle, "--json"],
+        },
+      },
+    });
+    expect(unavailable.payload).not.toHaveProperty("elapsedMs");
+    expect(state).toEqual({ held: true, merged: false });
   });
 });

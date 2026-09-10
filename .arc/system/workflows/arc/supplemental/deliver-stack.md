@@ -336,6 +336,8 @@ arc review checks await \
 ```
 
 Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+`unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
+hosted-review `action`, and ends this foreground attempt.
 `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
 that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
 action intact. This observation does not become review settlement, feed the review driver, move the exact head, or

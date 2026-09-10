@@ -225,6 +225,52 @@ describe("handleReviewChecksAwait", () => {
       reason: "invalid-input",
     });
   });
+
+  it("preserves typed unavailable detail in the JSON result", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    await handleReviewChecksAwait({
+      repository: "owner/repo",
+      pullRequest: "42",
+      headSha: "a".repeat(40),
+      timeoutMs: "2000",
+      pollIntervalMs: "500",
+      json: true,
+    }, {
+      awaitChecks: async () => ({
+        schemaVersion: 1,
+        mode: "review-checks-await",
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
+        state: "unavailable",
+        nextAction: "retry",
+        cause: "deadline",
+        detail: "Required-check evidence was unavailable: hosted process timed out",
+        checks: [{ name: "merge-ok", state: "pending" }],
+        diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+        elapsedMs: 500,
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: "a".repeat(40),
+      state: "unavailable",
+      nextAction: "retry",
+      cause: "deadline",
+      detail: "Required-check evidence was unavailable: hosted process timed out",
+      checks: [{ name: "merge-ok", state: "pending" }],
+      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+      elapsedMs: 500,
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
 });
 const localAttestRequest = {
   schemaVersion: 1,

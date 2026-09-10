@@ -23,7 +23,7 @@ import {
   resolveChangeRequest,
   type ChangeRequestResolutionPort,
 } from "../review-gate/change-request.js";
-import { awaitRequiredChecks } from "../review-gate/checks-await.js";
+import { observeRequiredChecks } from "../review-gate/checks-await.js";
 import { evaluateReviewReadiness } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
 import { createGhChangeRequestMergeObservationPort } from
@@ -59,8 +59,6 @@ import {
   type IntegrationLifecycleStoragePort,
 } from "./checkpoint-composition.js";
 
-const CHECKS_TIMEOUT_MS = 10 * 60 * 1_000;
-const CHECKS_POLL_INTERVAL_MS = 10 * 1_000;
 const GitHubMergeResponseSchema = z.object({
   merged: z.boolean(),
   message: z.string(),
@@ -289,18 +287,13 @@ export function createIntegrationMergeDependencies(input: {
     releaseLock: async (target) => releaseMergeLock(await lockRequest(target), lockPort),
     holdLock: async (target) => holdMergeLock(await lockRequest(target ?? await currentTarget()), lockPort),
     createLockRequest: async (target) => lockRequest(target ?? await currentTarget()),
-    awaitChecks: async (target) => awaitRequiredChecks({
+    observeChecks: async (target) => observeRequiredChecks({
       repository: target.repository,
       pullRequest: target.pullRequest,
       headSha: target.headSha,
-      timeoutMs: CHECKS_TIMEOUT_MS,
-      pollIntervalMs: CHECKS_POLL_INTERVAL_MS,
     }, {
       port: createGhRequiredChecksPort(runner),
-      clock: {
-        now: () => Date.now(),
-        sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-      },
+      signal: AbortSignal.timeout(60_000),
     }),
     resolveMergeMethod: async (repository, stackPosition) => resolveMergeMethod(
       MergeMethodSchema.parse((await settings()).settings["merge.strategy"]),

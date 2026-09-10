@@ -27,6 +27,56 @@ function port(headSha: string): ChangeRequestResolutionPort {
 }
 
 describe("integration merge composition", () => {
+  it("observes required checks once without repeating a provider read", async () => {
+    const target = {
+      repository: "owner/repo",
+      pullRequest: 42,
+      baseRef: "main",
+      headRef: "feat/example",
+      headSha: oid("c"),
+    };
+    const seen = new Set<string>();
+    const dependencies = createIntegrationMergeDependencies({
+      cwd: "/candidate",
+      exec: vi.fn() as unknown as GitExec,
+      workUnit: "example",
+      changeRequestPort: port(target.headSha),
+      hostedRunner: {
+        run: async (args) => {
+          const key = args.join(" ");
+          if (seen.has(key)) throw new Error(`provider read repeated: ${key}`);
+          seen.add(key);
+          if (args[0] === "repo") {
+            return { stdout: JSON.stringify({ nameWithOwner: target.repository }), stderr: "" };
+          }
+          if (args[0] === "api") {
+            return { stdout: JSON.stringify({ head: { sha: target.headSha } }), stderr: "" };
+          }
+          if (args.includes("--required")) {
+            return {
+              stdout: JSON.stringify([{ name: "merge-ok", state: "PENDING", bucket: "pending" }]),
+              stderr: "",
+            };
+          }
+          return {
+            stdout: JSON.stringify([
+              { name: "merge-ok", state: "PENDING", bucket: "pending" },
+              { name: "E2E shard 3", state: "FAILURE", bucket: "fail" },
+            ]),
+            stderr: "",
+          };
+        },
+      },
+    });
+
+    await expect(dependencies.observeChecks(target)).resolves.toMatchObject({
+      state: "pending",
+      nextAction: "retry",
+      checks: [{ name: "merge-ok", state: "pending" }],
+      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+    });
+  });
+
   it("confirms the exact merged request and returns the provider merge identity", async () => {
     const target = {
       repository: "owner/repo",

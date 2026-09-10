@@ -23,7 +23,7 @@ import {
 describe("spine refusal remedies", () => {
   it("derives its reason coverage from the refusal schemas", () => {
     expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(13);
-    expect(MERGE_REFUSAL_REASONS).toHaveLength(11);
+    expect(MERGE_REFUSAL_REASONS).toHaveLength(16);
     expect(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).toHaveLength(4);
     expect(new Set(CHECKPOINT_BLOCKED_REASONS).size).toBe(CHECKPOINT_BLOCKED_REASONS.length);
     expect(new Set(MERGE_REFUSAL_REASONS).size).toBe(MERGE_REFUSAL_REASONS.length);
@@ -44,14 +44,20 @@ describe("spine refusal remedies", () => {
 
   it("names an invariant and one corrective command for every merge refusal", () => {
     for (const reason of MERGE_REFUSAL_REASONS) {
-      const remedy = SpineRemedySchema.parse(mergeRemedy(reason, "example", reason === "relock-failed"
-        ? {
+      const remedy = SpineRemedySchema.parse(mergeRemedy(
+        reason,
+        "example",
+        reason === "relock-failed" ? {
             schemaVersion: 1,
             treeRoot: "/candidate",
             target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(40) },
             vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
           }
-        : undefined));
+          : undefined,
+        reason === "host-pending" || reason === "merge-outcome-unknown"
+          ? `checkpoint-v1:${"c".repeat(40)}:sha256:${"e".repeat(64)}`
+          : undefined,
+      ));
 
       expect(remedy.invariant, reason).toMatch(/\.$/u);
       expect(remedy.argv[0], reason).toBe("arc");

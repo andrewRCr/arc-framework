@@ -365,7 +365,7 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
   outcome, preserving exact approval through uncertainty while keeping definitive failures safely locked and
   actionable.
 
-### `[ ]` **4.2 Return prompt checkpoint continuations for required checks** — D16
+### `[x]` **4.2 Return prompt checkpoint continuations for required checks** — D16
 
 - _Goal:_ a terminal merge with unsettled CI returns control after one observation and can resume idempotently from
   the same authorization once external checks advance.
@@ -378,17 +378,13 @@ overlap, stale bindings, failed checks, opaque refusals, and unavailable evidenc
           failures, sanitized provider detail, and provider/abort/deadline causes; the explicit await API now composes
           that observer through `boundedWait` and alone adds polling policy and elapsed time.
 
-    - `[ ]` **4.2.b Replace integration polling with the continuation contract**
-        - Remove the integration-specific ten-minute budget and poll interval from `merge-composition.ts`, invoke one
-          observation, and extend `awaiting-checks` with the checkpoint handle, approved target, observation kind,
-          current rows, diagnostic failures, and exact structured retry argv while removing `elapsedMs`.
-        - Build `test-first` (one behavior at a time):
-            - pending and unavailable keep the checkpoint, approval, and draft lock;
-            - failed checks and stale coordinates invalidate and re-lock; and
-            - no merge invocation calls `sleep`, `boundedWait`, or recursively retries;
-            - the same retry later observes green and merges; and
-            - an already-merged exact target settles successfully without duplicating effects;
-            - the checks command's JSON result and workflow presentation preserve the same typed detail.
+    - `[x]` **4.2.b Replace integration polling with the continuation contract**
+        - Terminal merge now makes one required-check observation; pending or unavailable evidence returns the exact
+          checkpoint, approved target, current rows, typed diagnostics, and executable retry without elapsed time or
+          polling, while failed or stale evidence invalidates and re-locks and exact replay remains idempotent.
+
+- _Outcome:_ required-check observation is now separate from optional waiting, so terminal integration promptly
+  yields a complete checkpoint continuation and the command and workflow surfaces preserve its typed evidence.
 
 ### `[ ]` **4.3 Add the typed Errand terminal merge operation** — D9
 

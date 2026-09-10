@@ -489,6 +489,9 @@ describe("trusted review-gate workflows", () => {
       expect(pendingInspection).toContain("--timeout-ms 10000");
       expect(pendingInspection).toContain("--poll-interval-ms 10000");
       expect(pendingInspection).toContain("diagnosticFailures");
+      expect(pendingInspection).toContain("`unavailable / retry`");
+      expect(pendingInspection).toContain("`cause`");
+      expect(pendingInspection).toContain("`detail`");
       expect(pendingInspection).toMatch(/read-only diagnos/iu);
       expect(pendingInspection).toMatch(/inspect-or-extend[\s\S]{0,250}diagnostic below, then stop/iu);
       expect(pendingInspection).toContain("continueAfterAttention: true");
@@ -688,9 +691,10 @@ describe("trusted review-gate workflows", () => {
     expect(merge).toBeGreaterThan(reviewedRelease);
     expect(reviewedLane).not.toContain("--auto");
     expect(reviewedLane).toMatch(/pending \/ await[\s\S]*same exact\s+head[\s\S]*no second ARC approval/iu);
+    expect(reviewedLane).toMatch(/unavailable \/ retry[\s\S]*`cause`[\s\S]*`detail`/iu);
     expect(reviewedLane).toMatch(/`green \/ complete` and `not-required \/ complete` proceed/iu);
     expect(reviewedLane).toMatch(
-      /`failed \/\s+stop`, `stale-target \/ stop`, `target-mismatch \/ stop`, and `blocked \/ stop` stop with the lock held/iu,
+      /`failed \/ stop`,[\s\S]*`stale-target \/ stop`,[\s\S]*`target-mismatch \/ stop`,[\s\S]*`blocked \/ stop` stop with the lock held/iu,
     );
     expect(reviewedLane).toMatch(
       /arc base drift --json[\s\S]*Only authoritative\s+`clean` continues; `reconcile` returns to Step 5[\s\S]*unavailable or malformed output stops/iu,
@@ -795,11 +799,13 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
     expect(gate).toContain("keeps the checkpoint and draft lock");
+    expect(gate).toContain("`payload.observationKind`");
     expect(gate).toContain("`payload.diagnosticFailures`");
+    expect(gate).toContain("`payload.detail`");
+    expect(gate).toContain("`payload.retry.argv`");
     expect(gate).toContain("Do not re-invoke recursively");
     expect(gate).not.toContain("re-invokes this same command immediately");
-    expect(gate).toContain("`payload.elapsedMs` discloses the bounded wait already served");
-    expect(gate).not.toContain("after `payload.elapsedMs` milliseconds");
+    expect(gate).not.toContain("payload.elapsedMs");
     expect(gate).not.toContain("returned deadline");
     expect(gate).not.toContain("otherwise render `None`");
     expect(gate).not.toContain("exact-head mutability action");

@@ -1665,9 +1665,9 @@ describe("review-bearing integration checkpoint and merge", () => {
         },
         vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
       }),
-      awaitChecks: async () => ({
+      observeChecks: async () => ({
         schemaVersion: 1,
-        mode: "review-checks-await",
+        mode: "review-checks-observe",
         repository: target.repository,
         pullRequest: target.pullRequest,
         headSha: target.headSha,
@@ -1728,7 +1728,7 @@ describe("review-bearing integration checkpoint and merge", () => {
           target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
           vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
         }),
-        awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
+        observeChecks: () => Promise.reject(new Error("unexpected checks observation")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
         readFinalPlan: () => Promise.reject(new Error("unexpected final plan read")),
         mergePinned: () => Promise.reject(new Error("unexpected merge")),
