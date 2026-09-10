@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "resume-scoped-review-fix-verification-before-candidate-reroot",
+  "claimId": "900b171155881941eef54c97909658c5",
+  "createdAt": "2026-09-10T00:45:09.226Z",
+  "updatedAt": "2026-09-10T00:45:09.226Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "resume-scoped-review-fix-verification-before-candidate-reroot",
+  "branch": "chore/resume-scoped-review-fix-verification-before-candidate-reroot",
+  "origin": "inbox",
+  "originEntry": "Resume scoped review-fix verification before Candidate re-root",
+  "originEntrySourceDigest": "sha256:c0c1d1200abee2c429edf4f3f2a13c9f36d4a5393f479edd4ab3d52fcbd6c351",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
