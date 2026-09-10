@@ -198,6 +198,7 @@ export async function runAttest(
       attestedBy: context.actor,
       attestedAt: context.now(),
       verificationEvidenceRef: context.verificationEvidenceRef(name),
+      scope: "full",
     });
     const nextRecord = CandidateManagedRecordV1Schema.parse({
       ...record,

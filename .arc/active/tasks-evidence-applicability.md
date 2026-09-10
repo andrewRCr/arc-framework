@@ -543,24 +543,14 @@ currentness and attestation outcomes without requiring the separately owned prop
 - _Outcome:_ review-response transitions can bind an approved verification scope into their identity while omission
   remains a valid independently landable input for the conservative lineage default.
 
-### `[ ]` **5.2 Define the scoped lineage-attestation contract** — D12
+### `[x]` **5.2 Define the scoped lineage-attestation contract** — D12
 
 - _Goal:_ the record contract can represent exactly which fresh convergence evidence was supplied before any reducer,
   currentness projection, or attest operation consumes it.
 
-- **Additional Context:** `notes-evidence-applicability.md` § Scoped verification decisions
-
-    - Add required `scope: focused | full` to `CandidateLineageAttestationV1Schema`, its constructor, canonical
-      managed-record serialization, and record guard. Keep the existing attestation shape without minting a separate
-      attestation ID; the containing record's bytes-version changes with scope and evidence.
-    - Update every literal non-empty lineage-attestation fixture across unit, integration, and E2E suites in place,
-      with no compatibility alias or migration reader for development records.
-    - Build `test-first` (one behavior at a time):
-        - focused and full attestations round-trip distinctly;
-        - scope or evidence changes the canonical managed-record version;
-        - missing scope is rejected; and
-        - the record guard applies the same scope ordering at the attested subject, so a focused attestation cannot
-          satisfy a full requirement while full may satisfy focused.
+- _Outcome:_ lineage attestations now require `focused | full` scope in their strict schema and canonical bytes;
+  record guards reject narrower evidence at an approved full subject while accepting full evidence for either scope.
+  Existing construction sites write explicit full scope without aliases, migration readers, or a second identity.
 
 ### `[ ]` **5.3 Reduce convergence across scoped lineage attestations** — D2-D3, D12
 

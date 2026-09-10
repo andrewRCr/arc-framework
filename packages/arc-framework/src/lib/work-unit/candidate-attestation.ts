@@ -173,6 +173,7 @@ export const CandidateLineageAttestationV1Schema = z.strictObject({
   attestedBy: z.string().trim().min(1),
   attestedAt: z.iso.datetime(),
   verificationEvidenceRef: z.string().trim().min(1),
+  scope: z.enum(["focused", "full"]),
 });
 export type CandidateLineageAttestationV1 = z.infer<typeof CandidateLineageAttestationV1Schema>;
 
@@ -319,6 +320,17 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
         code: "custom",
         path: ["lineageAttestations", index, "target", "subject"],
         message: "must attest a recognized Candidate lineage subject",
+      });
+    }
+    const requiredScope = requiredConvergenceScopeAtSubject(
+      record.transitions,
+      attestation.target.subject.subjectDigest,
+    );
+    if (requiredScope !== null && !candidateConvergenceScopeCovers(attestation.scope, requiredScope)) {
+      context.addIssue({
+        code: "custom",
+        path: ["lineageAttestations", index, "scope"],
+        message: `must satisfy the ${requiredScope} convergence requirement at the attested subject`,
       });
     }
   }
@@ -498,9 +510,10 @@ export interface CreateCandidateLineageAttestationInput {
   attestedBy: string;
   attestedAt: string;
   verificationEvidenceRef: string;
+  scope: "focused" | "full";
 }
 
-/** Record full verification over one recognized Candidate lineage head. */
+/** Record scoped convergence verification over one recognized Candidate lineage head. */
 export function createCandidateLineageAttestation(
   input: CreateCandidateLineageAttestationInput,
 ): CandidateLineageAttestationV1 {
@@ -512,7 +525,37 @@ export function createCandidateLineageAttestation(
     attestedBy: input.attestedBy,
     attestedAt: input.attestedAt,
     verificationEvidenceRef: input.verificationEvidenceRef,
+    scope: input.scope,
   });
+}
+
+/** Decide whether supplied convergence evidence is at least as broad as the required scope. */
+export function candidateConvergenceScopeCovers(
+  supplied: "focused" | "full",
+  required: "focused" | "full",
+): boolean {
+  return supplied === "full" || required === "focused";
+}
+
+function requiredConvergenceScopeAtSubject(
+  transitions: readonly CandidateLineageTransitionV1[],
+  subjectDigest: string,
+): "focused" | "full" | null {
+  let required: "focused" | "full" | null = null;
+  let result: "focused" | "full" | null = null;
+  for (const transition of transitions) {
+    if (transition.transitionKind === "verification-response") {
+      required = null;
+    } else if (transition.transitionKind === "review-response" && transition.implementationChanged) {
+      const approved = transition.approvedVerification ?? "full";
+      if (approved === "full" || (approved === "focused" && required === null)) required = approved;
+    }
+    if ((transition.transitionKind === "review-response" || transition.transitionKind === "verification-response")
+      && transition.newTarget.subject.subjectDigest === subjectDigest) {
+      if (required === "full" || (required === "focused" && result === null)) result = required;
+    }
+  }
+  return result;
 }
 
 export type CandidateCurrentnessProjection =

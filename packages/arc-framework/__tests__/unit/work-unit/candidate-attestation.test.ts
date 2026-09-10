@@ -261,6 +261,7 @@ describe("Candidate attestation", () => {
         attestedBy: "andrew",
         attestedAt: `2026-08-12T1${index + 3}:00:00.000Z`,
         verificationEvidenceRef: `verification://example/converged-${index + 1}`,
+        scope: "full",
       }));
 
     expect(convergence[0]?.target.subject).not.toEqual(firstResponse.newTarget.subject);
@@ -462,25 +463,82 @@ describe("Candidate lineage currentness", () => {
     });
   });
 
-  it("records full verification over one recognized lineage head", () => {
+  it("records focused and full verification distinctly over one recognized lineage head", () => {
     const root = attestation();
     const target = { revision: SHA_B, subject: snapshot(canonicalDigest({ source: "review-fix" })) };
 
-    expect(createCandidateLineageAttestation({
+    for (const scope of ["focused", "full"] as const) {
+      expect(createCandidateLineageAttestation({
+        candidateId: root.candidateId,
+        target,
+        attestedBy: "andrew",
+        attestedAt: "2026-08-12T13:00:00.000Z",
+        verificationEvidenceRef: "verification://example/converged",
+        scope,
+      })).toEqual({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        candidateId: root.candidateId,
+        target,
+        attestedBy: "andrew",
+        attestedAt: "2026-08-12T13:00:00.000Z",
+        verificationEvidenceRef: "verification://example/converged",
+        scope,
+      });
+    }
+    expect(() => createCandidateLineageAttestation({
       candidateId: root.candidateId,
       target,
       attestedBy: "andrew",
       attestedAt: "2026-08-12T13:00:00.000Z",
       verificationEvidenceRef: "verification://example/converged",
-    })).toEqual({
-      schemaVersion: 1,
-      semanticsVersion: "candidate-attestation/v1",
+    } as never)).toThrow();
+  });
+
+  it("rejects lineage attestations narrower than the approved scope at their subject", () => {
+    const root = attestation();
+    const changed = snapshot(canonicalDigest({ source: "review-fix" }));
+    const response = createCandidateReviewResponseEvidence({
       candidateId: root.candidateId,
-      target,
-      attestedBy: "andrew",
-      attestedAt: "2026-08-12T13:00:00.000Z",
-      verificationEvidenceRef: "verification://example/converged",
+      oldTarget: { revision: SHA_A, subject: snapshot() },
+      newTarget: { revision: SHA_B, subject: changed },
+      dispositionId: canonicalDigest({ dispositions: "approved-full" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "full",
+      approvedVerification: "full",
+      verificationEvidenceRefs: ["test://candidate/full"],
+      implementationChanged: true,
     });
+    const makeRecord = (scope: "focused" | "full") => ({
+      schemaVersion: 1 as const,
+      semanticsVersion: "candidate-attestation/v1" as const,
+      attestation: root,
+      subject: snapshot(),
+      transitions: [response],
+      lineageAttestations: [createCandidateLineageAttestation({
+        candidateId: root.candidateId,
+        target: response.newTarget,
+        attestedBy: "andrew",
+        attestedAt: "2026-08-12T13:00:00.000Z",
+        verificationEvidenceRef: `verification://example/${scope}`,
+        scope,
+      })],
+    });
+
+    expect(CandidateManagedRecordV1Schema.safeParse(makeRecord("focused")).success).toBe(false);
+    expect(CandidateManagedRecordV1Schema.safeParse(makeRecord("full")).success).toBe(true);
+
+    const focusedResponse = createCandidateReviewResponseEvidence({
+      ...response,
+      approvedVerification: "focused",
+      dispositionId: canonicalDigest({ dispositions: "approved-focused" }),
+    });
+    expect(CandidateManagedRecordV1Schema.safeParse({
+      ...makeRecord("full"),
+      transitions: [focusedResponse],
+      lineageAttestations: [{ ...makeRecord("full").lineageAttestations[0]!, target: focusedResponse.newTarget }],
+    }).success).toBe(true);
   });
 
   it("advances through an approved review response and retains verification applicability", () => {

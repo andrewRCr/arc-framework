@@ -75,12 +75,43 @@ describe("Candidate record store", () => {
         attestedBy: "andrew",
         attestedAt: "2026-08-12T15:00:00.000Z",
         verificationEvidenceRef: "tasks-example.md#verification-2",
+        scope: "full",
       })],
     };
     await writeCandidateRecord("/repo", "example", changed, observed.version, fs);
 
     await expect(writeCandidateRecord("/repo", "example", record(), observed.version, fs))
       .rejects.toBeInstanceOf(CandidateRecordVersionConflictError);
+  });
+
+  it("versions lineage-attestation scope and evidence through canonical record bytes", async () => {
+    const fs = memoryFs();
+    const base = record();
+    const withAttestation = (scope: "focused" | "full", verificationEvidenceRef: string) => ({
+      ...base,
+      lineageAttestations: [createCandidateLineageAttestation({
+        candidateId: base.attestation.candidateId,
+        target: { revision: base.attestation.baseRevision, subject: base.subject },
+        attestedBy: "andrew",
+        attestedAt: "2026-08-12T15:00:00.000Z",
+        verificationEvidenceRef,
+        scope,
+      })],
+    });
+
+    const versions = [];
+    let priorVersion: string | null = null;
+    for (const next of [
+      withAttestation("focused", "verification://focused"),
+      withAttestation("full", "verification://focused"),
+      withAttestation("full", "verification://full"),
+    ]) {
+      await writeCandidateRecord("/repo", "example", next, priorVersion, fs);
+      priorVersion = await readCandidateRecordVersion("/repo", "example", fs);
+      versions.push(priorVersion);
+    }
+
+    expect(new Set(versions).size).toBe(3);
   });
 
   it("reads the record bytes-version without requiring a valid managed record", async () => {
