@@ -8,6 +8,7 @@ import {
 } from "../../../src/lib/delivery/suffix-rematerialization.js";
 import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/contribution-proof.js";
 import type { DeliveryEligibilitySnapshot } from "../../../src/lib/delivery/eligibility.js";
+import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import {
   deliveryFourMemberStackPlanFixture,
   deliveryThreeMemberStackPlanFixture,
@@ -436,12 +437,18 @@ describe("delivery suffix rematerialization", () => {
     expect(proveCarried).toHaveBeenCalledTimes(6);
   });
 
-  it("carries the selected operation mode and preserves its exact reservation refusal", async () => {
+  it("preserves an exact reservation refusal without a live supersession", async () => {
     const { plan, state, facts, snapshot, second } = fixture();
-    const apply = vi.fn(async () => ({
-      status: "refused" as const,
-      reason: "pending-review-fix-verification" as const,
-    }));
+    let seenSupersession: unknown;
+    const apply = vi.fn(async (
+      input: Parameters<DeliverySuffixRematerializationDependencies["apply"]>[0],
+    ) => {
+      seenSupersession = input.supersedePendingReviewFixVerification;
+      return {
+        status: "refused" as const,
+        reason: "pending-review-fix-verification" as const,
+      };
+    });
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [second.deliverableId],
       selectedOperationMode: "selected-change",
@@ -460,9 +467,84 @@ describe("delivery suffix rematerialization", () => {
     });
     expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({
-      supersedePendingReviewFixVerification: true,
       rewrite: expect.objectContaining({ deliverableId: second.deliverableId }),
     }));
+    expect(seenSupersession).toBeUndefined();
+  });
+
+  it("supersedes pending verification before an earlier predecessor rewrite", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const first = initial.members[0]!;
+    const selected = initial.members[2]!;
+    const target = initial.target!;
+    const pendingReviewFixVerification = {
+      selectedDeliverableId: selected.deliverableId,
+      memberDeliverableIds: [selected.deliverableId],
+    };
+    let current: { revision: number; value: DeliveryStateV1 } = {
+      revision: 7,
+      value: { ...initial, pendingReviewFixVerification },
+    };
+    const suffix = plan.members.slice(1);
+    const snapshot: DeliveryEligibilitySnapshot = {
+      planId: plan.planId,
+      workUnitId: plan.workUnitId,
+      planRevision: plan.planRevision,
+      planDigest: plan.planDigest,
+      protectedBase: { ref: target.ref, ...target.coordinates! },
+      top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
+      members: suffix.map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: `refs/heads/candidate-${index + 2}`,
+        head: String(index + 7).repeat(40),
+        tree: String(index + 4).repeat(40),
+      })),
+      lifecyclePaths: [],
+    };
+    const supersessions: unknown[] = [];
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [selected.deliverableId],
+      selectedOperationMode: "selected-change",
+    }, {
+      reobserve: async () => ({
+        status: "observed",
+        plan,
+        current,
+        facts: {
+          target: current.value.target,
+          members: current.value.members,
+          landedDeliverableIds: [first.deliverableId],
+        },
+        snapshot,
+      }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      apply: async ({ current: input, rewrite, supersedePendingReviewFixVerification }) => {
+        const supersession: unknown = supersedePendingReviewFixVerification;
+        supersessions.push(supersession);
+        if (supersessions.length === 1
+          && JSON.stringify(supersession) !== JSON.stringify(pendingReviewFixVerification)) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
+        }
+        current = {
+          revision: input.revision + 1,
+          value: {
+            ...input.value,
+            pendingReviewFixVerification: null,
+            members: input.value.members.map((member) => member.deliverableId === rewrite.deliverableId
+              ? { ...member, ...rewrite.requested.members[0] }
+              : member),
+          },
+        };
+        return { status: "applied", state: current };
+      },
+    });
+
+    expect(result).toMatchObject({ status: "rematerialized", selectedDeliverableId: selected.deliverableId });
+    expect(supersessions).toEqual([pendingReviewFixVerification, undefined]);
   });
 
   it("resumes after a persisted predecessor rewrite without weakening carried contribution proof", async () => {

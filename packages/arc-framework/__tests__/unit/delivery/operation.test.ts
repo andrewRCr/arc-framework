@@ -456,9 +456,10 @@ describe("reserveDeliveryOperation", () => {
   });
 
   it("supersedes exact pending verification for rematerialization without changing its recovery mode", () => {
-    const plan = deliveryPlanFixture();
+    const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
-    const selectedDeliverableId = state.members[0]!.deliverableId;
+    const predecessorDeliverableId = state.members[0]!.deliverableId;
+    const selectedDeliverableId = state.members[1]!.deliverableId;
     const pending = {
       ...state,
       pendingReviewFixVerification: {
@@ -471,8 +472,8 @@ describe("reserveDeliveryOperation", () => {
       { revision: STATE_REVISION, value: pending },
       plan,
       {
-        ...operationRequest(pending),
-        supersedePendingReviewFixVerification: true,
+        ...operationRequest(pending, { affectedDeliverableIds: [predecessorDeliverableId] }),
+        supersedePendingReviewFixVerification: pending.pendingReviewFixVerification,
       },
     );
 
@@ -483,10 +484,22 @@ describe("reserveDeliveryOperation", () => {
         activeOperation: {
           kind: "rewrite",
           mode: "review-fix",
-          affectedDeliverableIds: [selectedDeliverableId],
+          affectedDeliverableIds: [predecessorDeliverableId],
         },
       },
     });
+
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: pending },
+      plan,
+      {
+        ...operationRequest(pending, { affectedDeliverableIds: [predecessorDeliverableId] }),
+        supersedePendingReviewFixVerification: {
+          ...pending.pendingReviewFixVerification,
+          selectedDeliverableId: predecessorDeliverableId,
+        },
+      },
+    )).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
   });
 
   it("reserves only a paired plan-ordered review-fix verification set inside the affected suffix", () => {

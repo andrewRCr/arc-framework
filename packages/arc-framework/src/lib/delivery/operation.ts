@@ -12,6 +12,7 @@ import {
   DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
   DeliveryOperationSnapshotV1Schema,
+  DeliveryPendingReviewFixVerificationV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
   DeliveryTerminalAuthoringMovementV1Schema,
@@ -35,7 +36,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       ...reservationFields,
       kind: z.literal("rewrite"),
       mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
-      supersedePendingReviewFixVerification: z.boolean().optional(),
+      supersedePendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.optional(),
       terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
       reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
       reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
@@ -389,18 +390,23 @@ export function reserveDeliveryOperation(
   }
   const pendingVerification = parsedState.data.pendingReviewFixVerification;
   const rewriteRequest = parsedRequest.data.kind === "rewrite" ? parsedRequest.data : null;
-  const explicitPendingVerificationSupersession = rewriteRequest?.supersedePendingReviewFixVerification === true;
-  if (explicitPendingVerificationSupersession
-    && (rewriteRequest.mode !== "review-fix" || pendingVerification === null)) {
+  const explicitPendingVerificationSupersession = rewriteRequest?.supersedePendingReviewFixVerification;
+  if (explicitPendingVerificationSupersession !== undefined
+    && (rewriteRequest === null || rewriteRequest.mode !== "review-fix" || pendingVerification === null)) {
     return { status: "refused", reason: "operation-invalid" };
   }
-  const supersedesPendingVerification = pendingVerification !== null
+  const supersedesSelectedChangeVerification = pendingVerification !== null
     && rewriteRequest !== null
-    && (rewriteRequest.mode === "selected-change" || explicitPendingVerificationSupersession)
+    && rewriteRequest.mode === "selected-change"
     && canonicalize(rewriteRequest.affectedDeliverableIds)
       === canonicalize(pendingVerification.memberDeliverableIds)
     && rewriteRequest.affectedDeliverableIds.length === 1
     && rewriteRequest.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+  const supersedesExactPendingVerification = pendingVerification !== null
+    && explicitPendingVerificationSupersession !== undefined
+    && canonicalize(explicitPendingVerificationSupersession) === canonicalize(pendingVerification);
+  const supersedesPendingVerification = supersedesSelectedChangeVerification
+    || supersedesExactPendingVerification;
   if (pendingVerification !== null && !supersedesPendingVerification) {
     return { status: "refused", reason: "pending-review-fix-verification" };
   }

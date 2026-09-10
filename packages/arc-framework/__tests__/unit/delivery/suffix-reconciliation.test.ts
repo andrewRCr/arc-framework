@@ -1182,7 +1182,7 @@ describe("delivery suffix reconciliation", () => {
       deliverableId: member.deliverableId,
       requested,
       contributionMode: "selected-change",
-      supersedePendingReviewFixVerification: true,
+      supersedePendingReviewFixVerification: pending.pendingReviewFixVerification,
       ...dependencies,
     })).resolves.toMatchObject({ status: "applied" });
     expect(writes[0]).toMatchObject({

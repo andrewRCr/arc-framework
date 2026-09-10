@@ -17,6 +17,7 @@ import type {
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type {
   DeliveryOperationSnapshotV1,
+  DeliveryPendingReviewFixVerificationV1,
   DeliveryPlanV1,
 } from "./schema.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "./schema.js";
@@ -99,7 +100,7 @@ export interface DeliverySuffixRematerializationDependencies {
     readonly plan: DeliveryPlanV1;
     readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
     readonly rewrite: DeliverySuffixRewritePlan;
-    readonly supersedePendingReviewFixVerification: boolean;
+    readonly supersedePendingReviewFixVerification?: DeliveryPendingReviewFixVerificationV1;
   }): Promise<
     | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
     | { readonly status: "refused"; readonly reason: "pending-review-fix-verification" }
@@ -312,8 +313,17 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       plan: fresh.plan,
       current: fresh.current,
       rewrite,
-      supersedePendingReviewFixVerification: rewrite.selectedChange
-        && input.selectedOperationMode === "selected-change",
+      ...(nextIndex === 0
+        && input.selectedOperationMode === "selected-change"
+        && fresh.current.value.pendingReviewFixVerification !== null
+        && input.selectedDeliverableIds.length === 1
+        && input.selectedDeliverableIds[0]
+          === fresh.current.value.pendingReviewFixVerification.selectedDeliverableId
+        ? {
+            supersedePendingReviewFixVerification:
+              fresh.current.value.pendingReviewFixVerification,
+          }
+        : {}),
     });
     if (applied.status !== "applied") {
       if (applied.reason === "pending-review-fix-verification") {
