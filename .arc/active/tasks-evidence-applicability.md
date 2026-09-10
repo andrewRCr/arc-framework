@@ -285,30 +285,24 @@ currentness and merge authority are re-established.
   predecessor, while every source, relation, lifecycle, and terminal-conflict boundary remains independently typed
   and freshly revalidated.
 
-### `[ ]` **3.2 Classify terminal delivery drift from the durable Candidate baseline** — D7
+### `[x]` **3.2 Classify terminal delivery drift from the durable Candidate baseline** — D7
 
 - _Goal:_ the terminal classifier reaches the evidence that determines base-movement applicability before requiring
   currentness against the very base advance it is classifying.
-
-- **Additional Context:** `notes-evidence-applicability.md` § Delivery drift classifier-ordering field evidence
 
     - `[x]` **3.2.a Separate the versioned Candidate record from effective currentness**
         - Checkpoint composition now shares one versioned managed-record snapshot per work unit, caches effective
           projections by explicit base revision, passes that revision through readiness composition, and returns an
           exact `recompose-required` result before persistence when the final version assertion observes movement.
 
-    - `[ ]` **3.2.b Reorder the delivery drift decision**
-        - Resolve the durable baseline revision with `reduceCandidateDurableBaseline`, return the disjoint continuation
-          after record and overlap validation, and compute residual/predecessor intersections only on overlapping
-          movement before the ordinary effective-currentness gate runs.
-        - Preserve the exact baseline, base, merge-base, and path evidence or the most specific sanitized failure
-          detail on every non-success result, with a structured next action or explicit terminal explanation.
-        - Build `test-first` (one behavior at a time):
-            - a real three-member unlinked sequential delivery whose first member lands with the custom readiness
-              merge driver disabled reaches downstream gates on empty overlap even while the next Candidate is not
-              current against the advanced base, preserving every reviewed nonterminal head;
-            - interacting predecessor paths retain their refusal; and
-            - malformed records, unresolved revisions, and unreadable diffs remain unavailable.
+    - `[x]` **3.2.b Reorder the delivery drift decision**
+        - Delivery drift now reduces the versioned record's durable baseline, validates exact overlap before ordinary
+          currentness, short-circuits disjoint movement, and scopes overlapping residual and predecessor diffs to the
+          retained baseline while preserving exact evidence, sanitized failures, and typed continuation guidance.
+
+- _Outcome:_ a landed predecessor can advance the protected base without making its successor's classification
+  depend on currentness against that advance; interacting movement and unavailable evidence still fail closed with
+  the coordinates and path envelope needed to diagnose the refusal.
 
 ### `[ ]` **3.3 Apply overlap-aware carry in review status** — D8
 

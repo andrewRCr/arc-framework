@@ -11,6 +11,7 @@ import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import {
   getCurrentBranch,
+  analyzeRevisionOverlap,
   observeGitMergeFeasibility,
   resolveIdentity,
   type GitExec,
@@ -101,6 +102,7 @@ import {
   ValidatedMergeMethodSchema,
   type IntegrationCheckpointDependencies,
   type IntegrationLifecycleSummary,
+  type DeliveryDriftClassificationEvidence,
 } from "./checkpoint.js";
 import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
@@ -295,6 +297,19 @@ async function readDiffPaths(
   return output.slice(0, -1).split("\0");
 }
 
+function unavailableDeliveryDrift(
+  workUnit: string,
+  detail: string,
+  evidence: DeliveryDriftClassificationEvidence,
+) {
+  return {
+    status: "unavailable" as const,
+    detail,
+    evidence,
+    nextAction: { command: "rerun-checkpoint" as const, workUnit },
+  };
+}
+
 async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
   const target = await currentHead(exec, cwd);
   const baseRef = (await readConfigSettings(cwd)).settings["branch.base"];
@@ -470,53 +485,133 @@ export function createIntegrationCheckpointDependencies(input: {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);
       if (records.status === "unbound") return { status: "not-applicable" };
       if (records.status === "unavailable") {
-        return { status: "unavailable", detail: "The delivery terminal records are unavailable." };
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The delivery terminal records are unavailable.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+        );
       }
       if (drift.overlap?.status !== "available") {
-        return { status: "unavailable", detail: "The delivery drift overlap is unavailable." };
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The delivery drift overlap is unavailable.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+        );
       }
       if (drift.baseOid === null) {
-        return { status: "unavailable", detail: "The delivery drift base revision is unavailable." };
+        return unavailableDeliveryDrift(workUnit, "The delivery drift base revision is unavailable.", {});
       }
+      const baseRevision = drift.baseOid;
+      let managed: VersionedCandidateRecord;
       try {
-        const value = await candidate(workUnit, drift.baseOid);
-        const currentness = value?.currentness ?? null;
-        if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
-          return { status: "unavailable", detail: "The current delivery Candidate is unavailable." };
-        }
-        const terminal = records.state.members.at(-1);
-        if (terminal === undefined) {
-          return { status: "unavailable", detail: "The delivery terminal member is unavailable." };
-        }
-        const nonTerminal = records.state.members.slice(0, -1);
-        const highestCoordinate = nonTerminal.at(-1)?.coordinates
-          ?? records.state.target?.coordinates
-          ?? null;
-        if (highestCoordinate === null) {
-          return { status: "unavailable", detail: "The delivery predecessor coordinate is unavailable." };
-        }
-        const residualPaths = await readDiffPaths(
+        managed = await candidateContext.readRecord(workUnit);
+      } catch {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The managed delivery Candidate record could not be read or validated.",
+          { baseRevision },
+        );
+      }
+      if (managed.record === null || managed.version === null) {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The managed delivery Candidate record is unavailable.",
+          { baseRevision },
+        );
+      }
+      let baselineRevision: string;
+      try {
+        baselineRevision = reduceCandidateDurableBaseline(managed.record).target.revision;
+      } catch {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The managed delivery Candidate baseline is malformed.",
+          { baseRevision },
+        );
+      }
+      const terminal = records.state.members.at(-1);
+      if (terminal === undefined) {
+        return unavailableDeliveryDrift(workUnit, "The delivery terminal member is unavailable.", {
+          baseRevision,
+          baselineRevision,
+        });
+      }
+      const nonTerminal = records.state.members.slice(0, -1);
+      const highestCoordinate = nonTerminal.at(-1)?.coordinates
+        ?? records.state.target?.coordinates
+        ?? null;
+      if (highestCoordinate === null) {
+        return unavailableDeliveryDrift(workUnit, "The delivery predecessor coordinate is unavailable.", {
+          baseRevision,
+          baselineRevision,
+        });
+      }
+      let overlap;
+      try {
+        overlap = await analyzeRevisionOverlap({
+          exec: input.exec,
+          leftRevision: baselineRevision,
+          rightRevision: baseRevision,
+          treatmentContext: workUnitPathTreatmentContext(workUnit),
+        });
+      } catch {
+        return unavailableDeliveryDrift(workUnit, "The exact delivery overlap could not be read.", {
+          baseRevision,
+          baselineRevision,
+        });
+      }
+      if (overlap.status !== "available") {
+        return unavailableDeliveryDrift(workUnit, overlap.detail, {
+          baseRevision,
+          baselineRevision,
+        });
+      }
+      const evidence = {
+        baseRevision,
+        baselineRevision,
+        mergeBase: overlap.mergeBase,
+        substantivePaths: overlap.overlap.substantivePaths,
+        regenerablePaths: overlap.overlap.regenerablePaths,
+      };
+      if (overlap.overlap.substantivePaths.length === 0) {
+        return { status: "disjoint", nextAction: "continue", evidence };
+      }
+      let residualPaths: string[];
+      try {
+        residualPaths = await readDiffPaths(
           rawExec,
           highestCoordinate.head,
-          currentness.recognizedRevision,
+          baselineRevision,
         );
-        const firstCoordinate = nonTerminal[0]?.coordinates;
-        const predecessorPaths = firstCoordinate == null
+      } catch {
+        return unavailableDeliveryDrift(workUnit, "The delivery residual diff could not be read.", evidence);
+      }
+      const firstCoordinate = nonTerminal[0]?.coordinates;
+      let predecessorPaths: string[];
+      try {
+        predecessorPaths = firstCoordinate == null
           ? []
           : await readDiffPaths(rawExec, firstCoordinate.base, highestCoordinate.head);
-        const classified = classifyDeliveryTerminalDrift({
-          substantivePaths: drift.overlap.substantivePaths,
-          regenerablePaths: drift.overlap.regenerablePaths,
+      } catch {
+        return unavailableDeliveryDrift(workUnit, "The delivery predecessor diff could not be read.", {
+          ...evidence,
           residualPaths,
-          predecessorPaths,
         });
-        return classified;
-      } catch (error) {
-        return {
-          status: "unavailable",
-          detail: error instanceof Error ? error.message : String(error),
-        };
       }
+      const classified = classifyDeliveryTerminalDrift({
+        substantivePaths: overlap.overlap.substantivePaths,
+        regenerablePaths: overlap.overlap.regenerablePaths,
+        residualPaths,
+        predecessorPaths,
+      });
+      const completeEvidence = { ...evidence, residualPaths, predecessorPaths };
+      return classified.status === "refused"
+        ? {
+            ...classified,
+            evidence: completeEvidence,
+            explanation: "Protected-base movement overlaps the retained delivery predecessor contribution.",
+          }
+        : { ...classified, evidence: completeEvidence };
     },
     readMovementObservation: async (workUnit, drift) => {
       if (drift.baseOid === null) throw new Error("The base drift reading has no exact base.");

@@ -581,13 +581,38 @@ export function checkpointOperationRefusal(workUnit: string, detail: string): In
   });
 }
 
+export interface DeliveryDriftClassificationEvidence {
+  readonly baseRevision?: string;
+  readonly baselineRevision?: string;
+  readonly mergeBase?: string;
+  readonly substantivePaths?: readonly string[];
+  readonly regenerablePaths?: readonly string[];
+  readonly residualPaths?: readonly string[];
+  readonly predecessorPaths?: readonly string[];
+}
+
+export type DeliveryDriftClassificationResult =
+  | { readonly status: "not-applicable" }
+  | {
+      readonly status: "unavailable";
+      readonly detail: string;
+      readonly evidence: DeliveryDriftClassificationEvidence;
+      readonly nextAction: {
+        readonly command: "rerun-checkpoint";
+        readonly workUnit: string;
+      };
+    }
+  | (Exclude<DeliveryTerminalDriftResult, { readonly status: "refused" }> & {
+      readonly evidence: DeliveryDriftClassificationEvidence;
+    })
+  | (Extract<DeliveryTerminalDriftResult, { readonly status: "refused" }> & {
+      readonly evidence: DeliveryDriftClassificationEvidence;
+      readonly explanation: string;
+    });
+
 export interface IntegrationCheckpointDependencies {
   readDrift(workUnit: string): Promise<BaseDriftResult>;
-  classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<
-    | { readonly status: "not-applicable" }
-    | { readonly status: "unavailable"; readonly detail: string }
-    | DeliveryTerminalDriftResult
-  >;
+  classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<DeliveryDriftClassificationResult>;
   readMovementObservation(workUnit: string, drift: BaseDriftResult): Promise<{
     feasibility: GitMergeFeasibility;
     admission: ChangeRequestMergeObservation;
@@ -738,6 +763,8 @@ export async function checkpointIntegration(
           nextAction: "stop",
           reason: "drift-classification-unavailable",
           detail: deliveryDrift.detail,
+          driftEvidence: deliveryDrift.evidence,
+          classifierAction: deliveryDrift.nextAction,
         },
       });
     }
@@ -753,6 +780,8 @@ export async function checkpointIntegration(
           nextAction: "stop",
           reason: deliveryDrift.reason,
           paths: deliveryDrift.paths,
+          driftEvidence: deliveryDrift.evidence,
+          explanation: deliveryDrift.explanation,
         },
       });
     }

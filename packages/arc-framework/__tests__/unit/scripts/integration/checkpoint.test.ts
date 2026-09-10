@@ -337,6 +337,7 @@ describe("integration checkpoint", () => {
       status: "reconcile",
       nextAction: "reconcile-base",
       safetyClass: "residual-contained",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c"), mergeBase: oid("a") },
     });
     const readMovementObservation = deps.readMovementObservation;
     deps.readMovementObservation = async (workUnit, drift) => {
@@ -371,6 +372,7 @@ describe("integration checkpoint", () => {
       status: "reconcile",
       nextAction: "reconcile-base",
       safetyClass: "generic",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c"), mergeBase: oid("a") },
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -388,6 +390,8 @@ describe("integration checkpoint", () => {
     deps.classifyDeliveryDrift = async () => ({
       status: "unavailable",
       detail: "The delivery predecessor coordinate is unavailable.",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+      nextAction: { command: "rerun-checkpoint", workUnit: "example" },
     });
     deps.readMovementObservation = async () => {
       events.push("host-read");
@@ -402,9 +406,47 @@ describe("integration checkpoint", () => {
         payload: {
           reason: "drift-classification-unavailable",
           detail: "The delivery predecessor coordinate is unavailable.",
+          driftEvidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+          classifierAction: { command: "rerun-checkpoint", workUnit: "example" },
         },
       });
     expect(events).toEqual([]);
+  });
+
+  it("preserves terminal predecessor-overlap evidence and explanation", async () => {
+    const deps = dependencies();
+    deps.classifyDeliveryDrift = async () => ({
+      status: "refused",
+      reason: "predecessor-overlap",
+      paths: ["src/shared.ts"],
+      explanation: "Protected-base movement overlaps the retained delivery predecessor contribution.",
+      evidence: {
+        baseRevision: oid("b"),
+        baselineRevision: oid("c"),
+        mergeBase: oid("a"),
+        substantivePaths: ["src/shared.ts"],
+        regenerablePaths: [],
+        residualPaths: [],
+        predecessorPaths: ["src/shared.ts"],
+      },
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "delivery-terminal-blocked",
+        payload: {
+          reason: "predecessor-overlap",
+          paths: ["src/shared.ts"],
+          explanation: "Protected-base movement overlaps the retained delivery predecessor contribution.",
+          driftEvidence: {
+            baseRevision: oid("b"),
+            baselineRevision: oid("c"),
+            mergeBase: oid("a"),
+            predecessorPaths: ["src/shared.ts"],
+          },
+        },
+      });
   });
 
   it("blocks with exact paths when Git feasibility reports a substantive conflict", async () => {
