@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "fix-no-fix-delivery-settlement-replay",
+  "claimId": "816d89743358e18554e59d87be3700d7",
+  "createdAt": "2026-09-10T17:52:59.330Z",
+  "updatedAt": "2026-09-10T17:52:59.330Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "fix-no-fix-delivery-settlement-replay",
+  "branch": "chore/fix-no-fix-delivery-settlement-replay",
+  "origin": "inbox",
+  "originEntry": "Fix no-fix delivery-member settlement replay at terminal merge",
+  "originEntrySourceDigest": "sha256:b9493b6a37a2fd0cc200aef83dd1340b64205cb12ca54e603c7dbf2aa8656d9f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
