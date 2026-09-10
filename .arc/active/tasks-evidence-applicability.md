@@ -206,16 +206,11 @@ and Errand paths.
         - Focused coverage proves clean composition, sorted regenerable-only and substantive conflicts, and sanitized
           unavailable results for unsupported, malformed, or failed merge-tree evidence.
 
-    - `[ ]` **2.2.b Define the semantic host-observation port**
-        - Place `ChangeRequestMergeObservationPort` beside the existing provider-neutral change-request boundary,
-          returning `mergeable | base-currentness-required | refused | unresolved` with exact coordinates and an
-          optional opaque evidence reference. Require every non-positive arm to retain sanitized actionable detail;
-          the evidence reference supplements rather than replaces it.
-        - Build `test-first` (one behavior at a time):
-            - positive and strict-currency observations must bind repository, request, base, and head;
-            - unbound or mismatched observations become unresolved; and
-            - core types expose no GitHub field name, HTTP code, or command detail while preserving enough semantic
-              cause detail for the operation result to compose a useful retry or terminal explanation.
+    - `[x]` **2.2.b Define the semantic host-observation port**
+        - Added a strict provider-neutral merge-observation port and schema whose four semantic states bind repository,
+          request, base, and head, with mandatory detail on every non-positive state and optional opaque evidence.
+        - Adapter failures, malformed/provider-shaped values, and coordinate mismatch normalize to actionable
+          `unresolved` observations without leaking provider fields.
 
     - `[ ]` **2.2.c Implement the supported GitHub adapter**
         - Resolve native pull-request and test-merge data behind the port, validating the test-merge parents against
