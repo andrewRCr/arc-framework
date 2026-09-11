@@ -348,10 +348,10 @@ baseline for the unit projects, the lane, integration, and E2E.
         - a run that never queued reports no wait rather than a zero indistinguishable from a missing reading
         - the substrate-bound share resolves from the settled rule and reports zero when nothing matches
 
-- _Outcome:_ Each retained test now reports its Vitest ceiling and headroom; `runCli` annotates the tightest
-  helper timeout used by that test, so the effective ceiling is the tighter of the project/test and subprocess
-  limits. Admission returns `{ result, waitMs? }`; a live queued capture retained 93.102 s of wait separately from
-  its 23.542 s run. The settled substrate rule identifies `user`, user-notes, notes-publication/export,
+- _Outcome:_ Each retained test now reports headroom against its whole-test Vitest ceiling while `runCli` annotates
+  its separate per-invocation limit and spawn count. Admission returns `{ result, waitMs? }` and snapshots wait at
+  lock acquisition; a live queued lane capture retained 64.906 s before its separate 60.616 s run. The settled
+  substrate rule identifies `user`, user-notes, notes-publication/export,
   sync-state, selected sync E2E, and multi-clone file families while explicitly excluding unrelated
   `framework-sync`; empty matches report a zero share.
 
@@ -371,8 +371,8 @@ baseline for the unit projects, the lane, integration, and E2E.
   baseline plus the rates already measured on the artifacts about to change, and recorded before the run that
   scores it.
 
-- _Outcome:_ Forward amendments fix the later scoring bars at ≤42 s for the 12-worker routine lane, ≥15.0 s off
-  integration's 376.47 s summed baseline, and ≥300 job-seconds off the six-run 1,377 s CI median. The derivation
+- _Outcome:_ Forward amendments fix the later scoring bars at ≤46 s for the 12-worker routine lane, ≥15.0 s off
+  integration's 379.26 s summed baseline, and ≥300 job-seconds off the six-run 1,377 s CI median. The derivation
   counts only measured fixture, re-tiering, and startup rates; it excludes tier-move double counting and later
   anchor or consolidation upside.
 

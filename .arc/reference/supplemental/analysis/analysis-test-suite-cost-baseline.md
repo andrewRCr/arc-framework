@@ -4,9 +4,8 @@ Instrument-produced baseline of the CLI package's test-suite cost, taken 2026-09
 `test-suite-right-sizing` execution. It grounds every later target in retained measurement rather than projection.
 
 **Status: authoritative first instrument baseline.** Local figures are medians of three complete retained runs
-captured at `88f8345bd` with the repository-owned `benchmark:test-cost` entry. The companion invocation-count
-sample was captured after `403c04fa`. Raw runs remain regenerable and gitignored; the normalized evidence below is
-the durable record.
+captured at `8e89358c5` with the repository-owned `benchmark:test-cost` entry after the member-boundary review
+corrections. Raw runs remain regenerable and gitignored; the normalized evidence below is the durable record.
 
 ## Contents
 
@@ -38,8 +37,9 @@ npm run -s benchmark:test-cost -- --condition tier-isolated --project-set e2e --
 npm run -s benchmark:test-cost:normalize -- .test-cost-runs/<same-mode-run>...
 ```
 
-Per-file cost is `collectDuration + setupDuration + sum(executed test durations)` from Vitest's completed reported
-task graph. `collectDuration` already includes imports, so `importDurations` is never added again. "Summed" adds
+Per-file cost is `collectDuration + setupDuration + module duration` from Vitest's completed reported task graph.
+The module duration includes all tests and hooks; individual test durations are retained separately and are not
+added again. `collectDuration` already includes imports, so `importDurations` is never added either. "Summed" adds
 those complete file costs and exceeds wall clock because files run in parallel; wall clock is measured around the
 in-process Vitest action and excludes admission wait.
 
@@ -50,9 +50,9 @@ file-level hooks fall outside it, and the window sums to the file's test duratio
 summed window was 123.5 s against the same run's reported 78.8 s of transform and 131.3 s of import. The omission
 matters most for levers that act on that fixed term: module-registry reuse across files moves almost nothing else,
 and splitting a file re-pays it once per new file. A per-file figure that counts it is `collectDuration +
-setupDuration` plus the file's test durations, read from the run's file tasks rather than the JSON payload —
-`collectDuration` already includes the file's import time, and the payload carries no run-level end time, so wall
-clock has to be taken from the run itself. The instrument now implements that complete metric directly.
+setupDuration + duration`, read from the run's file task rather than the JSON payload — `duration` includes the
+file's tests and hooks, `collectDuration` already includes its import time, and the payload carries no run-level end
+time, so wall clock has to be taken from the run itself. The instrument implements that complete metric directly.
 
 **Five measurement conditions, and their complete modes are not interchangeable.** Every retained mode also
 names its project set and worker sizing. Mixing modes produced two wrong conclusions during planning.
@@ -78,19 +78,19 @@ with `git check-ignore`. What is committed here is the normalized ranking, mode,
 
 | Project set           | Wall clock | Summed file time | Files | Executed cases | Mode                              |
 | --------------------- | ---------- | ---------------- | ----- | -------------- | --------------------------------- |
-| `unit` + `unit-mocks` | 23.55 s    | 143.58 s         | 695   | 9,902          | tier-isolated / unit / 12 workers |
-| `integration`         | 45.46 s    | 376.47 s         | 137   | 1,247          | tier-isolated / integration / 12  |
-| Routine lane (no E2E) | 55.32 s    | 520.80 s         | 832   | 11,149         | tier-isolated / lane / 12         |
-| `e2e`                 | 264.65 s   | 1,674.31 s       | 53    | 528            | tier-isolated / e2e / 12          |
+| `unit` + `unit-mocks` | 24.25 s    | 148.52 s         | 695   | 9,904          | tier-isolated / unit / 12 workers |
+| `integration`         | 45.55 s    | 379.26 s         | 137   | 1,247          | tier-isolated / integration / 12  |
+| Routine lane (no E2E) | 59.08 s    | 566.65 s         | 832   | 11,151         | tier-isolated / lane / 12         |
+| `e2e`                 | 272.68 s   | 1,727.55 s       | 53    | 528            | tier-isolated / e2e / 12          |
 
 Every row is a three-run median. The lane is one admitted combined invocation, not unit plus integration
-arithmetic; its projects interleave in one worker pool. File and case counts exclude the one environment-gated
-skipped case while retaining its file's collection/setup cost.
+arithmetic; its projects interleave in one worker pool. Executed-case counts exclude the one environment-gated
+skipped case; the file count and summed time retain that file's collection/setup cost.
 
 **Wall clock is floored by the longest file.** Files run in parallel and tests within a file run sequentially, so
-no tier finishes before its longest file. Integration's median wall is 45.46 s against `user.test.ts` at 43.22 s,
-while its 376.47 s summed time over 12 workers is a 31.37 s arithmetic floor. Unit's 23.55 s wall is floored by
-`classify-change.test.ts` at 22.90 s. Reducing summed time does not move these tiers' wall clock until the longest
+no tier finishes before its longest file. Integration's median wall is 45.55 s against `user.test.ts` at 43.78 s,
+while its 379.26 s summed time over 12 workers is a 31.60 s arithmetic floor. Unit's 24.25 s wall is floored by
+`classify-change.test.ts` at 23.51 s. Reducing summed time does not move these tiers' wall clock until the longest
 files shrink or split.
 
 `build:fast`, which the integration global setup runs on every invocation, costs 1.2 s warm.
@@ -99,45 +99,45 @@ files shrink or split.
 
 Cumulative share is of that tier's summed file time.
 
-### `unit` — 143.58 s over 695 files
+### `unit` — 148.52 s over 695 files
 
 | File                                         | Seconds | Cases | Cumulative |
 | -------------------------------------------- | ------- | ----- | ---------- |
-| `classify-change.test.ts`                    | 22.90   | 122   | 16%        |
-| `harness-hooks/codex-cli.test.ts`            | 17.98   | 37    | 28%        |
-| `command-input/registry.test.ts`             | 9.03    | 4     | 35%        |
-| `command-input/repository-inventory.test.ts` | 6.60    | 15    | 39%        |
-| `kernel/import-boundary.test.ts`             | 2.79    | 8     | 41%        |
-| `decompose-v3-authority-boundary.test.ts`    | 2.75    | 5     | 43%        |
-| `user-status.test.ts`                        | 2.59    | 172   | 45%        |
-| `meta-reader-inventory.test.ts`              | 2.49    | 1     | 47%        |
+| `classify-change.test.ts`                    | 23.51   | 122   | 16%        |
+| `harness-hooks/codex-cli.test.ts`            | 18.07   | 37    | 28%        |
+| `command-input/repository-inventory.test.ts` | 9.43    | 15    | 34%        |
+| `command-input/registry.test.ts`             | 9.40    | 4     | 41%        |
+| `decompose-v3-authority-boundary.test.ts`    | 3.18    | 5     | 43%        |
+| `kernel/import-boundary.test.ts`             | 2.95    | 8     | 44%        |
+| `user-status.test.ts`                        | 2.77    | 172   | 46%        |
+| `meta-reader-inventory.test.ts`              | 2.74    | 1     | 48%        |
 
 The first two files are 28% of the complete-cost tier. Neither spawns the ARC CLI: `classify-change` drives
 `classify-change.sh` through
 `bash`, and `codex-cli` spawns `git` 18 times and `sh` once. Both use `it.each`, so static `it(` counts understate
 their case counts — `classify-change` declares 63 `it(` calls but executes 122 cases.
 
-### `integration` — 376.47 s over 137 files
+### `integration` — 379.26 s over 137 files
 
 | File                                   | Seconds | Cases | Cumulative |
 | -------------------------------------- | ------- | ----- | ---------- |
-| `user.test.ts`                         | 43.22   | 94    | 11%        |
-| `decompose-v3-repository-plan.test.ts` | 42.85   | 53    | 23%        |
-| `review-fan-out-lifecycle.test.ts`     | 38.86   | 15    | 33%        |
-| `config-validate.test.ts`              | 35.33   | 13    | 43%        |
-| `review-cli-surfaces.test.ts`          | 15.89   | 22    | 47%        |
-| `init.test.ts`                         | 12.41   | 39    | 50%        |
-| `delivery-field-runs.test.ts`          | 11.84   | 9     | 53%        |
-| `github-provider-refresh.test.ts`      | 9.57    | 5     | 56%        |
+| `user.test.ts`                         | 43.78   | 94    | 12%        |
+| `decompose-v3-repository-plan.test.ts` | 43.42   | 53    | 23%        |
+| `review-fan-out-lifecycle.test.ts`     | 40.07   | 15    | 34%        |
+| `config-validate.test.ts`              | 35.43   | 13    | 43%        |
+| `review-cli-surfaces.test.ts`          | 15.82   | 22    | 47%        |
+| `init.test.ts`                         | 12.37   | 39    | 50%        |
+| `delivery-field-runs.test.ts`          | 11.89   | 9     | 53%        |
+| `github-provider-refresh.test.ts`      | 9.54    | 5     | 56%        |
 | `user-notes-compaction.test.ts`        | 9.04    | 18    | 58%        |
-| `teardown.test.ts`                     | 8.46    | 22    | 60%        |
-| `notes-export-state-coherence.test.ts` | 8.28    | 13    | 63%        |
-| `one-shot-script-entrypoints.test.ts`  | 8.14    | 3     | 65%        |
+| `teardown.test.ts`                     | 8.44    | 22    | 61%        |
+| `notes-export-state-coherence.test.ts` | 8.22    | 13    | 63%        |
+| `one-shot-script-entrypoints.test.ts`  | 8.16    | 3     | 65%        |
 
 **Only four files in this tier spawn the ARC CLI at all** — `config-validate`, `review-cli-surfaces`,
-`decompose-v3-repository-plan`, and `scripts/remedy-roadmap-conflict`. They hold about 102 s, or **27%** of tier
-cost. The other 133 files hold about 274 s (**73%**), and their dominant term is git fixture construction: 112 of
-the 137 files carry a repo-building signal. Any lever aimed at CLI startup reaches at most the 27%.
+`decompose-v3-repository-plan`, and `scripts/remedy-roadmap-conflict`. They hold about 96.7 s, or **25.5%** of tier
+cost. The other 133 files hold about 282.6 s (**74.5%**), and their dominant term is git fixture construction: 112
+of the 137 files carry a repo-building signal. Any lever aimed at CLI startup reaches at most the 25.5%.
 
 `config-validate` is the exception that pays a different tax: it spawns the CLI from TypeScript source through the
 `tsx` loader, at ~1.4 spawns per test.
@@ -163,8 +163,8 @@ a lever; a template copy is, bounded by the fixture share below.
 
 | File           | Instrument baseline | Cases | Probed saving | Share of new baseline |
 | -------------- | ------------------- | ----- | ------------- | --------------------- |
-| `user.test.ts` | 43.22 s             | 94    | 11.53 s       | 26.7%                 |
-| `init.test.ts` | 12.41 s             | 39    | 3.67 s        | 29.5%                 |
+| `user.test.ts` | 43.78 s             | 94    | 11.53 s       | 26.3%                 |
+| `init.test.ts` | 12.37 s             | 39    | 3.67 s        | 29.6%                 |
 
 **Absolute-path audit.** A built `initInTempRepo` + `makeCommit` fixture contains no occurrence of its own
 absolute path anywhere, `.git/` included. The `addBareRemote` shape does: `.git/config` records the remote's
@@ -178,73 +178,74 @@ The removal primitive throws after its retries rather than failing quietly, so s
 further cause. The measuring machine held 1,210 leaked `arc-remote-*` directories (213 MB) from prior runs —
 those two sites across many runs, plus runs killed at a timeout before teardown.
 
-### `e2e` — 1,674.31 s over 53 files
+### `e2e` — 1,727.55 s over 53 files
 
 | File                                     | Seconds | Cases | Cumulative |
 | ---------------------------------------- | ------- | ----- | ---------- |
-| `candidate-lineage.e2e.test.ts`          | 253.79  | 33    | 15%        |
-| `delivery-position.e2e.test.ts`          | 156.78  | 23    | 25%        |
-| `command-input-no-input.e2e.test.ts`     | 142.09  | 77    | 33%        |
-| `errand.e2e.test.ts`                     | 127.39  | 47    | 41%        |
-| `lifecycle-exit.e2e.test.ts`             | 119.94  | 24    | 48%        |
-| `delivery-plan.e2e.test.ts`              | 110.45  | 18    | 54%        |
-| `session-init.e2e.test.ts`               | 90.36   | 29    | 60%        |
-| `review-protocol.e2e.test.ts`            | 50.12   | 8     | 63%        |
-| `delivery-terminal-recovery.e2e.test.ts` | 45.74   | 18    | 66%        |
-| `rename.e2e.test.ts`                     | 35.35   | 8     | 68%        |
-| `publication-spine.e2e.test.ts`          | 33.92   | 7     | 70%        |
-| `user.e2e.test.ts`                       | 32.67   | 13    | 72%        |
+| `candidate-lineage.e2e.test.ts`          | 261.33  | 33    | 15%        |
+| `delivery-position.e2e.test.ts`          | 161.18  | 23    | 24%        |
+| `command-input-no-input.e2e.test.ts`     | 145.93  | 77    | 33%        |
+| `errand.e2e.test.ts`                     | 131.85  | 47    | 41%        |
+| `lifecycle-exit.e2e.test.ts`             | 123.86  | 24    | 48%        |
+| `delivery-plan.e2e.test.ts`              | 115.38  | 18    | 54%        |
+| `session-init.e2e.test.ts`               | 93.97   | 29    | 60%        |
+| `review-protocol.e2e.test.ts`            | 51.95   | 8     | 63%        |
+| `delivery-terminal-recovery.e2e.test.ts` | 48.06   | 18    | 66%        |
+| `rename.e2e.test.ts`                     | 36.39   | 8     | 68%        |
+| `publication-spine.e2e.test.ts`          | 35.39   | 7     | 70%        |
+| `user.e2e.test.ts`                       | 34.30   | 13    | 72%        |
 
 **Anchor-set gap.** CI pins four anchor files per leg and shards the remainder by path hash. The pinned set is
 `candidate-lineage`, `errand`, `command-input-no-input`, and `lifecycle-exit`. Measured, the four largest are
 `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand` — so `delivery-position` (2nd,
-156.78 s) is unpinned while `lifecycle-exit` (5th, 119.94 s) is pinned.
+161.18 s) is unpinned while `lifecycle-exit` (5th, 123.86 s) is pinned.
 
 This ranking is mode-sensitive: an earlier under-load run put `command-input-no-input` 7th rather than 3rd. Anchor
 selection must be made from tier-isolated data.
 
 ## Effective E2E shard membership
 
-`benchmark:test-cost:shards` read the four live workflow exclusions, then asked Vitest's collecting
-`list --json` form for the filtered tier and each `--shard` leg. The 49-file remainder partitioned exactly once,
-13/12/12/12; the excluded anchors appeared in no remainder leg.
+`benchmark:test-cost:shards` read the ordered anchor assignment and four live workflow exclusions, then asked
+Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 49-file remainder
+partitioned exactly once, 13/12/12/12; each complete leg below is its pinned anchor plus that remainder.
 
-| Leg | Effective remainder membership                                                                                                                                                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1/4 | `delivery-authoring`, `log`, `publication-spine`, `reconfigure`, `rename`, `review-chunking`, `review-protocol`, `session-init-remote-boundary`, `smoke`, `sync-inbound`, `sync-state-producer`, `teardown`, `wu-reconcile`    |
-| 2/4 | `anchored-sequence`, `attest`, `base-sync`, `commit-message-consumers`, `housekeep`, `plan`, `pre-push`, `schema-artifact`, `session-envelope-compat`, `session-init`, `status-lifecycle`, `sync-purity`                       |
-| 3/4 | `base-drift`, `delivery-plan`, `delivery-transfer`, `health-diff`, `lifecycle`, `locus-errand-roundtrip`, `markdown-formatting`, `precompact-locus-anchor`, `release-commit`, `state-ref-race`, `user-inbox-remove`, `user`    |
-| 4/4 | `base-merge`, `candidate-applicability`, `commit-msg`, `decompose-command-modes`, `delivery-position`, `delivery-terminal-recovery`, `init`, `run-cli`, `stale-build-guard`, `update`, `user-inbox-mark-execute-bound`, `view` |
+| Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                       |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1/4 | `errand`                 | `delivery-authoring`, `log`, `publication-spine`, `reconfigure`, `rename`, `review-chunking`, `review-protocol`, `session-init-remote-boundary`, `smoke`, `sync-inbound`, `sync-state-producer`, `teardown`, `wu-reconcile`    |
+| 2/4 | `candidate-lineage`      | `anchored-sequence`, `attest`, `base-sync`, `commit-message-consumers`, `housekeep`, `plan`, `pre-push`, `schema-artifact`, `session-envelope-compat`, `session-init`, `status-lifecycle`, `sync-purity`                       |
+| 3/4 | `command-input-no-input` | `base-drift`, `delivery-plan`, `delivery-transfer`, `health-diff`, `lifecycle`, `locus-errand-roundtrip`, `markdown-formatting`, `precompact-locus-anchor`, `release-commit`, `state-ref-race`, `user-inbox-remove`, `user`    |
+| 4/4 | `lifecycle-exit`         | `base-merge`, `candidate-applicability`, `commit-msg`, `decompose-command-modes`, `delivery-position`, `delivery-terminal-recovery`, `init`, `run-cli`, `stale-build-guard`, `update`, `user-inbox-mark-execute-bound`, `view` |
 
-Excluded anchors: `candidate-lineage`, `errand`, `command-input-no-input`, and `lifecycle-exit`. Names above omit
-the common `.e2e.test.ts` suffix.
+Names omit the common `.e2e.test.ts` suffix. The instrument refuses a different anchor count, duplicate or
+non-contiguous leg assignments, or any mismatch between the mapped anchors and the exclusion set.
 
 ## Timeout, admission, and substrate signals
 
-The instrument resolves each test's effective ceiling from Vitest's task timeout and any tighter `runCli` timeout.
-The minimum headroom is not the same artifact in every tier.
+The instrument resolves whole-test headroom from the Vitest task timeout. A `runCli` timeout is retained separately:
+it bounds one subprocess invocation, not fixture work or several sequential invocations within the same test.
+The table uses each test's median duration across the three exact-mode runs, then selects the tightest fraction.
 
-| Project set | Tightest observed headroom                                         | Effective ceiling | Remaining headroom |
-| ----------- | ------------------------------------------------------------------ | ----------------- | ------------------ |
-| Unit        | `harness-hooks/codex-cli.test.ts` valid seed command case, 15.33 s | 30 s              | 14.67 s (48.9%)    |
-| Lane        | same unit case, 15.33 s                                            | 30 s              | 14.67 s (48.9%)    |
-| Integration | `review-cli-surfaces.test.ts` machine Git read case, 0.85 s        | 2 s               | 1.15 s (57.7%)     |
-| E2E         | `delivery-position.e2e.test.ts` review-correction case, 70.31 s    | 90 s              | 19.69 s (21.9%)    |
+| Project set | Tightest observed headroom                                            | Effective ceiling | Remaining headroom |
+| ----------- | --------------------------------------------------------------------- | ----------------- | ------------------ |
+| Unit        | `harness-hooks/codex-cli.test.ts` valid seed command case, 15.33 s    | 30 s              | 14.67 s (48.9%)    |
+| Lane        | same unit case, 15.34 s                                               | 30 s              | 14.66 s (48.9%)    |
+| Integration | `review-fan-out-lifecycle.test.ts` eight-member conjunction, 11.44 s  | 30 s              | 18.56 s (61.9%)    |
+| E2E         | `delivery-position.e2e.test.ts` response-loss acknowledgment, 22.49 s | 30 s              | 7.51 s (25.0%)     |
 
-Admission wait is retained but excluded from wall and summed time. Most baseline runs acquired immediately; one
-of the three E2E runs waited 573.06 s. Separate live captures also observed 93.10 s before a 23.54 s unit run,
-324.22 s before a 45 s integration run, and 286.43 s before a 264 s E2E run. These are contention readings, not
-suite-runtime regressions.
+Admission wait ends when the lock is acquired and is excluded from wall and summed time. Unit and E2E acquired
+immediately. One lane run retained 64.91 s before its separate 60.62 s runtime. All three integration runs queued:
+330.43 s, 631.56 s, and 641.10 s before respective 45–49 s runtimes. These are contention readings, not suite-runtime
+regressions; the earlier pre-review samples were discarded because their wait field included the admitted action.
 
 The settled substrate rule matches user, user-notes, notes publication/export, sync-state, selected sync E2E, and
 multi-clone families, while excluding unrelated `framework-sync` files.
 
 | Project set | Substrate-bound summed time | Share of tier |
 | ----------- | --------------------------- | ------------- |
-| Unit        | 0.55 s                      | 0.40%         |
-| Integration | 77.94 s                     | 20.72%        |
-| Lane        | 82.37 s                     | 15.83%        |
-| E2E         | 36.63 s                     | 2.19%         |
+| Unit        | 0.58 s                      | 0.38%         |
+| Integration | 78.24 s                     | 20.63%        |
+| Lane        | 88.25 s                     | 15.58%        |
+| E2E         | 38.17 s                     | 2.21%         |
 
 Companion post-instrument captures counted 29 built CLI invocations in integration and 1,815 in E2E. Those counts
 are annotations on the same helpers used by the duration runs; they are not inferred from static source calls.
@@ -325,23 +326,23 @@ The prepared-fixture probe saved 28.6% of the old 40.3 s `user` file and 31.6% o
 (40.3 s × 28.6%) + (11.6 s × 31.6%) = 15.19 s
 ```
 
-The instrument moved the file baselines to 43.22 s and 12.41 s, making those absolute savings 26.7% and 29.5% of
+The instrument moved the file baselines to 43.78 s and 12.37 s, making those absolute savings 26.3% and 29.6% of
 the new readings. The target retains the directly probed absolute saving and rounds down to **15 s**, or 4.0% of
-the 376.47 s integration baseline.
+the 379.26 s integration baseline.
 
-### Routine lane wall clock: at most 42 seconds at 12 workers
+### Routine lane wall clock: at most 46 seconds at 12 workers
 
-The lane's 520.80 s summed baseline loses the two all-spawn files that re-tier to E2E (`config-validate`, 35.33 s;
-`review-cli-surfaces`, 15.89 s) and the 15.19 s fixture saving:
+The lane's 566.65 s summed baseline loses the two all-spawn files that re-tier to E2E (`config-validate`, 40.26 s;
+`review-cli-surfaces`, 17.63 s) and the 15.19 s fixture saving:
 
 ```text
-520.80 s - 35.33 s - 15.89 s - 15.19 s = 454.39 s
-454.39 s / 12 workers = 37.87 s inclusive summed-time floor
-37.87 s × 1.10 noise allowance = 41.65 s → 42 s bar
+566.65 s - 40.26 s - 17.63 s - 15.19 s = 493.57 s
+493.57 s / 12 workers = 41.13 s inclusive summed-time floor
+41.13 s × 1.10 noise allowance = 45.24 s → 46 s bar
 ```
 
 The file-splitting work must put every remaining file under that floor, so the post-work longest-file floor cannot
-be larger. The resulting bar is **≤42 s at 12 workers**, the larger-floor rule plus the full 10% noise allowance,
+be larger. The resulting bar is **≤46 s at 12 workers**, the larger-floor rule plus the full 10% noise allowance,
 rounded upward. If the later sizing sweep adopts a different worker count, it must forward-amend this bar before
 scoring against it.
 
@@ -374,7 +375,7 @@ double counting and leaving those later measurements as upside rather than prere
 | CI anchor re-selection                     | ~25 s of critical path                  | Medium — from tier-isolated rank |
 | Code splitting, on top of lazy loading     | ~0.02 s per real-verb spawn             | High — direct measurement        |
 | Running the lane as one command            | 68.2 s → 55.5 s (**~15%**)              | High — same-session pair         |
-| Fixture template copy, `user` / `init`     | ≤26–36% of those files' time            | High — probe; share is the bound |
+| Fixture template copy, `user` / `init`     | ≤26–30% of those files' time            | High — probe; share is the bound |
 | Skipping `build:fast` when `dist/` fresh   | 1.2 s                                   | High — effectively nil           |
 | Batching git spawns per fixture            | ~24 ms of ~106 ms per build             | High — effectively nil           |
 

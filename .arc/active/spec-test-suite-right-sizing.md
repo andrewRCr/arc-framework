@@ -33,6 +33,10 @@ _Amended 2026-09-11 — The first instrument baseline supersedes this pre-instru
 unit is 23.55 s wall / 143.58 s summed, integration is 45.46 s / 376.47 s, the admitted lane is 55.32 s /
 520.80 s, and E2E is 264.65 s / 1,674.31 s, each a three-run median at 12 workers._
 
+_Amended 2026-09-11 — Member-boundary review found that the first instrument omitted suite-hook execution time.
+The corrected authoritative medians are: unit 24.25 s wall / 148.52 s summed, integration 45.55 s / 379.26 s,
+the admitted lane 59.08 s / 566.65 s, and E2E 272.68 s / 1,727.55 s, each at 12 workers._
+
 Four facts govern the design.
 
 **E2E is 79% of the local run.** Taking it off the routine local path — CI still enforces it before merge — moves
@@ -197,6 +201,13 @@ per-test durations per tier from Vitest's JSON reporter and reports:
 
 _Amended 2026-09-11 — Vitest's JSON payload cannot carry the required collection/setup fixed term. The instrument
 therefore reads the completed reported task graph from the in-process run; its retained output remains JSON._
+
+_Amended 2026-09-11 — Member-boundary review corrected three semantics. Complete per-file cost is
+`collectDuration + setupDuration + module duration`; module duration includes every test and hook, while individual
+test durations remain separate diagnostics. Effective CI-leg membership is the workflow-mapped pinned anchor plus
+the Vitest-derived remainder shard. Whole-test headroom uses the Vitest task timeout only; a CLI helper timeout is
+retained separately because it bounds one subprocess invocation, not the whole test. Admission wait ends at lock
+acquisition, before the action begins._
 
 1. Per-tier and per-file summed time, **normalized across several retained runs** — not a single run. Per-file
    cost counts the file's own transform, import, and hook time, which the JSON reporter's per-file window omits
@@ -548,6 +559,11 @@ is not satisfied.
    minus 35.33 s (`config-validate` re-tiering), 15.89 s (`review-cli-surfaces` re-tiering), and the 15.19 s
    fixture-probe saving leaves 454.39 s; divided by 12, the inclusive summed-time floor is 37.87 s. File splitting
    puts the longest-file floor below it; adding the full 10% noise allowance gives 41.65 s, rounded upward._
+
+   _Amended 2026-09-11 — **Review-corrected bar: ≤46 s at 12 workers.** The complete-cost baseline is 566.65 s;
+   subtracting 40.26 s and 17.63 s for the two re-tiered files plus 15.19 s of fixture savings leaves 493.57 s.
+   Dividing by 12 gives a 41.13 s inclusive floor; the 10% noise allowance gives 45.24 s, rounded upward. This
+   supersedes the 42 s bar, whose baseline omitted suite-hook execution time._
 3. **Selection rule is live.** `DEV-RULES.PROJECT` § Selecting what to run carries the lane rows and no longer
    closes by forbidding a partial Tier 3; `QUICK-REFERENCE` § Quality Gate Commands no longer instructs a whole
    run, and its per-task entry names the changed-file invocation the rule specifies rather than the
@@ -562,6 +578,10 @@ is not satisfied.
    Target derivation: the prepared-fixture probe saved 40.3 s × 28.6% in `user` plus 11.6 s × 31.6% in `init`,
    or 15.19 s, conservatively rounded down. Against the instrument baseline those fixed savings are 26.7% and
    29.5% of the two files._
+
+   _Amended 2026-09-11 — **Review-corrected baseline: 379.26 s; bar: reduce by ≥15.0 s to ≤364.26 s.** The absolute
+   15.19 s probe saving is unchanged; it is 26.3% of the corrected 43.78 s `user` file and 29.6% of the corrected
+   12.37 s `init` file. This supersedes only the baseline-dependent numbers above._
 5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm
    as a standalone probe — the same condition as the recorded 0.36 s baseline — above the 0.21 s probe and below
    the baseline, so it discriminates rather than restating either.
