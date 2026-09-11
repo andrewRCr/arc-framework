@@ -421,6 +421,31 @@ describe("composePrePublicationReviewRequest", () => {
     expect(readLaneProgress).toHaveBeenCalledWith("frontline", second.target.headSha, [second.target.headSha]);
   });
 
+  it("resumes a pending private-member fix whose reviewed head differs from the Candidate head", async () => {
+    const member = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const readDeliveryReviewTargets = vi.fn();
+    const deriveImmutableTarget = vi.fn();
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        readCandidate: async () => ({ ...currentCandidate, pendingReviewTarget: member.target }),
+        readDeliveryReviewTargets,
+        deriveImmutableTarget,
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(member.target);
+    expect(composition.request.responseBinding).toBeUndefined();
+    expect(readDeliveryReviewTargets).not.toHaveBeenCalled();
+    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+  });
+
   it("retains the terminal member after every delivery-member Frontline result settles", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",

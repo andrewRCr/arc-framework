@@ -373,7 +373,9 @@ export async function composePrePublicationReviewRequest(
   const immutable = deliveryTargets.status === "absent" && candidate.pendingReviewTarget !== undefined
     ? { status: "resolved" as const, target: candidate.pendingReviewTarget }
     : await dependencies.deriveImmutableTarget();
-  if (immutable.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
+  if (immutable.status === "resolved"
+    && immutable.target.kind === "change-set"
+    && immutable.target.headSha !== candidate.headSha) {
     return {
       status: "refused",
       reason: "The immutable review target does not identify the Candidate head.",
