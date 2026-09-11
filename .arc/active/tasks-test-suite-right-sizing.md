@@ -285,7 +285,7 @@ baseline for the unit projects, the lane, integration, and E2E.
   and test count; one sample remains explicitly `single-run`. Noise classification uses absolute change over the
   before value, treats magnitudes below 10% as unestablished, and treats the exact 10% boundary as established.
 
-### `[ ]` **2.4 Derive the effective E2E shard membership for every CI leg**
+### `[x]` **2.4 Derive the effective E2E shard membership for every CI leg**
 
 - _Goal:_ The instrument reports which files actually land on each CI leg, so anchor selection and leg balance are
   read from membership rather than inferred from the workflow file.
@@ -311,6 +311,11 @@ baseline for the unit projects, the lane, integration, and E2E.
         - the legs partition the filtered tier — every file lands on exactly one, and their union is the whole
         - excluded anchor files are absent from every remainder leg
         - a read returning the whole tier for every leg fails loudly rather than reporting it as a ranking
+
+- _Outcome:_ `benchmark:test-cost:shards` reads the exclusions from the live CI workflow and asks Vitest's
+  collecting `list --json` form for the filtered tier and each of four shards with `ARC_E2E_SKIP_BUILD=1`. It
+  validates proper subsets, differing legs, disjointness, full union, and anchor absence. The live query found 49
+  remainder files partitioned 13/12/12/12; uniform whole-tier output is an explicit failure.
 
 ### `[ ]` **2.5 Report timeout headroom, heavy-slot wait, and substrate-bound share**
 
