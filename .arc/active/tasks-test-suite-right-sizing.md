@@ -462,28 +462,15 @@ adopted or rejected against the noise band.
   38.81→25.01 s. The next three ranked non-spawning files yielded below the 7.22 s threshold: fan-out has no
   fixture lever, `init`'s measured ceiling is 3.67 s, and `delivery-field-runs` already shares one clone per file.
 
-### `[ ]` **3.6 Confirm or reject the tmpfs and non-isolated candidates against the noise band**
+### `[x]` **3.6 Confirm or reject the tmpfs and non-isolated candidates against the noise band**
 
 - _Goal:_ Two candidate levers each measured once inside run-to-run variance are either established across several
   runs or dropped, and neither is adopted on a single green result.
 
-- _Context:_ A tmpfs fixture root measured ~9% and integration `isolate: false` measured ~6–12%, both against ~8%
-  variance. The non-isolated run passed all 1,248 cases including the three module-mocking files the unit tier
-  quarantines — but mock leakage is order-sensitive, so one green run is not proof.
-
-    - The tmpfs root is set by exporting `TMPDIR` before the run. The Vitest config reassigns `process.env.TMPDIR`
-      at load, which looks like it pins the temp root and does not: it canonicalizes whatever `TMPDIR` already
-      names, so an exported value flows through. Do not abandon the measurement on that reading.
-    - Judge each candidate on the metric its mechanism actually moves. `isolate: false` reuses the module registry
-      across files in a worker, so its effect lives in the import term: read as test duration alone it reports
-      near zero whatever it is really worth. Compare inclusive per-file cost and lane wall clock.
-    - Measure both through the instrument across several runs; adopt only what clears the band, and record the
-      rejection when it does not.
-    - A tmpfs root on E2E measured 0.5% and is not a lever there — do not extend either candidate to that tier.
-    - If `isolate: false` is adopted, it is confirmed against the tier as it stands here and re-confirmed after
-      7.2. Conversion brings in files that drive handlers in process and leave `process.exitCode` and the working
-      directory behind them, which is exactly the state a shared worker carries into the next file. The failure
-      shape is order-dependent flakiness rather than a loud red, so it does not surface on its own.
+- _Outcome:_ Three tier-isolated 12-worker controls had medians of 49.95 s wall / 417.19 s summed; tmpfs produced
+  42.60 s / 363.02 s, reductions of 14.7% and 13.0%. Integration now prefers writable Linux `/dev/shm` while all
+  other tiers and hosts retain the canonical OS root. Two non-isolated runs passed, but the third leaked module
+  state into all six `local-review-delivery-binding` cases; the instrument refused it and isolation remains enabled.
 
 ## **Phase 4:** Tier honesty and file floors
 
