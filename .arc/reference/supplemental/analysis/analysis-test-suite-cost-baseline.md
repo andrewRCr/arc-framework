@@ -189,6 +189,12 @@ Workflow dispatch `34651274160` ran successfully on the two-slot `arc-ci-mini` a
 CI-job sample rather than a median; the dispatch exercises every heavy job but skips the PR-only `ci-ok` and
 `merge-ok` rollups.
 
+This and the later pre-correction dispatch `34654605367` repeated each pinned E2E anchor in its remainder shard.
+Vitest's CLI normally normalizes `exclude` to `cliExclude` before calling `startVitest`; the programmatic local-tier
+adapter skipped that private normalization, so its parsed exclusions never reached config resolution. These runs
+remain useful historical timing and budget-reporter observations, but they do not evidence the final anchor topology
+or score the heavy-lane target.
+
 | Job                                | Seconds   |
 | ---------------------------------- | --------- |
 | Classify lane & weight             | 7         |
@@ -238,21 +244,28 @@ A settled 12-worker lane run at `0668989f1` completed in 43.718 s with 443.569 s
 instrument matched the tier-isolated lane record and reported `within`, with 5.700 s remaining against the
 49.418 s local budget.
 
-Workflow dispatch `34654605367` exercised the corrected epoch-seconds reporter on the same exact head. Every
-test job matched its own one-worker CI-job record and completed within budget:
+Workflow dispatch `34654605367` exercised the corrected epoch-seconds reporter, but its E2E jobs exposed the
+programmatic exclusion defect described above: each anchor ran in both the anchor and remainder steps. The reporter
+still matched every test job to its own one-worker CI-job record, but the run's 1,170 job-seconds are not a valid
+score for the intended anchor topology.
+
+After the local-tier adapter normalized forwarded exclusions, exact-head dispatch `34657372996` exercised the
+corrected path. Every test job completed within budget:
 
 | CI job      | Observed  | Budget  | Remaining |
 | ----------- | --------- | ------- | --------- |
-| Unit        | 33.579 s  | 44.0 s  | 10.421 s  |
-| Integration | 173.374 s | 204.6 s | 31.226 s  |
-| E2E 1       | 159.607 s | 166.1 s | 6.493 s   |
-| E2E 2       | 219.262 s | 243.1 s | 23.838 s  |
-| E2E 3       | 276.475 s | 294.8 s | 18.325 s  |
-| E2E 4       | 165.903 s | 169.4 s | 3.497 s   |
+| Unit        | 37.114 s  | 44.0 s  | 6.886 s   |
+| Integration | 174.065 s | 204.6 s | 30.535 s  |
+| E2E 1       | 145.882 s | 166.1 s | 20.218 s  |
+| E2E 2       | 173.512 s | 243.1 s | 69.588 s  |
+| E2E 3       | 127.090 s | 294.8 s | 167.710 s |
+| E2E 4       | 107.591 s | 169.4 s | 61.809 s  |
 
-The run's ten successful job durations sum to 1,170 s. Against the six-run 1,377 s first baseline, that is a
-207 job-second reduction and remains 93 s short of the fixed 300 job-second target. A synthetic E2E 4 overage
-reported 206.39 s against 169.40 s, wrote a 36.99 s advisory warning, and exited successfully.
+The raw E2E logs show one anchor file on each leg, a 13/13/13/12 split of the 51-file remainder, and no anchor
+result in any remainder step. The run's ten successful job durations sum to 913 s. Against the six-run 1,377 s
+first baseline, that is a 464 job-second reduction (33.7%), clearing the fixed 300 job-second target by 164 s. A
+synthetic E2E 4 overage reported 206.39 s against 169.40 s, wrote a 36.99 s advisory warning, and exited
+successfully.
 
 ## Where the time concentrates
 
@@ -364,9 +377,11 @@ selection must be made from tier-isolated data.
 
 ## Effective E2E shard membership
 
-`benchmark:test-cost:shards` read the corrected ordered anchor assignment and four live workflow exclusions, then
-asked Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 51-file remainder
-partitioned exactly once, 13/13/13/12; each complete leg below is its pinned anchor plus that remainder.
+`benchmark:test-cost:shards` reads the ordered anchor assignment and four live workflow exclusions, then asks
+Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 51-file remainder
+partitions exactly once, 13/13/13/12; each complete leg below is its pinned anchor plus that remainder. Because the
+instrument invokes Vitest's CLI while the test scripts use an in-process adapter, exact-head dispatch `34657372996`
+also proves the executed topology: its four remainder logs report 13/13/13/12 files and contain no anchor result.
 
 | Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                                               |
 | --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

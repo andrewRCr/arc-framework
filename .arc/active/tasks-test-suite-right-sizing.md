@@ -666,8 +666,9 @@ the re-baselined ranking.
 - _Goal:_ The pinned anchor set matches the measured ranking, so the set is correct rather than inherited.
 
 - _Outcome:_ The fourth CI leg now pins `delivery-position` instead of `lifecycle-exit`, matching the measured
-  tier-isolated top four. The workflow matrix, remainder exclusions, and contract expectation agree, and the live
-  shard probe accounts for all 55 E2E files exactly once across the four anchors plus 51 remainder files.
+  tier-isolated top four. The workflow matrix, exclusions, listing probe, and contract expectation agree; the
+  programmatic runner now normalizes forwarded exclusions, and exact-head dispatch `34657372996` proves all 55 E2E
+  files execute exactly once across the four anchors plus a 13/13/13/12 split of the 51-file remainder.
 
 ### `[x]` **6.4 Record per-tier per-mode budgets and report local standing**
 
@@ -691,8 +692,9 @@ the re-baselined ranking.
 - _Goal:_ One recorded pass shows the settled numbers are in force and reported on both paths.
 
 - _Outcome:_ The settled 12-worker lane reported 43.718 s and `within` its local budget. Exact-head CI dispatch
-  `34654605367` passed all six budget steps against their distinct CI-job records, and a synthetic 36.99 s E2E 4
-  overage wrote the advisory warning while exiting successfully.
+  `34654605367` exposed duplicated anchors caused by ignored programmatic exclusions; after correction, exact-head
+  dispatch `34657372996` passed all six budget steps, executed every E2E file exactly once, and totaled 913
+  job-seconds. A synthetic 36.99 s E2E 4 overage wrote the advisory warning while exiting successfully.
 
 ### `[ ]` **6.7 Close the sizing and budgets member** — validate criteria at member scope
 
@@ -701,24 +703,24 @@ the re-baselined ranking.
 - _Boundary report:_ Member 5 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 5 — sizing-and-budgets`.
-    - _Span:_ bounded diff `8f6d655c5..080eefc34`; cumulative reachability `080eefc34` at tree
-      `d2cc5e8cff49c82585ec2621c58a940454b5e350`; boundary-order deviation: none.
+    - _Span:_ bounded diff `8f6d655c5..1e2e6f25a`; cumulative reachability `1e2e6f25a` at tree
+      `6ba01662462ad1f921a5c6af10be16d787b1d5aa`; boundary-order deviation: none.
     - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 1`; _criterion-digest:_
       `sha256:b09ace09b14a84681153943c152d1b31af200e7acd2daed92e969a60fe10a3cd`; _State:_ `[ ]`; _Evidence:_
       the schema-v3 amendment fixed the scored bar at 44 s for 12 workers before the post-cost runs. The
       three-run lane median is 44.925 s, 0.925 s above the bar; raised worker settings did not improve it. The
       later 43.718 s exercise is one run and does not replace the normalized median under the measurement rule.
     - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 2`; _criterion-digest:_
-      `sha256:e8481c09423cceb581f54b61260b3e83d7e97768367ab8a3908a023efdd074d1`; _State:_ `[ ]`; _Evidence:_
-      the pinned anchors match the tier-isolated top four, but exact-head dispatch `34654605367` totals 1,170
-      successful job-seconds, a 207 s reduction from 1,377 s and 93 s short of the fixed 300 s target. The earlier
-      1,131 s sample also remained 54 s short; neither eligible observation reaches the 1,077 s bar.
+      `sha256:e8481c09423cceb581f54b61260b3e83d7e97768367ab8a3908a023efdd074d1`; _State:_ `[x]`; _Evidence:_
+      the pinned anchors match the tier-isolated top four. Exact-head dispatch `34657372996` ran each anchor once,
+      split the 51-file remainder 13/13/13/12 with no anchor result in any remainder, and totaled 913 successful
+      job-seconds: 464 s below the 1,377 s baseline and 164 s beyond the fixed 300 s reduction target.
     - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 3`; _criterion-digest:_
       `sha256:e98a7b4de13f57eec2b66fc9cbf621422d12f41ced115fc7bba1d98310860d6a`; _State:_ `[x]`; _Evidence:_
       the tracked record carries four local-tier and six CI-job budgets with exact modes. The settled lane reports
-      local standing; all six exact-head CI comparisons selected their own records; and a synthetic 36.99 s
-      overage wrote the advisory warning while exiting successfully.
-    - _Summary:_ one met, zero superseded, two unresolved. Success Criteria markers remain unchanged.
+      local standing; all six corrected exact-head CI comparisons selected their own records; and a synthetic
+      36.99 s overage wrote the advisory warning while exiting successfully.
+    - _Summary:_ two met, zero superseded, one unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 7:** Cost-ranked audit and hygiene capture
 
