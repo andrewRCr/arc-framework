@@ -814,15 +814,16 @@ describe("user load — backup and stale detection", () => {
 
 describe("user load — retired-subdir reconciliation", () => {
   let tempDir: string;
+  let remoteDir: string;
 
   beforeEach(async () => {
     tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
     await makeCommit(tempDir, "initial commit");
-    await addBareRemote(tempDir);
+    remoteDir = await addBareRemote(tempDir, { callerOwnsCleanup: true });
   });
 
   afterEach(async () => {
-    await cleanupTempDir(tempDir);
+    await Promise.all([tempDir, remoteDir].map(cleanupTempDir));
   });
 
   /**
@@ -1636,7 +1637,7 @@ describe("user push and pull", () => {
   beforeEach(async () => {
     tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
     await makeCommit(tempDir, "initial commit");
-    remoteDir = await addBareRemote(tempDir);
+    remoteDir = await addBareRemote(tempDir, { callerOwnsCleanup: true });
     cloneDir = undefined;
   });
 
@@ -2173,7 +2174,7 @@ describe("user status", () => {
   beforeEach(async () => {
     tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
     await makeCommit(tempDir, "initial commit");
-    remoteDir = await addBareRemote(tempDir);
+    remoteDir = await addBareRemote(tempDir, { callerOwnsCleanup: true });
     cloneDir = undefined;
   });
 

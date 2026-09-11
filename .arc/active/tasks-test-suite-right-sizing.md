@@ -434,26 +434,14 @@ adopted or rejected against the noise band.
   pointer pair. A real `/usr/bin/grep -R -a` audit covers hidden Git metadata and proves that plain, remote, and
   worktree copies contain no absolute template reference.
 
-### `[ ]` **3.3 Fix the bare-remote leak and give each test its own remote**
+### `[x]` **3.3 Fix the bare-remote leak and give each test its own remote**
 
 - _Goal:_ Every bare remote a test creates is removed with that test, and no test shares a remote with another.
 
-- _Context:_ `addBareRemote` returns its temp directory and leaves removal to the caller. Nearly every calling
-  file removes it; two discard the return and therefore cannot — one in `user.test.ts`, one in
-  `sync-state-ref.test.ts`. The removal primitive throws after its retries rather than failing quietly, so a
-  silent teardown failure is not a third cause. The thousand-plus accumulated remote directories are those two
-  sites across many runs, plus runs killed at a timeout before teardown. Same-concern cleanup of code this phase
-  already touches.
-
-    - Fix both discarded sites, then make the helper clean up after itself so a future caller cannot reintroduce
-      the class. There is no cleanup registry to register with today — the tier helper exposes caller-invoked
-      removal functions and nothing else, no setup file and no module-level teardown — so that path is created
-      here. `onTestFinished` is the fitting primitive: it scopes to the test that asked for the remote and needs
-      no shared registry. Two sites do not warrant a lint rule or a guard test.
-    - Create the remote per test — three cheap spawns — or rewrite the reference on copy; never share one.
-    - Build `test-first` (one behavior at a time):
-        - a test that creates a remote leaves no remote directory behind, including one that ignores the return
-        - two tests on the remote-bearing shape push to different remotes
+- _Outcome:_ `addBareRemote` registers retry-safe removal with `onTestFinished` by default, while setup-hook callers
+  must explicitly retain caller-owned cleanup because Vitest rejects per-test hook registration inside
+  `beforeEach`. The two discarded-return sites now have explicit ownership, and copied remote-bearing fixtures
+  each rewrite and push to their own nested bare repository.
 
 ### `[ ]` **3.4 Probe the second-largest non-spawning file before choosing a lever for it**
 

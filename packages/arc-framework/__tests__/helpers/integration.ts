@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
+import { onTestFinished } from "vitest";
 
 import { runInit } from "../../src/commands/init.js";
 import type { IOContext } from "../../src/commands/init.js";
@@ -514,13 +515,50 @@ export async function makeCommit(cwd: string, message: string): Promise<string> 
   return stdout.trim();
 }
 
-/** Create a bare remote repo and add it as origin to the working repo. */
-export async function addBareRemote(cwd: string): Promise<string> {
+/** Registration seam compatible with Vitest's per-test completion hook. */
+export type TestFinishedRegistrar = (handler: () => Promise<void>) => void;
+
+/** Bare-remote cleanup ownership. */
+export interface AddBareRemoteOptions {
+  /** Explicit registrar for per-test cleanup; defaults to Vitest's current test. */
+  registerCleanup?: TestFinishedRegistrar;
+  /** Setup-hook escape hatch when an existing `afterEach` owns the returned path. */
+  callerOwnsCleanup?: boolean;
+}
+
+/**
+ * Create a bare remote repo, add it as origin, and register per-test cleanup.
+ *
+ * @param cwd - Working repository that receives the remote.
+ * @param options - Cleanup registrar or explicit setup-hook ownership.
+ * @returns The bare remote path for callers that need to inspect it.
+ */
+export async function addBareRemote(
+  cwd: string,
+  options: AddBareRemoteOptions = {},
+): Promise<string> {
+  if (options.callerOwnsCleanup === true && options.registerCleanup !== undefined) {
+    throw new Error("Bare remote cleanup cannot be both registered and caller-owned");
+  }
+  const registerCleanup = options.callerOwnsCleanup === true
+    ? undefined
+    : (options.registerCleanup ?? onTestFinished);
   const remoteDir = await mkdtemp(join(tmpdir(), "arc-remote-"));
-  await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
-  await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
-  await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });
-  return remoteDir;
+  let originAdded = false;
+  try {
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
+    await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
+    originAdded = true;
+    await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });
+    registerCleanup?.(async () => removeGitBackedDir(remoteDir));
+    return remoteDir;
+  } catch (error) {
+    if (originAdded) {
+      await execFileAsync("git", ["remote", "remove", "origin"], { cwd }).catch(() => undefined);
+    }
+    await removeGitBackedDir(remoteDir);
+    throw error;
+  }
 }
 
 // Re-export for convenience

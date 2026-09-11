@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   cleanupTempDir,
+  addBareRemote,
   DEFAULT_PROMPTS,
   execFileAsync,
   initInTempRepo,
@@ -128,6 +129,44 @@ describe("prepared repository fixtures", () => {
 
     expect(stdout.trim().startsWith(`${copy}/`)).toBe(true);
     expect(await absolutePathOccurrences(copy, template.root)).toEqual([]);
+  });
+
+  it("registers cleanup for a bare remote even when its return is ignored", async () => {
+    const repository = await buildPlainRepository();
+    await makeCommit(repository, "remote owner");
+    let cleanup: (() => Promise<void>) | undefined;
+
+    await addBareRemote(repository, {
+      registerCleanup: (handler) => { cleanup = handler; },
+    });
+    const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], { cwd: repository });
+    const remote = stdout.trim();
+    roots.add(remote);
+
+    expect(cleanup).toBeTypeOf("function");
+    await cleanup?.();
+    await expect(readFile(join(remote, "HEAD"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("lets two remote-bearing copies push to different remotes", async () => {
+    const template = await prepareRepositoryTemplate(remoteShape, buildRemoteRepository);
+    const [left, right] = await Promise.all([
+      copyPreparedRepository(template, remoteShape),
+      copyPreparedRepository(template, remoteShape),
+    ]);
+    roots.add(left);
+    roots.add(right);
+
+    await makeCommit(left, "left copy");
+    await execFileAsync("git", ["push", "origin", "HEAD"], { cwd: left });
+    await makeCommit(right, "right copy");
+    await execFileAsync("git", ["push", "origin", "HEAD"], { cwd: right });
+    const [{ stdout: leftRemote }, { stdout: rightRemote }] = await Promise.all([
+      execFileAsync("git", ["remote", "get-url", "origin"], { cwd: left }),
+      execFileAsync("git", ["remote", "get-url", "origin"], { cwd: right }),
+    ]);
+
+    expect(leftRemote.trim()).not.toBe(rightRemote.trim());
   });
 
   it("keeps concurrent copies independent under writes", async () => {
