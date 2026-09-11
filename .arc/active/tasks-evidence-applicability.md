@@ -158,7 +158,7 @@ change, and removes the unused predecessor.
       module, registration, inventory identity, canonical-caller entry, and isolated tests are absent, while the
       distinct gate-contract `applicabilityId` fields and consumers remain.
     - _Adversarial companion:_ three fresh Heavy passes found five criterion defects, fixed in `c15fed9ff`,
-      `a87f37ada`, `fe3e0ded0`, `cc92a478b`, and `0e2d2bc16`; one Candidate v1 compatibility concern was dropped
+      `a87f37ada`, `fe3e0ded0`, `cc92a478b`, and `a57de042b`; one Candidate v1 compatibility concern was dropped
       against the explicit pre-public-release regeneration posture.
     - _Summary:_ three met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
