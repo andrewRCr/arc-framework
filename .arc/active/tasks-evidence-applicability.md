@@ -644,13 +644,15 @@ currentness and attestation outcomes without requiring the separately owned prop
 - _Goal:_ the complete work-unit Candidate is proven against every grouped criterion, cross-member seam, quality
   gate, and integration-readiness obligation before publication begins.
 
-- _Quality gates:_ Tier 3 passed at `df363c846` / tree `85fa75aa7`: 886 test files passed and one skipped;
-  11,881 tests passed and one skipped; Markdown, TypeScript, shell, ARC trigger/domain/section, both typecheck, diff,
-  mirror, pre-commit, commit-validation, and production-build checks all passed.
+- _Quality gates:_ Tier 3 passed at `23b1a37ef` / tree `cf068534b`: 888 test files passed and one skipped;
+  11,937 tests passed and one skipped; Markdown, TypeScript, shell, ARC trigger/domain/section, both typecheck, diff,
+  mirror, commit-validation, and production-build checks all passed.
 - _Success criteria:_ 21 met, zero superseded, zero unresolved. All 16 member criteria retain their exact recorded
-  loci and digests with no union regression; all five cross-member seams passed over the complete diff
-  `dff5f8909..df363c846` and reachable tree `85fa75aa7`. Two Heavy adversarial passes completed; the approved nine
-  second-pass findings were fixed under disposition set `sha256:c028b5de8044054ed39ccb2207950a41ad69d30b5b27d08819e174338589c4a7`.
+  loci and digests with no union regression; all five cross-member seams passed over the current work-unit diff
+  `db2da1352d...23b1a37ef` and reachable tree `cf068534b`. Two Heavy adversarial passes completed before the base
+  reconcile; the approved nine second-pass findings were fixed under disposition set
+  `sha256:c028b5de8044054ed39ccb2207950a41ad69d30b5b27d08819e174338589c4a7`, and fresh pre-publication review remains
+  pending over the merged Candidate.
 
 ---
 
