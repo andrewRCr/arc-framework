@@ -678,18 +678,13 @@ the re-baselined ranking.
   Exact tier, condition, project set, worker sizing, metric, and optional CI-job identity govern matching; the
   instrument now reports within, over, or unbudgeted standing and a live unit probe reported 1.494 s remaining.
 
-### `[ ]` **6.5 Warn on CI budget exceedance without failing the run**
+### `[x]` **6.5 Warn on CI budget exceedance without failing the run**
 
 - _Goal:_ A CI job that exceeds its own budget says so in the step summary and still passes.
 
-- _Rationale:_ Advisory only — budget noise must never block a merge.
-
-    - The workflow writes step summaries only from its classification job today, so this is a new pattern in the
-      test jobs rather than an extension of an existing one there — the mechanism is established, the location is
-      not.
-    - Build `test-first` (one behavior at a time):
-        - an exceeding job emits the warning and still exits successfully
-        - a job within budget emits no warning
+- _Outcome:_ Unit, integration, and each E2E shard time their complete CI test job and compare through the shared
+  exact-mode budget reader. Within-budget jobs emit no summary; an over-budget probe exited successfully and wrote
+  an advisory `GITHUB_STEP_SUMMARY` warning naming the observed duration, budget, and overage.
 
 ### `[ ]` **6.6 Exercise budget reporting and worker sizing end to end** — validate exit criterion at segment scope
 
