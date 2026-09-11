@@ -686,14 +686,13 @@ the re-baselined ranking.
   exact-mode budget reader. Within-budget jobs emit no summary; an over-budget probe exited successfully and wrote
   an advisory `GITHUB_STEP_SUMMARY` warning naming the observed duration, budget, and overage.
 
-### `[ ]` **6.6 Exercise budget reporting and worker sizing end to end** — validate exit criterion at segment scope
+### `[x]` **6.6 Exercise budget reporting and worker sizing end to end** — validate exit criterion at segment scope
 
 - _Goal:_ One recorded pass shows the settled numbers are in force and reported on both paths.
 
-    - Run the lane at the settled worker sizing and confirm the instrument reports its standing against the
-      recorded budget.
-    - Confirm a CI-mode reading compares against the CI budget and never against the local one.
-    - Confirm an exceedance warns and still passes.
+- _Outcome:_ The settled 12-worker lane reported 43.718 s and `within` its local budget. Exact-head CI dispatch
+  `34654605367` passed all six budget steps against their distinct CI-job records, and a synthetic 36.99 s E2E 4
+  overage wrote the advisory warning while exiting successfully.
 
 ### `[ ]` **6.7 Close the sizing and budgets member** — validate criteria at member scope
 

@@ -232,6 +232,28 @@ modes keep local and CI observations disjoint; the E2E CI entries additionally n
 These are the initial post-Phase 5 budgets. The integration, lane, and affected E2E entries are refreshed after
 the cost-ranked conversions, so accepted Phase 7 movement does not present as regrowth.
 
+### Budget exercise
+
+A settled 12-worker lane run at `0668989f1` completed in 43.718 s with 443.569 s of summed file time. The
+instrument matched the tier-isolated lane record and reported `within`, with 5.700 s remaining against the
+49.418 s local budget.
+
+Workflow dispatch `34654605367` exercised the corrected epoch-seconds reporter on the same exact head. Every
+test job matched its own one-worker CI-job record and completed within budget:
+
+| CI job      | Observed  | Budget  | Remaining |
+| ----------- | --------- | ------- | --------- |
+| Unit        | 33.579 s  | 44.0 s  | 10.421 s  |
+| Integration | 173.374 s | 204.6 s | 31.226 s  |
+| E2E 1       | 159.607 s | 166.1 s | 6.493 s   |
+| E2E 2       | 219.262 s | 243.1 s | 23.838 s  |
+| E2E 3       | 276.475 s | 294.8 s | 18.325 s  |
+| E2E 4       | 165.903 s | 169.4 s | 3.497 s   |
+
+The run's ten successful job durations sum to 1,170 s. Against the six-run 1,377 s first baseline, that is a
+207 job-second reduction and remains 93 s short of the fixed 300 job-second target. A synthetic E2E 4 overage
+reported 206.39 s against 169.40 s, wrote a 36.99 s advisory warning, and exited successfully.
+
 ## Where the time concentrates
 
 Cumulative share is of that tier's summed file time.
