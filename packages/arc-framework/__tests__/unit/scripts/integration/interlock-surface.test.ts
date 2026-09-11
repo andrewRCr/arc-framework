@@ -29,6 +29,8 @@ describe("checkpoint interlock surface", () => {
       approvedHead: oid("a"),
       repository: "owner/repo",
       pullRequest: 42,
+      baseRef: "main",
+      observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
       reviewLanding: "Local carrier `local-attestation`.",
@@ -36,6 +38,11 @@ describe("checkpoint interlock surface", () => {
     });
 
     expect(result.machineEvidence.text).toContain(`Approve merge of ${oid("a")} via merge for owner/repo#42.`);
+    expect(result.machineEvidence.text).toContain(`Named target: main at last observed base ${oid("b")}.`);
+    expect(result.machineEvidence.text).toContain("Host policy controls base currency; ARC pins only the approved head.");
+    expect(result.machineEvidence.text).toContain("Required checks are head-bound, not exact base/head-pair evidence.");
+    expect(result.machineEvidence.text).toContain("Base movement during the host's in-call merge window remains a residual race.");
+    expect(result.machineEvidence.text).not.toMatch(/base OID (?:is|was) pinned/iu);
     expect(result.machineEvidence.text).toContain("Machine evidence: 9 checks clean.");
     expect(result.machineEvidence.text).not.toContain("Authoritative drift is clean.");
     expect(result.extensionReport).toEqual({ label: "Extension report", content: null });
@@ -46,6 +53,8 @@ describe("checkpoint interlock surface", () => {
       approvedHead: oid("a"),
       repository: "owner/repo",
       pullRequest: 42,
+      baseRef: "main",
+      observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
       reviewLanding: "Local carrier `local-attestation`.",
@@ -57,6 +66,8 @@ describe("checkpoint interlock surface", () => {
       approvedHead: oid("a"),
       repository: "owner/repo",
       pullRequest: 42,
+      baseRef: "main",
+      observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
       reviewLanding: "Local carrier `local-attestation`.",
@@ -77,6 +88,8 @@ describe("checkpoint interlock surface", () => {
         approvedHead: oid("a"),
         repository: "owner/repo",
         pullRequest: 42,
+        baseRef: "main",
+        observedBase: oid("b"),
         method: "merge",
         candidateTailReference: `${oid("b")}..${oid("a")}`,
         reviewLanding,
@@ -101,6 +114,8 @@ describe("checkpoint interlock surface", () => {
       approvedHead: oid("a"),
       repository: "owner/repo",
       pullRequest: 42,
+      baseRef: "main",
+      observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
       reviewLanding: "Local carrier `local-attestation`.",

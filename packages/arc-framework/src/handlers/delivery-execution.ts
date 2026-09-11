@@ -15,8 +15,11 @@ import type { InteractionContext } from "../lib/command-input/interaction-contex
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { parseMetaFile } from "../lib/active/meta-reader.js";
+import { workUnitPathTreatmentContext } from "../lib/base-drift/current-adapters.js";
 import {
   closeDeliveryEligibilityForPublication,
+  deriveDeliveryMemberLifecycleRevalidation,
+  deriveDeliveryRewriteLifecycleRevalidation,
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   type DeliveryEligibilitySnapshot,
@@ -257,6 +260,7 @@ import { parseIntegrationBoundaryLocus } from
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
 import type { GitExec } from "../lib/git/exec.js";
+import { analyzeRevisionOverlap } from "../lib/git/base-overlap.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
 import { GhDeliveryProviderRefreshPort } from "../scripts/delivery/hosts/github-refresh.js";
 import { deliveryProviderGhRunner } from "../scripts/delivery/provider-process.js";
@@ -358,15 +362,77 @@ const CandidateGateResultSchema = z.strictObject({
   ...CoordinateSchema.shape,
   status: z.enum(["passed", "failed"]),
 });
+const DeliveryOverlapSchema = z.strictObject({
+  status: z.literal("available"),
+  substantivePaths: z.array(z.string().min(1)),
+  regenerablePaths: z.array(z.string().min(1)),
+});
+const PredecessorRelationSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("exact"),
+    observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("disjoint-ahead"),
+    observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema,
+    mergeBase: GitObjectIdSchema,
+    overlap: DeliveryOverlapSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("overlapping-ahead"),
+    observedTip: GitObjectIdSchema,
+    mergeBase: GitObjectIdSchema,
+    overlap: DeliveryOverlapSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("unrelated"),
+    observedTip: GitObjectIdSchema,
+    detail: z.string().min(1),
+  }),
+]);
 const EligibilitySnapshotSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   workUnitId: z.string().min(1),
   planRevision: z.number().int().positive(),
   planDigest: DeliveryCanonicalDigestSchema,
   protectedBase: CoordinateSchema.extend({ ref: RefSchema }),
+  chainBase: CoordinateSchema,
+  predecessorRelation: PredecessorRelationSchema,
   top: CoordinateSchema.extend({ ref: RefSchema }),
   members: z.array(EligibilityMemberSchema).min(1),
   lifecyclePaths: z.array(z.string().min(1)),
+  regenerablePaths: z.array(z.string().min(1)),
+});
+const DeliveryEligibilitySourceMovedSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("source-moved"),
+  source: z.strictObject({
+    ref: RefSchema,
+    expected: CoordinateSchema,
+    observed: CoordinateSchema.nullable(),
+  }),
+  nextAction: z.strictObject({
+    kind: z.literal("reprepare-delivery-eligibility"),
+    planId: DeliveryPlanIdSchema,
+    protectedBaseRef: RefSchema,
+    topRef: RefSchema,
+    candidates: z.array(CandidateSchema).min(1),
+    lifecyclePaths: z.array(z.string().min(1)),
+  }),
+});
+const DeliveryWrongPredecessorSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("wrong-predecessor"),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  relation: PredecessorRelationSchema,
+  paths: z.array(z.string().min(1)).optional(),
+  detail: z.string().min(1).max(1_000),
+  remedy: z.strictObject({
+    kind: z.literal("delivery-authoring-rebuild-required"),
+    automatedCommand: z.null(),
+  }).optional(),
 });
 
 const PrepareSchema = z.strictObject({
@@ -452,21 +518,10 @@ const LandApplySchema = z.strictObject({
   remote: z.string().min(1).default("origin"),
   treeRoot: z.string().min(1),
 });
-const ContributionCoordinateSchema = z.strictObject({ head: GitObjectIdSchema, tree: GitObjectIdSchema });
-const ContributionEndpointsSchema = z.strictObject({
-  before: z.strictObject({ predecessor: ContributionCoordinateSchema, member: ContributionCoordinateSchema }),
-  after: z.strictObject({ predecessor: ContributionCoordinateSchema, member: ContributionCoordinateSchema }),
-});
 const RewriteSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   deliverableId: DeliveryCanonicalDigestSchema,
   requested: DeliveryOperationSnapshotV1Schema,
-  candidateRef: RefSchema,
-  protectedBaseRef: RefSchema,
-  lifecyclePaths: z.array(z.string().min(1)),
-  remote: z.string().min(1).default("origin"),
-  contributionMode: z.enum(["prove-equivalent", "selected-change"]),
-  contribution: ContributionEndpointsSchema,
 });
 const RematerializeSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -1119,6 +1174,36 @@ const ReviewFixContinuationResultSchema = z.union([
 const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns the approved correction, then run "
   + "`arc delivery review-fix plan` before authoring or publishing replacement content.";
 
+const OwnedDeliveryFailureCoordinatesSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema.nullable(),
+  deliverableId: DeliveryCanonicalDigestSchema.nullable(),
+  snapshotBaseHead: GitObjectIdSchema.nullable(),
+  snapshotTopHead: GitObjectIdSchema.nullable(),
+  requestedBase: GitObjectIdSchema.nullable(),
+  requestedHead: GitObjectIdSchema.nullable(),
+  observedHead: GitObjectIdSchema.nullable(),
+});
+const OwnedDeliveryFailureContinuationSchema = z.union([
+  z.strictObject({ kind: z.literal("remedy"), argv: z.array(z.string().min(1)).min(1) }),
+  z.strictObject({
+    kind: z.literal("terminal-explanation"),
+    terminalExplanation: z.string().trim().min(1).max(4_096),
+  }),
+]);
+const OwnedDeliveryPublicFailureSchema = z.strictObject({
+  status: z.enum(["refused", "blocked"]),
+  reason: z.string().trim().min(1).max(128),
+  detail: z.string().trim().min(1).max(4_096),
+  coordinates: OwnedDeliveryFailureCoordinatesSchema,
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  paths: z.array(z.string().min(1)).optional(),
+  source: DeliveryEligibilitySourceMovedSchema.shape.source.optional(),
+  nextAction: DeliveryEligibilitySourceMovedSchema.shape.nextAction.optional(),
+  relation: PredecessorRelationSchema.optional(),
+  remedy: DeliveryWrongPredecessorSchema.shape.remedy.optional(),
+  continuation: OwnedDeliveryFailureContinuationSchema,
+});
+
 const GitProcessCauseSchema = z.enum([
   "git.canceled",
   "git.timed-out",
@@ -1129,11 +1214,14 @@ const GitProcessCauseSchema = z.enum([
 ]);
 
 const ResultSchema = z.union([
+  OwnedDeliveryPublicFailureSchema,
   ReviewFixContinuationResultSchema,
   DeliveryLandingRefusalSchema,
   DeliveryRecoveryResultV1Schema,
   NativePreparedRecoveryResultSchema,
   NativeMemberNotReadyResultSchema,
+  DeliveryEligibilitySourceMovedSchema,
+  DeliveryWrongPredecessorSchema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({
@@ -1599,6 +1687,143 @@ function defaultDependencies(): DeliveryExecutionHandlerDependencies {
   };
 }
 
+type OwnedDeliveryAuthorityCommand =
+  | "eligibility-prepare"
+  | "eligibility-close"
+  | "publish"
+  | "rematerialize"
+  | "rewrite";
+
+function isOwnedDeliveryAuthorityCommand(
+  command: DeliveryExecutionCommand,
+): command is OwnedDeliveryAuthorityCommand {
+  return command === "eligibility-prepare" || command === "eligibility-close"
+    || command === "publish" || command === "rematerialize" || command === "rewrite";
+}
+
+function boundedDeliveryFailureDetail(value: unknown, fallback: string): string {
+  const detail = (value instanceof Error ? value.message : typeof value === "string" ? value : fallback)
+    .replace(/\s+/gu, " ")
+    .trim();
+  return (detail || fallback).slice(0, 4_096);
+}
+
+function ownedDeliveryFailure(
+  command: OwnedDeliveryAuthorityCommand,
+  result: Record<string, unknown>,
+  request: unknown,
+): z.infer<typeof OwnedDeliveryPublicFailureSchema> {
+  const input = typeof request === "object" && request !== null && !Array.isArray(request)
+    ? request as Record<string, unknown>
+    : {};
+  const requested = typeof input.requested === "object" && input.requested !== null
+    ? input.requested as Record<string, unknown>
+    : {};
+  const requestedMembers = Array.isArray(requested.members) ? requested.members : [];
+  const requestedMember = typeof requestedMembers[0] === "object" && requestedMembers[0] !== null
+    ? requestedMembers[0] as Record<string, unknown>
+    : {};
+  const requestedCoordinates = typeof requestedMember.coordinates === "object"
+    && requestedMember.coordinates !== null
+    ? requestedMember.coordinates as Record<string, unknown>
+    : {};
+  const snapshot = typeof input.snapshot === "object" && input.snapshot !== null
+    ? input.snapshot as Record<string, unknown>
+    : {};
+  const snapshotBase = typeof snapshot.protectedBase === "object" && snapshot.protectedBase !== null
+    ? snapshot.protectedBase as Record<string, unknown>
+    : {};
+  const snapshotTop = typeof snapshot.top === "object" && snapshot.top !== null
+    ? snapshot.top as Record<string, unknown>
+    : {};
+  const snapshotMembers = Array.isArray(snapshot.members) ? snapshot.members : [];
+  const snapshotFinal = typeof snapshotMembers.at(-1) === "object" && snapshotMembers.at(-1) !== null
+    ? snapshotMembers.at(-1) as Record<string, unknown>
+    : {};
+  const plan = typeof input.plan === "object" && input.plan !== null
+    ? input.plan as Record<string, unknown>
+    : {};
+  const candidates = Array.isArray(input.candidates) ? input.candidates : [];
+  const firstCandidate = typeof candidates[0] === "object" && candidates[0] !== null
+    ? candidates[0] as Record<string, unknown>
+    : {};
+  const selectedDeliverableIds = Array.isArray(input.selectedDeliverableIds)
+    ? input.selectedDeliverableIds
+    : [];
+  const gateResults = Array.isArray(input.gateResults) ? input.gateResults : [];
+  const finalGate = typeof gateResults.at(-1) === "object" && gateResults.at(-1) !== null
+    ? gateResults.at(-1) as Record<string, unknown>
+    : {};
+  const source = typeof result.source === "object" && result.source !== null
+    ? result.source as Record<string, unknown>
+    : {};
+  const observed = typeof source.observed === "object" && source.observed !== null
+    ? source.observed as Record<string, unknown>
+    : {};
+  const relation = typeof result.relation === "object" && result.relation !== null
+    ? result.relation as Record<string, unknown>
+    : {};
+  const oidOrNull = (value: unknown) => GitObjectIdSchema.safeParse(value).success ? value as string : null;
+  const planId = DeliveryPlanIdSchema.safeParse(input.planId ?? snapshot.planId ?? plan.planId);
+  const deliverableId = DeliveryCanonicalDigestSchema.safeParse(
+    input.deliverableId ?? result.deliverableId ?? snapshotFinal.deliverableId
+      ?? selectedDeliverableIds[0] ?? firstCandidate.deliverableId,
+  );
+  const reason = typeof result.reason === "string" && result.reason.trim() !== ""
+    ? result.reason.trim().slice(0, 128)
+    : "delivery-operation-refused";
+  const invalidInput = reason === "invalid-command-input";
+  const preservedSource = DeliveryEligibilitySourceMovedSchema.shape.source.safeParse(result.source);
+  const preservedNextAction = DeliveryEligibilitySourceMovedSchema.shape.nextAction.safeParse(result.nextAction);
+  const preservedRelation = PredecessorRelationSchema.safeParse(result.relation);
+  const preservedRemedy = DeliveryWrongPredecessorSchema.shape.remedy.safeParse(result.remedy);
+  return OwnedDeliveryPublicFailureSchema.parse({
+    status: result.status === "blocked" ? "blocked" : "refused",
+    reason,
+    detail: boundedDeliveryFailureDetail(
+      result.detail,
+      `The ${executionPath(command)} operation stopped because ${reason}.`,
+    ),
+    coordinates: {
+      planId: planId.success ? planId.data : null,
+      deliverableId: deliverableId.success ? deliverableId.data : null,
+      snapshotBaseHead: oidOrNull(snapshotBase.head),
+      snapshotTopHead: oidOrNull(snapshotTop.head),
+      requestedBase: oidOrNull(requestedCoordinates.base),
+      requestedHead: oidOrNull(requestedCoordinates.head ?? finalGate.head),
+      observedHead: oidOrNull(observed.head ?? relation.observedTip),
+    },
+    ...(deliverableId.success ? { deliverableId: deliverableId.data } : {}),
+    ...(Array.isArray(result.paths)
+      ? { paths: result.paths.filter((path): path is string => typeof path === "string" && path !== "") }
+      : {}),
+    ...(preservedSource.success ? { source: preservedSource.data } : {}),
+    ...(preservedNextAction.success ? { nextAction: preservedNextAction.data } : {}),
+    ...(preservedRelation.success ? { relation: preservedRelation.data } : {}),
+    ...(preservedRemedy.success ? { remedy: preservedRemedy.data } : {}),
+    continuation: invalidInput
+      ? { kind: "remedy", argv: ["arc", ...executionPath(command).split(" "), "--help"] }
+      : {
+          kind: "terminal-explanation",
+          terminalExplanation: command === "rewrite"
+            ? "No caller-authored field can restore rewrite authority; re-observe delivery state and use its guarded continuation."
+            : command === "eligibility-prepare"
+              ? "Resolve the reported candidate-chain evidence, then prepare eligibility again from current repository state."
+              : "Reprepare eligibility from current repository state and rerun all required candidate gates before retrying publication.",
+        },
+  });
+}
+
+function normalizeOwnedDeliveryFailure(
+  command: DeliveryExecutionCommand,
+  result: DeliveryExecutionResult,
+  request?: unknown,
+): DeliveryExecutionResult {
+  if (!isOwnedDeliveryAuthorityCommand(command)
+    || (result.status !== "refused" && result.status !== "blocked")) return result;
+  return ownedDeliveryFailure(command, result, request);
+}
+
 /** Validate one verb request, execute its domain service, and preserve its exact closed result. */
 export async function handleDeliveryExecution(
   command: DeliveryExecutionCommand,
@@ -1615,13 +1840,25 @@ export async function handleDeliveryExecution(
   let decoded: unknown;
   try {
     decoded = JSON.parse(await deps.readText(options.data.input));
-  } catch {
-    emit(deps, command, { status: "refused", reason: "invalid-command-input" });
+  } catch (error) {
+    emit(deps, command, {
+      status: "refused",
+      reason: "invalid-command-input",
+      ...(isOwnedDeliveryAuthorityCommand(command)
+        ? { detail: boundedDeliveryFailureDetail(error, "The delivery request is not valid JSON.") }
+        : {}),
+    });
     return;
   }
   const request = RequestSchemas[command].safeParse(decoded);
   if (!request.success) {
-    emit(deps, command, { status: "refused", reason: "invalid-command-input" });
+    emit(deps, command, {
+      status: "refused",
+      reason: "invalid-command-input",
+      ...(isOwnedDeliveryAuthorityCommand(command)
+        ? { detail: boundedDeliveryFailureDetail(request.error.issues[0]?.message, "The request shape is invalid.") }
+        : {}),
+    }, decoded);
     return;
   }
   let result: unknown;
@@ -1633,17 +1870,30 @@ export async function handleDeliveryExecution(
       command,
       error instanceof GitCommonStateAccessError
         ? operationalStateAccessRefusal(error)
-        : { status: "refused", reason: "execution-unavailable" },
+        : {
+            status: "refused",
+            reason: "execution-unavailable",
+            ...(isOwnedDeliveryAuthorityCommand(command)
+              ? { detail: boundedDeliveryFailureDetail(error, "Delivery execution is unavailable.") }
+              : {}),
+          },
+      request.data,
     );
     return;
   }
   const parsed = ResultSchema.safeParse(result);
-  emit(deps, command, parsed.success ? parsed.data : invalidServiceResult(result));
+  emit(deps, command, parsed.success ? parsed.data : invalidServiceResult(result), request.data);
 }
 
-function emit(deps: DeliveryExecutionHandlerDependencies, command: DeliveryExecutionCommand, result: DeliveryExecutionResult): void {
-  deps.write(`${JSON.stringify({ schemaVersion: 1, command: executionPath(command), ...result })}\n`);
-  if (result.status === "refused" || result.status === "blocked") deps.setExitCode(1);
+function emit(
+  deps: DeliveryExecutionHandlerDependencies,
+  command: DeliveryExecutionCommand,
+  result: DeliveryExecutionResult,
+  request?: unknown,
+): void {
+  const output = normalizeOwnedDeliveryFailure(command, result, request);
+  deps.write(`${JSON.stringify({ schemaVersion: 1, command: executionPath(command), ...output })}\n`);
+  if (output.status === "refused" || output.status === "blocked") deps.setExitCode(1);
 }
 
 async function observeNativeDeliveryEffect(
@@ -3773,21 +4023,39 @@ async function executeDeliveryCommand(
   const eligibilityDeps = {
     observeRef: (ref: string) => observeDeliveryEligibilityRef(exec, ref),
     readAncestry: (ancestor: string, descendant: string) => readAncestry(exec, ancestor, descendant),
-    revalidateLifecycleContribution: (input: { protectedBaseRef: string; candidateRef: string; paths: readonly string[] }) => (
+    readOverlap: (input: { leftRevision: string; rightRevision: string; workUnitId: string }) => (
+      analyzeRevisionOverlap({
+        exec,
+        leftRevision: input.leftRevision,
+        rightRevision: input.rightRevision,
+        treatmentContext: workUnitPathTreatmentContext(input.workUnitId),
+      })
+    ),
+    revalidateLifecycleContribution: (input: {
+      protectedBaseRef: string;
+      chainBaseRef: string;
+      candidateRef: string;
+      paths: readonly string[];
+      regenerablePaths: readonly string[];
+    }) => (
       revalidateDeliveryLifecycleContribution({ exec, ...input })
     ),
     compareNormalizedCompleteness: async (input: z.infer<typeof EligibilitySnapshotSchema> extends never ? never : {
       protectedBase: { ref: string; head: string; tree: string };
+      chainBase: { head: string; tree: string };
       top: { ref: string; head: string; tree: string };
       finalCandidate: { deliverableId: string; ref: string; head: string; tree: string };
       lifecyclePaths: readonly string[];
+      regenerablePaths: readonly string[];
     }) => {
       const compared = await compareGitNormalizedDeliveryTrees({
         exec,
         protectedBaseTree: input.protectedBase.tree,
+        chainBaseTree: input.chainBase.tree,
         topTree: input.top.tree,
         finalCandidateTree: input.finalCandidate.tree,
         lifecyclePaths: input.lifecyclePaths,
+        regenerablePaths: input.regenerablePaths,
       });
       if (compared.status === "unavailable") return { status: "refused" as const, reason: "unavailable" as const };
       if (compared.status === "match") return compared;
@@ -4208,10 +4476,12 @@ async function executeDeliveryCommand(
         const checked = await revalidateDeliveryLifecycleContribution({
           exec,
           protectedBaseRef,
+          chainBaseRef: protectedBaseRef,
           candidateRef: locator.candidateRef,
           paths: lifecyclePaths,
+          regenerablePaths: [],
         });
-        return { status: checked.status };
+        return checked;
       },
       reobserveAuthority: async () => {
         const reobserved = await observeReviewFixAuthority(
@@ -4948,6 +5218,18 @@ async function executeDeliveryCommand(
     return closeDeliveryEligibilityForPublication(parsed, {
       ...eligibilityDeps,
       resolveMember: resolveMemberReadOnly,
+      resolveLifecyclePaths: async ({ plan }) => {
+        const [topRef, config] = await Promise.all([
+          resolveOriginatingTopRef(plan),
+          readConfigSettings(cwd),
+        ]);
+        if (topRef === null) return null;
+        return resolveCurrentLifecyclePaths(
+          plan,
+          `refs/heads/${config.settings["branch.base"]}`,
+          topRef,
+        );
+      },
     });
   }
   if (command === "publish") {
@@ -5027,7 +5309,7 @@ async function executeDeliveryCommand(
           const adoption = await adoptGitDeliveryChain({
             exec: createRawGitExec(cwd),
             topRef: parsed.topRef,
-            commonBase: snapshot.protectedBase,
+            commonBase: snapshot.chainBase,
             highestMember: { head: highestMember.head, tree: highestMember.tree },
             finalCandidate,
             lifecyclePaths: snapshot.lifecyclePaths,
@@ -5891,12 +6173,17 @@ async function executeDeliveryCommand(
         exec: createRawGitExec(cwd),
         ...projectDeliveryContributionEndpoints(endpoints),
       }),
-      apply: async ({ plan, current, rewrite, supersedePendingReviewFixVerification }) => {
+      apply: async ({
+        plan,
+        current,
+        rewrite,
+        snapshot,
+        supersedePendingReviewFixVerification,
+      }) => {
         const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const requested = rewrite.requested.members[0];
-        const snapshot = latestSnapshot;
         if (member?.ref === null || member?.coordinates === null || member === undefined
-          || requested?.coordinates === null || requested === undefined || snapshot === null) {
+          || requested?.coordinates === null || requested === undefined) {
           return { status: "refused" as const };
         }
         const memberRef = member.ref;
@@ -5904,7 +6191,7 @@ async function executeDeliveryCommand(
         const requestedCoordinates = requested.coordinates;
         const predecessor = await observeDeliveryEligibilityRef(exec, memberCoordinates.base);
         const snapshotIndex = snapshot.members.findIndex((entry) => entry.deliverableId === rewrite.deliverableId);
-        const afterPredecessor = snapshotIndex === 0 ? snapshot.protectedBase : snapshot.members[snapshotIndex - 1];
+        const afterPredecessor = snapshotIndex === 0 ? snapshot.chainBase : snapshot.members[snapshotIndex - 1];
         if (predecessor === null || predecessor.head !== memberCoordinates.base || afterPredecessor === undefined) {
           return { status: "refused" as const };
         }
@@ -5914,17 +6201,16 @@ async function executeDeliveryCommand(
           deliverableId: rewrite.deliverableId,
           requested: rewrite.requested,
           contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
+          operationMode: rewrite.selectedChange ? "selected-change" : "review-fix",
           supersedePendingReviewFixVerification,
           revalidateLifecycle: async () => {
-            const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
-            if (candidate === undefined) return { status: "refused" as const };
-            const checked = await revalidateDeliveryLifecycleContribution({
-              exec,
-              protectedBaseRef: parsed.protectedBaseRef,
-              candidateRef: candidate.ref,
-              paths: snapshot.lifecyclePaths,
+            const lifecycleInput = deriveDeliveryMemberLifecycleRevalidation({
+              snapshot,
+              deliverableId: rewrite.deliverableId,
             });
-            return { status: checked.status };
+            if (lifecycleInput === null) return { status: "refused" as const };
+            const checked = await revalidateDeliveryLifecycleContribution({ exec, ...lifecycleInput });
+            return checked;
           },
           rewriteRef: (effect) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...effect }),
           observeResult: async () => {
@@ -5954,7 +6240,7 @@ async function executeDeliveryCommand(
     if (snapshot === null) return { status: "refused", reason: "observation-unavailable" };
     return completeDeliverySuffixMutationTail({
       rematerialized,
-      commonBase: snapshot.protectedBase,
+      commonBase: snapshot.chainBase,
       topRef: parsed.topRef,
       top: snapshot.top,
       finalCandidate: snapshot.members.at(-1),
@@ -5974,32 +6260,66 @@ async function executeDeliveryCommand(
     if (planRead.status !== "ok" || planRead.value === null || stateRead.status !== "ok" || stateRead.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
+    const plan = planRead.value;
+    const current = stateRead.value.value;
+    if (validateDeliveryStateAgainstPlan(current, plan).status !== "valid") {
+      return { status: "refused", reason: "position-mismatch" };
+    }
+    const currentMember = current.members.find(({ deliverableId }) => deliverableId === parsed.deliverableId);
+    const currentTarget = current.target;
+    const currentCoordinates = currentMember?.coordinates;
+    const currentRef = currentMember?.ref;
+    const requestedMember = parsed.requested.members[0];
+    if (currentTarget === null || currentTarget.coordinates === null
+      || currentRef === null || currentRef === undefined || currentCoordinates === null
+      || currentCoordinates === undefined || currentMember === undefined
+      || requestedMember?.coordinates === null || requestedMember === undefined
+      || requestedMember.coordinates.base !== currentCoordinates.base) {
+      return { status: "refused", reason: "position-mismatch" };
+    }
+    const requestedCoordinates = requestedMember.coordinates;
+    const topRef = await resolveOriginatingTopRef(plan);
+    if (topRef === null) return { status: "refused", reason: "delivery-unavailable" };
+    const lifecyclePaths = await resolveCurrentLifecyclePaths(plan, currentTarget.ref, topRef);
+    if (lifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
+    const [predecessor, requestedCandidate] = await Promise.all([
+      observeDeliveryEligibilityRef(exec, currentCoordinates.base),
+      observeDeliveryEligibilityRef(exec, requestedCoordinates.head),
+    ]);
+    if (predecessor === null || predecessor.head !== currentCoordinates.base
+      || requestedCandidate === null || requestedCandidate.head !== requestedCoordinates.head
+      || requestedCandidate.tree !== requestedCoordinates.tree) {
+      return { status: "refused", reason: "contribution-endpoints-unverified" };
+    }
     const rawExec = createRawGitExec(cwd);
     return executeDeliverySuffixRewrite({
-      plan: planRead.value,
+      plan,
       current: stateRead.value,
       deliverableId: parsed.deliverableId,
       requested: parsed.requested,
-      contributionMode: parsed.contributionMode,
       revalidateLifecycle: async () => {
-        const checked = await revalidateDeliveryLifecycleContribution({
-          exec,
-          protectedBaseRef: parsed.protectedBaseRef,
-          candidateRef: parsed.candidateRef,
-          paths: parsed.lifecyclePaths,
+        const lifecycleInput = deriveDeliveryRewriteLifecycleRevalidation({
+          protectedBaseRef: currentTarget.ref,
+          requestedPredecessorHead: currentCoordinates.base,
+          candidateRef: requestedCoordinates.head,
+          lifecyclePaths,
+          workUnitId: plan.workUnitId,
         });
-        return { status: checked.status };
+        const checked = await revalidateDeliveryLifecycleContribution({ exec, ...lifecycleInput });
+        return checked;
       },
-      rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...input }),
+      rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: "origin", ...input }),
       observeResult: async () => {
-        const member = parsed.requested.members[0];
-        const observed = await observeDeliveryEligibilityRef(exec, parsed.candidateRef);
-        return member?.coordinates !== null && member !== undefined && observed !== null
-          && observed.head === member.coordinates.head && observed.tree === member.coordinates.tree
+        const observed = await observeDeliveryRemoteRef(exec, "origin", currentRef);
+        return observed.status === "observed" && observed.head === requestedCoordinates.head
           ? parsed.requested
           : { target: null, members: [] };
       },
-      proveContribution: () => proveGitDeliveryContribution({ exec: rawExec, ...parsed.contribution }),
+      proveContribution: () => proveGitDeliveryContribution({
+        exec: rawExec,
+        before: { predecessor, member: currentCoordinates },
+        after: { predecessor, member: requestedCandidate },
+      }),
       stateStore,
     });
   }

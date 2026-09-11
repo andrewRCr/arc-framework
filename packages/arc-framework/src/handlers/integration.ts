@@ -107,8 +107,8 @@ export interface IntegrationMergeHandlerDependencies {
 }
 
 function stableOperationFailureDetail(error: unknown): string {
-  const detail = (error instanceof Error ? error.message : String(error)).trim();
-  return detail === "" ? "The integration operation failed without diagnostic detail." : detail;
+  const detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, " ").trim();
+  return (detail || "The integration operation failed without diagnostic detail.").slice(0, 4_096);
 }
 
 /** Run the integration checkpoint for one exact work-unit name. */

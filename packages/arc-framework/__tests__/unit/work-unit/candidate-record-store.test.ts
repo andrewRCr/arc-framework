@@ -11,6 +11,7 @@ import {
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import {
   readCandidateRecord,
+  readCandidateRecordVersion,
   readCandidateRecordVersioned,
   writeCandidateRecord,
   CandidateRecordVersionConflictError,
@@ -80,5 +81,15 @@ describe("Candidate record store", () => {
 
     await expect(writeCandidateRecord("/repo", "example", record(), observed.version, fs))
       .rejects.toBeInstanceOf(CandidateRecordVersionConflictError);
+  });
+
+  it("reads the record bytes-version without requiring a valid managed record", async () => {
+    const fs = memoryFs();
+    await fs.writeFile("/repo/.arc/system/.internal/candidates/example.json", "{changed");
+
+    await expect(readCandidateRecordVersion("/repo", "example", fs))
+      .resolves.toMatch(/^sha256:[0-9a-f]{64}$/u);
+    await expect(readCandidateRecordVersioned("/repo", "example", fs))
+      .rejects.toThrow("Candidate record is malformed");
   });
 });

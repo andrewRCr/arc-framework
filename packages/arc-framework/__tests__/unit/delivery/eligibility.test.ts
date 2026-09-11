@@ -10,18 +10,21 @@ import {
 import {
   closeDeliveryEligibility,
   closeDeliveryEligibilityForPublication,
+  deriveDeliveryMemberLifecycleRevalidation,
+  deriveDeliveryRewriteLifecycleRevalidation,
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   verifyDeliveryCandidateCheckout,
-  type DeliveryEligibilityDependencies,
+  type DeliveryEligibilityCloseDependencies,
 } from "../../../src/lib/delivery/eligibility.js";
 import { resolveDeliveryMemberPresentations } from "../../../src/lib/delivery/materialization.js";
 
 const oid = (character: string): string => character.repeat(40);
 
-function dependencies(): DeliveryEligibilityDependencies {
+function dependencies(): DeliveryEligibilityCloseDependencies {
   const coordinates = new Map([
     ["main", { head: oid("a"), tree: oid("1") }],
+    [oid("a"), { head: oid("a"), tree: oid("1") }],
     ["control", { head: oid("d"), tree: oid("4") }],
     ["candidate/first", { head: oid("b"), tree: oid("2") }],
     ["candidate/second", { head: oid("c"), tree: oid("4") }],
@@ -29,7 +32,13 @@ function dependencies(): DeliveryEligibilityDependencies {
   return {
     observeRef: vi.fn(async (ref: string) => coordinates.get(ref) ?? null),
     readAncestry: vi.fn(async () => "ancestor" as const),
+    readOverlap: vi.fn(async () => ({
+      status: "available" as const,
+      mergeBase: oid("a"),
+      overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+    })),
     revalidateLifecycleContribution: vi.fn(async () => ({ status: "ok" as const })),
+    resolveLifecyclePaths: vi.fn(async ({ snapshot }) => snapshot.lifecyclePaths),
     compareNormalizedCompleteness: vi.fn(async () => ({ status: "match" as const })),
     readCurrentPlan: vi.fn(async () => deliveryStackPlanFixture()),
     resolveMember: vi.fn(async () => ({ status: "ok" as const, value: null })),
@@ -57,6 +66,83 @@ function passedGateResults() {
 }
 
 describe("prepareDeliveryEligibility", () => {
+  it("keeps a standalone rewrite's requested predecessor distinct from the protected base", () => {
+    expect(deriveDeliveryRewriteLifecycleRevalidation({
+      protectedBaseRef: "main",
+      requestedPredecessorHead: oid("b"),
+      candidateRef: "candidate/rewrite",
+      lifecyclePaths: [".arc/backlog/ROADMAP.md", ".arc/active/meta-delivery-plan-record.md"],
+      workUnitId: deliveryStackPlanFixture().workUnitId,
+    })).toEqual({
+      protectedBaseRef: "main",
+      chainBaseRef: oid("b"),
+      candidateRef: "candidate/rewrite",
+      paths: [".arc/active/meta-delivery-plan-record.md", ".arc/backlog/ROADMAP.md"],
+      regenerablePaths: [".arc/backlog/ROADMAP.md"],
+    });
+  });
+
+  it("preserves distinct observed-tip and chain-base coordinates for disjoint movement", async () => {
+    const plan = deliveryStackPlanFixture();
+    const deps = dependencies();
+    deps.observeRef = vi.fn(async (ref: string) => new Map([
+      ["main", { head: oid("e"), tree: oid("5") }],
+      ["control", { head: oid("d"), tree: oid("4") }],
+      ["candidate/first", { head: oid("b"), tree: oid("2") }],
+      ["candidate/second", { head: oid("c"), tree: oid("4") }],
+      [oid("a"), { head: oid("a"), tree: oid("1") }],
+    ]).get(ref) ?? null);
+    deps.readAncestry = vi.fn(async (ancestor, descendant) => (
+      ancestor === oid("e") && descendant === oid("b") ? "not-ancestor" as const : "ancestor" as const
+    ));
+
+    const prepared = await prepareDeliveryEligibility({
+      plan,
+      protectedBaseRef: "main",
+      topRef: "control",
+      candidates: candidates(),
+      lifecyclePaths: [".arc/backlog/ROADMAP.md", ".arc/active/meta-delivery-plan-record.md"],
+    }, deps);
+    expect(prepared).toMatchObject({
+      status: "prepared",
+      snapshot: {
+        protectedBase: { ref: "main", head: oid("e"), tree: oid("5") },
+        chainBase: { head: oid("a"), tree: oid("1") },
+        predecessorRelation: {
+          kind: "disjoint-ahead",
+          observedTip: oid("e"),
+          chainBase: oid("a"),
+          mergeBase: oid("a"),
+        },
+        regenerablePaths: [".arc/backlog/ROADMAP.md"],
+      },
+    });
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    expect(deriveDeliveryMemberLifecycleRevalidation({
+      snapshot: prepared.snapshot,
+      deliverableId: plan.members[0]!.deliverableId,
+    })).toEqual({
+      protectedBaseRef: "main",
+      chainBaseRef: oid("a"),
+      candidateRef: "candidate/first",
+      paths: [".arc/active/meta-delivery-plan-record.md", ".arc/backlog/ROADMAP.md"],
+      regenerablePaths: [".arc/backlog/ROADMAP.md"],
+    });
+    expect(deriveDeliveryMemberLifecycleRevalidation({
+      snapshot: prepared.snapshot,
+      deliverableId: plan.members[1]!.deliverableId,
+    })).toMatchObject({
+      chainBaseRef: oid("b"),
+      candidateRef: "candidate/second",
+      regenerablePaths: [".arc/backlog/ROADMAP.md"],
+    });
+    expect(deps.revalidateLifecycleContribution).toHaveBeenCalledWith(expect.objectContaining({
+      protectedBaseRef: "main",
+      chainBaseRef: oid("a"),
+      regenerablePaths: [".arc/backlog/ROADMAP.md"],
+    }));
+  });
+
   it("refuses a non-stack plan before observing Git", async () => {
     const deps = dependencies();
     const result = await prepareDeliveryEligibility({
@@ -133,10 +219,29 @@ describe("prepareDeliveryEligibility", () => {
     const plan = deliveryStackPlanFixture();
     const deps = dependencies();
     deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    deps.readOverlap = vi.fn(async () => ({
+      status: "available" as const,
+      mergeBase: oid("a"),
+      overlap: {
+        status: "available" as const,
+        substantivePaths: ["src/shared.ts"],
+        regenerablePaths: [],
+      },
+    }));
     await expect(prepareDeliveryEligibility({
       plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
-    }, deps)).resolves.toEqual({
-      status: "refused", reason: "wrong-predecessor", deliverableId: plan.members[0]!.deliverableId,
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: plan.members[0]!.deliverableId,
+      relation: {
+        kind: "overlapping-ahead",
+        observedTip: oid("a"),
+        mergeBase: oid("a"),
+        overlap: { substantivePaths: ["src/shared.ts"] },
+      },
+      paths: ["src/shared.ts"],
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     });
 
     const lifecycleDeps = dependencies();
@@ -149,6 +254,32 @@ describe("prepareDeliveryEligibility", () => {
     }, lifecycleDeps)).resolves.toEqual({
       status: "refused", reason: "lifecycle-contribution", deliverableId: plan.members[0]!.deliverableId,
       paths: ["meta.md", "notes.md"],
+    });
+  });
+
+  it("distinguishes an unrelated bottom member with an explicit rebuild boundary", async () => {
+    const plan = deliveryStackPlanFixture();
+    const deps = dependencies();
+    deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    deps.readOverlap = vi.fn(async () => ({
+      status: "unrelated" as const,
+      leftRevision: oid("b"),
+      rightRevision: oid("a"),
+      detail: "The revisions have no common ancestor.",
+    }));
+
+    await expect(prepareDeliveryEligibility({
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: plan.members[0]!.deliverableId,
+      relation: {
+        kind: "unrelated",
+        observedTip: oid("a"),
+        detail: "The revisions have no common ancestor.",
+      },
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     });
   });
 
@@ -472,9 +603,137 @@ describe("eligibility observation bracket", () => {
       ["candidate/second", { head: oid("c"), tree: oid("4") }],
     ]).get(ref) ?? null);
     await expect(closeDeliveryEligibility(prepared.snapshot, deps))
-      .resolves.toEqual({
-      status: "refused", reason: "source-moved",
+      .resolves.toMatchObject({
+        status: "refused",
+        reason: "source-moved",
+        source: {
+          ref: "control",
+          expected: { head: oid("d"), tree: oid("4") },
+          observed: { head: oid("e"), tree: oid("5") },
+        },
+        nextAction: {
+          kind: "reprepare-delivery-eligibility",
+          planId: prepared.snapshot.planId,
+          protectedBaseRef: "main",
+          topRef: "control",
+        },
+      });
+  });
+
+  it("rejects a caller-altered predecessor relation before completeness", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const completeness = vi.mocked(deps.compareNormalizedCompleteness);
+    const tampered = {
+      ...prepared.snapshot,
+      predecessorRelation: {
+        kind: "disjoint-ahead" as const,
+        observedTip: prepared.snapshot.protectedBase.head,
+        chainBase: oid("f"),
+        mergeBase: oid("f"),
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
+    };
+
+    await expect(closeDeliveryEligibility(tampered, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
     });
+    expect(completeness).not.toHaveBeenCalled();
+  });
+
+  it("rejects a resolvable substituted chain-base coordinate before completeness", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const completeness = vi.mocked(deps.compareNormalizedCompleteness);
+    const originalObserve = deps.observeRef;
+    deps.observeRef = vi.fn(async (ref: string) => ref === oid("f")
+      ? { head: oid("f"), tree: oid("6") }
+      : originalObserve(ref));
+
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      chainBase: { head: oid("f"), tree: oid("6") },
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
+    });
+    expect(completeness).not.toHaveBeenCalled();
+    expect(deps.observeRef).not.toHaveBeenCalledWith(oid("f"));
+  });
+
+  it("rejects substituted regenerable-path treatment before completeness", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [".arc/backlog/ROADMAP.md"],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const completeness = vi.mocked(deps.compareNormalizedCompleteness);
+
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      regenerablePaths: [],
+    }, deps)).resolves.toEqual({ status: "refused", reason: "lifecycle-paths-moved" });
+    expect(completeness).not.toHaveBeenCalled();
+  });
+
+  it.each(["lifecyclePaths", "regenerablePaths"] as const)(
+    "rejects a caller-altered %s array against a fresh authoritative resolution",
+    async (field) => {
+      const deps = dependencies();
+      const authoritativePaths = [".arc/active/meta-delivery-plan-record.md", ".arc/backlog/ROADMAP.md"];
+      const prepared = await prepareDeliveryEligibility({
+        plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+        candidates: candidates(), lifecyclePaths: authoritativePaths,
+      }, deps);
+      if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+      deps.resolveLifecyclePaths = vi.fn(async () => authoritativePaths);
+      const completeness = vi.mocked(deps.compareNormalizedCompleteness);
+      const snapshot = field === "lifecyclePaths"
+        ? { ...prepared.snapshot, lifecyclePaths: [".arc/backlog/ROADMAP.md"] }
+        : { ...prepared.snapshot, regenerablePaths: [] };
+
+      await expect(closeDeliveryEligibilityForPublication({
+        snapshot,
+        gateResults: passedGateResults(),
+      }, deps)).resolves.toEqual({ status: "refused", reason: "lifecycle-paths-moved" });
+      expect(completeness).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reruns every member lifecycle invariant during publication close", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: ["meta.md"],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    deps.resolveLifecyclePaths = vi.fn(async () => ["meta.md"]);
+    deps.revalidateLifecycleContribution = vi.fn(async ({ candidateRef }) => candidateRef === "candidate/second"
+      ? { status: "refused" as const, paths: ["meta.md"] }
+      : { status: "ok" as const });
+
+    await expect(closeDeliveryEligibilityForPublication({
+      snapshot: prepared.snapshot,
+      gateResults: passedGateResults(),
+    }, deps)).resolves.toEqual({
+      status: "refused",
+      reason: "lifecycle-contribution",
+      deliverableId: prepared.snapshot.members[1]!.deliverableId,
+      paths: ["meta.md"],
+    });
+    expect(deps.revalidateLifecycleContribution).toHaveBeenCalledTimes(2);
   });
 
   it("maps unavailable ancestry and binding evidence to evidence-unavailable", async () => {

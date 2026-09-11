@@ -250,6 +250,7 @@ describe("resolveFileList", () => {
 
 describe("resolveFileList — actual recipe", () => {
   const TEAM_COORD = "reference/strategies/arc/strategy-team-coordination.md";
+  const EVIDENCE_APPLICABILITY_METHOD = "system/methods/assess-evidence-applicability.md";
 
   it("solo-mode excludes strategy-team-coordination.md", () => {
     const files = resolveFileList(actualRecipe, {
@@ -282,6 +283,16 @@ describe("resolveFileList — actual recipe", () => {
     expect(files).toContain("system/methods/task-audit.md");
     expect(files).toContain("system/extensions/pre-spec-finalization-review.md");
     expect(files).toContain("system/workflows/arc/draft-design.md");
+  });
+
+  it("ships residual evidence assessment as a configurable core method", () => {
+    const files = resolveFileList(actualRecipe, {
+      "pm.mode": "none", "tools": "", "team.mode": "false",
+    });
+
+    expect(files).toContain(EVIDENCE_APPLICABILITY_METHOD);
+    expect(classifyFile(EVIDENCE_APPLICABILITY_METHOD)).toBe("Configurable");
+    expect(fileLayer(EVIDENCE_APPLICABILITY_METHOD, new Set())).toBe("core");
   });
 });
 

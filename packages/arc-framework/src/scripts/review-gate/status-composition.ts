@@ -1,7 +1,13 @@
 /** Production composition for exact-target review status. */
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
+import { workUnitPathTreatmentContext } from "../../lib/base-drift/current-adapters.js";
 import type { DeliveryHostPort } from "../../lib/delivery/host.js";
+import {
+  BaseMovementObservationSchema,
+  type EvidenceOverlapObservation,
+} from "../../lib/evidence-applicability/index.js";
+import { analyzeRevisionOverlap } from "../../lib/git/base-overlap.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
@@ -140,12 +146,18 @@ async function resolveDeliveryMemberScopeSelection(input: {
   throw new Error(`Delivery-member review chunking returned ${resolution.disposition}.`);
 }
 
-async function readBasePosition(input: {
+export async function readBasePosition(input: {
   cwd: string;
   exec: GitExec;
   headSha: string;
+  repository: string;
+  changeRequest: number;
+  subject: Awaited<ReturnType<typeof resolveReviewSubject>>;
   remote?: string;
-}): Promise<Pick<ReviewStatusObservation, "currentBaseOid" | "baseContained">> {
+}): Promise<Pick<
+  ReviewStatusObservation,
+  "currentBaseOid" | "baseContained" | "baseMovement" | "baseMovementDetail"
+>> {
   const { settings } = await readConfigSettings(input.cwd);
   const base = settings["branch.base"];
   const remote = input.remote ?? "origin";
@@ -156,18 +168,82 @@ async function readBasePosition(input: {
     { cwd: input.cwd, objectAccess: "local-only" },
   )).stdout.trim();
   if (!isGitObjectId(currentBaseOid)) throw new Error("invalid base object ID");
+  const unavailableMovement = (
+    reason: Extract<EvidenceOverlapObservation, { status: "unavailable" }>["reason"],
+    detail: string,
+  ) => ({
+    currentBaseOid,
+    baseContained: false,
+    baseMovement: BaseMovementObservationSchema.parse({
+      coordinates: {
+        repository: input.repository,
+        changeRequest: input.changeRequest,
+        base: currentBaseOid,
+        head: input.headSha,
+      },
+      overlap: { status: "unavailable", reason },
+    }),
+    baseMovementDetail: detail,
+  });
+  try {
+    await ensureCandidateHeadAvailable(input);
+  } catch {
+    return unavailableMovement(
+      "branch-diff-failed",
+      `The exact reviewed head ${input.headSha} could not be resolved locally or fetched.`,
+    );
+  }
+  let baseContained: boolean;
   try {
     await input.exec("git", ["merge-base", "--is-ancestor", currentBaseOid, input.headSha], {
       cwd: input.cwd,
       objectAccess: "local-only",
     });
-    return { currentBaseOid, baseContained: true };
+    baseContained = true;
   } catch (error) {
     if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) {
-      return { currentBaseOid, baseContained: false };
+      baseContained = false;
+    } else {
+      return unavailableMovement(
+        "merge-base-failed",
+        "Containment between the observed base and exact reviewed head could not be established.",
+      );
     }
-    throw error;
   }
+  const overlap = await analyzeRevisionOverlap({
+    exec: input.exec,
+    leftRevision: input.headSha,
+    rightRevision: currentBaseOid,
+    treatmentContext: input.subject.status === "resolved"
+      ? workUnitPathTreatmentContext(input.subject.workUnitId)
+      : {},
+  });
+  const observedOverlap: EvidenceOverlapObservation = overlap.status === "available"
+    ? overlap.overlap
+    : {
+        status: "unavailable",
+        reason: overlap.status === "unrelated" || overlap.reason === "merge-base-failed"
+          ? "merge-base-failed"
+          : overlap.reason === "left-diff-failed"
+            ? "branch-diff-failed"
+            : overlap.reason === "right-diff-failed"
+              ? "base-diff-failed"
+              : "classification-failed",
+      };
+  return {
+    currentBaseOid,
+    baseContained,
+    baseMovement: BaseMovementObservationSchema.parse({
+      coordinates: {
+        repository: input.repository,
+        changeRequest: input.changeRequest,
+        base: currentBaseOid,
+        head: input.headSha,
+      },
+      overlap: observedOverlap,
+    }),
+    ...(overlap.status === "available" ? {} : { baseMovementDetail: overlap.detail }),
+  };
 }
 
 /**
@@ -666,11 +742,10 @@ export function createReviewStatusPort(
           },
           changeRequestPort,
         );
-        const base = await readBasePosition({
-          cwd: input.cwd,
-          exec: input.exec,
-          headSha: target.headSha,
-          remote,
+        const subject = await resolveReviewSubject({
+          headRef: target.headRef,
+          headSha: matchesPrecomputedTarget ? precomputed.deliveryLookupHeadSha : target.headSha,
+          memberLookup,
         });
         if (
           resolution.state !== "open"
@@ -683,9 +758,20 @@ export function createReviewStatusPort(
               state: "blocked",
               detail: `The exact target has no reusable open change request (${resolution.state}).`,
             },
-            ...base,
+            currentBaseOid: null,
+            baseContained: false,
+            baseMovement: null,
           };
         }
+        const base = await readBasePosition({
+          cwd: input.cwd,
+          exec: input.exec,
+          headSha: target.headSha,
+          repository: target.repository,
+          changeRequest: resolution.candidate.number,
+          subject,
+          remote,
+        });
         const routedObligation = matchesPrecomputedTarget
           ? resolution.candidate.number === precomputed.pullRequest
             ? precomputed.routedObligation
@@ -733,6 +819,7 @@ export function createReviewStatusPort(
           },
           currentBaseOid: null,
           baseContained: false,
+          baseMovement: null,
         };
       }
     },

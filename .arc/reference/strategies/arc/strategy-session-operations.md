@@ -391,19 +391,20 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 ### Method Classification by Trigger
 
-| Method                | Trigger Workflow    | Session Applicability                      |
-| --------------------- | ------------------- | ------------------------------------------ |
-| issue-triage          | process-task-loop   | Universal — every task execution session   |
-| quality-gate-commands | process-task-loop   | Universal — every task execution session   |
-| test-first            | process-task-loop   | Conditional — tasks with test-first marker |
-| commit-format         | prepare-commits     | User-triggered commit events               |
-| commit-footer         | prepare-commits     | User-triggered commit events               |
-| self-review           | prepare-work-unit   | Prepublication phase only                  |
-| frontline-review      | prepare-work-unit   | Optional advisory prepublication review    |
-| standard-review       | prepare / integrate | Local or hosted exact-change-set standard  |
-| implementation-audit  | prepare / integrate | Prepublication and hosted review rubric    |
-| review-triage         | prepare / integrate | Prepublication and integration findings    |
-| session-state         | session-handoff     | Session end only                           |
+| Method                        | Trigger Workflow             | Session Applicability                                |
+| ----------------------------- | ---------------------------- | ---------------------------------------------------- |
+| issue-triage                  | process-task-loop            | Universal — every task execution session             |
+| quality-gate-commands         | process-task-loop            | Universal — every task execution session             |
+| test-first                    | process-task-loop            | Conditional — tasks with test-first marker           |
+| commit-format                 | prepare-commits              | User-triggered commit events                         |
+| commit-footer                 | prepare-commits              | User-triggered commit events                         |
+| self-review                   | prepare-work-unit            | Prepublication phase only                            |
+| frontline-review              | prepare-work-unit            | Optional advisory prepublication review              |
+| standard-review               | prepare / integrate          | Local or hosted exact-change-set standard            |
+| implementation-audit          | prepare / integrate          | Prepublication and hosted review rubric              |
+| review-triage                 | prepare / integrate          | Prepublication and integration findings              |
+| assess-evidence-applicability | integrate / deliver / errand | Conditional — bounded review / verification residual |
+| session-state                 | session-handoff              | Session end only                                     |
 
 ### Review enforcement boundary
 

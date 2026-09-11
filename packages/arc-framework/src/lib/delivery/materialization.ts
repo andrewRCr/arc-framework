@@ -130,11 +130,11 @@ export function deriveDeliveryMaterialization(
     value: {
       planId: plan.planId,
       workUnitId: plan.workUnitId,
-      target: snapshot.protectedBase,
+      target: { ref: snapshot.protectedBase.ref, ...snapshot.chainBase },
       members: plan.members.map((member, index) => {
         const terminal = index === plan.members.length - 1;
         const candidate = terminal ? snapshot.top : snapshot.members[index];
-        const predecessor = index === 0 ? snapshot.protectedBase : snapshot.members[index - 1];
+        const predecessor = index === 0 ? snapshot.chainBase : snapshot.members[index - 1];
         const predecessorMember = index === 0 ? undefined : plan.members[index - 1];
         if (candidate === undefined || predecessor === undefined || (index > 0 && predecessorMember === undefined)) {
           throw new Error("validated materialization snapshot lost plan order");

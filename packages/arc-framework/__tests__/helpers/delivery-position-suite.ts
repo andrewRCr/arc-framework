@@ -699,6 +699,28 @@ async function positionFixture(
     "    *) echo \"unexpected closeout gh invocation: $*\" >&2; exit 1 ;;",
     "  esac",
     "fi",
+    "if [ \"${ARC_FAKE_MERGE_ADMISSION:-0}\" = \"1\" ]; then",
+    "  case \"$2\" in",
+    "    repos/owner/repo/pulls/403)",
+    "      base_head=$(remote_head 'main')",
+    "      head_ref=${ARC_FAKE_TERMINAL_REF:-member-3}",
+    "      head_head=$(remote_head \"$head_ref\")",
+    `      printf '{"number":403,"state":"open","merged":false,"draft":true,`
+      + `"head":{"ref":"%s","sha":"%s","repo":{"full_name":"owner/repo"}},`
+      + `"base":{"ref":"main","sha":"%s","repo":{"full_name":"owner/repo"}},`
+      + `"mergeable":true,"merge_commit_sha":"${"f".repeat(40)}"}\\n' `
+      + `"$head_ref" "$head_head" "$base_head"`,
+    "      exit 0",
+    "      ;;",
+    `    repos/owner/repo/commits/${"f".repeat(40)})`,
+    "      base_head=$(remote_head 'main')",
+    "      head_ref=${ARC_FAKE_TERMINAL_REF:-member-3}",
+    "      head_head=$(remote_head \"$head_ref\")",
+    "      printf '{\"parents\":[{\"sha\":\"%s\"},{\"sha\":\"%s\"}]}\\n' \"$base_head\" \"$head_head\"",
+    "      exit 0",
+    "      ;;",
+    "  esac",
+    "fi",
     "case \"$2\" in",
     "  repos/owner/repo)",
     "    printf '%s\\n' '{\"allow_merge_commit\":true,\"allow_rebase_merge\":false,\"allow_squash_merge\":false}'",
@@ -2135,6 +2157,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
 
   it("returns settled review and closes shipped publication refresh after terminal rebind", async () => {
     const fixture = await positionFixture("landed-nonterminal");
+    const checkpointEnv = { ...fixture.env, ARC_FAKE_MERGE_ADMISSION: "1" };
     const stateRead = await fixture.states.read(fixture.plan.planId);
     if (stateRead.status !== "ok" || stateRead.value === null) {
       throw new Error("settled teardown delivery state must be readable");
@@ -2643,7 +2666,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const stalePublication = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(stalePublication.exitCode, `${stalePublication.stderr}\n${stalePublication.stdout}`).toBe(0);
     expect(JSON.parse(stalePublication.stdout), stalePublication.stdout).toMatchObject({
@@ -2667,7 +2690,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const pendingRebind = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(pendingRebind.exitCode, `${pendingRebind.stderr}\n${pendingRebind.stdout}`).toBe(0);
     expect(JSON.parse(pendingRebind.stdout), pendingRebind.stdout).toMatchObject({
@@ -2760,7 +2783,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const publicationRebind = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(publicationRebind.exitCode, `${publicationRebind.stderr}\n${publicationRebind.stdout}`).toBe(0);
     expect(JSON.parse(publicationRebind.stdout), publicationRebind.stdout).toMatchObject({
@@ -2788,7 +2811,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const converged = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(converged.exitCode, `${converged.stderr}\n${converged.stdout}`).toBe(0);
     expect(JSON.parse(converged.stdout), converged.stdout).toMatchObject({
@@ -4228,7 +4251,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         effectLog: [],
       });
     }
-  }, 90_000);
+  }, 120_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();

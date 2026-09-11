@@ -227,6 +227,52 @@ describe("handleReviewChecksAwait", () => {
       reason: "invalid-input",
     });
   });
+
+  it("preserves typed unavailable detail in the JSON result", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    await handleReviewChecksAwait({
+      repository: "owner/repo",
+      pullRequest: "42",
+      headSha: "a".repeat(40),
+      timeoutMs: "2000",
+      pollIntervalMs: "500",
+      json: true,
+    }, {
+      awaitChecks: async () => ({
+        schemaVersion: 1,
+        mode: "review-checks-await",
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha: "a".repeat(40),
+        state: "unavailable",
+        nextAction: "retry",
+        cause: "deadline",
+        detail: "Required-check evidence was unavailable: hosted process timed out",
+        checks: [{ name: "merge-ok", state: "pending" }],
+        diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+        elapsedMs: 500,
+      }),
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toEqual({
+      schemaVersion: 1,
+      mode: "review-checks-await",
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha: "a".repeat(40),
+      state: "unavailable",
+      nextAction: "retry",
+      cause: "deadline",
+      detail: "Required-check evidence was unavailable: hosted process timed out",
+      checks: [{ name: "merge-ok", state: "pending" }],
+      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+      elapsedMs: 500,
+    });
+    expect(setExitCode).not.toHaveBeenCalled();
+  });
 });
 const localAttestRequest = {
   schemaVersion: 1,
@@ -864,6 +910,16 @@ describe("handleReviewStatus", () => {
         detail: `Member one is selected for ${request.workUnitId}.`,
       },
       currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const,
+      baseMovement: {
+        coordinates: {
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: "c".repeat(40),
+        },
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
       state: "review-required" as const,
       nextAction: "run-review" as const,
     }));
@@ -882,6 +938,16 @@ describe("handleReviewStatus", () => {
       target: { headRef: "delivery/example/member-1" },
       state: "review-required",
       nextAction: "run-review",
+      movement: "disjoint",
+      baseMovement: {
+        coordinates: {
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: "c".repeat(40),
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
       routedObligation: { detail: "Member one is selected for example." },
     });
   });
@@ -902,6 +968,16 @@ describe("handleReviewStatus", () => {
         detail: `Selected ${request.sourceId ?? "default"}.`,
       },
       currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const,
+      baseMovement: {
+        coordinates: {
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: "c".repeat(40),
+        },
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
       state: "review-required" as const,
       nextAction: "run-review" as const,
     }));
@@ -1003,6 +1079,16 @@ describe("handleReviewStatus", () => {
               + `${request.coverage ?? "complete"} coverage.`,
         },
         currentBaseOid: "b".repeat(40),
+        movement: "disjoint",
+        baseMovement: {
+          coordinates: {
+            repository: statusTarget.repository,
+            changeRequest: 42,
+            base: "b".repeat(40),
+            head: statusTarget.headSha,
+          },
+          overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+        },
         state: "review-required",
         nextAction: "run-review",
       }),

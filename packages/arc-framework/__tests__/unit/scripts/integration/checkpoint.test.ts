@@ -57,6 +57,8 @@ const CLEAN_DRIFT = {
   behind: 0,
   base: "main",
   baseOid: oid("b"),
+  headOid: oid("c"),
+  movement: "disjoint" as const,
   integrationEvidence: {
     coverage: "complete" as const,
     scannedCommitCount: 0,
@@ -79,6 +81,8 @@ function dependencies(): IntegrationCheckpointDependencies {
       behind: 1,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
+      movement: "overlapping",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 1,
@@ -87,10 +91,19 @@ function dependencies(): IntegrationCheckpointDependencies {
         truncated: false,
         limitations: [],
       },
-      overlap: { status: "available", substantivePaths: [], regenerablePaths: ["ROADMAP.md"] },
+      overlap: { status: "available", substantivePaths: ["src/example.ts"], regenerablePaths: [] },
       register: { kind: "attention", text: "Base moved." },
     }),
-    readReconcileHost: async () => ({ state: "mergeable" }),
+    readMovementObservation: async () => ({
+      feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+      admission: {
+        state: "mergeable",
+        repository: "owner/repo",
+        changeRequest: 42,
+        base: oid("b"),
+        head: oid("c"),
+      },
+    }),
     classifyDeliveryDrift: async () => ({ status: "not-applicable" }),
     readLifecycle: async () => ({
       workUnit: "example",
@@ -147,7 +160,10 @@ function dependencies(): IntegrationCheckpointDependencies {
       },
     }),
     composeSettlementPlan: async () => composeCanonicalSettlementPlan([]),
-    createHandle: async () => `checkpoint-v1:${oid("c")}:${digest("e")}`,
+    createHandle: async () => ({
+      status: "created",
+      handle: `checkpoint-v1:${oid("c")}:${digest("e")}`,
+    }),
   };
 }
 
@@ -270,16 +286,81 @@ describe("integration checkpoint", () => {
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
           candidateHead: oid("c"),
-          safety: {
-            baseOid: oid("b"),
+          observation: {
+            movement: "overlapping",
             integrationEvidenceComplete: true,
-            overlapAvailable: true,
-            substantivePaths: [],
-            regenerablePaths: ["ROADMAP.md"],
-            host: { state: "mergeable" },
-            safe: true,
+            feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+            admission: { state: "mergeable", base: oid("b"), head: oid("c") },
           },
         },
+      });
+  });
+
+  it("continues directly to approval for disjoint exact-pair movement", async () => {
+    const deps = dependencies();
+    const readDrift = deps.readDrift;
+    deps.readDrift = async (workUnit) => {
+      const drift = await readDrift(workUnit);
+      if (drift.verdict !== "clean" && drift.verdict !== "reconcile") {
+        throw new Error("expected a healthy drift reading");
+      }
+      return {
+        ...drift,
+        movement: "disjoint",
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      };
+    };
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "ready",
+        nextAction: "request-approval",
+        payload: {
+          movementObservation: {
+            movement: "disjoint",
+            feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+            admission: { state: "mergeable", base: oid("b"), head: oid("c") },
+          },
+        },
+      });
+  });
+
+  it("returns the distinct regenerable reconcile continuation", async () => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: {
+        state: "regenerable-conflict", base: oid("b"), head: oid("c"), paths: ["ROADMAP.md"],
+      },
+      admission: {
+        state: "mergeable", repository: "owner/repo", changeRequest: 42, base: oid("b"), head: oid("c"),
+      },
+    });
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "reconcile",
+        nextAction: "reconcile-regenerable",
+        payload: { candidateHead: oid("c") },
+      });
+  });
+
+  it("preserves unresolved host detail and one bounded retry remedy", async () => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+      admission: {
+        state: "unresolved",
+        repository: "owner/repo",
+        changeRequest: 42,
+        base: oid("b"),
+        head: oid("c"),
+        detail: "Host is still computing exact admission.",
+      },
+    });
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "host-pending",
+        payload: { detail: "Host is still computing exact admission." },
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
       });
   });
 
@@ -299,10 +380,12 @@ describe("integration checkpoint", () => {
       status: "reconcile",
       nextAction: "reconcile-base",
       safetyClass: "residual-contained",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c"), mergeBase: oid("a") },
     });
-    deps.readReconcileHost = async () => {
+    const readMovementObservation = deps.readMovementObservation;
+    deps.readMovementObservation = async (workUnit, drift) => {
       events.push("host-read");
-      return { state: "mergeable" };
+      return readMovementObservation(workUnit, drift);
     };
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -311,7 +394,7 @@ describe("integration checkpoint", () => {
         nextAction: "reconcile-base",
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
-          safety: { safe: true, baseOid: oid("b"), substantivePaths: ["terminal.ts"] },
+          observation: { movement: "overlapping", feasibility: { state: "clean" } },
         },
       });
     expect(events).toEqual(["host-read"]);
@@ -332,6 +415,7 @@ describe("integration checkpoint", () => {
       status: "reconcile",
       nextAction: "reconcile-base",
       safetyClass: "generic",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c"), mergeBase: oid("a") },
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -339,7 +423,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "unsafe-reconcile",
-        payload: { safety: { safe: false, substantivePaths: ["union-only.ts"] } },
+        payload: { observation: { movement: "overlapping" } },
       });
   });
 
@@ -349,10 +433,12 @@ describe("integration checkpoint", () => {
     deps.classifyDeliveryDrift = async () => ({
       status: "unavailable",
       detail: "The delivery predecessor coordinate is unavailable.",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+      nextAction: { command: "rerun-checkpoint", workUnit: "example" },
     });
-    deps.readReconcileHost = async () => {
+    deps.readMovementObservation = async () => {
       events.push("host-read");
-      return { state: "mergeable" };
+      throw new Error("must not read movement observations");
     };
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -363,28 +449,66 @@ describe("integration checkpoint", () => {
         payload: {
           reason: "drift-classification-unavailable",
           detail: "The delivery predecessor coordinate is unavailable.",
+          driftEvidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+          classifierAction: { command: "rerun-checkpoint", workUnit: "example" },
         },
       });
     expect(events).toEqual([]);
   });
 
-  it("blocks as an unsafe reconcile when the host says the merge conflicts", async () => {
-    // The analyzer half is clean and the only drifted path is regenerable; host mergeability is
-    // still the whole host signal, because a conflict report names no paths to weigh against it.
+  it("preserves terminal predecessor-overlap evidence and explanation", async () => {
     const deps = dependencies();
-    deps.readReconcileHost = async () => ({ state: "conflicting" });
+    deps.classifyDeliveryDrift = async () => ({
+      status: "refused",
+      reason: "predecessor-overlap",
+      paths: ["src/shared.ts"],
+      explanation: "Protected-base movement overlaps the retained delivery predecessor contribution.",
+      evidence: {
+        baseRevision: oid("b"),
+        baselineRevision: oid("c"),
+        mergeBase: oid("a"),
+        substantivePaths: ["src/shared.ts"],
+        regenerablePaths: [],
+        residualPaths: [],
+        predecessorPaths: ["src/shared.ts"],
+      },
+    });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "blocked",
-        reason: "unsafe-reconcile",
+        reason: "delivery-terminal-blocked",
         payload: {
-          safety: {
-            substantivePaths: [],
-            regenerablePaths: ["ROADMAP.md"],
-            host: { state: "conflicting" },
-            safe: false,
+          reason: "predecessor-overlap",
+          paths: ["src/shared.ts"],
+          explanation: "Protected-base movement overlaps the retained delivery predecessor contribution.",
+          driftEvidence: {
+            baseRevision: oid("b"),
+            baselineRevision: oid("c"),
+            mergeBase: oid("a"),
+            predecessorPaths: ["src/shared.ts"],
           },
+        },
+      });
+  });
+
+  it("blocks with exact paths when Git feasibility reports a substantive conflict", async () => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: {
+        state: "substantive-conflict", base: oid("b"), head: oid("c"), paths: ["src/conflict.ts"],
+      },
+      admission: {
+        state: "mergeable", repository: "owner/repo", changeRequest: 42, base: oid("b"), head: oid("c"),
+      },
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "conflict",
+        payload: {
+          paths: ["src/conflict.ts"],
         },
       });
   });
@@ -399,7 +523,14 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: null,
+      headOid: null,
       unavailableReason: "fetch-failed",
+      detail: "The remote base could not be fetched.",
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: {
+        kind: "terminal-explanation",
+        terminalExplanation: "Restore remote access before retrying the authoritative drift read.",
+      },
       integrationEvidence: null,
       overlap: null,
       register: { kind: "degraded", text: "Remote unavailable." },
@@ -488,6 +619,8 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
+      movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 0,
@@ -526,6 +659,38 @@ describe("integration checkpoint", () => {
             },
             extensionReport: { label: "Extension report", content: null },
           },
+        },
+      });
+  });
+
+  it("returns a typed recompose result when the Candidate record moves before persistence", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.createHandle = async () => ({
+      status: "recompose-required",
+      expectedRecordVersion: digest("a"),
+      observedRecordVersion: digest("b"),
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toEqual({
+        schemaVersion: 1,
+        mode: "integrate-checkpoint",
+        workUnit: "example",
+        state: "recompose-required",
+        nextAction: "rerun-checkpoint",
+        reason: "candidate-record-moved",
+        detail: "The Candidate record changed before checkpoint persistence completed.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("c") },
+        remedy: {
+          invariant: "The ready composition binds the exact satisfied Candidate head.",
+          text: "The ready composition binds the exact satisfied Candidate head. Resolve the reported composition "
+            + "failure, then re-run: `arc integrate checkpoint example --json`.",
+          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+        },
+        payload: {
+          expectedRecordVersion: digest("a"),
+          observedRecordVersion: digest("b"),
         },
       });
   });
@@ -854,6 +1019,8 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
+      movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 0,
@@ -883,6 +1050,28 @@ describe("integration checkpoint", () => {
             convergenceVerification: "pending",
           },
         },
+      });
+  });
+
+  it("refuses a ready change request that differs from the host-admission request", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const composeReady = deps.composeReady;
+    deps.composeReady = async (input) => {
+      const ready = await composeReady(input);
+      return {
+        ...ready,
+        statusSummary: {
+          ...ready.statusSummary,
+          changeRequest: { ...ready.statusSummary.changeRequest, pullRequest: 43 },
+        },
+      };
+    };
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        payload: { detail: "ready composition does not bind the exact approved request and Candidate head" },
       });
   });
 

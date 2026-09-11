@@ -719,11 +719,41 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
   const shipped = cadence === "with-integration";
   const dependencies: IntegrationCheckpointDependencies = {
     ...production,
-    readDrift: async (workUnit) => ({
-      ...await production.readDrift(workUnit),
+    readDrift: async () => ({
+      mode: "authoritative",
       verdict: "clean",
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      base: "main",
       baseOid: await resolveGitCandidateBaseRevision({ cwd: root, baseBranch: "main", exec: gitExec }),
+      headOid: await git(root, ["rev-parse", "HEAD"]),
+      movement: "disjoint",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 0,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
     }),
+    readMovementObservation: async (_workUnit, drift) => {
+      if (drift.baseOid === null) throw new Error("expected an exact base");
+      const head = await git(root, ["rev-parse", "HEAD"]);
+      return {
+        feasibility: { state: "clean", base: drift.baseOid, head },
+        admission: {
+          state: "mergeable",
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: drift.baseOid,
+          head,
+        },
+      };
+    },
     readLifecycle: async (workUnit) => ({
       workUnit,
       storageVersion: await git(root, ["rev-parse", "HEAD"]),
@@ -1327,7 +1357,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       headSha: mergedHead,
     });
     await expect(createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec })
-      .readCandidate("example")).resolves.toMatchObject({
+      .readCandidate("example", currentBase)).resolves.toMatchObject({
         status: "current",
         recognizedRevision: mergedHead,
       });
@@ -2279,44 +2309,48 @@ async function composeLineageReview(
 /** Persist the composition through the production checkpoint store and return its handle. */
 async function persistComposition(root: string, approvedHead: string): Promise<string> {
   const composed = await composeLineageReview(root, approvedHead);
-  return inRepository(root, async () => createIntegrationCheckpointDependencies({
-    cwd: root,
-    exec: gitExec,
-  }).createHandle({
-    workUnit: "example",
-    approvedHead,
-    candidateTailDiff: {
-      fromRevision: approvedHead,
-      throughRevision: approvedHead,
-      reference: `${approvedHead}..${approvedHead}`,
-    },
-    requirementSummary: {
-      conclusion: "satisfied",
-      requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
-    },
-    statusSummary: {
-      lifecycle: {
-        workUnit: "example",
-        storageVersion: approvedHead,
-        archiveCadence: "manual",
-        state: "integrating",
-        position: { phase: "Integrating", location: "active" },
-        artifactFacts: [],
-        complete: true,
+  return inRepository(root, async () => {
+    const baseRevision = await git(root, ["rev-parse", "main^{commit}"]);
+    const dependencies = createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec });
+    await dependencies.readCandidate("example", baseRevision);
+    const persisted = await dependencies.createHandle({
+      workUnit: "example",
+      approvedHead,
+      candidateTailDiff: {
+        fromRevision: approvedHead,
+        throughRevision: approvedHead,
+        reference: `${approvedHead}..${approvedHead}`,
       },
-      changeRequest: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        baseRef: "main",
-        headRef: "feat/example",
-        headSha: approvedHead,
-        state: "open",
+      requirementSummary: {
+        conclusion: "satisfied",
+        requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
       },
-      requiredChecks: "green",
-    },
-    settlementPlan: composeCanonicalSettlementPlan(composed.actions),
-    mergeMethod: MERGE_METHOD,
-  }));
+      statusSummary: {
+        lifecycle: {
+          workUnit: "example",
+          storageVersion: approvedHead,
+          archiveCadence: "manual",
+          state: "integrating",
+          position: { phase: "Integrating", location: "active" },
+          artifactFacts: [],
+          complete: true,
+        },
+        changeRequest: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: approvedHead,
+          state: "open",
+        },
+        requiredChecks: "green",
+      },
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+      mergeMethod: MERGE_METHOD,
+    });
+    if (persisted.status !== "created") throw new Error("Candidate moved before checkpoint persistence");
+    return persisted.handle;
+  });
 }
 
 function registerReviewBearingIntegration(it: typeof vitestIt): void {
@@ -2371,9 +2405,9 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
         },
         vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
       }),
-      awaitChecks: async () => ({
+      observeChecks: async () => ({
         schemaVersion: 1,
-        mode: "review-checks-await",
+        mode: "review-checks-observe",
         repository: target.repository,
         pullRequest: target.pullRequest,
         headSha: target.headSha,
@@ -2382,7 +2416,24 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
         checks: [],
       }),
       resolveMergeMethod: async () => MERGE_METHOD,
-      readFinalDrift: async () => ({ verdict: "reconcile" }),
+      readFinalPlan: async (finalTarget) => ({
+        status: "available",
+        target: finalTarget,
+        baseOid: "b".repeat(40),
+        observation: {
+          movement: "overlapping",
+          integrationEvidenceComplete: true,
+          feasibility: { state: "clean", base: "b".repeat(40), head: finalTarget.headSha },
+          admission: {
+            state: "mergeable",
+            repository: finalTarget.repository,
+            changeRequest: finalTarget.pullRequest,
+            base: "b".repeat(40),
+            head: finalTarget.headSha,
+          },
+        },
+        plan: { state: "reconcile", nextAction: "reconcile-base" },
+      }),
       mergePinned: () => Promise.reject(new Error("unexpected merge")),
     };
 
@@ -2417,9 +2468,9 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
           target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
           vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
         }),
-        awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
+        observeChecks: () => Promise.reject(new Error("unexpected checks observation")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
-        readFinalDrift: () => Promise.reject(new Error("unexpected drift read")),
+        readFinalPlan: () => Promise.reject(new Error("unexpected final plan read")),
         mergePinned: () => Promise.reject(new Error("unexpected merge")),
       },
     ))).resolves.toMatchObject({ state: "invalidated", reason: "checkpoint-missing" });

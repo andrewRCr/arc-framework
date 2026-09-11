@@ -68,19 +68,38 @@ export async function readCandidateRecordVersioned(
 ): Promise<VersionedCandidateRecord> {
   const workUnit = SlugSchema.parse(name);
   const relativePath = resolveCandidateRecordRelativePath(workUnit);
-  let content: string;
-  try {
-    content = await fs.readFile(join(cwd, relativePath));
-  } catch (error) {
-    if ((error as { code?: unknown }).code === "ENOENT") return { record: null, version: null };
-    throw error;
-  }
+  const content = await readCandidateRecordContent(cwd, relativePath, fs);
+  if (content === null) return { record: null, version: null };
   const record = parseCandidateManagedRecord(content);
   if (record === null) throw new Error(`Candidate record is malformed: ${relativePath}`);
   if (record.attestation.workUnit !== workUnit) {
     throw new Error(`Candidate record work unit does not match its path: ${relativePath}`);
   }
   return { record, version: digestBytes(Buffer.from(content, "utf8")) };
+}
+
+/** Read only the exact bytes-version of one Candidate record, without parsing its contents. */
+export async function readCandidateRecordVersion(
+  cwd: string,
+  name: string,
+  fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
+): Promise<string | null> {
+  const relativePath = resolveCandidateRecordRelativePath(name);
+  const content = await readCandidateRecordContent(cwd, relativePath, fs);
+  return content === null ? null : digestBytes(Buffer.from(content, "utf8"));
+}
+
+async function readCandidateRecordContent(
+  cwd: string,
+  relativePath: string,
+  fs: CandidateRecordStoreFs,
+): Promise<string | null> {
+  try {
+    return await fs.readFile(join(cwd, relativePath));
+  } catch (error) {
+    if ((error as { code?: unknown }).code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 /** Version-check and atomically replace one validated Candidate record. */
