@@ -85,59 +85,33 @@ runs everything, and no project or framework document instructs a whole-suite lo
 - _Outcome:_ Routine, whole-suite, and merge-base changed-file runs now have distinct commands while only the
   subprocess-heavy lane and whole suite enter the shared admission slot.
 
-### `[ ]` **1.2 Carry the lane rows into the project-instance gate documents**
+### `[x]` **1.2 Carry the lane rows into the project-instance gate documents**
 
 - _Goal:_ The project's own gate documents state the lane as the routine local run and stop instructing a
   whole-suite local pass.
 
-- _Note:_ All six targets are project-instance files edited in place — none is mirrored from the package source.
+    - `[x]` **1.2.a Extend the quality-gate selection rule with the lane rows**
 
-    - `[ ]` **1.2.a Extend the quality-gate selection rule with the lane rows**
+        - Added path-derived unit, integration, E2E, and source/config rows; made required CI the E2E remainder;
+          and classified an empty changed-file selection as non-passing.
 
-        - Rows resolve from `git diff --name-only`, matching the section's existing mechanical framing: the
-          per-task gate uses `test:changed` over the unit projects instead of filename-fragment targeting; changes
-          confined to one tier's test directory reach only that tier; source or tooling-config changes reach every
-          tier.
-        - The section already keeps a short list of gate behaviors that fail quietly. A changed-file gate belongs
-          on it: an empty selection is not a pass, and the reader needs to know that before trusting a green.
-        - The E2E row names CI's heavy lane as that tier's enforcement, with local runs only for changed E2E files
-          or on explicit request.
-        - Remove the closing sentence forbidding a partial Tier 3 — left alone it contradicts the new rows one
-          paragraph apart.
+    - `[x]` **1.2.b Bring every stale command claim in the quality-gate command reference into line**
 
-    - `[ ]` **1.2.b Bring every stale command claim in the quality-gate command reference into line**
+        - Replaced the filename-fragment gate with `test:changed`, made `npm test` the Tier 2/3 routine lane, and
+          retained `test:full` as the explicit whole-project command.
 
-        - Five claims across four sections. Four assert the whole suite: § Quality Gate Commands both instructs a
-          whole run and states that `npm test` runs every Vitest project; § The gates and § Testing each call it
-          the full suite. The rule document delegates gate commands here, so a missed one overrides the lane in
-          practice.
-        - The fifth is the per-task command rather than a whole-suite claim, and the same delegation argument
-          reaches it: § Incremental — Tier 1 instructs a filename-fragment filter, which is exactly what the rule
-          row 1.2.a lands replaces. Point it at the `test:changed` script so rule and command agree.
-        - State the lane as the Tier 3 default and the whole run as the explicit opt-in.
-        - The Critical Path Reference table inside § Environment & Path Context stays as it is: its quality-gates
-          row names `npm test` as a gate command rather than as the whole suite, and that reading survives the
-          lane. Leave it alone — that section is loaded at every session init on a fixed line budget.
+    - `[x]` **1.2.c Correct the tier-to-command mapping in the testing strategy and technical overview**
 
-    - `[ ]` **1.2.c Correct the tier-to-command mapping in the testing strategy and technical overview**
+        - Aligned all three gate tiers with the lane and documented four Vitest projects across three isolation
+          tiers, including the isolated unit-mocks project.
 
-        - The testing strategy's § Integration with Quality Gates carries three tier lines and all three drift:
-          Tier 2 maps to the full suite via `npm test`, Tier 1 names a bare unit-tier command where the rule now
-          has a changed-file gate, and Tier 3 says "Full suite" without naming a command, which is how it escapes
-          a criterion keyed on `npm test`. Bring the section to the lane as a whole.
-        - The technical overview's testing section describes `npm test` as the full suite twice and documents
-          three tiers against four Vitest projects — pre-existing staleness this pass clears alongside the
-          command line.
+    - `[x]` **1.2.d Point both contributor pages at the whole run**
 
-    - `[ ]` **1.2.d Point both contributor pages at the whole run**
+        - Pointed both clean-checkout setup sequences at `test:full` and corrected the published gate table to
+          describe the routine lane's unit, unit-mocks, and integration projects.
 
-        - There are two, hand-maintained in parallel with nothing binding them: `CONTRIBUTING.md` at the root and
-          `docs/contributing.md` in the published docs nav. Both list `npm test` among the checks that must pass on
-          a clean checkout. A fresh-checkout verification is exactly where the whole run belongs, so both take the
-          new script rather than the lane.
-        - The docs page carries a second claim the root one does not: a gate table whose tests row reads "Unit,
-          integration, and E2E". That is the tier composition, not just a command name, and the lane falsifies it
-          outright — correct the row, not only the command.
+- _Outcome:_ Project rules, command guidance, testing architecture, and contributor setup now distinguish routine,
+  affected-unit, and whole-project verification consistently.
 
 ### `[ ]` **1.3 Amend the shipped whole-suite assertions through the package source**
 

@@ -23,6 +23,8 @@ Four gate behaviors that reference does not carry, each of which fails quietly:
   run cannot hide a dirty index.
 - Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
   test-only type error passes a source-only check and surfaces only at commit.
+- `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
+  not evidence that the changed code passed.
 
 ### Selecting what to run
 
@@ -39,6 +41,20 @@ provably cannot affect; never spend thought on the cheap ones.
 | No Markdown touched            | The code checks                         | nothing — the Markdown side costs ~7.6s  |
 | Mixed, config, or unrecognized | Everything                              | nothing — fail closed                    |
 
+**Test-lane selection — derive it from changed paths.** Changes confined to one test project's directory run only
+that project; source or tooling changes reach every tier through the routine local lane plus required CI.
+
+| Changed paths                                     | Local test command            | Required remainder                 |
+| ------------------------------------------------- | ----------------------------- | ---------------------------------- |
+| `__tests__/unit/**` or isolated unit-mock files   | `npm run -s test:changed`     | none                               |
+| `__tests__/integration/**` only                   | `npm run -s test:integration` | none                               |
+| `__tests__/e2e/**` only                           | `npm run -s test:e2e`         | none                               |
+| `src/**`, build/test config, or unrecognized code | `npm test`                    | E2E and portability in required CI |
+
+`npm test` is the routine local lane: unit, unit-mocks, and integration in one admitted run. E2E is enforced by
+the heavy CI lane before merge; run it locally only when E2E files changed or when explicitly requested. Run
+`npm run test:full` when a deliberate whole-project local test pass is useful.
+
 The ARC contract checks (`lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`) validate
 methodology artifacts rather than code, are corpus-wide by design, and cost ~0.7s combined — so they ride with
 any Markdown change and never earn a relevance carve-out of their own. They are also required in CI: omitting
@@ -50,11 +66,11 @@ code: it reaches every check.
 **Unchanged tree — a completed tier is not re-executed over an unchanged tree.** A green result stays valid
 until an input it covers changes. When a boundary calls for a tier that already ran green and the delta since
 reaches nothing that tier covers, report it as already satisfied instead of re-running it; a skip that goes
-unrecorded reads as coverage nobody actually has. This narrows repeat runs of the same tier — it never licenses
-running a tier partially, and Tier 3 in particular is still run whole.
+unrecorded reads as coverage nobody actually has. This narrows repeat runs of the same tier; complete every
+project-designated check in the selected gate.
 
-Re-running **is** warranted after a base merge, after any review-driven fix, and at the first full-suite
-attestation of composed work — each introduces state no prior run saw.
+Re-running **is** warranted after a base merge, after any review-driven fix, and at the first composed-work
+attestation — each introduces state no prior run saw.
 
 ## Testing Requirements
 
