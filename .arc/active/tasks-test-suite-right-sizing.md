@@ -355,21 +355,15 @@ baseline for the unit projects, the lane, integration, and E2E.
   sync-state, selected sync E2E, and multi-clone file families while explicitly excluding unrelated
   `framework-sync`; empty matches report a zero share.
 
-### `[ ]` **2.6 Record the first baseline and supersede the hand-measured analysis**
+### `[x]` **2.6 Record the first baseline and supersede the hand-measured analysis**
 
 - _Goal:_ The cost baseline analysis carries instrument-produced figures with their mode stamps, and the
   hand-measured pre-instrument numbers no longer read as authoritative.
 
-    - Baseline the unit projects, the lane, integration, and E2E locally. The lane baseline is the anchor the
-      routine-run target derives from, which is why it is taken against the admitted lane rather than a bare
-      invocation.
-    - Record a CI-mode baseline too, or 2.7 has no floor to derive the heavy-lane bar from. It is read from
-      workflow-run job durations rather than produced by a local run, and it needs several runs: the two recorded
-      so far are 1,054 and 1,364 job-seconds — a spread far wider than the local noise band, against an analysis
-      note that the leg spread is not stable across runs. Stamp it as the CI-job condition.
-    - The existing analysis records the method, the mode discipline, and the alternatives closed by measurement —
-      keep those, replace the figures. Its CI table stays hand-read from workflow runs: the instrument cannot
-      produce it, because a job cannot observe what its siblings cost.
+- _Outcome:_ The authoritative analysis now records three-run medians for unit, lane, integration, and E2E with
+  complete mode stamps, cost rankings, shard membership, timeout/admission/substrate signals, and measured CLI
+  invocation counts. Six comparable CI-job runs establish a 1,377-job-second median; superseded hand figures remain
+  only where they document standalone probes or the measurement gap the instrument closed.
 
 ### `[ ]` **2.7 Derive the numeric targets and land them before anything scores them**
 
