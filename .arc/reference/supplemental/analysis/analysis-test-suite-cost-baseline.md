@@ -226,17 +226,19 @@ modes keep local and CI observations disjoint; the E2E CI entries additionally n
 | Lane        | tier-isolated / lane / 12         | 44.925 s  | 49.418 s  |
 | E2E         | tier-isolated / e2e / 12          | 215.309 s | 236.840 s |
 
-| CI job      | Mode                     | Baseline | Budget  |
-| ----------- | ------------------------ | -------- | ------- |
-| Unit        | CI job / unit / 1 worker | 40 s     | 44.0 s  |
-| Integration | CI job / integration / 1 | 186 s    | 204.6 s |
-| E2E 1       | CI job / e2e / 1         | 151 s    | 166.1 s |
-| E2E 2       | CI job / e2e / 1         | 221 s    | 243.1 s |
-| E2E 3       | CI job / e2e / 1         | 268 s    | 294.8 s |
-| E2E 4       | CI job / e2e / 1         | 154 s    | 169.4 s |
+| CI job      | Mode                     | Baseline  | Budget    |
+| ----------- | ------------------------ | --------- | --------- |
+| Unit        | CI job / unit / 1 worker | 40 s      | 44.0 s    |
+| Integration | CI job / integration / 1 | 186 s     | 204.6 s   |
+| E2E 1       | CI job / e2e / 1         | 145.882 s | 160.471 s |
+| E2E 2       | CI job / e2e / 1         | 173.512 s | 190.864 s |
+| E2E 3       | CI job / e2e / 1         | 127.090 s | 139.799 s |
+| E2E 4       | CI job / e2e / 1         | 107.591 s | 118.351 s |
 
-These are the initial post-Phase 5 budgets. The integration, lane, and affected E2E entries are refreshed after
-the cost-ranked conversions, so accepted Phase 7 movement does not present as regrowth.
+The local rows and the unit/integration CI rows are the initial post-Phase 5 budgets. The E2E CI rows use the
+corrected-topology reporter windows from dispatch `34657372996`; the earlier observations repeated each anchor in
+its remainder shard and cannot serve as anti-regression baselines. The integration, lane, and affected E2E entries
+are refreshed after the cost-ranked conversions, so accepted Phase 7 movement does not present as regrowth.
 
 ### Budget exercise
 
@@ -252,20 +254,20 @@ score for the intended anchor topology.
 After the local-tier adapter normalized forwarded exclusions, exact-head dispatch `34657372996` exercised the
 corrected path. Every test job completed within budget:
 
-| CI job      | Observed  | Budget  | Remaining |
-| ----------- | --------- | ------- | --------- |
-| Unit        | 37.114 s  | 44.0 s  | 6.886 s   |
-| Integration | 174.065 s | 204.6 s | 30.535 s  |
-| E2E 1       | 145.882 s | 166.1 s | 20.218 s  |
-| E2E 2       | 173.512 s | 243.1 s | 69.588 s  |
-| E2E 3       | 127.090 s | 294.8 s | 167.710 s |
-| E2E 4       | 107.591 s | 169.4 s | 61.809 s  |
+| CI job      | Observed  | Budget    | Remaining |
+| ----------- | --------- | --------- | --------- |
+| Unit        | 37.114 s  | 44.0 s    | 6.886 s   |
+| Integration | 174.065 s | 204.6 s   | 30.535 s  |
+| E2E 1       | 145.882 s | 160.471 s | 14.589 s  |
+| E2E 2       | 173.512 s | 190.864 s | 17.352 s  |
+| E2E 3       | 127.090 s | 139.799 s | 12.709 s  |
+| E2E 4       | 107.591 s | 118.351 s | 10.760 s  |
 
 The raw E2E logs show one anchor file on each leg, a 13/13/13/12 split of the 51-file remainder, and no anchor
 result in any remainder step. The run's ten successful job durations sum to 913 s. Against the six-run 1,377 s
-first baseline, that is a 464 job-second reduction (33.7%), clearing the fixed 300 job-second target by 164 s. A
-synthetic E2E 4 overage reported 206.39 s against 169.40 s, wrote a 36.99 s advisory warning, and exited
-successfully.
+first baseline, that is a 464 job-second reduction (33.7%), clearing the fixed 300 job-second target by 164 s. After
+the corrected E2E baselines were recorded, a synthetic E2E 4 overage reported 137.892 s against 118.351 s, wrote a
+19.541 s advisory warning, and exited successfully.
 
 ## Where the time concentrates
 
