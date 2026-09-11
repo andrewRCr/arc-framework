@@ -266,6 +266,20 @@ describe("repository command-input inventory", () => {
     ]);
   });
 
+  it("assigns the post-action development build refresh to its head-moving command families", () => {
+    const refreshCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-dev-check.ts-subprocess-execfile-1")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(refreshCommands).toEqual([
+      "base merge",
+      "delivery review-fix continue",
+      "errand close",
+      "errand open",
+    ]);
+  });
+
   it("assigns the close-stdin hosted GitHub boundary to every reachable command family", () => {
     const hostedCommands = inventory.entries
       .filter((entry) => entry.siteId === "interaction.scripts-review-gate-hosted-gh-process.ts-subprocess-execa-1")
