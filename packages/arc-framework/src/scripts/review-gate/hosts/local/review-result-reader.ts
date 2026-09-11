@@ -16,6 +16,7 @@ import type { ReviewResult } from "../../core/review-result.js";
 import type { ReviewOperationStateSnapshotRecord } from "../../core/ports.js";
 import type { LaneProgressState } from "../../core/operation-state-schema.js";
 import { projectHostedFinding } from "../../hosted/await.js";
+import { laneSubjectOwnerMatches } from "../../core/lane-admission.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type ProducerCandidate =
@@ -315,14 +316,14 @@ export class LocalReviewResultReader implements ReviewResultReader {
     const sealed = hosted?.sealedResult;
     const originalOutcome = immutableProducerOutcome(attempt);
     if (state.kind !== "lane-progress" || state.lane !== "standard" || hosted === undefined
-      || hosted.handle === undefined || hosted.effectiveCoverage === null || sealed === undefined
+      || hosted.handle === undefined || sealed === undefined
       || !attempt.terminalProducer || (originalOutcome !== "clean" && originalOutcome !== "findings")
       || sealed.outcome !== originalOutcome
       || state.repositoryId !== hosted.reviewTarget.repositoryId
       || attempt.logicalPass !== hosted.admission.logicalPass
       || attempt.sourceId !== hosted.admission.sourceId
       || attempt.headSha !== hosted.reviewTarget.headSha
-      || canonicalize(state.lineage) !== canonicalize(hosted.admission.lineage)) {
+      || !laneSubjectOwnerMatches(state.lineage, hosted.admission.lineage)) {
       throw new LocalReviewResultReaderError("corrupt-result", "hosted producer admission mismatch");
     }
     const findings = sealed.findings.map(projectHostedFinding);
@@ -340,14 +341,23 @@ export class LocalReviewResultReader implements ReviewResultReader {
         logicalPass: hosted.admission.logicalPass,
         retryGeneration: attempt.retryGeneration,
         requestedCoverage: hosted.requestedCoverage,
+        // The handle records carrier invocation; the lane value is the evidence-bearing coverage authority.
         effectiveCoverage: hosted.effectiveCoverage,
         scopeMode: "whole-target",
         policyVersion: hosted.requirement.policyVersion,
+        ...(hosted.admission.correctionScope === undefined
+          || (hosted.admission.sourceId === "coderabbit-pr"
+            && sealed.coverageEvidence?.status !== "established")
+          ? {}
+          : { correctionScope: hosted.admission.correctionScope }),
       },
       laneOperationId: state.operationId,
       actorIdentity: hosted.actorIdentity,
       hostedTarget: hosted.target,
       requirement: hosted.requirement,
+      ...(sealed.coverageEvidence === undefined
+        ? {}
+        : { coverageEvidence: sealed.coverageEvidence }),
       ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),
       hostSettlementFindingIds: sealed.findings
         .filter(({ settlement }) => settlement === "reply-and-resolve")

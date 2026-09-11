@@ -19,6 +19,8 @@ import { resolveLocalReviewCoverageSelection } from
   "../../../../../src/scripts/review-gate/policy/local-review-coverage-selection.js";
 import { resolveReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { resolveEvidenceBoundReviewPolicy } from
+  "../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
 
 const objectId = (character: string): string => character.repeat(40);
 const digest = (value: string): string => canonicalDigest({ value });
@@ -77,6 +79,28 @@ function completeLocalResult(resultLineage: LaneSubjectLineage = lineage): Revie
     localSourceRef: "refs/arc/review/local/local-predecessor",
     requirement,
     request: {} as never,
+  };
+}
+
+function incrementalLocalResult(): ReviewResult {
+  const predecessor = completeLocalResult();
+  return {
+    ...predecessor,
+    producerId: "incremental-predecessor",
+    target: target(objectId("b")),
+    admission: {
+      ...predecessor.admission,
+      requestedCoverage: "incremental",
+      effectiveCoverage: "incremental",
+      correctionScope: {
+        schemaVersion: 1,
+        predecessorProducerId: "missing-complete-root",
+        predecessorHeadSha: objectId("a"),
+        basisHeadSha: objectId("a"),
+        headSha: objectId("b"),
+        requiredFindings: [],
+      },
+    },
   };
 }
 
@@ -211,6 +235,105 @@ describe("local review coverage selection", () => {
         vehicleIdentity: "other-errand",
         headSha: currentTarget.headSha,
       },
+      standardReview,
+      predecessorOperationId: predecessor.producerId,
+    }, dependencies(predecessor))).resolves.toMatchObject({
+      state: "coverage-required",
+      action: { choices: [{ requestedCoverage: "complete" }] },
+    });
+  });
+
+  it("offers, admits, and reduces changed-head Errand incremental coverage", async () => {
+    const predecessorLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const currentLineage = { ...predecessorLineage, headSha: objectId("c") };
+    const predecessor = completeLocalResult(predecessorLineage);
+    if (predecessor.kind !== "attested-local") throw new Error("expected local predecessor");
+    const currentTarget = target(currentLineage.headSha);
+    const offered = await resolveLocalReviewCoverageSelection({
+      policy: readyPolicy(currentTarget.headSha),
+      target: currentTarget,
+      sourceId: "delegated-agent",
+      lineage: currentLineage,
+      standardReview,
+      predecessorOperationId: predecessor.producerId,
+    }, dependencies(predecessor));
+    if (offered.state !== "coverage-required") throw new Error("expected coverage selection");
+    const coverage = offered.action.choices[0];
+    if (coverage?.requestedCoverage !== "incremental") throw new Error("expected incremental choice");
+    const requirement = createReviewRequirement({
+      target: currentTarget,
+      projection: standardReview,
+      acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+      initialAdmission: "checkpoint",
+    });
+    if (requirement === null) throw new Error("expected current requirement");
+    const current: ReviewResult = {
+      ...predecessor,
+      producerId: "local-incremental",
+      target: currentTarget,
+      resultDigest: digest("incremental-result"),
+      admission: {
+        ...predecessor.admission,
+        lineage: currentLineage,
+        logicalPass: 2,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        correctionScope: coverage.correctionScope,
+        policyVersion: requirement.policyVersion,
+      },
+      requirement,
+    };
+
+    await expect(resolveEvidenceBoundReviewPolicy({
+      schemaVersion: 1,
+      target: { repository: "local/repo-1", pullRequest: null, headSha: currentTarget.headSha },
+      lane: "standard",
+      frontlineActive: false,
+      standardReview,
+      completedPasses: 2,
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "clean",
+        reviewOperationId: current.producerId,
+      }],
+    }, {
+      sources: ["delegated-agent"],
+      maxPasses: 3,
+      resultReader: {
+        readResult: async (producerId) => producerId === predecessor.producerId
+          ? predecessor
+          : current,
+      },
+      dispositionStore: dependencies(predecessor).dispositionStore,
+      confirmTarget: async () => currentTarget,
+      confirmIncrementalApplicability: async (earlier, later) => (
+        earlier.admission.lineage.kind === "head-bound"
+          && later.admission.lineage.kind === "head-bound"
+          && earlier.admission.lineage.vehicleKind === later.admission.lineage.vehicleKind
+          && earlier.admission.lineage.vehicleIdentity === later.admission.lineage.vehicleIdentity
+          ? "applicable"
+          : "unavailable"
+      ),
+    })).resolves.toMatchObject({
+      state: "pass-complete",
+      payload: { verifiedTerminalSignal: { coverageAdequate: true } },
+    });
+  });
+
+  it("does not offer correction coverage over an unreadable predecessor chain", async () => {
+    const predecessor = incrementalLocalResult();
+    const currentTarget = target(objectId("c"));
+
+    await expect(resolveLocalReviewCoverageSelection({
+      policy: readyPolicy(currentTarget.headSha),
+      target: currentTarget,
+      sourceId: "delegated-agent",
+      lineage,
       standardReview,
       predecessorOperationId: predecessor.producerId,
     }, dependencies(predecessor))).resolves.toMatchObject({

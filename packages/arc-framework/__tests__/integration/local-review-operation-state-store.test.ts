@@ -22,6 +22,7 @@ import {
   acknowledgeHostedRequest,
   bindHostedAttemptDisposition,
   hostedLaneAttemptId,
+  laneProgressOperationId,
   recordHostedAwaitAttempt,
   recordHostedRequestAdmission,
   readHostedAwaitReplay,
@@ -66,7 +67,7 @@ async function fixture() {
   return { root, commonDir, exec, store, state };
 }
 
-async function acknowledgedHostedFixture() {
+async function admittedHostedFixture() {
   const records = await fixture();
   const handle = createHostedHandleFixture();
   const decision = await recordHostedRequestAdmission(records.store, {
@@ -85,12 +86,24 @@ async function acknowledgedHostedFixture() {
     now: "2026-08-15T11:59:00Z",
   });
   if (decision.state !== "admitted") throw new Error("expected hosted admission");
+  const { state } = await records.store.readOperation(laneProgressOperationId({
+    lane: "standard",
+    repositoryId: handle.admission.repositoryId,
+    headSha: handle.target.headSha,
+    lineage: handle.admission.lineage,
+  }));
+  if (state === null || state.kind !== "lane-progress") throw new Error("expected hosted lane progress");
+  return { ...records, handle, admission: decision.admission, progress: state };
+}
+
+async function acknowledgedHostedFixture() {
+  const records = await admittedHostedFixture();
   const progress = await acknowledgeHostedRequest(records.store, {
-    admission: decision.admission,
-    handle,
+    admission: records.admission,
+    handle: records.handle,
     now: "2026-08-15T11:59:30Z",
   });
-  return { ...records, handle, progress };
+  return { ...records, progress };
 }
 
 async function sealedHostedFixture() {
@@ -244,6 +257,61 @@ describe("local review operation state authority", () => {
       outcome: "clean",
     }, 0)).rejects.toThrow(/version-conflict/u);
     await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(before);
+  });
+
+  it("rejects a fresh schema-valid terminal hosted attempt without durable admission history", async () => {
+    const admitted = await admittedHostedFixture();
+    const pending = admitted.progress.attempts[0];
+    if (pending?.hosted === undefined) throw new Error("expected pending hosted attempt");
+    const terminal = createHostedTerminalAttemptFixture({
+      admission: pending.hosted.admission,
+      outcome: "clean",
+    });
+    const forged = {
+      ...admitted.progress,
+      updatedAt: "2026-08-15T12:00:00Z",
+      completedPasses: 1,
+      attempts: [{
+        ...pending,
+        attemptId: terminal.attemptId,
+        terminalProducer: true,
+        outcome: "clean" as const,
+        hosted: terminal.hosted,
+      }],
+    };
+    const fresh = await fixture();
+
+    await expect(fresh.store.publishOperation(forged, 0))
+      .rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(fresh.store.readOperation(forged.operationId)).resolves.toEqual({
+      version: 0,
+      state: null,
+    });
+  });
+
+  it("rejects sealing an unacknowledged hosted admission in the same publication", async () => {
+    const records = await admittedHostedFixture();
+    const before = await records.store.readOperation(records.progress.operationId);
+    const pending = records.progress.attempts[0];
+    if (pending?.hosted === undefined) throw new Error("expected pending hosted attempt");
+    const terminal = createHostedTerminalAttemptFixture({
+      admission: pending.hosted.admission,
+      outcome: "clean",
+    });
+
+    await expect(records.store.publishOperation({
+      ...records.progress,
+      updatedAt: "2026-08-15T12:00:00Z",
+      completedPasses: 1,
+      attempts: [{
+        ...pending,
+        attemptId: terminal.attemptId,
+        terminalProducer: true,
+        outcome: "clean",
+        hosted: terminal.hosted,
+      }],
+    }, before.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.progress.operationId)).resolves.toEqual(before);
   });
 
   it("rejects a schema-valid rewrite that removes sealed hosted evidence", async () => {

@@ -61,7 +61,7 @@ import {
   deriveLocalReviewTarget,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import {
-  recordLaneAttempt,
+  laneProgressOperationId,
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import {
@@ -96,7 +96,10 @@ import {
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
 import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
-import { createHostedTerminalAttemptFixture } from "../fixtures/hosted-review.js";
+import {
+  createHostedTerminalAttemptFixture,
+  publishHostedTerminalProgressFixture,
+} from "../fixtures/hosted-review.js";
 import {
   responsePolicyRequest,
   responsePolicyRequestFixture,
@@ -1517,16 +1520,21 @@ describe("review-fix Candidate lineage", () => {
       findings: [finding],
     });
     const { attemptId } = terminal;
-    const operation = await recordLaneAttempt(operationStore, {
-      lane: "standard",
+    const operation = await publishHostedTerminalProgressFixture(operationStore, {
+      operationId: laneProgressOperationId({
+        lane: "standard",
+        repositoryId,
+        headSha: originTarget.headSha,
+        lineage: admission.lineage,
+      }),
       repositoryId,
       changeRequestId: "pull/42",
       headSha: originTarget.headSha,
-      attemptId,
+      lineage: admission.lineage,
+      logicalPass: 1,
       sourceId: "codex-pr",
       outcome: "findings",
-      consumedPass: true,
-      hosted: terminal.hosted,
+      terminal,
       now: "2026-08-19T12:00:00Z",
     });
     const source = {
@@ -2149,16 +2157,21 @@ describe("routed review obligation", () => {
         carriedFromDispositionSetId: null,
       }],
     });
-    await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
-      lane: "standard",
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
+      operationId: laneProgressOperationId({
+        lane: "standard",
+        repositoryId,
+        headSha: approvedHead,
+        lineage: admission.lineage,
+      }),
       repositoryId,
       changeRequestId: "pull/42",
       headSha: approvedHead,
-      attemptId: terminal.attemptId,
+      lineage: admission.lineage,
+      logicalPass: 1,
       sourceId: "codex-pr",
       outcome: "settled-findings",
-      consumedPass: true,
-      hosted: terminal.hosted,
+      terminal,
       now: "2026-08-16T12:00:00Z",
     });
 
@@ -2227,18 +2240,21 @@ describe("routed review obligation", () => {
       admission,
       outcome: "clean",
     });
-    await recordLaneAttempt(operationStore, {
-      lane: "standard",
+    await publishHostedTerminalProgressFixture(operationStore, {
+      operationId: laneProgressOperationId({
+        lane: "standard",
+        repositoryId,
+        headSha: approvedHead,
+        lineage: admission.lineage,
+      }),
       repositoryId,
       changeRequestId: "pull/42",
       headSha: approvedHead,
-      lineage: { kind: "candidate", candidateId: priorCandidateId },
+      lineage: admission.lineage,
       logicalPass: 2,
-      attemptId: terminal.attemptId,
       sourceId: "codex-pr",
       outcome: "clean",
-      consumedPass: true,
-      hosted: terminal.hosted,
+      terminal,
       now: "2026-08-28T12:00:00Z",
     });
 

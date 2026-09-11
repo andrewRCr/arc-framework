@@ -86,6 +86,13 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 - Require advisory planning/criteria reviews to produce code-review receipts or use code-review response machinery.
 - Turn author self-review into a producer-backed review lane or add a public rendering command for its findings.
 
+Amended 2026-09-11 — Permit carrier-relative incremental proof for existing review sources: ARC retains one exact
+internal correction scope, exact-capable local carriers receive that scope directly, and a hosted provider may
+establish incremental coverage through authenticated native baseline-and-generation evidence. This narrows the
+provider-capability non-goal without adding a provider-selection, configuration, or storage axis. — Prompted by
+terminal adversarial review and Owner clarification that rejecting CodeRabbit's ordinary incremental review would
+defeat the work unit's cost and continuation goals.
+
 ## Proposed Design
 
 ### 1. Give `withstood` one advisory meaning
@@ -517,6 +524,22 @@ finding instruction list; its label alone therefore cannot establish the require
 may be triaged and counted but cannot close coverage without an established source-specific scope binding. Return
 the existing capable-source/complete-coverage selection action; do not silently launch a complete review or add an
 unproven provider capability. Contribution applicability establishes retained code, not evaluator scope.
+
+**Amended 2026-09-11 — carrier-relative hosted proof.** Keep the source-neutral exact correction scope in ARC's hosted
+admission even when the carrier cannot accept arbitrary endpoints or a material-finding instruction list. CodeRabbit's
+native incremental command establishes coverage only when authenticated provider evidence binds its reviewed baseline
+and terminal generation to the admitted predecessor and current exact head. This supersedes the blanket CodeRabbit
+rejection above: the native range is carrier-relative proof of the internal scope, not a claim that ARC transported its
+instruction list. Missing, ambiguous, overlapping, or mismatched provider history returns the existing capable-source
+or complete-coverage selection rather than silently launching or crediting a complete review.
+
+Separate ARC's exact required correction scope, the carrier's invocation mode, and the effective coverage established
+by evidence. Exact-capable delegated local review receives the admitted endpoints and material-finding instructions
+directly. Provider-native hosted review retains them internally and proves the corresponding range through its
+authenticated provider generation. Frontline remains whole-target unless its execution contract later gains
+exact-scope support. A different, missing, or non-comparable provider baseline cannot establish the admitted scope.
+Required material finding identities remain in the internal scope and cannot be dropped merely because the provider
+owns range selection.
 
 An admitted local correction operation owns reachability for every required correction endpoint during its existing
 materialization lifetime, including a nonancestor prior head after amend/rebase. Extend existing pin verification,
@@ -1010,6 +1033,14 @@ Rejected. It overstates what was reviewed. A current correction result can close
 prior coverage basis and re-examination of the material responses. Otherwise it contributes scoped evidence and
 returns a coverage-selection action. No historical material finding is erased by settlement or by a narrow review.
 
+### Require every incremental carrier to accept ARC-authored endpoints and finding instructions
+
+Rejected. That transport is the strongest and preferred proof for delegated local review, but it would disable the
+ordinary hosted incremental path used by providers whose API owns the reviewed delta. Retain ARC's exact internal
+scope while allowing a registered hosted adapter to prove a carrier-native baseline and terminal generation. This
+does not trust an `incremental` label alone: missing or intervening provider history fails closed to a capable source
+or complete coverage.
+
 ### Preserve labels in the canonical disposition item
 
 Rejected. Navigation metadata describes the provider result, not ARC's judgment. Joining by the durable finding ID
@@ -1108,6 +1139,9 @@ evidence semantics, while mutable operational progress remains non-evidentiary. 
 to make that distinction explicit. Candidate/publication projections retain their existing tracked storage and
 version checks; this work does not relocate them.
 
+The 2026-09-11 carrier-relative amendment keeps exact hosted correction scope and provider-native range evidence in the
+existing admitted hosted attempt and sealed-result identity; it creates no other store, ledger, or configuration mode.
+
 ### Compatibility and migration
 
 All affected contracts are unpublished strict-current baselines. Update repository-owned callers, fixtures,
@@ -1179,6 +1213,9 @@ mechanical continuation introduces no new permission turn.
 - Coverage cases prove complete basis plus a fresh bounded correction can converge, incremental-only evidence cannot,
   historical materiality is not a lifetime maximum, unreviewed material loci cannot disappear from scope, and missing,
   stale, cyclic, incompatible, or interrupted predecessor history cannot manufacture complete coverage.
+- Carrier-relative amendment cases prove CodeRabbit's authenticated native predecessor-to-current range can satisfy
+  the retained internal correction scope, while missing, newer, overlapping, or mismatched provider generations fall
+  back without claiming coverage.
 - Member scenarios replay the captured five-pass finding sequence `6, 7, 5, 2, 3`, a sibling clean after one pass,
   and the local incremental pass previously mislabeled complete. Material settlement keeps the first member
   outstanding; a valid fresh signal advances it; Owner acceptance remains a distinct exact-member route.
@@ -1334,6 +1371,10 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
 24. Shipped `review-response` guidance exposes the fresh-proposal/fresh-approval supersession path, returned carry/reopen
     work, replay and refusal behavior, and the bounded expected-dirty-worktree rule without requiring direct state
     surgery or caller-invented identities.
+25. CodeRabbit incremental correction coverage requires ARC's retained exact scope plus an authenticated provider-native
+    predecessor-to-current range bound to the admitted request generation. A label, missing or ambiguous range,
+    intervening generation, or mismatched baseline cannot establish coverage; local exact transport, Frontline
+    completeness, and explicit hosted complete upgrades retain their existing semantics.
 
 ## Open Questions
 

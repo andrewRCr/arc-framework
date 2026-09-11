@@ -7,6 +7,7 @@ import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import type {
   ApprovedDispositionRecordStore,
   ReviewResultReader,
@@ -30,6 +31,8 @@ import type {
   StandardReviewReservationTarget,
   StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
+import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
+import type { ReviewResult } from "../core/review-result.js";
 
 /** Per-lane scope, invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
@@ -164,6 +167,7 @@ export interface PrePublicationCompositionDependencies {
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
+  readResponsePerformance(predecessor: ReviewResult): Promise<LaneResponsePerformance | null>;
 }
 
 export interface PrePublicationCompositionInput {
@@ -480,6 +484,13 @@ export async function composePrePublicationReviewRequest(
       maxPasses: policy.maxPasses,
       resultReader: dependencies.resultReader,
       dispositionStore: dependencies.dispositionStore,
+      readResponsePerformance: (predecessor) => dependencies.readResponsePerformance(predecessor),
+      confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
+        predecessor.repositoryId === current.repositoryId
+          && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+          ? "applicable" as const
+          : "unavailable" as const,
+      ),
       confirmTarget: () => exactTarget === null
         ? Promise.reject(new Error("terminal review progress requires a current exact review target"))
         : Promise.resolve(exactTarget),

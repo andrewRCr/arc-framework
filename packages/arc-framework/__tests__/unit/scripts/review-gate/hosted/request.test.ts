@@ -21,6 +21,14 @@ import {
   "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 const HEAD = "a".repeat(40);
+const CORRECTION_SCOPE = {
+  schemaVersion: 1 as const,
+  predecessorProducerId: "prior-review",
+  predecessorHeadSha: "9".repeat(40),
+  basisHeadSha: "8".repeat(40),
+  headSha: HEAD,
+  requiredFindings: [],
+};
 const STANDARD_REVIEW = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set" as const],
@@ -102,6 +110,7 @@ function admittedRequest(
     sourceId: request.provider,
     target: request.target,
     requestedCoverage: request.coverage,
+    ...(request.correctionScope === undefined ? {} : { correctionScope: request.correctionScope }),
     ...(vehicle === undefined ? {} : { vehicle }),
     reviewTarget,
     requirement,
@@ -128,6 +137,26 @@ function adapter(
 }
 
 describe("hosted review request", () => {
+  it("binds incremental requests to one exact correction scope", () => {
+    const incremental = {
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "incremental",
+    };
+
+    expect(() => HostedRequestEnvelopeSchema.parse(incremental)).toThrow(/correction scope/u);
+    expect(HostedRequestEnvelopeSchema.parse({
+      ...incremental,
+      correctionScope: CORRECTION_SCOPE,
+    })).toMatchObject({ correctionScope: CORRECTION_SCOPE });
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      ...incremental,
+      coverage: "complete",
+      correctionScope: CORRECTION_SCOPE,
+    })).toThrow(/correction scope/u);
+  });
+
   it("returns a deterministic resumable handle for an acknowledged request", async () => {
     const input = {
       schemaVersion: 1,
@@ -564,6 +593,7 @@ describe("hosted review request", () => {
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr",
       coverage: "incremental",
+      correctionScope: CORRECTION_SCOPE,
     }, { adapters: [] });
 
     expect(result).toEqual({
@@ -583,6 +613,7 @@ describe("hosted review request", () => {
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr" as const,
       coverage: "incremental" as const,
+      correctionScope: CORRECTION_SCOPE,
     };
     const unavailable = await requestHostedReview(base, {
       adapters: [adapter(async () => ({ kind: "rate-limited" }))],

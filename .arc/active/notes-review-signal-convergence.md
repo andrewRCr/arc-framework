@@ -1,6 +1,320 @@
 # Notes: Review Signal Convergence
 
-## Member 7 primary criteria report — 2026-09-11
+## Contents
+
+### Terminal verification
+
+- [Terminal adversarial review and carrier-relative amendment](#terminal-adversarial-review-and-carrier-relative-amendment)
+- [Member 6 terminal supplemental criteria report](#member-6-terminal-supplemental-criteria-report)
+- [Terminal work-unit criteria report](#terminal-work-unit-criteria-report)
+
+### Delivery-member verification
+
+- [Member 7 primary criteria report](#member-7-primary-criteria-report)
+- [Member 6 corrected primary criteria report](#member-6-corrected-primary-criteria-report)
+- [Member 5 corrected criteria report](#member-5-corrected-criteria-report)
+- [Member 5 initial criteria report](#member-5-initial-criteria-report)
+- [Member 4 criteria report](#member-4-criteria-report)
+- [Member 3 criteria report](#member-3-criteria-report)
+- [Member 2 criteria report](#member-2-criteria-report)
+- [Member 1 criteria report](#member-1-criteria-report)
+
+### Behavioral evidence
+
+- [Advisory-loop behavioral exercises](#advisory-loop-behavioral-exercises)
+- [Finding-report and author-self-review behavioral exercises](#finding-report-and-author-self-review-behavioral-exercises)
+- [Empirical context](#empirical-context)
+- [Cap-boundary rationale](#cap-boundary-rationale)
+- [PR-size evaluation and planning pause](#pr-size-evaluation-and-planning-pause)
+- [Behavioral evidence for a contradicted `withstood` claim](#behavioral-evidence-contradicted-withstood-claim)
+
+### Planning and grounding record
+
+- [Planning finalization](#planning-finalization)
+- [Canonical delivery authoring](#canonical-delivery-authoring)
+- [Task-suite adversarial review](#task-suite-adversarial-review)
+- [Conditional-override grounding correction](#conditional-override-grounding-correction)
+- [Convergence-signal amendment](#convergence-signal-amendment)
+- [Suite coherence after grounding](#suite-coherence-after-grounding)
+- [Publication-continuation grounding disposition](#publication-continuation-grounding-disposition)
+- [Incremental-review grounding disposition](#incremental-review-grounding-disposition)
+- [Evidence-driven convergence grounding disposition](#evidence-driven-convergence-grounding-disposition)
+- [Verified finding-report grounding disposition](#verified-finding-report-grounding-disposition)
+- [Sealed review-evidence grounding disposition](#sealed-review-evidence-grounding-disposition)
+- [Changeset advisory and sizing judgment](#changeset-advisory-and-sizing-judgment)
+- [Native review-admission grounding and sizing](#native-review-admission-grounding-and-sizing)
+- [Review-vocabulary grounding disposition](#review-vocabulary-grounding-disposition)
+- [Content-fill readiness and budget reconciliation](#content-fill-readiness-and-budget-reconciliation)
+- [Reduced structural pass](#reduced-structural-pass)
+- [Bounded proportionality assessment](#bounded-proportionality-assessment)
+- [Structural task pass](#structural-task-pass)
+- [Consolidated planning baseline](#consolidated-planning-baseline)
+- [Amended-spec adversarial review](#amended-spec-adversarial-review)
+- [Forward-compatibility amendment](#forward-compatibility-amendment)
+- [Spec amendment candidate](#spec-amendment-candidate)
+- [Resume assessment](#resume-assessment)
+
+## Terminal adversarial review and carrier-relative amendment
+
+Pass 1 used three independent read-only reviewers over Members 1–3, 4–5, and 6–7, followed by a fresh aggregate
+reviewer over the complete member union and named seams. The aggregate confirmed five material findings and no other
+seam defect: hosted terminal state could bypass durable admission/acknowledgment; Candidate fix performance was omitted
+from incremental predecessor evidence; a new correction scope could copy an invalid predecessor chain; CodeRabbit's
+native incremental carrier was rejected categorically; and the publication-spine assertion committed readiness before
+publication rather than proving one clean projection commit afterward.
+
+The complete disposition set was approved. The first three findings reuse existing operation, response-performance,
+and recursive coverage-chain records rather than introducing new state. The fourth prompted the dated spec amendment:
+ARC retains one exact correction scope; delegated local review transports it directly; CodeRabbit retains it in the
+existing hosted admission and may establish coverage only through its authenticated app-owned predecessor-to-current
+range within the admitted request generation. Labels, missing or ambiguous ranges, intervening requests, and baseline
+mismatches fail closed. This adds no provider-selection, configuration, or storage axis and preserves complete fallback,
+Frontline completeness, and Codex's explicit complete upgrade. The fifth assertion now publishes before committing,
+then proves exactly one commit and a clean index without changing review accounting.
+
+Focused fail-first evidence reconstructed and rejected each prior behavior: fresh/seal-in-one hosted terminal writes,
+opposite-order approved disposition comparison, Candidate fix omission, unreadable incremental roots, CodeRabbit range
+mismatch/missing/ambiguity, and the pre-publication projection commit that left staged lifecycle changes. Corrected
+focused unit, integration, and E2E paths pass.
+
+Pass 2 used three new read-only reviewers over Members 1–3, 4–5, and 6–7, followed by a fourth fresh aggregate reviewer
+over the complete union and five named seams. The aggregate confirmed seven major findings and no additional distinct
+finding: same-timestamp CodeRabbit request generations could overlap; authenticated provider range evidence was lost
+before sealing; inadequate native range evidence could deadlock instead of returning coverage selection; changed-head
+incremental evidence could be offered but not credited; retained incremental terminals were excluded from discharge;
+hosted Errand results became unreadable after head movement; and response-performance supersession conflicted with the
+single stored response slot. The complete disposition set was approved before the seven responses were applied.
+
+The corrections bind request artifacts to one provider generation, carry provider range evidence through the sealed
+result and digest, retain unestablished terminal results while withholding effective coverage, and return typed
+capable-source or complete-coverage choices. Fresh current-applicability checks now reach local preparation,
+prepublication, public status, and capacity-spend admission. Retained terminal policy can discharge a valid incremental
+chain, select coverage for an inadequate chain, or continue after a performed material response. Stable owner matching
+keeps moved-head Errand evidence readable while preserving exact producer/head identity. Response-performance history
+is append-only and permits one approved successor without reviving the predecessor. The requested reducer-order
+regression proves opposite finding-array orders validate while identity, severity, nit, and locus mismatches fail closed.
+
+The Heavy-class allowance ended at Pass 2, so no third adversarial pass was run. Primary verification of the approved
+responses includes focused unit and real-store coverage, the real delivery and Errand continuations, the full composed
+suite, and the terminal criteria walk below; it does not relabel the cap-exhausted adversarial result as clean.
+
+## Member 6 terminal supplemental criteria report
+
+The dated carrier-relative amendment inserted a new third criterion after the historical Member 6 report. That report
+remains unchanged as boundary evidence; this supplemental walk binds all four current loci and the approved terminal
+dependency explicitly.
+
+```yaml
+criteria-slice: "Success Criteria > Member 6 — `incremental-review-convergence`"
+span:
+  diff: >-
+    Original Member 6 diff c94f58f893e6a8da29b1e1288c906e18235722a2..586278aa8f6f9704fbba95aa78c7443bddc9240c
+    plus the approved Task 8.1 correction delta in the complete work-unit diff against main.
+  reachability: >-
+    Current reconciled worktree rooted at WU head 4e2c42bc492ab5180e6836c9b2ad75ebaa8f402f plus main
+    7b00c0a627683b606f1738d9c1872bd16490502f, including hosted request/await adapters, immutable result reads,
+    applicability and coverage reducers, lane-owner and response-performance state, status/admission callers, and the
+    focused, integration, delivery, and Errand scenarios.
+  boundary-order-deviation: >-
+    Approved 2026-09-11 terminal carrier-relative amendment and Task 8.1 finding responses. The later dependency is
+    confined to hosted range proof, current applicability, retained-terminal discharge, stable Errand ownership, and
+    response-performance succession; the original bounded Member 6 diff remains its historical span.
+criteria:
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 1"
+    criterion-digest: sha256:96cf4da9b011dd52bc7c2d97ac6d2f94c6583ff70c0573d0a78da914887bf07b
+    evidence: >-
+      `resolveIncrementalCoverageBasis` retains the newest compatible predecessor and recursively validates its complete
+      chain, performed responses, producer-qualified material instructions, and fresh current applicability. Missing,
+      cyclic, gapped, stale, incompatible, or unconfirmed history refuses. Local, Candidate, delivery, and moved-head
+      Errand tests cover adequate and inadequate chains without carrying a lifetime severity maximum.
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 2"
+    criterion-digest: sha256:9829e5cbbaf49984b5c64d8bef9fa2ff3d21b92f6084bb77e865f2ad1411c52c
+    evidence: >-
+      `IncrementalReviewScopeSchema` and local materialization carry exact predecessor, basis, current endpoints, and
+      producer-qualified finding instructions. Hosted admission retains the same internal scope, refuses labels without
+      proof, and preserves truthful requested/effective coverage; Codex complete upgrades and Frontline completeness
+      remain distinct. Typed selection returns capable incremental and complete choices without launching either.
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 3"
+    criterion-digest: sha256:1982e2693a4b13c94efb9e70adfdec367584ec5a199079ebe33f2aa4388fb533
+    evidence: >-
+      CodeRabbit request artifacts bind an authenticated provider generation. Await normalizes the app-owned baseline
+      and terminal generation, rejects ambiguous, overlapping, intervening, missing, or mismatched history, and seals
+      the established or unestablished evidence into immutable result identity. Only established evidence yields
+      effective incremental coverage; otherwise the terminal result remains triageable and returns coverage selection.
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 4"
+    criterion-digest: sha256:47b4cea150c523143cd3dfb85b566323a264d51123034c55da103d46d1d2be28
+    evidence: >-
+      Hosted discharge admits current and retained terminals to the same verified policy, advances only after a fresh
+      adequate no-material result, and continues after a performed material response. Stable lane owners preserve exact
+      attempt heads and approved response history through movement. Multi-pass, one-pass sibling, Owner-terminus,
+      ceiling, delivery-position, and real Errand scenarios keep the four progression authorities distinct.
+    state: "[x]"
+summary: "4 [x], 0 [~], 0 [ ]; no unresolved current Member 6 criterion"
+```
+
+## Terminal work-unit criteria report
+
+```yaml
+criteria-slice: "Success Criteria (recorded member groups plus Cross-member seams)"
+span:
+  diff: >-
+    Complete 235-path work-unit diff against reconciled main 7b00c0a627683b606f1738d9c1872bd16490502f,
+    including the approved Task 8.1 spec amendment and finding responses.
+  reachability: >-
+    Complete current work-unit tree rooted at 4e2c42bc492ab5180e6836c9b2ad75ebaa8f402f with the clean no-commit
+    merge of main, all seven member implementations, installed package/project copies, generated schema contracts,
+    public callers, immutable stores, and unit/integration/E2E verification.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 1 — `review-vocabulary` > 1"
+    criterion-digest: sha256:1543a1cde3cf7faf5abe1ba0afc4956e6475a2effbbeb96f3eb41d875ff974be
+    evidence: "Carried from the exact Member 1 report; terminal source and generated-schema sweeps found no regression."
+    state: "[x]"
+  - locus: "Success Criteria > Member 1 — `review-vocabulary` > 2"
+    criterion-digest: sha256:442ee85fd4b1b288dc03c69cd76f9d697447ab77a99bdbc3a970f1dfd7fb8c80
+    evidence: "Carried from the exact Member 1 report; method parity, bounded exercises, and cap cases remain green."
+    state: "[x]"
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 1"
+    criterion-digest: sha256:914b199099bd86543779aab8a167c6a0e3641df214b07cceca1411a326e5d393
+    evidence: "Carried from the exact Member 2 report; native admission and replay tests remain green in the union."
+    state: "[x]"
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 2"
+    criterion-digest: sha256:31a90bb5d460853094167d60867c39f4df30c6412d1166ddd26f917bc16835da
+    evidence: "Carried from the exact Member 2 report; request-before-effect and acknowledged replay remain closed."
+    state: "[x]"
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 3"
+    criterion-digest: sha256:8619bd5e9363aa4bfb521c86d58fe64c6f45232d335d4f01d8c6db0a927a0ca1
+    evidence: "Carried from the exact Member 2 report; final lane history and status preserve both coverage counts."
+    state: "[x]"
+  - locus: "Success Criteria > Member 2 — `native-review-admission` > 4"
+    criterion-digest: sha256:09be87242667f8d03b08830a7a427a55f1d31dcd42e9612363dc9d200b778d44
+    evidence: "Carried from the exact Member 2 report; fallback, retry, partial, replay, and ceiling cases remain green."
+    state: "[x]"
+  - locus: "Success Criteria > Member 3 — `sealed-review-evidence` > 1"
+    criterion-digest: sha256:c090a4b809543cccc4c3da6f27b0994879353bff5519f16f0c1a76aacc5711cf
+    evidence: >-
+      Carried from the exact Member 3 report; terminal Pass 2 added request-generation and provider-proof sealing while
+      preserving immutable replay, direct-rewrite refusal, and concurrent publication coverage.
+    state: "[x]"
+  - locus: "Success Criteria > Member 3 — `sealed-review-evidence` > 2"
+    criterion-digest: sha256:b3ff98f678fba7c27cc3c726ec76ad19684f5d034f29956957e4425ad377b1b7
+    evidence: >-
+      Carried from the exact Member 3 report; the opposite-order regression validates complete approved sets while
+      genuine identity, severity, nit, and locus mismatches still fail closed.
+    state: "[x]"
+  - locus: "Success Criteria > Member 4 — `verified-finding-reports` > 1"
+    criterion-digest: sha256:994cd8da047cf97934a67894d9067f79912a107758e3072048f324781642fc37
+    evidence: "Carried from the exact Member 4 report; verified-only gating remains intact across final reducers."
+    state: "[x]"
+  - locus: "Success Criteria > Member 4 — `verified-finding-reports` > 2"
+    criterion-digest: sha256:10c8991d086fa6be0d6216108a8dc2c1fe438938bdb7eed0b6836aeadfb8511e
+    evidence: "Carried from the exact Member 4 report; command rendering and native navigation tests remain green."
+    state: "[x]"
+  - locus: "Success Criteria > Member 4 — `verified-finding-reports` > 3"
+    criterion-digest: sha256:9cabbbd8352006e49e131e6567d554d84bdbb8db63bb12405f9e8dcc1692cd3b
+    evidence: "Carried from the exact Member 4 report; identity/style and non-producer self-review boundaries hold."
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 1"
+    criterion-digest: sha256:30527c7aedda94a87a8a807186d4d81951c510211f6fb9d3055758176d02ac96
+    evidence: "Carried from the corrected Member 5 report; all durable lane readers remain source- and set-bound."
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 2"
+    criterion-digest: sha256:95a84466d93d1ca23e6362b2c9263b4c8d6bac262c9a51f6d148505e5e388438
+    evidence: "Carried from the corrected Member 5 report; final current/retained discharge uses verified signal only."
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 3"
+    criterion-digest: sha256:f703750477899e20ca683d5b77d608c1e452c6f62e924cced7c60bdd70f103d0
+    evidence: "Carried from the corrected Member 5 report; response-first continuations and typed actions remain live."
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 4"
+    criterion-digest: sha256:5b286e7602fb54e6f80f7c4014ddcf8bedb864ca56dbe5feda6369fca9b00318
+    evidence: "Carried from the corrected Member 5 report; conditional authority remains exact and single-use."
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 5"
+    criterion-digest: sha256:ea88c98ba5ee7051f8e00844c10cc6f9732a94cddb3ba6050f7aadb819b811dc
+    evidence: >-
+      Carried from the corrected Member 5 report; stable owner locking and append-only response-performance succession
+      close the final cross-head concurrency gap without reviving predecessor authority.
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 6"
+    criterion-digest: sha256:52a4875484818508b8634a6e5d56a9ae213290f6de93c6f82d25405daf857a0d
+    evidence: "Carried from the corrected Member 5 report; response evidence joins provider actions in either order."
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 7"
+    criterion-digest: sha256:3f5d65a8b34bcbb5c34b1c9c4e1606ba9e6385ca20dc08940d0a55d4095a0f58
+    evidence: "Carried from the corrected Member 5 report; both installed response-method copies retain exact parity."
+    state: "[x]"
+  - locus: "Success Criteria > Member 5 — `evidence-driven-convergence` > 8"
+    criterion-digest: sha256:e8f33a1a6a00e51055aaba77d28f911b22a24d971087c65f2a8e98cf9884c116
+    evidence: >-
+      Carried from the corrected Member 5 report; moved-target Candidate, delivery, and Errand scenarios preserve
+      applicability, typed coverage recovery, first-outstanding order, and exact Owner authority.
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 1"
+    criterion-digest: sha256:96cf4da9b011dd52bc7c2d97ac6d2f94c6583ff70c0573d0a78da914887bf07b
+    evidence: "Carried from the terminal supplemental Member 6 report; no union regression found."
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 2"
+    criterion-digest: sha256:9829e5cbbaf49984b5c64d8bef9fa2ff3d21b92f6084bb77e865f2ad1411c52c
+    evidence: "Carried from the terminal supplemental Member 6 report; no union regression found."
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 3"
+    criterion-digest: sha256:1982e2693a4b13c94efb9e70adfdec367584ec5a199079ebe33f2aa4388fb533
+    evidence: "Carried from the terminal supplemental Member 6 report and approved carrier-relative amendment."
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 4"
+    criterion-digest: sha256:47b4cea150c523143cd3dfb85b566323a264d51123034c55da103d46d1d2be28
+    evidence: "Carried from the terminal supplemental Member 6 report; no union regression found."
+    state: "[x]"
+  - locus: "Success Criteria > Member 7 — `publication-continuation` > 1"
+    criterion-digest: sha256:ac495ff5f37d3bc7fc26112c07afa81032f11f3813ce6b4fc188808019c05f81
+    evidence: "Carried from the exact Member 7 report; final publication E2E still proves one clean projection commit."
+    state: "[x]"
+  - locus: "Success Criteria > Member 7 — `publication-continuation` > 2"
+    criterion-digest: sha256:403f22de3c38ca2497eccd00e7ee6db410421e30a3eb0c48e000aa978279ee6c
+    evidence: "Carried from the exact Member 7 report; repair, ordering, stale-replay, and reroute cases remain green."
+    state: "[x]"
+  - locus: "Success Criteria > Cross-member seams > 1"
+    criterion-digest: sha256:fcc96d2c8c4b45a789fddc67619d2c6b4f7374c4dbbaf842219d17a40e65c266
+    evidence: >-
+      Public local, hosted, Candidate, delivery, Errand, and publication paths consume returned actions and opaque
+      durable references. Caller-inventory and real CLI scenarios reject reconstructed producer, digest, counter,
+      severity, target, or continuation authority.
+    state: "[x]"
+  - locus: "Success Criteria > Cross-member seams > 2"
+    criterion-digest: sha256:e87a239ff200a20d907b038fbe5aaca8e3ee7d07f2d6aaa08bb8bfdbdfc35b81
+    evidence: >-
+      The canonical caller inventory covers every mandatory lifecycle. Review fan-out, Candidate lineage, delivery
+      position, Errand, response, and publication E2Es exercise each production caller at its owning member; terminal
+      work contains only approved review corrections and verification.
+    state: "[x]"
+  - locus: "Success Criteria > Cross-member seams > 3"
+    criterion-digest: sha256:e269da2d82d72555ef3ae466e5285ed97cd0b933bf0ce1dcb6b912543e769f28
+    evidence: >-
+      Strict-current schemas and all repository callers typecheck together; generated schema tests, caller inventory,
+      ARC contract checks, installed fire-point tests, and package/project methodology parity pass. No migration alias,
+      temporary convergence bypass, or compatibility reader appears in the complete diff.
+    state: "[x]"
+  - locus: "Success Criteria > Cross-member seams > 4"
+    criterion-digest: sha256:1ea4d51faae9eee4e2e26241f5c53a09252e4072cac5af386bf483ae843fc588
+    evidence: >-
+      Markdown and ARC contract lint, shell and TypeScript lint, both typechecks, 11,980 passing tests with one skipped,
+      and the production build all pass on the base-reconciled final code and documentation.
+    state: "[x]"
+  - locus: "Success Criteria > Cross-member seams > 5"
+    criterion-digest: sha256:58db93fe39223454b81347ff1a639f8238086deb7e85ae3c3f70a2bbbc6c04d1
+    evidence: >-
+      The complete diff is reconciled with current main, every member and seam is resolved, top-level fail-first tests
+      cover immutable evidence, verified convergence, incremental chains, response ordering, member progression, and
+      publication re-entry, and no essential intent is deferred or unowned.
+    state: "[x]"
+summary: "30 [x], 0 [~], 0 [ ]; no unresolved work-unit criterion or integration seam"
+```
+
+## Member 7 primary criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 7 — `publication-continuation`"
@@ -44,7 +358,7 @@ The Heavy-class companion was offered through the developer's standing judgment 
 The immediately following whole-work-unit verification will re-resolve every recorded member report and the
 cross-member publication seam; the primary walk already includes real CLI re-entry plus three interrupted-write seams.
 
-## Member 6 corrected primary criteria report — 2026-09-11
+## Member 6 corrected primary criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 6 — `incremental-review-convergence`"
@@ -269,7 +583,7 @@ verdict: >-
   responses are complete; the corrected tree passed the complete Tier 2 gate.
 ```
 
-## Member 5 corrected criteria report — 2026-09-10
+## Member 5 corrected criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 5 — `evidence-driven-convergence`"
@@ -395,7 +709,7 @@ verdict: >-
   and the corrected primary criteria walk above supplies the boundary evidence without claiming another adversarial pass.
 ```
 
-## Member 5 initial criteria report — 2026-09-10
+## Member 5 initial criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 5 — `evidence-driven-convergence`"
@@ -467,7 +781,7 @@ criteria:
 summary: "5 [x], 0 [~], 0 [ ]; no unresolved Member 5 criterion"
 ```
 
-## Member 4 criteria report — 2026-09-09
+## Member 4 criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 4 — `verified-finding-reports`"
@@ -658,7 +972,7 @@ output from evidence and independently reproduced the sole reported defect again
 fold therefore remains explicitly non-converged under the adversarial method; the resolved criteria states above rest
 on primary source validation plus observed verification, not on a clean adversarial attestation.
 
-## Member 3 criteria report — 2026-09-09
+## Member 3 criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 3 — `sealed-review-evidence`"
@@ -723,7 +1037,7 @@ Primary spot-checking confirmed the externally verifiable attention claims again
 replay-first resolver, the repository-common publisher transition validation, the source-neutral result reader and
 shared disposition validator, and the real-store interruption/concurrency tests.
 
-## Member 2 criteria report — 2026-09-09
+## Member 2 criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 2 — `native-review-admission`"
@@ -1009,7 +1323,7 @@ landed separately in `d598c9db4`. Focused verification passed 126 local transiti
 findings/settlement E2E and schema-surface integration. The complete Tier 2 gate passed 873 test files with one skipped
 and 11,627 tests with one skipped.
 
-## Member 1 criteria report — 2026-09-07
+## Member 1 criteria report
 
 ```yaml
 criteria-slice: "Success Criteria > Member 1 — `review-vocabulary`"
@@ -1072,7 +1386,7 @@ and the retained exercise outputs. The companion's focused test counts agree wit
 the member-boundary full suite independently passed 868 files with one intentional skip before this documentation-only
 closure.
 
-## Advisory-loop behavioral exercises — 2026-09-07
+## Advisory-loop behavioral exercises
 
 Four attended read-only evaluations ran in separate fresh contexts. Each evaluator received only the shipped
 `adversarial-review` method and its retained `scenario.md` / `exercise.md`; no evaluator received an `expected.md`,
@@ -1131,14 +1445,14 @@ existing advisory evidence. This creates no durable review-lane record.
 Observed adherence: pending permission remained unusable, withdrawal invalidated it, successful response performance
 enabled exactly the named pass once, and replay did not revive it. No behavior deviated from the corrected oracle.
 
-## Planning finalization — 2026-09-07
+## Planning finalization
 
 The settled task list and canonical delivery projection were approved for commit and activation. The temporary
 planning-draft banner is removed; task Goals, criteria, design bytes, and canonical delivery coverage are unchanged.
 The member-verifier heading mismatch is captured as a held Errand in the identity-global inbox. Earlier pending
 approval and no-commit statements below describe their recorded stages, not the current authorization.
 
-## Canonical delivery authoring — 2026-09-07
+## Canonical delivery authoring
 
 The task-derived plan is composed as revision 1, `stack-to-main`, with the same seven members and four named seams.
 Plan ID: `23a90e73-c8cd-4336-9b6f-0ae9acd2aaeb`.
@@ -1165,7 +1479,7 @@ conditional permission to say pending/unusable while unfinished, matching the ap
 All other task bodies and criterion text were preserved by rendering. Final checklist approval remains; no commit
 or activation has occurred.
 
-## Task-suite adversarial review — 2026-09-07
+## Task-suite adversarial review
 
 **Pass 1 of 2 — no findings; converged.** One fresh read-only reviewer applied the full-depth `task-audit` rubric
 to the complete spec and task list, inspecting source directly without historical notes or prior finding guidance.
@@ -1187,7 +1501,7 @@ Full Markdown lint passed on 684 files; ARC contract checks and task/design inve
 and criterion markers remain open. Canonical delivery authoring, post-render coherence, and the final checklist and
 approval ceremony remain. No canonical plan, implementation, activation, or commit was performed by this review.
 
-## Conditional-override grounding correction — 2026-09-07
+## Conditional-override grounding correction
 
 The two follow-up corrections were approved and folded into spec §§ 3/7, trust/testing/SC 4, and Tasks 1.3/5.3.
 Unfinished response work leaves conditional permission pending and unusable; it is not proof of invalidation.
@@ -1204,7 +1518,7 @@ that cannot resurrect permission. Advisory callers retain their existing evidenc
 This supersedes the amendment's unperformed-means-invalid wording and storage analogy below, while preserving its
 ergonomic intent. The whole-suite adversarial hold is released for the requested review; no commit is authorized.
 
-## Convergence-signal amendment — 2026-09-07
+## Convergence-signal amendment
 
 A review of the spec against the work unit's originating idea — review continues only while the signal stays strong —
 confirmed the idea is intact in § 3's convergence rule and § 6's reducer. Three corrections followed.
@@ -1254,7 +1568,7 @@ do not silently exclude tracked documentation or treat generated untracked schem
 Whole-suite adversarial review is explicitly held, not run or declined. Canonical delivery authoring and the final
 checklist/approval ceremony remain; no task-list finalization, commit, activation, or implementation is authorized.
 
-## Phase 7 grounding disposition
+## Publication-continuation grounding disposition
 
 The two approved interface decisions and recovery-test correction are folded into spec § 8 and Tasks 7.1–7.3.
 This closes the final substantive phase's planning disposition, not implementation or final task-list readiness.
@@ -1283,7 +1597,7 @@ staged through returned readiness and the existing publication commit. Earlier p
 and response continuation. This member preserves those results through publication rather than introducing another
 review decision algorithm.
 
-## Phase 6 grounding disposition
+## Incremental-review grounding disposition
 
 The three approved corrections are folded into spec § 5 and Tasks 6.1–6.4. Their planning disposition is closed;
 implementation remains unstarted. The existing result reader, applicability machinery, operation-owned pins, and
@@ -1313,7 +1627,7 @@ must prove the capable-source choice actually reaches the new payload rather tha
 Frontline remains complete, and hosted adapter limits/upgrades retain the settled spec behavior. These are existing
 task obligations made concrete by the source inventory, not additional scope or a new convergence rule.
 
-## Phase 5 grounding disposition and equivalent-head review reuse
+## Evidence-driven convergence grounding disposition
 
 The three approved Phase 5 corrections are folded into spec §§ 6–7 and Tasks 5.2–5.4. The historical-clean correction
 is explicitly bounded to preserve equivalent-head reuse and existing applicability judgment. This closes the
@@ -1357,7 +1671,7 @@ decision, not an automatic clean inference. The producer continues to describe i
 signal. Retaining an earlier material result does not establish convergence; exact-head merge authority and explicit
 Owner accepted-risk authority retain their own checks. Regression coverage preserves both reuse and refusal sides.
 
-## Phase 4 grounding disposition
+## Verified finding-report grounding disposition
 
 The three approved corrections are folded into spec §§ 4 and 7 and Tasks 4.1, 4.2, and 4.4. Their planning
 disposition is closed; no implementation is attested. The reporting member remains one coherent boundary, with no
@@ -1388,7 +1702,7 @@ Static command/workflow tests establish shape and order; bounded fresh-context e
 standalone narrative and the self-review approval path. Member 3 owns producer-bound approval, and Member 5 owns
 evidence-derived continuation; neither is deferred into or activated prematurely by reporting.
 
-## Phase 3 grounding disposition
+## Sealed review-evidence grounding disposition
 
 The three approved corrections are folded into spec § 5 and Tasks 3.1–3.3. Their planning disposition is closed;
 implementation and final suite review remain separate gates. The existing-store boundary and seven-member candidate
@@ -1437,7 +1751,7 @@ identity-global USER-INBOX, as an errand candidate subject to intake scope revie
 hatch nor depends on it. Final delivery planning must disclose the routing actually available at that time and seek
 direction if a preferred whole-target review cannot be expressed; no configured threshold is changed here.
 
-## Phase 2 grounding disposition and sizing
+## Native review-admission grounding and sizing
 
 The four approved Phase 2 corrections are folded into spec § 5, its tests/criteria, and Tasks 2.1–2.5. This closes
 their planning disposition, not implementation or delivery finalization. The seven-member cut remains provisional;
@@ -1503,7 +1817,7 @@ reservation, and fan-out fixtures; migrate shared shapes once. Do not split sche
 failed-retry behavior, or invent a replacement test framework to improve the estimate. A further delivery cut needs
 an independently valid contract boundary, not an arbitrary line-count division.
 
-## Phase 1 grounding disposition
+## Review-vocabulary grounding disposition
 
 The full-depth Phase 1 audit identified one major interface-boundary ambiguity in Task 1.1: rejection of the old ARC
 grade could be misread as renaming a provider wire contract. The approved correction is now in the spec and task:
@@ -1514,7 +1828,7 @@ not an old-record compatibility path. No other material Phase 1 finding was iden
 attest implementation. The embedded method prompt, direct planning/criteria callers, installation recipe, and existing
 contract-test surfaces were inspected without adding a new review or evaluation runtime.
 
-## Content-fill readiness — concrete budget reconciliation
+## Content-fill readiness and budget reconciliation
 
 The seven-member structure was accepted for content fill. Targeted fixture and caller inventories support retaining
 the cut without a new member or a scope reduction. The resulting task list has 34 parents: 26 substantive parents,
@@ -1575,7 +1889,7 @@ validation, local correction payloads, public re-entry, and publication repair a
 No implementation, activation, commit, or canonical delivery binding has occurred. The next gate is review of the
 content-filled draft before the per-phase grounding audit and final suite review.
 
-## Reduced structural pass — boundaries and budget
+## Reduced structural pass
 
 The 2026-09-07 reduction assessment was approved and applied to the current spec: native admission facts replace a
 uniform persisted execution envelope; one terminal aggregate producer replaces speculative multi-producer chunk
@@ -1657,7 +1971,7 @@ cohort D6 operation-list wording is historical input to reconcile when that carr
 reintroduce speculative aggregation into RSC. Right-sizing's broader correction loop and physical history retirement
 remain in its existing draft; no duplicate capture was needed.
 
-## Bounded proportionality assessment — 2026-09-07
+## Bounded proportionality assessment
 
 **Verdict: revise; dispositions subsequently approved and applied above.** The assessment compares the consolidated
 spec and
@@ -1750,7 +2064,7 @@ any indivisible exception rather than promising a new member count before the de
 grounding, final suite review, and activation remain separate gates. This assessment is not another formal
 adversarial spec pass and does not extend or replace the recorded two-pass review history.
 
-## Structural task pass — source boundaries and sizing
+## Structural task pass
 
 The consolidated spec was committed as `d9d56953e`. The refreshed structural task pass retains Heavy and the high
 three-pass generation path: strict schemas, three producer paths, two clearance decision paths, persisted responses,
@@ -1861,7 +2175,7 @@ does not expose another concern or a need for new governing machinery; the added
 lifecycle surfaces. The unresolved issue is delivery sizing, not a masked redesign. The three high-risk boundaries
 must be refined or explicitly resolved before content fill; this is not a finalized nine-member commitment.
 
-## Consolidated planning baseline — 2026-09-07
+## Consolidated planning baseline
 
 The reviewed design is accepted for task generation. Pre-activation consolidation removes the spec's resume banner,
 dated acceptance-criterion amendment labels, and review-pending narration; it does not reopen design or renumber the
@@ -1880,7 +2194,7 @@ Task generation re-derives the native-stack partition from current strict-schema
 boundaries. Existing task parents remain traceability inputs until the structural pass is replaced and reviewed.
 The delivery plan is provisional during that pass; canonical authoring waits until grounding and finalization.
 
-## Amended-spec adversarial review — 2026-09-07
+## Amended-spec adversarial review
 
 **Latest result — Pass 2 of 2, no findings.** A second fresh read-only reviewer examined the complete 1,004-line
 spec using the same three rubrics, supplied with F1 and its applied correction but no conversation history.
@@ -1929,7 +2243,7 @@ other claims wholesale.
 Markdown lint (684 files), method/extension graph, domain-rules, section-reference checks (1,745 files), and
 `git diff --check` passed for the amended candidate before review. No implementation or task-list rewrite occurred.
 
-## Forward-compatibility amendment — 2026-09-07
+## Forward-compatibility amendment
 
 Approved after checking `strategy-procedure-evolution.md`, `strategy-knowledge-evolution.md`,
 `draft-composable-workflows.md`, and `analysis-load-set-scoping.md` against the current methods and CLI:
@@ -1957,7 +2271,7 @@ with dispositions/navigation; caller closure and behavioral evidence belong at t
 Sub-5,000-line headroom remains to be proved during structural task generation. The next action is the approved
 fresh-context adversarial review of the complete amended spec; no implementation is authorized.
 
-## Spec amendment candidate — 2026-09-07
+## Spec amendment candidate
 
 The resume assessment was approved and committed as `fc8f0bd80`. The amended spec retains the existing goals and
 numbered design, adds publication continuation as § 8, and makes these concrete choices for review:
@@ -2008,7 +2322,7 @@ The three held inbox entries remain available until the amendment is accepted; d
 of an unapproved candidate. The seven-member cut and its estimates remain provisional. The next gate is review of
 the amended spec, with a fresh-context adversarial pass recommended before structural task generation.
 
-## Resume assessment — 2026-09-07
+## Resume assessment
 
 ### Decision and baseline
 
@@ -2314,7 +2628,7 @@ invented no authority-bearing record, and recommended bounded correction plus re
 **Limitation:** This attended fresh-context observation demonstrates the exercised behavior once; it is not universal
 reliability evidence. Static fixture and parity tests establish only retained inputs and instructions.
 
-## Finding-report and author-self-review behavioral exercises — 2026-09-09
+## Finding-report and author-self-review behavioral exercises
 
 Two attended read-only evaluations ran in separate fresh contexts with no conversation fork or delegation. Each
 evaluator received only the shipped methods and its `scenario.md` / `exercise.md`; neither received `expected.md` or

@@ -1324,7 +1324,7 @@ describe("hosted review handlers", () => {
         schemaVersion: 1,
         target: hostedTarget,
         provider: "coderabbit-pr",
-        coverage: "incremental",
+        coverage: "complete",
       }),
       request: async () => ({
         schemaVersion: 1,
@@ -1332,7 +1332,7 @@ describe("hosted review handlers", () => {
         state: "source-unavailable",
         nextAction: "stop",
         provider: "coderabbit-pr",
-        requestedCoverage: "incremental",
+        requestedCoverage: "complete",
         attemptedProviders: ["coderabbit-pr"],
       }),
       write,
@@ -1345,7 +1345,7 @@ describe("hosted review handlers", () => {
       state: "source-unavailable",
       nextAction: "stop",
       provider: "coderabbit-pr",
-      requestedCoverage: "incremental",
+      requestedCoverage: "complete",
       attemptedProviders: ["coderabbit-pr"],
     });
     expect(setExitCode).not.toHaveBeenCalled();

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../src/lib/delivery/review-vehicle.js";
 import {
@@ -32,6 +33,7 @@ import {
   readLaneProgress,
   readLaneProgressAcrossLineage,
   readLaneProgressOwner,
+  readHostedAwaitReplay,
   recordLaneAttempt,
   recordLaneResponsePerformance,
   settleLaneAttempt,
@@ -49,6 +51,42 @@ import { reduceReviewRouting } from
   "../../../../src/scripts/review-gate/policy/routing.js";
 
 const objectId = (character: string): string => character.repeat(40);
+const correctionScope = (headSha: string) => ({
+  schemaVersion: 1 as const,
+  predecessorProducerId: "prior-review",
+  predecessorHeadSha: objectId("9"),
+  basisHeadSha: objectId("9"),
+  headSha,
+  requiredFindings: [],
+});
+const nativeCoverageEvidence = (headSha: string, status: "established" | "unestablished" = "established") => (
+  status === "established"
+    ? {
+        schemaVersion: 1 as const,
+        kind: "provider-native-incremental" as const,
+        sourceId: "coderabbit-pr" as const,
+        requestArtifactId: "comment-1",
+        status,
+        baselineSha: objectId("9"),
+        headSha,
+        providerGeneration: {
+          artifactId: "coderabbit-generation-1",
+          url: "https://example.invalid/coderabbit-generation-1",
+          createdAt: "2026-08-15T10:00:00Z",
+          updatedAt: "2026-08-15T11:05:00Z",
+          actorIdentity: "136622811" as const,
+          appId: "347564" as const,
+        },
+      }
+    : {
+        schemaVersion: 1 as const,
+        kind: "provider-native-incremental" as const,
+        sourceId: "coderabbit-pr" as const,
+        requestArtifactId: "comment-1",
+        status,
+        reason: "provider-incremental-range-mismatch" as const,
+      }
+);
 type LaneAttempt = LaneProgressState["attempts"][number];
 
 function currentAuthorization(attempt: LaneAttempt | undefined) {
@@ -1248,6 +1286,9 @@ async function seedAcknowledgedRequest(
     target: admission.target,
     provider: admission.sourceId,
     coverage: admission.requestedCoverage,
+    ...(admission.correctionScope === undefined
+      ? {}
+      : { correctionScope: admission.correctionScope }),
     ...(vehicle === undefined ? {} : { vehicle }),
   };
   const decision = await recordHostedRequestAdmission(store, {
@@ -1583,6 +1624,7 @@ describe("hosted await lane recording", () => {
         target: handle.target,
         provider: "coderabbit-pr",
         coverage: "incremental",
+        correctionScope: correctionScope(handle.target.headSha),
         vehicle: deliveryVehicle,
       },
       progressVehicle: deliveryVehicle,
@@ -1690,6 +1732,7 @@ describe("hosted await lane recording", () => {
       sourceId: deliveryAdmission.sourceId,
       target: deliveryAdmission.target,
       requestedCoverage: "incremental",
+      correctionScope: correctionScope(deliveryAdmission.target.headSha),
       vehicle: deliveryVehicle,
       reviewTarget: deliveryAdmission.reviewTarget,
       requirement: deliveryAdmission.requirement,
@@ -1712,6 +1755,7 @@ describe("hosted await lane recording", () => {
         state: "clean",
         nextAction: "complete",
         reviewUrl: "https://example.test/review-incremental",
+        coverageEvidence: nativeCoverageEvidence(incrementalHandle.target.headSha),
       },
       now: "2026-08-15T12:00:00Z",
     });
@@ -1720,6 +1764,56 @@ describe("hosted await lane recording", () => {
     expect(state?.attempts[0]?.hosted).toMatchObject({
       requestedCoverage: "incremental",
       effectiveCoverage: "incremental",
+    });
+  });
+
+  it("seals an attributable incremental result while withholding unproved effective coverage", async () => {
+    const store = createStore();
+    const incremental = createHostedHandleFixture({
+      requestedCoverage: "incremental",
+      target: deliveryHandle.target,
+      vehicle: deliveryVehicle,
+      artifact: deliveryHandle.artifact,
+      correctionScope: correctionScope(deliveryHandle.target.headSha),
+    });
+    await seedAcknowledgedRequest(store, incremental);
+    const state = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: incremental,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.test/review-unproved-incremental",
+        coverageEvidence: nativeCoverageEvidence(
+          incremental.target.headSha,
+          "unestablished",
+        ),
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    expect(state.completedPasses).toBe(1);
+    expect(state.attempts[0]?.hosted).toMatchObject({
+      effectiveCoverage: null,
+      sealedResult: {
+        outcome: "clean",
+        coverageEvidence: {
+          status: "unestablished",
+          reason: "provider-incremental-range-mismatch",
+        },
+      },
+    });
+    await expect(readHostedAwaitReplay(store, incremental)).resolves.toMatchObject({
+      result: {
+        state: "clean",
+        coverageEvidence: {
+          status: "unestablished",
+          reason: "provider-incremental-range-mismatch",
+        },
+      },
+      hostedResultId: state.attempts[0]?.hosted?.sealedResult?.hostedResultId,
     });
   });
 

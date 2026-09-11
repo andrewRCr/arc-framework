@@ -332,6 +332,7 @@ function evidenceDependencies(results: readonly ReviewResult[]) {
         throw new Error("unexpected disposition write");
       }),
     },
+    readResponsePerformance: vi.fn(async () => null),
   };
 }
 
@@ -350,6 +351,7 @@ function dependencies(
         throw new Error("unexpected disposition write");
       }),
     },
+    readResponsePerformance: vi.fn(async () => null),
     readCandidate: vi.fn(async () => currentCandidate),
     readAssurance: vi.fn(async () => resolvedAssurance),
     resolveTarget: vi.fn(async () => resolvedTarget),
@@ -1202,6 +1204,111 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.status).toBe("composed");
     if (composition.status !== "composed") return;
     expect(composition.request.standard.completedPasses).toBe(2);
+  });
+
+  it("composes changed-head incremental policy from lane-owner applicability and response performance", async () => {
+    if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
+    const predecessor = hostedFindingsResult("attempt-prior", 42);
+    if (predecessor.kind !== "hosted") throw new Error("expected hosted predecessor");
+    const { targetId: _targetId, ...currentTargetInput } = immutableTarget.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({
+      ...currentTargetInput,
+      headSha: PREPUBLICATION_HEAD,
+      headTree: "f".repeat(40),
+    });
+    const currentRequirement = createReviewRequirement({
+      target: currentTarget,
+      projection: defaultStandardReview,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (currentRequirement === null) throw new Error("expected current requirement");
+    const current: ReviewResult = {
+      ...predecessor,
+      producerId: "attempt-current",
+      target: currentTarget,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: digest("attempt-current-result"),
+      admission: {
+        ...predecessor.admission,
+        logicalPass: 2,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        correctionScope: {
+          schemaVersion: 1,
+          predecessorProducerId: predecessor.producerId,
+          predecessorHeadSha: predecessor.target.headSha,
+          basisHeadSha: predecessor.target.headSha,
+          headSha: currentTarget.headSha,
+          requiredFindings: [],
+        },
+        policyVersion: currentRequirement.policyVersion,
+      },
+      hostedTarget: { ...predecessor.hostedTarget, headSha: currentTarget.headSha },
+      requirement: currentRequirement,
+    };
+    const record = approvedRecord(predecessor);
+    const currentDisposition = record.approvedDispositionLineage.at(-1)?.approvedDisposition;
+    if (currentDisposition === undefined) throw new Error("expected approved disposition");
+    const readResponsePerformance = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      producerId: predecessor.producerId,
+      dispositionSetId: currentDisposition.dispositionSet.dispositionSetId,
+      originatingHeadSha: predecessor.target.headSha,
+      producedHeadSha: currentTarget.headSha,
+      performedAt: "2026-09-10T12:00:00.000Z",
+    }));
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example", selfReview: "settled" },
+      dependencies({
+        readCandidate: async () => ({
+          ...currentCandidate,
+          headSha: currentTarget.headSha,
+          lineageHeadShas: [predecessor.target.headSha, currentTarget.headSha],
+        }),
+        resolveTarget: async () => ({
+          status: "resolved",
+          target: {
+            repository: "arc-framework/example",
+            pullRequest: 42,
+            headSha: currentTarget.headSha,
+          },
+        }),
+        deriveImmutableTarget: async () => ({ status: "resolved", target: currentTarget }),
+        resultReader: {
+          readResult: async (producerId) => producerId === predecessor.producerId
+            ? predecessor
+            : current,
+        },
+        dispositionStore: {
+          readDispositionRecord: async (producerId) => producerId === predecessor.producerId
+            ? record
+            : null,
+          appendDispositionRecord: async () => { throw new Error("unexpected disposition write"); },
+        },
+        readResponsePerformance,
+        readLaneProgress: async (lane) => lane === "standard"
+          ? {
+              status: "recorded",
+              completedPasses: 2,
+              completePasses: 1,
+              attempts: [{
+                attemptId: current.producerId,
+                logicalPass: 2,
+                sourceId: "codex-pr",
+                outcome: "clean",
+              }],
+            }
+          : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
+      }),
+    );
+
+    expect(composition.status === "composed" && composition.request.standard).toMatchObject({
+      completedPasses: 2,
+      verifiedTerminalSignal: { coverageAdequate: true },
+    });
   });
 
   it("refuses when recorded progress cannot compose against the current target", async () => {

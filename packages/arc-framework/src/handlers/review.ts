@@ -133,7 +133,10 @@ import {
   type FrontlineCommandRequest,
   type FrontlineResolveRequest,
 } from "../scripts/review-gate/policy/frontline-command.js";
-import { LaneSubjectLineageSchema } from "../scripts/review-gate/core/lane-admission.js";
+import {
+  LaneSubjectLineageSchema,
+  laneSubjectOwnerMatches,
+} from "../scripts/review-gate/core/lane-admission.js";
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import {
@@ -213,6 +216,7 @@ import {
   hostedLaneAttemptId,
   laneContinuationOperationId,
   readHostedRequestAdmissionReplay,
+  readLaneResponsePerformance,
   readLaneProgress,
   recordHostedRequestAdmission,
   recordHostedRequestConclusion,
@@ -1427,11 +1431,19 @@ async function resolveConfiguredReviewPolicy(
     }),
   });
   const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+  const operationStore = new LocalReviewOperationStateStore(publisher);
   return resolveEvidenceBoundReviewPolicy(request, {
     sources,
     maxPasses,
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    readResponsePerformance: (predecessor) => readLaneResponsePerformance(operationStore, predecessor),
+    confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
+      predecessor.repositoryId === current.repositoryId
+        && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+        ? "applicable" as const
+        : "unavailable" as const,
+    ),
     confirmTarget: async (attemptedTarget) => {
       const confirmation = await confirmLocalReviewTarget({
         exec: gitExec,
@@ -2762,6 +2774,9 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             vehicle: deliveryVehicle,
             provider: request.provider,
             coverage: request.coverage,
+            ...(request.correctionScope === undefined
+              ? {}
+              : { correctionScope: request.correctionScope }),
             maxPasses: policy.maxPasses,
             ...(discharge.requestAttempts === undefined
               ? {}
@@ -2838,6 +2853,9 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             target: request.target,
             provider: request.provider,
             coverage: request.coverage,
+            ...(request.correctionScope === undefined
+              ? {}
+              : { correctionScope: request.correctionScope }),
             maxPasses: policy.maxPasses,
             logicalPass,
             ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
@@ -2857,6 +2875,9 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             ),
           });
           return;
+        }
+        if (request.coverage === "incremental") {
+          throw new Error("Hosted incremental review requires a current correction selection.");
         }
         const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
           outcome: Exclude<typeof attempt.outcome, "pending">;

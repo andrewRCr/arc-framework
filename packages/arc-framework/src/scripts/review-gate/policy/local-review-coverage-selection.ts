@@ -16,7 +16,12 @@ import type {
   ApprovedDispositionRecordStore,
   ReviewResultReader,
 } from "../core/ports.js";
-import { buildIncrementalCorrectionScope } from "./incremental-coverage-basis.js";
+import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
+import type { ReviewResult } from "../core/review-result.js";
+import {
+  resolveIncrementalCorrectionScope,
+  type IncrementalPredecessorApplicability,
+} from "./incremental-coverage-basis.js";
 import {
   readIncrementalPredecessorResponseEvidence,
 } from "./review-policy-evidence.js";
@@ -49,6 +54,13 @@ export async function resolveLocalReviewCoverageSelection(input: {
 }, dependencies: {
   readonly resultReader: ReviewResultReader;
   readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly readResponsePerformance?: (
+    predecessor: ReviewResult,
+  ) => Promise<LaneResponsePerformance | null>;
+  readonly confirmIncrementalApplicability?: (
+    predecessor: ReviewResult,
+    current: ReviewResult,
+  ) => Promise<IncrementalPredecessorApplicability>;
 }): Promise<LocalReviewCoverageSelectionResolution> {
   if (input.policy.state !== "coverage-required" && input.policy.state !== "ready") {
     if (input.coverageAdmission?.requestedCoverage === "incremental") {
@@ -92,14 +104,29 @@ export async function resolveLocalReviewCoverageSelection(input: {
         ...input.standardReview,
         reasons: [...input.standardReview.reasons].sort(),
       })) {
-      const response = await readIncrementalPredecessorResponseEvidence(
-        predecessor,
-        dependencies.dispositionStore,
-      ).catch(() => null);
-      correctionScope = response === null ? null : buildIncrementalCorrectionScope({
+      correctionScope = await resolveIncrementalCorrectionScope({
         predecessor,
         currentHeadSha: input.target.headSha,
-        response,
+      }, {
+        resultReader: dependencies.resultReader,
+        readResponseEvidence: (candidate) => readIncrementalPredecessorResponseEvidence(
+          candidate,
+          dependencies.dispositionStore,
+          dependencies.readResponsePerformance,
+        ),
+        confirmApplicability: dependencies.confirmIncrementalApplicability
+          ?? ((earlier, current) => Promise.resolve(
+            laneSubjectOwnerMatches(earlier.admission.lineage, current.admission.lineage)
+              ? "applicable"
+              : "unavailable",
+          )),
+        confirmCurrentApplicability: (candidate, currentHeadSha) => Promise.resolve(
+          currentHeadSha === input.target.headSha
+            && candidate.repositoryId === input.target.repositoryId
+            && laneSubjectOwnerMatches(candidate.admission.lineage, input.lineage)
+            ? "applicable"
+            : "unavailable",
+        ),
       });
     }
   }

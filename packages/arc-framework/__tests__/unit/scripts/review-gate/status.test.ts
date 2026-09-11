@@ -1454,7 +1454,15 @@ describe("review status", () => {
     })).not.toHaveProperty("localAction.correctionScope");
   });
 
-  it("offers a capable source instead of dispatching an unscoped CodeRabbit correction", async () => {
+  it("requires an exact scope before dispatching native CodeRabbit correction coverage", async () => {
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted/attempt-1",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: hostedAction.target.headSha,
+      requiredFindings: [],
+    };
     const coderabbit = composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
       discharges: [deliveryDischarge({
@@ -1486,14 +1494,35 @@ describe("review status", () => {
       discharges: [deliveryDischarge({
         discharged: false,
         detail: "The member requires correction review.",
+        nextSource: "coderabbit-pr",
+        requestCoverage: "incremental",
+        correctionScope,
+        requestAdmission: readyAdmission("coderabbit-pr"),
+      })],
+      requestCoverage: "incremental",
+    })).toMatchObject({
+      state: "review-required",
+      action: {
+        provider: "coderabbit-pr",
+        coverage: "incremental",
+        correctionScope,
+      },
+    });
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member requires correction review.",
         nextSource: "codex-pr",
         requestCoverage: "incremental",
+        correctionScope,
         requestAdmission: readyAdmission("codex-pr"),
       })],
       requestCoverage: "incremental",
     })).toMatchObject({
       state: "review-required",
-      action: { provider: "codex-pr", coverage: "incremental" },
+      action: { provider: "codex-pr", coverage: "incremental", correctionScope },
     });
   });
 

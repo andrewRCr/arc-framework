@@ -5,7 +5,9 @@ import {
   sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
+import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { HostedProviderIdSchema, type HostedReviewCoverage } from "../hosted/request.js";
 import {
@@ -313,9 +315,13 @@ function assertHostedPolicyResolution(
   }
 }
 
-function assertHostedCoverageAdmission(provider: string, coverage: "complete" | "incremental"): void {
+function assertHostedCoverageAdmission(
+  provider: string,
+  coverage: "complete" | "incremental",
+  correctionScope?: IncrementalReviewScope,
+): void {
   const recognized = HostedProviderIdSchema.safeParse(provider);
-  if (recognized.success && !hostedProviderAdmitsCoverage(recognized.data, coverage)) {
+  if (recognized.success && !hostedProviderAdmitsCoverage(recognized.data, coverage, correctionScope)) {
     throw new Error(`Hosted review source \`${provider}\` cannot carry an exact correction scope.`);
   }
 }
@@ -329,12 +335,13 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly vehicle: DeliveryReviewMemberVehicle;
   readonly provider: string;
   readonly coverage: "complete" | "incremental";
+  readonly correctionScope?: IncrementalReviewScope;
   readonly maxPasses: number;
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
-  assertHostedCoverageAdmission(input.provider, input.coverage);
+  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
   const resolution = resolveHostedReservationPolicy(input);
   assertHostedPolicyResolution(resolution, input.provider);
 }
@@ -350,7 +357,7 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
   input: Parameters<typeof assertHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<void> {
-  assertHostedCoverageAdmission(input.provider, input.coverage);
+  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
   assertHostedPolicyResolution(
     await resolveEvidenceBoundHostedReservationPolicy({
       ...input,
@@ -380,12 +387,18 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
   readonly provider: string;
   readonly coverage: "complete" | "incremental";
+  readonly correctionScope?: IncrementalReviewScope;
   readonly maxPasses: number;
   readonly logicalPass: number;
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
-  assertHostedCoverageAdmission(input.provider, input.coverage);
+  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  if (input.coverage === "incremental"
+    && canonicalize(input.correctionScope ?? null)
+      !== canonicalize(input.discharge.correctionScope ?? null)) {
+    throw new Error("Hosted Candidate correction scope no longer matches the fresh discharge position.");
+  }
   if (input.discharge.discharged || input.discharge.nextSource === null
     || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
     throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");
@@ -456,7 +469,12 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<void> {
-  assertHostedCoverageAdmission(input.provider, input.coverage);
+  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  if (input.coverage === "incremental"
+    && canonicalize(input.correctionScope ?? null)
+      !== canonicalize(input.discharge.correctionScope ?? null)) {
+    throw new Error("Hosted Candidate correction scope no longer matches the fresh discharge position.");
+  }
   if (input.discharge.discharged || input.discharge.nextSource === null
     || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
     throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");

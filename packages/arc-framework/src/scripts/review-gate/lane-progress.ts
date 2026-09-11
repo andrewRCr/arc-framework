@@ -9,9 +9,11 @@ import {
   computeConditionalPassAuthorizationId,
   createHostedSealedResult,
   LaneProgressStateSchema,
+  type LaneResponsePerformance,
   type LocalReviewState,
   type LaneProgressState,
 } from "./core/operation-state-schema.js";
+import type { ReviewResult } from "./core/review-result.js";
 import type { FrontlineAdmission } from "./core/frontline-admission.js";
 import {
   laneSubjectOwner,
@@ -26,7 +28,10 @@ import {
   isReviewVersionConflict,
   REVIEW_VERSION_RETRY_ATTEMPTS,
 } from "./core/version-conflict.js";
-import type { HostedAwaitResult } from "./hosted/await.js";
+import {
+  HostedAwaitResultSchema,
+  type HostedAwaitResult,
+} from "./hosted/await.js";
 import type {
   HostedAdmission,
   HostedProgressVehicle,
@@ -134,17 +139,46 @@ function bindCompletedConditionalPassAuthorization(
 
 function recordResponsePerformanceOnAttempt(
   attempt: LaneAttempt,
-  input: { dispositionSetId: string; producedHeadSha: string; now: string },
+  input: {
+    dispositionSetId: string;
+    predecessorDispositionSetId?: string;
+    producedHeadSha: string;
+    now: string;
+  },
 ): LaneAttempt {
   const current = attempt.responsePerformance;
   if (current !== undefined) {
-    if (current.producerId !== attempt.attemptId
-      || current.dispositionSetId !== input.dispositionSetId
-      || current.originatingHeadSha !== attempt.headSha
-      || current.producedHeadSha !== input.producedHeadSha) {
+    if (current.dispositionSetId === input.dispositionSetId) {
+      const predecessor = attempt.responsePerformanceHistory?.at(-1);
+      if (current.producerId !== attempt.attemptId
+        || current.originatingHeadSha !== attempt.headSha
+        || current.producedHeadSha !== input.producedHeadSha
+        || (input.predecessorDispositionSetId !== undefined
+          && (attempt.responsePerformanceHistory?.length ?? 0) > 0
+          && predecessor?.dispositionSetId !== input.predecessorDispositionSetId)) {
+        throw new Error("lane response performance replay conflicts");
+      }
+      return attempt;
+    }
+    if (attempt.hosted !== undefined
+      || input.predecessorDispositionSetId !== current.dispositionSetId) {
       throw new Error("lane response performance replay conflicts");
     }
-    return attempt;
+    return {
+      ...attempt,
+      responsePerformanceHistory: [
+        ...(attempt.responsePerformanceHistory ?? []),
+        current,
+      ],
+      responsePerformance: {
+        schemaVersion: 1,
+        producerId: attempt.attemptId,
+        dispositionSetId: input.dispositionSetId,
+        originatingHeadSha: attempt.headSha,
+        producedHeadSha: input.producedHeadSha,
+        performedAt: input.now,
+      },
+    };
   }
   return {
     ...attempt,
@@ -306,7 +340,7 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
     handle: pendingHosted.handle ?? null,
     target: pendingHosted.target,
     requestedCoverage: pendingHosted.requestedCoverage,
-    effectiveCoverage: pendingHosted.effectiveCoverage,
+    effectiveCoverage: null,
     ...(pendingHosted.vehicle === undefined ? {} : { vehicle: pendingHosted.vehicle }),
     reviewTarget: pendingHosted.reviewTarget,
     requirement: pendingHosted.requirement,
@@ -323,7 +357,7 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
     handle: nextHosted.handle ?? null,
     target: nextHosted.target,
     requestedCoverage: nextHosted.requestedCoverage,
-    effectiveCoverage: nextHosted.effectiveCoverage,
+    effectiveCoverage: null,
     ...(nextHosted.vehicle === undefined ? {} : { vehicle: nextHosted.vehicle }),
     reviewTarget: nextHosted.reviewTarget,
     requirement: nextHosted.requirement,
@@ -744,6 +778,8 @@ export async function recordHostedRequestAdmission(
       && attempt.hosted !== undefined
       && attempt.hosted.admission.sourceId === input.request.provider
       && attempt.hosted.admission.requestedCoverage === input.request.coverage
+      && canonicalize(attempt.hosted.admission.correctionScope ?? null)
+        === canonicalize(input.request.correctionScope ?? null)
       && canonicalize(attempt.hosted.admission.target) === canonicalize(input.request.target)
       && canonicalize(attempt.hosted.admission.vehicle ?? null)
         === canonicalize(input.progressVehicle ?? null)
@@ -772,6 +808,9 @@ export async function recordHostedRequestAdmission(
       sourceId: input.request.provider,
       target: input.request.target,
       requestedCoverage: input.request.coverage,
+      ...(input.request.correctionScope === undefined
+        ? {}
+        : { correctionScope: input.request.correctionScope }),
       ...(input.progressVehicle === undefined ? {} : { vehicle: input.progressVehicle }),
       reviewTarget: input.reviewTarget,
       requirement: input.requirement,
@@ -911,7 +950,7 @@ export async function acknowledgeHostedRequest(
       hosted: {
         ...admitted.hosted,
         handle: input.handle,
-        effectiveCoverage: input.handle.effectiveCoverage,
+        effectiveCoverage: null,
       },
     };
     const attempts = existing.attempts.map((attempt, candidateIndex) => (
@@ -985,6 +1024,9 @@ export async function readHostedAwaitReplay(
         state: "clean" as const,
         nextAction: "complete" as const,
         reviewUrl: sealedResult.reviewUrl,
+        ...(sealedResult.coverageEvidence === undefined
+          ? {}
+          : { coverageEvidence: sealedResult.coverageEvidence }),
       }
     : {
         schemaVersion: 1 as const,
@@ -994,6 +1036,9 @@ export async function readHostedAwaitReplay(
         nextAction: "triage" as const,
         reviewUrl: sealedResult.reviewUrl,
         findings: sealedResult.findings,
+        ...(sealedResult.coverageEvidence === undefined
+          ? {}
+          : { coverageEvidence: sealedResult.coverageEvidence }),
       };
   return {
     progress: recorded.progress,
@@ -1061,8 +1106,9 @@ export async function recordHostedAwaitAttempt(
     now: string;
   },
 ): Promise<LaneProgressState> {
-  const outcome = hostedAwaitLaneOutcome(input.result.state);
-  const { handle } = input.result;
+  const result = HostedAwaitResultSchema.parse(input.result);
+  const outcome = hostedAwaitLaneOutcome(result.state);
+  const { handle } = result;
   if (handle.admission.repositoryId !== input.repositoryId) {
     throw new Error("hosted await does not match its admitted repository");
   }
@@ -1073,6 +1119,11 @@ export async function recordHostedAwaitAttempt(
     }
     return recorded.progress;
   }
+  const effectiveCoverage = result.state === "clean" || result.state === "findings"
+    ? handle.provider === "coderabbit-pr" && handle.requestedCoverage === "incremental"
+      ? result.coverageEvidence?.status === "established" ? "incremental" : null
+      : handle.effectiveCoverage
+    : null;
   return await recordLaneAttempt(store, {
     lane: "standard",
     repositoryId: input.repositoryId,
@@ -1090,14 +1141,14 @@ export async function recordHostedAwaitAttempt(
       handle,
       target: handle.target,
       requestedCoverage: handle.requestedCoverage,
-      effectiveCoverage: handle.effectiveCoverage,
+      effectiveCoverage,
       ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
       reviewTarget: handle.admission.reviewTarget,
       requirement: handle.admission.requirement,
       actorIdentity: handle.admission.actorIdentity,
       requestFailureReason: outcome === "terminal-failure"
-        && "reason" in input.result ? input.result.reason : null,
-      ...((input.result.state === "clean" || input.result.state === "findings")
+        && "reason" in result ? result.reason : null,
+      ...((result.state === "clean" || result.state === "findings")
         ? {
             sealedResult: createHostedSealedResult({
               attemptId: hostedLaneAttemptId(handle),
@@ -1105,13 +1156,16 @@ export async function recordHostedAwaitAttempt(
               handle,
               target: handle.target,
               requestedCoverage: handle.requestedCoverage,
-              effectiveCoverage: handle.effectiveCoverage,
+              effectiveCoverage,
               ...(handle.vehicle?.kind === "delivery-member" ? { vehicle: handle.vehicle } : {}),
               reviewTarget: handle.admission.reviewTarget,
               requirement: handle.admission.requirement,
-              outcome: input.result.state,
-              reviewUrl: input.result.reviewUrl,
-              findings: input.result.state === "findings" ? input.result.findings : [],
+              outcome: result.state,
+              reviewUrl: result.reviewUrl,
+              findings: result.state === "findings" ? result.findings : [],
+              ...(result.coverageEvidence === undefined
+                ? {}
+                : { coverageEvidence: result.coverageEvidence }),
             }),
           }
         : {}),
@@ -2153,6 +2207,7 @@ export async function settleLaneAttempt(
     lineage?: LaneSubjectLineage;
     attemptId: string;
     dispositionSetId?: string;
+    predecessorDispositionSetId?: string;
     producedHeadSha?: string;
     now: string;
   },
@@ -2178,10 +2233,15 @@ export async function settleLaneAttempt(
   if (input.dispositionSetId !== undefined && input.producedHeadSha !== undefined) {
     settledAttempt = recordResponsePerformanceOnAttempt(settledAttempt, {
       dispositionSetId: input.dispositionSetId,
+      ...(input.predecessorDispositionSetId === undefined
+        ? {}
+        : { predecessorDispositionSetId: input.predecessorDispositionSetId }),
       producedHeadSha: input.producedHeadSha,
       now: input.now,
     });
-  } else if (input.dispositionSetId !== undefined || input.producedHeadSha !== undefined) {
+  } else if (input.dispositionSetId !== undefined
+    || input.predecessorDispositionSetId !== undefined
+    || input.producedHeadSha !== undefined) {
     throw new Error("lane settlement requires complete response-performance evidence");
   }
   const authorization = currentConditionalPassAuthorization(attempt);
@@ -2207,7 +2267,7 @@ export async function settleLaneAttempt(
   return next;
 }
 
-/** Record the durable head produced by a fully performed approved response. */
+/** Record the durable head produced by a fully performed approved response and retain direct predecessors. */
 export async function recordLaneResponsePerformance(
   store: ReviewOperationStateStore,
   input: {
@@ -2217,6 +2277,7 @@ export async function recordLaneResponsePerformance(
     lineage: LaneSubjectLineage;
     attemptId: string;
     dispositionSetId: string;
+    predecessorDispositionSetId?: string;
     producedHeadSha: string;
     now: string;
   },
@@ -2320,6 +2381,26 @@ export async function readLaneProgressOwner(
   },
 ): Promise<LaneProgressState | null> {
   return (await readLaneProgressOwnerVersioned(store, input)).state;
+}
+
+/** Read exact performed-response evidence from its existing lane-owner attempt. */
+export async function readLaneResponsePerformance(
+  store: ReviewOperationStateStore,
+  predecessor: ReviewResult,
+): Promise<LaneResponsePerformance | null> {
+  const owner = await readLaneProgressOwner(store, {
+    lane: predecessor.kind === "frontline" ? "frontline" : "standard",
+    repositoryId: predecessor.repositoryId,
+    headSha: predecessor.target.headSha,
+    lineage: predecessor.admission.lineage,
+  });
+  const matches = owner?.attempts.filter(({ attemptId }) => attemptId === predecessor.producerId) ?? [];
+  if (matches.length !== 1) return null;
+  const performance = matches[0]?.responsePerformance;
+  if (performance === undefined
+    || performance.producerId !== predecessor.producerId
+    || performance.originatingHeadSha !== predecessor.target.headSha) return null;
+  return performance;
 }
 
 /** Resolve the exact lane-owner attempt that authorizes one local operation. */

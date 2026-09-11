@@ -24,6 +24,7 @@ import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
 import {
   laneProgressOperationId,
+  readLaneResponsePerformance,
   readLaneProgressAcrossLineage,
   type LaneProgressProjection,
 } from "../lane-progress.js";
@@ -37,6 +38,7 @@ import { projectHostedFinding, type HostedAwaitEnvelope } from "../hosted/await.
 import { HostedProviderIdSchema, type HostedReviewCoverage } from "../hosted/request.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   projectEarlierReviewApplicability,
@@ -49,7 +51,7 @@ import {
 } from "./review-policy-evidence.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import {
-  buildIncrementalCorrectionScope,
+  resolveIncrementalCorrectionScope as resolveVerifiedIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
 import {
@@ -104,7 +106,12 @@ export async function confirmIncrementalPredecessorApplicability(input: {
   const scope = current.admission.correctionScope;
   if (scope === undefined
     || scope.headSha !== current.target.headSha) return "unavailable";
-  if (predecessor.target.headSha === current.target.headSha) return "applicable";
+  if (!laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)) {
+    return "unavailable";
+  }
+  if (predecessor.target.headSha === current.target.headSha
+    || (predecessor.admission.lineage.kind === "head-bound"
+      && current.admission.lineage.kind === "head-bound")) return "applicable";
   const sourceId = predecessor.kind === "hosted"
     ? predecessor.sourceIdentity
     : predecessor.kind === "attested-local"
@@ -251,7 +258,11 @@ function coverageSelectionChoices(
         : [{ sourceId, coverage: "incremental" }, complete];
     }
     const provider = HostedProviderIdSchema.safeParse(sourceId);
-    return provider.success && hostedProviderAdmitsCoverage(provider.data, "incremental")
+    return provider.success && hostedProviderAdmitsCoverage(
+      provider.data,
+      "incremental",
+      correctionScope,
+    )
       ? [{ sourceId, coverage: "incremental" }, complete]
       : [complete];
   });
@@ -705,6 +716,33 @@ export async function projectHostedReservationDischarge(input: {
     const correctionScope = await input.resolveIncrementalCorrectionScope(candidate, target.headSha);
     return correctionScope === null ? {} : { correctionScope };
   };
+  const retainedTerminalPolicyStop = async (
+    policy: ReviewResolveEnvelope,
+  ): Promise<HostedReservationDischarge> => {
+    const context = policy.state === "coverage-required" ? await correctionContext() : {};
+    const coverageSelectionAction = policy.state === "coverage-required" && target.vehicle !== undefined
+      ? ReviewCoverageSelectionActionSchema.parse({
+          schemaVersion: 1,
+          kind: "review-coverage-selection",
+          workUnitId: target.vehicle.workUnitId,
+          sourceId: policy.payload.sourceId,
+          pass: policy.payload.pass,
+          completedPasses: policy.payload.completedPasses,
+          consumedPass: policy.payload.consumedPass,
+          choices: coverageSelectionChoices(reservation.sources, context.correctionScope),
+          interactionText: "Select one listed source and coverage pair, then re-run `arc review status "
+            + `--work-unit ${target.vehicle.workUnitId} --source <sourceId> --coverage <coverage> --json\`.`,
+        })
+      : undefined;
+    return {
+      discharged: false,
+      detail: `The retained terminal review producer did not establish convergence `
+        + `(${policy.state}/${policy.nextAction}).`,
+      nextSource: null,
+      ...context,
+      ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
+    };
+  };
   const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
     await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
@@ -814,8 +852,11 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const selected = earlier.attempts.filter((attempt) => attempt.sourceId === sourceId);
-      const standardAttempts = selected.filter(({ requestedCoverage, effectiveCoverage }) => (
-        requestedCoverage === "complete" || effectiveCoverage === "complete"
+      const standardAttempts = selected.filter(({ requestedCoverage, effectiveCoverage, outcome }) => (
+        requestedCoverage === "complete"
+        || effectiveCoverage === "complete"
+        || outcome === "clean"
+        || outcome === "settled-findings"
       ));
       const stoppedAttempts = standardAttempts.filter(({ applicability }) => applicability === "stop");
       const stopped = stoppedAttempts[0];
@@ -855,17 +896,11 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const applicable = standardAttempts.filter(({ applicability }) => applicability === "retain-prior-attempt");
-      const cleanApplicable = applicable.find(({ outcome, effectiveCoverage }) => effectiveCoverage === "complete"
-        && outcome === "clean");
+      const cleanApplicable = applicable.find(({ outcome }) => outcome === "clean");
       if (cleanApplicable !== undefined) {
         const policy = await input.resolveEarlierTerminalPolicy(cleanApplicable);
         if (policy.state !== "pass-complete") {
-          return {
-            discharged: false,
-            detail: `The retained terminal review producer did not establish convergence `
-              + `(${policy.state}/${policy.nextAction}).`,
-            nextSource: null,
-          };
+          return retainedTerminalPolicyStop(policy);
         }
         return {
           discharged: true,
@@ -874,9 +909,7 @@ export async function projectHostedReservationDischarge(input: {
           nextSource: null,
         };
       }
-      const settledApplicable = applicable.find(({ outcome, effectiveCoverage }) => (
-        effectiveCoverage === "complete" && outcome === "settled-findings"
-      ));
+      const settledApplicable = applicable.find(({ outcome }) => outcome === "settled-findings");
       if (settledApplicable !== undefined) {
         const policy = await input.resolveEarlierTerminalPolicy(settledApplicable);
         if (policy.state === "pass-complete") {
@@ -887,6 +920,7 @@ export async function projectHostedReservationDischarge(input: {
             nextSource: null,
           };
         }
+        if (policy.state !== "findings") return retainedTerminalPolicyStop(policy);
       }
       const orderedApplicable = selected.filter(({ applicability, logicalPass }) => (
         applicability === "retain-prior-attempt" && logicalPass === orderedLogicalPass
@@ -1171,6 +1205,7 @@ export function createHostedReservationDischargeReader(input: {
         maxPasses: await maxPasses(),
         resultReader,
         dispositionStore: dispositions,
+        readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
         confirmTarget: () => Promise.resolve(terminal.producerTarget),
         confirmIncrementalApplicability,
       });
@@ -1183,14 +1218,35 @@ export function createHostedReservationDischargeReader(input: {
       const predecessor = await resultReader.readResult(attempt.attemptId).catch(() => null);
       if (predecessor === null
         || predecessor.kind === "frontline"
-        || predecessor.sourceIdentity !== attempt.sourceId
+        || (predecessor.kind === "hosted"
+          ? predecessor.sourceIdentity !== attempt.sourceId
+          : attempt.sourceId !== "delegated-agent")
         || canonicalize(predecessor.target) !== canonicalize(attempt.producerTarget)) return null;
-      const response = await readIncrementalPredecessorResponseEvidence(predecessor, dispositions)
-        .catch(() => null);
-      return response === null ? null : buildIncrementalCorrectionScope({
+      return resolveVerifiedIncrementalCorrectionScope({
         predecessor,
         currentHeadSha,
-        response,
+      }, {
+        resultReader,
+        readResponseEvidence: (candidate) => readIncrementalPredecessorResponseEvidence(
+          candidate,
+          dispositions,
+          (result) => readLaneResponsePerformance(store, result),
+        ),
+        confirmApplicability: confirmIncrementalApplicability,
+        confirmCurrentApplicability: async (candidate, headSha) => {
+          if (candidate.target.headSha === headSha) return "applicable";
+          const sourceId = candidate.kind === "hosted"
+            ? candidate.sourceIdentity
+            : candidate.kind === "attested-local"
+              ? "delegated-agent"
+              : undefined;
+          if (sourceId === undefined || readEarlierAttemptApplicability === undefined) return "unavailable";
+          return incrementalApplicabilityFromEarlierRead({
+            producerId: candidate.producerId,
+            producerTarget: candidate.target,
+            earlier: await readEarlierAttemptApplicability(sourceId),
+          });
+        },
       });
     };
     return projectHostedReservationDischarge({

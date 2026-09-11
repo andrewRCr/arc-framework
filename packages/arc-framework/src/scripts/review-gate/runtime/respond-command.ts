@@ -300,6 +300,7 @@ export interface RespondCommandDependencies {
     lineage?: LaneSubjectLineage;
     attemptId: string;
     dispositionSetId: string;
+    predecessorDispositionSetId?: string;
     producedHeadSha: string;
   }): Promise<void>;
   recordResponsePerformance(input: {
@@ -309,6 +310,7 @@ export interface RespondCommandDependencies {
     lineage: LaneSubjectLineage;
     attemptId: string;
     dispositionSetId: string;
+    predecessorDispositionSetId?: string;
     producedHeadSha: string;
   }): Promise<void>;
   bindHostedDisposition(input: {
@@ -725,6 +727,7 @@ async function recordPerformedResponse(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
   producedHeadSha: string,
+  predecessorDispositionSetId: string | null,
   dependencies: RespondCommandDependencies,
 ): Promise<void> {
   await dependencies.recordResponsePerformance({
@@ -734,6 +737,9 @@ async function recordPerformedResponse(
     lineage: source.result.admission.lineage,
     attemptId: source.hostedAttempt?.attemptId ?? source.operationId,
     dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+    ...(source.hostedAttempt !== undefined || predecessorDispositionSetId === null
+      ? {}
+      : { predecessorDispositionSetId }),
     producedHeadSha,
   });
 }
@@ -827,6 +833,7 @@ async function persistCandidateResponse(
       source,
       dispositions,
       matching.newTarget.revision,
+      current.predecessorDispositionSetId,
       dependencies,
     );
     return RespondEnvelopeSchema.parse({
@@ -874,7 +881,13 @@ async function persistCandidateResponse(
       transitions: [...lineage.record.transitions, response],
     }),
   });
-  await recordPerformedResponse(source, dispositions, response.newTarget.revision, dependencies);
+  await recordPerformedResponse(
+    source,
+    dispositions,
+    response.newTarget.revision,
+    current.predecessorDispositionSetId,
+    dependencies,
+  );
   return RespondEnvelopeSchema.parse({
     ...header,
     state: "candidate-advanced",
@@ -950,7 +963,13 @@ async function persistErrandResponse(
       throw new RespondCommandError("invalid-input", "Errand response replay conflicts with the recorded response");
     }
     const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
-    await recordPerformedResponse(source, dispositions, newTarget.headSha, dependencies);
+    await recordPerformedResponse(
+      source,
+      dispositions,
+      newTarget.headSha,
+      current.predecessorDispositionSetId,
+      dependencies,
+    );
     return RespondEnvelopeSchema.parse({
       ...header,
       state: "errand-current",
@@ -991,7 +1010,13 @@ async function persistErrandResponse(
     )),
   }), source.result);
   const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
-  await recordPerformedResponse(source, dispositions, newTarget.headSha, dependencies);
+  await recordPerformedResponse(
+    source,
+    dispositions,
+    newTarget.headSha,
+    current.predecessorDispositionSetId,
+    dependencies,
+  );
   return RespondEnvelopeSchema.parse({
     ...header,
     state: "errand-advanced",
@@ -1078,7 +1103,13 @@ async function persistDeliveryMemberResponse(
       );
     }
     const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(existing);
-    await recordPerformedResponse(source, dispositions, currentTarget.headSha, dependencies);
+    await recordPerformedResponse(
+      source,
+      dispositions,
+      currentTarget.headSha,
+      current.predecessorDispositionSetId,
+      dependencies,
+    );
     if (!hostedAttempt.settled) {
       await dependencies.bindHostedDisposition({
         operationId: hostedAttempt.operationId,
@@ -1131,7 +1162,13 @@ async function persistDeliveryMemberResponse(
     )),
   });
   const { dispositionRecordRef } = await dependencies.dispositionStore.appendDispositionRecord(record);
-  await recordPerformedResponse(source, dispositions, currentTarget.headSha, dependencies);
+  await recordPerformedResponse(
+    source,
+    dispositions,
+    currentTarget.headSha,
+    current.predecessorDispositionSetId,
+    dependencies,
+  );
   return RespondEnvelopeSchema.parse({
     ...header,
     state: "delivery-member-advanced",
@@ -1862,6 +1899,9 @@ async function respondToResolvedReviewCommand(
       ...(source.laneLineage === undefined ? {} : { lineage: source.laneLineage }),
       attemptId: source.operationId,
       dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      ...(supersession === undefined
+        ? {}
+        : { predecessorDispositionSetId: supersession.predecessorDispositionSetId }),
       producedHeadSha: source.target.headSha,
     });
   }

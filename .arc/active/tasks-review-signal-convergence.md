@@ -663,14 +663,15 @@ including interrupted writes and premature-commit refusal, without changing revi
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The full work unit satisfies its spec and integration readiness criteria with all member evidence reconciled.
 
-- _Note:_ Spec SC 1–18; Testing and Rollout order.
+- _Quality gates:_ Markdown and ARC contract lint, TypeScript and shell lint, both typechecks, 11,980 tests with 1
+  skipped, and build — all passed.
 
-- _Approach:_ Load and follow `verify-work-unit.md`; consume member reports, validate cross-member seams and union
-  coherence, and run the applicable whole-unit quality gates. This is the sole terminal WU verification task.
+- _Success criteria:_ 30 criteria met; none superseded or unresolved. The terminal report in
+  `notes-review-signal-convergence.md` carries all seven member groups and five cross-member seams.
 
 ---
 
@@ -680,110 +681,114 @@ Member verifiers consume their group's evidence; only terminal verification chan
 
 ### Member 1 — `review-vocabulary`
 
-- `[ ]` Every review-severity acceptance root uses `critical`; occurrence-sensitive checks preserve impediment uses.
+- `[x]` Every review-severity acceptance root uses `critical`; occurrence-sensitive checks preserve impediment uses.
 
-- `[ ]` The advisory method and prompt define attention-only `withstood`, separate disposition completeness from signal,
+- `[x]` The advisory method and prompt define attention-only `withstood`, separate disposition completeness from signal,
   expose `Pass N of M` and the stop reason, present the pass recommendation with the disposition report, keep a
   confirmed minor from buying a pass or raising severity, and stop at the cap without named one-pass authority.
   Bounded agent exercises record adherence.
 
 ### Member 2 — `native-review-admission`
 
-- `[ ]` Local/frontline/hosted public actions validate durable native admission; same-attempt replay is idempotent,
+- `[x]` Local/frontline/hosted public actions validate durable native admission; same-attempt replay is idempotent,
   failed local rerun advances native generation within one pass, and another same-target pass is distinct.
   Same-head sibling members cannot share requests or receipts; pending drift cannot replace admitted authority.
 
-- `[ ]` Hosted admission precedes external effects on singleton, Errand, and member paths. Acknowledged replay returns
+- `[x]` Hosted admission precedes external effects on singleton, Errand, and member paths. Acknowledged replay returns
   stored await inputs; uncertain unacknowledged dispatch stops without redispatch, fallback, or a fresh pass.
 
-- `[ ]` Complete and incremental terminal reviews each count once across member head movement; requested/effective
+- `[x]` Complete and incremental terminal reviews each count once across member head movement; requested/effective
   coverage and complete-review counts are truthful in history, status, admission, and checkpoint.
 
-- `[ ]` Fallback, unavailable attempts, partial chunk observations, replay, and status consume no extra pass; exact
+- `[x]` Fallback, unavailable attempts, partial chunk observations, replay, and status consume no extra pass; exact
   one-pass ceiling authority is checked before invocation.
 
 ### Member 3 — `sealed-review-evidence`
 
-- `[ ]` Hosted terminal replay returns the original durable result before observation, including after settlement and
+- `[x]` Hosted terminal replay returns the original durable result before observation, including after settlement and
   concurrent publication; schema-valid direct rewrites cannot alter sealed content.
 
-- `[ ]` Local/frontline/hosted proposals bind immutable native producer content through existing stores; same-looking
+- `[x]` Local/frontline/hosted proposals bind immutable native producer content through existing stores; same-looking
   findings from another pass cannot reuse approval.
 
 ### Member 4 — `verified-finding-reports`
 
-- `[ ]` Public proposals and response consumers preserve reported versus verified severity/nit, reject unsupported
+- `[x]` Public proposals and response consumers preserve reported versus verified severity/nit, reject unsupported
   allegations with null verified severity, and derive gating only from verified judgment.
 
-- `[ ]` Command-produced proposed and approved reports stand alone and preserve native references and capture order
+- `[x]` Command-produced proposed and approved reports stand alone and preserve native references and capture order
   through canonical sorting, clipping, escaping, duplicates, titleless results, and replay.
 
-- `[ ]` Report styling changes no canonical identity; producer metadata changes do. Self-review retains complete-set
+- `[x]` Report styling changes no canonical identity; producer metadata changes do. Self-review retains complete-set
   approval and its non-producer report without a synthetic receipt or renderer command.
 
 ### Member 5 — `evidence-driven-convergence`
 
-- `[ ]` Every durable lane admits its exact terminal producer and, for findings, its complete approved disposition set;
+- `[x]` Every durable lane admits its exact terminal producer and, for findings, its complete approved disposition set;
   missing, ambiguous, wrong-pass/source/scope, stale, incomplete, and unbound evidence fails closed.
 
-- `[ ]` All-refuted/minors-only adequately covered results converge; supported material findings cannot converge merely
+- `[x]` All-refuted/minors-only adequately covered results converge; supported material findings cannot converge merely
   through fix, defer, reject, or settlement. A complete manual chunk aggregate includes every finding; partial-only
   results cannot converge and no independent producer union is accepted.
 
-- `[ ]` The approved response command internally composes policy and returns the selected action without another
+- `[x]` The approved response command internally composes policy and returns the selected action without another
   agent-invoked policy round trip; every continuation/Owner/cap/coverage arm preserves outstanding approved work.
 
-- `[ ]` Explicit conditional next-pass consent survives pending work and restart, binds only the completed response's
+- `[x]` Explicit conditional next-pass consent survives pending work and restart, binds only the completed response's
   exact target, and is consumed with one admitted pass. Withdrawal, supersession, stale bindings, concurrent replay,
   and failed writes cannot create or revive permission; disposition approval alone is insufficient.
 
-- `[ ]` Head-surviving continuation mutations share one stable advisory-lock identity, and successor approval may append
+- `[x]` Head-surviving continuation mutations share one stable advisory-lock identity, and successor approval may append
   one distinct current authorization while immutable predecessor history remains invalidated and unreplayable.
 
-- `[ ]` Performed fixes persist independently of optional next-pass consent. Hosted completion joins exact response
+- `[x]` Performed fixes persist independently of optional next-pass consent. Hosted completion joins exact response
   performance with every required provider action in either order; record-only fixes require no provider receipt, and
   host-addressable fix settlement matches the produced head.
 
-- `[ ]` Installed response guidance exposes fresh proposal and approval for supersession, returned carry/reopen work,
+- `[x]` Installed response guidance exposes fresh proposal and approval for supersession, returned carry/reopen work,
   expected authorized fix dirt, exact replay, and typed refusal without direct state surgery.
 
-- `[ ]` Changed-target fixes reroute without inherited clearance; status and checkpoint agree on the first outstanding
+- `[x]` Changed-target fixes reroute without inherited clearance; status and checkpoint agree on the first outstanding
   member and distinguish exact Owner acceptance. Validated equivalent-head evidence and carried judgments remain usable
   without another review or pass; missing applicability cannot clear. Inadequate incremental evidence selects coverage.
 
 ### Member 6 — `incremental-review-convergence`
 
-- `[ ]` A complete predecessor basis plus fresh narrow material-correction evidence can converge; missing, incompatible,
+- `[x]` A complete predecessor basis plus fresh narrow material-correction evidence can converge; missing, incompatible,
   cyclic, gapped, stale, or insufficient history cannot. Historical severity is not a lifetime maximum.
 
-- `[ ]` Local correction payloads carry admitted endpoints and material finding instructions. Unsupported hosted scope
+- `[x]` Local correction payloads carry admitted endpoints and material finding instructions. Unsupported hosted scope
   cannot claim coverage from a label; explicit complete upgrades remain truthful and no expensive pass starts silently.
 
-- `[ ]` The captured material multi-pass member remains outstanding until fresh adequate no-material evidence or exact
+- `[x]` Hosted CodeRabbit correction coverage retains ARC's exact internal scope and requires authenticated native
+  predecessor-to-current generation evidence; labels, missing or overlapping history, and mismatched baselines fail
+  closed without weakening local exact transport, Frontline completeness, or explicit hosted complete upgrades.
+
+- `[x]` The captured material multi-pass member remains outstanding until fresh adequate no-material evidence or exact
   Owner acceptance; its one-pass-clean sibling is not re-reviewed. Ordered progression, convergence, Owner acceptance,
   and one-pass override remain distinct through head movement and re-entry.
 
 ### Member 7 — `publication-continuation`
 
-- `[ ]` Public commands carry clean-at-cap convergence through staged attestation, publish-readiness, and one projection
+- `[x]` Public commands carry clean-at-cap convergence through staged attestation, publish-readiness, and one projection
   commit without another evaluator call or reconstructed private state.
 
-- `[ ]` Actual boundary and later metadata/staging failures after Candidate persistence repair idempotently. Plain and
+- `[x]` Actual boundary and later metadata/staging failures after Candidate persistence repair idempotently. Plain and
   token re-entry preserve the ordering guard; premature projection commits refuse before review spend. Explicit recovery
   retains applicable evidence; stale recovery and later replay cannot regress readiness. Changed content reroutes, and
   post-readiness subject-stable commits retain existing authority.
 
 ### Cross-member seams
 
-- `[ ]` Public lifecycle re-entry uses returned actions and durable references, without caller-invented digests,
+- `[x]` Public lifecycle re-entry uses returned actions and durable references, without caller-invented digests,
   producer identities, counters, or severity summaries.
 
-- `[ ]` Every mandatory lifecycle has its production caller and executable scenario at the earliest visible member;
+- `[x]` Every mandatory lifecycle has its production caller and executable scenario at the earliest visible member;
   verifiers consume evidence rather than accumulating corrective implementation.
 
-- `[ ]` All strict-current callers, generated schema validation, installed declarations/fire-points, and both
+- `[x]` All strict-current callers, generated schema validation, installed declarations/fire-points, and both
   methodology copies agree; no temporary convergence bypass or compatibility reader remains.
 
-- `[ ]` All quality gates pass.
+- `[x]` All quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

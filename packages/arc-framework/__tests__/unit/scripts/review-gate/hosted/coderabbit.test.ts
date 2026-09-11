@@ -129,7 +129,7 @@ Review finished.`,
   };
 }
 
-function requestHandle(coverage: HostedReviewCoverage = "incremental") {
+function requestHandle(coverage: HostedReviewCoverage = "complete") {
   return createHostedHandleFixture({
     requestedCoverage: coverage,
     effectiveCoverage: coverage,
@@ -210,6 +210,29 @@ describe("CodeRabbit hosted adapter", () => {
     });
   });
 
+  it("accepts a terminal incremental finding sequence with the admitted native range", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: "Review complete.",
+      })]),
+      readThreads: () => Promise.resolve([findingThread("_🟠 Major_ broken boundary")]),
+      readIssueComments: () => Promise.resolve([summaryComment()]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ severity: "major", locus: "src/a.ts:7" }],
+      coverageEvidence: {
+        status: "established",
+        requestArtifactId: "IC_REQUEST",
+        baselineSha: "b".repeat(40),
+        headSha: HEAD,
+        providerGeneration: { artifactId: "IC_SUMMARY" },
+      },
+    });
+  });
+
   it("preserves an explicit thread-level nitpick marker", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "Review complete." })]),
@@ -228,7 +251,93 @@ describe("CodeRabbit hosted adapter", () => {
       readCommitStatuses: () => Promise.resolve([completionStatus()]),
     }));
 
-    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({ kind: "clean" });
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it.each([
+    {
+      name: "mismatched baseline",
+      comments: [summaryComment(HEAD, {
+        body: `<!-- recent_review_start -->
+
+Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
+
+<!-- recent_review_end -->`,
+      })],
+      reason: "provider-incremental-range-mismatch",
+    },
+    {
+      name: "missing range",
+      comments: [summaryComment(HEAD, {
+        body: `<!-- recent_review_start -->
+
+Review complete.
+
+<!-- recent_review_end -->`,
+      })],
+      reason: "provider-incremental-range-missing",
+    },
+    {
+      name: "untrusted range",
+      comments: [summaryComment(HEAD, { appId: "999" })],
+      reason: "provider-incremental-range-missing",
+    },
+    {
+      name: "ambiguous ranges",
+      comments: [summaryComment(HEAD, {
+        body: `<!-- recent_review_start -->
+
+Reviewing files that changed between ${"b".repeat(40)} and ${HEAD}.
+Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
+
+<!-- recent_review_end -->`,
+      })],
+      reason: "provider-incremental-range-ambiguous",
+    },
+  ])("retains a terminal result without crediting $name", async ({ comments, reason }) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review()]),
+      readIssueComments: () => Promise.resolve(comments),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
+      kind: "clean",
+      coverageEvidence: {
+        status: "unestablished",
+        requestArtifactId: "IC_REQUEST",
+        reason,
+      },
+    });
+  });
+
+  it("fails closed when a different request command shares the admitted artifact timestamp", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review()]),
+      readIssueComments: () => Promise.resolve([
+        {
+          id: "IC_REQUEST",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-request",
+          actorIdentity: "1234",
+          body: "@coderabbitai review",
+          createdAt: REQUESTED_AT,
+          updatedAt: REQUESTED_AT,
+        },
+        {
+          id: "IC_COMPETING",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-competing",
+          actorIdentity: "5678",
+          body: "@coderabbitai full review",
+          createdAt: REQUESTED_AT,
+          updatedAt: REQUESTED_AT,
+        },
+        summaryComment(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
   });
 
   it("does not let an incremental completion discharge a complete request", async () => {
@@ -402,7 +511,7 @@ The later approval is a completion marker, not a replacement result.
       }]),
     }));
 
-    await expect(adapter.observe(requestHandle())).resolves.toEqual({
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toEqual({
       kind: "terminal-failure",
       reason: "provider-request-generation-overlap",
     });

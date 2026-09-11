@@ -24,6 +24,10 @@ import {
   validateReviewTarget,
 } from "../core/gate-contract-v2.js";
 import { LaneSubjectLineageSchema } from "../core/lane-admission.js";
+import {
+  IncrementalReviewScopeSchema,
+  type IncrementalReviewScope,
+} from "../core/incremental-review-scope.js";
 
 const GitHubObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
@@ -88,6 +92,7 @@ const HostedAdmissionPreimageSchema = z.strictObject({
   sourceId: HostedProviderIdSchema,
   target: HostedTargetSchema,
   requestedCoverage: HostedReviewCoverageSchema,
+  correctionScope: IncrementalReviewScopeSchema.optional(),
   vehicle: HostedProgressVehicleSchema.optional(),
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema,
@@ -97,6 +102,28 @@ const HostedAdmissionPreimageSchema = z.strictObject({
 export const HostedAdmissionSchema = HostedAdmissionPreimageSchema.extend({
   admissionId: ReviewIdentifierSchema,
 }).superRefine((admission, context) => {
+  if (admission.requestedCoverage === "incremental" && admission.correctionScope === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope"],
+      message: "incremental hosted admission requires one exact correction scope",
+    });
+  }
+  if (admission.requestedCoverage === "complete" && admission.correctionScope !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope"],
+      message: "complete hosted admission must not carry a correction scope",
+    });
+  }
+  if (admission.correctionScope !== undefined
+    && admission.correctionScope.headSha !== admission.target.headSha) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope", "headSha"],
+      message: "hosted correction scope does not match the admitted target head",
+    });
+  }
   try {
     const target = validateReviewTarget(admission.reviewTarget);
     validateReviewRequirement(target, admission.requirement);
@@ -215,11 +242,9 @@ export function hostedRequestHandleMatchesProgress(
   handle: HostedRequestHandle,
   progress: {
     readonly admission: HostedAdmission;
-    readonly effectiveCoverage: HostedReviewCoverage | null;
   },
 ): boolean {
   return canonicalize(handle.admission) === canonicalize(progress.admission)
-    && handle.effectiveCoverage === progress.effectiveCoverage
     && canonicalize(handle.vehicle ?? null) === canonicalize(progress.admission.vehicle ?? null);
 }
 
@@ -228,6 +253,7 @@ export interface HostedRequestEnvelope {
   target: HostedTarget;
   provider: HostedProviderId;
   coverage: HostedReviewCoverage;
+  correctionScope?: IncrementalReviewScope;
   vehicle?: HostedRequestVehicle;
   invocation?: { readonly mode: "force"; readonly sourceId: string };
   ceilingOverride?: ReviewCeilingOverride;
@@ -238,6 +264,7 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
   target: HostedTargetSchema,
   provider: HostedProviderIdSchema,
   coverage: HostedReviewCoverageSchema,
+  correctionScope: IncrementalReviewScopeSchema.optional(),
   vehicle: HostedRequestVehicleSchema.optional(),
   invocation: z.strictObject({
     mode: z.literal("force"),
@@ -245,6 +272,28 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
   }).readonly().optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
 }).superRefine((request, context) => {
+  if (request.coverage === "incremental" && request.correctionScope === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope"],
+      message: "incremental hosted request requires one exact correction scope",
+    });
+  }
+  if (request.coverage === "complete" && request.correctionScope !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope"],
+      message: "complete hosted request must not carry a correction scope",
+    });
+  }
+  if (request.correctionScope !== undefined
+    && request.correctionScope.headSha !== request.target.headSha) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope", "headSha"],
+      message: "hosted correction scope does not match the request target head",
+    });
+  }
   if (request.invocation !== undefined && request.invocation.sourceId !== request.provider) {
     context.addIssue({
       code: "custom",
@@ -371,6 +420,7 @@ export function hostedAdmissionMatchesRequest(
     : canonicalize(admission.vehicle ?? null) === canonicalize(request.vehicle ?? null);
   return admission.sourceId === request.provider
     && admission.requestedCoverage === request.coverage
+    && canonicalize(admission.correctionScope ?? null) === canonicalize(request.correctionScope ?? null)
     && canonicalize(admission.target) === canonicalize(request.target)
     && vehicleMatches;
 }
@@ -493,6 +543,7 @@ export async function requestHostedReview(
   const admission = HostedAdmissionSchema.parse(admissionResolution.admission);
   if (admission.sourceId !== request.provider
     || admission.requestedCoverage !== request.coverage
+    || canonicalize(admission.correctionScope ?? null) !== canonicalize(request.correctionScope ?? null)
     || canonicalize(admission.target) !== canonicalize(request.target)
     || canonicalize(admission.vehicle ?? null) !== canonicalize(progressVehicle ?? null)) {
     throw new Error("Hosted review dispatch does not match its durable admission.");

@@ -777,7 +777,7 @@ export function composeDeliveryReviewObligation(input: {
       detail: `The next reserved source \`${discharge.nextSource}\` is not a hosted request provider.`,
     };
   }
-  if (!hostedProviderAdmitsCoverage(provider.data, requestCoverage)) {
+  if (!hostedProviderAdmitsCoverage(provider.data, requestCoverage, discharge.correctionScope)) {
     return RoutedReviewObligationSchema.parse({
       state: "blocked",
       reason: "coverage-unsupported",
@@ -798,6 +798,9 @@ export function composeDeliveryReviewObligation(input: {
       }),
       provider: provider.data,
       coverage: requestCoverage,
+      ...(requestCoverage !== "incremental" || discharge.correctionScope === undefined
+        ? {}
+        : { correctionScope: discharge.correctionScope }),
       vehicle: target.vehicle,
       ...(input.requestInvocation === undefined ? {} : { invocation: input.requestInvocation }),
       ...(discharge.requestCeilingOverride === undefined

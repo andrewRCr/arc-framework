@@ -38,8 +38,12 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateSnapshotIndex,
 } from "../../../../../../src/scripts/review-gate/core/ports.js";
+import type { HostedCoverageEvidence } from
+  "../../../../../../src/scripts/review-gate/hosted/await.js";
 import { bindReviewSourceReference } from
   "../../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import type { LaneSubjectLineage } from
+  "../../../../../../src/scripts/review-gate/core/lane-admission.js";
 import {
   dispositionSourceContextForResult,
   validateApprovedDispositionRecordForResult,
@@ -59,6 +63,7 @@ const oid = (character: string): string => character.repeat(40);
 const digest = (value: string): `sha256:${string}` => canonicalDigest({ value });
 
 function localFixture(options: {
+  findings?: Parameters<typeof createReviewReceipt>[0]["findings"];
   findingSourceLabel?: string;
   scopeMode?: "whole-target" | "chunked";
 } = {}) {
@@ -163,7 +168,7 @@ function localFixture(options: {
     attestationMechanism: "local-attestation",
     providerEventIdentity: null,
     result: "findings",
-    findings: [{
+    findings: options.findings ?? [{
       findingId: "finding-1",
       severity: "major",
       locus: "src/index.ts:10",
@@ -207,11 +212,13 @@ function localFixture(options: {
 
 function readerForLocalFixture(options: {
   exactReceiptMissing?: boolean;
+  findings?: Parameters<typeof createReviewReceipt>[0]["findings"];
   findingSourceLabel?: string;
   scopeMode?: "whole-target" | "chunked";
   settled?: boolean;
 } = {}) {
   const fixture = localFixture({
+    ...(options.findings === undefined ? {} : { findings: options.findings }),
     ...(options.findingSourceLabel === undefined
       ? {}
       : { findingSourceLabel: options.findingSourceLabel }),
@@ -401,11 +408,19 @@ function readerForFrontlineFixture(options: { settled?: boolean } = {}) {
   };
 }
 
-function readerForHostedFixture() {
-  const handle = createHostedHandleFixture();
+function readerForHostedFixture(options: {
+  handle?: Parameters<typeof createHostedHandleFixture>[0];
+  laneLineage?: LaneSubjectLineage;
+  coverageEvidence?: HostedCoverageEvidence;
+} = {}) {
+  const handle = createHostedHandleFixture(options.handle);
   const terminal = createHostedTerminalAttemptFixture({
     admission: handle.admission,
+    artifact: handle.artifact,
     outcome: "findings",
+    ...(options.coverageEvidence === undefined
+      ? {}
+      : { coverageEvidence: options.coverageEvidence }),
     findings: [
       {
         findingId: "hosted-thread",
@@ -434,7 +449,7 @@ function readerForHostedFixture() {
       },
     ],
   });
-  const lane = LaneProgressStateSchema.parse({
+  const admittedLane = LaneProgressStateSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "review-operation/v1",
     operationId: "lane-progress-hosted",
@@ -456,6 +471,9 @@ function readerForHostedFixture() {
       hosted: terminal.hosted,
     }],
   });
+  const lane = options.laneLineage === undefined
+    ? admittedLane
+    : { ...admittedLane, lineage: options.laneLineage };
   const operationIndex: ReviewOperationStateSnapshotIndex = {
     readOperationSnapshot: async () => ({
       status: "complete",
@@ -624,6 +642,94 @@ describe("local review result reader", () => {
     });
   });
 
+  it("exposes an incremental correction scope only when sealed provider evidence establishes it", async () => {
+    const established = readerForHostedFixture({
+      handle: { requestedCoverage: "incremental" },
+    });
+    await expect(established.reader.readResult(established.terminal.attemptId)).resolves.toMatchObject({
+      admission: {
+        effectiveCoverage: "incremental",
+        correctionScope: established.handle.admission.correctionScope,
+      },
+      coverageEvidence: { status: "established" },
+    });
+
+    const unestablished = readerForHostedFixture({
+      handle: { requestedCoverage: "incremental" },
+      coverageEvidence: {
+        schemaVersion: 1,
+        kind: "provider-native-incremental",
+        sourceId: "coderabbit-pr",
+        requestArtifactId: "comment-1",
+        status: "unestablished",
+        reason: "provider-incremental-range-mismatch",
+      },
+    });
+    const result = await unestablished.reader.readResult(unestablished.terminal.attemptId);
+    expect(result).toMatchObject({
+      admission: { effectiveCoverage: null },
+      coverageEvidence: {
+        status: "unestablished",
+        reason: "provider-incremental-range-mismatch",
+      },
+    });
+    expect(result.admission).not.toHaveProperty("correctionScope");
+  });
+
+  it("reads an earlier hosted Errand producer through its stable moved-head owner", async () => {
+    const vehicle = {
+      kind: "errand" as const,
+      key: "repair-review-state",
+      claimId: "errand-claim-1",
+      branch: "errand/repair-review-state",
+      sources: ["coderabbit-pr" as const],
+      standardReview: {
+        obligation: "required" as const,
+        reasons: ["sensitive-change-set" as const],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: digest("rubric"),
+        retrigger: "full-final" as const,
+        count: 1 as const,
+      },
+    };
+    const originalHead = oid("c");
+    const currentHead = oid("e");
+    const fixture = readerForHostedFixture({
+      handle: {
+        vehicle,
+        target: { repository: "owner/repo", pullRequest: 42, headSha: originalHead },
+      },
+      laneLineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: vehicle.claimId,
+        headSha: currentHead,
+      },
+    });
+
+    await expect(fixture.reader.readResult(fixture.terminal.attemptId)).resolves.toMatchObject({
+      producerId: fixture.terminal.attemptId,
+      target: { headSha: originalHead },
+      admission: { lineage: { vehicleIdentity: vehicle.claimId, headSha: originalHead } },
+    });
+
+    const foreign = readerForHostedFixture({
+      handle: {
+        vehicle,
+        target: { repository: "owner/repo", pullRequest: 42, headSha: originalHead },
+      },
+      laneLineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: "other-claim",
+        headSha: currentHead,
+      },
+    });
+    await expect(foreign.reader.readResult(foreign.terminal.attemptId)).rejects.toMatchObject({
+      code: "corrupt-result",
+    });
+  });
+
   it("distinguishes a missing producer from corrupt stored content", async () => {
     const fixture = readerForHostedFixture();
 
@@ -762,5 +868,97 @@ describe("local review result reader", () => {
     expect(() => validateApprovedDispositionSetForResult(substituted, result)).toThrow(
       /immutable producer result/u,
     );
+  });
+
+  it("matches complete approved findings independent of producer and canonical order", async () => {
+    const { fixture, reader } = readerForLocalFixture({
+      findings: [
+        {
+          findingId: "finding-z",
+          severity: "major",
+          locus: "src/major.ts:10",
+          evidenceUrlOrId: "local:finding-z",
+          sourceOrdinal: 1,
+        },
+        {
+          findingId: "finding-a",
+          severity: "minor",
+          nit: true,
+          locus: "src/minor.ts:20",
+          evidenceUrlOrId: "local:finding-a",
+          sourceOrdinal: 2,
+        },
+      ],
+    });
+    const result = await reader.readResult(fixture.state.operationId);
+    const context = dispositionSourceContextForResult(result);
+    const approve = (mutate?: (finding: {
+      findingId: string;
+      locus: string;
+      reportedSeverity: "critical" | "major" | "minor";
+      reportedNit?: true;
+    }) => void) => approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        targetId: result.target.targetId,
+        producerId: result.producerId,
+        resultDigest: result.resultDigest,
+        policyVersion: context.policyVersion,
+        ...(context.kind === "rubric"
+          ? { rubricVersion: context.rubricVersion, rubricDigest: context.rubricDigest }
+          : { frontlineBinding: context.frontlineBinding }),
+        proposedBy: "arc-cli/0.1.0",
+        proposedVerification: "full",
+        findings: result.findings.map((finding) => {
+          const source = {
+            findingId: finding.findingId,
+            locus: finding.locus,
+            reportedSeverity: finding.severity,
+            ...(finding.nit === true ? { reportedNit: true as const } : {}),
+          };
+          mutate?.(source);
+          return {
+            ...source,
+            sourceIdentity: result.sourceIdentity,
+            sourceVerification: "verified" as const,
+            verificationRefs: [finding.evidenceUrlOrId],
+            verifiedSeverity: finding.severity,
+            ...(finding.nit === true ? { verifiedNit: true as const } : {}),
+            disposition: "defer" as const,
+            rationale: "The source confirms the issue.",
+            recommendation: "Track the correction separately.",
+            openQuestions: [],
+          };
+        }),
+      })),
+      approvedBy: "author-1",
+      approvedAt: "2026-09-11T12:05:00Z",
+    });
+
+    const approved = approve();
+    expect(result.findings.map(({ findingId }) => findingId)).toEqual(["finding-z", "finding-a"]);
+    expect(approved.dispositionSet.findings.map(({ findingId }) => findingId)).toEqual(["finding-a", "finding-z"]);
+    expect(validateApprovedDispositionSetForResult(approved, result)).toEqual(approved);
+
+    const mismatches = [
+      approve((finding) => {
+        if (finding.findingId === "finding-z") finding.findingId = "finding-y";
+      }),
+      approve((finding) => {
+        if (finding.findingId === "finding-z") finding.reportedSeverity = "critical";
+      }),
+      approve((finding) => {
+        if (finding.findingId === "finding-a") delete finding.reportedNit;
+      }),
+      approve((finding) => {
+        if (finding.findingId === "finding-z") finding.locus = "src/other.ts:10";
+      }),
+    ];
+    for (const mismatch of mismatches) {
+      expect(() => validateApprovedDispositionSetForResult(mismatch, result)).toThrow(
+        /immutable producer result/u,
+      );
+    }
   });
 });

@@ -12,6 +12,7 @@ import { validateApprovedDispositionRecordForResult } from
   "../core/review-result-disposition.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { ReviewSeverity } from "../core/review-primitives.js";
+import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import {
   ReviewPolicyCommandRequestSchema,
   ReviewPolicyRequestSchema,
@@ -39,6 +40,9 @@ export interface EvidenceBoundReviewPolicyDependencies {
     predecessor: ReviewResult,
     current: ReviewResult,
   ) => Promise<IncrementalPredecessorApplicability>;
+  readonly readResponsePerformance?: (
+    predecessor: ReviewResult,
+  ) => Promise<LaneResponsePerformance | null>;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -142,6 +146,9 @@ function greaterSeverity(left: ReviewSeverity | null, right: ReviewSeverity): Re
 export async function readIncrementalPredecessorResponseEvidence(
   predecessor: ReviewResult,
   dispositionStore: ApprovedDispositionRecordStore,
+  readResponsePerformance?: (
+    predecessor: ReviewResult,
+  ) => Promise<LaneResponsePerformance | null>,
 ): Promise<IncrementalPredecessorResponseEvidence> {
   if (predecessor.originalOutcome === "clean") {
     return { status: "performed", requiredFindings: [] };
@@ -164,9 +171,17 @@ export async function readIncrementalPredecessorResponseEvidence(
       return { producerId: predecessor.producerId, findingId, locus: finding.locus };
     });
   const hasFix = dispositions.some(({ disposition }) => disposition === "fix");
+  const performance = hasFix && readResponsePerformance !== undefined
+    ? await readResponsePerformance(predecessor).catch(() => null)
+    : null;
+  const laneFixPerformed = performance !== null
+    && performance.producerId === predecessor.producerId
+    && performance.dispositionSetId === node.approvedDisposition.dispositionSet.dispositionSetId
+    && performance.originatingHeadSha === predecessor.target.headSha;
   const fixPerformed = !hasFix
     || node.deliveryMemberFixResponse !== null
-    || node.errandFixResponse !== null;
+    || node.errandFixResponse !== null
+    || laneFixPerformed;
   const hostSettlementPerformed = predecessor.kind !== "hosted"
     || predecessor.hostSettlementFindingIds.length === 0
     || predecessor.settled;
@@ -181,7 +196,7 @@ async function deriveVerifiedTerminalSignal(
   operationId: string,
   dependencies: Pick<
     EvidenceBoundReviewPolicyDependencies,
-    "resultReader" | "dispositionStore" | "confirmIncrementalApplicability"
+    "resultReader" | "dispositionStore" | "confirmIncrementalApplicability" | "readResponsePerformance"
   >,
 ): Promise<VerifiedTerminalReviewSignal> {
   const coverage = await resolveIncrementalCoverageBasis(result, {
@@ -193,6 +208,7 @@ async function deriveVerifiedTerminalSignal(
     readResponseEvidence: (predecessor) => readIncrementalPredecessorResponseEvidence(
       predecessor,
       dependencies.dispositionStore,
+      dependencies.readResponsePerformance,
     ),
   });
   const coverageAdequate = coverage.status === "adequate";

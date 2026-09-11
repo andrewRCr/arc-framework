@@ -17,7 +17,10 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
 import { FrontlineAdmissionSchema } from "./frontline-admission.js";
-import { HostedFindingsSchema } from "../hosted/await.js";
+import {
+  HostedCoverageEvidenceSchema,
+  HostedFindingsSchema,
+} from "../hosted/await.js";
 import {
   HostedAdmissionSchema,
   HostedProviderIdSchema,
@@ -370,6 +373,7 @@ export const HostedSealedResultSchema = z.strictObject({
   outcome: z.enum(["clean", "findings"]),
   reviewUrl: z.url(),
   findings: HostedFindingsSchema,
+  coverageEvidence: HostedCoverageEvidenceSchema.optional(),
   hostedResultId: CanonicalDigestSchema,
 }).superRefine((result, context) => {
   if ((result.outcome === "clean") !== (result.findings.length === 0)) {
@@ -454,13 +458,14 @@ const HostedResultDigestPreimageSchema = z.strictObject({
   handle: HostedRequestHandleSchema,
   target: HostedTargetSchema,
   requestedCoverage: HostedReviewCoverageSchema,
-  effectiveCoverage: HostedReviewCoverageSchema,
+  effectiveCoverage: HostedReviewCoverageSchema.nullable(),
   vehicle: DeliveryReviewMemberVehicleSchema.optional(),
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema,
   outcome: HostedSealedResultSchema.shape.outcome,
   reviewUrl: HostedSealedResultSchema.shape.reviewUrl,
   findings: HostedSealedResultSchema.shape.findings,
+  coverageEvidence: HostedSealedResultSchema.shape.coverageEvidence,
 });
 export type HostedResultDigestPreimage = z.infer<typeof HostedResultDigestPreimageSchema>;
 
@@ -482,6 +487,9 @@ export function createHostedSealedResult(
     outcome: preimage.outcome,
     reviewUrl: preimage.reviewUrl,
     findings: preimage.findings,
+    ...(preimage.coverageEvidence === undefined
+      ? {}
+      : { coverageEvidence: preimage.coverageEvidence }),
     hostedResultId: computeHostedResultId(preimage),
   });
 }
@@ -658,6 +666,8 @@ const LaneAttemptSchema = z.strictObject({
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
   conditionalPassAuthorizations: ConditionalPassAuthorizationsSchema.optional(),
+  // Superseded non-hosted approved sets retain their performed-response evidence in order.
+  responsePerformanceHistory: z.array(LaneResponsePerformanceSchema).optional(),
   responsePerformance: LaneResponsePerformanceSchema.optional(),
   chunkSeriesComplete: z.boolean().optional(),
   hosted: HostedLaneAttemptBindingSchema.optional(),
@@ -722,15 +732,33 @@ const LaneAttemptSchema = z.strictObject({
       });
     }
   }
-  if (attempt.responsePerformance !== undefined
-    && (attempt.responsePerformance.producerId !== attempt.attemptId
-      || attempt.responsePerformance.originatingHeadSha !== attempt.headSha
-      || !attempt.terminalProducer
-      || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings"))) {
+  const responsePerformances = [
+    ...(attempt.responsePerformanceHistory ?? []),
+    ...(attempt.responsePerformance === undefined ? [] : [attempt.responsePerformance]),
+  ];
+  if (responsePerformances.some((performance) => (
+    performance.producerId !== attempt.attemptId
+      || performance.originatingHeadSha !== attempt.headSha
+  ))
+    || (responsePerformances.length > 0
+      && (!attempt.terminalProducer
+        || (attempt.outcome !== "findings" && attempt.outcome !== "settled-findings")))) {
     context.addIssue({
       code: "custom",
       path: ["responsePerformance"],
       message: "lane response performance must bind its terminal findings producer",
+    });
+  }
+  const responseDispositionSetIds = responsePerformances.map(({ dispositionSetId }) => dispositionSetId);
+  if (new Set(responseDispositionSetIds).size !== responseDispositionSetIds.length
+    || (attempt.responsePerformanceHistory !== undefined
+      && attempt.responsePerformanceHistory.length > 0
+      && attempt.responsePerformance === undefined)
+    || (attempt.hosted !== undefined && (attempt.responsePerformanceHistory?.length ?? 0) > 0)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responsePerformanceHistory"],
+      message: "lane response performance history must be unique, retained, and non-hosted",
     });
   }
   if (attempt.hosted === undefined) return;
@@ -784,10 +812,7 @@ const LaneAttemptSchema = z.strictObject({
           : "acknowledged hosted attempt identity must derive from its handle",
       });
     }
-    if (handle !== undefined && !hostedRequestHandleMatchesProgress(handle, {
-      admission,
-      effectiveCoverage: attempt.hosted.effectiveCoverage,
-    })) {
+    if (handle !== undefined && !hostedRequestHandleMatchesProgress(handle, { admission })) {
       context.addIssue({
         code: "custom",
         path: ["hosted", "handle"],
@@ -816,13 +841,55 @@ const LaneAttemptSchema = z.strictObject({
   }
   if (sealedResult !== undefined) {
     const hosted = attempt.hosted;
-    if (hosted.handle === undefined || hosted.effectiveCoverage === null) {
+    if (hosted.handle === undefined) {
       context.addIssue({
         code: "custom",
         path: ["hosted", "sealedResult"],
         message: "hosted sealed result requires its acknowledged execution binding",
       });
     } else {
+      const nativeIncremental = hosted.requestedCoverage === "incremental"
+        && hosted.effectiveCoverage !== "complete";
+      const evidence = sealedResult.coverageEvidence;
+      if (nativeIncremental !== (evidence !== undefined)) {
+        context.addIssue({
+          code: "custom",
+          path: ["hosted", "sealedResult", "coverageEvidence"],
+          message: nativeIncremental
+            ? "provider-native incremental sealed results require coverage evidence"
+            : "provider-native coverage evidence belongs only to incremental hosted results",
+        });
+      }
+      if (evidence !== undefined) {
+        const scope = hosted.admission.correctionScope;
+        const established = evidence.status === "established";
+        if (evidence.requestArtifactId !== hosted.handle.artifact.id
+          || (established
+            && (scope === undefined
+              || !scope.predecessorHeadSha.startsWith(evidence.baselineSha)
+              || !scope.headSha.startsWith(evidence.headSha)
+              || evidence.providerGeneration.updatedAt < hosted.handle.artifact.createdAt))) {
+          context.addIssue({
+            code: "custom",
+            path: ["hosted", "sealedResult", "coverageEvidence"],
+            message: "hosted provider evidence does not establish its admitted request generation and range",
+          });
+        }
+        const expectedCoverage = established ? "incremental" : null;
+        if (hosted.effectiveCoverage !== expectedCoverage) {
+          context.addIssue({
+            code: "custom",
+            path: ["hosted", "effectiveCoverage"],
+            message: "hosted effective coverage must derive from its sealed provider evidence",
+          });
+        }
+      } else if (hosted.effectiveCoverage !== hosted.handle.effectiveCoverage) {
+        context.addIssue({
+          code: "custom",
+          path: ["hosted", "effectiveCoverage"],
+          message: "hosted effective coverage must derive from its acknowledged carrier result",
+        });
+      }
       const expectedResultId = computeHostedResultId({
         attemptId: attempt.attemptId,
         admission: hosted.admission,
@@ -836,6 +903,9 @@ const LaneAttemptSchema = z.strictObject({
         outcome: sealedResult.outcome,
         reviewUrl: sealedResult.reviewUrl,
         findings: sealedResult.findings,
+        ...(sealedResult.coverageEvidence === undefined
+          ? {}
+          : { coverageEvidence: sealedResult.coverageEvidence }),
       });
       if (sealedResult.hostedResultId !== expectedResultId) {
         context.addIssue({
@@ -845,6 +915,12 @@ const LaneAttemptSchema = z.strictObject({
         });
       }
     }
+  } else if (attempt.hosted.effectiveCoverage !== null) {
+    context.addIssue({
+      code: "custom",
+      path: ["hosted", "effectiveCoverage"],
+      message: "hosted effective coverage requires one sealed terminal result",
+    });
   }
   if (new Set(attempt.hosted.settledFindingIds).size !== attempt.hosted.settledFindingIds.length
     || attempt.hosted.settledFindingIds.some((findingId) => !findingIds.includes(findingId))) {

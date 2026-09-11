@@ -53,7 +53,10 @@ import {
   deriveLocalReviewTargetFromCoordinates,
 } from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
-import { readLaneProgressAcrossLineage } from "../lane-progress.js";
+import {
+  readLaneProgressAcrossLineage,
+  readLaneResponsePerformance,
+} from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import {
@@ -303,6 +306,7 @@ export function createPrePublicationCompositionDependencies(input: {
   return {
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
       const record = await readCandidateRecord(input.cwd, name);

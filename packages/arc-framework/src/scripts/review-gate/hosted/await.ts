@@ -129,14 +129,59 @@ export function projectHostedFinding(finding: HostedFinding): NormalizedReviewFi
   });
 }
 
+const ProviderNativeShaSchema = z.string().regex(/^[0-9a-f]{7,40}$/u);
+const CodeRabbitNativeIncrementalEvidenceBaseShape = {
+  schemaVersion: z.literal(1),
+  kind: z.literal("provider-native-incremental"),
+  sourceId: z.literal("coderabbit-pr"),
+  requestArtifactId: z.string().trim().min(1),
+};
+
+/** Immutable provider evidence that either establishes or refuses native incremental coverage. */
+export const HostedCoverageEvidenceSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    ...CodeRabbitNativeIncrementalEvidenceBaseShape,
+    status: z.literal("established"),
+    baselineSha: ProviderNativeShaSchema,
+    headSha: ProviderNativeShaSchema,
+    providerGeneration: z.strictObject({
+      artifactId: z.string().trim().min(1),
+      url: z.url(),
+      createdAt: z.iso.datetime({ offset: true }),
+      updatedAt: z.iso.datetime({ offset: true }),
+      actorIdentity: z.literal("136622811"),
+      appId: z.literal("347564"),
+    }),
+  }),
+  z.strictObject({
+    ...CodeRabbitNativeIncrementalEvidenceBaseShape,
+    status: z.literal("unestablished"),
+    reason: z.enum([
+      "provider-incremental-range-missing",
+      "provider-incremental-range-ambiguous",
+      "provider-incremental-range-mismatch",
+    ]),
+  }),
+]);
+export type HostedCoverageEvidence = z.infer<typeof HostedCoverageEvidenceSchema>;
+
+const HostedTerminalCoverageShape = {
+  coverageEvidence: HostedCoverageEvidenceSchema.optional(),
+};
+
 const HostedObservationSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("pending") }),
-  z.strictObject({ kind: z.literal("clean"), reviewUrl: z.url() }),
+  z.strictObject({
+    kind: z.literal("clean"),
+    reviewUrl: z.url(),
+    ...HostedTerminalCoverageShape,
+  }),
   z.strictObject({
     kind: z.literal("findings"),
     reviewUrl: z.url(),
     findings: NonEmptyHostedFindingsSchema,
     responseSourceRef: z.string().trim().min(1).optional(),
+    ...HostedTerminalCoverageShape,
   }),
   z.strictObject({ kind: z.literal("rate-limited") }),
   z.strictObject({ kind: z.literal("transient-unavailable") }),
@@ -211,6 +256,7 @@ export const HostedAwaitResultSchema = z.union([
     state: z.literal("clean"),
     nextAction: z.literal("complete"),
     reviewUrl: z.url(),
+    ...HostedTerminalCoverageShape,
     responseSourceRef: z.string().trim().min(1).optional(),
     hostedResultId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   }),
@@ -220,6 +266,7 @@ export const HostedAwaitResultSchema = z.union([
     nextAction: z.literal("triage"),
     reviewUrl: z.url(),
     findings: NonEmptyHostedFindingsSchema,
+    ...HostedTerminalCoverageShape,
     responseSourceRef: z.string().trim().min(1).optional(),
     hostedResultId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   }),
@@ -246,7 +293,43 @@ export const HostedAwaitResultSchema = z.union([
     nextAction: z.literal("stop"),
     reason: z.string().min(1),
   }),
-]);
+]).superRefine((result, context) => {
+  if (result.state !== "clean" && result.state !== "findings") return;
+  const nativeIncremental = result.handle.provider === "coderabbit-pr"
+    && result.handle.requestedCoverage === "incremental";
+  if (nativeIncremental !== (result.coverageEvidence !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["coverageEvidence"],
+      message: nativeIncremental
+        ? "CodeRabbit incremental terminal results require provider coverage evidence"
+        : "provider-native coverage evidence belongs only to CodeRabbit incremental results",
+    });
+    return;
+  }
+  const evidence = result.coverageEvidence;
+  if (evidence === undefined) return;
+  if (evidence.requestArtifactId !== result.handle.artifact.id) {
+    context.addIssue({
+      code: "custom",
+      path: ["coverageEvidence", "requestArtifactId"],
+      message: "provider coverage evidence does not match the admitted request artifact",
+    });
+  }
+  if (evidence.status === "established") {
+    const scope = result.handle.admission.correctionScope;
+    if (scope === undefined
+      || !scope.predecessorHeadSha.startsWith(evidence.baselineSha)
+      || !scope.headSha.startsWith(evidence.headSha)
+      || evidence.providerGeneration.updatedAt < result.handle.artifact.createdAt) {
+      context.addIssue({
+        code: "custom",
+        path: ["coverageEvidence"],
+        message: "provider coverage evidence does not establish the admitted correction range",
+      });
+    }
+  }
+});
 export type HostedAwaitResult = z.infer<typeof HostedAwaitResultSchema>;
 
 interface HostedAwaitBase {
@@ -307,7 +390,13 @@ async function observeHostedReview(
   const observation = parsed.data;
   if (observation.kind === "clean") {
     return { kind: "return", value: {
-      ...base(handle), state: "clean", nextAction: "complete", reviewUrl: observation.reviewUrl,
+      ...base(handle),
+      state: "clean",
+      nextAction: "complete",
+      reviewUrl: observation.reviewUrl,
+      ...(observation.coverageEvidence === undefined
+        ? {}
+        : { coverageEvidence: observation.coverageEvidence }),
     } } as const;
   }
   if (observation.kind === "findings") {
@@ -317,6 +406,9 @@ async function observeHostedReview(
       nextAction: "triage",
       reviewUrl: observation.reviewUrl,
       findings: observation.findings,
+      ...(observation.coverageEvidence === undefined
+        ? {}
+        : { coverageEvidence: observation.coverageEvidence }),
     } } as const;
   }
   if (observation.kind === "rate-limited" || observation.kind === "transient-unavailable") {

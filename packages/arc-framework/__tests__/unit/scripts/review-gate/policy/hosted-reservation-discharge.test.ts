@@ -31,6 +31,8 @@ import { buildIncrementalCorrectionScope } from
   "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
+import type { HostedCoverageEvidence } from
+  "../../../../../src/scripts/review-gate/hosted/await.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createHostedAdmission } from
   "../../../../../src/scripts/review-gate/hosted/request.js";
@@ -124,7 +126,11 @@ function attempt(
   sourceId: "coderabbit-pr" | "codex-pr",
   outcome: "pending" | "clean" | "findings" | "settled-findings" | "rate-limited",
   vehicle?: ReturnType<typeof DeliveryReviewMemberVehicleSchema.parse>,
-  coverage: { requested: "complete" | "incremental"; effective: "complete" | "incremental" } = {
+  coverage: {
+    requested: "complete" | "incremental";
+    effective: "complete" | "incremental";
+    evidence?: HostedCoverageEvidence;
+  } = {
     requested: "complete",
     effective: "complete",
   },
@@ -182,14 +188,28 @@ function attempt(
     sourceId,
     target: hostedTarget,
     requestedCoverage: coverage.requested,
+    ...(coverage.requested === "incremental"
+      ? {
+          correctionScope: {
+            schemaVersion: 1 as const,
+            predecessorProducerId: "prior-review",
+            predecessorHeadSha: oid("9"),
+            basisHeadSha: oid("9"),
+            headSha: hostedTarget.headSha,
+            requiredFindings: [],
+          },
+        }
+      : {}),
     ...(vehicle === undefined ? {} : { vehicle }),
     reviewTarget,
     requirement,
     actorIdentity: "actor-1",
   });
   const terminal = outcome === "clean" || outcome === "findings" || outcome === "settled-findings"
-    ? createHostedTerminalAttemptFixture({
+      ? createHostedTerminalAttemptFixture({
         admission,
+        effectiveCoverage: coverage.effective,
+        ...(coverage.evidence === undefined ? {} : { coverageEvidence: coverage.evidence }),
         outcome: outcome === "clean" ? "clean" : "findings",
         findings: outcome === "findings" || outcome === "settled-findings" ? [finding] : [],
         dispositionSetId: outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
@@ -1242,7 +1262,7 @@ describe("hosted reservation discharge", () => {
     });
   });
 
-  it("does not discharge a complete member obligation from incremental hosted coverage", async () => {
+  it("routes unproved provider-native coverage to the typed complete-coverage selection", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
       planId: PLAN_ID,
@@ -1269,7 +1289,18 @@ describe("hosted reservation discharge", () => {
             "coderabbit-pr",
             "clean",
             vehicle,
-            { requested: "incremental", effective: "incremental" },
+            {
+              requested: "incremental",
+              effective: "incremental",
+              evidence: {
+                schemaVersion: 1,
+                kind: "provider-native-incremental",
+                sourceId: "coderabbit-pr",
+                requestArtifactId: "comment-1",
+                status: "unestablished",
+                reason: "provider-incremental-range-mismatch",
+              },
+            },
           )],
         },
       }),
@@ -1757,6 +1788,113 @@ describe("hosted reservation discharge", () => {
       discharged: true,
       detail: "Hosted source `coderabbit-pr` through contribution applicability.",
       nextSource: null,
+    });
+  });
+
+  it.each(["clean", "settled-findings"] as const)(
+    "admits retained incremental %s evidence to complete-chain policy validation",
+    async (terminalOutcome) => {
+    const resolveEarlierTerminalPolicy = async (terminal: TerminalPolicyAttempt) => resolveReviewPolicy({
+      schemaVersion: 1,
+      target: target(oid("b")),
+      lane: "standard",
+      standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+      sources: ["coderabbit-pr"],
+      maxPasses: 2,
+      completedPasses: terminal.logicalPass,
+      attempts: [{
+        sourceId: terminal.sourceId,
+        outcome: terminalOutcome === "clean" ? "clean" : "findings",
+        reviewOperationId: terminal.attemptId,
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: terminal.attemptId,
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [earlierAttempt({
+          sourceId: "coderabbit-pr",
+          outcome: terminalOutcome,
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+          applicability: "retain-prior-attempt",
+        })],
+      }),
+      resolveEarlierTerminalPolicy,
+    });
+
+    expect(result).toEqual({
+      discharged: true,
+      detail: terminalOutcome === "clean"
+        ? "Hosted source `coderabbit-pr` through contribution applicability."
+        : "Hosted source `coderabbit-pr` through contribution applicability with no verified material findings.",
+      nextSource: null,
+    });
+  });
+
+  it("routes retained incremental evidence with an inadequate chain to coverage selection", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("b"),
+    });
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "attempt-coderabbit-pr",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: oid("b"),
+      requiredFindings: [],
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: { ...target(oid("b")), vehicle },
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [earlierAttempt({
+          sourceId: "coderabbit-pr",
+          outcome: "clean",
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+          applicability: "retain-prior-attempt",
+        })],
+      }),
+      resolveIncrementalCorrectionScope: async () => correctionScope,
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      detail: "The retained terminal review producer did not establish convergence "
+        + "(coverage-required/select-coverage).",
+      nextSource: null,
+      correctionScope,
+      coverageSelectionAction: {
+        schemaVersion: 1,
+        kind: "review-coverage-selection",
+        workUnitId: "delivery",
+        sourceId: "coderabbit-pr",
+        pass: 1,
+        completedPasses: 1,
+        consumedPass: true,
+        choices: [
+          { sourceId: "coderabbit-pr", coverage: "incremental" },
+          { sourceId: "coderabbit-pr", coverage: "complete" },
+        ],
+        interactionText: expect.stringContaining("--coverage"),
+      },
     });
   });
 

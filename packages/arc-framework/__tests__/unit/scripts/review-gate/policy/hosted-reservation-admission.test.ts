@@ -148,6 +148,18 @@ function hostedProgressAttempt(input: {
     sourceId: input.sourceId,
     target,
     requestedCoverage,
+    ...(requestedCoverage === "incremental"
+      ? {
+          correctionScope: {
+            schemaVersion: 1 as const,
+            predecessorProducerId: "prior-review",
+            predecessorHeadSha: "9".repeat(40),
+            basisHeadSha: "9".repeat(40),
+            headSha: target.headSha,
+            requiredFindings: [],
+          },
+        }
+      : {}),
     vehicle: input.vehicle,
     reviewTarget,
     requirement,

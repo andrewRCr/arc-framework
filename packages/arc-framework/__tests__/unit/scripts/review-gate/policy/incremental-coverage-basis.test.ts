@@ -11,6 +11,7 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
+  resolveIncrementalCorrectionScope,
   resolveIncrementalCoverageBasis,
   type IncrementalCoverageBasisDependencies,
 } from
@@ -182,6 +183,53 @@ describe("incremental coverage basis", () => {
         status: "adequate",
         basisProducerId: complete.producerId,
       });
+  });
+
+  it("does not offer a correction scope until the predecessor applies to the intended head", async () => {
+    const predecessor = result({ id: "complete-1", head: oid("a"), coverage: "complete" });
+    const dependencies = harness([predecessor]);
+
+    await expect(resolveIncrementalCorrectionScope({
+      predecessor,
+      currentHeadSha: oid("b"),
+    }, {
+      ...dependencies,
+      confirmCurrentApplicability: async () => "review-required",
+    })).resolves.toBeNull();
+  });
+
+  it("retains one head-bound lane owner across correction heads and rejects a foreign owner", async () => {
+    const predecessorLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand",
+      vehicleIdentity: "repair-review-state",
+      headSha: oid("a"),
+    };
+    const complete = result({
+      id: "complete-errand",
+      head: oid("a"),
+      coverage: "complete",
+      lineage: predecessorLineage,
+    });
+    const incremental = result({
+      id: "incremental-errand",
+      head: oid("b"),
+      coverage: "incremental",
+      lineage: { ...predecessorLineage, headSha: oid("b") },
+      predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha },
+    });
+    const foreign = {
+      ...incremental,
+      admission: {
+        ...incremental.admission,
+        lineage: { ...predecessorLineage, vehicleIdentity: "other-errand", headSha: oid("b") },
+      },
+    } satisfies ReviewResult;
+
+    await expect(resolveIncrementalCoverageBasis(incremental, harness([complete])))
+      .resolves.toMatchObject({ status: "adequate", basisProducerId: complete.producerId });
+    await expect(resolveIncrementalCoverageBasis(foreign, harness([complete])))
+      .resolves.toMatchObject({ status: "inadequate", reason: "incompatible-lineage" });
   });
 
   it("rejects an incremental result with no explicit predecessor scope", async () => {

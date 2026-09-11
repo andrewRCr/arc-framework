@@ -5,6 +5,7 @@ import {
   hasExplicitPurePolishMarker,
 } from "../core/finding-records.js";
 import type {
+  HostedCoverageEvidence,
   HostedFinding,
   HostedObservation,
   HostedReviewObserver,
@@ -25,6 +26,7 @@ import type {
   HostedReviewCoverage,
   HostedTarget,
 } from "./request.js";
+import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 
 const COMMANDS = {
   complete: "@coderabbitai full review",
@@ -39,7 +41,7 @@ const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
   commands: COMMANDS,
-  correctionReview: "unscoped-incremental",
+  correctionReview: "native-incremental",
   identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
 
@@ -53,19 +55,85 @@ function recentReviewBody(comment: HostedGitHubIssueComment): string | null {
   return comment.body.slice(start.index + start[0].length, end.index);
 }
 
+function summaryReportsNoFindings(
+  comment: HostedGitHubIssueComment,
+  requestedAt: string,
+): boolean {
+  if (comment.updatedAt < requestedAt) return false;
+  const recent = recentReviewBody(comment);
+  return recent !== null
+    && /\bno actionable comments were generated in the recent review\b/iu.test(recent);
+}
+
 function summaryCompletesHead(
   comment: HostedGitHubIssueComment,
   target: HostedTarget,
   requestedAt: string,
 ): boolean {
-  if (comment.updatedAt < requestedAt) return false;
+  if (!summaryReportsNoFindings(comment, requestedAt)) return false;
   const recent = recentReviewBody(comment);
-  if (recent === null || !/\bno actionable comments were generated in the recent review\b/iu.test(recent)) {
-    return false;
-  }
+  if (recent === null) return false;
   const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
   const reviewedHead = ranges[0]?.[1]?.toLowerCase();
   return ranges.length === 1 && reviewedHead !== undefined && target.headSha.startsWith(reviewedHead);
+}
+
+function nativeIncrementalCoverageEvidence(
+  comments: readonly HostedGitHubIssueComment[],
+  target: HostedTarget,
+  scope: IncrementalReviewScope | null,
+  requestArtifactId: string,
+  requestedAt: string,
+  requestBoundary: string | null,
+): HostedCoverageEvidence {
+  const unestablished = (
+    reason: Extract<HostedCoverageEvidence, { status: "unestablished" }>["reason"],
+  ): HostedCoverageEvidence => ({
+    schemaVersion: 1,
+    kind: "provider-native-incremental",
+    sourceId: "coderabbit-pr",
+    requestArtifactId,
+    status: "unestablished",
+    reason,
+  });
+  if (scope === null) return unestablished("provider-incremental-range-missing");
+  const ranges = comments.flatMap((comment) => {
+    if (comment.updatedAt < requestedAt || !precedesBoundary(comment.updatedAt, requestBoundary)) return [];
+    const recent = recentReviewBody(comment);
+    if (recent === null) return [];
+    return [...recent.matchAll(
+      /\bbetween\s+([a-f0-9]{7,40})\s+and\s+([a-f0-9]{7,40})\b/giu,
+    )].map((match) => ({
+      base: match[1]?.toLowerCase(),
+      head: match[2]?.toLowerCase(),
+      comment,
+    }));
+  });
+  if (ranges.length === 0) return unestablished("provider-incremental-range-missing");
+  const range = ranges[0];
+  if (ranges.length !== 1 || range?.base === undefined || range.head === undefined) {
+    return unestablished("provider-incremental-range-ambiguous");
+  }
+  if (!scope.predecessorHeadSha.startsWith(range.base) || !target.headSha.startsWith(range.head)) {
+    return unestablished("provider-incremental-range-mismatch");
+  }
+  return {
+    schemaVersion: 1,
+    kind: "provider-native-incremental",
+    sourceId: "coderabbit-pr",
+    requestArtifactId,
+    status: "established",
+    baselineSha: range.base,
+    headSha: range.head,
+    providerGeneration: {
+      artifactId: range.comment.id,
+      url: range.comment.url,
+      createdAt: range.comment.createdAt,
+      updatedAt: range.comment.updatedAt,
+      actorIdentity: BOT_USER_ID,
+      appId: APP_ID,
+    },
+  };
 }
 
 function commandReplyCompleted(
@@ -372,18 +440,35 @@ function orderedTerminalReviews(reviews: HostedGitHubReview[]): HostedGitHubRevi
   });
 }
 
+type RequestGenerationBoundary =
+  | { readonly status: "bound"; readonly timestamp: string | null }
+  | { readonly status: "overlap" };
+
 function nextRequestBoundary(
   comments: HostedGitHubIssueComment[],
-  requestedAt: string,
-): string | null {
-  const next = comments
-    .filter((comment) => {
-      const body = comment.body.trim();
-      return comment.createdAt > requestedAt
-        && (body === COMMANDS.complete || body === COMMANDS.incremental);
-    })
-    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))[0];
-  return next?.createdAt ?? null;
+  request: HostedRequestHandle["artifact"],
+  coverage: HostedReviewCoverage,
+): RequestGenerationBoundary {
+  const commandComments = comments.filter((comment) => {
+    const body = comment.body.trim();
+    return body === COMMANDS.complete || body === COMMANDS.incremental;
+  });
+  const exactArtifact = commandComments.filter(({ id }) => id === request.id);
+  if (exactArtifact.length > 1
+    || (exactArtifact[0] !== undefined
+      && (exactArtifact[0].createdAt !== request.createdAt
+        || exactArtifact[0].url !== request.url
+        || exactArtifact[0].body.trim() !== COMMANDS[coverage]))) {
+    return { status: "overlap" };
+  }
+  if (commandComments.some((comment) => (
+    comment.id !== request.id && comment.createdAt === request.createdAt
+  ))) return { status: "overlap" };
+  const next = commandComments
+    .filter((comment) => comment.id !== request.id && comment.createdAt > request.createdAt)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt)
+      || left.id.localeCompare(right.id))[0];
+  return { status: "bound", timestamp: next?.createdAt ?? null };
 }
 
 function precedesBoundary(timestamp: string, boundary: string | null): boolean {
@@ -475,23 +560,28 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
   ): Promise<HostedObservation> {
     return this.observeSince(
       handle.target,
-      handle.artifact.createdAt,
+      handle.artifact,
       handle.effectiveCoverage,
+      handle.requestedCoverage === "incremental"
+        ? handle.admission.correctionScope ?? null
+        : null,
       options,
     );
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, "1970-01-01T00:00:00.000Z", null);
+    return this.observeSince(target, null, null, null);
   }
 
   private async observeSince(
     target: HostedTarget,
-    requestedAt: string,
+    requestArtifact: HostedRequestHandle["artifact"] | null,
     coverage: HostedReviewCoverage | null,
+    correctionScope: IncrementalReviewScope | null,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
+      const requestedAt = requestArtifact?.createdAt ?? "1970-01-01T00:00:00.000Z";
       const [checks, statuses, reviews, threads, comments] = await Promise.all([
         this.github.readCheckRuns(target, options),
         this.github.readCommitStatuses(target, options),
@@ -510,7 +600,13 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         return { kind: "terminal-failure", reason: `provider-check-${failedCheck.conclusion}` };
       }
 
-      const requestBoundary = coverage === null ? null : nextRequestBoundary(comments, requestedAt);
+      const generationBoundary = coverage === null || requestArtifact === null
+        ? { status: "bound" as const, timestamp: null }
+        : nextRequestBoundary(comments, requestArtifact, coverage);
+      if (generationBoundary.status === "overlap") {
+        return { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
+      }
+      const requestBoundary = generationBoundary.timestamp;
       const providerReviews = reviews.filter((review) =>
         review.actorIdentity === BOT_USER_ID
         && review.headSha === target.headSha
@@ -519,11 +615,21 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       const completeSequence = orderedTerminalReviews(providerReviews);
       const orderedReviews = coverage === null ? completeSequence.slice(-1) : completeSequence;
       const review = orderedReviews.at(-1);
+      const providerComments = comments.filter((comment) =>
+        comment.actorIdentity === BOT_USER_ID
+        && comment.appId === APP_ID
+        && precedesBoundary(comment.createdAt, requestBoundary));
+      const coverageEvidence = coverage === "incremental" && requestArtifact !== null
+        ? nativeIncrementalCoverageEvidence(
+            providerComments,
+            target,
+            correctionScope,
+            requestArtifact.id,
+            requestedAt,
+            requestBoundary,
+          )
+        : null;
       if (review === undefined) {
-        const providerComments = comments.filter((comment) =>
-          comment.actorIdentity === BOT_USER_ID
-          && comment.appId === APP_ID
-          && precedesBoundary(comment.createdAt, requestBoundary));
         const completedStatus = statuses.find((status) =>
           status.context === "CodeRabbit"
           && status.state === "success"
@@ -534,9 +640,15 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
           commandReplyCompleted(comment, requestedAt, coverage));
         const completedSummary = providerComments.find((comment) =>
           precedesBoundary(comment.updatedAt, requestBoundary)
-          && summaryCompletesHead(comment, target, requestedAt));
+          && (coverage === "incremental"
+            ? summaryReportsNoFindings(comment, requestedAt)
+            : summaryCompletesHead(comment, target, requestedAt)));
         if (completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined) {
-          return { kind: "clean", reviewUrl: completedSummary.url };
+          return {
+            kind: "clean",
+            reviewUrl: completedSummary.url,
+            ...(coverageEvidence === null ? {} : { coverageEvidence }),
+          };
         }
         return requestBoundary === null
           ? { kind: "pending" }
@@ -602,10 +714,19 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         })),
       );
       if (allFindings.length > 0) {
-        return { kind: "findings", reviewUrl: review.url, findings: allFindings };
+        return {
+          kind: "findings",
+          reviewUrl: review.url,
+          findings: allFindings,
+          ...(coverageEvidence === null ? {} : { coverageEvidence }),
+        };
       }
       if (review.state === "approved") {
-        return { kind: "clean", reviewUrl: review.url };
+        return {
+          kind: "clean",
+          reviewUrl: review.url,
+          ...(coverageEvidence === null ? {} : { coverageEvidence }),
+        };
       }
       return review.state === "changes-requested"
         ? { kind: "terminal-failure", reason: "changes-requested-without-findings" }

@@ -65,7 +65,10 @@ import type { LocalPrepareDependencies } from "./local-prepare.js";
 import { resolveReviewStatus } from "../status.js";
 import { createReviewStatusPort } from "../status-composition.js";
 import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
-import { LaneSubjectLineageSchema } from "../core/lane-admission.js";
+import {
+  LaneSubjectLineageSchema,
+  laneSubjectOwnerMatches,
+} from "../core/lane-admission.js";
 import { createLocalFrontlineSourcePreferenceReader } from
   "../hosts/local/frontline-source-preferences.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
@@ -77,8 +80,12 @@ import {
 } from "../policy/review-policy-evidence.js";
 import { resolveLocalReviewCoverageSelection } from
   "../policy/local-review-coverage-selection.js";
-import { laneContinuationOperationId } from "../lane-progress.js";
+import {
+  laneContinuationOperationId,
+  readLaneResponsePerformance,
+} from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { ReviewResult } from "../core/review-result.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -320,6 +327,16 @@ export function createLocalPrepareDependencies(input: {
         maxPasses: policy.maxPasses,
         resultReader,
         dispositionStore,
+        readResponsePerformance: (predecessor: ReviewResult) => readLaneResponsePerformance(
+          operationStore,
+          predecessor,
+        ),
+        confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) => Promise.resolve(
+          predecessor.repositoryId === current.repositoryId
+            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+            ? "applicable" as const
+            : "unavailable" as const,
+        ),
         confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
       };
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
@@ -333,7 +350,20 @@ export function createLocalPrepareDependencies(input: {
         standardReview,
         ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
         ...(coverageAdmission === undefined ? {} : { coverageAdmission }),
-      }, { resultReader, dispositionStore });
+      }, {
+        resultReader,
+        dispositionStore,
+        readResponsePerformance: (predecessor) => readLaneResponsePerformance(
+          operationStore,
+          predecessor,
+        ),
+        confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
+          predecessor.repositoryId === current.repositoryId
+            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+            ? "applicable" as const
+            : "unavailable" as const,
+        ),
+      });
       if (coverage.state === "coverage-required") return coverage;
       const resolution = await assertEvidenceBoundReviewExecutionAdmission(policyRequest, {
         terminalResponsePerformed,

@@ -12,6 +12,7 @@ import type { LaneSubjectLineage } from "./lane-admission.js";
 import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
+import type { HostedCoverageEvidence } from "../hosted/await.js";
 import type { HostedReviewCoverage, HostedTarget } from "../hosted/request.js";
 import type { ReviewScopeMode } from "./review-primitives.js";
 import type { IncrementalReviewScope } from "./incremental-review-scope.js";
@@ -22,7 +23,7 @@ export interface ReviewResultAdmissionContext {
   logicalPass: number;
   retryGeneration: number;
   requestedCoverage: HostedReviewCoverage;
-  effectiveCoverage: HostedReviewCoverage;
+  effectiveCoverage: HostedReviewCoverage | null;
   scopeMode: ReviewScopeMode;
   policyVersion: string;
   correctionScope?: IncrementalReviewScope;
@@ -65,6 +66,7 @@ export interface HostedReviewResult extends ReviewResultBase {
   actorIdentity: string;
   hostedTarget: HostedTarget;
   requirement: ReviewRequirementV2;
+  coverageEvidence?: HostedCoverageEvidence;
   vehicle?: DeliveryReviewMemberVehicle;
   hostSettlementFindingIds: readonly string[];
   noHostSettlementFindingIds: readonly string[];

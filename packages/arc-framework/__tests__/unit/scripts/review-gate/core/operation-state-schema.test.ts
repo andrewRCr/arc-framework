@@ -639,6 +639,68 @@ describe("review operation state schemas", () => {
     })).toThrow(/source ordinal must match one-based capture order/iu);
   });
 
+  it("seals native incremental generation proof into identity and rejects range tampering", () => {
+    const handle = createHostedHandleFixture({ requestedCoverage: "incremental" });
+    const first = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      artifact: handle.artifact,
+      outcome: "clean",
+    });
+    const firstEvidence = first.hosted.sealedResult?.coverageEvidence;
+    if (firstEvidence?.status !== "established") throw new Error("expected native coverage proof");
+    const changed = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      artifact: handle.artifact,
+      outcome: "clean",
+      coverageEvidence: {
+        ...firstEvidence,
+        providerGeneration: {
+          ...firstEvidence.providerGeneration,
+          artifactId: "coderabbit-generation-2",
+        },
+      },
+    });
+    expect(first.hosted.sealedResult?.hostedResultId)
+      .not.toBe(changed.hosted.sealedResult?.hostedResultId);
+
+    const state = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-operation/v1" as const,
+      operationId: "lane-progress-native-proof",
+      updatedAt: "2026-08-15T12:00:00Z",
+      kind: "lane-progress" as const,
+      lane: "standard" as const,
+      repositoryId: handle.admission.repositoryId,
+      lineage: handle.admission.lineage,
+      completedPasses: 1,
+      attempts: [{
+        attemptId: first.attemptId,
+        logicalPass: handle.admission.logicalPass,
+        retryGeneration: 0,
+        changeRequestId: `pull/${handle.target.pullRequest}`,
+        headSha: handle.target.headSha,
+        terminalProducer: true,
+        sourceId: handle.provider,
+        outcome: "clean" as const,
+        hosted: first.hosted,
+      }],
+    };
+    expect(LaneProgressStateSchema.safeParse(state).success).toBe(true);
+    expect(() => LaneProgressStateSchema.parse({
+      ...state,
+      attempts: [{
+        ...state.attempts[0],
+        hosted: {
+          ...first.hosted,
+          sealedResult: {
+            ...first.hosted.sealedResult!,
+            coverageEvidence: { ...firstEvidence, baselineSha: objectId("8") },
+          },
+        },
+      }],
+    })).toThrow(/provider evidence/u);
+  });
+
   it("rejects a source id the policy driver would refuse", () => {
     for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
       expect(() => LaneProgressStateSchema.parse({

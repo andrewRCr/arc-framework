@@ -569,9 +569,6 @@ describe("attest → pre-publication → publish", () => {
     );
 
     const beforeProjectionCommit = await git(repository, ["rev-parse", "HEAD"]);
-    await git(repository, ["commit", "-m", "chore(arc): project publication readiness"]);
-    expect(await git(repository, ["rev-list", "--count", `${beforeProjectionCommit}..HEAD`])).toBe("1");
-
     const published = await runArc([
       "publish", "example",
       "--last-completed", "verification",
@@ -583,6 +580,10 @@ describe("attest → pre-publication → publish", () => {
       status: "published",
       boundary: { locus: "publication-pending", candidateId: pending.candidateId },
     });
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "-m", "chore(arc): project publication readiness"]);
+    expect(await git(repository, ["rev-list", "--count", `${beforeProjectionCommit}..HEAD`])).toBe("1");
+    expect(await git(repository, ["status", "--porcelain"])).toBe("");
     expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
   }, 120_000);
 

@@ -104,7 +104,10 @@ import {
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
-import { createHostedTerminalAttemptFixture } from "../fixtures/hosted-review.js";
+import {
+  createHostedTerminalAttemptFixture,
+  publishHostedTerminalProgressFixture,
+} from "../fixtures/hosted-review.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
@@ -1155,32 +1158,24 @@ describe("arc delivery position", () => {
       }],
       settledFindingIds: [],
     });
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
+    const responseLossLineage = {
+      kind: "delivery-member" as const,
+      planId: fixture.plan.planId,
+      deliverableId: selectedDeliverableId,
+      workUnitId: fixture.plan.workUnitId,
+    };
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
       operationId: "lane-progress/response-loss",
-      updatedAt: "2026-08-31T12:00:00Z",
-      kind: "lane-progress",
-      lane: "standard",
       repositoryId: "repo-1",
-      lineage: {
-        kind: "delivery-member",
-        planId: fixture.plan.planId,
-        deliverableId: selectedDeliverableId,
-        workUnitId: fixture.plan.workUnitId,
-      },
-      completedPasses: 1,
-      attempts: [{
-        ...responseLossTerminal,
-        logicalPass: 1,
-        retryGeneration: 0,
-        changeRequestId: "pull/401",
-        headSha: reviewedHead,
-        terminalProducer: true,
-        sourceId: "codex-pr",
-        outcome: "findings",
-      }],
-    }, 0);
+      lineage: responseLossLineage,
+      logicalPass: 1,
+      changeRequestId: "pull/401",
+      headSha: reviewedHead,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: responseLossTerminal,
+      now: "2026-08-31T12:00:00Z",
+    });
     const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
     const pendingResponseRecord = ApprovedDispositionRecordSchema.parse({
         schemaVersion: 1,
@@ -2207,48 +2202,41 @@ describe("arc delivery position", () => {
       if (requirement === null || !Number.isSafeInteger(pullRequest)) {
         throw new Error("settled teardown review requirement must derive");
       }
-      await reviewStore.publishOperation({
-        schemaVersion: 1,
-        semanticsVersion: "review-operation/v1",
+      const lineage = {
+        kind: "delivery-member" as const,
+        planId: fixture.plan.planId,
+        deliverableId: member.deliverableId,
+        workUnitId: fixture.plan.workUnitId,
+      };
+      const terminal = createHostedTerminalAttemptFixture({
+        admission: hostedMemberAdmission({
+          repositoryId,
+          target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
+          vehicle: {
+            kind: "delivery-member",
+            planId: fixture.plan.planId,
+            deliverableId: member.deliverableId,
+            workUnitId: fixture.plan.workUnitId,
+            head: member.coordinates.head,
+          },
+          reviewTarget,
+          requirement,
+          actorIdentity: "host-actor-1",
+        }),
+        outcome: "clean",
+      });
+      await publishHostedTerminalProgressFixture(reviewStore, {
         operationId: `lane-progress/settled-teardown-${index + 1}`,
-        updatedAt: `2026-09-05T18:0${index}:00.000Z`,
-        kind: "lane-progress",
-        lane: "standard",
         repositoryId,
-        lineage: {
-          kind: "delivery-member",
-          planId: fixture.plan.planId,
-          deliverableId: member.deliverableId,
-          workUnitId: fixture.plan.workUnitId,
-        },
-        completedPasses: 1,
-        attempts: [{
-          ...createHostedTerminalAttemptFixture({
-            admission: hostedMemberAdmission({
-              repositoryId,
-              target: { repository: "owner/repo", pullRequest, headSha: member.coordinates.head },
-              vehicle: {
-                kind: "delivery-member",
-                planId: fixture.plan.planId,
-                deliverableId: member.deliverableId,
-                workUnitId: fixture.plan.workUnitId,
-                head: member.coordinates.head,
-              },
-              reviewTarget,
-              requirement,
-              actorIdentity: "host-actor-1",
-            }),
-            outcome: "clean",
-          }),
-          logicalPass: 1,
-          retryGeneration: 0,
-          changeRequestId: `pull/${pullRequest}`,
-          headSha: member.coordinates.head,
-          terminalProducer: true,
-          sourceId: "codex-pr",
-          outcome: "clean",
-        }],
-      }, 0);
+        lineage,
+        logicalPass: 1,
+        changeRequestId: `pull/${pullRequest}`,
+        headSha: member.coordinates.head,
+        sourceId: "codex-pr",
+        outcome: "clean",
+        terminal,
+        now: `2026-09-05T18:0${index}:00.000Z`,
+      });
     }
     const candidateTarget = await collectGitCandidateTarget({
       cwd: fixture.repository,
@@ -3147,32 +3135,24 @@ describe("arc delivery position", () => {
       }],
       settledFindingIds: [],
     });
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
+    const publishedLineage = {
+      kind: "delivery-member" as const,
+      planId: fixture.plan.planId,
+      deliverableId: selectedDeliverableId,
+      workUnitId: fixture.plan.workUnitId,
+    };
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
       operationId: "lane-progress/published",
-      updatedAt: "2026-08-31T12:00:00Z",
-      kind: "lane-progress",
-      lane: "standard",
       repositoryId: "repo-1",
-      lineage: {
-        kind: "delivery-member",
-        planId: fixture.plan.planId,
-        deliverableId: selectedDeliverableId,
-        workUnitId: fixture.plan.workUnitId,
-      },
-      completedPasses: 1,
-      attempts: [{
-        ...publishedTerminal,
-        logicalPass: 1,
-        retryGeneration: 0,
-        changeRequestId: "pull/401",
-        headSha: reviewedHead,
-        terminalProducer: true,
-        sourceId: "codex-pr",
-        outcome: "findings",
-      }],
-    }, 0);
+      lineage: publishedLineage,
+      logicalPass: 1,
+      changeRequestId: "pull/401",
+      headSha: reviewedHead,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: publishedTerminal,
+      now: "2026-08-31T12:00:00Z",
+    });
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
       ApprovedDispositionRecordSchema.parse({
         schemaVersion: 1,
@@ -3822,28 +3802,18 @@ describe("arc delivery position", () => {
     });
     if (replayResponse.status === "refused") throw new Error(replayResponse.reason);
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(replayResponse.record);
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
       operationId: replayOperationId,
-      updatedAt: "2026-08-31T12:12:00Z",
-      kind: "lane-progress",
-      lane: "standard",
       repositoryId,
       lineage: replayLineage,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: replayAttemptId,
-        logicalPass: 1,
-        retryGeneration: 0,
-        changeRequestId: "pull/401",
-        headSha: reviewedHead,
-        terminalProducer: true,
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: replayTerminal.hosted,
-      }],
-    }, 0);
+      logicalPass: 1,
+      changeRequestId: "pull/401",
+      headSha: reviewedHead,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: replayTerminal,
+      now: "2026-08-31T12:12:00Z",
+    });
 
     const responseApplicability = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-", "--json"],
@@ -3995,33 +3965,24 @@ describe("arc delivery position", () => {
         outcome: "clean",
       });
       retainedAttemptIds.push(terminal.attemptId);
-      await new LocalReviewOperationStateStore(publisher).publishOperation({
-        schemaVersion: 1,
-        semanticsVersion: "review-operation/v1",
+      const retainedLineage = {
+        kind: "delivery-member" as const,
+        planId: fixture.plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: fixture.plan.workUnitId,
+      };
+      await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
         operationId: `lane-progress/${retainedAttemptLabel}`,
-        updatedAt: `2026-08-31T12:${15 + index}:00Z`,
-        kind: "lane-progress",
-        lane: "standard",
         repositoryId,
-        lineage: {
-          kind: "delivery-member",
-          planId: fixture.plan.planId,
-          deliverableId: selectedDeliverableId,
-          workUnitId: fixture.plan.workUnitId,
-        },
-        completedPasses: 1,
-        attempts: [{
-          attemptId: terminal.attemptId,
-          logicalPass: 1,
-          retryGeneration: 0,
-          changeRequestId: "pull/401",
-          headSha: reviewedHead,
-          terminalProducer: true,
-          sourceId: "codex-pr",
-          outcome: "clean",
-          hosted: terminal.hosted,
-        }],
-      }, 0);
+        lineage: retainedLineage,
+        logicalPass: 1,
+        changeRequestId: "pull/401",
+        headSha: reviewedHead,
+        sourceId: "codex-pr",
+        outcome: "clean",
+        terminal,
+        now: `2026-08-31T12:${15 + index}:00Z`,
+      });
     }
 
     const resumedWithRetainedAttempts = await runArcWithStdin(

@@ -3,6 +3,7 @@
 import { canonicalize } from "../../../lib/kernel/index.js";
 
 import type { ReviewResultReader } from "../core/ports.js";
+import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import type { IncrementalReviewFindingInstruction } from
   "../core/incremental-review-scope.js";
 import {
@@ -31,6 +32,14 @@ export interface IncrementalCoverageBasisDependencies {
   readonly confirmApplicability: (
     predecessor: ReviewResult,
     current: ReviewResult,
+  ) => Promise<IncrementalPredecessorApplicability>;
+}
+
+/** Additional current-target proof required before offering a new correction scope. */
+export interface IncrementalCorrectionScopeDependencies extends IncrementalCoverageBasisDependencies {
+  readonly confirmCurrentApplicability: (
+    predecessor: ReviewResult,
+    currentHeadSha: string,
   ) => Promise<IncrementalPredecessorApplicability>;
 }
 
@@ -82,6 +91,31 @@ export function buildIncrementalCorrectionScope(input: {
   });
 }
 
+/**
+ * Build the next correction scope only after the predecessor's complete coverage chain validates.
+ *
+ * @param input - Immutable predecessor result and the head the next review will cover.
+ * @param dependencies - Complete producer, response, and applicability evidence readers.
+ * @returns The exact next correction scope, or null when any predecessor evidence is inadequate.
+ */
+export async function resolveIncrementalCorrectionScope(input: {
+  readonly predecessor: ReviewResult;
+  readonly currentHeadSha: string;
+}, dependencies: IncrementalCorrectionScopeDependencies): Promise<IncrementalReviewScope | null> {
+  const basis = await resolveIncrementalCoverageBasis(input.predecessor, dependencies);
+  if (basis.status !== "adequate") return null;
+  const applicability = await dependencies.confirmCurrentApplicability(
+    input.predecessor,
+    input.currentHeadSha,
+  ).catch(() => "unavailable" as const);
+  if (applicability !== "applicable") return null;
+  const response = await dependencies.readResponseEvidence(input.predecessor).catch(() => null);
+  return response === null ? null : buildIncrementalCorrectionScope({
+    ...input,
+    response,
+  });
+}
+
 /** Stable fail-closed reasons returned without manufacturing coverage. */
 export type IncrementalCoverageBasisFailure =
   | "missing-correction-scope"
@@ -122,7 +156,7 @@ function inadequate(
 }
 
 function sameLineage(left: ReviewResult, right: ReviewResult): boolean {
-  return canonicalize(left.admission.lineage) === canonicalize(right.admission.lineage);
+  return laneSubjectOwnerMatches(left.admission.lineage, right.admission.lineage);
 }
 
 function resultLane(result: ReviewResult): "frontline" | "standard" {

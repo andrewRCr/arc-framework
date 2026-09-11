@@ -34,6 +34,28 @@ const deliveryHandle = createHostedHandleFixture({
   artifact: handle.artifact,
   vehicle: deliveryVehicle,
 });
+const incrementalHandle = createHostedHandleFixture({
+  requestedCoverage: "incremental",
+  target: handle.target,
+  artifact: handle.artifact,
+});
+const nativeCoverageEvidence = {
+  schemaVersion: 1 as const,
+  kind: "provider-native-incremental" as const,
+  sourceId: "coderabbit-pr" as const,
+  requestArtifactId: handle.artifact.id,
+  status: "established" as const,
+  baselineSha: incrementalHandle.admission.correctionScope!.predecessorHeadSha,
+  headSha: HEAD,
+  providerGeneration: {
+    artifactId: "IC_SUMMARY",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-summary",
+    createdAt: "2026-07-23T11:00:00.000Z",
+    updatedAt: "2026-07-23T12:05:00.000Z",
+    actorIdentity: "136622811" as const,
+    appId: "347564" as const,
+  },
+};
 
 const CREATED_AT_MS = Date.parse(handle.artifact.createdAt);
 const ATTENTION_AFTER_MS = 15 * 60 * 1_000;
@@ -58,6 +80,32 @@ function observer(observe: HostedReviewObserver["observe"]): HostedReviewObserve
 }
 
 describe("hosted review await", () => {
+  it("carries authenticated provider-native coverage evidence into the terminal result", async () => {
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle: incrementalHandle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(() => Promise.resolve({
+        kind: "clean",
+        reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+        coverageEvidence: nativeCoverageEvidence,
+      }))],
+    });
+
+    expect(result).toMatchObject({
+      state: "clean",
+      coverageEvidence: nativeCoverageEvidence,
+    });
+    expect(HostedAwaitResultSchema.safeParse({
+      ...result,
+      coverageEvidence: undefined,
+    }).success).toBe(false);
+  });
+
   it("accepts the durable response source attached to a findings result", () => {
     expect(HostedAwaitResultSchema.safeParse({
       schemaVersion: 1,

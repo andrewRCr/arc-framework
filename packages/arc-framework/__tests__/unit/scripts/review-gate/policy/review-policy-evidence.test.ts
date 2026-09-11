@@ -423,6 +423,39 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("recognizes exact durable lane performance for a Candidate-owned fix", async () => {
+    const result = findingsHostedResult(["major"]);
+    const record = approvedRecord(result, [
+      { sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" },
+    ]);
+    const store = dependencies(result, record).dispositionStore;
+    const dispositionSetId = record.currentDispositionSetId;
+
+    await expect(readIncrementalPredecessorResponseEvidence(result, store)).resolves.toMatchObject({
+      status: "incomplete",
+    });
+    await expect(readIncrementalPredecessorResponseEvidence(result, store, async () => ({
+      schemaVersion: 1,
+      producerId: result.producerId,
+      dispositionSetId,
+      originatingHeadSha: result.target.headSha,
+      producedHeadSha: objectId("f"),
+      performedAt: "2026-09-11T12:00:00Z",
+    }))).resolves.toMatchObject({
+      status: "performed",
+    });
+    await expect(readIncrementalPredecessorResponseEvidence(result, store, async () => ({
+      schemaVersion: 1,
+      producerId: result.producerId,
+      dispositionSetId: digest("other-disposition"),
+      originatingHeadSha: result.target.headSha,
+      producedHeadSha: objectId("f"),
+      performedAt: "2026-09-11T12:00:00Z",
+    }))).resolves.toMatchObject({
+      status: "incomplete",
+    });
+  });
+
   it("admits clean convergence only from the exact immutable producer", async () => {
     const result = cleanHostedResult();
     await expect(resolveEvidenceBoundReviewPolicy(cleanRequest(result), {
