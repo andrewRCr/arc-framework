@@ -317,7 +317,7 @@ baseline for the unit projects, the lane, integration, and E2E.
   validates proper subsets, differing legs, disjointness, full union, and anchor absence. The live query found 49
   remainder files partitioned 13/12/12/12; uniform whole-tier output is an explicit failure.
 
-### `[ ]` **2.5 Report timeout headroom, heavy-slot wait, and substrate-bound share**
+### `[x]` **2.5 Report timeout headroom, heavy-slot wait, and substrate-bound share**
 
 - _Goal:_ Three cost properties no duration total exposes are reported: how close each test runs to its ceiling,
   how long a run waited for admission, and how much of a tier's cost belongs to the interim notes and sync
@@ -347,6 +347,13 @@ baseline for the unit projects, the lane, integration, and E2E.
         - slot wait survives the seam and reports separately, never folded into run time
         - a run that never queued reports no wait rather than a zero indistinguishable from a missing reading
         - the substrate-bound share resolves from the settled rule and reports zero when nothing matches
+
+- _Outcome:_ Each retained test now reports its Vitest ceiling and headroom; `runCli` annotates the tightest
+  helper timeout used by that test, so the effective ceiling is the tighter of the project/test and subprocess
+  limits. Admission returns `{ result, waitMs? }`; a live queued capture retained 93.102 s of wait separately from
+  its 23.542 s run. The settled substrate rule identifies `user`, user-notes, notes-publication/export,
+  sync-state, selected sync E2E, and multi-clone file families while explicitly excluding unrelated
+  `framework-sync`; empty matches report a zero share.
 
 ### `[ ]` **2.6 Record the first baseline and supersede the hand-measured analysis**
 

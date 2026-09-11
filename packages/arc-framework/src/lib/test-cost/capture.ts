@@ -1,9 +1,12 @@
 /** Extract complete per-file and per-test costs from Vitest's reported task graph. */
 
+import { resolveTimeoutHeadroom, TEST_COST_CLI_TIMEOUT_META } from "./metrics.js";
+
 export interface ReportedCostTest {
   readonly id: string;
   readonly fullName: string;
   readonly options: { readonly timeout?: number };
+  meta?(): unknown;
   diagnostic(): { readonly duration: number } | undefined;
 }
 
@@ -21,7 +24,11 @@ export interface TestCostCase {
   readonly id: string;
   readonly name: string;
   readonly durationMs: number;
-  readonly timeoutOverrideMs?: number;
+  readonly vitestTimeoutMs: number;
+  readonly cliTimeoutMs?: number;
+  readonly timeoutCeilingMs: number;
+  readonly headroomMs: number;
+  readonly headroomFraction: number;
 }
 
 export interface TestCostFile {
@@ -64,11 +71,23 @@ function captureFile(module: ReportedCostModule): TestCostFile {
     if (testDiagnostic === undefined) {
       throw new Error(`Test timing data is missing duration for ${test.fullName}`);
     }
+    const durationMs = requireDuration(testDiagnostic.duration, test.fullName);
+    const vitestTimeoutMs = test.options.timeout;
+    if (vitestTimeoutMs === undefined) throw new Error(`Missing Vitest timeout for ${test.fullName}`);
+    const metadata = test.meta?.();
+    const cliTimeoutValue = typeof metadata === "object" && metadata !== null
+      ? (metadata as Readonly<Record<string, unknown>>)[TEST_COST_CLI_TIMEOUT_META]
+      : undefined;
+    if (cliTimeoutValue !== undefined && typeof cliTimeoutValue !== "number") {
+      throw new Error(`Invalid CLI timeout metadata for ${test.fullName}`);
+    }
     return {
       id: test.id,
       name: test.fullName,
-      durationMs: requireDuration(testDiagnostic.duration, test.fullName),
-      ...(test.options.timeout === undefined ? {} : { timeoutOverrideMs: test.options.timeout }),
+      durationMs,
+      vitestTimeoutMs,
+      ...(cliTimeoutValue === undefined ? {} : { cliTimeoutMs: cliTimeoutValue }),
+      ...resolveTimeoutHeadroom(durationMs, vitestTimeoutMs, cliTimeoutValue),
     };
   });
   if (tests.length === 0) {

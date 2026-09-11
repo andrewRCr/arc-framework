@@ -25,7 +25,7 @@ describe("runTestCostMeasurement", () => {
                 yield {
                   id: "case-a",
                   fullName: "suite > case a",
-                  options: { timeout: undefined },
+                  options: { timeout: 5_000 },
                   diagnostic: () => ({ duration: 30 }),
                 };
               },
@@ -59,6 +59,7 @@ describe("runTestCostMeasurement", () => {
       admissionWaitMs: 45,
       fileCount: 1,
       testCount: 1,
+      substrate: { durationMs: 0, shareFraction: 0, files: [] },
     });
     expect(exit).toHaveBeenCalledOnce();
     expect(persist).toHaveBeenCalledWith(

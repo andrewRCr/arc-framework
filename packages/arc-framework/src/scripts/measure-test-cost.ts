@@ -26,6 +26,7 @@ const summary = {
   summedFileTimeMs: run.summedFileTimeMs,
   fileCount: run.fileCount,
   testCount: run.testCount,
+  substrate: run.substrate,
   ...(run.admissionWaitMs === undefined ? {} : { admissionWaitMs: run.admissionWaitMs }),
 };
 process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);

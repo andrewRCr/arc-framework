@@ -9,6 +9,7 @@ import { parseCLI, startVitest, type TestModule } from "vitest/node";
 import { withLocalHeavyTestAdmission } from "../local-test-admission.js";
 import type { LocalHeavyTestTier } from "../local-test-admission.js";
 import { captureTestCost, type TestCostFile } from "./capture.js";
+import { summarizeSubstrateShare, type SubstrateShare } from "./metrics.js";
 import type { MeasurementMode, MeasurementProjectSet } from "./mode.js";
 
 type ParsedVitestOptions = ReturnType<typeof parseCLI>["options"];
@@ -40,6 +41,7 @@ export interface RetainedTestCostRun {
   readonly fileCount: number;
   readonly testCount: number;
   readonly admissionWaitMs?: number;
+  readonly substrate: SubstrateShare;
   readonly files: readonly TestCostFile[];
 }
 
@@ -99,6 +101,7 @@ export async function runTestCostMeasurement(
     fileCount: captured.files.length,
     testCount: captured.files.reduce((total, file) => total + file.tests.length, 0),
     ...(admitted.waitMs === undefined ? {} : { admissionWaitMs: admitted.waitMs }),
+    substrate: summarizeSubstrateShare(captured.files),
     files: captured.files,
   };
   await dependencies.persist(input.outputPath, `${JSON.stringify(run, null, 2)}\n`);
