@@ -203,7 +203,7 @@ _Exit criterion:_ One repository-owned instrument behind an npm script captures 
 tier, refuses a lever claim across baselines whose measurement modes differ, and has recorded a normalized multi-run
 baseline for the unit projects, the lane, integration, and E2E.
 
-### `[ ]` **2.1 Capture per-file and per-test durations from the run**
+### `[x]` **2.1 Capture per-file and per-test durations from the run**
 
 - _Goal:_ One repository-owned entry runs a named project set and yields per-file and per-test durations, each
   counting the fixed cost the run actually paid, without mutating anything it measures.
@@ -237,7 +237,12 @@ baseline for the unit projects, the lane, integration, and E2E.
           identity
         - a run that yields no timing data fails loudly rather than reporting zero cost
 
-### `[ ]` **2.2 Stamp the measurement mode and refuse cross-mode comparison**
+- _Outcome:_ Added the admitted in-process `benchmark:test-cost` entry and atomic raw-run retention under the
+  gitignored package-local `.test-cost-runs/` directory. Vitest's reported module graph supplies project identity,
+  collection/setup cost, and every executed test case; the retained file cost deliberately excludes the already
+  represented import diagnostic. A real 690-file unit-project run retained 9,881 test timings and failed no tests.
+
+### `[x]` **2.2 Stamp the measurement mode and refuse cross-mode comparison**
 
 - _Goal:_ Every baseline carries the condition, the project set, and the worker sizing it ran under, and a lever
   claim across differing modes is refused rather than reported.
@@ -259,7 +264,11 @@ baseline for the unit projects, the lane, integration, and E2E.
         - a lever claim differing in condition, project set, or worker sizing refuses with the mismatch named
         - a sizing sweep across differing worker sizing is neither refused nor reported as a lever claim
 
-### `[ ]` **2.3 Normalize across retained runs and flag claims inside the noise band**
+- _Outcome:_ Every capture now requires explicit condition, project set, and worker sizing arguments. Lever
+  comparison reports a delta only for exact three-axis matches and names every mismatched axis; a separately typed
+  sizing sweep requires stable condition/project set and deliberate worker variation.
+
+### `[x]` **2.3 Normalize across retained runs and flag claims inside the noise band**
 
 - _Goal:_ A reported figure is a normalization over several retained runs, and a claimed lever inside run-to-run
   variance is flagged as unestablished rather than presented as measured.
@@ -271,6 +280,10 @@ baseline for the unit projects, the lane, integration, and E2E.
         - several retained runs of one mode normalize to a single reported figure
         - a single run reports as a single run, never as a normalized figure
         - a delta inside the band is flagged as unestablished while one clearly outside it is not
+
+- _Outcome:_ Retained runs of one exact mode normalize by median across wall time, summed file time, file count,
+  and test count; one sample remains explicitly `single-run`. Noise classification uses absolute change over the
+  before value, treats magnitudes below 10% as unestablished, and treats the exact 10% boundary as established.
 
 ### `[ ]` **2.4 Derive the effective E2E shard membership for every CI leg**
 

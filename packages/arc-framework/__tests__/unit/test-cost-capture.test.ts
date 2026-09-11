@@ -1,0 +1,95 @@
+/** Unit coverage for extracting complete cost records from Vitest's reported tasks. */
+
+import { describe, expect, it } from "vitest";
+
+import {
+  captureTestCost,
+  type ReportedCostModule,
+} from "../../src/lib/test-cost/capture.js";
+
+function moduleFixture(
+  path: string,
+  projectName: string,
+  collectDuration: number,
+  setupDuration: number,
+  tests: Array<{ id: string; name: string; duration?: number; timeout?: number }>,
+): ReportedCostModule {
+  return {
+    relativeModuleId: path,
+    project: { name: projectName },
+    diagnostic: () => ({ collectDuration, setupDuration }),
+    children: {
+      allTests: function* () {
+        for (const test of tests) {
+          yield {
+            id: test.id,
+            fullName: test.name,
+            options: { timeout: test.timeout },
+            diagnostic: () => test.duration === undefined ? undefined : { duration: test.duration },
+          };
+        }
+      },
+    },
+  };
+}
+
+describe("captureTestCost", () => {
+  it("reports every file and their summed cost", () => {
+    const result = captureTestCost([
+      moduleFixture("a.test.ts", "unit", 2, 3, [{ id: "a", name: "a", duration: 5 }]),
+      moduleFixture("b.test.ts", "integration", 7, 11, [{ id: "b", name: "b", duration: 13 }]),
+    ]);
+
+    expect(result.files.map((file) => [file.path, file.durationMs])).toEqual([
+      ["a.test.ts", 10],
+      ["b.test.ts", 31],
+    ]);
+    expect(result.summedFileTimeMs).toBe(41);
+  });
+
+  it("adds collection and setup as fixed file cost without double-counting imports", () => {
+    const [file] = captureTestCost([
+      moduleFixture("fixed.test.ts", "unit", 17, 19, [
+        { id: "one", name: "one", duration: 2 },
+        { id: "two", name: "two", duration: 3 },
+      ]),
+    ]).files;
+
+    expect(file).toMatchObject({ fixedCostMs: 36, testTimeMs: 5, durationMs: 41 });
+  });
+
+  it("retains every executed it.each case", () => {
+    const [file] = captureTestCost([
+      moduleFixture("matrix.test.ts", "unit", 1, 1, [
+        { id: "case-1", name: "matrix > case 1", duration: 3 },
+        { id: "case-2", name: "matrix > case 2", duration: 5 },
+        { id: "case-3", name: "matrix > case 3", duration: 7 },
+      ]),
+    ]).files;
+
+    expect(file?.tests).toHaveLength(3);
+    expect(file?.tests.map((test) => test.id)).toEqual(["case-1", "case-2", "case-3"]);
+  });
+
+  it("attributes files from Vitest project identity even when they share a directory", () => {
+    const result = captureTestCost([
+      moduleFixture("__tests__/unit/shared-a.test.ts", "unit", 1, 1, [
+        { id: "a", name: "a", duration: 1 },
+      ]),
+      moduleFixture("__tests__/unit/shared-b.test.ts", "unit-mocks", 1, 1, [
+        { id: "b", name: "b", duration: 1 },
+      ]),
+    ]);
+
+    expect(result.files.map((file) => file.tier)).toEqual(["unit", "unit-mocks"]);
+  });
+
+  it("fails loudly when a run has no timing data", () => {
+    expect(() => captureTestCost([])).toThrow(/no file timing data/u);
+    expect(() => captureTestCost([
+      moduleFixture("missing.test.ts", "unit", 1, 1, [
+        { id: "missing", name: "missing" },
+      ]),
+    ])).toThrow(/missing duration.*missing/u);
+  });
+});

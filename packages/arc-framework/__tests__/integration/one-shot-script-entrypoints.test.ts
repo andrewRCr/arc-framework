@@ -69,6 +69,7 @@ describe("one-shot TypeScript package scripts", () => {
     });
     expect(packageManifest.scripts).toMatchObject({
       "benchmark:session-envelope": "npm run build && node --import tsx __tests__/benchmarks/session-envelope-validation.ts",
+      "benchmark:test-cost": "node --import tsx src/scripts/measure-test-cost.ts",
       "inventory:command-inputs": "node --import tsx src/scripts/render-command-input-inventory.ts",
     });
   });

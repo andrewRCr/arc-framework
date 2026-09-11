@@ -48,6 +48,8 @@ function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
   switch (tier) {
     case "full":
       return [];
+    case "unit":
+      return ["--project", "unit", "--project", "unit-mocks"];
     case "lane":
       return [
         "--project",
