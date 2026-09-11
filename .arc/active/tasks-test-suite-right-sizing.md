@@ -497,25 +497,15 @@ tier's post-work summed-time floor.
   `scripts/remedy-roadmap-conflict` stays because its script entry is the subject and its one CLI spawn is
   incidental. Those two retained built-entry suites keep integration global setup's recorded count accurate.
 
-### `[ ]` **4.2 Move the subprocess-spawning unit outliers to integration**
+### `[x]` **4.2 Move the subprocess-spawning unit outliers to integration**
 
 - _Goal:_ The two files holding 55% of the unit tier sit in the tier their subprocess use puts them in, dropping
   that tier to the few seconds that make the per-task changed-file run feel instant.
 
-- _Context:_ `unit/classify-change.test.ts` drives a shell script through `bash` and
-  `unit/harness-hooks/codex-cli.test.ts` spawns `git` 18 times and `sh` once. Both are integration by the tier
-  definition, and together they hold 55% of the unit tier while flooring its wall clock.
-
-- _Note:_ The tier-definition violation is wider than these two — roughly nine further unit files spawn a
-  subprocess, and none of them is a cost outlier. They are deliberately out of scope here: this task's warrant is
-  the 55% of tier cost these two hold, not a tier-wide reclassification. Do not widen it.
-
-    - Moving them costs nothing at the destination — integration's floor is already higher and they run in
-      parallel under it. Tune them only if they later become that floor.
-    - The move does change when CI runs them: the unit job runs on ordinary pushes, while integration runs on
-      reviewed-lane pull requests and dispatch, so these two files lose push-run feedback and are still covered
-      before merge. Accept that trade rather than working around it.
-    - Both use `it.each`, so take case counts from the instrument rather than a static grep.
+- _Outcome:_ `classify-change.test.ts` and `harness-hooks/codex-cli.test.ts` moved unchanged into integration,
+  carrying all 122 and 37 executed subprocess cases respectively. The other low-cost subprocess unit files remain
+  outside this bounded correction; these outliers now run in the reviewed lane before merge rather than on every
+  ordinary push.
 
 ### `[ ]` **4.3 Split the integration files still above the tier floor**
 

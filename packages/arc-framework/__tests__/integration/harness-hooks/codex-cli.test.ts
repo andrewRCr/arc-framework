@@ -1,3 +1,5 @@
+/** Integration coverage for Codex harness hooks and compaction recovery. */
+
 import { execFileSync } from "node:child_process";
 import {
   existsSync,
