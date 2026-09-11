@@ -144,6 +144,11 @@ rule already separates what must pass from how often each check is re-executed. 
 lane is safe only while `ci-ok` remains a required status check on the merge gate, since that is what makes the
 heavy lane's E2E run enforcement rather than advice. That is repository configuration, not something in the tree.
 
+_Amended 2026-09-10 — The repository's required context is `merge-ok`, a compatibility gate that fails unless
+`ci-ok` succeeds. The load-bearing condition is therefore that the configured required merge context transitively
+enforces `ci-ok`, not that `ci-ok` itself is listed as a required context. Confirm both the ruleset binding and the
+workflow dependency when validating the lane._
+
 **Seven documents over-assert against this cut and must be amended.**
 
 - `DEV-RULES.PROJECT` § Selecting what to run closes with "it never licenses running a tier partially, and Tier 3

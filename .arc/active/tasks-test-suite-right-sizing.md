@@ -225,6 +225,8 @@ runs everything, and no project or framework document instructs a whole-suite lo
       local path is safe only while that holds — it is what makes the heavy lane enforcement rather than advice —
       and it is repository configuration rather than anything in the tree, so nothing else in this work unit
       observes it.
+    - _Amended 2026-09-10 — Validate the live contract as configured: required context `merge-ok` must depend on
+      and fail closed with `ci-ok`. Record both the GitHub ruleset binding and the workflow dependency._
 
 ### `[ ]` **1.6 Close the lane and policy member** — validate criteria at member scope
 
