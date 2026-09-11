@@ -29,6 +29,10 @@ names its project set; the full method, per-file rankings, and caveats live in
 | **Full local run**        | **~353 s**  | 2,200 s          | 875   | 11,630 |
 | Routine lane, one command | **56–58 s** | ~410–430 s       | 822   | 11,102 |
 
+_Amended 2026-09-11 — The first instrument baseline supersedes this pre-instrument orientation table for scoring:
+unit is 23.55 s wall / 143.58 s summed, integration is 45.46 s / 376.47 s, the admitted lane is 55.32 s /
+520.80 s, and E2E is 264.65 s / 1,674.31 s, each a three-run median at 12 workers._
+
 Four facts govern the design.
 
 **E2E is 79% of the local run.** Taking it off the routine local path — CI still enforces it before merge — moves
@@ -190,6 +194,9 @@ depends on it existing.
 A repository-owned, read-only entry under `packages/arc-framework/src/scripts/` behind an npm script, alongside
 the existing tier runner `run-local-test-tier.ts`. Not an adopter-facing `arc` verb. It captures per-file and
 per-test durations per tier from Vitest's JSON reporter and reports:
+
+_Amended 2026-09-11 — Vitest's JSON payload cannot carry the required collection/setup fixed term. The instrument
+therefore reads the completed reported task graph from the in-process run; its retained output remains JSON._
 
 1. Per-tier and per-file summed time, **normalized across several retained runs** — not a single run. Per-file
    cost counts the file's own transform, import, and hook time, which the JSON reporter's per-file window omits
@@ -536,6 +543,11 @@ is not satisfied.
    removes ~52 s and its probed fixture savings ~15 s, taking that floor near 30 s; splitting brings every file
    under it; D5's worker sizing, if it clears the band, lowers the summed floor further. D5's tier moves do not
    move the lane — they move unit-only runs.
+
+   _Amended 2026-09-11 — **Bar: ≤42 s at 12 workers.** Target derivation: the instrument's 520.80 s lane baseline
+   minus 35.33 s (`config-validate` re-tiering), 15.89 s (`review-cli-surfaces` re-tiering), and the 15.19 s
+   fixture-probe saving leaves 454.39 s; divided by 12, the inclusive summed-time floor is 37.87 s. File splitting
+   puts the longest-file floor below it; adding the full 10% noise allowance gives 41.65 s, rounded upward._
 3. **Selection rule is live.** `DEV-RULES.PROJECT` § Selecting what to run carries the lane rows and no longer
    closes by forbidding a partial Tier 3; `QUICK-REFERENCE` § Quality Gate Commands no longer instructs a whole
    run, and its per-task entry names the changed-file invocation the rule specifies rather than the
@@ -545,6 +557,11 @@ is not satisfied.
    (fixture sharing), and no single file exceeds the tier's post-work summed-time floor (splitting) — both
    measured tier-isolated across several runs. Wall clock follows from the second and is scored under SC2, not
    here.
+
+   _Amended 2026-09-11 — **Bar: reduce summed file time by ≥15.0 s from the 376.47 s baseline (to ≤361.47 s).**
+   Target derivation: the prepared-fixture probe saved 40.3 s × 28.6% in `user` plus 11.6 s × 31.6% in `init`,
+   or 15.19 s, conservatively rounded down. Against the instrument baseline those fixed savings are 26.7% and
+   29.5% of the two files._
 5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm
    as a standalone probe — the same condition as the recorded 0.36 s baseline — above the 0.21 s probe and below
    the baseline, so it discriminates rather than restating either.
@@ -556,6 +573,12 @@ is not satisfied.
 8. **CI heavy lane.** Summed heavy-lane job-seconds on the mini fall by at least the derived target — the metric
    the two-slot runner turns into wall time — and the pinned anchor set matches D2's tier-isolated ranking. The
    per-leg critical-path shard is scored only under hosted fallback, where legs run on separate machines.
+
+   _Amended 2026-09-11 — **Bar: reduce summed heavy-lane duration by ≥300 job-seconds from the six-run CI-job
+   median of 1,377 s (to ≤1,077 s).** Target derivation: 1,815 E2E and 29 integration built-CLI invocations at a
+   0.15 s measured saving contribute 276.60 s; about 21 `config-validate` invocations moving from 1.23 s `tsx` to
+   0.21 s built/lazy startup contribute 21.42 s; fixture sharing contributes 15.19 s. The 313.21 s projection is
+   rounded down and excludes tier movement, anchor balance, and later deletion/consolidation savings._
 9. **Budgets exist and are reported.** A budget is recorded per tier per mode — wall clock locally, summed job
    duration on CI — the instrument reports local standing, and CI warns on exceedance without failing.
 10. **No behavior loses its only proof.** Every deletion or case consolidation names the retained test covering

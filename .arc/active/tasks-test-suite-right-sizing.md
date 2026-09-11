@@ -365,27 +365,16 @@ baseline for the unit projects, the lane, integration, and E2E.
   invocation counts. Six comparable CI-job runs establish a 1,377-job-second median; superseded hand figures remain
   only where they document standalone probes or the measurement gap the instrument closed.
 
-### `[ ]` **2.7 Derive the numeric targets and land them before anything scores them**
+### `[x]` **2.7 Derive the numeric targets and land them before anything scores them**
 
 - _Goal:_ Every criterion whose bar is "the derived target" carries a written number, computed once from the first
   baseline plus the rates already measured on the artifacts about to change, and recorded before the run that
   scores it.
 
-- _Rationale:_ A criterion whose bar is set by the same run that scores it is not satisfied. The first baseline
-  cannot observe a saving that has not happened, so the derivation runs here — long ahead of every scoring run —
-  rather than at the boundary that would be marking its own homework.
-
-    - Three bars derive here: integration summed file time, the routine lane's wall clock, and summed heavy-lane
-      job-seconds. The lane bar is the larger of its two floors after the work — longest file, and inclusive
-      summed time over the workers in force — plus the noise band.
-    - That bar names the workers in force, and 6.2 may change them. Derive it against the sizing in force here; if
-      6.2 adopts a raise, its lower summed-time floor lands as a forward amendment by the same route, never as an
-      edit to the bar recorded here.
-    - The input rates already exist as probes: the fixture share of the two profiled files, the re-tiering
-      removal, and the per-spawn saving. Confirm or correct each against the instrument's baseline before using
-      it, and record which figures the instrument moved.
-    - Land the numbers by forward amendment to the design's success criteria; never edit an existing bar to match
-      what was later built.
+- _Outcome:_ Forward amendments fix the later scoring bars at ≤42 s for the 12-worker routine lane, ≥15.0 s off
+  integration's 376.47 s summed baseline, and ≥300 job-seconds off the six-run 1,377 s CI median. The derivation
+  counts only measured fixture, re-tiering, and startup rates; it excludes tier-move double counting and later
+  anchor or consolidation upside.
 
 ### `[ ]` **2.8 Close the cost instrument member** — validate criteria at member scope
 
