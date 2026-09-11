@@ -642,35 +642,15 @@ including interrupted writes and premature-commit refusal, without changing revi
   action, consumes matching recovery through the locked boundary writer, and rejects stale input. Prepare and verify
   follow the returned attestation action with projections staged until the single publication commit.
 
-### `[ ]` **7.3 Exercise clean-at-cap publication, interrupted re-entry, and head movement**
+### `[x]` **7.3 Exercise clean-at-cap publication, interrupted re-entry, and head movement**
 
 - _Goal:_ The public publication spine reaches readiness at the cap and publishes with one lifecycle projection commit.
 
-- _Note:_ Spec § 8; SC 16 and 17.
-
-- _Approach:_ Extend `publication-spine.e2e.test.ts` with real Git and CLI calls, using returned resume input verbatim.
-  Build the CLI first; reuse preceding members' admitted producer/receipt/count fixtures. Use existing handler/store
-  test seams for precise write failures alongside subprocess re-entry; add no production failpoint mechanism.
-
-    - Build `test-first` (one behavior at a time):
-
-        - A clean-at-cap result flows through convergence verification, staged attest, readiness, and publish without
-          another pass.
-
-        - Non-default replay judgments survive actual failure after Candidate persistence: separately fail the boundary
-          write and later metadata/staging work, then retry and inspect the repaired continuation, metadata, and index.
-          Restoring an old boundary after a successful command is not a substitute for these failure cases.
-
-        - Compare durable pass counts and evaluator invocations before/after continuation, failed-write retry, and
-          repeated ordering-conflict status. Preserve non-default scope/invocation/ceiling judgments from real admitted
-          evidence, not only a synthetic convergence envelope.
-
-        - Premature projection commit refuses before review spend; changed content reroutes; post-readiness projection
-          is allowed.
-
-        - Explicit recovery reuses applicable equivalent-head evidence; stale recovery cannot replace a newer boundary.
-          Replaying the originally returned token after readiness preserves advanced authority and never reinstalls
-          the pending guard. Reuse existing post-readiness operational-commit coverage as the positive control.
+- _Outcome:_ The real CLI spine now exercises a two-pass clean-at-cap result through staged convergence, readiness, one
+  projection commit, and publication without another evaluator invocation. Exact re-entry covers premature operational
+  commits, version-bound and stale recovery, changed-content rerouting, and post-readiness replay; lifecycle seam tests
+  prove Candidate-first repair across boundary, metadata, and staging interruption. Prepublication derives its immutable
+  target from the Candidate head so intentionally staged projections do not hide valid terminal evidence.
 
 ### `[ ]` **7.4 Verify publication continuation** — validate criteria at member scope
 

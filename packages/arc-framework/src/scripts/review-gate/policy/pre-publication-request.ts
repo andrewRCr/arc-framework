@@ -153,7 +153,7 @@ export interface PrePublicationCompositionDependencies {
     singleton: { repository: string; headSha: string },
   ): Promise<ReservationTargetRead>;
   readDeliveryReviewTargets(workUnit: string): Promise<PreBindingDeliveryReviewTargets>;
-  deriveImmutableTarget(): Promise<ImmutableTargetRead>;
+  deriveImmutableTarget(headSha: string): Promise<ImmutableTargetRead>;
   readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
   readLaneProgress(
     lane: ReviewLane,
@@ -391,7 +391,7 @@ export async function composePrePublicationReviewRequest(
   }
   const immutable = deliveryTargets.status === "absent"
     ? candidate.pendingReviewTarget === undefined
-      ? await dependencies.deriveImmutableTarget()
+      ? await dependencies.deriveImmutableTarget(candidate.headSha)
       : { status: "resolved" as const, target: candidate.pendingReviewTarget }
     : null;
   if (immutable?.status === "resolved" && immutable.target.headSha !== candidate.headSha) {

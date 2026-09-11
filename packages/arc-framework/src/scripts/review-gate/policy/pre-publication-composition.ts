@@ -50,7 +50,7 @@ import {
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
 import {
   composeDeliveryMemberTarget,
-  deriveLocalReviewTarget,
+  deriveLocalReviewTargetFromCoordinates,
 } from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLaneProgressAcrossLineage } from "../lane-progress.js";
@@ -430,15 +430,23 @@ export function createPrePublicationCompositionDependencies(input: {
       baseRef: (await settings())["branch.base"],
     }, deliveryReviewTargetDependencies),
 
-    deriveImmutableTarget: async (): Promise<ImmutableTargetRead> => {
+    deriveImmutableTarget: async (headSha): Promise<ImmutableTargetRead> => {
       try {
+        const baseRef = (await settings())["branch.base"].trim();
+        // Publication may intentionally keep operational projections staged. Pin the immutable
+        // review target to the Candidate commit instead of requiring a clean checkout around it.
+        const diffBaseSha = (await input.exec(
+          "git",
+          ["merge-base", `refs/heads/${baseRef}`, headSha],
+          { cwd: input.cwd },
+        )).stdout.trim();
         return {
           status: "resolved",
-          target: await deriveLocalReviewTarget({
+          target: await deriveLocalReviewTargetFromCoordinates({
             exec: input.exec,
             cwd: input.cwd,
-            baseRef: (await settings())["branch.base"],
             repositoryId: await repositoryId(),
+            coordinates: { kind: "change-set", baseRef, diffBaseSha, headSha },
           }),
         };
       } catch (error) {

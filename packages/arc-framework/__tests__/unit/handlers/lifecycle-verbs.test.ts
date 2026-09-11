@@ -1452,6 +1452,46 @@ describe("handleReopen", () => {
 });
 
 describe("handleAttest", () => {
+  const convergencePendingBoundary = () => {
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateSubjectDigest = `sha256:${"b".repeat(64)}`;
+    const reviewedHead = "a".repeat(40);
+    const resume = Buffer.from(JSON.stringify({ selfReview: "settled" }), "utf8").toString("base64url");
+    const postAttestContinuation = {
+      reviewedHead,
+      nextAction: {
+        kind: "continue-pre-publication-review" as const,
+        command: `arc review pre-publication foo --resume ${resume} --json`,
+        interactionText: "Resume pre-publication review over the converged Candidate.",
+      },
+      projectionDisposition: "keep-staged-until-publication" as const,
+    };
+    return {
+      candidateId,
+      candidateSubjectDigest,
+      reviewedHead,
+      postAttestContinuation,
+      boundary: {
+        schemaVersion: 1 as const,
+        mode: "integration-boundary" as const,
+        workUnit: "foo",
+        candidateId,
+        candidateSubjectDigest,
+        terminus: null,
+        deliveryReviewTermini: [],
+        locus: "candidate-convergence-verification-pending" as const,
+        nextAction: {
+          kind: "run-convergence-verification" as const,
+          command: "arc attest foo --json",
+          interactionText: "Run convergence verification, then attest.",
+          postAttestContinuation,
+        },
+        policy: null,
+        reservation: null,
+      },
+    };
+  };
+
   it("emits one typed JSON refusal when identity resolution fails", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     mockResolveUserIdentity.mockRejectedValueOnce(new Error("identity unavailable"));
@@ -1476,6 +1516,143 @@ describe("handleAttest", () => {
       lifecycle: "Active",
       newRoot: false,
     });
+  });
+
+  it("repairs the exact post-attest continuation after the Candidate write outlives a boundary failure", async () => {
+    const fixture = convergencePendingBoundary();
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: fixture.boundary,
+      version: "pending-boundary-version",
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId: fixture.candidateId } },
+        candidateId: fixture.candidateId,
+        candidateSubjectDigest: fixture.candidateSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Resume pre-publication review",
+        expectedRecordVersion: attempt === 1 ? "candidate-version" : "persisted-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return attempt === 1
+        ? { status: "attested", operation: "convergence", ...published }
+        : { status: "unchanged", locus: published.locus };
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary
+      .mockRejectedValueOnce(new Error("boundary write interrupted"))
+      .mockImplementationOnce(async (_cwd, boundary, expectedVersion) => {
+        expect(expectedVersion).toBe("pending-boundary-version");
+        persistedBoundary = boundary;
+        return ".arc/system/.internal/candidates/foo.boundary.json";
+      });
+
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("boundary write interrupted");
+    expect(mockWriteCandidateRecord).toHaveBeenCalledTimes(1);
+    expect(mockIoWriteFile).not.toHaveBeenCalled();
+    expect(mockIoExec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["add"]), expect.anything());
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true });
+
+    expect(persistedBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      candidateId: fixture.candidateId,
+      candidateSubjectDigest: fixture.candidateSubjectDigest,
+      nextAction: fixture.postAttestContinuation.nextAction,
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "unchanged",
+      locus: {
+        locus: "candidate-review-pending",
+        nextAction: fixture.postAttestContinuation.nextAction,
+        postAttestContinuation: fixture.postAttestContinuation,
+      },
+    });
+    expect(mockIoWriteFile).toHaveBeenCalledTimes(1);
+    expect(mockIoExec).toHaveBeenCalledWith(
+      "git",
+      [
+        "add", "--",
+        ".arc/system/.internal/candidates/foo.json",
+        ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json",
+      ],
+      { cwd: "/repo" },
+    );
+  });
+
+  it("preserves the post-attest continuation across metadata and staging retry", async () => {
+    const fixture = convergencePendingBoundary();
+    let currentBoundary = fixture.boundary;
+    let boundaryVersion = "pending-boundary-version";
+    mockReadSubmissionBoundaryVersioned.mockImplementation(async () => ({
+      boundary: currentBoundary,
+      version: boundaryVersion,
+    }));
+    mockWriteSubmissionBoundary.mockImplementation(async (_cwd, boundary) => {
+      currentBoundary = boundary;
+      boundaryVersion = `boundary-version-${mockWriteSubmissionBoundary.mock.calls.length}`;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId: fixture.candidateId } },
+        candidateId: fixture.candidateId,
+        candidateSubjectDigest: fixture.candidateSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Resume pre-publication review",
+        expectedRecordVersion: attempt === 1 ? "candidate-version" : "persisted-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return attempt === 1
+        ? { status: "attested", operation: "convergence", ...published }
+        : { status: "unchanged", locus: published.locus };
+    });
+    mockIoWriteFile.mockRejectedValueOnce(new Error("meta write interrupted"));
+
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("meta write interrupted");
+    expect(currentBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+
+    mockIoExec.mockRejectedValueOnce(new Error("index write interrupted"));
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("index write interrupted");
+    expect(currentBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "unchanged",
+      locus: {
+        locus: "candidate-review-pending",
+        nextAction: fixture.postAttestContinuation.nextAction,
+        postAttestContinuation: fixture.postAttestContinuation,
+      },
+    });
+    expect(mockIoWriteFile).toHaveBeenCalledTimes(3);
+    expect(mockIoExec).toHaveBeenLastCalledWith(
+      "git",
+      [
+        "add", "--",
+        ".arc/system/.internal/candidates/foo.json",
+        ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json",
+      ],
+      { cwd: "/repo" },
+    );
   });
 
   it("refuses Integrating attestation before Candidate mutation when public delivery evidence is not exact", async () => {
