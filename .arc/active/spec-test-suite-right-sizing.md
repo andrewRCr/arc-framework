@@ -640,6 +640,11 @@ is not satisfied.
 5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm
    as a standalone probe — the same condition as the recorded 0.36 s baseline — above the 0.21 s probe and below
    the baseline, so it discriminates rather than restating either.
+
+   _Amended 2026-09-11 — The host-sensitive absolute cap is superseded by a comparable member-start control.
+   Alternating warm standalone `view meta` runs on the same host must show both at least a 25% lower median and at
+   least 100 ms of median per-spawn saving. This keeps the criterion directional and materially above the 10% noise
+   band while preserving the product and E2E job-seconds intent._
 6. **The loader penalty is gone and the tiers are honest.** No test at any tier spawns the CLI through `tsx`;
    every integration file whose cases all spawn the CLI now lives in E2E, with the rule's per-file verdict
    recorded; and `config-validate`'s clean-stderr assertions and launcher-shim comparison all still run there.

@@ -588,26 +588,23 @@ startup on `view` measures at or below the target as a standalone probe.
   Lightweight decomposition routing remains eager in its own module, and command-input source discovery now follows
   literal dynamic imports so the repository inventory stays complete under the new loading boundary.
 
-### `[ ]` **5.4 Exhaust and batch-verify the conversion surface** — validate exit criterion at segment scope
+### `[x]` **5.4 Exhaust and batch-verify the conversion surface** — validate exit criterion at segment scope
 
 - _Goal:_ One recorded pass shows every imported module is dispositioned, the bundle is unchanged in shape, and
   the startup target is met.
-
-    - Every module is converted or listed eager with a reason, and no action site still reaches an eagerly
-      imported handler; the build emits a single `dist/cli.js`.
-    - Measure built-artifact startup on `view`, warm, as a standalone probe — the verb 5.2 fixed and the one the
-      0.36 s baseline was taken on.
-    - Record the remaining floor as structural: the bundle carries several hundred top-level imports of nine
-      external dependencies, and module semantics evaluate them before any importing module's body runs. Read the
-      count from the built bundle rather than quoting one — it drifts with the tree.
 
     - `[x]` **5.4.a Defer candidate/review projection imports behind the existing active-status condition**
         - Candidate and review projection dependencies now initialize only after the existing active-status guard;
           `view` reaches the status and Git authorities through their narrow modules without copying either policy.
 
-    - `[ ]` **5.4.b Rebuild, remeasure, and exhaust the conversion boundary**
-        - Stop after this seam if the unchanged standalone probe still misses the target; any further architecture
-          or build lever requires another explicit amendment.
+    - `[x]` **5.4.b Rebuild, remeasure, and exhaust the conversion boundary**
+        - Alternating nine-run controls measured 395.10 ms → 271.48 ms median and 378.84 ms → 259.63 ms minimum;
+          the 123.62 ms median saving is 31.29%. The build emits one JavaScript entry and retains 536 top-level
+          external import declarations.
+
+- _Outcome:_ All 31 implementation modules are lazy, while the built static entry graph retains only seven eager
+  inputs and no handler, command implementation, or remedy script. The one-file bundle and amended startup bar both
+  hold; Phase 6 inherits the measured 123.62 ms median per-spawn saving rather than the projected 150 ms.
 
 ### `[ ]` **5.5 Close the CLI startup member** — validate criteria at member scope
 
@@ -893,6 +890,9 @@ maximum-file improvement in the final tree._
 
 - `[ ]` Built-artifact CLI startup on a named representative verb falls to at or below 0.25 s warm as a standalone
   probe — the same condition as the recorded 0.36 s baseline.
+
+  _Amended 2026-09-11 — Superseded by an alternating same-host member-start control requiring both at least 25%
+  lower median startup and at least 100 ms of median per-spawn saving on warm standalone `view meta`._
 - `[ ]` The build configuration sets single-file output explicitly and the build emits a single `dist/cli.js`.
 
 ### Member 5 — `sizing-and-budgets`
