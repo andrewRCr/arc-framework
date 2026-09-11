@@ -74,11 +74,22 @@ function baseMergeCoordinatesContinuous(
     && before.head === after.head;
 }
 
+function pathEvidenceBucketsAreDisjoint(input: {
+  substantivePaths: readonly string[];
+  regenerablePaths: readonly string[];
+}): boolean {
+  const substantivePaths = new Set(input.substantivePaths);
+  return input.regenerablePaths.every((path) => !substantivePaths.has(path));
+}
+
 export const EvidenceOverlapObservationSchema = z.union([
   z.strictObject({
     status: z.literal("available"),
     substantivePaths: z.array(EvidencePathSchema),
     regenerablePaths: z.array(EvidencePathSchema),
+  }).refine(pathEvidenceBucketsAreDisjoint, {
+    message: "substantive and regenerable path evidence must be disjoint",
+    path: ["regenerablePaths"],
   }),
   z.strictObject({
     status: z.literal("unavailable"),
@@ -206,6 +217,9 @@ const OverlappingOverlapSchema = z.strictObject({
     kind: z.literal("overlapping"),
     substantivePaths: canonicalPathArray(1),
     regenerablePaths: CanonicalPathsSchema,
+  }).refine(pathEvidenceBucketsAreDisjoint, {
+    message: "substantive and regenerable path evidence must be disjoint",
+    path: ["regenerablePaths"],
   });
 const UnknownOverlapSchema = z.strictObject({
     kind: z.literal("unknown"),
