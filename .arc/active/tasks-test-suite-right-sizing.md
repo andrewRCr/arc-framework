@@ -698,6 +698,28 @@ the re-baselined ranking.
 
 - _Goal:_ Member 5's criteria are walked through `validate-criteria` and their boundary evidence recorded.
 
+- _Boundary report:_ Member 5 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 5 — sizing-and-budgets`.
+    - _Span:_ bounded diff `8f6d655c5..080eefc34`; cumulative reachability `080eefc34` at tree
+      `d2cc5e8cff49c82585ec2621c58a940454b5e350`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 1`; _criterion-digest:_
+      `sha256:b09ace09b14a84681153943c152d1b31af200e7acd2daed92e969a60fe10a3cd`; _State:_ `[ ]`; _Evidence:_
+      the schema-v3 amendment fixed the scored bar at 44 s for 12 workers before the post-cost runs. The
+      three-run lane median is 44.925 s, 0.925 s above the bar; raised worker settings did not improve it. The
+      later 43.718 s exercise is one run and does not replace the normalized median under the measurement rule.
+    - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 2`; _criterion-digest:_
+      `sha256:e8481c09423cceb581f54b61260b3e83d7e97768367ab8a3908a023efdd074d1`; _State:_ `[ ]`; _Evidence:_
+      the pinned anchors match the tier-isolated top four, but exact-head dispatch `34654605367` totals 1,170
+      successful job-seconds, a 207 s reduction from 1,377 s and 93 s short of the fixed 300 s target. The earlier
+      1,131 s sample also remained 54 s short; neither eligible observation reaches the 1,077 s bar.
+    - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 3`; _criterion-digest:_
+      `sha256:e98a7b4de13f57eec2b66fc9cbf621422d12f41ced115fc7bba1d98310860d6a`; _State:_ `[x]`; _Evidence:_
+      the tracked record carries four local-tier and six CI-job budgets with exact modes. The settled lane reports
+      local standing; all six exact-head CI comparisons selected their own records; and a synthetic 36.99 s
+      overage wrote the advisory warning while exiting successfully.
+    - _Summary:_ one met, zero superseded, two unresolved. Success Criteria markers remain unchanged.
+
 ## **Phase 7:** Cost-ranked audit and hygiene capture
 
 **Delivery member:** 6 — `cost-ranked-audit`
