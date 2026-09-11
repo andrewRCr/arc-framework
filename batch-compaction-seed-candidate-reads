@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "batch-compaction-seed-candidate-reads",
+  "claimId": "01c1f4b29e2447e2ecbc3419d549ff51",
+  "createdAt": "2026-09-11T05:10:35.466Z",
+  "updatedAt": "2026-09-11T05:10:35.466Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "batch-compaction-seed-candidate-reads",
+  "branch": "chore/batch-compaction-seed-candidate-reads",
+  "origin": "inbox",
+  "originEntry": "Batch Candidate reads on the compaction-seed path and re-prove the hook deadline",
+  "originEntrySourceDigest": "sha256:cb157978e87d262908e24cd9cf32dcad8adfe38895fe4d40bdccdda9bbda1e8f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
