@@ -604,13 +604,38 @@ currentness and attestation outcomes without requiring the separately owned prop
   broader evidence, conservative omission, invalid pairs and requests, fresh-evidence refusal, and deliberate
   unexplained-delta re-rooting without a production dependency on the proposal-side writer.
 
-### `[ ]` **5.7 Close the scoped-verification member** — D2-D3, D12-D13 — validate criteria at member scope
+### `[x]` **5.7 Close the scoped-verification member** — D2-D3, D12-D13 — validate criteria at member scope
 
 - _Goal:_ Member 3's criteria are validated from constructed transition, lineage, attest, workflow, and ADR evidence
   without claiming that scoped production behavior is active before the sibling-owned producer lands.
 
-- _Note:_ Run `validate-criteria` over `Success Criteria` § Member 3 — `scoped-verification` and record the
-  member-scope report without changing criterion markers.
+- _Outcome:_ Member 3 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 3 — scoped-verification`.
+    - _Span:_ bounded diff `fe1730d9d..dbf5bd21d`; cumulative reachability `dbf5bd21d` at tree `ab00bf9b6`;
+      boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 3 — scoped-verification > 1`; _criterion-digest:_
+      `sha256:79685ab17d099ce6444071ca8ae0703a5fe97e8b32e53297732230974b01cf01`; _State:_ `[x]`; _Evidence:_ constructed
+      transition tests prove targeted carry, focused and full convergence, broader evidence, conservative omitted
+      scope, and unchanged unexplained-delta blocking and re-rooting; real CLI lineage and publication exercises bind
+      fresh evidence through both scopes.
+    - _Criterion:_ `Success Criteria > Member 3 — scoped-verification > 2`; _criterion-digest:_
+      `sha256:3f55bc1edcbc236a99e666216cb42920650784ba9ed4174271e0cec4cc862684`; _State:_ `[x]`; _Evidence:_ the strict
+      convergence union admits only satisfied/null or pending/focused|full, while the lineage walker applies scoped
+      attestations around every response and invokes Member 1's shared approved-fix composer and reducer before all
+      effective-target and pre-publication consumers project the result.
+    - _Criterion:_ `Success Criteria > Member 3 — scoped-verification > 3`; _criterion-digest:_
+      `sha256:99d493b9a2a86bb9b79b171af4ed2d4759bdf5e500499cf954df7bfb0c9e529a`; _State:_ `[x]`; _Evidence:_ the shared
+      scope-order helper governs record validation and `runAttest`; exact action schemas and tests prove fresh-evidence
+      requirements, broader-scope acceptance, pre-write focused refusals, and matching coordinate-rich JSON and
+      interactive remedies.
+    - _Criterion:_ `Success Criteria > Member 3 — scoped-verification > 4`; _criterion-digest:_
+      `sha256:29cca3e718a081791d69e7e7bf93423040401b21cef12272c45a557cfce762f8`; _State:_ `[x]`; _Evidence:_ ADR-034's
+      dated append-only amendment names disposition-set approval as scope authority, requires fresh evidence at least
+      that broad for convergence, and expressly preserves root attestation and subject-digest applicability.
+    - _Adversarial companion:_ not run; the Heavy-class neutral offer was delegated to agent judgment, and the focused
+      segment exercise plus the composed suite exposed no unresolved criterion warranting a third pass.
+    - _Summary:_ four met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 6:** Verification
 
