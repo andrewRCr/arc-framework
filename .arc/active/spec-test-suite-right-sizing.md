@@ -360,6 +360,12 @@ module-body side effect — changes behavior when its module loads lazily: it wo
 invoked. The build step registers schemas explicitly today, but enumerate import-time side effects across the
 handler set before converting, and keep any module that has one in the eager set.
 
+_Amended 2026-09-11 — Entry-level handler deferral improved the controlled `view meta` median from 396.43 ms to
+306.72 ms but did not meet the 250 ms criterion. D4 therefore extends only to dependencies already guarded by
+path-conditional command behavior: keep shared authority intact, move its expensive candidate/review projection
+imports behind the existing active-status projection boundary, and remeasure before considering any further seam.
+This does not authorize a new dispatcher, code splitting, compile caching, minification, or another build lever._
+
 ### D5 — Tier placement, worker sizing, and CI leg structure
 
 Three small, independent items.

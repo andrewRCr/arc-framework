@@ -601,6 +601,14 @@ startup on `view` measures at or below the target as a standalone probe.
       external dependencies, and module semantics evaluate them before any importing module's body runs. Read the
       count from the built bundle rather than quoting one — it drifts with the tree.
 
+    - `[x]` **5.4.a Defer candidate/review projection imports behind the existing active-status condition**
+        - Candidate and review projection dependencies now initialize only after the existing active-status guard;
+          `view` reaches the status and Git authorities through their narrow modules without copying either policy.
+
+    - `[ ]` **5.4.b Rebuild, remeasure, and exhaust the conversion boundary**
+        - Stop after this seam if the unchanged standalone probe still misses the target; any further architecture
+          or build lever requires another explicit amendment.
+
 ### `[ ]` **5.5 Close the CLI startup member** — validate criteria at member scope
 
 - _Goal:_ Member 4's criteria are walked through `validate-criteria` and their boundary evidence recorded.

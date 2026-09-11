@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 
 const packageRoot = resolve(import.meta.dirname, "../..");
 const cliPath = join(packageRoot, "src", "cli.ts");
+const activeStatusPath = join(packageRoot, "src", "commands", "active", "status.ts");
+const viewHandlerPath = join(packageRoot, "src", "handlers", "view.ts");
 const implementationPrefixes = ["./handlers/", "./commands/", "./scripts/"] as const;
 const expectedImplementationModules = [
   "./handlers/init.js",
@@ -42,8 +44,17 @@ const expectedImplementationModules = [
   "./commands/release.js",
   "./scripts/remedy-roadmap-conflict.js",
 ] as const;
+const deferredActiveProjectionModules = [
+  "../../lib/config/status-reader.js",
+  "../../lib/work-unit/submission-boundary-store.js",
+  "../../lib/work-unit/candidate-record-store.js",
+  "../../lib/work-unit/candidate-attestation.js",
+  "../../lib/work-unit/git-candidate-effective-target.js",
+  "../../scripts/review-gate/policy/integration-boundary-locus.js",
+  "../../scripts/review-gate/policy/candidate-review-fix-continuation.js",
+] as const;
 
-interface ImplementationModule {
+interface ModuleLoading {
   specifier: string;
   eager: boolean;
   lazy: boolean;
@@ -53,10 +64,14 @@ function isImplementationSpecifier(specifier: string): boolean {
   return implementationPrefixes.some((prefix) => specifier.startsWith(prefix));
 }
 
-function collectImplementationModules(source: string): ImplementationModule[] {
-  const sourceFile = ts.createSourceFile("cli.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const modules = new Map<string, ImplementationModule>();
-  const entryFor = (specifier: string): ImplementationModule => {
+function collectModuleLoading(
+  source: string,
+  fileName: string,
+  included: (specifier: string) => boolean,
+): ModuleLoading[] {
+  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const modules = new Map<string, ModuleLoading>();
+  const entryFor = (specifier: string): ModuleLoading => {
     const existing = modules.get(specifier);
     if (existing !== undefined) return existing;
     const created = { specifier, eager: false, lazy: false };
@@ -72,7 +87,7 @@ function collectImplementationModules(source: string): ImplementationModule[] {
       && node.arguments.length === 1
       && argument !== undefined
       && ts.isStringLiteral(argument)
-      && isImplementationSpecifier(argument.text)
+      && included(argument.text)
     ) {
       entryFor(argument.text).lazy = true;
     }
@@ -82,7 +97,7 @@ function collectImplementationModules(source: string): ImplementationModule[] {
   for (const statement of sourceFile.statements) {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
       const specifier = statement.moduleSpecifier.text;
-      if (!isImplementationSpecifier(specifier)) continue;
+      if (!included(specifier)) continue;
       const clause = statement.importClause;
       const named = clause?.namedBindings;
       const hasRuntimeBinding = clause === undefined
@@ -98,6 +113,10 @@ function collectImplementationModules(source: string): ImplementationModule[] {
   visit(sourceFile);
 
   return [...modules.values()];
+}
+
+function collectImplementationModules(source: string): ModuleLoading[] {
+  return collectModuleLoading(source, "cli.ts", isImplementationSpecifier);
 }
 
 function findTopLevelRegistrationCalls(source: string): string[] {
@@ -179,5 +198,59 @@ describe("CLI loading boundary", () => {
     expect(modules.filter(({ lazy }) => lazy).map(({ specifier }) => specifier).sort()).toEqual(
       [...expectedImplementationModules].sort(),
     );
+  });
+
+  it("defers path-conditional active candidate projection modules", async () => {
+    const included = new Set<string>(deferredActiveProjectionModules);
+    const modules = collectModuleLoading(
+      await readFile(activeStatusPath, "utf8"),
+      "status.ts",
+      (specifier) => included.has(specifier),
+    );
+
+    expect(modules.filter(({ eager }) => eager).map(({ specifier }) => specifier)).toEqual([]);
+    expect(modules.filter(({ lazy }) => lazy).map(({ specifier }) => specifier).sort()).toEqual(
+      [...deferredActiveProjectionModules].sort(),
+    );
+  });
+
+  it("loads the active status authority without initializing the broader command barrel", async () => {
+    const activeModules = new Set(["../commands/active.js", "../commands/active/status.js"]);
+    const modules = collectModuleLoading(
+      await readFile(viewHandlerPath, "utf8"),
+      "view.ts",
+      (specifier) => activeModules.has(specifier),
+    );
+
+    expect(modules).toEqual([{
+      specifier: "../commands/active/status.js",
+      eager: true,
+      lazy: false,
+    }]);
+  });
+
+  it("loads git operations from their owning modules instead of the broad barrel", async () => {
+    const viewGitModules = new Set([
+      "../lib/git/index.js",
+      "../lib/git/exec.js",
+      "../lib/git/identity.js",
+    ]);
+    const statusGitModules = new Set(["../../lib/git/index.js", "../../lib/git/exec.js"]);
+
+    expect(collectModuleLoading(
+      await readFile(viewHandlerPath, "utf8"),
+      "view.ts",
+      (specifier) => viewGitModules.has(specifier),
+    )).toEqual([
+      { specifier: "../lib/git/exec.js", eager: true, lazy: false },
+      { specifier: "../lib/git/identity.js", eager: true, lazy: false },
+    ]);
+    expect(collectModuleLoading(
+      await readFile(activeStatusPath, "utf8"),
+      "status.ts",
+      (specifier) => statusGitModules.has(specifier),
+    )).toEqual([
+      { specifier: "../../lib/git/exec.js", eager: true, lazy: false },
+    ]);
   });
 });
