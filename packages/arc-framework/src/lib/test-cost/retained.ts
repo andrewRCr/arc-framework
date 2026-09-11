@@ -99,6 +99,8 @@ export function assertRetainedTestCostRun(
   if (candidate["schemaVersion"] !== 3
     || candidate["outcome"] !== "passed"
     || candidate["unhandledErrorCount"] !== 0
+    || typeof candidate["requestedWorkerSizing"] !== "string"
+    || candidate["requestedWorkerSizing"].trim().length === 0
     || !Array.isArray(candidate["files"])) {
     throw new Error(`Retained test-cost run lacks a successful outcome: ${label}`);
   }

@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
+import { availableParallelism } from "node:os";
 import { dirname, join } from "node:path";
 
 import { parseCLI, startVitest, type TestModule } from "vitest/node";
@@ -25,6 +26,7 @@ interface MeasurementController {
 
 export interface TestCostRunDependencies {
   readonly admit: typeof withLocalHeavyTestAdmission;
+  readonly availableParallelism?: () => number;
   readonly now: () => number;
   readonly parseCli: (argv: string[]) => { filter: string[]; options: ParsedVitestOptions };
   readonly persist: (path: string, content: string) => Promise<void>;
@@ -39,6 +41,7 @@ export interface RetainedTestCostRun {
   readonly schemaVersion: 3;
   readonly outcome: "passed";
   readonly unhandledErrorCount: 0;
+  readonly requestedWorkerSizing: string;
   readonly capturedAt: string;
   readonly mode: MeasurementMode;
   readonly wallClockMs: number;
@@ -60,6 +63,7 @@ export interface RunTestCostInput {
 
 export const DEFAULT_TEST_COST_RUN_DEPENDENCIES: TestCostRunDependencies = {
   admit: withLocalHeavyTestAdmission,
+  availableParallelism,
   now: Date.now,
   parseCli: parseCLI,
   persist: persistAtomically,
@@ -70,11 +74,21 @@ export async function runTestCostMeasurement(
   input: RunTestCostInput,
   dependencies: TestCostRunDependencies = DEFAULT_TEST_COST_RUN_DEPENDENCIES,
 ): Promise<RetainedTestCostRun> {
+  const requestedWorkerSizing = input.mode.workerSizing;
+  const effectiveWorkerSizing = resolveEffectiveWorkerSizing(
+    requestedWorkerSizing,
+    dependencies.availableParallelism ?? availableParallelism,
+  );
+  const effectiveMode: MeasurementMode = {
+    ...input.mode,
+    workerSizing: effectiveWorkerSizing,
+  };
   const { filter, options } = dependencies.parseCli([
     "vitest",
     "run",
     ...projectSetArguments(input.mode.projectSet),
-    ...(input.mode.workerSizing === "native" ? [] : ["--maxWorkers", input.mode.workerSizing]),
+    "--maxWorkers",
+    effectiveWorkerSizing,
   ]);
   const admitted = await dependencies.admit(
     {
@@ -108,7 +122,8 @@ export async function runTestCostMeasurement(
     outcome: "passed",
     unhandledErrorCount,
     capturedAt: new Date(startedAtMs).toISOString(),
-    mode: input.mode,
+    mode: effectiveMode,
+    requestedWorkerSizing,
     wallClockMs,
     summedFileTimeMs: captured.summedFileTimeMs,
     fileCount: captured.files.length,
@@ -123,6 +138,18 @@ export async function runTestCostMeasurement(
   };
   await dependencies.persist(input.outputPath, `${JSON.stringify(run, null, 2)}\n`);
   return run;
+}
+
+export function resolveEffectiveWorkerSizing(
+  requested: string,
+  getAvailableParallelism: () => number,
+): string {
+  if (requested !== "native") return requested;
+  const concurrency = getAvailableParallelism();
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+    throw new Error("Native worker sizing requires positive available parallelism");
+  }
+  return String(Math.max(concurrency - 1, 1));
 }
 
 export function projectSetArguments(projectSet: MeasurementProjectSet): string[] {

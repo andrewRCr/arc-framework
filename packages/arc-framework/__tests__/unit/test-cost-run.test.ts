@@ -169,6 +169,58 @@ describe("runTestCostMeasurement", () => {
     expect(exit).toHaveBeenCalledOnce();
   });
 
+  it("enforces and stamps Vitest native worker sizing", async () => {
+    const parseCli = vi.fn(() => ({ filter: [], options: { run: true } }));
+    const start = vi.fn(async () => ({
+      state: {
+        getTestModules: () => [{
+          relativeModuleId: "cost.test.ts",
+          project: { name: "unit" },
+          state: () => "passed",
+          ok: () => true,
+          diagnostic: () => ({ collectDuration: 1, setupDuration: 1, duration: 1 }),
+          children: {
+            allTests: function* () {
+              yield {
+                id: "case-a",
+                fullName: "case a",
+                options: { timeout: 5_000 },
+                diagnostic: () => ({ duration: 1 }),
+              };
+            },
+          },
+        }],
+        getUnhandledErrors: () => [],
+      },
+      shouldKeepServer: () => false,
+      exit: async () => {},
+    } as never));
+    const admit = vi.fn(async (_input, action) => ({ result: await action() }));
+
+    const result = await runTestCostMeasurement({
+      cwd: "/repo",
+      env: {},
+      mode: { ...mode, workerSizing: "native" },
+      outputPath: "/out.json",
+    }, {
+      admit,
+      availableParallelism: () => 16,
+      now: () => 1,
+      parseCli,
+      persist: async () => {},
+      start,
+    });
+
+    expect(parseCli).toHaveBeenCalledWith([
+      "vitest", "run", "--project", "unit", "--project", "unit-mocks",
+      "--maxWorkers", "15",
+    ]);
+    expect(result).toMatchObject({
+      requestedWorkerSizing: "native",
+      mode: { workerSizing: "15" },
+    });
+  });
+
   it("always closes the completed Vitest controller", async () => {
     const exit = vi.fn(async () => {});
     const start = vi.fn(async () => ({

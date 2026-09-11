@@ -22,6 +22,7 @@ const summary = {
   outputPath,
   capturedAt: run.capturedAt,
   mode: run.mode,
+  requestedWorkerSizing: run.requestedWorkerSizing,
   wallClockMs: run.wallClockMs,
   summedFileTimeMs: run.summedFileTimeMs,
   fileCount: run.fileCount,
