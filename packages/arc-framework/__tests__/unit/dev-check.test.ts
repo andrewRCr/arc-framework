@@ -19,7 +19,7 @@ import {
   selectBundleInputs,
   type DevCheckDeps,
 } from "../../src/lib/dev-check.js";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -247,7 +247,12 @@ describe("refreshDevBuildAfterAction", () => {
 
       const inputsHash = hashSourceInputs([sourcePath], packageRoot);
       writeFileSync(join(repositoryRoot, "refresh.cjs"), [
-        'const { writeFileSync } = require("node:fs");',
+        'const { mkdirSync, writeFileSync } = require("node:fs");',
+        `mkdirSync(${JSON.stringify(distDir)}, { recursive: true });`,
+        `writeFileSync(${JSON.stringify(cliPath)}, "#!/usr/bin/env node\\n");`,
+        `writeFileSync(${JSON.stringify(join(distDir, "metafile-esm.json"))}, ${JSON.stringify(
+          `${JSON.stringify({ inputs: { "src/cli.ts": { bytes: 1 } } })}\n`,
+        )});`,
         `writeFileSync(${JSON.stringify(stampPath)}, ${JSON.stringify(
           `${JSON.stringify({ schemaVersion: 1, inputsHash })}\n`,
         )});`,
@@ -259,6 +264,51 @@ describe("refreshDevBuildAfterAction", () => {
       }));
 
       await expect(refreshDevBuildAfterAction(cliPath)).resolves.toEqual({ kind: "refreshed" });
+    } finally {
+      rmSync(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("restores the previous runnable bundle when the fast build fails after cleaning dist", async () => {
+    const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
+    try {
+      const packageRoot = join(repositoryRoot, "packages", "arc-framework");
+      const sourceDir = join(packageRoot, "src");
+      const distDir = join(packageRoot, "dist");
+      mkdirSync(sourceDir, { recursive: true });
+      mkdirSync(distDir, { recursive: true });
+
+      const sourcePath = join(sourceDir, "cli.ts");
+      const cliPath = join(distDir, "cli.js");
+      writeFileSync(sourcePath, "export const current = true;\n");
+      writeFileSync(cliPath, "known-good-bundle\n");
+      writeFileSync(join(distDir, "metafile-esm.json"), JSON.stringify({
+        inputs: { "src/cli.ts": { bytes: 1 } },
+      }));
+      writeFileSync(
+        join(distDir, "dev-build-stamp.json"),
+        `${JSON.stringify({ schemaVersion: 1, inputsHash: "stale" })}\n`,
+      );
+
+      writeFileSync(join(repositoryRoot, "fail-refresh.cjs"), [
+        'const { mkdirSync, rmSync, writeFileSync } = require("node:fs");',
+        `rmSync(${JSON.stringify(distDir)}, { recursive: true, force: true });`,
+        `mkdirSync(${JSON.stringify(distDir)}, { recursive: true });`,
+        `writeFileSync(${JSON.stringify(cliPath)}, "partial-bundle\\n");`,
+        "process.exitCode = 1;",
+        "",
+      ].join("\n"));
+      writeFileSync(join(repositoryRoot, "package.json"), JSON.stringify({
+        private: true,
+        scripts: { "build:fast": "node fail-refresh.cjs" },
+      }));
+
+      await expect(refreshDevBuildAfterAction(cliPath)).resolves.toMatchObject({
+        kind: "failed",
+        command: "npm run build:fast",
+      });
+      expect(readFileSync(cliPath, "utf8")).toBe("known-good-bundle\n");
+      expect(readdirSync(packageRoot).filter((entry) => entry.startsWith(".arc-dev-build-"))).toEqual([]);
     } finally {
       rmSync(repositoryRoot, { recursive: true, force: true });
     }

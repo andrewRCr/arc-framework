@@ -38,6 +38,7 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdtemp, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
@@ -207,22 +208,71 @@ export async function refreshDevBuildAfterAction(
   const repositoryRoot = resolve(packageRoot, "..", "..");
   return refreshStaleDevBuild({
     check,
-    rebuild: () => runFastDevBuild(repositoryRoot),
+    rebuild: () => runFastDevBuild(repositoryRoot, dirname(cliJsPath)),
   });
 }
 
-function runFastDevBuild(cwd: string): Promise<
+async function runFastDevBuild(cwd: string, distDir: string): Promise<
   { kind: "completed" }
   | { kind: "failed"; message: string }
 > {
+  const packageRoot = dirname(distDir);
+  let backupRoot: string;
+  try {
+    backupRoot = await mkdtemp(join(packageRoot, ".arc-dev-build-"));
+  } catch (error) {
+    return {
+      kind: "failed",
+      message: `could not preserve the current development bundle: ${errorMessage(error)}`,
+    };
+  }
+  try {
+    await rename(distDir, join(backupRoot, "dist"));
+  } catch (error) {
+    await rm(backupRoot, { recursive: true, force: true }).catch(() => undefined);
+    return {
+      kind: "failed",
+      message: `could not preserve the current development bundle: ${errorMessage(error)}`,
+    };
+  }
+
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-  return new Promise((settle) => {
-    execFile(executable, ["run", "build:fast"], { cwd }, (error) => {
+  const build = await new Promise<{ kind: "completed" } | { kind: "failed"; message: string }>((settle) => {
+    const child = execFile(executable, ["run", "build:fast"], { cwd }, (error) => {
       settle(error === null
         ? { kind: "completed" }
         : { kind: "failed", message: error.message });
     });
+    child.stdin?.end();
   });
+
+  if (build.kind === "completed") {
+    try {
+      await rm(backupRoot, { recursive: true, force: true });
+      return build;
+    } catch (error) {
+      return {
+        kind: "failed",
+        message: `the build completed but its preserved predecessor could not be removed: ${errorMessage(error)}`,
+      };
+    }
+  }
+
+  try {
+    await rm(distDir, { recursive: true, force: true });
+    await rename(join(backupRoot, "dist"), distDir);
+    await rm(backupRoot, { recursive: true, force: true });
+  } catch (error) {
+    return {
+      kind: "failed",
+      message: `${build.message}; restoring the previous development bundle failed: ${errorMessage(error)}`,
+    };
+  }
+  return build;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
