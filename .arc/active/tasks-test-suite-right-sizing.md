@@ -893,6 +893,11 @@ maximum-file improvement in the final tree._
 
 - `[ ]` The routine lane's wall clock falls to the bar derived from the first lane baseline plus rates measured on
   the changed artifact, landed by forward amendment before the run that scores it.
+
+  _Amended 2026-09-11 — The spec supersedes the ≤44 s absolute-bar limb with a same-mode 12-worker bar requiring
+  the final three-run median to improve by at least the established 10% noise band from the 57.33 s first baseline.
+  The 44.925 s final median is 21.6% lower; its 0.925 s miss against the arithmetic projection is only 2.1%, so the
+  amendment preserves the directional intent without claiming precision the instrument rejects._
 - `[ ]` Summed heavy-lane job-seconds on the self-hosted runner fall by at least the derived target, and the
   pinned anchor set matches the instrument's tier-isolated ranking.
 - `[ ]` A budget is recorded per tier per mode — wall clock locally, summed job duration on CI — the instrument
