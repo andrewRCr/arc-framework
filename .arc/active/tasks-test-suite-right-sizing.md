@@ -377,9 +377,16 @@ baseline for the unit projects, the lane, integration, and E2E.
   counts only measured fixture, re-tiering, and startup rates; it excludes tier-move double counting and later
   anchor or consolidation upside.
 
-### `[ ]` **2.8 Close the cost instrument member** — validate criteria at member scope
+### `[x]` **2.8 Close the cost instrument member** — validate criteria at member scope
 
 - _Goal:_ Member 2's criteria are walked through `validate-criteria` and their boundary evidence recorded.
+
+- _Outcome:_ Member criterion `[x]` at `Success Criteria > Member 2 — cost-instrument > 1`
+  (`sha256:60a8504c40d875fea823c2531bad8d0406e309ebc0050a46f70e9732ed002e05`). The bounded diff
+  `92fc68e93..fbd05ef7a` and cumulative tree `a74d29f7e354e433e179cd391706102c0315e624` contain the complete
+  capture, normalization, shard, timeout, admission-wait, and substrate-share paths. Twelve successful-outcome
+  exact-mode records normalize as four three-run medians, and the live four-leg query partitions every E2E
+  remainder exactly once with its workflow anchor. Boundary-order deviation: none.
 
 ## **Phase 3:** Integration fixture substrate
 
