@@ -58,6 +58,8 @@ interface GitBlobMetadata {
 
 /** Keep each captured object batch below the shared 64 MiB process-output ceiling. */
 const GIT_BLOB_CONTENT_BATCH_BYTES = 32 * 1024 * 1024;
+/** Keep literal pathspec batches below conservative cross-platform argument limits. */
+const GIT_PATHSPEC_BATCH_BYTES = 16 * 1024;
 const gitMetadataDecoder = new TextDecoder("utf-8", { fatal: true });
 const gitInputEncoder = new TextEncoder();
 
@@ -76,6 +78,25 @@ function splitNulRecords(bytes: Uint8Array): Uint8Array[] | null {
     start = index + 1;
   }
   return records;
+}
+
+function partitionGitPathspecBatches(paths: readonly string[]): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let batchBytes = 0;
+  for (const path of paths) {
+    const pathspec = `:(literal)${path}`;
+    const framedBytes = gitInputEncoder.encode(pathspec).byteLength + 1;
+    if (batch.length > 0 && batchBytes + framedBytes > GIT_PATHSPEC_BATCH_BYTES) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+    batch.push(pathspec);
+    batchBytes += framedBytes;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
 }
 
 function parseGitBlobMetadata(
@@ -216,7 +237,7 @@ async function readGitBlobObjects(
 }
 
 /**
- * Read many exact Git tree/index leaves with a path-count-independent process shape.
+ * Read many exact Git tree/index leaves through bounded metadata and object batches.
  *
  * @param cwd - Repository worktree used to locate the index and object database
  * @param ref - Exact tree-ish, or `null` for the current index
@@ -246,7 +267,7 @@ export async function readGitBlobEntries(
     ? undefined
     : { objectAccess: options.objectAccess };
   const source = ref === null ? "index" : "tree";
-  const lookupArgs = ref === null
+  const lookupPrefix = ref === null
     ? ["ls-files", "--stage", "-z", "--full-name"]
     : [
         "ls-tree",
@@ -256,15 +277,26 @@ export async function readGitBlobEntries(
         "--format=%(objectmode) %(objecttype) %(objectname)%x09%(path)",
         ref,
       ];
-  const metadata = parseGitBlobMetadata(
-    (await exec(lookupArgs, execOptions)).stdout,
-    source,
-    requestedByBytes,
-  );
-  if (metadata === null) {
-    throw new Error(ref === null
-      ? "Cannot resolve exact index blobs."
-      : `Cannot resolve exact tree blobs for ${ref}.`);
+  const metadata = new Map<string, GitBlobMetadata>();
+  for (const pathspecs of partitionGitPathspecBatches(selectedPaths)) {
+    const batchMetadata = parseGitBlobMetadata(
+      (await exec([...lookupPrefix, "--", ...pathspecs], execOptions)).stdout,
+      source,
+      requestedByBytes,
+    );
+    if (batchMetadata === null) {
+      throw new Error(ref === null
+        ? "Cannot resolve exact index blobs."
+        : `Cannot resolve exact tree blobs for ${ref}.`);
+    }
+    for (const [path, entry] of batchMetadata) {
+      if (metadata.has(path)) {
+        throw new Error(ref === null
+          ? "Cannot resolve exact index blobs."
+          : `Cannot resolve exact tree blobs for ${ref}.`);
+      }
+      metadata.set(path, entry);
+    }
   }
   const blobOids = [...new Set(selectedPaths.flatMap((path) => {
     const entry = metadata.get(path);

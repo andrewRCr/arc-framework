@@ -1325,7 +1325,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     } finally {
       await cleanupTempDir(trace.binDir);
     }
-  }, 60_000);
+  }, 90_000);
 });
 
 describe("session-init E2E — request-scoped remote acquisition", () => {

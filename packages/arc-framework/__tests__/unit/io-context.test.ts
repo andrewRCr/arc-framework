@@ -211,7 +211,7 @@ describe("readGitBlobEntries", () => {
   it.each([
     ["index", null],
     ["tree", "HEAD"],
-  ] as const)("reads many exact %s leaves through a fixed process count", async (_source, ref) => {
+  ] as const)("reads many exact %s leaves through one scoped metadata batch", async (_source, ref) => {
     const firstOid = "a".repeat(40);
     const secondOid = "b".repeat(40);
     const gitlinkOid = "c".repeat(40);
@@ -284,9 +284,67 @@ describe("readGitBlobEntries", () => {
       ["vendor/library", { mode: "160000", bytes: new TextEncoder().encode(gitlinkOid) }],
       ["alpha.txt", { mode: "100644", bytes: Buffer.from([1, 2, 3]) }],
     ]));
-    expect(calls.filter((args) => args[1] === (ref === null ? "ls-files" : "ls-tree")))
-      .toHaveLength(1);
+    const lookupCalls = calls.filter((args) => args[1] === (ref === null ? "ls-files" : "ls-tree"));
+    expect(lookupCalls).toHaveLength(1);
+    const separator = lookupCalls[0]?.indexOf("--") ?? -1;
+    expect(separator).toBeGreaterThan(0);
+    expect(lookupCalls[0]?.slice(separator + 1)).toEqual([
+      ":(literal)script.sh",
+      ":(literal)missing.txt",
+      ":(literal)vendor/library",
+      ":(literal)alpha.txt",
+    ]);
     expect(calls.filter((args) => args[1] === "cat-file")).toHaveLength(2);
+  });
+
+  it("partitions large literal path lists and merges their metadata", async () => {
+    const paths = Array.from({ length: 1_000 }, (_unused, index) =>
+      `candidate/${String(index).padStart(4, "0")}-${"x".repeat(32)}.txt`);
+    const firstOid = "a".repeat(40);
+    const lastOid = "b".repeat(40);
+    const lookupCalls: string[][] = [];
+    mocks.execa.mockImplementation(async (
+      _command: string,
+      args: string[],
+      options: { input?: Uint8Array },
+    ) => {
+      if (args[0] === "ls-files") {
+        lookupCalls.push(args);
+        const records = [
+          args.includes(`:(literal)${paths[0]}`) ? `100644 ${firstOid} 0\t${paths[0]}\0` : "",
+          args.includes(`:(literal)${paths.at(-1)}`) ? `100755 ${lastOid} 0\t${paths.at(-1)}\0` : "",
+        ];
+        return { stdout: Buffer.from(records.join("")), stderr: Buffer.alloc(0) };
+      }
+      const input = Buffer.from(options.input ?? []).toString("utf8");
+      if (args[0] === "cat-file" && args[1]?.startsWith("--batch-check=")) {
+        expect(input).toBe(`${firstOid}\n${lastOid}\n`);
+        return {
+          stdout: Buffer.from(`${firstOid} blob 1\n${lastOid} blob 1\n`),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      if (args[0] === "cat-file" && args[1] === "--batch") {
+        expect(input).toBe(`${firstOid}\n${lastOid}\n`);
+        return {
+          stdout: Buffer.from(`${firstOid} blob 1\na\n${lastOid} blob 1\nb\n`),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    });
+
+    await expect(readGitBlobEntries("/repo", null, paths)).resolves.toEqual(new Map([
+      [paths[0], { mode: "100644", bytes: Buffer.from("a") }],
+      [paths.at(-1), { mode: "100755", bytes: Buffer.from("b") }],
+    ]));
+
+    expect(lookupCalls.length).toBeGreaterThan(1);
+    expect(lookupCalls.flatMap((args) => {
+      const separator = args.indexOf("--");
+      expect(separator).toBeGreaterThan(0);
+      return args.slice(separator + 1);
+    })).toEqual(paths.map((path) => `:(literal)${path}`));
   });
 
   it("rejects malformed metadata for a requested path", async () => {
