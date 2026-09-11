@@ -1,5 +1,49 @@
 # Notes: Review Signal Convergence
 
+## Member 7 primary criteria report — 2026-09-11
+
+```yaml
+criteria-slice: "Success Criteria > Member 7 — `publication-continuation`"
+span:
+  diff: "49d258c8bd7ac79dbf88162b06f1e1dfeea4a84a..26a82a358a47ac8e6cf96b8aa02b1ef6347ab563"
+  reachability: >-
+    Repository tree at 26a82a358a47ac8e6cf96b8aa02b1ef6347ab563, including the upstream spec, exact
+    post-attest boundary schema and public handlers, Candidate-first repair path, mirrored lifecycle workflows,
+    unit and integration contracts, real-CLI publication scenarios, and the complete Tier 2 result.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 7 — `publication-continuation` > 1"
+    criterion-digest: sha256:ac495ff5f37d3bc7fc26112c07afa81032f11f3813ce6b4fc188808019c05f81
+    evidence: >-
+      `PostAttestContinuationSchema` binds the reviewed head, runtime-built opaque prepublication action, and
+      keep-staged disposition inside the existing boundary. `handleReviewPrePublication` carries caller judgments
+      into that action, while immutable-target composition pins validation to the Candidate commit even when lifecycle
+      projections are staged. `prepare-work-unit.md` follows the returned action through readiness before its one
+      projection commit. The real CLI scenario performs findings/fix/response and clean passes, preserves non-default
+      judgments, reaches clean-at-cap convergence and readiness, commits one projection, and publishes while both
+      completed-pass and evaluator-invocation counts remain at two.
+    state: "[x]"
+  - locus: "Success Criteria > Member 7 — `publication-continuation` > 2"
+    criterion-digest: sha256:403f22de3c38ca2497eccd00e7ee6db410421e30a3eb0c48e000aa978279ee6c
+    evidence: >-
+      Convergence attestation writes the Candidate before projecting the exact stored continuation and preserves it
+      through repair-current retries. Failure-seam tests interrupt the boundary, metadata, and staging writes and
+      prove the same continuation repairs idempotently. Prepublication compares the durable Candidate, subject,
+      reviewed head, current head, and boundary version before policy execution; it emits a typed ordering conflict,
+      admits only its exact recovery, removes the pending guard without granting clearance, and rejects stale reuse.
+      Real CLI scenarios prove plain/token conflict replay is count-neutral, changed content reroutes before spend,
+      stale and old-token recovery cannot reinstall the guard, and subject-stable commits after readiness publish
+      under the advanced boundary.
+    state: "[x]"
+summary: "2 [x], 0 [~], 0 [ ]; no unresolved Member 7 criterion"
+```
+
+### Member 7 adversarial companion disposition
+
+The Heavy-class companion was offered through the developer's standing judgment call and not run at this boundary.
+The immediately following whole-work-unit verification will re-resolve every recorded member report and the
+cross-member publication seam; the primary walk already includes real CLI re-entry plus three interrupted-write seams.
+
 ## Member 6 corrected primary criteria report — 2026-09-11
 
 ```yaml

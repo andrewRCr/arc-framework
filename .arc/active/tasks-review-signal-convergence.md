@@ -652,15 +652,14 @@ including interrupted writes and premature-commit refusal, without changing revi
   prove Candidate-first repair across boundary, metadata, and staging interruption. Prepublication derives its immutable
   target from the Candidate head so intentionally staged projections do not hide valid terminal evidence.
 
-### `[ ]` **7.4 Verify publication continuation** — validate criteria at member scope
+### `[x]` **7.4 Verify publication continuation** — validate criteria at member scope
 
 - _Goal:_ Publication continuation criteria hold through real CLI re-entry and exact-head ordering failures.
 
-- _Note:_ Spec § 8; SC 16 and 17.
-
-- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
-  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
-  markers unchanged; route any corrective work through normal task review, not this verifier.
+- _Outcome:_ The Member 7 report in `notes-review-signal-convergence.md` binds both immutable criteria across
+  `49d258c8b..26a82a358` and the cumulative tree at `26a82a358`, resolving both `[x]` without a boundary deviation.
+  Real CLI publication and Candidate-first interruption evidence cover exact re-entry, recovery, and ordering; every
+  Success Criteria marker remains unchanged for terminal work-unit verification.
 
 ## **Phase 8:** Verification
 
