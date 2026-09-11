@@ -215,10 +215,10 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         failureReason: "error",
       }
     : await (async () => {
-        const { identity } = await readIdentityPointers(exec);
         let treatmentContext = {};
-        if (identity !== null) {
-          try {
+        try {
+          const { identity } = await readIdentityPointers(exec);
+          if (identity !== null) {
             const frame = await runDerivedLocusStateProbe({
               cwd,
               identity,
@@ -228,9 +228,9 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
             const row = frame.entering.kind === "selected" ? frame.entering.row : null;
             const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
             treatmentContext = workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name);
-          } catch {
-            treatmentContext = {};
           }
+        } catch {
+          treatmentContext = {};
         }
         return runBaseDrift({
           exec,

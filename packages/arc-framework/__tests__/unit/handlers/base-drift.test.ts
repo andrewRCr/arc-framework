@@ -61,6 +61,16 @@ function workUnitRow(kind: "work-unit" | "retired", key: string) {
 }
 
 describe("base drift handler", () => {
+  it("degrades an invalid configured identity to an unbound authoritative result", async () => {
+    mocks.readIdentityPointers.mockRejectedValue(
+      Object.assign(new Error("Invalid configured identity"), { code: "identity.invalid" }),
+    );
+
+    await handleBaseDrift({ json: true });
+
+    expect(stdoutSpy).toHaveBeenCalledWith(`${JSON.stringify({ verdict: "clean" })}\n`);
+  });
+
   it("retains work-unit path treatment for a retired checkout", async () => {
     const row = workUnitRow("retired", "example");
     mocks.runDerivedLocusStateProbe.mockResolvedValue({
