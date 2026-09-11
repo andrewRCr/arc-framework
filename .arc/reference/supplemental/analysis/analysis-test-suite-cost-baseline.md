@@ -307,26 +307,26 @@ those two sites across many runs, plus runs killed at a timeout before teardown.
 | `publication-spine.e2e.test.ts`          | 32.69   | 7     | 70%        |
 | `user.e2e.test.ts`                       | 31.75   | 13    | 72%        |
 
-**Anchor-set gap.** CI pins four anchor files per leg and shards the remainder by path hash. The pinned set is
-`candidate-lineage`, `errand`, `command-input-no-input`, and `lifecycle-exit`. Measured, the four largest are
-`candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand` — so `delivery-position` (2nd,
-151.29 s) is unpinned while `lifecycle-exit` (5th, 116.95 s) is pinned.
+**Anchor-set gap.** At the first baseline, CI pinned four anchor files per leg and sharded the remainder by path
+hash. The pinned set was `candidate-lineage`, `errand`, `command-input-no-input`, and `lifecycle-exit`. Measured,
+the four largest were `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand` — so
+`delivery-position` (2nd, 151.29 s) was unpinned while `lifecycle-exit` (5th, 116.95 s) was pinned.
 
 This ranking is mode-sensitive: an earlier under-load run put `command-input-no-input` 7th rather than 3rd. Anchor
 selection must be made from tier-isolated data.
 
 ## Effective E2E shard membership
 
-`benchmark:test-cost:shards` read the ordered anchor assignment and four live workflow exclusions, then asked
-Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 49-file remainder
-partitioned exactly once, 13/12/12/12; each complete leg below is its pinned anchor plus that remainder.
+`benchmark:test-cost:shards` read the corrected ordered anchor assignment and four live workflow exclusions, then
+asked Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 51-file remainder
+partitioned exactly once, 13/13/13/12; each complete leg below is its pinned anchor plus that remainder.
 
-| Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                       |
-| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1/4 | `errand`                 | `delivery-authoring`, `log`, `publication-spine`, `reconfigure`, `rename`, `review-chunking`, `review-protocol`, `session-init-remote-boundary`, `smoke`, `sync-inbound`, `sync-state-producer`, `teardown`, `wu-reconcile`    |
-| 2/4 | `candidate-lineage`      | `anchored-sequence`, `attest`, `base-sync`, `commit-message-consumers`, `housekeep`, `plan`, `pre-push`, `schema-artifact`, `session-envelope-compat`, `session-init`, `status-lifecycle`, `sync-purity`                       |
-| 3/4 | `command-input-no-input` | `base-drift`, `delivery-plan`, `delivery-transfer`, `health-diff`, `lifecycle`, `locus-errand-roundtrip`, `markdown-formatting`, `precompact-locus-anchor`, `release-commit`, `state-ref-race`, `user-inbox-remove`, `user`    |
-| 4/4 | `lifecycle-exit`         | `base-merge`, `candidate-applicability`, `commit-msg`, `decompose-command-modes`, `delivery-position`, `delivery-terminal-recovery`, `init`, `run-cli`, `stale-build-guard`, `update`, `user-inbox-mark-execute-bound`, `view` |
+| Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                                               |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1/4 | `errand`                 | `delivery-authoring`, `lifecycle-exit`, `log`, `publication-spine`, `reconfigure`, `review-chunking`, `review-protocol`, `session-init-remote-boundary`, `smoke`, `sync-inbound`, `sync-state-producer`, `teardown`, `wu-reconcile`                    |
+| 2/4 | `candidate-lineage`      | `anchored-sequence`, `attest`, `base-sync`, `commit-message-consumers`, `housekeep`, `plan`, `pre-push`, `rename`, `schema-artifact`, `session-envelope-compat`, `session-init`, `status-lifecycle`, `sync-purity`                                     |
+| 3/4 | `command-input-no-input` | `base-drift`, `decompose-command-modes`, `delivery-plan`, `delivery-transfer`, `health-diff`, `lifecycle`, `locus-errand-roundtrip`, `markdown-formatting`, `precompact-locus-anchor`, `release-commit`, `state-ref-race`, `user-inbox-remove`, `user` |
+| 4/4 | `delivery-position`      | `base-merge`, `candidate-applicability`, `commit-msg`, `config-validate`, `delivery-terminal-recovery`, `init`, `review-cli-surfaces`, `run-cli`, `stale-build-guard`, `update`, `user-inbox-mark-execute-bound`, `view`                               |
 
 Names omit the common `.e2e.test.ts` suffix. The instrument refuses a different anchor count, duplicate or
 non-contiguous leg assignments, or any mismatch between the mapped anchors and the exclusion set.

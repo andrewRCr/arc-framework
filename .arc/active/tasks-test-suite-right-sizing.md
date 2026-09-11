@@ -661,26 +661,13 @@ the re-baselined ranking.
   improved wall clock, while summed file time rose from 457.99 s to 573.62 s and 701.69 s, so the 50% default and
   CI cap remain unchanged; no adoption candidate existed to trigger the conditional sibling probe or bar amendment.
 
-### `[ ]` **6.3 Re-select the pinned CI anchor files from the tier-isolated ranking**
+### `[x]` **6.3 Re-select the pinned CI anchor files from the tier-isolated ranking**
 
 - _Goal:_ The pinned anchor set matches the measured ranking, so the set is correct rather than inherited.
 
-- _Note:_ Value this as a correctness fix, not a wall-clock lever. On the two-slot self-hosted runner an anchor
-  swap moves no job-seconds and can only trim the makespan's tail; the per-leg critical path it recovers applies
-  under hosted fallback, where legs run on separate machines.
-
-    - Measured, the largest four are `candidate-lineage`, `delivery-position`, `command-input-no-input`, and
-      `errand`, while the pinned set carries `lifecycle-exit` in place of `delivery-position`.
-    - The list lives in three places: the per-leg matrix value, the remainder-shard exclusion set, and a workflow
-      contract test that hard-codes the same four names. Agreement between the first two is already machine-checked
-      — the test derives its exclusion assertion from the array it asserts the matrix against — so the edit is a
-      three-place change rather than a two-place change plus an eye check.
-    - That test also pins anchors to shard positions in order, so a swap changes a position, not only membership.
-    - The ranking is mode-sensitive: an earlier under-load run put `command-input-no-input` 7th rather than 3rd,
-      so select from tier-isolated data.
-    - Phase 7 converts cases out of three of these four files, which can reorder the top of the ranking. Select
-      from 6.1's data here; 7.5 confirms the set against the post-conversion ranking and re-selects only if it
-      moved, so the three-place edit happens once where it can.
+- _Outcome:_ The fourth CI leg now pins `delivery-position` instead of `lifecycle-exit`, matching the measured
+  tier-isolated top four. The workflow matrix, remainder exclusions, and contract expectation agree, and the live
+  shard probe accounts for all 55 E2E files exactly once across the four anchors plus 51 remainder files.
 
 ### `[ ]` **6.4 Record per-tier per-mode budgets and report local standing**
 

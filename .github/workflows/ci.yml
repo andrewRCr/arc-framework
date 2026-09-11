@@ -393,7 +393,7 @@ jobs:
         - shard: 3
           anchor: command-input-no-input.e2e.test.ts
         - shard: 4
-          anchor: lifecycle-exit.e2e.test.ts
+          anchor: delivery-position.e2e.test.ts
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -426,7 +426,7 @@ jobs:
         --exclude='**/errand.e2e.test.ts'
         --exclude='**/candidate-lineage.e2e.test.ts'
         --exclude='**/command-input-no-input.e2e.test.ts'
-        --exclude='**/lifecycle-exit.e2e.test.ts'
+        --exclude='**/delivery-position.e2e.test.ts'
         --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         ARC_E2E_SKIP_BUILD: '1'
