@@ -11,6 +11,7 @@ import {
   join,
   makeCommit,
   mkdir,
+  readdir,
   readFile,
   writeFile,
 } from "../helpers/integration.js";
@@ -74,16 +75,22 @@ async function trackedTree(root: string): Promise<string> {
 }
 
 async function absolutePathOccurrences(root: string, path: string): Promise<string[]> {
-  try {
-    const { stdout } = await execFileAsync(
-      "/usr/bin/grep",
-      ["-R", "-a", "-F", "-l", "--", path, root],
-    );
-    return stdout.trim().split("\n").filter(Boolean);
-  } catch (error) {
-    if ((error as { code?: number }).code === 1) return [];
-    throw error;
+  const needle = Buffer.from(path);
+  const directories = [root];
+  const occurrences: string[] = [];
+
+  while (directories.length > 0) {
+    const current = directories.pop();
+    if (current === undefined) break;
+
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const candidate = join(current, entry.name);
+      if (entry.isDirectory()) directories.push(candidate);
+      else if (entry.isFile() && (await readFile(candidate)).includes(needle)) occurrences.push(candidate);
+    }
   }
+
+  return occurrences.sort();
 }
 
 afterEach(async () => {
