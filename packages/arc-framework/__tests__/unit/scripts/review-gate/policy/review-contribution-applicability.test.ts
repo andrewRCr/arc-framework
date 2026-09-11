@@ -97,6 +97,12 @@ describe("review contribution applicability", () => {
       state: "decision-required",
       nextAction: "request-authority",
       verdict: "clean-divergence",
+      applicability: {
+        verdict: "supplemental",
+        residual: paths,
+        reason: "bounded-clean-divergence",
+        judgmentRequired: true,
+      },
       projection: endpoints(),
       paths,
       baseMoved: true,

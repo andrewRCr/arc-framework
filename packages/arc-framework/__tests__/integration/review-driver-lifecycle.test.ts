@@ -27,8 +27,10 @@ describe("lifecycle review driver", () => {
       "arc review hosted settle -",
     ]) expect(packaged).toContain(command);
     expect(packaged).toContain("review applicability");
-    expect(packaged).toContain("targeted verification");
-    expect(packaged).toContain("agent-selected supplemental review");
+    expect(packaged).toContain("assess-evidence-applicability");
+    expect(packaged).toContain("judgmentRequired: true");
+    expect(packaged).toContain("supplemental | fresh");
+    expect(packaged).not.toContain("agent-selected supplemental review");
     expect(packaged).toContain("`settlement: reply-and-resolve`");
     expect(packaged).toContain("`settlement: not-applicable`");
     expect(packaged).toContain("originating `target`");

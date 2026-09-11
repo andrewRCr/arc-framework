@@ -33,6 +33,7 @@ import type {
   ErrandAbandonOptions,
   ErrandPromoteOptions,
 } from "./handlers/errand.js";
+import type { ErrandMergeOptions } from "./handlers/errand-merge.js";
 import type { HousekeepCheckOptions } from "./handlers/housekeep.js";
 import type {
   BaseDriftOptions,
@@ -649,6 +650,17 @@ errand
   ));
 
 errand
+  .command("merge <slug> <input>")
+  .description("Merge one exact approved Errand target through the typed terminal operation")
+  .option("--json", "Emit the typed terminal result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, input: string, opts: ErrandMergeOptions) => {
+      await (await import("./handlers/errand-merge.js")).handleErrandMerge(slug, input, opts, context);
+    },
+  ));
+
+errand
   .command("close <slug>")
   .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
@@ -727,6 +739,7 @@ baseCmd
   .description("Merge one checkpointed base revision append-only")
   .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
   .requiredOption("--expected-head <oid>", "Exact Candidate head approved by the checkpoint")
+  .option("--regenerate-roadmap", "Apply the checkpoint-authorized ROADMAP-only conflict remedy")
   .requiredOption("--json", "Emit the typed merge outcome as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },

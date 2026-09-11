@@ -142,7 +142,10 @@ describe("base merge composition", () => {
     };
     const port = createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec });
 
-    await expect(port.mergeAppendOnly(oid("a"), oid("c"))).resolves.toEqual({ status: "conflict" });
+    await expect(port.mergeAppendOnly(oid("a"), oid("c"))).resolves.toEqual({
+      status: "conflict",
+      detail: "Merge conflicts remain in: conflict.txt.",
+    });
     expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
   });
 
@@ -175,5 +178,128 @@ describe("base merge composition", () => {
       .mergeAppendOnly(oid("a"), oid("c")))
       .rejects.toBe(failure);
     expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
+  });
+
+  it("commits a determinate ROADMAP-only remedy with the exact guarded parents", async () => {
+    const state = { head: oid("c"), clean: true, merging: false, remedied: false };
+    const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "status") return ok(state.clean ? "" : "merge state");
+      if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
+        if (!state.merging) throw new Error("no merge");
+        return ok(oid("a"));
+      }
+      if (args[0] === "merge" && args[1] === "--no-ff") {
+        state.clean = false;
+        state.merging = true;
+        throw new Error("ROADMAP conflict");
+      }
+      if (args[0] === "diff" && args.includes("--diff-filter=U")) {
+        return ok(state.remedied ? "" : ".arc/backlog/ROADMAP.md\n");
+      }
+      if (args[0] === "diff" && args.includes("--quiet")) return ok();
+      if (args[0] === "commit") {
+        state.head = oid("d");
+        state.clean = true;
+        state.merging = false;
+        return ok();
+      }
+      if (args[0] === "rev-list") return ok(`${state.head} ${oid("c")} ${oid("a")}\n`);
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+    const port = createBaseMergePort({
+      cwd: "/repo",
+      baseBranch: "main",
+      exec,
+      applyRegenerableConflict: async () => {
+        state.remedied = true;
+        return { status: "applied", trigger: "unmerged-only-roadmap", indeterminate: false };
+      },
+    });
+    await expect(port.mergeAppendOnly(oid("a"), oid("c"), "regenerate-roadmap"))
+      .resolves.toEqual({ status: "merged", headOid: oid("d") });
+    expect(state).toEqual({ head: oid("d"), clean: true, merging: false, remedied: true });
+  });
+
+  it("aborts and restores an indeterminate regenerable remedy", async () => {
+    const state = { head: oid("c"), clean: true, merging: false };
+    const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "status") return ok(state.clean ? "" : "merge state");
+      if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
+        if (!state.merging) throw new Error("no merge");
+        return ok(oid("a"));
+      }
+      if (args[0] === "merge" && args[1] === "--no-ff") {
+        state.clean = false;
+        state.merging = true;
+        throw new Error("ROADMAP conflict");
+      }
+      if (args[0] === "diff" && args.includes("--diff-filter=U")) return ok(".arc/backlog/ROADMAP.md\n");
+      if (args[0] === "merge" && args[1] === "--abort") {
+        state.clean = true;
+        state.merging = false;
+        return ok();
+      }
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+    const port = createBaseMergePort({
+      cwd: "/repo",
+      baseBranch: "main",
+      exec,
+      applyRegenerableConflict: async () => ({
+        status: "applied", trigger: "unmerged-only-roadmap", indeterminate: true,
+      }),
+    });
+    await expect(port.mergeAppendOnly(oid("a"), oid("c"), "regenerate-roadmap"))
+      .resolves.toEqual({ status: "remedy-refused", detail: "The readiness render was indeterminate." });
+    expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
+  });
+
+  it("refuses moved merge parents before committing a regenerated projection", async () => {
+    const state = { head: oid("c"), mergeHead: oid("a"), clean: true, merging: false, remedied: false };
+    const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "status") return ok(state.clean ? "" : "merge state");
+      if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
+        if (!state.merging) throw new Error("no merge");
+        return ok(state.mergeHead);
+      }
+      if (args[0] === "merge" && args[1] === "--no-ff") {
+        state.clean = false;
+        state.merging = true;
+        throw new Error("ROADMAP conflict");
+      }
+      if (args[0] === "diff" && args.includes("--diff-filter=U")) {
+        return ok(state.remedied ? "" : ".arc/backlog/ROADMAP.md\n");
+      }
+      if (args[0] === "merge" && args[1] === "--abort") {
+        state.clean = true;
+        state.merging = false;
+        return ok();
+      }
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+    const port = createBaseMergePort({
+      cwd: "/repo",
+      baseBranch: "main",
+      exec,
+      applyRegenerableConflict: async () => {
+        state.remedied = true;
+        state.mergeHead = oid("e");
+        return { status: "applied", trigger: "unmerged-only-roadmap", indeterminate: false };
+      },
+    });
+    await expect(port.mergeAppendOnly(oid("a"), oid("c"), "regenerate-roadmap"))
+      .resolves.toEqual({
+        status: "remedy-refused",
+        detail: "The merge coordinates moved during readiness regeneration.",
+      });
+    expect(state).toEqual({
+      head: oid("c"), mergeHead: oid("e"), clean: true, merging: false, remedied: true,
+    });
   });
 });

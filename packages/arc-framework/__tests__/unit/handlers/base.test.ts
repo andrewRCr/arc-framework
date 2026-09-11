@@ -11,18 +11,19 @@ const headOid = "b".repeat(40);
 describe("base merge handler", () => {
   it("carries the checkpoint Candidate head through the typed command contract", async () => {
     const write = vi.fn();
-    const merge = async (...args: string[]) => ({
+    const merge = vi.fn(async (...args: [string, string, string, "regenerate-roadmap"?]) => ({
       schemaVersion: 1,
       mode: "base-merge",
       state: "skipped-clean",
       nextAction: "continue-reconcile",
-      expectedBase: args[1] ?? "",
-      expectedHead: args[2] ?? "",
-    }) as const;
+      expectedBase: args[1],
+      expectedHead: args[2],
+    }) as const);
 
     await handleBaseMerge({
       expectedBase: oid,
       expectedHead: headOid,
+      regenerateRoadmap: true,
       json: true,
     } as Parameters<typeof handleBaseMerge>[0], undefined, {
       resolveRoot: () => "/repo",
@@ -35,6 +36,7 @@ describe("base merge handler", () => {
       expectedBase: oid,
       expectedHead: headOid,
     });
+    expect(merge).toHaveBeenCalledWith("/repo", oid, headOid, "regenerate-roadmap");
   });
 
   it("emits a schema-valid invalid-input refusal", async () => {
@@ -52,7 +54,12 @@ describe("base merge handler", () => {
       state: "blocked",
       reason: "invalid-input",
       expectedBase: null,
-      expectedHead: null,
+      expectedHead: headOid,
+      coordinates: { expectedBase: null, expectedHead: headOid, actualBase: null, actualHead: null },
+      continuation: {
+        kind: "remedy",
+        remedy: { argv: ["arc", "base", "merge", "--help"] },
+      },
     });
     expect(setExitCode).toHaveBeenCalledWith(64);
   });
@@ -76,6 +83,9 @@ describe("base merge handler", () => {
       reason: "operational-failure",
       expectedBase: oid,
       expectedHead: headOid,
+      detail: "Not inside an ARC project.",
+      coordinates: { expectedBase: oid, expectedHead: headOid, actualBase: null, actualHead: null },
+      continuation: { kind: "terminal-explanation" },
     });
     expect(merge).not.toHaveBeenCalled();
     expect(setExitCode).toHaveBeenCalledWith(1);

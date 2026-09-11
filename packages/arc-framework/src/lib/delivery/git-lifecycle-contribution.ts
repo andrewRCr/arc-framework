@@ -99,22 +99,28 @@ export async function classifyGitDeliveryTerminalDelta(input: {
 export async function revalidateDeliveryLifecycleContribution(input: {
   readonly exec: GitExec;
   readonly protectedBaseRef: string;
+  readonly chainBaseRef: string;
   readonly candidateRef: string;
   readonly paths: readonly string[];
+  readonly regenerablePaths: readonly string[];
 }): Promise<DeliveryLifecycleContributionRevalidation> {
   const paths = [...new Set(input.paths)].sort(byteSort);
-  const [protectedBase, candidate] = await Promise.all([
+  const [protectedBase, chainBase, candidate] = await Promise.all([
     readEntries(input.exec, input.protectedBaseRef, paths),
+    readEntries(input.exec, input.chainBaseRef, paths),
     readEntries(input.exec, input.candidateRef, paths),
   ]);
-  const unavailable = paths.filter((path) => protectedBase.get(path) === false || candidate.get(path) === false);
+  const unavailable = paths.filter((path) => protectedBase.get(path) === false
+    || chainBase.get(path) === false || candidate.get(path) === false);
   if (unavailable.length > 0) {
     return { status: "refused", reason: "entry-unavailable", paths: unavailable };
   }
   const comparison = compareDeliveryLifecycleContribution({
     paths,
     protectedBase: protectedBase as DeliveryLifecycleTreeState,
+    chainBase: chainBase as DeliveryLifecycleTreeState,
     candidate: candidate as DeliveryLifecycleTreeState,
+    regenerablePaths: input.regenerablePaths,
   });
   return comparison.status === "match"
     ? { status: "ok" }

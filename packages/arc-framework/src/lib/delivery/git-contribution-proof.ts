@@ -1,7 +1,7 @@
 /** Git-backed structural identity proof for one carried delivery member. */
 
 import type { RawGitExec } from "../change-facts.js";
-import { supportsMergeTreeWriteTree } from "../git/merge-tree-capability.js";
+import { readMergeTreeComposition } from "../git/merge-tree.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import {
   compareDeliveryContribution,
@@ -33,15 +33,6 @@ async function verifyCoordinate(exec: RawGitExec, coordinate: DeliveryContributi
   }
 }
 
-function mergeTreeResult(bytes: Uint8Array): string | null {
-  try {
-    const first = decoder.decode(bytes).split(/[\0\n]/u)[0];
-    return first !== undefined && objectId.test(first) ? first : null;
-  } catch {
-    return null;
-  }
-}
-
 function nulFields(bytes: Uint8Array): string[] | null {
   try {
     const decoded = decoder.decode(bytes);
@@ -55,13 +46,6 @@ function nulFields(bytes: Uint8Array): string[] | null {
 function pathList(bytes: Uint8Array): string[] | null {
   const fields = nulFields(bytes);
   return fields === null ? null : [...new Set(fields)].sort();
-}
-
-function conflictPaths(bytes: Uint8Array): string[] | null {
-  const fields = nulFields(bytes);
-  if (fields === null || fields[0] === undefined || !objectId.test(fields[0])) return null;
-  const paths = [...new Set(fields.slice(1))].sort();
-  return paths.length === 0 ? null : paths;
 }
 
 async function readAncestry(
@@ -112,23 +96,22 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
     .every(Boolean)) return { status: "refused", reason: "contribution-endpoints-unverified" };
   const comparison = compareDeliveryContribution({ before: input.before, after: input.after });
   if (comparison.status === "accepted") return comparison;
-  if (!await supportsMergeTreeWriteTree(input.exec, input.before.predecessor.head)) {
-    return { status: "refused", reason: "merge-tree-write-tree-unsupported" };
+  const composition = await readMergeTreeComposition({
+    exec: input.exec,
+    mergeBase: input.before.predecessor.head,
+    left: input.after.predecessor.head,
+    right: input.before.member.head,
+  });
+  if (composition.state === "unavailable") {
+    return composition.reason === "merge-tree-write-tree-unsupported"
+      ? { status: "refused", reason: "merge-tree-write-tree-unsupported" }
+      : { status: "refused", reason: "git-failure" };
   }
-  const mergeArgs = [
-    "merge-tree",
-    "--write-tree",
-    "--merge-base", input.before.predecessor.head,
-    "--name-only",
-    "-z",
-    "--no-messages",
-    input.after.predecessor.head,
-    input.before.member.head,
-  ];
+  if (composition.state === "conflict") {
+    return { status: "refused", reason: "contribution-conflicted", paths: composition.paths };
+  }
+  const reappliedTree = composition.tree;
   try {
-    const result = await input.exec(mergeArgs, { objectAccess: "local-only" });
-    const reappliedTree = mergeTreeResult(result.stdout);
-    if (reappliedTree === null) return { status: "refused", reason: "git-failure" };
     if (reappliedTree === input.after.member.tree) {
       return { status: "accepted", proof: "mechanical-reapply" };
     }
@@ -139,17 +122,7 @@ export async function proveGitDeliveryContribution(input: DeliveryContributionEn
     return paths === null || paths.length === 0
       ? { status: "refused", reason: "git-failure" }
       : { status: "refused", reason: "contribution-diverged", paths };
-  } catch (error) {
-    const failure = normalizeGitRejection(error, { command: "git", args: mergeArgs });
-    if (failure.kind === "nonzero-exit" && failure.exitCode === 1) {
-      const paths = conflictPaths(Buffer.from(failure.stdout, "latin1"));
-      if (paths === null) return { status: "refused", reason: "git-failure" };
-      return {
-        status: "refused",
-        reason: "contribution-conflicted",
-        paths,
-      };
-    }
+  } catch {
     return { status: "refused", reason: "git-failure" };
   }
 }
