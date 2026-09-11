@@ -30,8 +30,12 @@ import {
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
 import { inspectRepositoryDeliveryCandidateRenewal } from "../../lib/delivery/repository-entry.js";
-import { projectGitDeliveryTerminalRecordAdvance } from
-  "../../lib/delivery/public-review-continuation-git.js";
+import {
+  projectGitDeliveryTerminalCoordinateAdvance,
+  projectGitDeliveryTerminalRecordAdvance,
+} from "../../lib/delivery/public-review-continuation-git.js";
+import { validateDeliveryPublicReviewContinuation } from
+  "../../lib/delivery/public-review-continuation.js";
 import {
   sameDeliveryReviewMemberIdentity,
   type DeliveryReviewMemberVehicle,
@@ -869,7 +873,42 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The shipped delivery publication renewal could not be projected.");
       }
       if (clean) {
-        return canonicalize(headBoundary) === canonicalize(expectedBoundary)
+        if (canonicalize(headBoundary) === canonicalize(expectedBoundary)) return { status: "none" };
+        const headDeliveryContinuation = headBoundary.locus === "delivery-status-required"
+          ? headBoundary.deliveryContinuation
+          : undefined;
+        const refreshedContinuation = {
+          ...headBoundary,
+          deliveryContinuation: expectedBoundary.deliveryContinuation,
+        };
+        if (canonicalize(refreshedContinuation) !== canonicalize(expectedBoundary)
+          || headDeliveryContinuation === undefined) {
+          return { status: "refresh-required" };
+        }
+        const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+        if (records.status !== "resolved") {
+          throw new Error("The shipped delivery terminal records are unavailable.");
+        }
+        const terminalCoordinates = records.state.members.at(-1)?.coordinates ?? null;
+        if (terminalCoordinates === null) {
+          throw new Error("The shipped delivery terminal coordinates are unavailable.");
+        }
+        const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+          cwd: input.cwd,
+          exec: input.exec,
+          candidate: value.effective,
+          workUnitId: workUnit,
+          baseBranch: (await settings()).settings["branch.base"],
+          terminalCoordinates,
+        });
+        const continuation = validateDeliveryPublicReviewContinuation({
+          continuation: headDeliveryContinuation,
+          plan: records.plan,
+          state: records.state,
+          stateRevision: records.stateRevision,
+          ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
+        });
+        return continuation.status === "current"
           ? { status: "none" }
           : { status: "refresh-required" };
       }
