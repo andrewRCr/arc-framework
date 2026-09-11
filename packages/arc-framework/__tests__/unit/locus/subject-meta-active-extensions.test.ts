@@ -22,8 +22,11 @@ import {
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
+  reduceCandidateDurableBaseline,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
+import type { CandidateTargetProjector } from
+  "../../../src/lib/work-unit/candidate-effective-target.js";
 import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
@@ -78,6 +81,29 @@ function candidateRecord(slug: string): { candidateId: string; subjectDigest: st
     }),
   };
 }
+
+const RE_ROOT_SUBJECT = createCandidateSubjectSnapshot([{
+  path: "packages/arc-framework/src/example.ts",
+  mode: "100644",
+  digest: `sha256:${"d".repeat(64)}`,
+  treatment: "reviewable",
+}]);
+
+const projectCandidateReRootTarget: CandidateTargetProjector = async ({ record }) => {
+  const baseline = reduceCandidateDurableBaseline(record);
+  return {
+    schemaVersion: 1,
+    mode: "candidate-effective-target",
+    state: "changed",
+    nextAction: "establish-new-root",
+    candidateId: baseline.candidateId,
+    durableBaselineTarget: baseline.target,
+    currentTarget: { revision: "b".repeat(40), subject: RE_ROOT_SUBJECT },
+    projectionDigest: `sha256:${"e".repeat(64)}`,
+    residualDigest: `sha256:${"f".repeat(64)}`,
+    selectedBy: "andrew",
+  };
+};
 
 function ownerAcceptedPublishBoundary(input: {
   slug: string;
@@ -704,6 +730,45 @@ describe("checkout subject active-extension seam", () => {
       kind: "unresolved",
       code: "subject-unresolved",
       message: "Candidate target requires request-authority.",
+    });
+  });
+
+  it("returns the exact re-root recovery remedy for a deliberately changed Candidate", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateReRootTarget },
+    });
+
+    expect(result).toEqual({
+      kind: "unresolved",
+      code: "candidate-re-root-required",
+      message: `Candidate target requires deliberate replacement-root attestation. Resume the work unit outside `
+        + `recovery, complete full verification for the current target, then run \`arc attest demo --new-root `
+        + `--expected-candidate ${candidate.candidateId} --expected-subject `
+        + `${RE_ROOT_SUBJECT.subjectDigest} --json\`; rerun recovery afterward.`,
+      metaPath: ".arc/active/meta-demo.md",
     });
   });
 
