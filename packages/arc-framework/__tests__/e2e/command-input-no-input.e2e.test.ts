@@ -11,10 +11,65 @@ import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStd
 
 describe("command-input no-input matrix", () => {
   const repositories: string[] = [];
+  const spawnedWorktrees: Array<{ repository: string; path: string }> = [];
 
   afterEach(async () => {
+    await Promise.all(spawnedWorktrees.splice(0).map(async ({ repository, path }) => {
+      await git(repository, ["worktree", "remove", "--force", path]).catch(() => cleanupTempDir(path));
+    }));
     await Promise.all(repositories.splice(0).map((path) => cleanupTempDir(path)));
   });
+
+  it.runIf(process.platform === "linux")(
+    "renders one stable progress line per phase for an explicit no-input start in a TTY",
+    async () => {
+      const cwd = await createTempRepo("arc-command-input-progress-e2e-");
+      repositories.push(cwd);
+      const initialized = await runArcNoTty(
+        ["--no-input", "init", "--name", "progress", "--identity", "matrix"],
+        cwd,
+        { timeout: 10_000, env: { CI: "false" } },
+      );
+      expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
+      const configPath = join(cwd, ".arc", "system", "arc-config.yml");
+      const config = await readFile(configPath, "utf8");
+      const slowed = config.replace(/worktree\.post_create:.*$/mu, "worktree.post_create: sleep 1");
+      expect(slowed, "expected worktree.post_create in installed config").not.toBe(config);
+      await writeFile(configPath, slowed, "utf8");
+      await git(cwd, ["config", "core.hooksPath", "/dev/null"]);
+      await git(cwd, ["add", "."]);
+      await git(cwd, ["commit", "-m", "chore: initialize progress fixture"]);
+
+      const origin = await mkdtemp(join(tmpdir(), "arc-command-input-progress-origin-"));
+      repositories.push(origin);
+      await git(origin, ["init", "--bare", "--initial-branch=main"]);
+      await git(cwd, ["remote", "add", "origin", origin]);
+      await git(cwd, ["push", "-u", "origin", "main"]);
+
+      const result = await runArc(
+        ["--no-input", "start", "stable-progress", "--new", "--yes"],
+        cwd,
+        { timeout: 30_000, env: { CI: "false" } },
+      );
+      const listed = await git(cwd, ["worktree", "list", "--porcelain"]);
+      for (const line of listed.split("\n")) {
+        if (!line.startsWith("worktree ")) continue;
+        const path = line.slice("worktree ".length);
+        if (path !== cwd) spawnedWorktrees.push({ repository: cwd, path });
+      }
+
+      expect(result.exitCode, JSON.stringify(result)).toBe(0);
+      const output = `${result.stdout}\n${result.stderr}`;
+      for (const label of [
+        "Spawning worktree...",
+        "Refreshing ROADMAP...",
+        "Committing and pushing start ceremony...",
+      ]) {
+        expect(output.split(label).length - 1, `${label}\n${output}`).toBe(1);
+      }
+      expect(output).not.toMatch(/[◒◐◓◑]/u);
+    },
+  );
 
   it.each(NO_INPUT_MATRIX)("terminates $commandPath for each unavailable-interaction signal", async (entry) => {
     const invoke = async (
