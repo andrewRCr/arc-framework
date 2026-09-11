@@ -27,16 +27,19 @@
  * `files` array excludes — and a source entry fails the first. Either way the
  * helper returns `{ kind: "skip" }` and the CLI proceeds as normal.
  *
- * The pure verdict function takes injected fs primitives so tests can pin
- * each shape without touching the real filesystem. Refusal, and the single
- * compaction-seed exception to it, live at the cli.ts preAction boundary.
+ * The pure verdict and post-command refresh functions take injected
+ * boundaries so tests can pin each shape without touching the real
+ * filesystem. Refusal, the single compaction-seed exception, and refresh
+ * eligibility live at the cli.ts action-hook boundary.
  *
  * @module
  */
 
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
+import { basename, dirname, join, relative, resolve } from "node:path";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
 export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
@@ -73,6 +76,50 @@ export type DevCheckResult =
       /** Repo-relative path of the newest src file. */
       newestSrc: string;
     };
+
+/** Exact developer command that regenerates the self-hosting runtime bundle. */
+export const DEV_BUILD_REFRESH_COMMAND = "npm run build:fast";
+
+/** Internal build-time override used to direct a fast build into a staging directory. */
+export const DEV_BUILD_OUTPUT_DIRECTORY_ENV = "ARC_DEV_BUILD_OUT_DIR";
+
+/** Command families whose successful action may change the running development bundle's inputs. */
+export const DEV_BUILD_REFRESH_COMMAND_PATHS = Object.freeze([
+  "base merge",
+  "delivery review-fix continue",
+  "errand close",
+  "errand open",
+]);
+
+const devBuildRefreshCommandPathSet: ReadonlySet<string> = new Set(DEV_BUILD_REFRESH_COMMAND_PATHS);
+
+/**
+ * Report whether one Commander action path can self-mutate bundled source.
+ *
+ * @param commandPath - Commander path, with or without the root `arc` name
+ * @returns True only for a supported head-moving action
+ */
+export function isDevBuildRefreshCommandPath(commandPath: string): boolean {
+  const normalized = commandPath.startsWith("arc ") ? commandPath.slice("arc ".length) : commandPath;
+  return devBuildRefreshCommandPathSet.has(normalized);
+}
+
+/** Injectable freshness and build boundaries for the post-command refresh. */
+export interface DevBuildRefreshDeps {
+  /** Read freshness before and after any required rebuild. */
+  check: () => DevCheckResult;
+  /** Regenerate the developer bundle without re-entering the ARC CLI. */
+  rebuild: () => Promise<
+    { kind: "completed" }
+    | { kind: "failed"; message: string }
+  >;
+}
+
+/** Outcome of handing the next self-hosting command a fresh runtime bundle. */
+export type DevBuildRefreshResult =
+  | { kind: "not-required" }
+  | { kind: "refreshed" }
+  | { kind: "failed"; command: typeof DEV_BUILD_REFRESH_COMMAND; message: string };
 
 /** Injectable dependencies for the dev-check verdict function. */
 export interface DevCheckDeps {
@@ -139,6 +186,146 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
   }
 
   return { kind: "fresh" };
+}
+
+/**
+ * Refresh a bundle that became stale while the current command was running.
+ *
+ * The second check is the handoff proof: a successful build process alone does
+ * not establish that the next command will consume current source.
+ *
+ * @param deps - Freshness reader and runtime-only rebuild boundary
+ * @returns Whether no work was needed, freshness was restored, or manual retry is required
+ */
+export async function refreshStaleDevBuild(
+  deps: DevBuildRefreshDeps,
+): Promise<DevBuildRefreshResult> {
+  const before = deps.check();
+  if (before.kind !== "stale") return { kind: "not-required" };
+
+  const rebuilt = await deps.rebuild();
+  if (rebuilt.kind === "failed") {
+    return { kind: "failed", command: DEV_BUILD_REFRESH_COMMAND, message: rebuilt.message };
+  }
+
+  return deps.check().kind === "fresh"
+    ? { kind: "refreshed" }
+    : {
+        kind: "failed",
+        command: DEV_BUILD_REFRESH_COMMAND,
+        message: "the rebuilt bundle is still stale",
+      };
+}
+
+/**
+ * Bind post-command refresh to the running CLI bundle and its repository root.
+ * Published installs remain inert because their staleness check returns `skip`.
+ *
+ * @param cliJsPath - Absolute path of the running CLI entry point
+ * @returns The post-command freshness handoff result
+ */
+export async function refreshDevBuildAfterAction(
+  cliJsPath: string,
+): Promise<DevBuildRefreshResult> {
+  const check = (): DevCheckResult => checkDevBuildStaleness(createDevCheckDeps(cliJsPath));
+  const packageRoot = dirname(dirname(cliJsPath));
+  const repositoryRoot = resolve(packageRoot, "..", "..");
+  return refreshStaleDevBuild({
+    check,
+    rebuild: () => runFastDevBuild(repositoryRoot, dirname(cliJsPath)),
+  });
+}
+
+async function runFastDevBuild(cwd: string, distDir: string): Promise<
+  { kind: "completed" }
+  | { kind: "failed"; message: string }
+> {
+  const packageRoot = dirname(distDir);
+  let stagingDir: string;
+  try {
+    stagingDir = await mkdtemp(join(packageRoot, ".arc-dev-build-"));
+  } catch (error) {
+    return {
+      kind: "failed",
+      message: `could not prepare a staged development build: ${errorMessage(error)}`,
+    };
+  }
+
+  const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+  const build = await new Promise<{ kind: "completed" } | { kind: "failed"; message: string }>((settle) => {
+    const child = execFile(executable, ["run", "build:fast"], {
+      cwd,
+      env: { ...process.env, [DEV_BUILD_OUTPUT_DIRECTORY_ENV]: stagingDir },
+    }, (error) => {
+      settle(error === null
+        ? { kind: "completed" }
+        : { kind: "failed", message: error.message });
+    });
+    child.stdin?.end();
+  });
+
+  if (build.kind === "failed") {
+    await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
+    return build;
+  }
+
+  try {
+    await promoteStagedDevBuild(stagingDir, distDir);
+    await rm(stagingDir, { recursive: true, force: true });
+  } catch (error) {
+    await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
+    return {
+      kind: "failed",
+      message: `the build completed but its staged output could not be promoted: ${errorMessage(error)}`,
+    };
+  }
+  return build;
+}
+
+async function promoteStagedDevBuild(stagingDir: string, distDir: string): Promise<void> {
+  const stagedFiles = await listRelativeFiles(stagingDir);
+  const liveFiles = await listRelativeFiles(distDir);
+  const entry = "cli.js";
+  const stamp = DEV_BUILD_STAMP_NAME;
+  if (!stagedFiles.includes(entry) || !stagedFiles.includes(stamp)) {
+    throw new Error("staged build did not produce cli.js and its freshness stamp");
+  }
+
+  for (const file of stagedFiles.filter((candidate) => candidate !== entry && candidate !== stamp)) {
+    const destination = join(distDir, file);
+    await mkdir(dirname(destination), { recursive: true });
+    await rename(join(stagingDir, file), destination);
+  }
+
+  // The package bin always resolves this path. Replacing the file by rename keeps
+  // either the old or new complete entry visible to concurrent invocations.
+  await rename(join(stagingDir, entry), join(distDir, entry));
+
+  // Publish freshness only after the new entry is live. Any earlier promotion
+  // failure therefore leaves the old stamp to fail closed against changed source.
+  await rename(join(stagingDir, stamp), join(distDir, stamp));
+
+  const stagedFileSet = new Set(stagedFiles);
+  await Promise.all(liveFiles
+    .filter((file) => !stagedFileSet.has(file))
+    .map((file) => rm(join(distDir, file), { force: true })));
+}
+
+async function listRelativeFiles(root: string, current = root): Promise<string[]> {
+  const files: string[] = [];
+  for (const entry of await readdir(current, { withFileTypes: true })) {
+    const path = join(current, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await listRelativeFiles(root, path));
+    } else {
+      files.push(relative(root, path));
+    }
+  }
+  return files.sort();
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**

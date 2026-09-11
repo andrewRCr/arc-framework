@@ -12,7 +12,12 @@ import { Command, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
-import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
+import {
+  checkDevBuildStaleness,
+  createDevCheckDeps,
+  isDevBuildRefreshCommandPath,
+  refreshDevBuildAfterAction,
+} from "./lib/dev-check.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
 import { handleInit, type InitOptions } from "./handlers/init.js";
 import { handleJoin, type JoinOptions } from "./handlers/join.js";
@@ -1847,11 +1852,17 @@ reviewCmd
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 
+let devBuildRefreshEligible = false;
+
 program.hook("preAction", (_thisCommand, actionCommand) => {
   const verdict = checkDevBuildStaleness(
     createDevCheckDeps(fileURLToPath(import.meta.url)),
   );
-  if (verdict.kind === "skip" || verdict.kind === "fresh") return;
+  if (verdict.kind === "skip") return;
+  if (verdict.kind === "fresh") {
+    devBuildRefreshEligible = isDevBuildRefreshCommandPath(formatCommandPath(actionCommand));
+    return;
+  }
 
   const distAgeText = verdict.distAge === null
     ? "dist/cli.js missing"
@@ -1878,6 +1889,20 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
     + "run `npm run build:fast`, then retry.\n",
   );
   process.exit(1);
+});
+
+program.hook("postAction", async () => {
+  if (!devBuildRefreshEligible) return;
+  const result = await refreshDevBuildAfterAction(fileURLToPath(import.meta.url));
+  if (result.kind === "not-required") return;
+  if (result.kind === "refreshed") {
+    process.stderr.write("info: refreshed the arc dev build after bundled source changed.\n");
+    return;
+  }
+  process.stderr.write(
+    `error: arc could not refresh the dev build (${result.message}); run \`${result.command}\` before continuing.\n`,
+  );
+  process.exitCode = 1;
 });
 
 function formatCommandPath(cmd: Command): string {
