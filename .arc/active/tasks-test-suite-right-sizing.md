@@ -144,20 +144,19 @@ runs everything, and no project or framework document instructs a whole-suite lo
 - _Outcome:_ The framework-sync contract subset accepted both rendered Framework copies, and the trigger,
   domain-rule, and section-reference contracts required no repair after the wording changes.
 
-### `[ ]` **1.5 Exercise the routine lane end to end** — validate exit criterion at segment scope
+### `[x]` **1.5 Exercise the routine lane end to end** — validate exit criterion at segment scope
 
 - _Goal:_ One recorded run shows what routine local verification now costs and that the whole run is still one
   command away.
 
-    - Run the lane and the whole run from a clean tree; record wall clock for both.
-    - Confirm the lane takes one heavy-admission slot rather than running outside the lock.
-    - Confirm no project or framework document instructs a whole-suite local run.
-    - Confirm `ci-ok` is still a required status check on the merge gate, and record it. Taking E2E off the routine
-      local path is safe only while that holds — it is what makes the heavy lane enforcement rather than advice —
-      and it is repository configuration rather than anything in the tree, so nothing else in this work unit
-      observes it.
     - _Amended 2026-09-10 — Validate the live contract as configured: required context `merge-ok` must depend on
       and fail closed with `ci-ok`. Record both the GitHub ruleset binding and the workflow dependency._
+
+- _Outcome:_ Clean-tree runs completed the admitted lane in 58.21 s (821 files, 11,103 tests; one file/test skipped)
+  and all projects in 297.67 s (874 files, 11,631 tests; one file/test skipped). The live holder named this branch,
+  worktree, and tier `lane`; the current-authority audit found no whole-suite claim for `npm test` or universal
+  Tier 3 lane mandate. At 2026-09-10T22:08:22-05:00, active ruleset `main-protection` required `merge-ok`, whose CI
+  job depends on `ci_ok` and fails unless that result is `success`.
 
 ### `[ ]` **1.6 Close the lane and policy member** — validate criteria at member scope
 
