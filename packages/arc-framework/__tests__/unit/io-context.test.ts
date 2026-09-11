@@ -12,6 +12,7 @@ vi.mock("execa", () => ({ execa: mocks.execa }));
 
 import {
   createUserIOContext,
+  readGitBlobEntries,
   readGitBlobEntry,
   readGitBlobBytes,
   readGitObjectBytes,
@@ -203,5 +204,120 @@ describe("readGitBlobBytes", () => {
 
     await expect(readGitBlobBytes("/repo", null, "invalid.dat"))
       .rejects.toThrow("Cannot resolve an exact index blob");
+  });
+});
+
+describe("readGitBlobEntries", () => {
+  it.each([
+    ["index", null],
+    ["tree", "HEAD"],
+  ] as const)("reads many exact %s leaves through a fixed process count", async (_source, ref) => {
+    const firstOid = "a".repeat(40);
+    const secondOid = "b".repeat(40);
+    const gitlinkOid = "c".repeat(40);
+    const calls: string[][] = [];
+    mocks.execa.mockImplementation(async (
+      _command: string,
+      args: string[],
+      options: { env?: NodeJS.ProcessEnv; input?: Uint8Array },
+    ) => {
+      calls.push(args);
+      if (args[0] !== "--no-lazy-fetch" || options.env?.GIT_NO_LAZY_FETCH !== "1") {
+        throw new Error("object inspection allowed lazy acquisition");
+      }
+      if (args[1] === "ls-files") {
+        return {
+          stdout: Buffer.from([
+            `100644 ${firstOid} 0\talpha.txt\0`,
+            `100755 ${secondOid} 0\tscript.sh\0`,
+            `160000 ${gitlinkOid} 0\tvendor/library\0`,
+            `100644 ${"d".repeat(40)} 0\tunrelated.txt\0`,
+          ].join("")),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      if (args[1] === "ls-tree") {
+        return {
+          stdout: Buffer.from([
+            `100644 blob ${firstOid}\talpha.txt\0`,
+            `100755 blob ${secondOid}\tscript.sh\0`,
+            `160000 commit ${gitlinkOid}\tvendor/library\0`,
+            `100644 blob ${"d".repeat(40)}\tunrelated.txt\0`,
+          ].join("")),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      const input = Buffer.from(options.input ?? []).toString("utf8");
+      if (args[1] === "cat-file" && args[2]?.startsWith("--batch-check=")) {
+        expect(input).toBe(`${secondOid}\n${firstOid}\n`);
+        return {
+          stdout: Buffer.from(`${secondOid} blob 4\n${firstOid} blob 3\n`),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      if (args[1] === "cat-file" && args[2] === "--batch") {
+        expect(input).toBe(`${secondOid}\n${firstOid}\n`);
+        return {
+          stdout: Buffer.concat([
+            Buffer.from(`${secondOid} blob 4\n`),
+            Buffer.from([4, 5, 6, 7]),
+            Buffer.from("\n"),
+            Buffer.from(`${firstOid} blob 3\n`),
+            Buffer.from([1, 2, 3]),
+            Buffer.from("\n"),
+          ]),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    });
+
+    const entries = await readGitBlobEntries(
+      "/repo",
+      ref,
+      ["script.sh", "missing.txt", "vendor/library", "alpha.txt"],
+      { objectAccess: "local-only" },
+    );
+
+    expect(entries).toEqual(new Map([
+      ["script.sh", { mode: "100755", bytes: Buffer.from([4, 5, 6, 7]) }],
+      ["vendor/library", { mode: "160000", bytes: new TextEncoder().encode(gitlinkOid) }],
+      ["alpha.txt", { mode: "100644", bytes: Buffer.from([1, 2, 3]) }],
+    ]));
+    expect(calls.filter((args) => args[1] === (ref === null ? "ls-files" : "ls-tree")))
+      .toHaveLength(1);
+    expect(calls.filter((args) => args[1] === "cat-file")).toHaveLength(2);
+  });
+
+  it("rejects malformed metadata for a requested path", async () => {
+    mocks.execa.mockResolvedValue({
+      stdout: Buffer.from("100644 abcdef 0\twanted.txt\0"),
+      stderr: Buffer.alloc(0),
+    });
+
+    await expect(readGitBlobEntries("/repo", null, ["wanted.txt"]))
+      .rejects.toThrow("Cannot resolve exact index blobs");
+  });
+
+  it("rejects a truncated batch object response", async () => {
+    const oid = "a".repeat(40);
+    mocks.execa.mockImplementation(async (_command: string, args: string[]) => {
+      if (args[0] === "ls-tree") {
+        return {
+          stdout: Buffer.from(`100644 blob ${oid}\twanted.txt\0`),
+          stderr: Buffer.alloc(0),
+        };
+      }
+      if (args[0] === "cat-file" && args[1]?.startsWith("--batch-check=")) {
+        return { stdout: Buffer.from(`${oid} blob 3\n`), stderr: Buffer.alloc(0) };
+      }
+      if (args[0] === "cat-file" && args[1] === "--batch") {
+        return { stdout: Buffer.from(`${oid} blob 3\nxy`), stderr: Buffer.alloc(0) };
+      }
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    });
+
+    await expect(readGitBlobEntries("/repo", "HEAD", ["wanted.txt"]))
+      .rejects.toThrow("Cannot read exact Git blob objects");
   });
 });

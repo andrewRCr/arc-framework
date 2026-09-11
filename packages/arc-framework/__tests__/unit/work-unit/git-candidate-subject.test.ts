@@ -40,6 +40,42 @@ async function collect(paths: readonly string[], contents: Readonly<Record<strin
 }
 
 describe("Candidate subject classification", () => {
+  it("collects every changed path through one bulk read", async () => {
+    const paths = ["z-last.txt", "a-first.txt", "deleted.txt"];
+    const bulkReads: Array<{ ref: string | null; paths: readonly string[] }> = [];
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n` };
+      if (args[0] === "for-each-ref") return { stdout: `${BASE}\n` };
+      if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
+      if (args[0] === "diff") return { stdout: `${paths.join("\0")}\0` };
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    const target = await collectGitCandidateTarget({
+      cwd: "/repo",
+      name: "example",
+      baseBranch: "main",
+      exec,
+      readEntries: async (_cwd, ref, selectedPaths) => {
+        bulkReads.push({ ref, paths: selectedPaths });
+        return new Map([
+          ["a-first.txt", { mode: "100644", bytes: new TextEncoder().encode("first") }],
+          ["z-last.txt", { mode: "100755", bytes: new TextEncoder().encode("last") }],
+        ]);
+      },
+    });
+
+    expect(bulkReads).toEqual([{
+      ref: null,
+      paths: ["a-first.txt", "deleted.txt", "z-last.txt"],
+    }]);
+    expect(target.subject.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: "a-first.txt", mode: "100644" }),
+      expect.objectContaining({ path: "deleted.txt", mode: "absent" }),
+      expect.objectContaining({ path: "z-last.txt", mode: "100755" }),
+    ]));
+  });
+
   it("collects an exact committed subject without reading the current index", async () => {
     const revision = "c".repeat(40);
     const calls: string[][] = [];

@@ -1229,6 +1229,103 @@ describe("session-init E2E — sessionType across type variants", () => {
       },
     });
   });
+
+  it("writes a compaction seed for a large Candidate within the hook deadline using batched reads", async () => {
+    const trace = await createGitTraceHarness();
+    try {
+      await writeStatusFixture(tmpDir, "technical", "large-candidate", {
+        taskList: "`.arc/active/tasks-large-candidate.md`",
+        nextAction: "archive-work-unit Step 1",
+      });
+      await writeFile(
+        join(tmpDir, ".arc", "active", "tasks-large-candidate.md"),
+        singletonTaskListFixture("Complete verification").replace("`[ ]`", "`[x]`"),
+      );
+      const fixtureDir = join(tmpDir, "large-candidate");
+      await mkdir(fixtureDir, { recursive: true });
+      await Promise.all(Array.from({ length: 400 }, async (_unused, index) => {
+        const name = `${String(index).padStart(4, "0")}.txt`;
+        await writeFile(join(fixtureDir, name), `candidate entry ${String(index)}\n`);
+      }));
+      await git(tmpDir, ["add", "-A"]);
+      const attested = await runArc(["attest", "large-candidate", "--json"], tmpDir, { timeout: 29_000 });
+      expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+      const candidateBoundaryPath = join(
+        tmpDir,
+        ".arc",
+        "system",
+        ".internal",
+        "candidates",
+        "large-candidate.boundary.json",
+      );
+      const candidateBoundary = JSON.parse(await readFile(candidateBoundaryPath, "utf8")) as {
+        candidateId: string;
+        candidateSubjectDigest: string;
+      };
+      const metaPath = join(tmpDir, ".arc", "active", "meta-large-candidate.md");
+      await writeFile(
+        metaPath,
+        (await readFile(metaPath, "utf8"))
+          .replace("- **State:** Active", "- **State:** Integrating")
+          .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+      );
+      await writeFile(candidateBoundaryPath, `${JSON.stringify({
+        schemaVersion: 1,
+        mode: "integration-boundary",
+        workUnit: "large-candidate",
+        candidateId: candidateBoundary.candidateId,
+        candidateSubjectDigest: candidateBoundary.candidateSubjectDigest,
+        locus: "publication-pending",
+        nextAction: {
+          kind: "continue-publication",
+          command: "git push -u origin technical/large-candidate",
+          interactionText: "Resume publication at the idempotent push, then resolve or open the change request.",
+        },
+        policy: null,
+        reservation: null,
+      })}\n`);
+      await git(tmpDir, ["add", "-A"]);
+      await git(tmpDir, ["commit", "-m", "integrate large candidate fixture"]);
+
+      const result = await runArc(
+        ["status", "--session-init", "--write-compaction-seed", "--json"],
+        tmpDir,
+        { timeout: 29_000, env: trace.env },
+      );
+
+      expect(result.timedOut).toBeUndefined();
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.compactionSeedWrite, JSON.stringify(envelope))
+        .toMatchObject({ status: "written" });
+      const commands = await readGitTrace(trace);
+      const argsFor = (fields: string[]): string[] => fields.slice(1);
+      const candidateLookups = commands.filter((fields) => {
+        const args = argsFor(fields);
+        return args[0] === "--no-lazy-fetch" && (
+          args.includes("ls-files") && args.includes("--stage")
+          || args.includes("ls-tree") && args.some((arg) => arg.includes("%(objectmode)"))
+        );
+      });
+      const candidateBatchChecks = commands.filter((fields) => {
+        const args = argsFor(fields);
+        return args[0] === "--no-lazy-fetch"
+          && args.includes("cat-file")
+          && args.some((arg) => arg.startsWith("--batch-check=%(objectname)"));
+      });
+      const candidateContentBatches = commands.filter((fields) => {
+        const args = argsFor(fields);
+        return args[0] === "--no-lazy-fetch"
+          && args.includes("cat-file")
+          && args.includes("--batch");
+      });
+      expect(candidateLookups).toHaveLength(2);
+      expect(candidateBatchChecks).toHaveLength(2);
+      expect(candidateContentBatches).toHaveLength(2);
+    } finally {
+      await cleanupTempDir(trace.binDir);
+    }
+  }, 60_000);
 });
 
 describe("session-init E2E — request-scoped remote acquisition", () => {
