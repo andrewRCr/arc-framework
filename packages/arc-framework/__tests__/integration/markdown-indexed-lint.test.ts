@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { lint } from "markdownlint/promise";
@@ -9,21 +10,35 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGitExec } from "../helpers/integration.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
+import { resolveIndexedMarkdownCheckerPaths } from "../../src/lib/markdown/checker-alignment.js";
 import {
   runIndexedMarkdownCertification,
   type RunIndexedMarkdownCertificationOptions,
 } from "../../src/lib/markdown/indexed-lint.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
+import { main as runStagedMarkdownCommand } from "../../src/scripts/lint-markdown-staged.js";
 
 const execFileAsync = promisify(execFile);
+const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const runtimeVersions = { markdownlint: "0.40.0", stringWidth: "8.1.0" };
 
 let root: string;
 
-async function write(path: string, content: string): Promise<void> {
+async function write(path: string, content: string | Uint8Array): Promise<void> {
   const target = join(root, ...path.split("/"));
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, content);
+}
+
+async function stageExecutingCheckerSources(): Promise<void> {
+  const runtimePaths = await resolveIndexedMarkdownCheckerPaths({
+    root: repositoryRoot,
+    readBlob: async (cwd, path) => readFile(join(cwd, ...path.split("/"))),
+  });
+  await Promise.all(runtimePaths.map(async (path) => {
+    await write(path, await readFile(join(repositoryRoot, ...path.split("/"))));
+  }));
+  await execFileAsync("git", ["add", "--all"], { cwd: root });
 }
 
 function rootConfig(config: Record<string, unknown>): string {
@@ -141,6 +156,17 @@ describe("indexed Markdown certification", () => {
       line: 3,
       message: `${path}:3: Task-list structure is malformed: open subtask 1.1.a at line 3 appears beneath completed parent 1.1 at line 1`,
     }]);
+
+    await stageExecutingCheckerSources();
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      await expect(runStagedMarkdownCommand(root)).resolves.toBe(1);
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining(
+        `${path}:3: Task-list structure is malformed: open subtask 1.1.a`,
+      ));
+    } finally {
+      stderr.mockRestore();
+    }
   });
 
   it("runs segmentation validation over the same indexed content map", async () => {

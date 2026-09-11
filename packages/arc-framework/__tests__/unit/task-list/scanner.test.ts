@@ -135,6 +135,21 @@ describe("scanTaskListStructure", () => {
     });
   });
 
+  it.each(["# Notes", "### Notes"])(
+    "ends the current parent at the non-task heading %s",
+    (heading) => {
+      const result = scanTaskListStructure([
+        "### `[x]` **1.1 Completed parent**",
+        "",
+        heading,
+        "",
+        "- `[ ]` Unnumbered follow-up",
+      ].join("\n"));
+
+      expect(result.status).toBe("scanned");
+    },
+  );
+
   it("ignores task markers inside backtick and tilde fenced examples", () => {
     const canonicalTemplate = readFileSync(new URL(
       "../../../arc/reference/templates/arc/work-unit/template-tasks.md",

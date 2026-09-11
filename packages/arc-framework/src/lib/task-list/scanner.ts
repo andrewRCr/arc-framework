@@ -49,6 +49,7 @@ const SUBTASK_RE =
 const TASK_HEADING_PREFIX_RE = /^#{1,6}\s+`?\[[ x~]\]/u;
 const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
+const PARENT_BOUNDARY_HEADING_RE = /^#{1,3}\s+/u;
 const DELIVERY_PLAN_HEADING_RE = /^##\s+Delivery Plan\s*$/u;
 const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+(?<id>[^:]+):\*\*\s+(?<title>.+?)\s*$/u;
 const TASK_BODY_RE = /^(?<id>\S+)\s+(?<title>.+?)\s*$/u;
@@ -165,8 +166,10 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
       continue;
     }
 
-    if (SECTION_HEADING_RE.test(line)) {
-      events.push({ type: "section", line: lineNumber });
+    if (PARENT_BOUNDARY_HEADING_RE.test(line)) {
+      events.push(SECTION_HEADING_RE.test(line)
+        ? { type: "section", line: lineNumber }
+        : { type: "content", line: lineNumber, text: line });
       currentParent = null;
       continue;
     }
