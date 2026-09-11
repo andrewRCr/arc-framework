@@ -3,7 +3,7 @@
   "slug": "preserve-private-delivery-frontline-candidate-binding",
   "claimId": "e231570463bac13fca3737a8914ee048",
   "createdAt": "2026-09-11T18:54:55.872Z",
-  "updatedAt": "2026-09-11T18:54:55.872Z",
+  "updatedAt": "2026-09-11T21:47:23.167Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "preserve-private-delivery-frontline-candidate-binding",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Preserve Candidate binding for private delivery-member Frontline fixes",
   "originEntrySourceDigest": "sha256:6b8a76ed38fc88d56b182ab5329a1d50a42e0590d485638f18fcbb990a21c544",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/preserve-private-delivery-frontline-candidate-binding",
+    "headSha": "821bb36104261eb0e24a4c994c99df87c04037ea"
+  }
 }
