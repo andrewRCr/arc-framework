@@ -125,6 +125,24 @@ describe("indexed Markdown certification", () => {
     ]);
   });
 
+  it("rejects a staged task list whose completed parent hides an open subtask", async () => {
+    await stageFixture();
+    const path = ".arc/active/tasks-hidden.md";
+    await write(path, [
+      "### `[x]` **1.1 Completed parent**",
+      "",
+      "    - `[ ]` **1.1.a Hidden open child**",
+    ].join("\n"));
+    await execFileAsync("git", ["add", path], { cwd: root });
+
+    const result = await runIndexedMarkdownCertification(options());
+    expect(result.diagnostics).toEqual([{
+      path,
+      line: 3,
+      message: `${path}:3: Task-list structure is malformed: open subtask 1.1.a at line 3 appears beneath completed parent 1.1 at line 1`,
+    }]);
+  });
+
   it("runs segmentation validation over the same indexed content map", async () => {
     await stageFixture();
     await write(

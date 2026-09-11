@@ -99,6 +99,42 @@ describe("scanTaskListStructure", () => {
     });
   });
 
+  it("refuses an open subtask beneath a completed parent", () => {
+    const result = scanTaskListStructure([
+      "### `[x]` **1.1 Completed parent**",
+      "",
+      "    - `[x]` **1.1.a Completed child**",
+      "",
+      "    - `[ ]` **1.1.b Hidden open child**",
+    ].join("\n"));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "open subtask 1.1.b at line 5 appears beneath completed parent 1.1 at line 1",
+      },
+    });
+  });
+
+  it("refuses an anonymous checkbox inside a parent task but preserves ordinary bullets", () => {
+    const result = scanTaskListStructure([
+      "### `[ ]` **1.1 Active parent**",
+      "",
+      "- Ordinary outcome detail.",
+      "",
+      "- `[ ]` Unnumbered follow-up",
+    ].join("\n"));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "anonymous checkbox at line 5 appears inside parent task 1.1 at line 1",
+      },
+    });
+  });
+
   it("ignores task markers inside backtick and tilde fenced examples", () => {
     const canonicalTemplate = readFileSync(new URL(
       "../../../arc/reference/templates/arc/work-unit/template-tasks.md",
