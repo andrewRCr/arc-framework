@@ -13,7 +13,11 @@ import {
   type LaneProgressState,
 } from "./core/operation-state-schema.js";
 import type { FrontlineAdmission } from "./core/frontline-admission.js";
-import type { LaneSubjectLineage } from "./core/lane-admission.js";
+import {
+  laneSubjectOwner,
+  laneSubjectOwnerMatches,
+  type LaneSubjectLineage,
+} from "./core/lane-admission.js";
 import type {
   ReviewOperationStateSnapshotIndex,
   ReviewOperationStateStore,
@@ -87,11 +91,7 @@ function conditionalContinuationLineageMatches(
   left: LaneSubjectLineage,
   right: LaneSubjectLineage,
 ): boolean {
-  return canonicalize(left) === canonicalize(right)
-    || (left.kind === "head-bound"
-      && right.kind === "head-bound"
-      && left.vehicleKind === right.vehicleKind
-      && left.vehicleIdentity === right.vehicleIdentity);
+  return laneSubjectOwnerMatches(left, right);
 }
 
 function bindCompletedConditionalPassAuthorization(
@@ -463,24 +463,11 @@ export function hostedAwaitLaneOutcome(state: string): LaneAttemptOutcome | null
 }
 
 /**
- * Resolve the stable operation identity holding one lane's progress against one exact head.
+ * Resolve the stable operation identity holding one subject's lane progress.
  *
- * @param input - The lane and the exact target it is reviewing.
+ * @param input - The lane and exact subject lineage it is reviewing.
  * @returns The operation identifier for that lane and target.
  */
-function laneOwnerSubject(lineage: LaneSubjectLineage): Omit<
-  Extract<LaneSubjectLineage, { kind: "head-bound" }>,
-  "headSha"
-> | Exclude<LaneSubjectLineage, { kind: "head-bound" }> {
-  return lineage.kind === "head-bound"
-    ? {
-        kind: lineage.kind,
-        vehicleKind: lineage.vehicleKind,
-        vehicleIdentity: lineage.vehicleIdentity,
-      }
-    : lineage;
-}
-
 export function laneProgressOperationId(input: {
   lane: LaneProgressState["lane"];
   repositoryId: string;
@@ -493,7 +480,7 @@ export function laneProgressOperationId(input: {
     vehicleIdentity: `${input.repositoryId}/${input.headSha}`,
     headSha: input.headSha,
   };
-  const subject = laneOwnerSubject(lineage);
+  const subject = laneSubjectOwner(lineage);
   const digest = createHash("sha256")
     .update(canonicalize({
       domain: "arc.review.lane-progress-owner/v1",
@@ -512,7 +499,7 @@ export function laneContinuationOperationId(input: {
   headSha: string;
   lineage: LaneSubjectLineage;
 }): string {
-  const subject = laneOwnerSubject(input.lineage);
+  const subject = laneSubjectOwner(input.lineage);
   const digest = createHash("sha256")
     .update(canonicalize({
       domain: "arc.review.lane-continuation-lock/v1",
@@ -1630,7 +1617,7 @@ export async function captureConditionalNextPassAuthorization(
       || state.kind !== "lane-progress"
       || state.lane !== input.lane
       || state.repositoryId !== input.repositoryId
-      || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+      || !laneSubjectOwnerMatches(state.lineage, input.lineage)) {
       throw new Error("conditional pass authorization lane owner is unavailable");
     }
     const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
@@ -1752,7 +1739,7 @@ export async function withdrawConditionalNextPassAuthorization(
       || state.kind !== "lane-progress"
       || state.lane !== input.lane
       || state.repositoryId !== input.repositoryId
-      || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+      || !laneSubjectOwnerMatches(state.lineage, input.lineage)) {
       return refuse("foreign-authority", "conditional pass authorization owner does not match the response source");
     }
     const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
@@ -1856,7 +1843,7 @@ export async function invalidateConditionalNextPassAuthorization(
       || state.kind !== "lane-progress"
       || state.lane !== input.lane
       || state.repositoryId !== input.repositoryId
-      || canonicalize(state.lineage) !== canonicalize(input.lineage)) return null;
+      || !laneSubjectOwnerMatches(state.lineage, input.lineage)) return null;
     const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.producerId);
     const attempt = state.attempts[index];
     const authorization = attempt?.conditionalPassAuthorizations?.authorizations.find((candidate) =>
@@ -1934,7 +1921,7 @@ export async function inspectConditionalNextPassInvalidation(
     || state.kind !== "lane-progress"
     || state.lane !== input.lane
     || state.repositoryId !== input.repositoryId
-    || canonicalize(state.lineage) !== canonicalize(input.lineage)) return { state: "ready" };
+    || !laneSubjectOwnerMatches(state.lineage, input.lineage)) return { state: "ready" };
   const attempt = state.attempts.find(({ attemptId }) => attemptId === input.producerId);
   const authorization = attempt?.conditionalPassAuthorizations?.authorizations.find((candidate) =>
     candidate.dispositionSetId === input.dispositionSetId);
@@ -2241,7 +2228,7 @@ export async function recordLaneResponsePerformance(
       || state.kind !== "lane-progress"
       || state.lane !== input.lane
       || state.repositoryId !== input.repositoryId
-      || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+      || !laneSubjectOwnerMatches(state.lineage, input.lineage)) {
       throw new Error("lane response performance owner is unavailable");
     }
     const index = state.attempts.findIndex(({ attemptId }) => attemptId === input.attemptId);
@@ -2318,8 +2305,7 @@ export async function readLaneProgressOwnerVersioned(
     || state.kind !== "lane-progress"
     || state.lane !== input.lane
     || state.repositoryId !== input.repositoryId
-    || canonicalize(laneOwnerSubject(state.lineage))
-      !== canonicalize(laneOwnerSubject(input.lineage))) return { version, state: null };
+    || !laneSubjectOwnerMatches(state.lineage, input.lineage)) return { version, state: null };
   return { version, state };
 }
 

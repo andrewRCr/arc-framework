@@ -3,7 +3,10 @@
 import { canonicalize } from "../../../lib/kernel/index.js";
 
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
-import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import {
+  laneSubjectOwnerMatches,
+  type LaneSubjectLineage,
+} from "../core/lane-admission.js";
 import {
   LocalReviewCoverageSelectionActionSchema,
   type LocalReviewCoverageAdmission,
@@ -77,7 +80,7 @@ export async function resolveLocalReviewCoverageSelection(input: {
       && predecessor.kind !== "frontline"
       && predecessor.repositoryId === input.target.repositoryId
       && predecessor.admission.logicalPass === completedPasses
-      && canonicalize(predecessor.admission.lineage) === canonicalize(input.lineage)
+      && laneSubjectOwnerMatches(predecessor.admission.lineage, input.lineage)
       && canonicalize({
         obligation: predecessor.requirement.obligation,
         reasons: [...predecessor.requirement.reasons].sort(),

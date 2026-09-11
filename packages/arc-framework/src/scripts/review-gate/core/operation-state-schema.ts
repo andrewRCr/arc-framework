@@ -28,7 +28,11 @@ import {
   hostedRequestHandleMatchesProgress,
 } from "../hosted/request.js";
 import { DeliveryLocalReviewAdmissionSchema } from "../policy/delivery-local-review-admission.js";
-import { laneSubjectLineageId, LaneSubjectLineageSchema } from "./lane-admission.js";
+import {
+  laneSubjectLineageId,
+  laneSubjectOwnerMatches,
+  LaneSubjectLineageSchema,
+} from "./lane-admission.js";
 import { StandardReviewGuidanceProjectionSchema } from "../policy/standard-review-guidance.js";
 import {
   CompletedReviewPassCountSchema,
@@ -935,7 +939,7 @@ export const LaneProgressStateSchema = z.strictObject({
       (attempt.conditionalPassAuthorizations?.authorizations ?? []).entries()) {
       if (authorization.repositoryId !== state.repositoryId
         || authorization.lane !== state.lane
-        || canonicalize(authorization.lineage) !== canonicalize(state.lineage)
+        || !laneSubjectOwnerMatches(authorization.lineage, state.lineage)
         || authorization.producerId !== attempt.attemptId
         || authorization.originatingHeadSha !== attempt.headSha
         || authorization.exhaustedPassCount !== attempt.logicalPass
@@ -955,7 +959,9 @@ export const LaneProgressStateSchema = z.strictObject({
         message: "frontline lane attempts require durable admission",
       });
     }
-    if (state.lineage.kind === "head-bound" && attempt.headSha !== state.lineage.headSha) {
+    if (state.lineage.kind === "head-bound"
+      && state.lineage.vehicleKind === "review-target"
+      && attempt.headSha !== state.lineage.headSha) {
       context.addIssue({
         code: "custom",
         path: ["attempts", index, "headSha"],
@@ -1001,7 +1007,7 @@ export const LaneProgressStateSchema = z.strictObject({
     if (attempt.frontline !== undefined
       && (state.lane !== "frontline"
         || attempt.frontline.admission.target.repositoryId !== state.repositoryId
-        || laneSubjectLineageId(attempt.frontline.admission.lineage) !== laneSubjectLineageId(state.lineage))) {
+        || !laneSubjectOwnerMatches(attempt.frontline.admission.lineage, state.lineage))) {
       context.addIssue({
         code: "custom",
         path: ["attempts", index, "frontline"],
@@ -1009,7 +1015,7 @@ export const LaneProgressStateSchema = z.strictObject({
       });
     }
     if (attempt.hosted !== undefined
-      && (laneSubjectLineageId(attempt.hosted.admission.lineage) !== laneSubjectLineageId(state.lineage)
+      && (!laneSubjectOwnerMatches(attempt.hosted.admission.lineage, state.lineage)
         || attempt.hosted.admission.repositoryId !== state.repositoryId)) {
       context.addIssue({
         code: "custom",

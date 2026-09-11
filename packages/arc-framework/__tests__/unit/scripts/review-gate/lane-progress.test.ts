@@ -321,6 +321,82 @@ describe("lane progress", () => {
     });
   });
 
+  it("records corrected-head attempts under one Errand owner", async () => {
+    const store = createStore();
+    const priorLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("c"),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage: priorLineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const captured = await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: priorLineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    await settleLaneAttempt(store, {
+      ...attempt,
+      lineage: priorLineage,
+      dispositionSetId,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:02:00Z",
+    } as Parameters<typeof settleLaneAttempt>[1] & {
+      dispositionSetId: string;
+      producedHeadSha: string;
+    });
+    await consumeConditionalNextPassAuthorization(store, {
+      authorizationId: captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage: priorLineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:03:00Z",
+    }, async () => true);
+
+    const corrected = await recordLaneAttempt(store, {
+      ...attempt,
+      attemptId: "attempt-2",
+      headSha: objectId("d"),
+      lineage: { ...priorLineage, headSha: objectId("d") },
+      sourceId: "delegated-agent",
+      outcome: "clean",
+      consumedPass: true,
+      logicalPass: 2,
+    });
+
+    expect(corrected).toMatchObject({
+      lineage: { ...priorLineage, headSha: objectId("d") },
+      completedPasses: 2,
+      attempts: [
+        {
+          attemptId: "attempt-1",
+          headSha: objectId("c"),
+          conditionalPassAuthorizations: {
+            currentAuthorizationId: captured.authorizationId,
+            authorizations: [{ authorizationId: captured.authorizationId, status: "consumed" }],
+          },
+        },
+        { attemptId: "attempt-2", headSha: objectId("d") },
+      ],
+    });
+  });
+
   it("retains exact target facts on attempts owned by one moving lineage", async () => {
     const store = createStore();
     const lineage = {

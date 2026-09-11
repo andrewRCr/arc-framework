@@ -665,8 +665,8 @@ describe("review operation state schemas", () => {
     expect(LaneProgressStateSchema.parse(bound).attempts[0]?.changeRequestId).toBe("pull/42");
   });
 
-  it("rejects an attempt outside its head-bound owner lineage", () => {
-    expect(() => LaneProgressStateSchema.parse({
+  it("retains an earlier attempt head inside one moving head-bound owner", () => {
+    const parsed = LaneProgressStateSchema.parse({
       ...laneProgress,
       lineage: {
         kind: "head-bound",
@@ -674,7 +674,10 @@ describe("review operation state schemas", () => {
         vehicleIdentity: "repair-review-state",
         headSha: objectId("e"),
       },
-    })).toThrow(/lineage/iu);
+    });
+
+    expect(parsed.lineage).toMatchObject({ headSha: objectId("e") });
+    expect(parsed.attempts[0]?.headSha).toBe(objectId("c"));
   });
 
   it("keeps the record free of host vocabulary the core boundary forbids", () => {

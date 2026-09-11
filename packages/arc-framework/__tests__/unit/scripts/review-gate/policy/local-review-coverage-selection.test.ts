@@ -11,6 +11,8 @@ import type {
   ApprovedDispositionRecordStore,
   ReviewResultReader,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
+import type { LaneSubjectLineage } from
+  "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
 import { resolveLocalReviewCoverageSelection } from
@@ -44,7 +46,7 @@ function target(headSha: string) {
   });
 }
 
-function completeLocalResult(): ReviewResult {
+function completeLocalResult(resultLineage: LaneSubjectLineage = lineage): ReviewResult {
   const predecessorTarget = target(objectId("a"));
   const requirement = createReviewRequirement({
     target: predecessorTarget,
@@ -63,7 +65,7 @@ function completeLocalResult(): ReviewResult {
     findings: [],
     resultDigest: digest("result"),
     admission: {
-      lineage,
+      lineage: resultLineage,
       logicalPass: 1,
       retryGeneration: 0,
       requestedCoverage: "complete",
@@ -171,5 +173,49 @@ describe("local review coverage selection", () => {
         correctionScope: { ...exactScope, basisHeadSha: objectId("9") },
       },
     }, dependencies(predecessor))).rejects.toThrow(/current offered choice/u);
+  });
+
+  it("offers an Errand predecessor after its correction changes the head", async () => {
+    const predecessorLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const predecessor = completeLocalResult(predecessorLineage);
+    const currentTarget = target(objectId("c"));
+
+    await expect(resolveLocalReviewCoverageSelection({
+      policy: readyPolicy(currentTarget.headSha),
+      target: currentTarget,
+      sourceId: "delegated-agent",
+      lineage: { ...predecessorLineage, headSha: currentTarget.headSha },
+      standardReview,
+      predecessorOperationId: predecessor.producerId,
+    }, dependencies(predecessor))).resolves.toMatchObject({
+      state: "coverage-required",
+      action: {
+        choices: [
+          { requestedCoverage: "incremental" },
+          { requestedCoverage: "complete" },
+        ],
+      },
+    });
+
+    await expect(resolveLocalReviewCoverageSelection({
+      policy: readyPolicy(currentTarget.headSha),
+      target: currentTarget,
+      sourceId: "delegated-agent",
+      lineage: {
+        ...predecessorLineage,
+        vehicleIdentity: "other-errand",
+        headSha: currentTarget.headSha,
+      },
+      standardReview,
+      predecessorOperationId: predecessor.producerId,
+    }, dependencies(predecessor))).resolves.toMatchObject({
+      state: "coverage-required",
+      action: { choices: [{ requestedCoverage: "complete" }] },
+    });
   });
 });
