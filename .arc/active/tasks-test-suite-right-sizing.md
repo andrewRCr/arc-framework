@@ -606,9 +606,28 @@ startup on `view` measures at or below the target as a standalone probe.
   inputs and no handler, command implementation, or remedy script. The one-file bundle and amended startup bar both
   hold; Phase 6 inherits the measured 123.62 ms median per-spawn saving rather than the projected 150 ms.
 
-### `[ ]` **5.5 Close the CLI startup member** — validate criteria at member scope
+### `[x]` **5.5 Close the CLI startup member** — validate criteria at member scope
 
 - _Goal:_ Member 4's criteria are walked through `validate-criteria` and their boundary evidence recorded.
+
+- _Outcome:_ Member 4 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 4 — cli-startup`.
+    - _Span:_ bounded diff `6c7385f71..613c7ce3e`; cumulative reachability `613c7ce3e` at tree
+      `c07642477228a179885c519bf080c6cf71a1bb8f`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 4 — cli-startup > 1`; _criterion-digest:_
+      `sha256:04169f9f4d81639f10215b4840fd0ab2d158c8f5b1d7437071abbba0873e375a`; _State:_ `[x]`; _Evidence:_
+      the approved forward amendment supersedes the host-sensitive absolute cap with an alternating same-host
+      control. The primary nine-run pair measured 395.10 ms → 271.48 ms median, saving 123.62 ms / 31.29%; the
+      adversarial pass independently reproduced 400 ms → 270 ms, saving 130 ms / 32.5%.
+    - _Criterion:_ `Success Criteria > Member 4 — cli-startup > 2`; _criterion-digest:_
+      `sha256:666a250ad8cefb63d312370c0c90291d4d62a8a91e313d0a1054a2f1fc52b81d`; _State:_ `[x]`; _Evidence:_
+      `tsup.config.ts` sets `splitting: false`, the dynamic-import build regression passes, and exact-tree builds
+      emit one executable JavaScript artifact, `dist/cli.js`.
+    - _Adversarial companion:_ one Heavy fresh-context pass returned no findings after rebuilding the exact tree,
+      reproducing the startup control, comparing all 180 Commander registrations, and checking the lazy-module,
+      inventory, active-status, type, and build boundaries.
+    - _Summary:_ two met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 6:** Sizing, anchors, and budgets
 
