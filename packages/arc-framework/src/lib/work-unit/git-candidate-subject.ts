@@ -3,9 +3,9 @@
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
 import { readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
+import { classifyPathTreatment } from "../evidence-applicability/index.js";
 import {
   identifyWorkUnitArtifactPath,
-  isProjectDocumentPath,
   type WorkUnitArtifactKind,
 } from "../layout/index.js";
 import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
@@ -98,7 +98,7 @@ function ownArtifactAt(
  * Resolve where one path's content lands in the subject, and the treatment it receives there.
  *
  * The key differs from the classified path only for a relocated own artifact, whose content follows
- * the artifact while the location it vacated stays an operational entry.
+ * the artifact while the location it vacated stays an evidence-neutral entry.
  */
 function classifyCandidateSubjectPath(
   name: string,
@@ -106,16 +106,9 @@ function classifyCandidateSubjectPath(
   projectionPaths: ReadonlySet<string>,
 ): { key: string; treatment: CandidateSubjectEntryInput["treatment"] } {
   const own = ownArtifactAt(name, path);
-  if (own !== null && own.key !== path) {
-    return { key: own.key, treatment: own.artifact === "meta" ? "operational" : "reviewable" };
-  }
   return {
-    key: path,
-    treatment: projectionPaths.has(path)
-      ? "candidate-projection"
-      : own?.artifact === "meta" || isProjectDocumentPath(path)
-        ? "operational"
-        : "reviewable",
+    key: own?.key ?? path,
+    treatment: classifyPathTreatment(path, { workUnit: name, projectionPaths }),
   };
 }
 
@@ -135,7 +128,7 @@ export interface CollectUnstagedReviewablePathsInput {
  *
  * The subject below is the index, so content edited but left unstaged — and reviewable files Git is not
  * tracking at all — would be attested away without appearing anywhere in the result. Only paths whose
- * content reaches the subject as `reviewable` are reported: operational writes and the Candidate's own
+ * content reaches the subject as `reviewable` are reported: evidence-neutral writes and the Candidate's own
  * projections move without changing what review sees, so gating on them would refuse an ordinary
  * lifecycle tree.
  *
@@ -206,7 +199,7 @@ export async function collectGitCandidateTarget(
     const classification = classifyCandidateSubjectPath(name, path, projectionPaths);
     if (classification.key !== path) {
       // Reaching the artifact's new location is a lifecycle write, so the location itself is
-      // operational and the content it carries stays keyed to the artifact. The move alone leaves the
+      // evidence-neutral and the content it carries stays keyed to the artifact. The move alone leaves the
       // reviewable subject byte-identical; an edit made along the way still lands as a changed entry.
       if (entry !== null) {
         if (relocated.has(classification.key)) {
@@ -214,7 +207,7 @@ export async function collectGitCandidateTarget(
         }
         relocated.set(classification.key, { digest, mode, treatment: classification.treatment });
       }
-      entries.set(path, { path, digest, mode, treatment: "operational" });
+      entries.set(path, { path, digest, mode, treatment: "evidence-neutral" });
       if (entry === null) absentPaths.add(path);
       continue;
     }

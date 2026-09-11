@@ -1,4 +1,4 @@
-/** Golden coverage over the repository's eight live lean transition records. */
+/** Golden coverage over the repository's live lean transition records. */
 
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -50,7 +50,7 @@ describe("live transition records", () => {
         .sort((left, right) => left.subject.localeCompare(right.subject)));
   });
 
-  it("materializes exactly ten canonical origin-keyed records", async () => {
+  it("materializes exactly eleven canonical origin-keyed records", async () => {
     const filenames = (await readdir(REPOSITORY_TRANSITION_DIRECTORY)).sort();
     expect(filenames).toEqual(TERMINAL_TRANSITION_ORACLE
       .map(({ origin }) => `${origin}.json`)
@@ -62,7 +62,7 @@ describe("live transition records", () => {
     const enumeration = await loadTransitionEnumeration();
     expect(enumeration.status).toBe("valid");
     if (enumeration.status !== "valid") return;
-    expect(enumeration.groups).toHaveLength(10);
+    expect(enumeration.groups).toHaveLength(11);
     expect(enumeration.groups.map(({ origin, records }) => {
       expect(records).toHaveLength(1);
       const record = records[0];

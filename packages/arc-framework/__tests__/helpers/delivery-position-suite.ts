@@ -2161,7 +2161,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "### `[x]` **1.1 Close delivery**",
       "",
     ].join("\n"));
-    await git(fixture.repository, ["add", join(".arc", "active", `tasks-${fixture.plan.workUnitId}.md`)]);
+    await writeFile(join(fixture.repository, "reviewed-terminal.txt"), "reviewed terminal contribution\n");
+    await git(fixture.repository, [
+      "add",
+      join(".arc", "active", `tasks-${fixture.plan.workUnitId}.md`),
+      "reviewed-terminal.txt",
+    ]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install closed delivery task"]);
     const reviewedTerminalHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
     const reviewedTerminalTree = await git(fixture.repository, ["rev-parse", "HEAD^{tree}"]);
@@ -2563,15 +2568,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ]),
     });
 
-    const archiveCompanion = `notes-${fixture.plan.workUnitId}.md`;
-    await mkdir(join(archivedCheckout, ".arc", "active"), { recursive: true });
+    const reviewableCompanion = "delivery-refresh.txt";
     await writeFile(
-      join(archivedCheckout, ".arc", "active", archiveCompanion),
-      "# Delivery notes\n",
+      join(archivedCheckout, reviewableCompanion),
+      "delivery correction\n",
       "utf8",
     );
-    await git(archivedCheckout, ["add", "--", join(".arc", "active", archiveCompanion)]);
-    await git(archivedCheckout, ["commit", "--no-verify", "-m", "preserve inline archive companion"]);
+    await git(archivedCheckout, ["add", "--", reviewableCompanion]);
+    await git(archivedCheckout, ["commit", "--no-verify", "-m", "record shipped delivery correction"]);
     await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
 
     const versionedCandidate = await readCandidateRecordVersioned(
@@ -2609,7 +2613,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     expect(applicability.state).toBe("decision-required");
     if (applicability.state !== "decision-required") {
-      throw new Error("inline archive companion must require an applicability selection");
+      throw new Error("shipped delivery correction must require an applicability selection");
     }
     const selected = await runArcWithStdin(
       ["candidate", "applicability", "resolve", fixture.plan.workUnitId, "-"],

@@ -102,7 +102,11 @@ import {
   runPassiveWorktreeInspection,
 } from "../lib/git/worktree-sync.js";
 import { analyzeBaseDistanceSnapshot } from "../lib/git/base-distance.js";
-import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../lib/base-drift/current-adapters.js";
+import { locusWorkUnitAtPath } from "../lib/session-init/locus-classification.js";
 import {
   analyzeBaseBranchSnapshot,
   readLocalBaseOid,
@@ -967,6 +971,8 @@ export async function handleStatus(
           ...options,
           objectAccess: "local-only",
         });
+        const roster = await getOptionalDerivedRoster();
+        const workUnit = roster === null ? null : locusWorkUnitAtPath(roster, cwd);
         return analyzeBaseDistanceSnapshot({
           exec,
           baseBranch,
@@ -974,7 +980,10 @@ export async function handleStatus(
           snapshot: prerequisites.snapshot,
           objectAvailability: prerequisites.objectAvailability,
           history: prerequisites.history,
-          ...createCurrentBaseDriftAdapters(localOnlyExec),
+          ...createCurrentBaseDriftAdapters(
+            localOnlyExec,
+            workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name),
+          ),
         });
       },
       baseBranchSync: async (context) => {
