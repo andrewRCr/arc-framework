@@ -517,13 +517,14 @@ tier's post-work summed-time floor.
   12-worker run measured a 30.35 s post-work floor with a 27.86 s maximum file and reduced wall clock from 40.33 s
   to 33.48 s despite the expected repeated import cost. Both renamed `user` drivers remain substrate-classified.
 
-### `[ ]` **4.4 Exhaust and batch-verify the tier placement surface** — validate exit criterion at segment scope
+### `[x]` **4.4 Exhaust and batch-verify the tier placement surface** — validate exit criterion at segment scope
 
 - _Goal:_ One recorded pass shows the enumerated placement surface is exhausted and the tier floors hold.
 
-    - Every file in the enumerated set carries a verdict; no test at any tier spawns the CLI through `tsx`; no
-      integration file exceeds the post-work floor.
-    - Re-measure integration and the lane tier-isolated through the instrument, across several runs.
+- _Outcome:_ The four-file verdict set is complete, and a corpus-wide spawn audit found no CLI invocation through
+  `tsx`. Three 12-worker runs measured integration at 33.48 s wall / 364.18 s summed (30.35 s floor, 27.86 s
+  maximum file) and the routine lane at 44.49 s / 478.90 s. The segment exit holds; the separate member bar of
+  at most 346.01 s integration summed time does not.
 
 ### `[ ]` **4.5 Close the fixture and tier cost member** — validate criteria at member scope
 
