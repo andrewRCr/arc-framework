@@ -151,15 +151,6 @@
 
 - _Captured during:_ post-merge `arc-cleared` activation after `review-gate-right-sizing` teardown (2026-07-25).
 
-### `[ ]` **Model Candidate re-root as a resumable recovery frame**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-07); captured during
-  `delivery-native-stack-composition` dogfooding.
-- _Concern:_ an immediate Errand can improve the typed diagnostic for a proved Candidate re-root, but recovery
-  still needs an authoritative frame for continuing after a sanctioned target/base movement.
-- _Fold-in:_ define the monotonic transition evidence, seed comparison, and invalidation rules that let recovery
-  resume without trusting branch-shape inference.
-
 ### `[ ]` **Model intentional unmerged-index state as a resumable recovery frame**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-09-07);
