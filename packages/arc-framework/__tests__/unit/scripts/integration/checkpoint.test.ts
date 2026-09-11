@@ -662,6 +662,33 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it("uses archived-record attestation for a stale shipped singleton boundary", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readLifecycle = async () => ({
+      workUnit: "example",
+      storageVersion: oid("c"),
+      archiveCadence: "with-integration",
+      state: "shipped",
+      position: { phase: "Shipped", location: "completed" },
+      artifactFacts: [],
+      complete: true,
+    });
+    deps.readCandidatePublication = async () => ({
+      status: "refresh-required",
+      kind: "singleton",
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "candidate-publication-required",
+        nextAction: "resume-pre-publication",
+        payload: {
+          attestArgv: ["arc", "attest", "example", "--new-root", "--json"],
+        },
+      });
+  });
+
   it("uses the archived-record attestation entry when a shipped Candidate boundary is stale", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;

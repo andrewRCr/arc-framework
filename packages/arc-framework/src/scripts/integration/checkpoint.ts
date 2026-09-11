@@ -236,11 +236,20 @@ const CandidatePublicationCheckpointResultSchema = z.union([
     state: z.literal("candidate-publication-required"),
     nextAction: z.literal("resume-pre-publication"),
     payload: z.strictObject({
-      attestArgv: z.tuple([
-        z.literal("arc"),
-        z.literal("attest"),
-        SlugSchema,
-        z.literal("--json"),
+      attestArgv: z.union([
+        z.tuple([
+          z.literal("arc"),
+          z.literal("attest"),
+          SlugSchema,
+          z.literal("--json"),
+        ]),
+        z.tuple([
+          z.literal("arc"),
+          z.literal("attest"),
+          SlugSchema,
+          z.literal("--new-root"),
+          z.literal("--json"),
+        ]),
       ]),
       recommendedActionText: z.string().min(1),
     }),
@@ -808,14 +817,15 @@ export async function checkpointIntegration(
   try {
     const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid);
     if (publication.status === "refresh-required") {
-      const shippedDelivery = lifecycle.state === "shipped" && publication.kind === "delivery";
+      const shipped = lifecycle.state === "shipped";
+      const shippedDelivery = shipped && publication.kind === "delivery";
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "candidate-publication-required",
         nextAction: shippedDelivery ? "refresh-shipped-delivery" : "resume-pre-publication",
         payload: {
           attestArgv: [
-            ...(shippedDelivery
+            ...(shipped
               ? attestNewRootArgv(request.workUnit)
               : attestArgv(request.workUnit)),
             "--json",
