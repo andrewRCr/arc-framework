@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** activate-work-unit — task list finalized and WU activated on `feat/evidence-applicability`
-- **Next Task:** Task 1.1 — Unify path-treatment classification (line 60 in tasks-evidence-applicability.md)
+- **Last Completed:** Task 5.7 — Close the scoped-verification member
+- **Next Task:** Task 6.1 — Complete verification (line 642 in tasks-evidence-applicability.md)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Unify path-treatment classification
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
