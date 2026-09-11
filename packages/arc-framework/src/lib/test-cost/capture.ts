@@ -67,7 +67,11 @@ function captureFile(module: ReportedCostModule): TestCostFile {
   const diagnostic = module.diagnostic();
   const collectDurationMs = requireDuration(diagnostic.collectDuration, `${module.relativeModuleId} collection`);
   const setupDurationMs = requireDuration(diagnostic.setupDuration, `${module.relativeModuleId} setup`);
-  const tests = [...module.children.allTests()].flatMap((test) => {
+  const reportedTests = [...module.children.allTests()];
+  if (reportedTests.length === 0) {
+    throw new Error(`Vitest returned no test tasks for ${module.relativeModuleId}`);
+  }
+  const tests = reportedTests.flatMap((test) => {
     const testDiagnostic = test.diagnostic();
     if (testDiagnostic === undefined) {
       if (test.result?.().state === "skipped") return [];
@@ -92,9 +96,6 @@ function captureFile(module: ReportedCostModule): TestCostFile {
       ...resolveTimeoutHeadroom(durationMs, vitestTimeoutMs, cliTimeoutValue),
     }];
   });
-  if (tests.length === 0) {
-    throw new Error(`Vitest returned no test timing data for ${module.relativeModuleId}`);
-  }
   const testTimeMs = tests.reduce((sum, test) => sum + test.durationMs, 0);
   const fixedCostMs = collectDurationMs + setupDurationMs;
   return {

@@ -106,6 +106,16 @@ describe("captureTestCost", () => {
     expect(file?.tests.map((test) => test.id)).toEqual(["ran"]);
   });
 
+  it("retains fixed cost for a file whose only case is skipped", () => {
+    const [file] = captureTestCost([
+      moduleFixture("skipped-file.test.ts", "integration", 7, 11, [
+        { id: "skipped", name: "skipped", state: "skipped" },
+      ]),
+    ]).files;
+
+    expect(file).toMatchObject({ durationMs: 18, testTimeMs: 0, tests: [] });
+  });
+
   it("reports headroom against a tighter runCli timeout", () => {
     const [test] = captureTestCost([
       moduleFixture("cli.test.ts", "integration", 1, 1, [{
