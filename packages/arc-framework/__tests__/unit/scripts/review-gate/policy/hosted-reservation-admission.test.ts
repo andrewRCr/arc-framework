@@ -12,6 +12,8 @@ import {
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewOperationStateSnapshot } from
   "../../../../../src/scripts/review-gate/core/ports.js";
+import type { ReviewResult } from
+  "../../../../../src/scripts/review-gate/core/review-result.js";
 import { createHostedAdmission } from
   "../../../../../src/scripts/review-gate/hosted/request.js";
 import { createStandardReviewReservation } from
@@ -27,6 +29,7 @@ import {
   firstAdmissibleHostedSource,
   hostedReservationAttemptsForTarget,
   projectHostedReservationPolicyProgress,
+  resolveEvidenceBoundHostedReservationPolicy,
   resolveHostedReservationPolicy,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-admission.js";
 import { projectHostedReservationDischarge } from
@@ -301,7 +304,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("retains two incremental findings passes without claiming complete coverage", () => {
+  it("counts two incremental findings passes while projecting only the newest", () => {
     const snapshot: ReviewOperationStateSnapshot = {
       status: "complete",
       records: [{
@@ -329,7 +332,7 @@ describe("hosted reservation admission", () => {
               vehicle: deliveryVehicle,
               requestedCoverage: "incremental",
               effectiveCoverage: "incremental",
-              logicalPass: 2,
+              logicalPass: 1,
             }),
             hostedProgressAttempt({
               attemptId: "attempt-pass-2",
@@ -338,6 +341,7 @@ describe("hosted reservation admission", () => {
               vehicle: deliveryVehicle,
               requestedCoverage: "incremental",
               effectiveCoverage: "incremental",
+              logicalPass: 2,
             }),
           ],
         },
@@ -353,18 +357,11 @@ describe("hosted reservation admission", () => {
       status: "complete",
       completedPasses: 2,
       completePasses: 0,
-      attempts: [
-        {
-          sourceId: "coderabbit-pr",
-          outcome: "findings",
-          reviewOperationId: "attempt-pass-1",
-        },
-        {
-          sourceId: "coderabbit-pr",
-          outcome: "findings",
-          reviewOperationId: "attempt-pass-2",
-        },
-      ],
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "findings",
+        reviewOperationId: "attempt-pass-2",
+      }],
       attemptHistory: [
         { sourceId: "coderabbit-pr", outcome: "settled-findings" },
         { sourceId: "coderabbit-pr", outcome: "settled-findings" },
@@ -645,6 +642,159 @@ describe("hosted reservation admission", () => {
         requestedCoverage: "incremental",
         effectiveCoverage: "incremental",
       })],
+    });
+  });
+
+  it("projects only the newest logical pass when same-head material review changes source", () => {
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/multi-source-passes",
+          updatedAt: "2026-08-31T18:02:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          lineage: {
+            kind: "delivery-member",
+            planId: deliveryVehicle.planId,
+            workUnitId: deliveryVehicle.workUnitId,
+            deliverableId: deliveryVehicle.deliverableId,
+          },
+          completedPasses: 2,
+          attempts: [
+            hostedProgressAttempt({
+              attemptId: "attempt-codex-pass-1",
+              logicalPass: 1,
+              sourceId: "codex-pr",
+              outcome: "settled-findings",
+              vehicle: deliveryVehicle,
+            }),
+            hostedProgressAttempt({
+              attemptId: "attempt-coderabbit-pass-2",
+              logicalPass: 2,
+              sourceId: "coderabbit-pr",
+              outcome: "clean",
+              vehicle: deliveryVehicle,
+            }),
+          ],
+        },
+      }],
+    };
+
+    expect(projectHostedReservationPolicyProgress({
+      snapshot,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({
+      status: "complete",
+      completedPasses: 2,
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        reviewOperationId: "attempt-coderabbit-pass-2",
+      }],
+      attemptHistory: [
+        { sourceId: "codex-pr", outcome: "settled-findings" },
+        { sourceId: "coderabbit-pr", outcome: "clean" },
+      ],
+    });
+  });
+
+  it("binds multi-source terminal evidence to the newest same-head logical pass", async () => {
+    const passOne = hostedProgressAttempt({
+      attemptId: "attempt-codex-pass-1",
+      logicalPass: 1,
+      sourceId: "codex-pr",
+      outcome: "settled-findings",
+      vehicle: deliveryVehicle,
+    });
+    const passTwo = hostedProgressAttempt({
+      attemptId: "attempt-coderabbit-pass-2",
+      logicalPass: 2,
+      sourceId: "coderabbit-pr",
+      outcome: "clean",
+      vehicle: deliveryVehicle,
+    });
+    const snapshot: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        version: 1,
+        state: {
+          schemaVersion: 1,
+          semanticsVersion: "review-operation/v1",
+          operationId: "lane-progress/multi-source-evidence",
+          updatedAt: "2026-08-31T18:02:00.000Z",
+          kind: "lane-progress",
+          lane: "standard",
+          repositoryId: "repo-1",
+          lineage: passTwo.hosted.admission.lineage,
+          completedPasses: 2,
+          attempts: [passOne, passTwo],
+        },
+      }],
+    };
+    const terminalResult: ReviewResult = {
+      kind: "hosted",
+      producerId: passTwo.attemptId,
+      repositoryId: "repo-1",
+      target: passTwo.hosted.reviewTarget,
+      sourceIdentity: passTwo.sourceId,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: canonicalDigest({ attemptId: passTwo.attemptId }),
+      admission: {
+        lineage: passTwo.hosted.admission.lineage,
+        logicalPass: passTwo.logicalPass,
+        retryGeneration: passTwo.retryGeneration,
+        requestedCoverage: passTwo.hosted.requestedCoverage,
+        effectiveCoverage: "complete",
+        scopeMode: "whole-target",
+        policyVersion: passTwo.hosted.requirement.policyVersion,
+      },
+      laneOperationId: "lane-progress/multi-source-evidence",
+      actorIdentity: passTwo.hosted.actorIdentity,
+      hostedTarget: passTwo.hosted.target,
+      requirement: passTwo.hosted.requirement,
+      vehicle: passTwo.hosted.vehicle,
+      hostSettlementFindingIds: [],
+      noHostSettlementFindingIds: [],
+      settled: false,
+    };
+
+    await expect(resolveEvidenceBoundHostedReservationPolicy({
+      reservation: deliveryReservation,
+      snapshot,
+      repositoryId: "repo-1",
+      target: passTwo.hosted.target,
+      vehicle: deliveryVehicle,
+      maxPasses: 3,
+    }, {
+      resultReader: {
+        readResult: (producerId) => producerId === terminalResult.producerId
+          ? Promise.resolve(terminalResult)
+          : Promise.reject(new Error(`unexpected producer ${producerId}`)),
+      },
+      dispositionStore: {
+        readDispositionRecord: () => Promise.resolve(null),
+        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
+      },
+      confirmTarget: () => Promise.resolve(terminalResult.target),
+    })).resolves.toMatchObject({
+      status: "resolved",
+      policy: {
+        state: "pass-complete",
+        nextAction: "none",
+        payload: {
+          verifiedTerminalSignal: {
+            reviewOperationId: passTwo.attemptId,
+          },
+        },
+      },
     });
   });
 

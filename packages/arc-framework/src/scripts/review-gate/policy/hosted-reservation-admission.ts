@@ -96,6 +96,7 @@ export function projectHostedReservationPolicyProgress(input: {
     readonly updatedAt: string;
     readonly operationId: string;
     readonly attemptIndex: number;
+    readonly logicalPass: number;
     readonly attempt: ReviewPolicyCommandRequest["attempts"][number];
   }> = [];
   for (const { state } of input.snapshot.records) {
@@ -156,6 +157,7 @@ export function projectHostedReservationPolicyProgress(input: {
           updatedAt: state.updatedAt,
           operationId: state.operationId,
           attemptIndex,
+          logicalPass: attempt.logicalPass,
           attempt: projectReviewPolicyAttempt(attempt),
         });
       }
@@ -172,7 +174,12 @@ export function projectHostedReservationPolicyProgress(input: {
     { updatedAt: right.progress.updatedAt, operationId: right.operationId, attemptIndex: right.attemptIndex },
   ));
   currentTimeline.sort(compareTimeline);
-  const attempts = currentTimeline.map(({ attempt }) => attempt);
+  const newestLogicalPass = currentTimeline.reduce((latest, { logicalPass }) => (
+    Math.max(latest, logicalPass)
+  ), 0);
+  const attempts = currentTimeline
+    .filter(({ logicalPass }) => logicalPass === newestLogicalPass)
+    .map(({ attempt }) => attempt);
   const attemptHistory = historyTimeline.map(({ progress }) => progress);
   return {
     status: "complete",
