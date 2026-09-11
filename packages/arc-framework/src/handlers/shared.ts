@@ -19,6 +19,7 @@ import {
 } from "../commands/user.js";
 import { gitExec } from "../lib/io-context.js";
 import { gitFailureText, isGitProcessError } from "../lib/git/process-error.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { SyncOutput } from "../lib/sync-output.js";
 
 // --- Spinner ---
@@ -57,6 +58,51 @@ export async function runWithSpinner<T>(
   } catch (err) {
     spinner.stop("Failed.");
     throw err;
+  }
+}
+
+/**
+ * Run one operation with animated or stable progress according to the resolved
+ * invocation interaction policy.
+ *
+ * @param context - Invocation context carrying presenter capability.
+ * @param label - Stable start label.
+ * @param doneLabel - Stable successful-completion label.
+ * @param fn - Operation to run.
+ * @param isOk - Classifier for successful result values.
+ * @param failedLabel - Stable failed-completion label.
+ * @returns The operation result.
+ */
+export async function runWithInteractionProgress<T>(
+  context: Pick<InteractionContext, "subprocess">,
+  label: string,
+  doneLabel: string,
+  fn: () => Promise<T>,
+  isOk: (value: T) => boolean,
+  failedLabel = "Failed.",
+): Promise<T> {
+  if (context.subprocess.presenters === "allowed") {
+    const spinner = p.spinner();
+    spinner.start(label);
+    try {
+      const value = await fn();
+      spinner.stop(isOk(value) ? doneLabel : failedLabel);
+      return value;
+    } catch (error) {
+      spinner.stop(failedLabel);
+      throw error;
+    }
+  }
+
+  p.log.info(label);
+  try {
+    const value = await fn();
+    if (isOk(value)) p.log.info(doneLabel);
+    else p.log.error(failedLabel);
+    return value;
+  } catch (error) {
+    p.log.error(failedLabel);
+    throw error;
   }
 }
 
