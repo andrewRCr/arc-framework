@@ -325,7 +325,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
    - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
      the project's configured bounded-call defaults.
-   - `pending / await` — retain the newly returned `action`; do not build an agent polling loop.
+   - `pending / await` — retain the newly returned `action` through the diagnostic below, then pass it unchanged to
+     `arc review hosted await -` for one more bounded call. Repeat this typed continuation until
+     `pending / inspect-or-extend` or another terminal outcome; do not build an independent polling schedule.
    - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Retain the
      request for the diagnostic below, then stop. Submitting `action` unchanged checks once; on explicit direction,
      add `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review
