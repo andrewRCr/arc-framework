@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "stable-no-input-progress-output",
+  "claimId": "00991de3afa78e02124a0afe4cb2292d",
+  "createdAt": "2026-09-11T13:03:32.992Z",
+  "updatedAt": "2026-09-11T13:03:32.992Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "stable-no-input-progress-output",
+  "branch": "chore/stable-no-input-progress-output",
+  "origin": "inbox",
+  "originEntry": "Use stable progress output for explicit no-input CLI runs",
+  "originEntrySourceDigest": "sha256:6c4d7558859440b0c0d21ba15d941fb442181210517dabcbd3dc6b025dcde7c8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
