@@ -609,15 +609,13 @@ Coverage labels and contribution applicability cannot substitute for evaluator s
   local corrections retain incremental coverage and one complete-pass basis across source-specific policy carriers;
   unsupported scopes, missing bases or objects, complete upgrades, pass caps, and Owner authority remain fail-closed.
 
-### `[ ]` **6.5 Verify incremental coverage and member progression** — validate criteria at member scope
+### `[x]` **6.5 Verify incremental coverage and member progression** — validate criteria at member scope
 
 - _Goal:_ Incremental scope and member progression criteria hold without unsupported coverage or authority claims.
 
-- _Note:_ Spec §§ 5–7; SC 12–14.
-
-- _Approach:_ Load `validate-criteria.md` for this member's criterion group and record the boundary report. Consume
-  preceding task evidence, run applicable quality gates, and report unresolved or unavailable evidence. Leave criterion
-  markers unchanged; route any corrective work through normal task review, not this verifier.
+- _Outcome:_ The Member 6 report in `notes-review-signal-convergence.md` resolves all three immutable criteria across
+  `c94f58f8..586278aa8` and the cumulative tree at `586278aa8`, including the corrected delivery, Candidate, and Errand
+  coverage paths. Criterion markers remain unchanged for terminal work-unit verification.
 
 ## **Phase 7:** Carry convergence attestation into publication readiness
 

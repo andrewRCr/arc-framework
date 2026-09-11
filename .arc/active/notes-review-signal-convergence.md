@@ -1,5 +1,230 @@
 # Notes: Review Signal Convergence
 
+## Member 6 corrected primary criteria report — 2026-09-11
+
+```yaml
+criteria-slice: "Success Criteria > Member 6 — `incremental-review-convergence`"
+span:
+  diff: "c94f58f893e6a8da29b1e1288c906e18235722a2..586278aa8f6f9704fbba95aa78c7443bddc9240c"
+  reachability: >-
+    Repository tree at 586278aa8f6f9704fbba95aa78c7443bddc9240c, including the upstream spec, all Member 6
+    implementation commits, immutable result and disposition stores, Candidate applicability, local materialization,
+    hosted capability, delivery status and Owner/cap consumers, production-path integration scenarios, and the
+    complete Tier 2 result.
+  boundary-order-deviation: null
+criteria:
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 1"
+    criterion-digest: sha256:96cf4da9b011dd52bc7c2d97ac6d2f94c6583ff70c0573d0a78da914887bf07b
+    evidence: >-
+      `resolveIncrementalCoverageBasis` traverses immutable producer references and refuses absent scope or producer,
+      cycles, lineage or semantic-policy mismatch, endpoint and basis gaps, unavailable applicability, incomplete
+      responses, and omitted producer-qualified material findings. Typed local coverage selection reconstructs the
+      exact scope from the newest compatible, responded predecessor for delivery, Candidate, and head-moving Errand
+      owners, offering complete coverage when no adequate basis exists. Fresh applicability is reused by status and
+      capacity-spend admission for every ancestor against the current target; convergence reads only the fresh result.
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 2"
+    criterion-digest: sha256:9829e5cbbaf49984b5c64d8bef9fa2ff3d21b92f6084bb77e865f2ad1411c52c
+    evidence: >-
+      `IncrementalReviewScopeSchema` binds the predecessor producer, reviewed and basis heads, current head, and
+      producer-qualified finding instructions through source-neutral local coverage admission, operation identity,
+      source materialization, replay, lane progress, attestation, and result reads. Materialization owns separate refs
+      for nonancestor endpoints and reports pruned objects as typed scope unavailability. Complete local selection
+      removes correction scope; hosted admission blocks CodeRabbit's unsupported incremental label and preserves
+      Codex's explicit complete upgrade with truthful requested/effective coverage.
+    state: "[x]"
+  - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 3"
+    criterion-digest: sha256:47b4cea150c523143cd3dfb85b566323a264d51123034c55da103d46d1d2be28
+    evidence: >-
+      Delivery discharge and status reduce one ordered first-outstanding member from durable logical-pass and complete
+      coverage counts while preserving exact Owner termini and ceiling overrides. Production scenarios replay material
+      counts `6, 7, 5, 2, 3` through five request/await/respond cycles while the clean sibling remains at one pass; a
+      hosted A review, performed B fix, and nonancestor C local correction advance only on fresh adequate no-material
+      evidence. Candidate, member, and Errand lane owners retain historical exact heads, response performance, and
+      consumed conditional authority across correction movement without sharing sibling identity. Convergence, Owner
+      acceptance, and one-pass authority remain distinct routes.
+    state: "[x]"
+summary: "3 [x], 0 [~], 0 [ ]; no unresolved Member 6 criterion"
+```
+
+### Member 6 fresh-context companion
+
+**Pass 1 of 2 — two confirmed major findings and one rejected production finding with an accepted verification gap;
+non-converged. Stop reason: `suspended`.** The complete disposition set was approved before mutation, and every approved
+response landed in `abd77ed7d`. A successor pass remains available under the Heavy-class cap but is not yet authorized.
+
+```yaml
+findings:
+  - title: "Correction scope skips the latest incremental predecessor"
+    severity: major
+    source-verification: >-
+      Confirmed. Scope selection considered only complete attempts, so A-complete followed by B-incremental could build
+      C directly from A and omit B's material finding instructions.
+    disposition: fix
+    response: >-
+      Select only the newest applicable terminal predecessor, extend its complete or incremental basis, carry transitive
+      finding instructions, and refuse fallback when that newest predecessor is unusable.
+  - title: "Multi-hop applicability fails at evidence-bound re-entry"
+    severity: major
+    source-verification: >-
+      Confirmed. Recursive coverage validation checks every ancestor against the current result, while the production
+      confirmer admitted only the direct scope link and status/request admission omitted that confirmer entirely.
+    disposition: fix
+    response: >-
+      Confirm every chain ancestor against the same fresh current-target projection and thread that boundary through
+      delivery status plus Candidate and delivery-member capacity-spend admission.
+  - title: "Exact policy-version equality forbids hosted-to-local correction"
+    severity: major
+    source-verification: >-
+      Rejected as a production defect. Exact policy versions intentionally include carrier-specific source and initial
+      admission fields, while compatibility separately compares every substantive obligation and rubric field. The
+      existing fixture did not prove that distinction with canonical hosted and local requirements.
+    disposition: fix-verification-gap
+    response: >-
+      Build both carriers through `createReviewRequirement`, prove their exact policy versions differ, admit the
+      carrier-only transition, and retain substantive incompatibility rejection coverage.
+withstood:
+  - >-
+      Exact correction-scope transport, nonancestor materialization, ordered member progression, pass accounting,
+      Owner termini, and ceiling overrides had no additional finding in the inspected paths.
+verdict: >-
+  The first pass did not converge because two source-confirmed major defects reached scope construction and
+  evidence-bound admission. Their approved responses are complete; only a fresh successor pass can establish new
+  convergence signal.
+```
+
+**Pass 2 of 2 — two confirmed major findings; non-converged. Stop reason: `cap-exhausted`.** The complete
+disposition set was approved and both responses were performed before the separately authorized Pass 3.
+
+```yaml
+findings:
+  - title: "Bare finding IDs collapse distinct material findings across predecessor passes"
+    severity: major
+    source-verification: >-
+      Confirmed. Incremental scopes merged bare finding IDs even though uniqueness held only inside one producer, so
+      two different producer findings named `F1` could collapse into one correction instruction.
+    disposition: fix
+    response: >-
+      Qualify every incremental material instruction by producer and finding identity, retain its actionable locus,
+      and validate the qualified transitive set through scope construction and coverage resolution in `ffd39a47b`.
+  - title: "Multi-pass progression deadlocks when consecutive material passes use different sources"
+    severity: major
+    source-verification: >-
+      Confirmed. Evidence-bound policy ordered all historical attempts by source preference, allowing an older source's
+      producer to be selected as the current logical pass after a source change.
+    disposition: fix
+    response: >-
+      Filter to the newest active logical pass and select its terminal producer chronologically while retaining prior
+      source history in `b8702ff44`.
+withstood:
+  - >-
+      Recursive basis failure handling, hosted capability refusal, exact local transport, and homogeneous-source
+      member progression had no additional finding in the inspected paths.
+verdict: >-
+  The pass did not converge because both confirmed findings could erase required material scope or block valid
+  progression. Approved responses are complete.
+```
+
+**Pass 3 — explicitly authorized over-cap pass; three confirmed major findings; non-converged. Stop reason:
+`suspended`.** The complete disposition set was approved, all responses were performed, and Pass 4 was separately
+authorized after the correction commits.
+
+```yaml
+findings:
+  - title: "Inadequate incremental evidence loses its typed coverage-selection recovery"
+    severity: major
+    source-verification: >-
+      Confirmed. Delivery discharge collapsed the driver's `coverage-required / select-coverage` result into prose and
+      status subsequently exposed only a generic retry action.
+    disposition: fix
+    response: >-
+      Preserve and route the typed coverage-selection action with exact capable-source or complete choices through
+      public status and re-entry in `0412fcbfd`.
+  - title: "Same-head material predecessors cannot be selected for a scoped correction pass"
+    severity: major
+    source-verification: >-
+      Confirmed. The predecessor query unconditionally removed same-head terminal producers, while scope construction
+      had no other path to admit one whose response left the head unchanged.
+    disposition: fix
+    response: >-
+      Admit the newest compatible, responded same-head terminal predecessor without reopening older passes in
+      `0209a36be`.
+  - title: "Explicit complete local coverage is silently recorded as incremental"
+    severity: major
+    source-verification: >-
+      Confirmed. A correction scope could accompany an explicit complete request, and lane progress inferred requested
+      coverage from scope presence rather than the selected admission.
+    disposition: fix
+    response: >-
+      Bind requested coverage explicitly through local selection and admission; reject correction scope on complete
+      requests and retain truthful requested/effective coverage in `0ab548d3f`.
+withstood:
+  - >-
+      Basis-chain validation, endpoint retention, hosted complete upgrades, fresh-signal convergence, ordered member
+      selection, Owner termini, and ceiling authority had no additional finding in the inspected paths.
+verdict: >-
+  The pass did not converge because typed recovery, same-head scope reachability, and explicit complete coverage were
+  materially incorrect. Approved responses are complete.
+```
+
+**Pass 4 — explicitly authorized over-cap pass; one confirmed major finding; non-converged. Stop reason:
+`suspended`.** Its approved response was performed in `c36720017`; Pass 5 was separately authorized after that
+correction and its complete Tier 2 verification.
+
+```yaml
+findings:
+  - title: "Non-delivery local correction reviews cannot carry or recover an incremental coverage basis"
+    severity: major
+    source-verification: >-
+      Confirmed. Non-delivery local preparation had no coverage-admission field, derived correction scope only from
+      delivery admission, and exposed typed recovery only for delivery members.
+    disposition: fix
+    response: >-
+      Add source-neutral local coverage admission and selection, exact scope binding through operation state and
+      attestation, truthful initial complete coverage, and Candidate/Errand recovery in `c36720017`.
+withstood:
+  - >-
+      Recursive basis refusal, delivery-member scope transport, hosted capability handling, and ordered member
+      progression had no additional finding in the inspected paths.
+verdict: >-
+  The pass did not converge because supported non-delivery local corrections could not reach adequate incremental
+  coverage or its typed complete fallback. The approved response is complete.
+```
+
+**Pass 5 — explicitly authorized over-cap pass; two confirmed major findings; non-converged. Stop reason:
+`cap-exhausted`.** The complete disposition set was approved and both coupled responses were performed atomically in
+`586278aa8`. No further narrow pass is authorized; terminal work-unit verification retains an independent fresh review.
+
+```yaml
+findings:
+  - title: "Head-surviving Errand owners cannot record the corrected-head attempt"
+    severity: major
+    source-verification: >-
+      Confirmed. Errand operation identity omitted the mutable head, but lane-state validation required every retained
+      attempt and conditional authorization to equal the container's newest exact head lineage.
+    disposition: fix
+    response: >-
+      Centralize stable lane-owner identity, validate retained attempts and authorizations by owner while preserving
+      their exact heads, and exercise a material response, consumed pass authority, and corrected-head attempt in
+      `586278aa8`.
+  - title: "Incremental selection rejects the same head-surviving Errand predecessor that owner lookup accepts"
+    severity: major
+    source-verification: >-
+      Confirmed. Selection compared complete exact lineages, contradicting lane-owner lookup when the same Errand moved
+      from its predecessor head to the correction head.
+    disposition: fix
+    response: >-
+      Reuse stable owner equivalence for predecessor compatibility while retaining exact predecessor, basis, and current
+      scope endpoints; prove a sibling Errand cannot reuse the choice in `586278aa8`.
+withstood:
+  - >-
+      Source-neutral admission, exact scope/digest propagation, Candidate and delivery-member transport, typed fallback,
+      and complete-selection behavior had no additional finding in the inspected paths.
+verdict: >-
+  The pass did not converge because both confirmed defects blocked head-moving Errand correction progression. Approved
+  responses are complete; the corrected tree passed the complete Tier 2 gate.
+```
+
 ## Member 5 corrected criteria report — 2026-09-10
 
 ```yaml
