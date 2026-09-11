@@ -486,42 +486,16 @@ _Exit criterion:_ Every enumerated misclassified file carries a recorded per-fil
 definition names, no test at any tier spawns the CLI through the `tsx` loader, and no integration file exceeds the
 tier's post-work summed-time floor.
 
-### `[ ]` **4.1 Move the CLI-spawning integration files to E2E with a per-file verdict**
+### `[x]` **4.1 Move the CLI-spawning integration files to E2E with a per-file verdict**
 
 - _Goal:_ Every integration file whose cases all spawn the CLI lives in E2E, because the tier definition places
   full CLI invocation there, with a recorded verdict for each file that stays.
 
-- _Rationale:_ This is a misclassification fix. The lane effect is a consequence, never the reason.
-
-- **Additional Context:** `strategy-testing-methodology.md` § Test Tiers — the per-file verdict keys on those
-  definitions.
-
-    - The enumerable set is `config-validate`, `review-cli-surfaces`, `decompose-v3-repository-plan`, and
-      `scripts/remedy-roadmap-conflict`. Apply the rule per file: one that spawns a script rather than the CLI, or
-      that drives handler seams and spawns only incidentally, stays.
-    - Three of the four are settled by inspection. `config-validate` moves — every case spawns the CLI and asserts
-      clean stderr, and its launcher-shim comparison sits inside the compatibility corpus.
-      `review-cli-surfaces` moves — it reaches the CLI through the shared spawn helper and nothing else.
-      `scripts/remedy-roadmap-conflict` stays — every real case spawns the script through the loader, and its one
-      CLI spawn asserts that a module's import-time side effect does not fire on `--help`, which is incidental by
-      the rule.
-    - `decompose-v3-repository-plan` is the open verdict: it spawns both the CLI and the classify script. Decide
-      it here, and note that 4.3's largest split candidate exists only if it stays.
-    - `config-validate`'s move ends the loader spawn: it is the only file spawning the TypeScript entry through
-      `tsx` at 1.23 s per spawn against the bundle's 0.36 s, across ~21 spawns. In E2E it spawns the built bundle
-      from that tier's `globalSetup` build like every other file there.
-    - That file carries more than a changed spawn path. It writes a shim `arc` onto `PATH` so the launcher script
-      under test can invoke `arc` and reach the source entry; against the bundle the shim loses its loader
-      argument and one environment variable.
-    - Record the trade in the file rather than as an annotation. Its clean-stderr helper currently explains itself
-      by saying a source entry cannot run the staleness guard at all; after the move the guard can run and is
-      silent only because the tier builds first, so the explanation is rewritten to that ground.
-    - Every test file in the destination tier is named `<name>.e2e.test.ts`. The project's include glob does not
-      require it, so a plain move would run while leaving the arrivals the only files there off convention —
-      rename each on the move.
-    - The tier's `globalSetup` documents how many suites spawn the built entry, and that count is what justifies
-      its build step. Correct it to match the verdicts. The build stays needed either way, because the file that
-      stays still spawns the bundle once.
+- _Outcome:_ `config-validate` and `review-cli-surfaces` moved to conventionally named E2E files; config validation
+  now invokes `dist/cli.js`, including through its launcher shim, and its clean-stderr contract rests on E2E's
+  fresh build. `decompose-v3-repository-plan` stays because only one of 53 repository/Git cases compares the CLI;
+  `scripts/remedy-roadmap-conflict` stays because its script entry is the subject and its one CLI spawn is
+  incidental. Those two retained built-entry suites keep integration global setup's recorded count accurate.
 
 ### `[ ]` **4.2 Move the subprocess-spawning unit outliers to integration**
 

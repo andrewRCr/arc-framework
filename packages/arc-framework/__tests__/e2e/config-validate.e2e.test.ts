@@ -1,4 +1,4 @@
-/** Process-level integration coverage for `arc config validate`. */
+/** Process-level E2E coverage for `arc config validate`. */
 
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -11,9 +11,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CONFIG_COMPATIBILITY_CASES } from "../fixtures/config/cases.js";
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
-const tsxLoader = import.meta.resolve("tsx");
 const packageRoot = join(testDir, "..", "..");
-const cliPath = join(packageRoot, "src", "cli.ts");
+const cliPath = join(packageRoot, "dist", "cli.js");
 const packagedArcRoot = join(packageRoot, "arc");
 const launcherPath = join(packagedArcRoot, "system", ".internal", "scripts", "validate-config.sh");
 const verifyIntegrityPath = join(packagedArcRoot, "system", ".internal", "scripts", "verify-integrity.sh");
@@ -26,20 +25,20 @@ function fixtureRoot(): string {
 }
 
 function runConfigValidate(cwd: string, args: string[] = []) {
-  return spawnSync(process.execPath, ["--import", tsxLoader, cliPath, "config", "validate", ...args], {
+  return spawnSync(process.execPath, [cliPath, "config", "validate", ...args], {
     cwd,
     encoding: "utf8",
   });
 }
 
-function sourceCliEnvironment(root: string): NodeJS.ProcessEnv {
+function builtCliEnvironment(root: string): NodeJS.ProcessEnv {
   const binDir = join(root, "bin");
   mkdirSync(binDir, { recursive: true });
   writeFileSync(
     join(binDir, "arc"),
     [
       "#!/usr/bin/env bash",
-      'exec "$ARC_TEST_NODE" --import "$ARC_TEST_TSX_LOADER" "$ARC_TEST_CLI" "$@"',
+      'exec "$ARC_TEST_NODE" "$ARC_TEST_CLI" "$@"',
       "",
     ].join("\n"),
   );
@@ -48,13 +47,12 @@ function sourceCliEnvironment(root: string): NodeJS.ProcessEnv {
     ...process.env,
     PATH: `${binDir}:${process.env.PATH ?? ""}`,
     ARC_TEST_NODE: process.execPath,
-    ARC_TEST_TSX_LOADER: tsxLoader,
     ARC_TEST_CLI: cliPath,
   };
 }
 
-// These cases spawn the CLI from source, where the staleness guard does not run
-// at all — so any stderr at all is a real diagnostic worth failing on.
+// E2E global setup builds the exact tree before these cases, so the staleness guard is silent;
+// any stderr at all is therefore a real diagnostic worth failing on.
 function expectCleanStderr(stderr: string): void {
   expect(stderr).toBe("");
 }
@@ -131,7 +129,7 @@ describe("configuration compatibility corpus — process boundaries", () => {
         cwd: root,
         encoding: "utf8",
         env: {
-          ...sourceCliEnvironment(root),
+          ...builtCliEnvironment(root),
           ARC_CONFIG_FILE: "selected.yml",
         },
       });
@@ -161,7 +159,7 @@ describe("configuration compatibility corpus — process boundaries", () => {
       cwd: root,
       encoding: "utf8",
       env: {
-        ...sourceCliEnvironment(root),
+        ...builtCliEnvironment(root),
         ARC_DIR: customArcRoot,
       },
     });

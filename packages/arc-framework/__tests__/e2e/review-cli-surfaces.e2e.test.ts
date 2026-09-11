@@ -1,3 +1,5 @@
+/** E2E coverage for the packaged review CLI surface. */
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
