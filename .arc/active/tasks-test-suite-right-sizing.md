@@ -443,16 +443,14 @@ adopted or rejected against the noise band.
   `beforeEach`. The two discarded-return sites now have explicit ownership, and copied remote-bearing fixtures
   each rewrite and push to their own nested bare repository.
 
-### `[ ]` **3.4 Probe the second-largest non-spawning file before choosing a lever for it**
+### `[x]` **3.4 Probe the second-largest non-spawning file before choosing a lever for it**
 
 - _Goal:_ `review-fan-out-lifecycle`'s per-case cost is identified, so its lever is chosen from what the time
   actually is rather than by analogy to the fixture-bound files.
 
-- _Context:_ It spawns no CLI and no git, and spends roughly 2.5 s per case across 15 cases in in-process
-  delivery-store work — a different profile from `user` and `init` entirely.
-
-    - The outcome is an identified cost term plus a named lever or an explicit "no lever here"; it does not commit
-      this phase to acting on the finding.
+- _Outcome:_ An isolated run completed in 31.63 s, with 27.00 s in test bodies. Its 13 real-Git harness builds
+  totaled 2.66 s (0.19 s median), under 10% of body time and 1% of the integration baseline; the dominant 11.4 s
+  and 5.3 s cases spend their time in genuine delivery progression. No Phase 3 fixture lever applies here.
 
 ### `[ ]` **3.5 Adopt template fixtures across the cost-ranked non-spawning files**
 
