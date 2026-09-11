@@ -16,15 +16,19 @@
 
 ## Readiness
 
-**State:** `maturing` — scope is known and the fundamentals are settled (2026-09-10 consolidation). Both `Heavy`
-adversarial passes are run: pass one folded seven findings, pass two folded nine more plus four from a follow-on
-delivery-plan sweep (see § Adversarial passes). Four of pass two's nine were second-order breaks from pass one's
-repairs, so a third pass over the repaired draft is recommended before capture even though the `Heavy` cap is
-reached. The open items below are one vocabulary confirmation and detail the spec resolves.
+**State:** `formalization-ready` — scope is known and the fundamentals are settled (2026-09-10 consolidation).
+Three adversarial passes are run, one past the `Heavy` cap by deliberate extension: pass one folded seven findings,
+pass two nine plus four from a delivery-plan sweep, pass three ten over the repaired draft (see § Adversarial
+passes). The open item below is one vocabulary confirmation, not a design gap.
+
+**Resolved (2026-09-11):** the bound-delivery surface closed under pass three — member-site closure on the
+effective report, the appended criterion's group bound to the visibility rule, plan revision sequenced before
+corrective execution on every arm, the ceiling restated as a judgment read the classifier sharpens on its landed
+side, and a yielded parent's id and position.
 
 **Resolved (2026-09-10):** the delivery-plan interaction as a first-class surface rather than a scope disclaimer (§
-10) — placement yielding to member immutability, the landed-element append exception, seam composition, the
-authoring-snapshot sequencing rule, and the classifier as a mechanical ceiling trigger; naming (`amend-design`; skill
+10) — placement yielding to member immutability, the landed-element append exception, seam composition, and the
+authoring-snapshot sequencing rule; naming (`amend-design`; skill
 door `arc-amend-design`); responsive entry with the audit doors kept as detection; the entry floor, the
 statement-and-criteria decision tree, and the authority split by arm; the depth axis and the rigor ladder, with
 canonical procedures re-entered at scope and never whole; extraction as the ceiling, never lifecycle regression; the
@@ -39,9 +43,8 @@ check-docs; `Class` read as `Heavy`.
 **Open:** confirming the per-criterion reuse of `carries | supplemental | fresh` with `evidence-applicability`
 (planning-close coordination, not a design gap).
 
-**Next:** third adversarial pass over the repaired draft, deliberately over the `Heavy` cap — re-attack the § 10
-delivery surface, the per-site closure rules in § 6 / § 8, and the log-driven delta linkage. Then fold, post-settle
-coherence re-read, capture the draft and persist `Class`.
+**Next:** capture the draft and persist `Class: Heavy`; then `create-spec`, which resolves the vocabulary
+confirmation at planning close alongside the coordination captures.
 
 ## Problem / Motivation
 
@@ -128,7 +131,8 @@ first match wins, citing the statement or criterion that decided it:
    does not match; go to step 4.
 3. **A needed outcome is not produced, no statement requires it, and it sits inside the Goals.** The design's
    intent requires it but nothing is deep enough to generate it. **Spec-depth arm** — in-place elaboration, and the
-   amendment **appends a criterion** to the affected group so the hole becomes checkable.
+   amendment **appends a criterion** to the group whose validator can see its evidence (§ 5) so the hole becomes
+   checkable.
 4. **A settled statement must change.** A decision reversed, a criterion superseded, a Non-Goal breached.
    **Design arm** — narrowed elicitation to settle the fix, then supersession recorded, then revision work.
 5. **Outside the Goals, or it changes what the work unit is** — its purpose, a deliverable boundary, a landed
@@ -153,7 +157,9 @@ agent-doable under discovered-work routing and is reported at the interlock.
 
 - **Task arm** — the agent proceeds within the increment; the log row and revision work ride the increment's task
   commit and land in the ordinary completion report. The row is a record rather than pre-commitment text, so
-  appending it needs no authorization of its own (§ 9). No prompt.
+  appending it needs no authorization of its own (§ 9). No prompt — on an unbound work unit; under a bound delivery
+  plan the parent's assignment is a plan revision, an attended ceremony that lands before the parent executes
+  (§ 10).
 - **Spec-depth and design arms** — Owner-authorized at a stop that already exists. Four of the five detection sites
   stop today (the member branch's `Fix now or amend/defer?`, terminal verification's unmet criterion, the finding
   loop's approval before any fix, the loop's must-stop on a design decision); the segment site's stop is the
@@ -185,8 +191,9 @@ applied past activation, with the same vocabulary.
 ### 3. Rigor scales by the amendment's own depth, through the canonical procedures at scope
 
 The arm says what changes and who decides; **depth** says how much must be derived and sets the rigor. Every
-planning stage opens with one derivation read yielding `low` / `medium` / `high`; the amendment takes the same read
-over the finding and the gap, and that read — not the work unit's `Class` — governs:
+planning stage opens with one depth read on the axis it owns — derivation at `draft-design` and `create-spec`,
+scale at `generate-tasks` — yielding `low` / `medium` / `high`; the amendment takes the derivation read over the
+finding and the gap, and that read — not the work unit's `Class` — governs:
 
 - **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate; no adversarial pass;
   grounding-only `task-audit` over the revision tasks.
@@ -239,11 +246,12 @@ carry the correction in-WU, in which case the design arm applies and the ceiling
 is really an unauthored design area, while the identity still holds, is the Owner's call between the design arm at
 `high` and re-entering the planning stage; the procedure never makes that call.
 
-The ceiling also has one **mechanical** trigger beside those judgment reads. When an amendment supersedes a design
-element covered by a landed member and neither an unlanded member nor the terminal can carry its replacement, the
-bound plan cannot express the change at all (§ 10) — there is nowhere admissible for the new element to live. That
-is a ceiling case on the record's own terms, and it is crisper than the judgment reads because the classifier
-decides it rather than the agent.
+The delivery classifier sharpens the ceiling on one side without deciding it. When an amendment supersedes a
+design element covered by a landed member, the classifier refuses any change to that member, so the replacement can
+only live in an unlanded member or the terminal (§ 10) — and one always exists before merge, because the terminal
+lands last. Whether that remainder can actually carry the replacement — implement it inside a contract that is
+still open — is the judgment read above, narrowed to the unlanded members rather than made mechanical: nothing in
+the classifier computes "can carry", so the ceiling stays the Owner's call with a crisper question.
 
 ### 5. The amendment record is one identity with three projections
 
@@ -265,7 +273,11 @@ opens as the upstream design. Implementation starting makes the body more of a b
   design, with the row's id marked in parentheses at the edited locus. Frozen surfaces keep their existing rules and
   cross-reference the row: a Non-Goals change appends its `Amended` line carrying the id; a criterion is never
   edited — a new row appends at the end of its group per `validate-criteria`'s ordinal binding, and a superseded one
-  is dispositioned `[~]` at verification.
+  is dispositioned `[~]` at verification. Under a bound plan **its group is the one whose validator can see its
+  evidence** — the formatting strategy's existing assignment rule: the group of the member carrying the corrective
+  parent, or the seam group when the correction lands at the terminal. A criterion appended to a closed member's
+  group would never resolve, because the terminal walk dispositions member groups from their recorded reports and
+  never re-derives one.
     - **One exception, and it is mechanical.** A design element covered by a **landed** delivery member is frozen
       like those surfaces are, because the bound plan binds its text by digest (§ 10). Such an element is not
       revised in place: the amendment appends its supersession line carrying the row id, outside the digested
@@ -310,7 +322,11 @@ revision work under it conflicts with that invariant and is retired here. The pl
   Revision work is never nested under a verifier. Under a bound delivery plan the affected phase may sit inside a
   landed member's range, and **placement then yields to member immutability**: the parent goes in the earliest
   unlanded member that can carry it, or the terminal, with `_Amended in:_` supplying the back-link from the
-  corrected task (§ 10).
+  corrected task (§ 10). A yielded parent takes the **host** phase's id and the ordinary position inside it —
+  before the host member's verifier — with its Goal naming the corrected task: the id stays positional, the Goal
+  and the back-link carry the correction's identity, and the `X.R2` counter never collides across placements.
+  Placing it earlier in the host member's range is the Owner's call when that member's remaining tasks depend on
+  the correction.
 - **A second amendment gets its own parent.** Ids run `X.R`, `X.R2`, `X.R3` — one parent per amendment, reused only
   while still open. A completed `X.R` can never absorb the next amendment: the cursor skips any parent whose marker
   is not open, so work hung beneath it is unreachable, which is the same derived-state invariant this section rests
@@ -323,14 +339,18 @@ revision work under it conflicts with that invariant and is retired here. The pl
   `_Retired in:_` is — so the task's record stays honest without reversing its marker, and the sweep reads in both
   directions.
 - **Revalidation** closes the corrective parent, but what it records is per-site (§ 8) rather than one shape. At a
-  **member** site it is the parent's closing subtask carrying the delta against the member's boundary report. At a
-  **segment** site the re-run verifier's own completion is the record. At a **terminal** site `verify-work-unit`
-  reruns its walk and there is no delta subtask at all. At the loop's **must-stop** and the **skill door** there is
-  no base report to delta against, so the parent closes on its own evidence and the row carries a forward pointer to
-  the next covering verifier. The verifier itself is never touched in any case: it stays the evidence sink it was,
-  and a revalidation is never a second suffixed parent — the segmentation scan requires exactly one
-  segment-suffixed parent as the last non-member parent of a closing phase and refuses a second as
-  `segment-verifier-orphan`.
+  **member** site it is the parent's closing subtask carrying the delta against the member's boundary report; the
+  member's closing task, left `[ ]` at the stop, then closes on the **effective report** (§ 8) — a marker flip
+  whose completion note cites the delta subtask — and the member-site directive line tells the loop's
+  member-boundary step not to re-walk when an open Amendments row's `_Work:_` sits in this member, because the loop
+  as shipped re-runs the walk whenever the cursor reaches a member's last assigned task, and a second walk is the
+  second full report the delta form exists to prevent. At a **segment** site the re-run verifier's own completion
+  is the record. At a **terminal** site `verify-work-unit` reruns its walk and there is no delta subtask at all. At
+  the loop's **must-stop** and the **skill door** there is no base report to delta against, so the parent closes on
+  its own evidence and the row carries a forward pointer to the next covering verifier. The verifier never hosts
+  corrective work in any case: it stays the evidence sink it was, and a revalidation is never a second suffixed
+  parent — the segmentation scan requires exactly one segment-suffixed parent as the last non-member parent of a
+  closing phase and refuses a second as `segment-verifier-orphan`.
 - **No revision phase by default.** A phase would need its own `_Mode:_` and `_Exit criterion:_` and would be a new
   segment. An amendment that adds a genuinely new capability is ordinary planning at scope — a new segment authored
   through `resolve-plan-segmentation`, which is that procedure's recorded extraction trigger.
@@ -349,10 +369,14 @@ amendment classifier refuses `landed-member-changed` — so the work lands in an
 revision passes through that classifier, and a review-driven fix re-verifies through the shipped review-fix
 verification continuation; this procedure supplies the design-record side and re-derives none of the delivery
 mechanics. A **review finding that reopens design** takes the design arm and, when the work unit was withdrawn,
-returns to execution through `arc reopen --task`. Two mechanics bind that call. The anchor is the **cursor leaf**, so
-a parent authored with subtasks is reopened at `Task X.R.a — …` and never at the parent itself; and `--task` is
-refused outright while the list is closed, so the corrective parent must be authored and committed **before** `arc
-reopen` runs. `X.Y.R` is not available here — the list is closed, so no `X.Y` is open to hang it under.
+returns to execution through `arc reopen --task` — available only to an unbound work unit or a coherently unbound
+plan, since `arc reopen` refuses a coherently bound delivery before any lifecycle mutation; a bound stack's
+design-arm correction runs through the review-fix continuation instead. Two mechanics bind that call. The anchor is
+the **cursor leaf**, so a parent authored with subtasks is reopened at `Task X.R.a — …` and never at the parent
+itself; and `--task` is refused outright while the list is closed, so the corrective parent must be authored and
+committed **before** `arc reopen` runs. `X.Y.R` is not available here — the list is closed, so no `X.Y` is open to
+hang it under. `reopen-work-unit`'s own example anchors `--task "Task X.Y.R — …"`, an anchor its executor refuses;
+that example is corrected with the entry directive this work unit authors there.
 
 ### 7. Exit gate: a propagation sweep bounded by the amendment's footprint
 
@@ -395,10 +419,11 @@ The delta is a **supplement to** the member's report, never a second report. `va
 composition rule alongside the re-entry form: a member's **effective report** is its base boundary report plus its
 ordered deltas — same-locus entries overridden by the latest delta, appended criteria present only in the delta,
 the span the latest delta's — and the work-unit-scope walk consumes the effective report where it consumes the base
-one today. **The walk finds the deltas through the log:** the `## Amendments` rows are the index, and each row's
-`_Work:_` locates the corrective parent whose closing subtask carries the delta. That linkage is load-bearing — a
-walk that discovered deltas positionally, or by scanning every revision parent in a member's range, would be a
-second authority over the same fact.
+one today, and the member's own closing task closes on it rather than on a second walk (§ 6). **The walk finds the
+deltas through the log:** the `## Amendments` rows are the index, and each row's `_Work:_` locates the corrective
+parent whose closing subtask carries the delta. That linkage is load-bearing — a walk that discovered deltas
+positionally, or by scanning every revision parent in a member's range, would be a second authority over the same
+fact.
 
 Per criterion the delta reuses `evidence-applicability`'s verdict vocabulary, because the question is the one that
 work unit defines — whether evidence bound to one target still covers the next. The verdict says **why** an entry is
@@ -431,11 +456,12 @@ marker. On the **spec-depth and design arms** the amendment capture — log row,
 notes entry, plus a `Class` ratchet when § 3 requires one — lands as **one commit before corrective work begins**,
 released at the stop where the Owner authorized it, so the point-in-time design is recoverable from git, which is
 the mitigation every in-place precedent relies on. That commit is a planning ceremony, so a `Class` write there
-honors meta-file timing (a hand edit today; no CLI writes `Class` outside start and task finalization, a seam
-rather than a defect). On the **task arm** nothing in the spec **body** changes — the row is the one spec write,
-and a row is a record rather than pre-commitment text, so appending it rewrites nothing and needs no authorization
-of its own. There is no point-in-time design to recover, so the row and the revision tasks ride the increment's task
-commit and reach the ordinary completion report.
+honors meta-file timing (a hand edit today; no CLI writes `Class` outside start and the create-spec and
+generate-tasks finalize ceremonies, a seam rather than a defect). On the **task arm** nothing in the spec **body**
+changes — the row is the one spec write, and a row is a record rather than pre-commitment text, so appending it
+rewrites nothing and needs no authorization of its own. There is no point-in-time design to recover, so the row
+and the revision tasks ride the increment's task commit and reach the ordinary completion report — except under a
+bound delivery plan, where they land with the plan revision before the parent executes (§ 10).
 
 ### 10. Under a bound delivery plan
 
@@ -449,23 +475,32 @@ is not — `delivery-native-stack-composition` shipped them and its contracts ar
   range breaks that member's contiguity. Placement therefore yields to member immutability (§ 6), and **every**
   corrective parent under a bound plan costs a plan revision — accepted rather than replacement-forcing when it
   lands in an unlanded member, but a revision all the same.
-- **Design-element digests.** The plan binds each design element's text by digest, so revising a landed member's
-  element in place breaks that binding — and breaks it **silently**, because nothing revalidates the recorded
-  digests against the live record. The damage surfaces at the next plan revision, whatever that revision is for,
-  which makes it worse than a refusal at the moment of the amendment. § 5's landed-element exception exists for
+- **Design-element digests.** The plan binds each design element by an author-supplied digest, so revising a
+  landed member's element in place breaks that binding **silently**: nothing revalidates recorded digests against
+  the live record, and the break surfaces only when a later inventory author re-derives the digest — possibly
+  never, which is worse than a refusal at the moment of the amendment. § 5's landed-element exception exists for
   this: append the supersession outside the digested extent and author the replacement elsewhere. Parent task Goals
-  are digested the same way and frozen the same way (§ 6).
+  are frozen the same way but bound differently — their digests are CLI-derived from the `_Goal:_` extent, so a
+  rewrite is refused at the next revision rather than passing silently (§ 6).
 - **Seams.** A seam's acceptance and design coverage are guarded exactly as a member's are, and a change touching a
   landed incident refuses. An amendment reaching a seam is bounded by the same landed/unlanded split, and its
   criteria compose through the same effective report (§ 8).
-- **Authoring snapshots.** A delivery-authoring pass pins per-phase task membership, and inserting a corrective
+- **Authoring snapshots.** A delivery-authoring pass pins the parent-task inventory, and inserting a corrective
   parent invalidates that pin. An amendment therefore does not land while an authoring pass is open — finish or
   discard the pass first. A sequencing rule, not a conflict.
+- **Revision before execution.** The plan revision lands **before the corrective parent executes**. Execution-mode
+  entry inspection passes an open task outside member coverage through as `not-applicable` — ordinary execution
+  on the work-unit branch — so an unassigned parent would run on the terminal top and never reach the member whose
+  request and verifier should carry it; the uncovered-task refusal fires only when a revision is next constructed,
+  which is too late. Under a bound plan the capture and the plan revision therefore land together before corrective
+  work on **every** arm, the task arm included: the revision is an attended ceremony, so the bound plan supplies the
+  stop the task arm otherwise lacks (§ 2, § 9).
 
 Two consequences the rest of the draft states in its own terms. The **cost** of an amendment under a bound plan is
 never only "a row plus revision work": a plan revision rides along, and a revision the classifier answers with a
-replacement reaches every deliverable at or above the affected one on a stack. And the case where a landed
-element's replacement has nowhere admissible to live is the ceiling's mechanical trigger (§ 4).
+replacement reaches every deliverable at or above the affected one on a stack. And when a landed element's
+replacement cannot be carried by any unlanded member or the terminal, the ceiling applies (§ 4) — the classifier
+fixes the landed side of that question; the unlanded side stays a judgment read.
 
 The digest's **semantics** are the one place with real latitude. Design-element digests are supplied by whoever
 authors the inventory rather than derived by the CLI, so what the digest covers is a convention this procedure may
@@ -516,17 +551,46 @@ glossed behind § 1's scope disclaimer: design-element digests are bound into th
 landed member's element breaks the binding silently; delivery seams were absent entirely, though they carry the
 same landed guard and their own criteria group; a corrective parent invalidates an open authoring snapshot; and
 `replacement-required` carries a stack-wide cost the draft never priced. All four are folded, mostly into the new
-§ 10, and one of them strengthened rather than patched the design — the classifier supplies a mechanical ceiling
-trigger the judgment-only ceiling lacked.
+§ 10, and one of them sharpened the ceiling — the classifier fixes its landed side (pass three narrowed the claim:
+the unlanded side stays a judgment read).
 
 Withstood: the cursor's document-order selection and its skipping of completed parents, the R-scheme ids against
 the parser, the segmentation scan's positional rules, `landed-member-changed`'s exact shape, `_Amended in:_`
 digest-safety, the `arc delivery entry inspect` state dispatch, meta-file timing for the capture commit, every
 corpus figure in § Problem, and proportionality as a whole.
 
-The `Heavy` pass cap of two is reached, so a third pass is a deliberate extension rather than the default. It is
-recommended: thirteen items folded across §§ 1–10 is well past what an in-context coherence re-read was designed to
-catch, and pass two's own second-order rate is the evidence.
+The `Heavy` pass cap of two was reached here, so the third pass below was a deliberate extension rather than the
+default: thirteen items folded across §§ 1–10 is well past what an in-context coherence re-read was designed to
+catch, and pass two's own second-order rate was the evidence.
+
+### Pass three (2026-09-11)
+
+Ten findings over the repaired draft — four majors, six minors — all verified against source and folded. Three of
+the four majors were second-order breaks in the bound-delivery surface pass two's sweep had opened, which is the
+result the extension was run for.
+
+The majors: the member-site closure was masked, because the loop as shipped re-runs the member walk whenever the
+cursor reaches a member's last assigned task, so the still-open verifier would produce the second full report the
+delta form forbids (§ 6, § 8 now close the verifier on the effective report and author the no-re-walk directive);
+the "mechanical" ceiling trigger was vacuous, since the classifier only refuses changes to landed members and the
+terminal lands last, so an admissible home always exists before merge (§ 4, § 10 restate the classifier as fixing
+the landed side of a judgment read); the group an appended criterion joins was undefined under a bound plan, and
+a criterion appended to a closed member's group is unresolvable because the terminal walk never re-derives a
+recorded report (§ 2, § 5 bind it to the visibility rule); and a corrective parent could execute before its plan
+revision landed, because execution-mode entry inspection passes an uncovered open task through as ordinary work
+(§ 10 sequences revision before execution, which also removes the task arm's silence under a bound plan in § 2 and
+§ 9). The minors: `arc reopen` refuses a coherently bound delivery, unstated in § 6's third case; a yielded parent's
+id and position were unspecified (host phase's id, before the host member's verifier); design-element digests are
+author-supplied while Goal digests are CLI-derived, so § 10 overstated when a silent break surfaces and understated
+the Goal refusal; three substrate slips (`Class` writers, what the authoring snapshot pins, which axis
+`generate-tasks` reads); and `reopen-work-unit`'s own example carries the `X.Y.R` anchor § 6 rules out, now named
+for correction.
+
+Withstood: the classifier's exact refusal shapes, the contiguity rule, the seam guards, `_Amended in:_` digest
+safety, cursor selection, the reopen anchor rule, R-scheme parsing, the segmentation scan, every
+`evidence-applicability` citation, the four existing stops, the assurance rubric's composition, and proportionality
+as a whole. The pass's verdict was not-ready with four bounded edits and no reopened direction; all ten are
+folded, and the post-settle coherence re-read is the remaining check before capture.
 
 ## Alternatives
 
