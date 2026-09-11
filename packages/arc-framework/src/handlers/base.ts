@@ -19,6 +19,7 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import { locusWorkUnitAtPath } from "../lib/session-init/locus-classification.js";
 import { createBaseMergePort } from "../scripts/base/merge-composition.js";
 import {
   BaseMergeInputSchema,
@@ -184,7 +185,7 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
       }
     : await (async () => {
         const { identity } = await readIdentityPointers(exec);
-        let workUnit: string | null = null;
+        let treatmentContext = {};
         if (identity !== null) {
           try {
             const frame = await runDerivedLocusStateProbe({
@@ -194,11 +195,10 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
               exec,
             });
             const row = frame.entering.kind === "selected" ? frame.entering.row : null;
-            workUnit = row?.kind === "work-unit" && row.subject.kind === "work-unit"
-              ? row.subject.key
-              : null;
+            const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
+            treatmentContext = workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name);
           } catch {
-            workUnit = null;
+            treatmentContext = {};
           }
         }
         return runBaseDrift({
@@ -207,7 +207,7 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
           mode: "authoritative",
           ...createCurrentBaseDriftAdapters(
             exec,
-            workUnit === null ? {} : workUnitPathTreatmentContext(workUnit),
+            treatmentContext,
           ),
         });
       })();
