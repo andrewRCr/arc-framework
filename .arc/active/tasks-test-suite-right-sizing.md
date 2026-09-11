@@ -350,20 +350,21 @@ baseline for the unit projects, the lane, integration, and E2E.
 
 - _Outcome:_ Each retained test now reports headroom against its whole-test Vitest ceiling while `runCli` annotates
   its separate per-invocation limit and spawn count. Admission returns `{ result, waitMs? }` and snapshots wait at
-  lock acquisition; a live queued lane capture retained 64.906 s before its separate 60.616 s run. The settled
-  substrate rule identifies `user`, user-notes, notes-publication/export,
-  sync-state, selected sync E2E, and multi-clone file families while explicitly excluding unrelated
-  `framework-sync`; empty matches report a zero share.
+  lock acquisition; the schema-v2 refresh acquired immediately and therefore omitted the optional wait field. The
+  settled substrate rule identifies `user`, the complete user-sync family, user-notes, notes-publication/export,
+  sync-state, selected sync E2E, and multi-clone files while excluding unrelated `framework-sync`; empty matches
+  report a zero share.
 
 ### `[x]` **2.6 Record the first baseline and supersede the hand-measured analysis**
 
 - _Goal:_ The cost baseline analysis carries instrument-produced figures with their mode stamps, and the
   hand-measured pre-instrument numbers no longer read as authoritative.
 
-- _Outcome:_ The authoritative analysis now records three-run medians for unit, lane, integration, and E2E with
-  complete mode stamps, cost rankings, shard membership, timeout/admission/substrate signals, and measured CLI
-  invocation counts. Six comparable CI-job runs establish a 1,377-job-second median; superseded hand figures remain
-  only where they document standalone probes or the measurement gap the instrument closed.
+- _Outcome:_ The authoritative analysis now records successful-outcome schema-v2 three-run medians for unit, lane,
+  integration, and E2E with complete mode stamps, cost rankings, shard membership, timeout/admission/substrate
+  signals, and measured CLI invocation counts. Six comparable CI-job runs establish a 1,377-job-second median;
+  superseded hand figures remain only where they document standalone probes or the measurement gap the instrument
+  closed.
 
 ### `[x]` **2.7 Derive the numeric targets and land them before anything scores them**
 
@@ -371,8 +372,8 @@ baseline for the unit projects, the lane, integration, and E2E.
   baseline plus the rates already measured on the artifacts about to change, and recorded before the run that
   scores it.
 
-- _Outcome:_ Forward amendments fix the later scoring bars at ≤46 s for the 12-worker routine lane, ≥15.0 s off
-  integration's 379.26 s summed baseline, and ≥300 job-seconds off the six-run 1,377 s CI median. The derivation
+- _Outcome:_ Forward amendments fix the later scoring bars at ≤41 s for the 12-worker routine lane, ≥15.0 s off
+  integration's 361.33 s summed baseline, and ≥300 job-seconds off the six-run 1,377 s CI median. The derivation
   counts only measured fixture, re-tiering, and startup rates; it excludes tier-move double counting and later
   anchor or consolidation upside.
 

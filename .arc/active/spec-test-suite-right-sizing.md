@@ -37,6 +37,10 @@ _Amended 2026-09-11 — Member-boundary review found that the first instrument o
 The corrected authoritative medians are: unit 24.25 s wall / 148.52 s summed, integration 45.55 s / 379.26 s,
 the admitted lane 59.08 s / 566.65 s, and E2E 272.68 s / 1,727.55 s, each at 12 workers._
 
+_Amended 2026-09-11 — A second member-boundary review required durable success evidence and complete user-sync
+classification. Schema-v2 medians supersede the prior baseline: unit 23.09 s wall / 137.94 s summed, integration
+42.43 s / 361.33 s, the admitted lane 54.39 s / 513.54 s, and E2E 255.56 s / 1,611.47 s, each at 12 workers._
+
 Four facts govern the design.
 
 **E2E is 79% of the local run.** Taking it off the routine local path — CI still enforces it before merge — moves
@@ -208,6 +212,10 @@ test durations remain separate diagnostics. Effective CI-leg membership is the w
 the Vitest-derived remainder shard. Whole-test headroom uses the Vitest task timeout only; a CLI helper timeout is
 retained separately because it bounds one subprocess invocation, not the whole test. Admission wait ends at lock
 acquisition, before the action begins._
+
+_Amended 2026-09-11 — Retained-run schema v2 records an explicit successful outcome only after every Vitest module
+is terminal (`passed` or `skipped`) and `ok()`; capture refuses other states before persistence, and normalization
+refuses legacy or unstamped input. The substrate classifier includes the complete user-sync family._
 
 1. Per-tier and per-file summed time, **normalized across several retained runs** — not a single run. Per-file
    cost counts the file's own transform, import, and hook time, which the JSON reporter's per-file window omits
@@ -564,6 +572,11 @@ is not satisfied.
    subtracting 40.26 s and 17.63 s for the two re-tiered files plus 15.19 s of fixture savings leaves 493.57 s.
    Dividing by 12 gives a 41.13 s inclusive floor; the 10% noise allowance gives 45.24 s, rounded upward. This
    supersedes the 42 s bar, whose baseline omitted suite-hook execution time._
+
+   _Amended 2026-09-11 — **Schema-v2 bar: ≤41 s at 12 workers.** The eligible 513.54 s baseline minus 36.08 s and
+   15.16 s for the re-tiered files plus 15.19 s of fixture savings leaves 447.11 s. Dividing by 12 gives a 37.26 s
+   inclusive floor; the 10% noise allowance gives 40.99 s, rounded upward. This supersedes the prior baseline-bound
+   bar; the measurement mode and directly probed saving are unchanged._
 3. **Selection rule is live.** `DEV-RULES.PROJECT` § Selecting what to run carries the lane rows and no longer
    closes by forbidding a partial Tier 3; `QUICK-REFERENCE` § Quality Gate Commands no longer instructs a whole
    run, and its per-task entry names the changed-file invocation the rule specifies rather than the
@@ -582,6 +595,10 @@ is not satisfied.
    _Amended 2026-09-11 — **Review-corrected baseline: 379.26 s; bar: reduce by ≥15.0 s to ≤364.26 s.** The absolute
    15.19 s probe saving is unchanged; it is 26.3% of the corrected 43.78 s `user` file and 29.6% of the corrected
    12.37 s `init` file. This supersedes only the baseline-dependent numbers above._
+
+   _Amended 2026-09-11 — **Schema-v2 baseline: 361.33 s; bar: reduce by ≥15.0 s to ≤346.33 s.** The absolute
+   15.19 s saving remains unchanged; it is 28.2% of the eligible 40.82 s `user` file and 30.8% of the 11.91 s
+   `init` file. This supersedes the prior baseline-dependent numbers._
 5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm
    as a standalone probe — the same condition as the recorded 0.36 s baseline — above the 0.21 s probe and below
    the baseline, so it discriminates rather than restating either.
