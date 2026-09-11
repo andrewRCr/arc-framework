@@ -529,20 +529,20 @@ clock, summed file time, and maximum-file duration from the member-start tree._
   summed / 44.98 s maximum file at member start to 41.77 s / 355.27 s / 40.14 s in the final tree, despite the
   integration tier growing from 1,247 to 1,379 executed cases. The amended segment exit holds.
 
-### `[ ]` **4.5 Close the fixture and tier cost member** — validate criteria at member scope
+### `[x]` **4.5 Close the fixture and tier cost member** — validate criteria at member scope
 
 - _Goal:_ Member 3's criteria are walked through `validate-criteria` and their boundary evidence recorded.
 
-- _Outcome:_ Member criteria `[ ]`, `[x]`, `[x]` at `Success Criteria > Member 3 — fixture-and-tier-cost > 1-3`
+- _Outcome:_ Member criteria `[x]`, `[x]`, `[x]` at `Success Criteria > Member 3 — fixture-and-tier-cost > 1-3`
   (`sha256:86ed28b24cc186d075a14aaadebb5d166875270ba2400fe9ecd9cbc8e93111a3`,
   `sha256:13e8a6f40aa9cc739f64a9266b85646ee1b27c2fa8dc599fcba4ab4d4a503b87`,
   `sha256:d4eea706ecc3cb66312f1e159ed8ecab2ab72af3650f5c5592585f8266e5f4eb`). The bounded diff
-  `b5985a85a..6808e793c` and cumulative tree `8f84eae11eba3c6707f7ef1ff5217c2dfee8307c` prove the placement and
-  fixture-independence criteria: the four-file verdict set is recorded, no CLI spawn uses `tsx`, the moved E2E
+  `b5985a85a..e29b0a135` and cumulative tree `e234a5c1db77a4439d43683b928e8c7a63e9974b` show the approved criterion
+  1 deviation lowering alternating three-run medians from 46.54 s wall / 394.17 s summed / 44.98 s maximum file to
+  41.77 s / 355.27 s / 40.14 s. The four-file verdict set is recorded, no CLI spawn uses `tsx`, the moved E2E
   assertions run, copied repositories have independent object/ref/remote state with no template references, and
-  bare remotes have per-test cleanup. Criterion 1 remains open: the 30.35 s floor exceeds the 27.86 s maximum file,
-  but the three-run 364.18 s summed median misses the committed 346.01 s ceiling by 18.17 s. Boundary-order
-  deviation: none.
+  bare remotes have per-test cleanup. The adversarial pass's sole minor finding was fixed by replacing its Unix-only
+  reference scan with a portable Node traversal. Boundary-order deviation: none.
 
 ## **Phase 5:** Per-spawn CLI startup cost
 
