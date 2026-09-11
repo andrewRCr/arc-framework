@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "restore-hosted-review-await-reentry",
+  "claimId": "bb4cf5d7be666a6dad6229f29b0be040",
+  "createdAt": "2026-09-11T23:04:49.747Z",
+  "updatedAt": "2026-09-11T23:04:49.747Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Restore automatic re-entry of the same hosted-review await action until the configured attention threshold.",
+  "branch": "chore/restore-hosted-review-await-reentry",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
