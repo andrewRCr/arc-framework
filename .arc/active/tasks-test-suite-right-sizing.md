@@ -266,7 +266,8 @@ baseline for the unit projects, the lane, integration, and E2E.
 
 - _Outcome:_ Every capture now requires explicit condition, project set, and worker sizing arguments. Lever
   comparison reports a delta only for exact three-axis matches and names every mismatched axis; a separately typed
-  sizing sweep requires stable condition/project set and deliberate worker variation.
+  sizing sweep requires stable condition/project set and deliberate worker variation. The repository-owned
+  `benchmark:test-cost:compare` entry makes both operations reachable from retained-run path groups.
 
 ### `[x]` **2.3 Normalize across retained runs and flag claims inside the noise band**
 
@@ -283,7 +284,8 @@ baseline for the unit projects, the lane, integration, and E2E.
 
 - _Outcome:_ Retained runs of one exact mode normalize by median across wall time, summed file time, file count,
   and test count; one sample remains explicitly `single-run`. Noise classification uses absolute change over the
-  before value, treats magnitudes below 10% as unestablished, and treats the exact 10% boundary as established.
+  before value, treats magnitudes below 10% as unestablished, and treats the exact 10% boundary as established. The
+  comparison entry applies that classification to both wall and summed-time lever and sizing-sweep deltas.
 
 ### `[x]` **2.4 Derive the effective E2E shard membership for every CI leg**
 
@@ -350,21 +352,21 @@ baseline for the unit projects, the lane, integration, and E2E.
 
 - _Outcome:_ Each retained test now reports headroom against its whole-test Vitest ceiling while `runCli` annotates
   its separate per-invocation limit and spawn count. Admission returns `{ result, waitMs? }` and snapshots wait at
-  lock acquisition; the schema-v2 refresh acquired immediately and therefore omitted the optional wait field. The
-  settled substrate rule identifies `user`, the complete user-sync family, user-notes, notes-publication/export,
-  sync-state, selected sync E2E, and multi-clone files while excluding unrelated `framework-sync`; empty matches
-  report a zero share.
+  lock acquisition; eleven schema-v3 refresh runs acquired immediately, while one E2E run recorded a 305.24 s wait
+  separately from its uncontended cost. The settled substrate rule identifies `user`, the complete user-sync family,
+  user-notes, notes-publication/export, sync-state, selected sync E2E, and multi-clone files while excluding unrelated
+  `framework-sync`; empty matches report a zero share.
 
 ### `[x]` **2.6 Record the first baseline and supersede the hand-measured analysis**
 
 - _Goal:_ The cost baseline analysis carries instrument-produced figures with their mode stamps, and the
   hand-measured pre-instrument numbers no longer read as authoritative.
 
-- _Outcome:_ The authoritative analysis now records successful-outcome schema-v2 three-run medians for unit, lane,
-  integration, and E2E with complete mode stamps, cost rankings, shard membership, timeout/admission/substrate
-  signals, and measured CLI invocation counts. Six comparable CI-job runs establish a 1,377-job-second median;
-  superseded hand figures remain only where they document standalone probes or the measurement gap the instrument
-  closed.
+- _Outcome:_ The authoritative analysis now records successful-outcome, zero-unhandled-error schema-v3 three-run
+  medians for unit, lane, integration, and E2E with complete mode stamps, cost rankings, shard membership,
+  timeout/admission/substrate signals, and measured CLI invocation counts. Six comparable CI-job runs establish a
+  1,377-job-second median; superseded hand figures remain only where they document standalone probes or the
+  measurement gap the instrument closed.
 
 ### `[x]` **2.7 Derive the numeric targets and land them before anything scores them**
 
@@ -376,6 +378,9 @@ baseline for the unit projects, the lane, integration, and E2E.
   integration's 361.33 s summed baseline, and ≥300 job-seconds off the six-run 1,377 s CI median. The derivation
   counts only measured fixture, re-tiering, and startup rates; it excludes tier-move double counting and later
   anchor or consolidation upside.
+
+  _Amended 2026-09-11 — The schema-v3 refresh supersedes the baseline-bound values with a ≤44 s routine-lane bar
+  and a ≥15.0 s reduction from integration's 361.01 s baseline to ≤346.01 s. The fixed CI bar is unchanged._
 
 ### `[ ]` **2.8 Close the cost instrument member** — validate criteria at member scope
 
