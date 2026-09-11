@@ -58,7 +58,7 @@ export function classifyNoise(deltaFraction: number): NoiseClassification {
   };
 }
 
-function median(values: readonly number[], label: string): number {
+export function median(values: readonly number[], label: string): number {
   if (values.some((value) => !Number.isFinite(value) || value < 0)) {
     throw new Error(`${label} values must be finite and non-negative`);
   }
