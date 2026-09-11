@@ -669,27 +669,14 @@ the re-baselined ranking.
   tier-isolated top four. The workflow matrix, remainder exclusions, and contract expectation agree, and the live
   shard probe accounts for all 55 E2E files exactly once across the four anchors plus 51 remainder files.
 
-### `[ ]` **6.4 Record per-tier per-mode budgets and report local standing**
+### `[x]` **6.4 Record per-tier per-mode budgets and report local standing**
 
 - _Goal:_ Each tier carries a recorded budget for the mode it is measured in, and a local run reports where that
   tier stands against it.
 
-- _Rationale:_ Budgets are per-mode because a local budget is meaningless against a CI runner, and the CI unit is
-  the job because CI runs E2E as eight invocations across four sharded jobs, so no single job observes a per-tier
-  total.
-
-- _Note:_ The cross-job heavy-lane total is a different measurement, read from workflow-run data at verification
-  rather than produced here. A job cannot observe what its siblings cost, so the budget mechanism does not try.
-
-    - Derive the numbers from 6.1's baseline: tier wall clock locally, per-job elapsed duration on CI.
-    - Budgets live in one tracked record keyed by tier and mode, read by both the instrument and the CI job. A job
-      cannot run the instrument to learn its own budget — that would run the tier twice — so the number has to be
-      readable from the tree, and a single record is what keeps the workflow and the instrument from drifting the
-      way two inline copies would.
-    - Build `test-first` (one behavior at a time):
-        - a run under its budget reports as within it, and one over reports the overage
-        - a budget recorded in one mode is never compared against a run in another
-        - a run with no recorded budget reports as unbudgeted rather than as passing
+- _Outcome:_ `test-cost-budgets.json` records the 6.1 local-tier and CI-job baselines with a 10% allowance.
+  Exact tier, condition, project set, worker sizing, metric, and optional CI-job identity govern matching; the
+  instrument now reports within, over, or unbudgeted standing and a live unit probe reported 1.494 s remaining.
 
 ### `[ ]` **6.5 Warn on CI budget exceedance without failing the run**
 

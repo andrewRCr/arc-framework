@@ -207,6 +207,31 @@ Against the six-run 1,377 s first baseline, the observed reduction is 246 job-se
 misses the derived 1,077 s bar by 54 s. That difference is recorded as measured rather than attributed to a lever
 from one CI sample; later member validation must resolve the criterion from the evidence then available.
 
+### Recorded budgets
+
+`test-cost-budgets.json` is the single tracked record for the instrument and CI. Each limit is the observed
+post-cost baseline plus the full 10% noise allowance, rounded upward to the next millisecond. Complete measurement
+modes keep local and CI observations disjoint; the E2E CI entries additionally name the shard job.
+
+| Tier        | Mode                              | Baseline  | Budget    |
+| ----------- | --------------------------------- | --------- | --------- |
+| Unit        | tier-isolated / unit / 12 workers | 11.116 s  | 12.228 s  |
+| Integration | tier-isolated / integration / 12  | 40.035 s  | 44.039 s  |
+| Lane        | tier-isolated / lane / 12         | 44.925 s  | 49.418 s  |
+| E2E         | tier-isolated / e2e / 12          | 215.309 s | 236.840 s |
+
+| CI job      | Mode                     | Baseline | Budget  |
+| ----------- | ------------------------ | -------- | ------- |
+| Unit        | CI job / unit / 1 worker | 40 s     | 44.0 s  |
+| Integration | CI job / integration / 1 | 186 s    | 204.6 s |
+| E2E 1       | CI job / e2e / 1         | 151 s    | 166.1 s |
+| E2E 2       | CI job / e2e / 1         | 221 s    | 243.1 s |
+| E2E 3       | CI job / e2e / 1         | 268 s    | 294.8 s |
+| E2E 4       | CI job / e2e / 1         | 154 s    | 169.4 s |
+
+These are the initial post-Phase 5 budgets. The integration, lane, and affected E2E entries are refreshed after
+the cost-ranked conversions, so accepted Phase 7 movement does not present as regrowth.
+
 ## Where the time concentrates
 
 Cumulative share is of that tier's summed file time.
