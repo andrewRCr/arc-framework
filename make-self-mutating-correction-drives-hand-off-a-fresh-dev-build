@@ -3,7 +3,7 @@
   "slug": "make-self-mutating-correction-drives-hand-off-a-fresh-dev-build",
   "claimId": "b5d8f3275e0beeae136cda6820c24caf",
   "createdAt": "2026-09-11T02:26:34.698Z",
-  "updatedAt": "2026-09-11T02:26:34.698Z",
+  "updatedAt": "2026-09-11T05:03:02.485Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "make-self-mutating-correction-drives-hand-off-a-fresh-dev-build",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make self-mutating correction drives hand off a fresh dev build",
   "originEntrySourceDigest": "sha256:8e3ca191a33b9486b3f19dd1671cb53ec70b3e4cdbbd9e0ced8cb86e156afea0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/make-self-mutating-correction-drives-hand-off-a-fresh-dev-build",
+    "headSha": "622a4f0fe96d8dc16b1e70af4234a9816bb5a28b"
+  }
 }
