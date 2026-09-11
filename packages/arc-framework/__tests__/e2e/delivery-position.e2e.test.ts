@@ -24,6 +24,7 @@ import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/deliv
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   candidateReviewApplicabilitySelections,
@@ -34,10 +35,15 @@ import {
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import {
   readCandidateRecord,
+  readCandidateRecordVersioned,
   resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
+import {
+  collectGitCandidateTarget,
+  resolveGitCandidateBaseRevision,
+} from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
   resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
@@ -77,6 +83,8 @@ import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { HostedRequestHandleSchema } from
   "../../src/scripts/review-gate/hosted/request.js";
+import { createIntegrationCheckpointDependencies } from
+  "../../src/scripts/integration/checkpoint-composition.js";
 import {
   laneProgressOperationId,
   recordHostedPendingRequest,
@@ -432,7 +440,7 @@ async function positionFixture(
   const registeredFirstReviewTarget = JSON.stringify([{
     number: 401,
     url: "https://example.test/401",
-    state: "OPEN",
+    state: activeOperation === "landed-nonterminal" ? "MERGED" : "OPEN",
     baseRefName: "main",
     headRefName: firstBranch,
     headRefOid: "%s",
@@ -440,7 +448,7 @@ async function positionFixture(
   const registeredSecondReviewTarget = JSON.stringify([{
     number: 402,
     url: "https://example.test/402",
-    state: "OPEN",
+    state: activeOperation === "landed-nonterminal" ? "MERGED" : "OPEN",
     baseRefName: firstBranch,
     headRefName: secondBranch,
     headRefOid: "%s",
@@ -449,7 +457,7 @@ async function positionFixture(
     number: 403,
     url: "https://example.test/403",
     state: "OPEN",
-    baseRefName: secondBranch,
+    baseRefName: activeOperation === "landed-nonterminal" ? "main" : secondBranch,
     headRefName: "member-3",
     headRefOid: "%s",
   }]);
@@ -530,6 +538,9 @@ async function positionFixture(
     "  esac",
     "fi",
     "case \"$2\" in",
+    "  repos/owner/repo)",
+    "    printf '%s\\n' '{\"allow_merge_commit\":true,\"allow_rebase_merge\":false,\"allow_squash_merge\":false}'",
+    "    ;;",
     "  repos/owner/repo/git/ref/heads/main)",
     "    printf '{\"object\":{\"sha\":\"%s\"}}\\n' \"$(remote_head 'main')\"",
     "    ;;",
@@ -563,10 +574,20 @@ async function positionFixture(
     "    ;;",
     "  repos/owner/repo/pulls/403)",
     "    if [ -n \"${ARC_FAKE_TERMINAL_REF:-}\" ]; then",
-    `      printf '${request(403, "%s", "%s", secondBranch)}\\n' `
+    `      printf '${request(
+      403,
+      "%s",
+      "%s",
+      activeOperation === "landed-nonterminal" ? "main" : secondBranch,
+    )}\\n' `
       + `"$ARC_FAKE_TERMINAL_REF" "$(remote_head "$ARC_FAKE_TERMINAL_REF")"`,
     "    else",
-    `      printf '${request(403, "member-3", "%s", secondBranch)}\\n' "$(remote_head 'member-3')"`,
+    `      printf '${request(
+      403,
+      "member-3",
+      "%s",
+      activeOperation === "landed-nonterminal" ? "main" : secondBranch,
+    )}\\n' "$(remote_head 'member-3')"`,
     "    fi",
     "    ;;",
     "  repos/owner/repo/stacks)",
@@ -1939,7 +1960,7 @@ describe("arc delivery position", () => {
     });
   });
 
-  it("returns settled review to the highest landed teardown after terminal rebind", async () => {
+  it("returns settled review and closes shipped publication refresh after terminal rebind", async () => {
     const fixture = await positionFixture("landed-nonterminal");
     const stateRead = await fixture.states.read(fixture.plan.planId);
     if (stateRead.status !== "ok" || stateRead.value === null) {
@@ -2130,6 +2151,10 @@ describe("arc delivery position", () => {
       "- **Next Task:** [none]",
       "- **Next Action:** Resume delivery closeout",
       "",
+      "## Completion Notes",
+      "",
+      "Delivery verification and review are complete.",
+      "",
     ].join("\n"));
     await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
     const reservation = {
@@ -2210,7 +2235,8 @@ describe("arc delivery position", () => {
     const shippedMeta = (await readFile(activeMetaPath, "utf8"))
       .replace("- **State:** Integrating", "- **State:** Shipped")
       .replace(`- **Branch:** ${branch}`, "- **Branch:** [none]")
-      .replace("- **Current Workflow:** `integrate-work-unit`", "- **Current Workflow:** [none]");
+      .replace("- **Current Workflow:** `integrate-work-unit`", "- **Current Workflow:** [none]")
+      .replace("- **Next Action:** Resume delivery closeout", "- **Next Action:** [none]");
     await writeFile(activeMetaPath, shippedMeta);
     await rename(
       activeMetaPath,
@@ -2362,6 +2388,235 @@ describe("arc delivery position", () => {
           resultStatus: "rebound",
         }),
       ]),
+    });
+
+    const archiveCompanion = `notes-${fixture.plan.workUnitId}.md`;
+    await mkdir(join(archivedCheckout, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(archivedCheckout, ".arc", "active", archiveCompanion),
+      "# Delivery notes\n",
+      "utf8",
+    );
+    await git(archivedCheckout, ["add", "--", join(".arc", "active", archiveCompanion)]);
+    await git(archivedCheckout, ["commit", "--no-verify", "-m", "preserve inline archive companion"]);
+    await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+
+    const versionedCandidate = await readCandidateRecordVersioned(
+      archivedCheckout,
+      fixture.plan.workUnitId,
+    );
+    if (versionedCandidate.record === null || versionedCandidate.version === null) {
+      throw new Error("archived delivery Candidate must remain readable");
+    }
+    const baseline = reduceCandidateDurableBaseline(versionedCandidate.record);
+    const currentBase = await resolveGitCandidateBaseRevision({
+      cwd: archivedCheckout,
+      baseBranch: "main",
+      exec: createExecaGitExec(),
+    });
+    const currentTarget = await collectGitCandidateTarget({
+      cwd: archivedCheckout,
+      name: fixture.plan.workUnitId,
+      baseBranch: "main",
+      baseRevision: currentBase,
+      exec: createExecaGitExec(),
+    });
+    const applicability = await projectGitCandidateApplicability({
+      request: {
+        candidateId: baseline.candidateId,
+        baselineTarget: baseline.target,
+        currentTarget,
+        currentBase,
+      },
+      exec: createRawGitExec(archivedCheckout),
+      observeEndpoints: async () => ({
+        candidateHead: await git(archivedCheckout, ["rev-parse", "HEAD^{commit}"]),
+        baseHead: currentBase,
+      }),
+    });
+    expect(applicability.state).toBe("decision-required");
+    if (applicability.state !== "decision-required") {
+      throw new Error("inline archive companion must require an applicability selection");
+    }
+    const selected = await runArcWithStdin(
+      ["candidate", "applicability", "resolve", fixture.plan.workUnitId, "-"],
+      archivedCheckout,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        expectedRecordVersion: versionedCandidate.version,
+        candidateId: baseline.candidateId,
+        priorTarget: baseline.target,
+        currentTarget,
+        currentBase,
+        projectionDigest: applicability.projectionDigest,
+        residualDigest: applicability.residualDigest,
+        selectedBy: "test-user",
+        choice: "covered",
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(selected.exitCode, `${selected.stderr}\n${selected.stdout}`).toBe(0);
+    expect(JSON.parse(selected.stdout), selected.stdout).toMatchObject({
+      state: "resolved",
+      nextAction: "commit-selection",
+    });
+    await git(archivedCheckout, ["commit", "--no-verify", "-m", "record archived Candidate applicability"]);
+    await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+
+    const stalePublication = await runArc(
+      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(stalePublication.exitCode, `${stalePublication.stderr}\n${stalePublication.stdout}`).toBe(0);
+    expect(JSON.parse(stalePublication.stdout), stalePublication.stdout).toMatchObject({
+      state: "candidate-publication-required",
+      nextAction: "refresh-shipped-delivery",
+      payload: {
+        attestArgv: ["arc", "attest", fixture.plan.workUnitId, "--new-root", "--json"],
+      },
+    });
+
+    const refreshed = await runArc(
+      ["attest", fixture.plan.workUnitId, "--new-root", "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(refreshed.exitCode, `${refreshed.stderr}\n${refreshed.stdout}`).toBe(0);
+    expect(await git(archivedCheckout, ["diff", "--cached", "--name-only"])).toBe(
+      resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
+    );
+
+    const pendingRebind = await runArc(
+      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(pendingRebind.exitCode, `${pendingRebind.stderr}\n${pendingRebind.stdout}`).toBe(0);
+    expect(JSON.parse(pendingRebind.stdout), pendingRebind.stdout).toMatchObject({
+      state: "terminal-rebind-required",
+      nextAction: "reconcile-delivery-state",
+    });
+
+    const reboundAfterSelection = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      archivedCheckout,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      reboundAfterSelection.exitCode,
+      `${reboundAfterSelection.stderr}\n${reboundAfterSelection.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(reboundAfterSelection.stdout), reboundAfterSelection.stdout).toMatchObject({
+      status: "rebound",
+      nextAction: "rerun-checkpoint",
+    });
+
+    const productionCheckpoint = createIntegrationCheckpointDependencies({
+      cwd: archivedCheckout,
+      exec: createExecaGitExec(),
+    });
+    await expect(productionCheckpoint.readShippedDeliveryPublicationCommit(
+      fixture.plan.workUnitId,
+      currentBase,
+    )).resolves.toEqual({ status: "refresh-required" });
+    const refreshedAfterRebind = await runArc(
+      ["attest", fixture.plan.workUnitId, "--new-root", "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(
+      refreshedAfterRebind.exitCode,
+      `${refreshedAfterRebind.stderr}\n${refreshedAfterRebind.stdout}`,
+    ).toBe(0);
+    expect(await git(archivedCheckout, ["diff", "--cached", "--name-only"])).toBe(
+      resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
+    );
+
+    await expect(productionCheckpoint.readShippedDeliveryPublicationCommit(
+      fixture.plan.workUnitId,
+      currentBase,
+    )).resolves.toEqual({
+      status: "commit-required",
+      boundaryPath: resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
+    });
+    const refreshedStatus = await runArc(
+      ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(refreshedStatus.exitCode, `${refreshedStatus.stderr}\n${refreshedStatus.stdout}`).toBe(0);
+    const refreshedStatusOutput = JSON.parse(refreshedStatus.stdout) as {
+      terminusAction?: Record<string, unknown>;
+    };
+    if (refreshedStatusOutput.terminusAction === undefined) {
+      throw new Error("refreshed publication must offer terminal review applicability");
+    }
+    const acceptedRefreshedTerminus = await runArcWithStdin(
+      ["review", "terminus", "accept", "-"],
+      archivedCheckout,
+      `${JSON.stringify({
+        ...refreshedStatusOutput.terminusAction,
+        judgment: { mode: "owner-accepted" },
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      acceptedRefreshedTerminus.exitCode,
+      `${acceptedRefreshedTerminus.stderr}\n${acceptedRefreshedTerminus.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(acceptedRefreshedTerminus.stdout), acceptedRefreshedTerminus.stdout).toMatchObject({
+      state: "recorded",
+      nextAction: "commit-boundary",
+    });
+    await git(archivedCheckout, ["commit", "--no-verify", "-m", "refresh archived delivery publication"]);
+    await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+
+    const cleanCheckpoint = createIntegrationCheckpointDependencies({
+      cwd: archivedCheckout,
+      exec: createExecaGitExec(),
+    });
+    await expect(cleanCheckpoint.readShippedDeliveryPublicationCommit(fixture.plan.workUnitId, currentBase))
+      .resolves.toEqual({ status: "none" });
+
+    const publicationRebind = await runArc(
+      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(publicationRebind.exitCode, `${publicationRebind.stderr}\n${publicationRebind.stdout}`).toBe(0);
+    expect(JSON.parse(publicationRebind.stdout), publicationRebind.stdout).toMatchObject({
+      state: "terminal-rebind-required",
+      nextAction: "reconcile-delivery-state",
+    });
+
+    const reboundAfterPublication = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      archivedCheckout,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+    expect(
+      reboundAfterPublication.exitCode,
+      `${reboundAfterPublication.stderr}\n${reboundAfterPublication.stdout}`,
+    ).toBe(0);
+    expect(JSON.parse(reboundAfterPublication.stdout), reboundAfterPublication.stdout).toMatchObject({
+      status: "rebound",
+      nextAction: "rerun-checkpoint",
+    });
+    await expect(cleanCheckpoint.readShippedDeliveryPublicationCommit(fixture.plan.workUnitId, currentBase))
+      .resolves.toEqual({ status: "none" });
+
+    const converged = await runArc(
+      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      archivedCheckout,
+      { env: fixture.env },
+    );
+    expect(converged.exitCode, `${converged.stderr}\n${converged.stdout}`).toBe(0);
+    expect(JSON.parse(converged.stdout), converged.stdout).toMatchObject({
+      state: "ready",
+      nextAction: "request-approval",
     });
   });
 
