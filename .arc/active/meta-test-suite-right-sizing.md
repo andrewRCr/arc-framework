@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — spec approved through Gate 2 and finalized at `7ef959360`; three adversarial
-  passes folded, draft retired to `notes-test-suite-right-sizing.md`
+- **Last Completed:** generate-tasks — task list finalized at `226159027` after five adversarial passes with 37
+  findings folded; delivery plan revision 1 composed; work unit activated at `58f196a6a`
 - **Next Task:** Task 1.1 — Add the routine-lane tier variant (line 70 in tasks-test-suite-right-sizing.md)
 - **Blockers:** [none]
 
