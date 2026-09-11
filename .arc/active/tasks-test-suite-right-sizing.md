@@ -409,7 +409,7 @@ resolves its own absolute references, no bare remote outlives the test that crea
 non-spawning files build from templates down to the stop rule, and the tmpfs and non-isolated candidates are each
 adopted or rejected against the noise band.
 
-### `[ ]` **3.1 Build the prepared-repository template and per-test copy in the tier helper**
+### `[x]` **3.1 Build the prepared-repository template and per-test copy in the tier helper**
 
 - _Goal:_ A fixture shape is built once per file, or once per shape where a few shapes cover most files, and
   copied per test — replacing the per-test construction that runs a full init from scratch.
@@ -419,12 +419,10 @@ adopted or rejected against the noise band.
   ~24 ms of a ~106 ms build, and the remainder is init writing a 187-file tree. Copying a built fixture costs
   ~7 ms.
 
-    - Settle the template shape here — one for all, or a few by fixture class — from the shapes the cost-ranked
-      files actually use.
-    - Build `test-first` (one behavior at a time):
-        - a copied fixture presents the same tracked tree as a freshly built one
-        - two copies of one template stay independent under concurrent writes
-        - a template built for one shape refuses to serve a test needing a different shape
+- _Outcome:_ Added a prepared-repository helper with explicit plain, remote-bearing, and worktree-bearing shape
+  identities plus caller-defined compatibility keys. One builder produces the reusable template; every accepted
+  request receives a distinct recursive copy, while a kind or key mismatch is refused. Real Git integration tests
+  prove copied tracked-tree parity and concurrent-write independence.
 
 ### `[ ]` **3.2 Audit and rewrite absolute references on copy**
 
