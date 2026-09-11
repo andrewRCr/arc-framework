@@ -1189,7 +1189,7 @@ async function completeLocalReviewThroughHandlers(
         harness,
         admission.statusTarget,
         admission.ceilingOverride,
-        admission.correctionScope === undefined ? undefined : "incremental",
+        admission.requestedCoverage,
         admission.sourceId,
       );
       if (current.nextAction !== "review-local-prepare"
@@ -3682,6 +3682,20 @@ describe("hosted review fan-out lifecycle", () => {
     };
     await selectReviewRequiredUntilRouted(harness, correctionStatusTarget);
 
+    const completeCorrectionStatus = await statusThroughHandler(
+      harness,
+      correctionStatusTarget,
+      undefined,
+      "complete",
+      "delegated-agent",
+    );
+    expect(completeCorrectionStatus).toMatchObject({
+      state: "review-required",
+      nextAction: "review-local-prepare",
+      action: { requestedCoverage: "complete" },
+    });
+    expect(completeCorrectionStatus).not.toHaveProperty("action.correctionScope");
+
     const correctionStatus = await statusThroughHandler(
       harness,
       correctionStatusTarget,
@@ -3697,6 +3711,7 @@ describe("hosted review fan-out lifecycle", () => {
         target: { repository, pullRequest: 41, headSha: correctionHead },
         vehicle: member(harness.plan, 0, correctionHead),
         pass: 2,
+        requestedCoverage: "incremental",
         correctionScope: {
           predecessorProducerId: attemptId,
           predecessorHeadSha: harness.oldFirst,

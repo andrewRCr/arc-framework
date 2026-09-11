@@ -333,7 +333,7 @@ export function createLocalPrepareDependencies(input: {
         ...(admission.ceilingOverride === undefined
           ? {}
           : { ceilingOverride: admission.ceilingOverride }),
-        ...(admission.correctionScope === undefined ? {} : { coverage: "incremental" }),
+        coverage: admission.requestedCoverage,
       }, createReviewStatusPort({ ...input, sourceId: admission.sourceId }));
       if (current.nextAction !== "review-local-prepare"
         || canonicalize(current.action) !== canonicalize(admission)) {

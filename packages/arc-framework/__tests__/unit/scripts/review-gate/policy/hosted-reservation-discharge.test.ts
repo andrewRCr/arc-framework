@@ -81,6 +81,7 @@ const delegatedAdmission = (
   target: target(vehicle.head),
   vehicle,
   pass: 1,
+  requestedCoverage: "complete" as const,
 });
 
 function unresolvedApplicability(

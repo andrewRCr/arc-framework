@@ -335,17 +335,17 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
  * Derive the local carrier's requested coverage from its admitted requirement.
  *
  * @param requirement - The standard review requirement admitted for the local operation.
- * @param admission - Optional delivery admission carrying an exact correction scope.
- * @returns Incremental coverage for scoped corrections; otherwise the requirement-derived coverage.
+ * @param admission - Optional delivery admission carrying its explicit requested coverage.
+ * @returns The delivery admission's coverage; otherwise the requirement-derived coverage.
  */
 export function localReviewRequestedCoverage(
   requirement: { readonly retrigger: "none" | "incremental" | "full-final" },
-  admission?: { readonly correctionScope?: unknown },
+  admission?: { readonly requestedCoverage: "incremental" | "complete" },
 ): "incremental" | "complete" {
   if (requirement.retrigger === "none") {
     throw new Error("local review admission requires a reviewable coverage policy");
   }
-  if (admission?.correctionScope !== undefined) return "incremental";
+  if (admission !== undefined) return admission.requestedCoverage;
   return requirement.retrigger === "incremental" ? "incremental" : "complete";
 }
 

@@ -251,6 +251,7 @@ function chunkedLocalAggregateResult(): ReviewResult {
       head: policyTarget.headSha,
     },
     pass: 1,
+    requestedCoverage: "complete",
     scopeSelection: { mode: "chunked", target: policyTarget },
   });
   const findings = ["major", "minor"].map((severity, index) => ({

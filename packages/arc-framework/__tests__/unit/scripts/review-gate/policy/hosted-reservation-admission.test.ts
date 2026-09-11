@@ -81,6 +81,7 @@ const delegatedAdmission = (vehicle: typeof deliveryVehicle) => ({
   target: { repository: "owner/repo", pullRequest: 42, headSha: vehicle.head },
   vehicle,
   pass: 1,
+  requestedCoverage: "complete" as const,
 });
 const binding = {
   boundary: { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST },

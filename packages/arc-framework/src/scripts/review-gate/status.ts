@@ -757,13 +757,14 @@ export function composeDeliveryReviewObligation(input: {
         }),
         vehicle: target.vehicle,
         pass: discharge.requestAdmission.payload.pass,
+        requestedCoverage: requestCoverage,
         ...(discharge.requestCeilingOverride === undefined
           ? {}
           : { ceilingOverride: discharge.requestCeilingOverride }),
         ...(discharge.requestScopeSelection === undefined
           ? {}
           : { scopeSelection: discharge.requestScopeSelection }),
-        ...(discharge.correctionScope === undefined
+        ...(requestCoverage !== "incremental" || discharge.correctionScope === undefined
           ? {}
           : { correctionScope: discharge.correctionScope }),
       },

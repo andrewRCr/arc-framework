@@ -1865,6 +1865,7 @@ describe("arc delivery position", () => {
         target: { repository: "owner/repo", pullRequest: 403, headSha: oldTarget.headSha },
         vehicle: responseMember,
         pass: 1,
+        requestedCoverage: "complete",
         statusTarget: { repository: "owner/repo", headRef: "member-3", headSha: oldTarget.headSha },
       },
       policyVersion: requirement.policyVersion,

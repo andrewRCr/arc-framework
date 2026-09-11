@@ -1428,11 +1428,30 @@ describe("review status", () => {
       localAction: {
         sourceId: "delegated-agent",
         pass: 4,
+        requestedCoverage: "incremental",
         ceilingOverride,
         scopeSelection,
         correctionScope,
       },
     });
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [{ ...discharge, correctionScope }],
+      requestCoverage: "complete",
+    })).toMatchObject({
+      state: "review-required",
+      localAction: {
+        sourceId: "delegated-agent",
+        pass: 4,
+        requestedCoverage: "complete",
+      },
+    });
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [{ ...discharge, correctionScope }],
+      requestCoverage: "complete",
+    })).not.toHaveProperty("localAction.correctionScope");
   });
 
   it("offers a capable source instead of dispatching an unscoped CodeRabbit correction", async () => {
@@ -1573,6 +1592,7 @@ describe("review status", () => {
       target: { ...hostedAction.target, headSha: movedVehicle.head },
       vehicle: movedVehicle,
       pass: 1,
+      requestedCoverage: "complete",
       scopeSelection: {
         mode: "chunked",
         target: hostedAction.target,
@@ -1589,6 +1609,7 @@ describe("review status", () => {
       target: hostedAction.target,
       vehicle: memberVehicle,
       pass: 2,
+      requestedCoverage: "incremental",
       correctionScope: {
         schemaVersion: 1,
         predecessorProducerId: "hosted/attempt-1",
@@ -1598,6 +1619,44 @@ describe("review status", () => {
         requiredFindings: [],
       },
     }).success).toBe(false);
+  });
+
+  it("requires local coverage to agree with correction-scope presence", () => {
+    const selection = {
+      schemaVersion: 1 as const,
+      sourceId: "delegated-agent" as const,
+      target: hostedAction.target,
+      vehicle: memberVehicle,
+      pass: 2,
+    };
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted/attempt-1",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: hostedAction.target.headSha,
+      requiredFindings: [],
+    };
+
+    expect(DeliveryLocalReviewSelectionSchema.safeParse(selection).success).toBe(false);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "complete",
+    }).success).toBe(true);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "complete",
+      correctionScope,
+    }).success).toBe(false);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "incremental",
+    }).success).toBe(false);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "incremental",
+      correctionScope,
+    }).success).toBe(true);
   });
 
   it("returns the exact delegated findings operation for local review resumption", async () => {

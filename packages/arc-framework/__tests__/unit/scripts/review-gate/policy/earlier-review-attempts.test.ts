@@ -66,6 +66,7 @@ const localAdmission = (head: string, scopeMode: "whole-target" | "chunked" = "w
   target: { repository: "owner/repository", pullRequest: 42, headSha: head },
   vehicle: deliveryVehicle(head),
   pass: 1,
+  requestedCoverage: "complete",
   ...(scopeMode === "whole-target"
     ? {}
     : {

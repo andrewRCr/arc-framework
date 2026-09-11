@@ -265,6 +265,7 @@ describe("local review delivery binding at its composition root", () => {
         },
         vehicle,
         pass: 1,
+        requestedCoverage: "complete",
       },
     )).resolves.toMatchObject({
       authority: { vehicle: { kind: "delivery-member", identity: vehicle.deliverableId } },

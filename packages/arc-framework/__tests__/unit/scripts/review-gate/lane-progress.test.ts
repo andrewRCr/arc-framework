@@ -22,6 +22,7 @@ import {
   hostedLaneAttemptId,
   invalidateConditionalNextPassAuthorization,
   inspectConditionalNextPassInvalidation,
+  localReviewRequestedCoverage,
   laneContinuationOperationId,
   laneProgressOperationId,
   acknowledgeHostedRequest,
@@ -133,6 +134,17 @@ async function seedConditionalAuthorization(
 }
 
 describe("lane progress", () => {
+  it("uses explicit delivery coverage instead of inferring it from retrigger policy", () => {
+    expect(localReviewRequestedCoverage(
+      { retrigger: "incremental" },
+      { requestedCoverage: "complete" },
+    )).toBe("complete");
+    expect(localReviewRequestedCoverage(
+      { retrigger: "full-final" },
+      { requestedCoverage: "incremental" },
+    )).toBe("incremental");
+  });
+
   it("creates the record on a lane's first recorded attempt", async () => {
     const store = createStore();
     const state = await recordLaneAttempt(store, {

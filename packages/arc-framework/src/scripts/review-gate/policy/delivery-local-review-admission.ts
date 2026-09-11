@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import { ChangeRequestTargetRefSchema } from "../change-request.js";
-import { HostedTargetSchema } from "../hosted/request.js";
+import { HostedReviewCoverageSchema, HostedTargetSchema } from "../hosted/request.js";
 import { ReviewCeilingOverrideSchema } from "./review-policy-driver.js";
 import { IncrementalReviewScopeSchema } from "../core/incremental-review-scope.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
@@ -23,6 +23,7 @@ const DeliveryLocalReviewSelectionShape = {
   target: HostedTargetSchema,
   vehicle: DeliveryReviewMemberVehicleSchema,
   pass: z.int().positive(),
+  requestedCoverage: HostedReviewCoverageSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
   scopeSelection: DeliveryLocalReviewScopeSelectionSchema.optional(),
   correctionScope: IncrementalReviewScopeSchema.optional(),
@@ -33,6 +34,7 @@ function validateSelectionTarget(
     target: z.infer<typeof HostedTargetSchema>;
     vehicle: z.infer<typeof DeliveryReviewMemberVehicleSchema>;
     scopeSelection?: DeliveryLocalReviewScopeSelection;
+    requestedCoverage: z.infer<typeof HostedReviewCoverageSchema>;
     correctionScope?: IncrementalReviewScope;
   },
   context: z.RefinementCtx,
@@ -62,6 +64,20 @@ function validateSelectionTarget(
       code: "custom",
       path: ["correctionScope", "headSha"],
       message: `${label} correction scope must end at the exact selected target`,
+    });
+  }
+  if (selection.requestedCoverage === "incremental" && selection.correctionScope === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope"],
+      message: `${label} incremental coverage requires an exact correction scope`,
+    });
+  }
+  if (selection.requestedCoverage === "complete" && selection.correctionScope !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["correctionScope"],
+      message: `${label} complete coverage cannot retain an incremental correction scope`,
     });
   }
 }

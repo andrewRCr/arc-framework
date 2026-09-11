@@ -222,6 +222,7 @@ function deliveryLocalFixture() {
     target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },
     vehicle,
     pass: 1,
+    requestedCoverage: "complete",
     scopeSelection: {
       mode: "chunked",
       target: { repository: "owner/repo", pullRequest: 42, headSha: records.target.headSha },

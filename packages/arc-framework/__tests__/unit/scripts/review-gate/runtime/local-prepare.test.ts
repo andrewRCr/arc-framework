@@ -158,6 +158,7 @@ describe("local review preparation request", () => {
           head,
         },
         pass: 1,
+        requestedCoverage: correctionScope === undefined ? "complete" as const : "incremental" as const,
         ...(correctionScope === undefined ? {} : { correctionScope }),
       };
     }
@@ -563,6 +564,7 @@ describe("local review preparation request", () => {
           head: context.memberTarget.headSha,
         },
         pass: 1,
+        requestedCoverage: "complete" as const,
       };
 
       await expect(prepareLocalReview(
@@ -609,6 +611,7 @@ describe("local review preparation request", () => {
           head: context.memberTarget.headSha,
         },
         pass: 1,
+        requestedCoverage: "complete" as const,
       };
       context.validateDeliveryAdmission.mockRejectedValueOnce(new Error("delivery admission moved"));
 
