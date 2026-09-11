@@ -1032,6 +1032,75 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
+  it("reports an unreadable Candidate record under this build's schema at the record path", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, "not-json");
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Candidate record could not be read under this build's schema: "
+        + ".arc/system/.internal/candidates/demo.json",
+    });
+    if (result.kind !== "unresolved") throw new Error("expected an unresolved Candidate record");
+    expect(result.message).not.toContain("does not match");
+  });
+
+  it("reports a genuine Candidate id mismatch distinctly", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`sha256:${"f".repeat(64)}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    await expect(projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    })).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Candidate metadata does not match the managed Candidate record.",
+    });
+  });
+
   it.each([
     ["Active", "prepare-work-unit"],
     ["Integrating", "integrate-work-unit"],
