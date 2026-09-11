@@ -161,9 +161,33 @@ runs everything, and no project or framework document instructs a whole-suite lo
   active ruleset `main-protection` required `merge-ok`, whose CI job depends on `ci_ok` and fails unless that result
   is `success`.
 
-### `[ ]` **1.6 Close the lane and policy member** — validate criteria at member scope
+### `[x]` **1.6 Close the lane and policy member** — validate criteria at member scope
 
 - _Goal:_ Member 1's criteria are walked through `validate-criteria` and their boundary evidence recorded.
+
+- _Outcome:_ Member 1 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 1 — lane-and-policy`.
+    - _Span:_ bounded diff `9d92d89fd..fdf8c4278`; cumulative reachability `fdf8c4278` at tree
+      `cbb61edbad0f30a88108a3092c7aef95a9e2bf5d`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 1 — lane-and-policy > 1`; _criterion-digest:_
+      `sha256:abf1c649075453bdec9869dec4dd9f4ad17d46cf9baec0e4c0169c1fc3382a3e`; _State:_ `[x]`; _Evidence:_
+      the manifests expose distinct routine, whole-project, and changed-file commands; the admitted `lane` selects
+      unit, unit-mocks, and integration; and the project selection rule carries path-derived rows without a
+      universal Tier 3 test-lane mandate.
+    - _Criterion:_ `Success Criteria > Member 1 — lane-and-policy > 2`; _criterion-digest:_
+      `sha256:32e510d8dd286e16ec32ac958513aa1cb4ac9bdb14703905854554ec1a6eca23`; _State:_ `[x]`; _Evidence:_
+      the Tier 1 command is `npm run -s test:changed`, matching the rule row; it resolves `main...HEAD` across the
+      unit projects and makes an empty selection non-passing.
+    - _Criterion:_ `Success Criteria > Member 1 — lane-and-policy > 3`; _criterion-digest:_
+      `sha256:939b6d997bb8ad95fd19b1ca74581681ded9d34443400f654750a0ed54da5bfe`; _State:_ `[~]`; _Evidence:_
+      all planned project-instance and shipped-framework targets no longer describe `npm test` or Tier 3 as a
+      universal whole-suite run. Frozen pages under `docs/**` retain older guidance by approved deferral;
+      `docs-content-sweep` owns their dedicated public-release reconciliation after `docs-site-refresh`.
+    - _Adversarial companion:_ one Heavy fresh-context pass found the frozen published-doc drift and a false
+      CI-parity phrase. The phrase was fixed in `fdf8c4278`; the published pages were carried forward to their
+      approved owner without editing `docs/**`.
+    - _Summary:_ two met, one superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 2:** Cost instrument and first baseline
 
