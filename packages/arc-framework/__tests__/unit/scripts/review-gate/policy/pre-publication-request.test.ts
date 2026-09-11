@@ -352,7 +352,7 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.frontline.target).not.toHaveProperty("targetId");
   });
 
-  it("selects the first outstanding delivery member without deriving an aggregate target", async () => {
+  it("selects the first outstanding delivery member while retaining the root Candidate", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -412,7 +412,11 @@ describe("composePrePublicationReviewRequest", () => {
       headSha: second.target.headSha,
     });
     expect(composition.request.standard.target).toEqual(composition.request.frontline.target);
-    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+    expect(composition.request.responseBinding).toEqual({
+      candidate: { workUnit: WORK_UNIT_ID, candidateId: CANDIDATE_ID, head: HEAD },
+      deliveryMember: second.vehicle,
+    });
+    expect(deriveImmutableTarget).toHaveBeenCalledOnce();
     expect(readLaneProgress).toHaveBeenCalledWith("frontline", first.target.headSha, [first.target.headSha]);
     expect(readLaneProgress).toHaveBeenCalledWith("frontline", second.target.headSha, [second.target.headSha]);
   });

@@ -136,6 +136,16 @@ describe("advisory review records", () => {
         branch: "chore/repair-review-state",
       },
     }).success).toBe(false);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: "a".repeat(40),
+      },
+    }).success).toBe(source.kind === "frontline");
   });
 
   it("binds a frontline outcome to its canonical digest and launched executable", () => {
