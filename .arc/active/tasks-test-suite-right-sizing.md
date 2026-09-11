@@ -67,53 +67,23 @@ _Mode:_ `slice` — closes on a routine local verification run that is one comma
 _Exit criterion:_ `npm test` runs unit plus integration as a single admitted command, `npm run test:full` still
 runs everything, and no project or framework document instructs a whole-suite local run.
 
-### `[ ]` **1.1 Add the routine-lane tier variant and re-point `npm test`**
+### `[x]` **1.1 Add the routine-lane tier variant and re-point `npm test`**
 
 - _Goal:_ Routine local verification runs the unit, unit-mocks, and integration projects as one admitted command,
   with the whole run still reachable under its own script.
 
-- _Context:_ `npm test` resolves through the tier runner's `full` mode, whose argument list is empty — every
-  project including E2E, under one heavy-admission slot. There is no unit-plus-integration variant to reach for.
+    - `[x]` **1.1.a Extend the heavy-tier union and its argument list**
 
-    - `[ ]` **1.1.a Extend the heavy-tier union and its argument list**
+        - Added the admitted `lane` tier, its unit/unit-mocks/integration Vitest arguments, and fail-first coverage
+          for guard validation, holder diagnostics, and forwarded-argument ordering.
 
-        - Name the tier `lane` — the vocabulary the design, the baseline analysis, and both amended documents
-          already use. The string lands in four places at once: the tier union, the holder metadata the admission
-          record validates, `tierLabel`'s output in the contention message, and the package script's argument.
-        - `LocalHeavyTestTier` and the `isLocalHeavyTestTier` guard in `src/lib/local-test-admission.ts` both
-          enumerate members explicitly; extend both. `tierLabel` passes an unmapped member through unchanged,
-          which renders `lane` correctly without a new mapping.
-        - `localVitestTierArguments` in `src/lib/local-vitest-runner.ts` returns
-          `--project unit --project unit-mocks --project integration` for it.
-        - Extend the existing suites rather than adding files: `__tests__/unit/local-test-admission.test.ts` and
-          `__tests__/unit/local-vitest-runner.test.ts`.
-        - A third suite is not optional. `__tests__/unit/e2e-global-setup.test.ts` asserts the package and root
-          manifests by exact string, including `test`, so re-pointing that script in 1.1.b turns it red. Extend it
-          to cover the lane, `test:full`, and `test:changed`; its subject — heavy tiers serialized at the package
-          front while unit-only runs stay concurrent — is exactly what the new scripts have to keep true. It lives
-          in the unit project rather than the contract subset, so 1.4 never reaches it and this enumeration is the
-          only thing that catches it.
-        - Build `test-first` (one behavior at a time):
-            - the tier guard accepts the lane name and still rejects an unrecognized one
-            - the runner emits the three project flags ahead of any caller-forwarded argument
-            - admission holder metadata carrying the lane tier round-trips through the record
+    - `[x]` **1.1.b Re-point the package scripts and add the whole-run and changed-file entries**
 
-    - `[ ]` **1.1.b Re-point the package scripts and add the whole-run and changed-file entries**
+        - Re-pointed `test` to the admitted lane; added `test:full` and a non-admitted `test:changed` against
+          `main...HEAD`, with empty selections failing; and bound package/root delegation through manifest tests.
 
-        - `packages/arc-framework/package.json`: `test` drives the lane tier; a new `test:full` drives `full`.
-        - The per-task gate needs a handle of its own: a `test:changed` script running `vitest run --changed` over
-          the unit projects, so the rule row 1.2.a lands names an invocation the command reference can point at
-          rather than a bare incantation. The `run` subcommand is load-bearing — watch mode is the default on a
-          TTY, and every other non-watch script here uses it. It stays outside the tier runner, and so outside the
-          admission lock, which is what keeps the per-task gate instant.
-        - **The gate must not be satisfiable by doing nothing.** A bare `--changed` resolves against the
-          uncommitted tree and exits zero having run no files, where the filename-fragment command it replaces
-          exits non-zero on a filter that matches nothing — so as a straight swap the per-task gate gets quieter,
-          not louder. Resolve the change set against the work unit's merge base rather than the working tree, so
-          running the gate after the task's own commit still selects that task's files, and report an empty
-          selection as its own outcome rather than as a pass.
-        - The root `package.json` mirrors all three through workspace delegation.
-        - CI calls only the per-tier scripts, so no workflow change belongs here.
+- _Outcome:_ Routine, whole-suite, and merge-base changed-file runs now have distinct commands while only the
+  subprocess-heavy lane and whole suite enter the shared admission slot.
 
 ### `[ ]` **1.2 Carry the lane rows into the project-instance gate documents**
 
