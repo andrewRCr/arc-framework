@@ -12,7 +12,7 @@ function moduleFixture(
   projectName: string,
   collectDuration: number,
   setupDuration: number,
-  tests: Array<{ id: string; name: string; duration?: number; timeout?: number; cliTimeout?: number }>,
+  tests: Array<{ id: string; name: string; duration?: number; timeout?: number; cliTimeout?: number; state?: string }>,
 ): ReportedCostModule {
   return {
     relativeModuleId: path,
@@ -26,6 +26,7 @@ function moduleFixture(
             fullName: test.name,
             options: { timeout: test.timeout ?? 5_000 },
             meta: () => test.cliTimeout === undefined ? {} : { arcTestCostCliTimeoutMs: test.cliTimeout },
+            result: () => ({ state: test.state ?? "passed" }),
             diagnostic: () => test.duration === undefined ? undefined : { duration: test.duration },
           };
         }
@@ -92,6 +93,17 @@ describe("captureTestCost", () => {
         { id: "missing", name: "missing" },
       ]),
     ])).toThrow(/missing duration.*missing/u);
+  });
+
+  it("omits unexecuted skipped cases without masking missing executed timing", () => {
+    const [file] = captureTestCost([
+      moduleFixture("skips.test.ts", "unit", 1, 1, [
+        { id: "ran", name: "ran", duration: 3 },
+        { id: "skipped", name: "skipped", state: "skipped" },
+      ]),
+    ]).files;
+
+    expect(file?.tests.map((test) => test.id)).toEqual(["ran"]);
   });
 
   it("reports headroom against a tighter runCli timeout", () => {

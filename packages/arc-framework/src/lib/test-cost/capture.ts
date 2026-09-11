@@ -7,6 +7,7 @@ export interface ReportedCostTest {
   readonly fullName: string;
   readonly options: { readonly timeout?: number };
   meta?(): unknown;
+  result?(): { readonly state: string };
   diagnostic(): { readonly duration: number } | undefined;
 }
 
@@ -66,9 +67,10 @@ function captureFile(module: ReportedCostModule): TestCostFile {
   const diagnostic = module.diagnostic();
   const collectDurationMs = requireDuration(diagnostic.collectDuration, `${module.relativeModuleId} collection`);
   const setupDurationMs = requireDuration(diagnostic.setupDuration, `${module.relativeModuleId} setup`);
-  const tests = [...module.children.allTests()].map((test) => {
+  const tests = [...module.children.allTests()].flatMap((test) => {
     const testDiagnostic = test.diagnostic();
     if (testDiagnostic === undefined) {
+      if (test.result?.().state === "skipped") return [];
       throw new Error(`Test timing data is missing duration for ${test.fullName}`);
     }
     const durationMs = requireDuration(testDiagnostic.duration, test.fullName);
@@ -81,14 +83,14 @@ function captureFile(module: ReportedCostModule): TestCostFile {
     if (cliTimeoutValue !== undefined && typeof cliTimeoutValue !== "number") {
       throw new Error(`Invalid CLI timeout metadata for ${test.fullName}`);
     }
-    return {
+    return [{
       id: test.id,
       name: test.fullName,
       durationMs,
       vitestTimeoutMs,
       ...(cliTimeoutValue === undefined ? {} : { cliTimeoutMs: cliTimeoutValue }),
       ...resolveTimeoutHeadroom(durationMs, vitestTimeoutMs, cliTimeoutValue),
-    };
+    }];
   });
   if (tests.length === 0) {
     throw new Error(`Vitest returned no test timing data for ${module.relativeModuleId}`);
