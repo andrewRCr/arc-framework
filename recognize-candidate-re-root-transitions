@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "recognize-candidate-re-root-transitions",
+  "claimId": "d48bc56a46bdf97af24c453578104c4d",
+  "createdAt": "2026-09-11T14:22:37.290Z",
+  "updatedAt": "2026-09-11T14:22:37.290Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "recognize-candidate-re-root-transitions",
+  "branch": "chore/recognize-candidate-re-root-transitions",
+  "origin": "inbox",
+  "originEntry": "Recognize Candidate re-root transitions during recovery",
+  "originEntrySourceDigest": "sha256:31f801058c1ce1d695aa0c74cd8a792e2287a891cbae9cbfe60fce8b4cd872f5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
