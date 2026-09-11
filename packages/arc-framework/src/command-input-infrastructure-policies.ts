@@ -4,6 +4,7 @@ import {
   declareInteractionSite,
   type CommandInputDeclaration,
 } from "./lib/command-input/declaration.js";
+import { DEV_BUILD_REFRESH_COMMAND_PATHS } from "./lib/dev-check.js";
 
 const terminalSubprocessPolicy = {
   acquisition: "subprocess" as const,
@@ -40,13 +41,6 @@ const devBuildRefreshSubprocessPolicy = {
   mutationBoundary: "post-action development build refresh",
   subprocess: "close-stdin" as const,
 };
-
-const devBuildRefreshCommandPaths = [
-  "base merge",
-  "delivery review-fix continue",
-  "errand close",
-  "errand open",
-] as const;
 
 const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
   "delivery native link",
@@ -164,7 +158,7 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       hostedGhSubprocessPolicy,
     )] : []),
   ],
-})), ...devBuildRefreshCommandPaths.map((commandPath) => ({
+})), ...DEV_BUILD_REFRESH_COMMAND_PATHS.map((commandPath) => ({
   commandPath,
   aliases: [],
   sites: [

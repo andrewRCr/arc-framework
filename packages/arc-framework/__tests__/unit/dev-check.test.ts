@@ -14,6 +14,7 @@ import {
   createDevCheckDeps,
   hashSourceInputs,
   isBuiltBundleEntry,
+  isDevBuildRefreshCommandPath,
   refreshDevBuildAfterAction,
   refreshStaleDevBuild,
   selectBundleInputs,
@@ -226,7 +227,7 @@ describe("refreshStaleDevBuild", () => {
 });
 
 describe("refreshDevBuildAfterAction", () => {
-  it("runs the repository fast-build script and rechecks its package bundle", async () => {
+  it("builds beside the live bundle, promotes it, and rechecks the package bundle", async () => {
     const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
     try {
       const packageRoot = join(repositoryRoot, "packages", "arc-framework");
@@ -240,6 +241,7 @@ describe("refreshDevBuildAfterAction", () => {
       const stampPath = join(distDir, "dev-build-stamp.json");
       writeFileSync(sourcePath, "export const current = true;\n");
       writeFileSync(cliPath, "#!/usr/bin/env node\n");
+      writeFileSync(join(distDir, "cli.d.ts"), "old declaration\n");
       writeFileSync(join(distDir, "metafile-esm.json"), JSON.stringify({
         inputs: { "src/cli.ts": { bytes: 1 } },
       }));
@@ -247,13 +249,18 @@ describe("refreshDevBuildAfterAction", () => {
 
       const inputsHash = hashSourceInputs([sourcePath], packageRoot);
       writeFileSync(join(repositoryRoot, "refresh.cjs"), [
-        'const { mkdirSync, writeFileSync } = require("node:fs");',
-        `mkdirSync(${JSON.stringify(distDir)}, { recursive: true });`,
-        `writeFileSync(${JSON.stringify(cliPath)}, "#!/usr/bin/env node\\n");`,
-        `writeFileSync(${JSON.stringify(join(distDir, "metafile-esm.json"))}, ${JSON.stringify(
+        'const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");',
+        'const outDir = process.env.ARC_DEV_BUILD_OUT_DIR;',
+        'if (!outDir) throw new Error("missing staged output directory");',
+        `if (readFileSync(${JSON.stringify(cliPath)}, "utf8") !== "#!/usr/bin/env node\\n") {`,
+        '  throw new Error("live CLI disappeared during refresh");',
+        '}',
+        'mkdirSync(outDir, { recursive: true });',
+        'writeFileSync(require("node:path").join(outDir, "cli.js"), "#!/usr/bin/env node\\nnew bundle\\n");',
+        `writeFileSync(require("node:path").join(outDir, "metafile-esm.json"), ${JSON.stringify(
           `${JSON.stringify({ inputs: { "src/cli.ts": { bytes: 1 } } })}\n`,
         )});`,
-        `writeFileSync(${JSON.stringify(stampPath)}, ${JSON.stringify(
+        `writeFileSync(require("node:path").join(outDir, "dev-build-stamp.json"), ${JSON.stringify(
           `${JSON.stringify({ schemaVersion: 1, inputsHash })}\n`,
         )});`,
         "",
@@ -264,12 +271,15 @@ describe("refreshDevBuildAfterAction", () => {
       }));
 
       await expect(refreshDevBuildAfterAction(cliPath)).resolves.toEqual({ kind: "refreshed" });
+      expect(readFileSync(cliPath, "utf8")).toBe("#!/usr/bin/env node\nnew bundle\n");
+      expect(readdirSync(distDir)).not.toContain("cli.d.ts");
+      expect(readdirSync(packageRoot).filter((entry) => entry.startsWith(".arc-dev-build-"))).toEqual([]);
     } finally {
       rmSync(repositoryRoot, { recursive: true, force: true });
     }
   });
 
-  it("restores the previous runnable bundle when the fast build fails after cleaning dist", async () => {
+  it("keeps the previous runnable bundle live when the staged fast build fails", async () => {
     const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
     try {
       const packageRoot = join(repositoryRoot, "packages", "arc-framework");
@@ -291,10 +301,14 @@ describe("refreshDevBuildAfterAction", () => {
       );
 
       writeFileSync(join(repositoryRoot, "fail-refresh.cjs"), [
-        'const { mkdirSync, rmSync, writeFileSync } = require("node:fs");',
-        `rmSync(${JSON.stringify(distDir)}, { recursive: true, force: true });`,
-        `mkdirSync(${JSON.stringify(distDir)}, { recursive: true });`,
-        `writeFileSync(${JSON.stringify(cliPath)}, "partial-bundle\\n");`,
+        'const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");',
+        'const outDir = process.env.ARC_DEV_BUILD_OUT_DIR;',
+        'if (!outDir) throw new Error("missing staged output directory");',
+        `if (readFileSync(${JSON.stringify(cliPath)}, "utf8") !== "known-good-bundle\\n") {`,
+        '  throw new Error("live CLI disappeared during refresh");',
+        '}',
+        'mkdirSync(outDir, { recursive: true });',
+        'writeFileSync(require("node:path").join(outDir, "cli.js"), "partial-bundle\\n");',
         "process.exitCode = 1;",
         "",
       ].join("\n"));
@@ -312,6 +326,21 @@ describe("refreshDevBuildAfterAction", () => {
     } finally {
       rmSync(repositoryRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe("isDevBuildRefreshCommandPath", () => {
+  it.each([
+    "base merge",
+    "arc delivery review-fix continue",
+    "errand close",
+    "errand open",
+  ])("allows the head-moving command %s", (commandPath) => {
+    expect(isDevBuildRefreshCommandPath(commandPath)).toBe(true);
+  });
+
+  it.each(["arc review checks await", "status"])('rejects the read-only command %s', (commandPath) => {
+    expect(isDevBuildRefreshCommandPath(commandPath)).toBe(false);
   });
 });
 

@@ -15,6 +15,7 @@ import { formatUnexpectedError } from "./lib/errors.js";
 import {
   checkDevBuildStaleness,
   createDevCheckDeps,
+  isDevBuildRefreshCommandPath,
   refreshDevBuildAfterAction,
 } from "./lib/dev-check.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
@@ -1842,7 +1843,7 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
   );
   if (verdict.kind === "skip") return;
   if (verdict.kind === "fresh") {
-    devBuildRefreshEligible = true;
+    devBuildRefreshEligible = isDevBuildRefreshCommandPath(formatCommandPath(actionCommand));
     return;
   }
 

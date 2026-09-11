@@ -38,7 +38,7 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { mkdtemp, rename, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
@@ -79,6 +79,30 @@ export type DevCheckResult =
 
 /** Exact developer command that regenerates the self-hosting runtime bundle. */
 export const DEV_BUILD_REFRESH_COMMAND = "npm run build:fast";
+
+/** Internal build-time override used to direct a fast build into a staging directory. */
+export const DEV_BUILD_OUTPUT_DIRECTORY_ENV = "ARC_DEV_BUILD_OUT_DIR";
+
+/** Command families whose successful action may change the running development bundle's inputs. */
+export const DEV_BUILD_REFRESH_COMMAND_PATHS = Object.freeze([
+  "base merge",
+  "delivery review-fix continue",
+  "errand close",
+  "errand open",
+]);
+
+const devBuildRefreshCommandPathSet: ReadonlySet<string> = new Set(DEV_BUILD_REFRESH_COMMAND_PATHS);
+
+/**
+ * Report whether one Commander action path can self-mutate bundled source.
+ *
+ * @param commandPath - Commander path, with or without the root `arc` name
+ * @returns True only for a supported head-moving action
+ */
+export function isDevBuildRefreshCommandPath(commandPath: string): boolean {
+  const normalized = commandPath.startsWith("arc ") ? commandPath.slice("arc ".length) : commandPath;
+  return devBuildRefreshCommandPathSet.has(normalized);
+}
 
 /** Injectable freshness and build boundaries for the post-command refresh. */
 export interface DevBuildRefreshDeps {
@@ -217,28 +241,22 @@ async function runFastDevBuild(cwd: string, distDir: string): Promise<
   | { kind: "failed"; message: string }
 > {
   const packageRoot = dirname(distDir);
-  let backupRoot: string;
+  let stagingDir: string;
   try {
-    backupRoot = await mkdtemp(join(packageRoot, ".arc-dev-build-"));
+    stagingDir = await mkdtemp(join(packageRoot, ".arc-dev-build-"));
   } catch (error) {
     return {
       kind: "failed",
-      message: `could not preserve the current development bundle: ${errorMessage(error)}`,
-    };
-  }
-  try {
-    await rename(distDir, join(backupRoot, "dist"));
-  } catch (error) {
-    await rm(backupRoot, { recursive: true, force: true }).catch(() => undefined);
-    return {
-      kind: "failed",
-      message: `could not preserve the current development bundle: ${errorMessage(error)}`,
+      message: `could not prepare a staged development build: ${errorMessage(error)}`,
     };
   }
 
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
   const build = await new Promise<{ kind: "completed" } | { kind: "failed"; message: string }>((settle) => {
-    const child = execFile(executable, ["run", "build:fast"], { cwd }, (error) => {
+    const child = execFile(executable, ["run", "build:fast"], {
+      cwd,
+      env: { ...process.env, [DEV_BUILD_OUTPUT_DIRECTORY_ENV]: stagingDir },
+    }, (error) => {
       settle(error === null
         ? { kind: "completed" }
         : { kind: "failed", message: error.message });
@@ -246,29 +264,59 @@ async function runFastDevBuild(cwd: string, distDir: string): Promise<
     child.stdin?.end();
   });
 
-  if (build.kind === "completed") {
-    try {
-      await rm(backupRoot, { recursive: true, force: true });
-      return build;
-    } catch (error) {
-      return {
-        kind: "failed",
-        message: `the build completed but its preserved predecessor could not be removed: ${errorMessage(error)}`,
-      };
-    }
+  if (build.kind === "failed") {
+    await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
+    return build;
   }
 
   try {
-    await rm(distDir, { recursive: true, force: true });
-    await rename(join(backupRoot, "dist"), distDir);
-    await rm(backupRoot, { recursive: true, force: true });
+    await promoteStagedDevBuild(stagingDir, distDir);
+    await rm(stagingDir, { recursive: true, force: true });
   } catch (error) {
+    await rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
     return {
       kind: "failed",
-      message: `${build.message}; restoring the previous development bundle failed: ${errorMessage(error)}`,
+      message: `the build completed but its staged output could not be promoted: ${errorMessage(error)}`,
     };
   }
   return build;
+}
+
+async function promoteStagedDevBuild(stagingDir: string, distDir: string): Promise<void> {
+  const stagedFiles = await listRelativeFiles(stagingDir);
+  const liveFiles = await listRelativeFiles(distDir);
+  const entry = "cli.js";
+  if (!stagedFiles.includes(entry)) {
+    throw new Error("staged build did not produce cli.js");
+  }
+
+  for (const file of stagedFiles.filter((candidate) => candidate !== entry)) {
+    const destination = join(distDir, file);
+    await mkdir(dirname(destination), { recursive: true });
+    await rename(join(stagingDir, file), destination);
+  }
+
+  // The package bin always resolves this path. Replacing the file by rename keeps
+  // either the old or new complete entry visible to concurrent invocations.
+  await rename(join(stagingDir, entry), join(distDir, entry));
+
+  const stagedFileSet = new Set(stagedFiles);
+  await Promise.all(liveFiles
+    .filter((file) => !stagedFileSet.has(file))
+    .map((file) => rm(join(distDir, file), { force: true })));
+}
+
+async function listRelativeFiles(root: string, current = root): Promise<string[]> {
+  const files: string[] = [];
+  for (const entry of await readdir(current, { withFileTypes: true })) {
+    const path = join(current, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await listRelativeFiles(root, path));
+    } else {
+      files.push(relative(root, path));
+    }
+  }
+  return files.sort();
 }
 
 function errorMessage(error: unknown): string {

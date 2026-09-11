@@ -1,7 +1,10 @@
 import { defineConfig, type Options } from "tsup";
 import { resolve } from "node:path";
 
-import { writeDevBuildStamp } from "./src/lib/dev-check.js";
+import {
+  DEV_BUILD_OUTPUT_DIRECTORY_ENV,
+  writeDevBuildStamp,
+} from "./src/lib/dev-check.js";
 import { registerDeliveryDomainSchemas } from "./src/lib/delivery/schema.js";
 import { registerDeliveryAuthoringSchemas } from "./src/lib/delivery/design-inventory.js";
 import { createKernelRegistry } from "./src/lib/kernel/index.js";
@@ -13,11 +16,13 @@ import { registerReviewDomainSchemas } from "./src/scripts/review-gate/core/regi
  * Shared build options. The runtime-only build in `tsup.fast.config.ts` derives from these rather
  * than restating them, so anything added here reaches both build paths.
  */
+const outputDirectory = process.env[DEV_BUILD_OUTPUT_DIRECTORY_ENV] ?? "dist";
+
 export const baseOptions = {
   entry: ["src/cli.ts"],
   format: ["esm"],
   target: "node24",
-  outDir: "dist",
+  outDir: outputDirectory,
   clean: true,
   dts: true,
   sourcemap: true,
@@ -26,7 +31,7 @@ export const baseOptions = {
   metafile: true,
   onSuccess: async () => {
     const pkgDir = import.meta.dirname;
-    const outDir = resolve(pkgDir, "dist");
+    const outDir = resolve(pkgDir, outputDirectory);
     const registry = registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
       registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
     ));
