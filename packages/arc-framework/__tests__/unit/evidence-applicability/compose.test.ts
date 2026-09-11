@@ -220,6 +220,42 @@ describe("evidence delta composition", () => {
     }).success).toBe(false);
   });
 
+  it("rejects paths classified as both substantive and regenerable", () => {
+    const duplicatedPath = ".arc/backlog/ROADMAP.md";
+    expect(() => composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: {
+          status: "available",
+          substantivePaths: [duplicatedPath],
+          regenerablePaths: [duplicatedPath],
+        },
+      },
+    })).toThrow(/substantive and regenerable path evidence must be disjoint/u);
+
+    const normalized = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: {
+          status: "available",
+          substantivePaths: ["packages/arc-framework/src/example.ts"],
+          regenerablePaths: [duplicatedPath],
+        },
+      },
+    });
+    expect(EvidenceDeltaSchema.safeParse({
+      ...normalized,
+      overlap: {
+        kind: "overlapping",
+        substantivePaths: [duplicatedPath],
+        regenerablePaths: [duplicatedPath],
+      },
+      residual: [duplicatedPath],
+    }).success).toBe(false);
+  });
+
   it("retains exact over-bound overlap while closing the judgment residual", () => {
     const paths = Array.from(
       { length: 201 },
