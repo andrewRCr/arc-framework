@@ -148,6 +148,7 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
     reason: z.enum([
       "identity-moved",
       "target-moved",
+      "base-moved",
       "checks-failed",
       "merge-method-moved",
       "review-applicability-fresh",
@@ -804,6 +805,21 @@ export async function mergeErrand(
         ),
       );
     }
+    if (refusedPlan.baseOid !== final.baseOid) {
+      return withReheldTarget(
+        request,
+        dependencies,
+        refusedPlan.target,
+        refusedPlan.baseOid,
+        invalidatedResult(
+          request,
+          "base-moved",
+          "The target base moved while the definitive host refusal was being classified.",
+          refusedPlan.target,
+          refusedPlan.baseOid,
+        ),
+      );
+    }
     if (refusedPlan.plan.state === "blocked" && refusedPlan.plan.reason === "host-refused") {
       return withReheldTarget(
         request,
@@ -891,6 +907,21 @@ export async function mergeErrand(
           request,
           "target-moved",
           "The target moved while the host currentness requirement was being classified.",
+          currentnessPlan.target,
+          currentnessPlan.baseOid,
+        ),
+      );
+    }
+    if (currentnessPlan.baseOid !== final.baseOid) {
+      return withReheldTarget(
+        request,
+        dependencies,
+        currentnessPlan.target,
+        currentnessPlan.baseOid,
+        invalidatedResult(
+          request,
+          "base-moved",
+          "The target base moved while the host currentness requirement was being classified.",
           currentnessPlan.target,
           currentnessPlan.baseOid,
         ),

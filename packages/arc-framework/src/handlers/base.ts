@@ -187,9 +187,10 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
   const exec = createGitExec(interaction?.subprocess);
 
   const config = await readConfigSettings(cwd);
-  const configUnavailable = config.warnings.some(
+  const configFailure = config.warnings.find(
     (warning) => warning.startsWith("Unable to read arc-config.yml:"),
   );
+  const configUnavailable = configFailure !== undefined;
   const result: BaseDriftResult = configUnavailable
     ? {
         mode: "authoritative",
@@ -204,6 +205,12 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         integrationEvidence: null,
         overlap: null,
         register: composeUnavailableRegister(null, "config-unavailable"),
+        detail: configFailure.replace(/\s+/gu, " ").trim().slice(0, 4_096),
+        coordinates: { base: null, baseOid: null, headOid: null },
+        continuation: {
+          kind: "terminal-explanation",
+          terminalExplanation: "Repair .arc/system/arc-config.yml, then rerun arc base drift.",
+        },
         failureReason: "error",
       }
     : await (async () => {
@@ -245,9 +252,14 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         `Base \`${result.base ?? "base"}\` is current at \`${result.baseOid ?? "unknown"}\`.`,
         "Base current",
       );
+    } else if (result.verdict === "unavailable") {
+      p.log.error([
+        result.register?.text,
+        result.detail,
+        result.continuation.terminalExplanation,
+      ].filter((line): line is string => line !== undefined).join("\n"));
     } else if (result.register !== null) {
-      const render = result.verdict === "unavailable" ? p.log.error : p.note;
-      render(result.register.text, result.verdict === "reconcile" ? "Base reconciliation" : undefined);
+      p.note(result.register.text, "Base reconciliation");
     }
     p.outro(result.verdict === "unavailable" ? "Unavailable." : "Done.");
   }

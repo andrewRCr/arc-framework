@@ -578,12 +578,22 @@ export async function executeDeliverySuffixRewrite(input: {
   /** Selected review fixes are authorized content changes, not false equivalence claims. */
   readonly contributionMode?: "prove-equivalent" | "selected-change";
   readonly operationMode?: "review-fix" | "selected-change";
-  readonly revalidateLifecycle: () => Promise<{ readonly status: "ok" | "refused" }>;
+  readonly revalidateLifecycle: () => Promise<
+    | { readonly status: "ok" }
+    | {
+        readonly status: "refused";
+        readonly reason?: string;
+        readonly paths?: readonly string[];
+      }
+  >;
   readonly rewriteRef: (input: {
     readonly ref: string;
     readonly beforeHead: string;
     readonly requestedHead: string;
-  }) => Promise<{ readonly status: "rewritten" | "adopted" | "refused" }>;
+  }) => Promise<
+    | { readonly status: "rewritten" | "adopted" }
+    | { readonly status: "refused"; readonly reason?: string }
+  >;
   readonly observeResult: () => Promise<DeliveryOperationSnapshotV1>;
   readonly proveContribution: () => Promise<DeliveryContributionProofResult>;
   readonly stateStore: StateWriter;
@@ -594,14 +604,20 @@ export async function executeDeliverySuffixRewrite(input: {
       readonly status: "refused";
       readonly reason:
         | "position-mismatch"
+        | "selected-change-authority-required"
         | "lifecycle-contribution"
         | "reservation-refused"
         | "state-conflict"
         | "precondition-mismatch"
         | "rewrite-refused"
         | "ambiguous-result";
+      readonly paths?: readonly string[];
+      readonly detail?: string;
     }
 > {
+  if (input.contributionMode === "selected-change" && input.operationMode !== "selected-change") {
+    return { status: "refused", reason: "selected-change-authority-required" };
+  }
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.deliverableId);
   const requestedMember = input.requested.members[0];
   if (canonicalize(input.requested.target) !== canonicalize(input.current.value.target)
@@ -610,8 +626,14 @@ export async function executeDeliverySuffixRewrite(input: {
     || requestedMember.changeRequest?.providerId !== member.changeRequest?.providerId
     || requestedMember.changeRequest?.changeRequestId !== member.changeRequest?.changeRequestId
     || requestedMember.coordinates === null) return { status: "refused", reason: "position-mismatch" };
-  if ((await input.revalidateLifecycle()).status !== "ok") {
-    return { status: "refused", reason: "lifecycle-contribution" };
+  const lifecycle = await input.revalidateLifecycle();
+  if (lifecycle.status !== "ok") {
+    return {
+      status: "refused",
+      reason: "lifecycle-contribution",
+      ...(lifecycle.paths === undefined ? {} : { paths: lifecycle.paths }),
+      ...(lifecycle.reason === undefined ? {} : { detail: `Lifecycle revalidation refused: ${lifecycle.reason}.` }),
+    };
   }
   const before: DeliveryOperationSnapshotV1 = {
     target: input.current.value.target,
@@ -644,7 +666,13 @@ export async function executeDeliverySuffixRewrite(input: {
     beforeHead: member.coordinates.head,
     requestedHead: requestedMember.coordinates.head,
   });
-  if (rewritten.status === "refused") return { status: "refused", reason: "rewrite-refused" };
+  if (rewritten.status === "refused") {
+    return {
+      status: "refused",
+      reason: "rewrite-refused",
+      ...(rewritten.reason === undefined ? {} : { detail: `Ref rewrite refused: ${rewritten.reason}.` }),
+    };
+  }
   const observed = await input.observeResult();
   if (input.contributionMode !== "selected-change") {
     const proof = await input.proveContribution();

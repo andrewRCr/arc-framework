@@ -1087,6 +1087,51 @@ describe("delivery suffix reconciliation", () => {
     expect(rewriteRef).not.toHaveBeenCalled();
   });
 
+  it("preserves narrow lifecycle and ref-adapter refusal diagnostics", async () => {
+    const { plan, state } = movedFixture();
+    const member = state.members[1]!;
+    const request = { target: state.target, members: [{ ...member }] };
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested: request,
+      revalidateLifecycle: async () => ({
+        status: "refused", reason: "entry-unavailable", paths: ["meta.md"],
+      }),
+      rewriteRef: async () => { throw new Error("must not rewrite"); },
+      observeResult: async () => { throw new Error("must not observe"); },
+      proveContribution: async () => { throw new Error("must not prove"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "lifecycle-contribution",
+      paths: ["meta.md"],
+      detail: "Lifecycle revalidation refused: entry-unavailable.",
+    });
+
+    const writes: DeliveryStateV1[] = [];
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested: request,
+      revalidateLifecycle: async () => ({ status: "ok" }),
+      rewriteRef: async () => ({ status: "refused", reason: "stale-lease" }),
+      observeResult: async () => { throw new Error("must not observe"); },
+      proveContribution: async () => { throw new Error("must not prove"); },
+      stateStore: { publish: async (_id, value, revision) => {
+        writes.push(value);
+        return { status: "ok", value: { revision: revision + 1, value } };
+      } },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "rewrite-refused",
+      detail: "Ref rewrite refused: stale-lease.",
+    });
+    expect(writes).toHaveLength(1);
+  });
+
   it("refuses a foreign requested target before lifecycle checks, reservation, or ref mutation", async () => {
     const { plan, state } = movedFixture();
     const member = state.members[1]!;
@@ -1131,6 +1176,7 @@ describe("delivery suffix reconciliation", () => {
     const result = await executeDeliverySuffixRewrite({
       plan, current: { revision: 7, value: state }, deliverableId: member.deliverableId, requested,
       contributionMode: "selected-change",
+      operationMode: "selected-change",
       revalidateLifecycle: async () => ({ status: "ok" }),
       rewriteRef: async () => ({ status: "rewritten" }), observeResult: async () => requested,
       proveContribution,
@@ -1140,5 +1186,26 @@ describe("delivery suffix reconciliation", () => {
     });
     expect(result.status).toBe("applied");
     expect(proveContribution).not.toHaveBeenCalled();
+  });
+
+  it("does not let the equivalence exemption stand in for internal selected-change authority", async () => {
+    const { plan, state } = movedFixture();
+    const member = state.members[1]!;
+    const rewriteRef = vi.fn();
+    const publish = vi.fn();
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested: { target: state.target, members: [{ ...member }] },
+      contributionMode: "selected-change",
+      revalidateLifecycle: async () => ({ status: "ok" }),
+      rewriteRef,
+      observeResult: async () => { throw new Error("must not observe"); },
+      proveContribution: async () => { throw new Error("must not prove"); },
+      stateStore: { publish },
+    })).resolves.toEqual({ status: "refused", reason: "selected-change-authority-required" });
+    expect(rewriteRef).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
   });
 });

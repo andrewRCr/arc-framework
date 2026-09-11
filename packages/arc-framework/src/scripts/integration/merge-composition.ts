@@ -358,8 +358,7 @@ export function createIntegrationMergeDependencies(input: {
         liveTarget(target),
       ]);
       if (drift.baseOid === null || drift.movement === undefined
-        || typeof drift.headOid !== "string" || drift.headOid !== observedTarget.headSha
-        || (drift.verdict !== "clean" && drift.verdict !== "reconcile")) {
+        || typeof drift.headOid !== "string" || drift.headOid !== observedTarget.headSha) {
         return {
           status: "unavailable",
           target: observedTarget,

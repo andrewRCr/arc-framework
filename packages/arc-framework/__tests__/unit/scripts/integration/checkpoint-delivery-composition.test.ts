@@ -262,6 +262,7 @@ describe("delivery checkpoint composition", () => {
       base: "main",
       baseOid: oid("d"),
       headOid: oid("c"),
+      movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 1,
@@ -352,6 +353,7 @@ describe("delivery checkpoint composition", () => {
       base: "main",
       baseOid: baseRevision,
       headOid: oid("c"),
+      movement: "overlapping",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 1,
@@ -399,6 +401,7 @@ describe("delivery checkpoint composition", () => {
       base: "main",
       baseOid: baseRevision,
       headOid: oid("c"),
+      movement: "overlapping",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 1,
@@ -441,6 +444,7 @@ describe("delivery checkpoint composition", () => {
       base: "main",
       baseOid: baseRevision,
       headOid: oid("c"),
+      movement: "overlapping",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 1,
@@ -498,6 +502,7 @@ describe("delivery checkpoint composition", () => {
         base: "main",
         baseOid: baseRevision,
         headOid: oid("c"),
+        movement: "overlapping",
         integrationEvidence: {
           coverage: "complete",
           scannedCommitCount: 1,

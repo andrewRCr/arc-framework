@@ -19,6 +19,7 @@ export type BaseDriftUnavailableReason =
   | "fetch-timeout"
   | "fetch-failed"
   | "base-object-pending-fetch"
+  | "remote-evidence-unreachable"
   | "remote-base-absent"
   | "fetched-base-unresolved"
   | "distance-read-failed";
@@ -67,9 +68,19 @@ export type BaseDriftRegister = {
   text: string;
 } | null;
 
-export interface BaseDriftResult {
+export interface BaseDriftCoordinates {
+  base: string | null;
+  baseOid: string | null;
+  headOid: string | null;
+}
+
+export interface BaseDriftTerminalContinuation {
+  kind: "terminal-explanation";
+  terminalExplanation: string;
+}
+
+interface BaseDriftResultCommon {
   mode: BaseDriftMode;
-  verdict: BaseDriftVerdict;
   state: WorktreeSyncState;
   ahead: number;
   behind: number;
@@ -77,15 +88,40 @@ export interface BaseDriftResult {
   baseOid: string | null;
   /** Exact local commit analyzed by a healthy reading; null when no graph reading was available. */
   headOid: string | null;
-  /** Path interaction for a healthy reading; omitted when drift is unavailable or skipped. */
-  movement?: BaseMovement;
-  unavailableReason?: BaseDriftUnavailableReason;
   integrationEvidence: IntegrationEvidence | null;
   overlap: OverlapEvidence | null;
   register: BaseDriftRegister;
   /** Compatibility failure category retained while status consumers migrate. */
   failureReason?: "timeout" | "error";
 }
+
+/** Public base-drift result with a complete non-success explanation at the unavailable boundary. */
+export type BaseDriftResult = BaseDriftResultCommon & (
+  | {
+      verdict: "clean" | "reconcile";
+      movement: BaseMovement;
+      unavailableReason?: never;
+      detail?: never;
+      coordinates?: never;
+      continuation?: never;
+    }
+  | {
+      verdict: "unavailable";
+      movement?: never;
+      unavailableReason: BaseDriftUnavailableReason;
+      detail: string;
+      coordinates: BaseDriftCoordinates;
+      continuation: BaseDriftTerminalContinuation;
+    }
+  | {
+      verdict: "skipped";
+      movement?: never;
+      unavailableReason?: never;
+      detail?: never;
+      coordinates?: never;
+      continuation?: never;
+    }
+);
 
 export interface BaseDriftCommitInput {
   oid: string;

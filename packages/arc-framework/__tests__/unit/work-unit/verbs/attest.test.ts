@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import {
+  CandidateManagedRecordV1Schema,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
+  createCandidateVerificationResponseEvidence,
   type CandidateManagedRecordV1,
 } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import {
@@ -101,7 +103,7 @@ async function pendingHarness(approvedVerification: "focused" | "full") {
   });
   fixture.replaceRecord({ ...root, transitions: [response] });
   fixture.setCurrentTarget(changedTarget);
-  return { fixture, root, changedTarget };
+  return { fixture, root, changedTarget, response };
 }
 
 describe("runAttest", () => {
@@ -233,6 +235,77 @@ describe("runAttest", () => {
       });
     },
   );
+
+  it("refuses reuse of review-response verification evidence before write", async () => {
+    const { fixture, root, changedTarget, response } = await pendingHarness("focused");
+
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+      verificationEvidenceRef: response.verificationEvidenceRefs[0],
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "verification-evidence-reused",
+      candidateId: root.attestation.candidateId,
+      subjectDigest: changedTarget.subject.subjectDigest,
+      requestedScope: "focused",
+      requiredScope: "focused",
+    });
+    expect(fixture.state()).toMatchObject({ publicationCount: 1, storedRecord: { lineageAttestations: [] } });
+  });
+
+  it("refuses reuse of earlier verification-response evidence before write", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const root = fixture.state().storedRecord!;
+    const verifiedTarget = { revision: CHANGED_REVISION, subject: subject("verified-response") };
+    const verification = createCandidateVerificationResponseEvidence({
+      candidateId: root.attestation.candidateId,
+      oldTarget: { revision: REVISION, subject: subject() },
+      newTarget: verifiedTarget,
+      authorityRef: canonicalDigest({ authority: "verification-response" }),
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-12T13:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://example/prior-response"],
+      implementationChanged: true,
+    });
+    const pendingTarget = { revision: FINAL_REVISION, subject: subject("pending-after-verification") };
+    const pending = createCandidateReviewResponseEvidence({
+      candidateId: root.attestation.candidateId,
+      oldTarget: verifiedTarget,
+      newTarget: pendingTarget,
+      dispositionId: canonicalDigest({ dispositions: "pending-after-verification" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      approvedVerification: "focused",
+      verificationEvidenceRefs: ["test://candidate/pending-after-verification"],
+      implementationChanged: true,
+    });
+    fixture.replaceRecord(CandidateManagedRecordV1Schema.parse({
+      ...root,
+      transitions: [verification, pending],
+    }));
+    fixture.setCurrentTarget(pendingTarget);
+
+    await expect(runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+      verificationEvidenceRef: verification.verificationEvidenceRefs[0],
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "verification-evidence-reused",
+      candidateId: root.attestation.candidateId,
+      subjectDigest: pendingTarget.subject.subjectDigest,
+      requiredScope: "focused",
+    });
+    expect(fixture.state()).toMatchObject({ publicationCount: 1, storedRecord: { lineageAttestations: [] } });
+  });
 
   it("refuses convergence without a fresh evidence reference", async () => {
     const { fixture, root, changedTarget } = await pendingHarness("focused");

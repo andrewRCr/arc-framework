@@ -250,6 +250,7 @@ describe("Candidate attestation", () => {
     const convergence = [firstResponse, secondResponse].map((response, index) =>
       createCandidateLineageAttestation({
         candidateId: root.candidateId,
+        responseId: response.responseId,
         target: index === 0
           ? {
               revision: response.newTarget.revision,
@@ -277,6 +278,46 @@ describe("Candidate attestation", () => {
       lineageAttestations: convergence,
     }).success).toBe(true);
   });
+
+  it.each(["root", "response"] as const)(
+    "rejects a lineage attestation that reuses %s verification evidence",
+    (source) => {
+      const root = attestation();
+      const changed = snapshot(canonicalDigest({ source: `reuse-${source}` }));
+      const response = createCandidateReviewResponseEvidence({
+        candidateId: root.candidateId,
+        oldTarget: { revision: SHA_A, subject: snapshot() },
+        newTarget: { revision: SHA_B, subject: changed },
+        dispositionId: canonicalDigest({ dispositions: `reuse-${source}` }),
+        approvedBy: "andrew",
+        appliedBy: "codex",
+        applicability: "focused",
+        approvedVerification: "focused",
+        verificationEvidenceRefs: ["verification://example/review-response"],
+        implementationChanged: true,
+      });
+      const reusedEvidenceRef = source === "root"
+        ? root.verificationEvidenceRef
+        : response.verificationEvidenceRefs[0]!;
+
+      expect(CandidateManagedRecordV1Schema.safeParse({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: root,
+        subject: snapshot(),
+        transitions: [response],
+        lineageAttestations: [createCandidateLineageAttestation({
+          candidateId: root.candidateId,
+          responseId: response.responseId,
+          target: response.newTarget,
+          attestedBy: "andrew",
+          attestedAt: "2026-08-12T13:00:00.000Z",
+          verificationEvidenceRef: reusedEvidenceRef,
+          scope: "focused",
+        })],
+      }).success).toBe(false);
+    },
+  );
 });
 
 describe("Candidate lineage currentness", () => {
@@ -473,6 +514,7 @@ describe("Candidate lineage currentness", () => {
     for (const scope of ["focused", "full"] as const) {
       expect(createCandidateLineageAttestation({
         candidateId: root.candidateId,
+        responseId: canonicalDigest({ response: "review-fix" }),
         target,
         attestedBy: "andrew",
         attestedAt: "2026-08-12T13:00:00.000Z",
@@ -482,6 +524,7 @@ describe("Candidate lineage currentness", () => {
         schemaVersion: 1,
         semanticsVersion: "candidate-attestation/v1",
         candidateId: root.candidateId,
+        responseId: canonicalDigest({ response: "review-fix" }),
         target,
         attestedBy: "andrew",
         attestedAt: "2026-08-12T13:00:00.000Z",
@@ -491,6 +534,7 @@ describe("Candidate lineage currentness", () => {
     }
     expect(() => createCandidateLineageAttestation({
       candidateId: root.candidateId,
+      responseId: canonicalDigest({ response: "review-fix" }),
       target,
       attestedBy: "andrew",
       attestedAt: "2026-08-12T13:00:00.000Z",
@@ -521,6 +565,7 @@ describe("Candidate lineage currentness", () => {
       transitions: [response],
       lineageAttestations: [createCandidateLineageAttestation({
         candidateId: root.candidateId,
+        responseId: response.responseId,
         target: response.newTarget,
         attestedBy: "andrew",
         attestedAt: "2026-08-12T13:00:00.000Z",
@@ -540,7 +585,11 @@ describe("Candidate lineage currentness", () => {
     expect(CandidateManagedRecordV1Schema.safeParse({
       ...makeRecord("full"),
       transitions: [focusedResponse],
-      lineageAttestations: [{ ...makeRecord("full").lineageAttestations[0]!, target: focusedResponse.newTarget }],
+      lineageAttestations: [{
+        ...makeRecord("full").lineageAttestations[0]!,
+        responseId: focusedResponse.responseId,
+        target: focusedResponse.newTarget,
+      }],
     }).success).toBe(true);
   });
 
@@ -574,6 +623,7 @@ describe("Candidate lineage currentness", () => {
     });
     const fullAttestation = createCandidateLineageAttestation({
       candidateId: root.candidateId,
+      responseId: full.responseId,
       target: full.newTarget,
       attestedBy: "andrew",
       attestedAt: "2026-08-12T13:00:00.000Z",
@@ -582,6 +632,7 @@ describe("Candidate lineage currentness", () => {
     });
     const focusedAttestation = createCandidateLineageAttestation({
       candidateId: root.candidateId,
+      responseId: focused.responseId,
       target: focused.newTarget,
       attestedBy: "andrew",
       attestedAt: "2026-08-12T14:00:00.000Z",
@@ -782,6 +833,7 @@ describe("Candidate lineage currentness", () => {
       transitions: [focused, targeted],
       lineageAttestations: [createCandidateLineageAttestation({
         candidateId: root.candidateId,
+        responseId: focused.responseId,
         target: focused.newTarget,
         attestedBy: "andrew",
         attestedAt: "2026-08-12T13:00:00.000Z",
@@ -799,6 +851,75 @@ describe("Candidate lineage currentness", () => {
       convergenceScope: null,
     });
   });
+
+  it.each(["focused", "full"] as const)(
+    "does not reuse an earlier attestation when a repeated subject later requires %s convergence",
+    (laterScope) => {
+      const root = attestation();
+      const repeatedSubject = snapshot(canonicalDigest({ source: "repeated-subject" }));
+      const intermediateSubject = snapshot(canonicalDigest({ source: "intermediate-subject" }));
+      const first = createCandidateReviewResponseEvidence({
+        candidateId: root.candidateId,
+        oldTarget: { revision: SHA_A, subject: snapshot() },
+        newTarget: { revision: SHA_B, subject: repeatedSubject },
+        dispositionId: canonicalDigest({ dispositions: "first-focused" }),
+        approvedBy: "andrew",
+        appliedBy: "codex",
+        applicability: "focused",
+        approvedVerification: "focused",
+        verificationEvidenceRefs: ["test://candidate/first-focused"],
+        implementationChanged: true,
+      });
+      const targeted = createCandidateReviewResponseEvidence({
+        candidateId: root.candidateId,
+        oldTarget: first.newTarget,
+        newTarget: { revision: SHA_C, subject: intermediateSubject },
+        dispositionId: canonicalDigest({ dispositions: "intermediate-targeted" }),
+        approvedBy: "andrew",
+        appliedBy: "codex",
+        applicability: "targeted",
+        approvedVerification: "targeted",
+        verificationEvidenceRefs: ["test://candidate/intermediate-targeted"],
+        implementationChanged: true,
+      });
+      const repeated = createCandidateReviewResponseEvidence({
+        candidateId: root.candidateId,
+        oldTarget: targeted.newTarget,
+        newTarget: { revision: SHA_D, subject: repeatedSubject },
+        dispositionId: canonicalDigest({ dispositions: `repeated-${laterScope}` }),
+        approvedBy: "andrew",
+        appliedBy: "codex",
+        applicability: laterScope,
+        approvedVerification: laterScope,
+        verificationEvidenceRefs: [`test://candidate/repeated-${laterScope}`],
+        implementationChanged: true,
+      });
+      const parsed = CandidateManagedRecordV1Schema.safeParse({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: root,
+        subject: snapshot(),
+        transitions: [first, targeted, repeated],
+        lineageAttestations: [createCandidateLineageAttestation({
+          candidateId: root.candidateId,
+          responseId: first.responseId,
+          target: first.newTarget,
+          attestedBy: "andrew",
+          attestedAt: "2026-08-12T13:00:00.000Z",
+          verificationEvidenceRef: "verification://example/first-focused",
+          scope: "focused",
+        })],
+      });
+
+      expect(parsed.success).toBe(true);
+      if (!parsed.success) throw new Error("expected occurrence-bound Candidate evidence");
+      expect(projectCandidateCurrentness({ record: parsed.data, current: repeated.newTarget })).toMatchObject({
+        status: "current",
+        convergenceVerification: "pending",
+        convergenceScope: laterScope,
+      });
+    },
+  );
 
   it("returns the broadest pending scope from the shared verification reducer", () => {
     const root = attestation();

@@ -202,8 +202,7 @@ export function createErrandMergeDependencies(input: {
       ]);
       if (drift.baseOid === null || drift.movement === undefined
         || typeof drift.headOid !== "string" || drift.headOid !== observedTarget.headSha
-        || drift.overlap === null
-        || (drift.verdict !== "clean" && drift.verdict !== "reconcile")) {
+        || drift.overlap === null) {
         return {
           status: "unavailable",
           target: observedTarget,

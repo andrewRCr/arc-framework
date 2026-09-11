@@ -399,7 +399,10 @@ remote base all name the same exact head. Any tracked change continues through t
    through Step 4's review-applicability route. Compose the final `openedChangeRequest`, require any planning-grooming
    adapter target to match it, and retain the exact strict Errand identity and selected lane.
 
-   Invoke `arc review merge-method resolve --json` once and continue only from `validated / use-method`. Retain the
+   Run `arc base drift --json` once immediately before approval composition. Continue only from a healthy reading
+   whose `headOid` equals the exact Errand head; retain its `baseOid` as pre-approval evidence, not mutation authority.
+   The terminal operation will perform its own post-approval observation. Invoke
+   `arc review merge-method resolve --json` once and continue only from `validated / use-method`. Retain the
    returned `method` and `policyFingerprint`; `blocked / stop` stops. Compose one strict `errandMergeRequest` from
    those returned values plus `schemaVersion: 1`, the strict Errand `slug`, `claimId`, `branch`, and `generation`,
    the exact `repository`, `pullRequest`, `baseRef`, `headRef`, and `headSha`, and the selected `lane`.
@@ -410,7 +413,10 @@ remote base all name the same exact head. Any tracked change continues through t
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the exact Errand merge request and extension report are settled. Surface the
-> request, review applicability, proposed final dispositions, required checks and approvals, and resolved lane. State
+> request, review applicability, proposed final dispositions, required checks and approvals, and resolved lane. Name
+> the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host
+> supplies a stronger currency guarantee, and that base movement during the provider's in-call merge window remains
+> a residual race. The base OID qualifies the evidence but is not merge authority. State
 > that approval applies those dispositions and channel settlement, ends review, and authorizes the exact-head merge
 > represented by this request. A redirect may instead select release-only for asynchronous host review or later manual
 > merge. Close with `Approve (or redirect)?`.

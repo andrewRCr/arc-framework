@@ -143,6 +143,12 @@ describe("snapshot-driven base distance", () => {
       base: "main",
       baseOid: BASE_OID,
       unavailableReason: "base-object-pending-fetch",
+      detail: expect.stringContaining("not available in the local object store"),
+      coordinates: { base: "main", baseOid: BASE_OID, headOid: null },
+      continuation: {
+        kind: "terminal-explanation",
+        terminalExplanation: expect.stringContaining("Acquire the advertised main commit"),
+      },
       remoteEvidence: "pending-fetch",
     });
   });
@@ -183,6 +189,9 @@ describe("snapshot-driven base distance", () => {
       base: "main",
       baseOid: null,
       unavailableReason: "remote-base-absent",
+      detail: expect.stringContaining("does not identify an advertised commit"),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
       remoteEvidence: "exact",
     });
   });
@@ -203,6 +212,10 @@ describe("snapshot-driven base distance", () => {
       behind: 0,
       base: "main",
       baseOid: null,
+      unavailableReason: "remote-evidence-unreachable",
+      detail: expect.stringContaining("unreachable"),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
       remoteEvidence: "unreachable",
       failureReason: "auth",
     });
@@ -288,6 +301,9 @@ describe("base drift raw-distance boundary", () => {
       .resolves.toMatchObject({
         verdict: "unavailable",
         unavailableReason: "remote-base-absent",
+        detail: expect.stringContaining("does not identify an advertised commit"),
+        coordinates: { base: "main", baseOid: null, headOid: null },
+        continuation: { kind: "terminal-explanation" },
       });
     expect(calls.some((args) => args.includes("--verify"))).toBe(false);
   });
@@ -369,6 +385,11 @@ describe("base drift raw-distance boundary", () => {
     const { exec, calls } = gitMock();
     const result = await runBaseDrift({ exec, baseBranch: "--upload-pack=x", mode: "authoritative" });
     expect(result.unavailableReason).toBe("invalid-base");
+    expect(result).toMatchObject({
+      detail: expect.stringMatching(/safe Git branch name.*Unsafe base ref/u),
+      coordinates: { base: "--upload-pack=x", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
+    });
     expect(calls.some((args) => args[0] === "fetch")).toBe(false);
   });
 
@@ -378,5 +399,10 @@ describe("base drift raw-distance boundary", () => {
     expect(result.verdict).toBe("unavailable");
     expect(result.unavailableReason).toBe("fetch-failed");
     expect(result.baseOid).toBeNull();
+    expect(result).toMatchObject({
+      detail: expect.stringMatching(/Fetching origin\/main failed.*git fetch: unexpected/u),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
+    });
   });
 });

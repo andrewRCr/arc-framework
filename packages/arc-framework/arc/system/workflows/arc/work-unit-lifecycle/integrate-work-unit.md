@@ -538,7 +538,7 @@ payload.
 The checkpoint reduces machine-proved `applicable` currentness internally, with no attended step. Follow every
 surfaced Candidate-applicability action exactly:
 
-- `candidate-applicability / rerun-checkpoint` restarts this step.
+- `candidate-applicability / rerun-checkpoint` invokes its supplied remedy and restarts this step.
 - `candidate-applicability / stop` and `candidate-applicability / upgrade` render the typed result and stop. These
   arms never offer an authority selection.
 - `candidate-applicability / request-authority` renders `payload.selectionOfferText`,
@@ -578,7 +578,8 @@ produced by an explicit `changed` choice — follows ordinary scope selection, c
 rerun. Every stale, conflicting, invalid, or unavailable resolution follows its typed next action without
 substituting a selection in prose.
 
-`candidate-publication-required / resume-pre-publication` renders `payload.recommendedActionText` verbatim and
+`candidate-publication-required / resume-pre-publication` renders its supplied reason, detail, coordinates, and
+`payload.recommendedActionText` verbatim and
 invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary
 pre-publication procedure. At `candidate-publish-ready`, invoke `arc publish {name} --json`; require its idempotent
 Integrating result, then complete the already-open Step 2 review for any carried reservation. Run Tier 1 over the
@@ -601,9 +602,11 @@ Repeat the Step 1 push extension contract.
 Restart this step. Ordinary review and publication settlement remain authoritative; Candidate applicability
 supplies neither verdict.
 
-`terminal-rebind-required / reconcile-delivery-state` invokes `arc delivery reconcile - --json` with
-`payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
+`terminal-rebind-required / reconcile-delivery-state` invokes its supplied `remedy.argv` with `remedy.stdin`
+unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
 This reuses ordinary delivery reconciliation and adds no new operation.
+
+`recompose-required / rerun-checkpoint` invokes its supplied remedy and restarts this step.
 
 `blocked / stop` renders its supplied reason, detail, and structured remedy, then stops. The delivery-native
 `queue-not-atomic` refusal remains a stop and follows its supplied action. `ready / request-approval` continues at the
@@ -616,14 +619,9 @@ path with its exact `selectedDeliverableId`. `blocked / trigger-ref-restore-requ
 stops for Owner approval before restoring only that missing ref, then reruns the same remedy. Every other result
 stops.
 
-`reconcile / reconcile-base` and `reconcile / reconcile-regenerable` enter the base-merge arm with the checkpoint's
-exact movement observation. The regenerable arm alone adds `--regenerate-roadmap`.
-
-For `reconcile-base`, invoke
-`arc base merge --expected-base {payload.observation.feasibility.base} --expected-head {payload.candidateHead} --json`.
-For `reconcile-regenerable`, invoke
-`arc base merge --expected-base {payload.observation.feasibility.base} --expected-head {payload.candidateHead}
---regenerate-roadmap --json`.
+`reconcile / reconcile-base` and `reconcile / reconcile-regenerable` enter the base-merge arm by invoking the
+checkpoint's supplied `remedy.argv` unchanged. The remedy binds the checkpoint's exact movement observation and
+Candidate head; only the regenerable arm carries `--regenerate-roadmap`.
 `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
 `head-contained-by-base / rerun-checkpoint` restart this step.
 `blocked / stop`, `conflict / stop`, and `regenerable-refused / stop` stop before every later fire point. Before
@@ -673,7 +671,10 @@ arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
 `payload.observationKind`, `payload.checks`, any `payload.diagnosticFailures`, and `payload.detail` when present, then
 end the foreground attempt. Do not re-invoke recursively. A later retry invokes `payload.retry.argv` unchanged; the
 verb revalidates the exact approved target and lifecycle, so the prior approval carries only while both remain
-unchanged. `invalidated / checkpoint` returns to the checkpoint; `blocked / stop` stops.
+unchanged. `invalidated / checkpoint` returns to the checkpoint. `invalidated / reconcile-base` invokes the supplied
+`remedy.argv` unchanged; the remedy carries the planner-observed `--expected-base` and approved `--expected-head`.
+Dispatch the typed base-merge result through the same result arms above, including fresh Tier 1, push, checkpoint,
+and approval after `merged / run-quality-gates`. `blocked / stop` stops.
 Render the merge result's supplied `nextAction` and remedy or terminal explanation on every non-success arm rather
 than deriving a continuation from its evidence fields.
 The integration interlock is the sole merge authority.

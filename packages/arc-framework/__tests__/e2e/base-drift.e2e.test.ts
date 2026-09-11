@@ -95,6 +95,12 @@ describe("arc base drift", () => {
     const result = JSON.parse(run.stdout) as Record<string, unknown>;
     expect(result).toMatchObject({
       verdict: "unavailable", unavailableReason: "no-remote", baseOid: null,
+      detail: expect.stringContaining("no origin remote"),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: {
+        kind: "terminal-explanation",
+        terminalExplanation: expect.stringContaining("Configure the origin remote"),
+      },
     });
     expect(result).not.toHaveProperty("movement");
   });
@@ -111,6 +117,9 @@ describe("arc base drift", () => {
       unavailableReason: "config-unavailable",
       base: null,
       baseOid: null,
+      detail: expect.stringContaining("Unable to read arc-config.yml"),
+      coordinates: { base: null, baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
     });
     expect(result).not.toHaveProperty("movement");
   });
@@ -135,7 +144,21 @@ describe("arc base drift", () => {
     const result = JSON.parse(run.stdout) as Record<string, unknown>;
     expect(result).toMatchObject({
       verdict: "unavailable", unavailableReason: "invalid-base",
+      detail: expect.stringContaining("not a safe Git branch name"),
+      coordinates: { base: "--upload-pack=x", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
     });
     expect(result).not.toHaveProperty("movement");
+  });
+
+  it("renders unavailable detail and terminal recovery in interactive mode", async () => {
+    const { repo } = await fixture(false);
+    await git(repo, ["remote", "remove", "origin"]);
+
+    const run = await runArcNoTty(["base", "drift"], repo);
+
+    expect(run.exitCode).toBe(1);
+    expect(run.stdout).toContain("no origin remote");
+    expect(run.stdout).toContain("Configure the origin remote");
   });
 });

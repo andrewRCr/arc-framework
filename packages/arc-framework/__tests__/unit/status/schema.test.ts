@@ -759,5 +759,16 @@ describe("deep advisory routing views", () => {
       baseOid: null,
       remoteEvidence: "not-applicable",
     }).success).toBe(false);
+    expect(SessionInitBaseDistanceValueViewSchema.safeParse({
+      ...healthy,
+      verdict: "unavailable",
+      state: "remote-unavailable",
+      baseOid: null,
+      headOid: null,
+      movement: undefined,
+      unavailableReason: "remote-evidence-unreachable",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    }).success).toBe(true);
   });
 });

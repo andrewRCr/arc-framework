@@ -15,13 +15,13 @@ import {
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   verifyDeliveryCandidateCheckout,
-  type DeliveryEligibilityDependencies,
+  type DeliveryEligibilityCloseDependencies,
 } from "../../../src/lib/delivery/eligibility.js";
 import { resolveDeliveryMemberPresentations } from "../../../src/lib/delivery/materialization.js";
 
 const oid = (character: string): string => character.repeat(40);
 
-function dependencies(): DeliveryEligibilityDependencies {
+function dependencies(): DeliveryEligibilityCloseDependencies {
   const coordinates = new Map([
     ["main", { head: oid("a"), tree: oid("1") }],
     [oid("a"), { head: oid("a"), tree: oid("1") }],
@@ -38,6 +38,7 @@ function dependencies(): DeliveryEligibilityDependencies {
       overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
     })),
     revalidateLifecycleContribution: vi.fn(async () => ({ status: "ok" as const })),
+    resolveLifecyclePaths: vi.fn(async ({ snapshot }) => snapshot.lifecyclePaths),
     compareNormalizedCompleteness: vi.fn(async () => ({ status: "match" as const })),
     readCurrentPlan: vi.fn(async () => deliveryStackPlanFixture()),
     resolveMember: vi.fn(async () => ({ status: "ok" as const, value: null })),
@@ -685,6 +686,54 @@ describe("eligibility observation bracket", () => {
       regenerablePaths: [],
     }, deps)).resolves.toEqual({ status: "refused", reason: "lifecycle-paths-moved" });
     expect(completeness).not.toHaveBeenCalled();
+  });
+
+  it.each(["lifecyclePaths", "regenerablePaths"] as const)(
+    "rejects a caller-altered %s array against a fresh authoritative resolution",
+    async (field) => {
+      const deps = dependencies();
+      const authoritativePaths = [".arc/active/meta-delivery-plan-record.md", ".arc/backlog/ROADMAP.md"];
+      const prepared = await prepareDeliveryEligibility({
+        plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+        candidates: candidates(), lifecyclePaths: authoritativePaths,
+      }, deps);
+      if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+      deps.resolveLifecyclePaths = vi.fn(async () => authoritativePaths);
+      const completeness = vi.mocked(deps.compareNormalizedCompleteness);
+      const snapshot = field === "lifecyclePaths"
+        ? { ...prepared.snapshot, lifecyclePaths: [".arc/backlog/ROADMAP.md"] }
+        : { ...prepared.snapshot, regenerablePaths: [] };
+
+      await expect(closeDeliveryEligibilityForPublication({
+        snapshot,
+        gateResults: passedGateResults(),
+      }, deps)).resolves.toEqual({ status: "refused", reason: "lifecycle-paths-moved" });
+      expect(completeness).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reruns every member lifecycle invariant during publication close", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: ["meta.md"],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    deps.resolveLifecyclePaths = vi.fn(async () => ["meta.md"]);
+    deps.revalidateLifecycleContribution = vi.fn(async ({ candidateRef }) => candidateRef === "candidate/second"
+      ? { status: "refused" as const, paths: ["meta.md"] }
+      : { status: "ok" as const });
+
+    await expect(closeDeliveryEligibilityForPublication({
+      snapshot: prepared.snapshot,
+      gateResults: passedGateResults(),
+    }, deps)).resolves.toEqual({
+      status: "refused",
+      reason: "lifecycle-contribution",
+      deliverableId: prepared.snapshot.members[1]!.deliverableId,
+      paths: ["meta.md"],
+    });
+    expect(deps.revalidateLifecycleContribution).toHaveBeenCalledTimes(2);
   });
 
   it("maps unavailable ancestry and binding evidence to evidence-unavailable", async () => {

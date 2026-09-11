@@ -33,7 +33,7 @@ import {
 import type { UserSessionInitStatusResult } from "../../../src/commands/user/types.js";
 
 function baseDistance(
-  overrides: Partial<BaseDistanceStatusResult> = {},
+  overrides: Partial<Extract<BaseDistanceStatusResult, { verdict: "clean" | "reconcile" }>> = {},
 ): BaseDistanceStatusResult {
   return {
     mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
@@ -47,6 +47,29 @@ function baseDistance(
     register: null,
     ...overrides,
     headOid: overrides.headOid ?? "b".repeat(40),
+  };
+}
+
+function skippedBaseDistance(): BaseDistanceStatusResult {
+  return {
+    mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
+    base: "main", baseOid: null, headOid: null,
+    integrationEvidence: null, overlap: null, register: null,
+  };
+}
+
+function unavailableBaseDistance(): BaseDistanceStatusResult {
+  return {
+    mode: "advisory", verdict: "unavailable", state: "remote-unavailable", ahead: 0, behind: 0,
+    base: "main", baseOid: null, headOid: null,
+    integrationEvidence: null, overlap: null, register: null,
+    unavailableReason: "distance-read-failed",
+    detail: "Base-distance evidence is unavailable.",
+    coordinates: { base: "main", baseOid: null, headOid: null },
+    continuation: {
+      kind: "terminal-explanation",
+      terminalExplanation: "Refresh base evidence before relying on this advisory.",
+    },
   };
 }
 
@@ -425,8 +448,8 @@ describe("inferBaseDistance — analyzer-owned advisory", () => {
   });
 
   it("clean, skipped, and unavailable verdicts skip", () => {
-    for (const verdict of ["clean", "skipped", "unavailable"] as const) {
-      expect(inferBaseDistance(baseDistance({ verdict })).recommendedAction).toBe("skip");
+    for (const result of [baseDistance(), skippedBaseDistance(), unavailableBaseDistance()]) {
+      expect(inferBaseDistance(result).recommendedAction).toBe("skip");
     }
   });
 

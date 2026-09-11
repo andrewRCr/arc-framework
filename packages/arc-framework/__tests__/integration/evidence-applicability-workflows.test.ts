@@ -86,5 +86,16 @@ describe("evidence applicability workflow fire-points", () => {
     expect(terminal).not.toContain("arc merge lock hold");
     expect(occurrences(terminal, "arc merge lock release -")).toBe(1);
     expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh integration approval/iu);
+    expect(terminal).toMatch(/arc base drift --json[\s\S]*last-observed base OID/iu);
+    expect(terminal).toMatch(/required checks are bound to the approved head[\s\S]*residual race/iu);
+    expect(terminal).toMatch(/base OID qualifies the evidence but is not merge authority/iu);
+  });
+
+  it("dispatches the coordinate-bound currentness remedy returned by terminal integration", async () => {
+    const workflow = await readPair(workflows.integrate);
+
+    expect(workflow).toMatch(
+      /invalidated \/ reconcile-base[\s\S]*remedy\.argv[\s\S]*--expected-base[\s\S]*--expected-head/iu,
+    );
   });
 });

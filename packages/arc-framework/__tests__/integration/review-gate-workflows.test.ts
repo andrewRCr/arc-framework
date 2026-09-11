@@ -740,9 +740,7 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
     const checkpoint = gate.indexOf("arc integrate checkpoint {name} --json");
-    const baseMerge = gate.indexOf(
-      "arc base merge --expected-base {payload.observation.feasibility.base}",
-    );
+    const baseMerge = gate.indexOf("checkpoint's supplied `remedy.argv` unchanged");
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
     const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
     expect(reconcile).toBeGreaterThan(-1);
@@ -851,7 +849,10 @@ describe("trusted review-gate workflows", () => {
     const advisoryText = packageIntegration.slice(advisory, finalGate);
     expect(advisoryText).toContain("authorizes no merge, commit, push, or target recomposition");
     expect(advisoryText).not.toContain("use an append-only merge");
-    expect(packageIntegration.indexOf("arc base merge --expected-base", finalGate)).toBeGreaterThan(finalGate);
+    expect(packageIntegration.indexOf(
+      "checkpoint's supplied `remedy.argv` unchanged",
+      finalGate,
+    )).toBeGreaterThan(finalGate);
     expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
 
     const errandAdvisory = packageErrand.indexOf("Before spending a hosted pass");

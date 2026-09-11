@@ -50,8 +50,9 @@ describe("integration current-WU reconcile workflow", () => {
     const step = content.slice(start, end);
 
     expect(step).toContain("`terminal-rebind-required / reconcile-delivery-state`");
-    expect(step).toContain("payload.reconcileInput");
-    expect(step).toContain("arc delivery reconcile - --json");
+    expect(step).toContain("`remedy.argv`");
+    expect(step).toContain("`remedy.stdin`");
+    expect(step).toContain("adds no new operation");
     expect(step).toContain("`rebound / rerun-checkpoint`");
     expect(step).not.toMatch(/terminal[^\n]*recovery operation/iu);
   });
@@ -78,7 +79,7 @@ describe("integration current-WU reconcile workflow", () => {
     const orderedSurfaces = [
       "arc wu reconcile {name} --apply --json",
       "arc integrate checkpoint {name} --json",
-      "arc base merge --expected-base {payload.observation.feasibility.base} --expected-head {payload.candidateHead} --json",
+      "checkpoint's supplied `remedy.argv` unchanged",
       "payload.interlockSurface.machineEvidence.text",
       "**Extension report** · `#pre-merge`",
       "`integration-interlock`:",

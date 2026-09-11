@@ -8,6 +8,7 @@ import {
   type IntegrationMergeDependencies,
   type IntegrationMergeTarget,
 } from "../../../../src/scripts/integration/merge.js";
+import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
 import { IntegrationCheckpointCompositionRecordSchema } from "../../../../src/scripts/integration/checkpoint-store.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 
@@ -435,18 +436,75 @@ describe("integration merge", () => {
       detail: "Applicable target policy requires the head to include the current base.",
     });
 
-    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+    const result = await mergeIntegration(request, value);
+    expect(result).toMatchObject({
       state: "invalidated",
       nextAction: "reconcile-base",
       reason: "base-currentness-required",
+      remedy: {
+        argv: [
+          "arc", "base", "merge",
+          "--expected-base", oid("b"),
+          "--expected-head", oid("c"),
+          "--json",
+        ],
+      },
       payload: {
         target: { headSha: oid("c") },
         baseOid: oid("b"),
         detail: "Applicable target policy requires the head to include the current base.",
       },
     });
+    if (result.state !== "invalidated") throw new Error("expected typed base reconciliation");
+    expect(BaseMergeInputSchema.parse({
+      expectedBase: result.remedy.argv[4],
+      expectedHead: result.remedy.argv[6],
+    })).toEqual({ expectedBase: oid("b"), expectedHead: oid("c") });
     expect(state).toEqual({ held: true, merged: false });
   });
+
+  it.each(["refused", "base-currentness-required"] as const)(
+    "invalidates when the base moves while %s is classified",
+    async (outcome) => {
+      const { value, state } = dependencies();
+      value.mergePinned = async (target) => outcome === "refused"
+        ? { state: "refused", target, detail: "The host refused the merge." }
+        : { state: "base-currentness-required", target, detail: "The host requires the current base." };
+      value.readFinalPlan = async (target, admissionOverride) => {
+        const direct = directFinalPlan(target);
+        if (admissionOverride === undefined) return direct;
+        const baseOid = oid("d");
+        return {
+          ...direct,
+          baseOid,
+          observation: {
+            ...direct.observation,
+            movement: "overlapping",
+            feasibility: { state: "clean", base: baseOid, head: target.headSha },
+            admission: {
+              ...admissionOverride,
+              repository: target.repository,
+              changeRequest: target.pullRequest,
+              base: baseOid,
+              head: target.headSha,
+            },
+          },
+          plan: admissionOverride.state === "refused"
+            ? { state: "blocked", reason: "host-refused", detail: admissionOverride.detail }
+            : { state: "reconcile", nextAction: "reconcile-base" },
+        } as IntegrationFinalPlan;
+      };
+
+      await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+        state: "invalidated",
+        nextAction: "checkpoint",
+        reason: "drift-reconcile",
+        detail: expect.stringContaining("base moved"),
+        coordinates: { observedBaseOid: oid("d") },
+      });
+      expect(state).toEqual({ held: true, merged: false });
+    },
+  );
 
   it("does not reconcile a strict-currency refusal from incomplete integration evidence", async () => {
     const { value, state } = dependencies();

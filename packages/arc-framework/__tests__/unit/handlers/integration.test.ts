@@ -26,6 +26,8 @@ describe("integration checkpoint handler", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "candidate-missing",
+        detail: "A managed Candidate attestation is required before checkpoint composition.",
+        coordinates: { observedBaseOid: null, observedHeadOid: null },
         remedy: checkpointRemedy("candidate-missing", "example"),
         payload: { workUnit: "example" },
       }),
@@ -88,6 +90,20 @@ describe("integration checkpoint handler", () => {
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
     expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
     expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
+  });
+
+  it("bounds and normalizes checkpoint dependency diagnostics", async () => {
+    const write = vi.fn();
+    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+      checkpoint: async () => { throw new Error(`  provider\n${"x".repeat(5_000)}  `); },
+      write,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    expect(result.detail).toHaveLength(4_096);
+    expect(result.detail).not.toContain("\n");
+    expect(result.payload.detail).toBe(result.detail);
   });
 
   it("emits a typed refusal outside an ARC project without invoking checkpoint", async () => {
@@ -197,6 +213,21 @@ describe("integration merge handler", () => {
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
     expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
     expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
+  });
+
+  it("bounds and normalizes merge dependency diagnostics", async () => {
+    const write = vi.fn();
+    const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
+    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+      merge: async () => { throw new Error(`  provider\n${"x".repeat(5_000)}  `); },
+      write,
+    });
+
+    const result = JSON.parse(String(write.mock.calls[0]?.[0]));
+    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    expect(result.detail).toHaveLength(4_096);
+    expect(result.detail).not.toContain("\n");
+    expect(result.payload.detail).toBe(result.detail);
   });
 
   it("emits a typed refusal outside an ARC project without invoking merge", async () => {

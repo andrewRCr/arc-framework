@@ -69,7 +69,9 @@ export interface AnalyzeBaseDistanceSnapshotOptions {
 }
 
 /** Base-distance result classified against one immutable advertised snapshot. */
-export type BaseDistanceSnapshotAnalysisResult = Omit<BaseDriftResult, "failureReason"> & (
+type WithoutFailureReason<T> = T extends unknown ? Omit<T, "failureReason"> : never;
+
+export type BaseDistanceSnapshotAnalysisResult = WithoutFailureReason<BaseDriftResult> & (
   | { remoteEvidence: "exact" | "pending-fetch" }
   | { remoteEvidence: "unreachable"; failureReason: RemoteFailureReason }
 );
@@ -81,16 +83,14 @@ export async function analyzeBaseDistanceSnapshot(
   const mode = options.mode ?? "advisory";
   if (options.snapshot.kind === "unreachable") {
     return {
-      mode,
-      verdict: "unavailable",
-      state: "remote-unavailable",
-      ahead: 0,
-      behind: 0,
-      base: options.baseBranch,
-      baseOid: null,
-      headOid: null,
-      integrationEvidence: null,
-      overlap: null,
+      ...unavailable(
+        mode,
+        "remote-evidence-unreachable",
+        "remote-unavailable",
+        options.baseBranch,
+        "error",
+        `Remote snapshot evidence was unreachable (${options.snapshot.failureReason}).`,
+      ),
       register: null,
       remoteEvidence: "unreachable",
       failureReason: options.snapshot.failureReason,
@@ -99,20 +99,7 @@ export async function analyzeBaseDistanceSnapshot(
   const baseOid = options.snapshot.tips[options.baseBranch];
   if (baseOid === undefined) {
     return {
-      mode,
-      verdict: "unavailable",
-      state: "remote-unavailable",
-      ahead: 0,
-      behind: 0,
-      base: options.baseBranch,
-      baseOid: null,
-      headOid: null,
-      unavailableReason: "remote-base-absent",
-      integrationEvidence: null,
-      overlap: null,
-      register: mode === "authoritative"
-        ? composeUnavailableRegister(options.baseBranch, "remote-base-absent")
-        : null,
+      ...unavailable(mode, "remote-base-absent", "remote-unavailable", options.baseBranch),
       remoteEvidence: "exact",
     };
   }
@@ -124,20 +111,9 @@ export async function analyzeBaseDistanceSnapshot(
   const baseCommitIsLocal = options.objectAvailability.commits[baseOid];
   if (baseCommitIsLocal === false) {
     return {
-      mode,
-      verdict: "unavailable",
-      state: "remote-unavailable",
-      ahead: 0,
-      behind: 0,
-      base: options.baseBranch,
+      ...unavailable(mode, "base-object-pending-fetch", "remote-unavailable", options.baseBranch),
       baseOid,
-      headOid: null,
-      unavailableReason: "base-object-pending-fetch",
-      integrationEvidence: null,
-      overlap: null,
-      register: mode === "authoritative"
-        ? composeUnavailableRegister(options.baseBranch, "base-object-pending-fetch")
-        : null,
+      coordinates: { base: options.baseBranch, baseOid, headOid: null },
       remoteEvidence: "pending-fetch",
     };
   }
@@ -198,8 +174,8 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
       throw new Error("Unsafe base ref.");
     }
     await exec("git", ["check-ref-format", sourceRef]);
-  } catch {
-    return unavailable("authoritative", "invalid-base", "remote-unavailable", baseBranch);
+  } catch (error) {
+    return unavailable("authoritative", "invalid-base", "remote-unavailable", baseBranch, "error", error);
   }
   if ((await getCurrentBranch(exec)) === null) {
     return unavailable("authoritative", "detached-head", "detached-head", null);
@@ -215,20 +191,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
   );
   if (fetch.outcome !== "ok") {
     if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
-      return {
-        mode: "authoritative",
-        verdict: "unavailable",
-        state: "remote-unavailable",
-        ahead: 0,
-        behind: 0,
-        base: baseBranch,
-        baseOid: null,
-        headOid: null,
-        unavailableReason: "remote-base-absent",
-        integrationEvidence: null,
-        overlap: null,
-        register: composeUnavailableRegister(baseBranch, "remote-base-absent"),
-      };
+      return unavailable("authoritative", "remote-base-absent", "remote-unavailable", baseBranch);
     }
     return unavailable(
       "authoritative",
@@ -236,6 +199,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
       "remote-unavailable",
       baseBranch,
       fetch.outcome,
+      fetch.error,
     );
   }
 
@@ -246,8 +210,10 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
       ["rev-parse", "--verify", `refs/remotes/origin/${baseBranch}^{commit}`],
     )).stdout.trim();
     if (!isGitObjectId(baseOid)) throw new Error("Invalid fetched base OID.");
-  } catch {
-    return unavailable("authoritative", "fetched-base-unresolved", "remote-unavailable", baseBranch);
+  } catch (error) {
+    return unavailable(
+      "authoritative", "fetched-base-unresolved", "remote-unavailable", baseBranch, "error", error,
+    );
   }
 
   try {
@@ -265,23 +231,11 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
     if (analysis.remoteEvidence !== "exact") {
       throw new Error("Authoritative base materialization did not produce exact evidence.");
     }
-    return {
-      mode: analysis.mode,
-      verdict: analysis.verdict,
-      state: analysis.state,
-      ahead: analysis.ahead,
-      behind: analysis.behind,
-      base: analysis.base,
-      baseOid: analysis.baseOid,
-      headOid: analysis.headOid,
-      movement: analysis.movement,
-      unavailableReason: analysis.unavailableReason,
-      integrationEvidence: analysis.integrationEvidence,
-      overlap: analysis.overlap,
-      register: analysis.register,
-    };
-  } catch {
-    return unavailable("authoritative", "distance-read-failed", "remote-unavailable", baseBranch);
+    const { remoteEvidence, ...result } = analysis;
+    void remoteEvidence;
+    return result;
+  } catch (error) {
+    return unavailable("authoritative", "distance-read-failed", "remote-unavailable", baseBranch, "error", error);
   }
 }
 
@@ -390,7 +344,9 @@ function unavailable(
   state: WorktreeSyncState,
   base: string | null,
   failureReason: "timeout" | "error" = "error",
-): BaseDriftResult {
+  diagnostic?: unknown,
+): Extract<BaseDriftResult, { verdict: "unavailable" }> {
+  const detail = baseDriftFailureDetail(reason, base, diagnostic);
   return {
     mode,
     verdict: "unavailable",
@@ -404,8 +360,63 @@ function unavailable(
     integrationEvidence: null,
     overlap: null,
     register: mode === "authoritative" ? composeUnavailableRegister(base, reason) : null,
-    ...(state === "remote-unavailable" ? { failureReason } : {}),
+    detail,
+    coordinates: { base, baseOid: null, headOid: null },
+    continuation: {
+      kind: "terminal-explanation",
+      terminalExplanation: baseDriftTerminalExplanation(reason, base),
+    },
+    ...(mode === "authoritative" && state === "remote-unavailable" ? { failureReason } : {}),
   };
+}
+
+function baseDriftFailureDetail(
+  reason: BaseDriftUnavailableReason,
+  base: string | null,
+  diagnostic: unknown,
+): string {
+  const namedBase = base ?? "the configured base";
+  const fallback: Record<typeof reason, string> = {
+    "config-unavailable": "ARC configuration could not be read, so the configured base branch is unknown.",
+    "invalid-base": `Configured base ${namedBase} is not a safe Git branch name.`,
+    "detached-head": "Base drift requires a checked-out branch, but HEAD is detached.",
+    "no-remote": "The repository has no origin remote from which to observe the base.",
+    "fetch-timeout": `Fetching origin/${namedBase} timed out before drift evidence was available.`,
+    "fetch-failed": `Fetching origin/${namedBase} failed before drift evidence was available.`,
+    "base-object-pending-fetch": `The advertised ${namedBase} commit is not available in the local object store.`,
+    "remote-base-absent": `Remote base origin/${namedBase} does not identify an advertised commit.`,
+    "fetched-base-unresolved": `The fetched origin/${namedBase} ref did not resolve to a commit.`,
+    "distance-read-failed": `Git could not compare HEAD with the observed ${namedBase} commit.`,
+    "remote-evidence-unreachable": `Remote snapshot evidence for ${namedBase} was unreachable.`,
+  };
+  const raw = diagnostic === undefined
+    ? ""
+    : (diagnostic instanceof Error
+        ? diagnostic.message
+        : typeof diagnostic === "string" ? diagnostic : "Unrecognized non-Error diagnostic.")
+      .replace(/\s+/gu, " ").trim();
+  return `${fallback[reason]}${raw === "" ? "" : ` ${raw.slice(0, 1_024)}`}`.slice(0, 4_096);
+}
+
+function baseDriftTerminalExplanation(
+  reason: BaseDriftUnavailableReason,
+  base: string | null,
+): string {
+  const namedBase = base ?? "the configured base";
+  const explanations: Record<typeof reason, string> = {
+    "config-unavailable": "Repair .arc/system/arc-config.yml, then rerun arc base drift.",
+    "invalid-base": "Configure branch.base with a valid Git branch name, then rerun arc base drift.",
+    "detached-head": "Check out the intended work branch, then rerun arc base drift.",
+    "no-remote": "Configure the origin remote, then rerun arc base drift.",
+    "fetch-timeout": `Restore timely access to origin/${namedBase}, then rerun arc base drift.`,
+    "fetch-failed": `Restore access to origin/${namedBase}, then rerun arc base drift.`,
+    "base-object-pending-fetch": `Acquire the advertised ${namedBase} commit, then repeat the calling operation.`,
+    "remote-base-absent": `Publish or correctly configure origin/${namedBase}, then rerun arc base drift.`,
+    "fetched-base-unresolved": `Repair origin/${namedBase} so it resolves to a commit, then rerun arc base drift.`,
+    "distance-read-failed": "Restore a complete readable Git history, then rerun arc base drift.",
+    "remote-evidence-unreachable": "Restore remote evidence access, then repeat the calling operation.",
+  };
+  return explanations[reason];
 }
 
 export type {

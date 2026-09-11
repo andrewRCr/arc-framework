@@ -697,7 +697,7 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
             ? value.unavailableReason === "remote-base-absent" && value.baseOid === null
             : value.remoteEvidence === "pending-fetch"
               ? value.unavailableReason === "base-object-pending-fetch" && value.baseOid !== null
-              : value.unavailableReason === undefined && value.baseOid === null;
+              : value.unavailableReason === "remote-evidence-unreachable" && value.baseOid === null;
   if (!unavailableShapeMatches) {
     context.addIssue({ code: "custom", path: ["unavailableReason"], message: "must match base-distance evidence" });
   }

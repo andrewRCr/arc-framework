@@ -54,6 +54,7 @@ import {
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
+const DetailSchema = z.string().trim().min(1).max(4_096);
 
 export const IntegrationCheckpointRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -243,9 +244,22 @@ const ResultBaseShape = {
   mode: z.literal("integrate-checkpoint"),
   workUnit: SlugSchema,
 };
+const CheckpointCoordinatesSchema = z.strictObject({
+  observedBaseOid: ObjectIdSchema.nullable(),
+  observedHeadOid: ObjectIdSchema.nullable(),
+});
+const CheckpointNonSuccessShape = {
+  detail: DetailSchema,
+  coordinates: CheckpointCoordinatesSchema,
+};
+const CheckpointContinuationSchema = z.union([
+  z.strictObject({ kind: z.literal("remedy"), remedy: SpineRemedySchema }),
+  z.strictObject({ kind: z.literal("terminal-explanation"), terminalExplanation: DetailSchema }),
+]);
 
 const CheckpointBlockedBaseShape = {
   ...ResultBaseShape,
+  ...CheckpointNonSuccessShape,
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
   remedy: SpineRemedySchema,
@@ -260,8 +274,24 @@ const CandidateApplicabilityCheckpointPayloadSchema = z.union([
 
 const CandidateApplicabilityCheckpointResultSchema = z.strictObject({
   ...ResultBaseShape,
+  ...CheckpointNonSuccessShape,
   state: z.literal("candidate-applicability"),
   nextAction: z.enum(["request-authority", "rerun-checkpoint", "stop", "upgrade"]),
+  reason: z.enum([
+    "authority-required",
+    "candidate-moved",
+    "base-moved",
+    "candidate-and-base-moved",
+    "snapshot-invalidated",
+    "git-failure",
+    "malformed-evidence",
+    "merge-tree-write-tree-unsupported",
+    "merge-base-missing",
+    "merge-base-ambiguous",
+    "residual-empty",
+    "residual-unbounded",
+  ]),
+  continuation: CheckpointContinuationSchema,
   payload: CandidateApplicabilityCheckpointPayloadSchema,
 }).superRefine((result, context) => {
   if (result.payload.state === "applicable") {
@@ -285,12 +315,24 @@ const CandidateApplicabilityCheckpointResultSchema = z.strictObject({
       message: "a bounded applicability decision requires its exact resolution selector",
     });
   }
+  const expectedReason = result.payload.state === "decision-required"
+    ? "authority-required"
+    : result.payload.state === "applicable" ? null : result.payload.reason;
+  if (expectedReason !== null && result.reason !== expectedReason) {
+    context.addIssue({
+      code: "custom",
+      path: ["reason"],
+      message: "must match the Candidate applicability result",
+    });
+  }
 });
 
 const CandidatePublicationCheckpointResultSchema = z.strictObject({
   ...ResultBaseShape,
+  ...CheckpointNonSuccessShape,
   state: z.literal("candidate-publication-required"),
   nextAction: z.literal("resume-pre-publication"),
+  reason: z.literal("candidate-publication-stale"),
   payload: z.strictObject({
     attestArgv: z.union([
       z.tuple([
@@ -385,6 +427,7 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
   }),
   z.strictObject({
     ...ResultBaseShape,
+    ...CheckpointNonSuccessShape,
     state: z.literal("blocked"),
     nextAction: z.enum(["stop", "retarget", "reopen-and-retarget"]),
     reason: z.literal("delivery-terminal-blocked"),
@@ -505,18 +548,31 @@ export const IntegrationCheckpointResultSchema = z.union([
   }),
   z.strictObject({
     ...ResultBaseShape,
+    ...CheckpointNonSuccessShape,
     state: z.literal("reconcile"),
     nextAction: z.enum(["reconcile-base", "reconcile-regenerable"]),
+    reason: z.enum(["base-reconcile-required", "regenerable-reconcile-required"]),
+    remedy: SpineRemedySchema,
     payload: z.strictObject({
       drift: z.custom<BaseDriftResult>(),
       observation: CheckpointMovementObservationSchema,
       candidateHead: ObjectIdSchema,
     }),
+  }).superRefine((result, context) => {
+    const expectedReason = result.nextAction === "reconcile-regenerable"
+      ? "regenerable-reconcile-required"
+      : "base-reconcile-required";
+    if (result.reason !== expectedReason) {
+      context.addIssue({ code: "custom", path: ["reason"], message: "must match the reconcile action" });
+    }
   }),
   z.strictObject({
     ...ResultBaseShape,
+    ...CheckpointNonSuccessShape,
     state: z.literal("terminal-rebind-required"),
     nextAction: z.literal("reconcile-delivery-state"),
+    reason: z.literal("delivery-terminal-rebind-required"),
+    remedy: SpineRemedySchema,
     payload: z.strictObject({
       reconcileInput: z.strictObject({
         planId: DeliveryPlanIdSchema,
@@ -526,8 +582,11 @@ export const IntegrationCheckpointResultSchema = z.union([
   }),
   z.strictObject({
     ...ResultBaseShape,
+    ...CheckpointNonSuccessShape,
     state: z.literal("recompose-required"),
     nextAction: z.literal("rerun-checkpoint"),
+    reason: z.literal("candidate-record-moved"),
+    remedy: SpineRemedySchema,
     payload: z.strictObject({
       expectedRecordVersion: DigestSchema,
       observedRecordVersion: DigestSchema.nullable(),
@@ -543,6 +602,7 @@ export const IntegrationCheckpointResultSchema = z.union([
     state: z.literal("blocked"),
     nextAction: z.literal("stop"),
     reason: z.literal("invalid-input"),
+    ...CheckpointNonSuccessShape,
     remedy: SpineRemedySchema,
     payload: z.strictObject({ detail: z.string().min(1) }),
   }),
@@ -556,6 +616,7 @@ export type IntegrationCheckpointResult = z.infer<typeof IntegrationCheckpointRe
  * @returns A schema-valid refusal with the checkpoint help command.
  */
 export function checkpointInputRefusal(detail: string): IntegrationCheckpointResult {
+  const stableDetail = boundedCheckpointDetail(detail, "The integration checkpoint request is invalid.");
   return IntegrationCheckpointResultSchema.parse({
     schemaVersion: 1,
     mode: "integrate-checkpoint",
@@ -563,12 +624,14 @@ export function checkpointInputRefusal(detail: string): IntegrationCheckpointRes
     state: "blocked",
     nextAction: "stop",
     reason: "invalid-input",
+    detail: stableDetail,
+    coordinates: { observedBaseOid: null, observedHeadOid: null },
     remedy: spineRemedy(
       "The checkpoint requires a valid work-unit slug.",
       "Review command usage",
       ["arc", "integrate", "checkpoint", "--help"],
     ),
-    payload: { detail },
+    payload: { detail: stableDetail },
   });
 }
 
@@ -579,7 +642,15 @@ export function checkpointInputRefusal(detail: string): IntegrationCheckpointRes
  * @param detail - Dependency failure detail safe to expose in the result payload.
  * @returns A schema-valid refusal that routes back through checkpoint composition.
  */
-export function checkpointOperationRefusal(workUnit: string, detail: string): IntegrationCheckpointResult {
+export function checkpointOperationRefusal(
+  workUnit: string,
+  detail: string,
+  coordinates: z.infer<typeof CheckpointCoordinatesSchema> = {
+    observedBaseOid: null,
+    observedHeadOid: null,
+  },
+): IntegrationCheckpointResult {
+  const stableDetail = boundedCheckpointDetail(detail, "The integration checkpoint operation failed.");
   return IntegrationCheckpointResultSchema.parse({
     schemaVersion: 1,
     mode: "integrate-checkpoint",
@@ -587,9 +658,20 @@ export function checkpointOperationRefusal(workUnit: string, detail: string): In
     state: "blocked",
     nextAction: "stop",
     reason: "composition-unavailable",
+    detail: stableDetail,
+    coordinates,
     remedy: checkpointRemedy("composition-unavailable", workUnit),
-    payload: { detail },
+    payload: { detail: stableDetail },
   });
+}
+
+function boundedCheckpointDetail(value: unknown, fallback: string): string {
+  const detail = (typeof value === "string" ? value : "").replace(/\s+/gu, " ").trim();
+  return (detail || fallback).slice(0, 4_096);
+}
+
+function checkpointCoordinates(drift: BaseDriftResult): z.infer<typeof CheckpointCoordinatesSchema> {
+  return { observedBaseOid: drift.baseOid, observedHeadOid: drift.headOid };
 }
 
 export interface DeliveryDriftClassificationEvidence {
@@ -675,6 +757,7 @@ async function candidateApplicabilityResult(
   base: { schemaVersion: 1; mode: "integrate-checkpoint"; workUnit: string },
   candidate: Exclude<CandidateApplicabilityResult, { state: "applicable" }>,
   dependencies: IntegrationCheckpointDependencies,
+  coordinates: z.infer<typeof CheckpointCoordinatesSchema>,
 ): Promise<IntegrationCheckpointResult> {
   try {
     const payload = candidate.state === "decision-required"
@@ -686,16 +769,30 @@ async function candidateApplicabilityResult(
           ),
         }
       : candidate;
+    const reason = candidate.state === "decision-required" ? "authority-required" as const : candidate.reason;
+    const continuation = candidate.nextAction === "rerun-checkpoint"
+      ? { kind: "remedy" as const, remedy: checkpointRemedy("composition-unavailable", base.workUnit) }
+      : {
+          kind: "terminal-explanation" as const,
+          terminalExplanation: candidate.state === "decision-required"
+            ? "An explicit authority choice is required before Candidate applicability can be settled."
+            : "Follow the typed Candidate applicability result; no automatic continuation is authorized.",
+        };
     return IntegrationCheckpointResultSchema.parse({
       ...base,
       state: "candidate-applicability",
       nextAction: candidate.nextAction,
+      reason,
+      detail: "Candidate applicability requires the returned typed continuation before checkpointing.",
+      coordinates,
+      continuation,
       payload,
     });
   } catch (error) {
     return checkpointOperationRefusal(
       base.workUnit,
       error instanceof Error ? error.message : String(error),
+      coordinates,
     );
   }
 }
@@ -748,13 +845,17 @@ export async function checkpointIntegration(
     workUnit: request.workUnit,
   };
   const drift = await dependencies.readDrift(request.workUnit);
-  if ((drift.verdict !== "clean" && drift.verdict !== "reconcile")
-    || drift.baseOid === null || drift.movement === undefined) {
+  const coordinates = checkpointCoordinates(drift);
+  if ((drift.verdict !== "clean" && drift.verdict !== "reconcile") || drift.baseOid === null) {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
       state: "blocked",
       nextAction: "stop",
       reason: "drift-unavailable",
+      detail: drift.verdict === "unavailable"
+        ? boundedCheckpointDetail(drift.detail, "Authoritative base drift is unavailable.")
+        : "Authoritative base drift did not produce a healthy reading.",
+      coordinates,
       remedy: checkpointRemedy("drift-unavailable", request.workUnit),
       payload: { drift },
     });
@@ -768,6 +869,8 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "delivery-terminal-blocked",
+        detail: boundedCheckpointDetail(deliveryDrift.detail, "Delivery drift classification is unavailable."),
+        coordinates,
         remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
         payload: {
           status: "blocked",
@@ -785,6 +888,11 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "delivery-terminal-blocked",
+        detail: boundedCheckpointDetail(
+          deliveryDrift.explanation,
+          "Delivery drift classification refused this integration checkpoint.",
+        ),
+        coordinates,
         remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
         payload: {
           status: "blocked",
@@ -807,11 +915,15 @@ export async function checkpointIntegration(
     admission: observed.admission,
   });
   const projectedPlan = observation.feasibility.base === drift.baseOid
+    && drift.headOid !== null
+    && observation.feasibility.head === drift.headOid
     ? composeCheckpointMovementPlan(observation)
     : {
         state: "blocked" as const,
         reason: "unsafe-reconcile" as const,
-        detail: "Git feasibility belongs to a different base than the drift observation.",
+        detail: observation.feasibility.base !== drift.baseOid
+          ? "Git feasibility belongs to a different base than the drift observation."
+          : "Git feasibility belongs to a different head than the drift observation.",
       };
   const movementPlan = projectedPlan.state === "reconcile" && !applicabilityAllowsReconcile
     ? {
@@ -826,6 +938,13 @@ export async function checkpointIntegration(
       state: "blocked" as const,
       nextAction: "stop" as const,
       reason: movementPlan.reason,
+      detail: boundedCheckpointDetail(
+        movementPlan.detail,
+        movementPlan.reason === "conflict"
+          ? "Substantive conflicts prevent checkpoint composition."
+          : "Exact movement evidence does not authorize checkpoint composition.",
+      ),
+      coordinates,
       remedy: checkpointRemedy(movementPlan.reason, request.workUnit),
     };
     if (movementPlan.reason === "host-pending" || movementPlan.reason === "host-refused") {
@@ -853,17 +972,21 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "candidate-missing",
+        detail: "A managed Candidate attestation is required before reconciliation.",
+        coordinates,
         remedy: checkpointRemedy("candidate-missing", request.workUnit),
         payload: { workUnit: request.workUnit },
       });
     }
-    if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies);
+    if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies, coordinates);
     if (candidate.status === "blocked") {
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "blocked",
         nextAction: "stop",
         reason: "candidate-unexplained-delta",
+        detail: "The Candidate contains an unexplained delta from its recognized lineage.",
+        coordinates,
         remedy: checkpointRemedy("candidate-unexplained-delta", request.workUnit),
         payload: { candidate },
       });
@@ -874,6 +997,8 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "candidate-convergence-pending",
+        detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
+        coordinates,
         remedy: checkpointConvergenceRemedy(request.workUnit, candidate.convergenceScope),
         payload: { candidate },
       });
@@ -884,6 +1009,8 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "unsafe-reconcile",
+        detail: "The Candidate head does not match merge observations.",
+        coordinates,
         remedy: checkpointRemedy("unsafe-reconcile", request.workUnit),
         payload: { drift, observation, detail: "The Candidate head does not match merge observations." },
       });
@@ -892,6 +1019,24 @@ export async function checkpointIntegration(
       ...base,
       state: "reconcile",
       nextAction: movementPlan.nextAction,
+      reason: movementPlan.nextAction === "reconcile-regenerable"
+        ? "regenerable-reconcile-required"
+        : "base-reconcile-required",
+      detail: movementPlan.nextAction === "reconcile-regenerable"
+        ? "Exact evidence authorizes the determinate regenerable base reconciliation."
+        : "Exact evidence authorizes an ordinary base reconciliation.",
+      coordinates,
+      remedy: spineRemedy(
+        "The base reconcile must preserve the checkpoint's exact observed base and Candidate head.",
+        "Apply the typed reconcile, run quality gates, push, and compose a fresh checkpoint",
+        [
+          "arc", "base", "merge",
+          "--expected-base", observation.feasibility.base,
+          "--expected-head", candidate.recognizedRevision,
+          ...(movementPlan.nextAction === "reconcile-regenerable" ? ["--regenerate-roadmap"] : []),
+          "--json",
+        ],
+      ),
       payload: { drift, observation, candidateHead: candidate.recognizedRevision },
     });
   }
@@ -904,6 +1049,8 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "lifecycle-incomplete",
+      detail: lifecycle.artifactFacts[0]?.message ?? "The work-unit lifecycle is incomplete.",
+      coordinates,
       remedy: checkpointRemedy("lifecycle-incomplete", request.workUnit),
       payload: { lifecycle },
     });
@@ -915,17 +1062,21 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "candidate-missing",
+      detail: "A managed Candidate attestation is required before checkpoint composition.",
+      coordinates,
       remedy: checkpointRemedy("candidate-missing", request.workUnit),
       payload: { workUnit: request.workUnit },
     });
   }
-  if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies);
+  if (!("status" in candidate)) return candidateApplicabilityResult(base, candidate, dependencies, coordinates);
   if (candidate.status === "blocked") {
     return IntegrationCheckpointResultSchema.parse({
       ...base,
       state: "blocked",
       nextAction: "stop",
       reason: "candidate-unexplained-delta",
+      detail: "The Candidate contains an unexplained delta from its recognized lineage.",
+      coordinates,
       remedy: checkpointRemedy("candidate-unexplained-delta", request.workUnit),
       payload: { candidate },
     });
@@ -936,6 +1087,8 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "candidate-convergence-pending",
+      detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
+      coordinates,
       remedy: checkpointConvergenceRemedy(request.workUnit, candidate.convergenceScope),
       payload: { candidate },
     });
@@ -946,6 +1099,8 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "unsafe-reconcile",
+      detail: "The Candidate head does not match merge observations.",
+      coordinates,
       remedy: checkpointRemedy("unsafe-reconcile", request.workUnit),
       payload: { drift, observation, detail: "The Candidate head does not match merge observations." },
     });
@@ -957,6 +1112,9 @@ export async function checkpointIntegration(
         ...base,
         state: "candidate-publication-required",
         nextAction: "resume-pre-publication",
+        reason: "candidate-publication-stale",
+        detail: "The recognized Candidate boundary must be refreshed before checkpoint composition.",
+        coordinates,
         payload: {
           attestArgv: [
             ...(lifecycle.state === "shipped"
@@ -979,6 +1137,18 @@ export async function checkpointIntegration(
         ...base,
         state: delivery.status,
         nextAction: delivery.nextAction,
+        reason: "delivery-terminal-rebind-required",
+        detail: "Delivery terminal state must be rebound to the exact current Candidate before checkpointing.",
+        coordinates,
+        remedy: spineRemedy(
+          "Delivery terminal state is rebound through the existing exact reconciliation operation.",
+          "Reconcile delivery state, then rerun the checkpoint",
+          ["arc", "delivery", "reconcile", "-", "--json"],
+          {
+            planId: delivery.planId,
+            repository: delivery.repository,
+          },
+        ),
         payload: {
           reconcileInput: {
             planId: delivery.planId,
@@ -994,6 +1164,11 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: terminal.nextAction,
         reason: "delivery-terminal-blocked",
+        detail: boundedCheckpointDetail(
+          "detail" in delivery ? delivery.detail : undefined,
+          "Delivery terminal evidence blocks checkpoint composition.",
+        ),
+        coordinates,
         remedy: terminal.remedy,
         payload: delivery,
       });
@@ -1016,6 +1191,8 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "hosted-reservation-pending",
+        detail: hostedReview.detail,
+        coordinates,
         remedy: checkpointRemedy("hosted-reservation-pending", request.workUnit),
         payload: { requirement: hostedReview },
       });
@@ -1045,6 +1222,11 @@ export async function checkpointIntegration(
         state: "blocked",
         nextAction: "stop",
         reason: "merge-method-blocked",
+        detail: boundedCheckpointDetail(
+          "detail" in mergeMethod ? mergeMethod.detail : undefined,
+          "The configured merge method is not available under current host policy.",
+        ),
+        coordinates,
         remedy: checkpointRemedy("merge-method-blocked", request.workUnit),
         payload: { mergeMethod },
       });
@@ -1066,6 +1248,10 @@ export async function checkpointIntegration(
         ...base,
         state: "recompose-required",
         nextAction: "rerun-checkpoint",
+        reason: "candidate-record-moved",
+        detail: "The Candidate record changed before checkpoint persistence completed.",
+        coordinates,
+        remedy: checkpointRemedy("composition-unavailable", request.workUnit),
         payload: {
           expectedRecordVersion: handleResult.expectedRecordVersion,
           observedRecordVersion: handleResult.observedRecordVersion,
@@ -1163,8 +1349,14 @@ export async function checkpointIntegration(
       state: "blocked",
       nextAction: "stop",
       reason: "composition-unavailable",
+      detail: boundedCheckpointDetail(error instanceof Error ? error.message : String(error),
+        "Checkpoint composition failed without diagnostic detail."),
+      coordinates,
       remedy: checkpointRemedy("composition-unavailable", request.workUnit),
-      payload: { detail: error instanceof Error ? error.message : String(error) },
+      payload: {
+        detail: boundedCheckpointDetail(error instanceof Error ? error.message : String(error),
+          "Checkpoint composition failed without diagnostic detail."),
+      },
     });
   }
 }

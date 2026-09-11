@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   CandidateManagedRecordV1Schema,
   CandidateLineageTargetSchema,
+  candidatePendingConvergenceResponseId,
   candidateConvergenceScopeCovers,
   createCandidateAttestation,
   createCandidateLineageAttestation,
@@ -343,6 +344,10 @@ export async function runAttest(
       });
     }
     if (verificationEvidenceRef === record.attestation.verificationEvidenceRef
+      || record.transitions.some((transition) =>
+        (transition.transitionKind === "review-response"
+          || transition.transitionKind === "verification-response")
+        && transition.verificationEvidenceRefs.includes(verificationEvidenceRef))
       || record.lineageAttestations.some((attestation) =>
         attestation.verificationEvidenceRef === verificationEvidenceRef)) {
       return scopedRefusal({
@@ -356,8 +361,13 @@ export async function runAttest(
         newRoot: false,
       });
     }
+    const responseId = candidatePendingConvergenceResponseId(record);
+    if (responseId === null) {
+      throw new Error("Pending Candidate convergence must identify its review-response occurrence");
+    }
     const lineageAttestation = createCandidateLineageAttestation({
       candidateId: currentness.candidateId,
+      responseId,
       target: { revision: currentness.recognizedRevision, subject: current.subject },
       attestedBy: context.actor,
       attestedAt: context.now(),

@@ -137,6 +137,14 @@ export interface DeliveryEligibilityDependencies {
   >;
 }
 
+/** Additional repository authority required by the public publication-close operation. */
+export interface DeliveryEligibilityCloseDependencies extends DeliveryEligibilityDependencies {
+  resolveLifecyclePaths(input: {
+    readonly plan: DeliveryPlanV1;
+    readonly snapshot: DeliveryEligibilitySnapshot;
+  }): Promise<readonly string[] | null>;
+}
+
 /** Closed refusal from any mechanical eligibility stage. */
 export interface DeliveryEligibilityRefusal {
   readonly status: "refused";
@@ -291,12 +299,11 @@ async function revalidateDeliveryEligibilityForMutation(input: {
     );
     if (checkout.status !== "exact") return checkout;
   }
-  return input.gateResults === undefined
-    ? closeDeliveryEligibility(prepared.snapshot, deps)
-    : closeDeliveryEligibilityForPublication({
-      snapshot: prepared.snapshot,
-      gateResults: input.gateResults,
-    }, deps);
+  if (input.gateResults !== undefined) {
+    const gateRefusal = validateDeliveryCandidateGateResults(prepared.snapshot, input.gateResults);
+    if (gateRefusal !== null) return gateRefusal;
+  }
+  return closeDeliveryEligibility(prepared.snapshot, deps);
 }
 
 /** Validate and pin one complete authored candidate chain before workflow-owned gates run. */
@@ -502,11 +509,46 @@ export async function closeDeliveryEligibilityForPublication(
     readonly snapshot: DeliveryEligibilitySnapshot;
     readonly gateResults: readonly DeliveryCandidateGateResult[];
   },
-  deps: DeliveryEligibilityDependencies,
+  deps: DeliveryEligibilityCloseDependencies,
 ): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
   const { snapshot } = input;
   const gateRefusal = validateDeliveryCandidateGateResults(snapshot, input.gateResults);
   if (gateRefusal !== null) return gateRefusal;
+  const currentPlan = await deps.readCurrentPlan(snapshot.planId);
+  if (currentPlan === null || currentPlan.planId !== snapshot.planId
+    || currentPlan.workUnitId !== snapshot.workUnitId
+    || currentPlan.planRevision !== snapshot.planRevision
+    || currentPlan.planDigest !== snapshot.planDigest) {
+    return { status: "refused", reason: "plan-moved" };
+  }
+  const currentLifecyclePaths = await deps.resolveLifecyclePaths({ plan: currentPlan, snapshot });
+  if (currentLifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
+  const lifecyclePaths = [...new Set(currentLifecyclePaths)].sort(byteSort);
+  const regenerablePaths = deriveDeliveryRegenerablePaths(lifecyclePaths, currentPlan.workUnitId);
+  if (!samePaths(lifecyclePaths, snapshot.lifecyclePaths)
+    || !samePaths(regenerablePaths, snapshot.regenerablePaths)) {
+    return { status: "refused", reason: "lifecycle-paths-moved" };
+  }
+  for (const member of snapshot.members) {
+    const lifecycleInput = deriveDeliveryMemberLifecycleRevalidation({
+      snapshot,
+      deliverableId: member.deliverableId,
+    });
+    if (lifecycleInput === null) return { status: "refused", reason: "evidence-unavailable" };
+    const lifecycle = await deps.revalidateLifecycleContribution({
+      ...lifecycleInput,
+      paths: lifecyclePaths,
+      regenerablePaths,
+    });
+    if (lifecycle.status !== "ok") {
+      return {
+        status: "refused",
+        reason: "lifecycle-contribution",
+        deliverableId: member.deliverableId,
+        paths: lifecycle.paths,
+      };
+    }
+  }
   return closeMechanicalDeliveryEligibility(snapshot, deps);
 }
 

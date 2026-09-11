@@ -724,6 +724,52 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });
 
+  it.each(["refused", "base-currentness-required"] as const)(
+    "invalidates when the base moves while %s is classified",
+    async (outcome) => {
+      const { value, state } = dependencies();
+      value.mergePinned = async (target) => {
+        state.mergeCalls += 1;
+        return outcome === "refused"
+          ? { state: "refused", target, detail: "The host refused the merge." }
+          : { state: "base-currentness-required", target, detail: "The host requires the current base." };
+      };
+      value.readFinalPlan = async (_target, override) => {
+        if (override === undefined) return directPlan();
+        const moved = directPlan();
+        const baseOid = oid("d");
+        return {
+          ...moved,
+          baseOid,
+          observation: {
+            ...moved.observation,
+            movement: "overlapping",
+            feasibility: { state: "clean", base: baseOid, head: approvedTarget.headSha },
+            admission: {
+              ...override,
+              repository: approvedTarget.repository,
+              changeRequest: approvedTarget.pullRequest,
+              base: baseOid,
+              head: approvedTarget.headSha,
+            },
+          },
+          plan: override.state === "refused"
+            ? { state: "blocked", reason: "host-refused", detail: override.detail }
+            : { state: "reconcile", nextAction: "reconcile-base" },
+        } as ErrandMergeFinalPlan;
+      };
+
+      await expect(mergeErrand(request, value)).resolves.toMatchObject({
+        state: "invalidated",
+        nextAction: "request-approval",
+        reason: "base-moved",
+        detail: expect.stringContaining("base moved"),
+        coordinates: { observedTarget: approvedTarget, observedBaseOid: oid("d") },
+      });
+      expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
+    },
+  );
+
   it("re-holds when refusal reclassification is unavailable", async () => {
     const { value, state } = dependencies();
     value.mergePinned = async (target) => {

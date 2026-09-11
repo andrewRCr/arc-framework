@@ -10,6 +10,7 @@ import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
+import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -245,10 +246,19 @@ describe("integration checkpoint", () => {
       ? readCandidate(workUnit, baseRevision)
       : null;
 
-    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
-      .resolves.toMatchObject({
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+    expect(result).toMatchObject({
         state: "reconcile",
         nextAction: "reconcile-base",
+        reason: "base-reconcile-required",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", oid("c"),
+            "--json",
+          ],
+        },
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
           candidateHead: oid("c"),
@@ -260,16 +270,27 @@ describe("integration checkpoint", () => {
           },
         },
       });
+    if (result.state !== "reconcile") throw new Error("expected base reconciliation");
+    expect(BaseMergeInputSchema.parse({
+      expectedBase: result.remedy.argv[4],
+      expectedHead: result.remedy.argv[6],
+    })).toEqual({ expectedBase: oid("b"), expectedHead: oid("c") });
   });
 
   it("continues directly to approval for disjoint exact-pair movement", async () => {
     const deps = dependencies();
     const readDrift = deps.readDrift;
-    deps.readDrift = async (workUnit) => ({
-      ...await readDrift(workUnit),
-      movement: "disjoint",
-      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
-    });
+    deps.readDrift = async (workUnit) => {
+      const drift = await readDrift(workUnit);
+      if (drift.verdict !== "clean" && drift.verdict !== "reconcile") {
+        throw new Error("expected a healthy drift reading");
+      }
+      return {
+        ...drift,
+        movement: "disjoint",
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      };
+    };
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "ready",
@@ -280,6 +301,24 @@ describe("integration checkpoint", () => {
             feasibility: { state: "clean", base: oid("b"), head: oid("c") },
             admission: { state: "mergeable", base: oid("b"), head: oid("c") },
           },
+        },
+      });
+  });
+
+  it("blocks when drift and merge observations name different heads", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => ({ ...CLEAN_DRIFT, headOid: oid("d") });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "unsafe-reconcile",
+        detail: "Git feasibility belongs to a different head than the drift observation.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("d") },
+        payload: {
+          drift: { headOid: oid("d") },
+          observation: { feasibility: { head: oid("c") }, admission: { head: oid("c") } },
         },
       });
   });
@@ -298,6 +337,16 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "reconcile",
         nextAction: "reconcile-regenerable",
+        reason: "regenerable-reconcile-required",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", oid("c"),
+            "--regenerate-roadmap",
+            "--json",
+          ],
+        },
         payload: { candidateHead: oid("c") },
       });
   });
@@ -485,6 +534,12 @@ describe("integration checkpoint", () => {
       baseOid: null,
       headOid: null,
       unavailableReason: "fetch-failed",
+      detail: "The remote base could not be fetched.",
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: {
+        kind: "terminal-explanation",
+        terminalExplanation: "Restore remote access before retrying the authoritative drift read.",
+      },
       integrationEvidence: null,
       overlap: null,
       register: { kind: "degraded", text: "Remote unavailable." },
@@ -631,6 +686,15 @@ describe("integration checkpoint", () => {
         workUnit: "example",
         state: "recompose-required",
         nextAction: "rerun-checkpoint",
+        reason: "candidate-record-moved",
+        detail: "The Candidate record changed before checkpoint persistence completed.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("c") },
+        remedy: {
+          invariant: "The ready composition binds the exact satisfied Candidate head.",
+          text: "The ready composition binds the exact satisfied Candidate head. Resolve the reported composition "
+            + "failure, then re-run: `arc integrate checkpoint example --json`.",
+          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+        },
         payload: {
           expectedRecordVersion: digest("a"),
           observedRecordVersion: digest("b"),
@@ -746,6 +810,11 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "terminal-rebind-required",
         nextAction: "reconcile-delivery-state",
+        reason: "delivery-terminal-rebind-required",
+        remedy: {
+          argv: ["arc", "delivery", "reconcile", "-", "--json"],
+          stdin: { planId: PLAN_ID, repository: "owner/repo" },
+        },
         payload: {
           reconcileInput: { planId: PLAN_ID, repository: "owner/repo" },
         },
@@ -763,6 +832,7 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "candidate-publication-required",
         nextAction: "resume-pre-publication",
+        reason: "candidate-publication-stale",
         payload: {
           attestArgv: ["arc", "attest", "example", "--json"],
         },
