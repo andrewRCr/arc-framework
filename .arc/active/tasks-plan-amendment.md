@@ -26,19 +26,13 @@ inventory, with the parent's Goal digest unchanged by the appended bullet.
 - _Note:_ The scans and cursor are shipped code this task does not change; the fixture is a regression guard that
   runs first because a refusal would falsify the id scheme rather than the task.
 
-    - `[ ]` **1.1.a Fixture proving the three id forms against every shipped consumer**
-        - One integration test carrying a shared fixture that exercises all four consumers together. The fixture
-          is a well-formed task list declaring more than one segment, so the verifier checks are live rather than
-          skipped, and its diagnostics cannot fire for reasons unrelated to the ids.
-        - The id forms are accepted unconditionally by the parser, so parsing alone proves nothing. Place an `X.R`
-          inside a segment-closing phase ahead of that phase's verifier — the one position the scheme can be got
-          wrong — and assert neither `segment-verifier-orphan` nor `segment-verifier-missing` fires.
-        - Assert the structural scan and the segmentation scan emit no diagnostic, the cursor selects the first
-          open `X.R` in document order, and `buildDeliveryTaskInventory` accepts the list.
-        - A refusal is a design finding against the id scheme — route it to the spec rather than adjusting the
-          fixture to pass.
-        - Spell section references out in the fixture prose; the section-sign glyph is refused anywhere under the
-          test tree.
+    - `[x]` **1.1.a Fixture proving the three id forms against every shipped consumer**
+        - `__tests__/fixtures/amendment-task-list.ts` carries the shared list: two `slice` segments, `1.R` and
+          `1.R2` ahead of Phase 1's verifier, `2.1.R` under an open parent. Neither segment is a `layer` — that
+          mode exempts `segment-verifier-missing`, so a `layer` host would prove only half the placement rule.
+        - `__tests__/integration/task-list-amendment-placement.test.ts` holds all four consumers clean: no
+          structural or segmentation diagnostic, the cursor at `1.R` / `1.R.a`, and an inventory classifying both
+          corrective parents as implementation work.
 
     - `[ ]` **1.1.b § Revision Numbering states the series, placement, and the retired practice**
         - This section is the definition site for the id series and the placement mechanics; the workflow cites
