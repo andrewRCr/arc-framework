@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "split-candidate-record-failure-message",
+  "claimId": "bf3ce468cf5d33a2146b25da413be883",
+  "createdAt": "2026-09-11T23:43:01.387Z",
+  "updatedAt": "2026-09-11T23:43:01.387Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "split-candidate-record-failure-message",
+  "branch": "chore/split-candidate-record-failure-message",
+  "origin": "inbox",
+  "originEntry": "Split the conflated Candidate-record failure message",
+  "originEntrySourceDigest": "sha256:d8d801ea6975689401defcbbc8ba19c1749db60cbb80f6de982f293b6749cb77",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
