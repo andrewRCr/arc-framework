@@ -3,14 +3,20 @@
   "slug": "route-candidate-reroot-followups",
   "claimId": "021a9d7da4d244b6c863ca29d981c012",
   "createdAt": "2026-09-11T16:22:12.163Z",
-  "updatedAt": "2026-09-11T16:22:12.163Z",
+  "updatedAt": "2026-09-11T17:40:07.111Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Create the two approved planned work-unit stubs for Candidate re-root recovery continuity and concurrency-safe Errand promotion.",
   "branch": "chore/route-candidate-reroot-followups",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-candidate-reroot-followups",
+    "headSha": "96a052db611f9b0cb69f13de9d04cfedbc0ed686"
+  }
 }
