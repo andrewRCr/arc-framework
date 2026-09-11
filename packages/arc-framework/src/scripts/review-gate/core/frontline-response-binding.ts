@@ -8,6 +8,7 @@ import {
   GitObjectIdSchema,
   ReviewCanonicalDigestSchema,
   ReviewTargetSchema,
+  type ReviewTarget,
 } from "./gate-contract-v2-schema.js";
 
 const CandidateIdentitySchema = z.strictObject({
@@ -51,3 +52,20 @@ export const BoundFrontlineResponseBindingSchema = z.strictObject({
   }
 });
 export type BoundFrontlineResponseBinding = z.infer<typeof BoundFrontlineResponseBindingSchema>;
+
+/**
+ * Check whether one reviewed target is the private delivery member named by a durable response binding.
+ *
+ * @param target - Exact target recorded by the frontline outcome.
+ * @param binding - Root Candidate and private-member binding retained for response settlement.
+ * @returns Whether the outcome target and binding describe the same repository, base, and member head.
+ */
+export function frontlineResponseBindingMatchesTarget(
+  target: ReviewTarget,
+  binding: BoundFrontlineResponseBinding,
+): boolean {
+  return target.kind === "delivery-member"
+    && target.repositoryId === binding.candidate.target.repositoryId
+    && target.baseRef === binding.candidate.target.baseRef
+    && target.headSha === binding.deliveryMember.head;
+}

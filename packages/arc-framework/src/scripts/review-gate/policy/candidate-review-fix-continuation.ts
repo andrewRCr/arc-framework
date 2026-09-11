@@ -10,6 +10,8 @@ import { canonicalize, SlugSchema, sortByCanonicalBytes } from "../../../lib/ker
 import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
 import { validateFixAuthorization } from "../core/fix-authorization.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import { frontlineResponseBindingMatchesTarget } from
+  "../core/frontline-response-binding.js";
 import { parseReviewSourceReference } from "../core/review-source-reference.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
 import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
@@ -153,7 +155,8 @@ async function readReviewedTarget(
       || (responseBinding !== undefined
         && (selection.record.candidate?.workUnit !== responseBinding.candidate.workUnit
           || selection.record.candidate.candidateId !== responseBinding.candidate.candidateId
-          || canonicalize(selection.record.deliveryMember) !== canonicalize(responseBinding.deliveryMember)))
+          || canonicalize(selection.record.deliveryMember) !== canonicalize(responseBinding.deliveryMember)
+          || !frontlineResponseBindingMatchesTarget(outcome.record.outcome.target, responseBinding)))
       || outcome.record.outcome.outcome !== "findings") return null;
     return outcome.record.outcome.target;
   }

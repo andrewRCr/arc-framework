@@ -6,6 +6,7 @@ import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import {
   BoundFrontlineResponseBindingSchema,
   FrontlineResponseBindingSchema,
+  frontlineResponseBindingMatchesTarget,
 } from "./frontline-response-binding.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { FrontlineResolveEnvelopeSchema } from "./review-command-envelope.js";
@@ -44,11 +45,7 @@ export const FrontlineRunCommandRequestSchema = z.strictObject({
   responseBinding: BoundFrontlineResponseBindingSchema.optional(),
 }).superRefine((request, context) => {
   const binding = request.responseBinding;
-  if (binding !== undefined
-    && (request.target.kind !== "delivery-member"
-      || request.target.repositoryId !== binding.candidate.target.repositoryId
-      || request.target.baseRef !== binding.candidate.target.baseRef
-      || request.target.headSha !== binding.deliveryMember.head)) {
+  if (binding !== undefined && !frontlineResponseBindingMatchesTarget(request.target, binding)) {
     context.addIssue({
       code: "custom",
       path: ["responseBinding"],

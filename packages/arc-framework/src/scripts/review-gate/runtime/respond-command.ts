@@ -50,7 +50,10 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
-import type { BoundFrontlineResponseBinding } from "../core/frontline-response-binding.js";
+import {
+  frontlineResponseBindingMatchesTarget,
+  type BoundFrontlineResponseBinding,
+} from "../core/frontline-response-binding.js";
 import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
@@ -469,10 +472,7 @@ async function resolveFrontlineSource(
   }
   const responseBinding = record.responseBinding;
   if (responseBinding !== undefined
-    && (record.outcome.target.kind !== "delivery-member"
-      || record.outcome.target.repositoryId !== responseBinding.candidate.target.repositoryId
-      || record.outcome.target.baseRef !== responseBinding.candidate.target.baseRef
-      || record.outcome.target.headSha !== responseBinding.deliveryMember.head)) {
+    && !frontlineResponseBindingMatchesTarget(record.outcome.target, responseBinding)) {
     throw new RespondCommandError("corrupt-state", "Frontline response binding does not match its exact targets");
   }
   if (record.outcome.outcome !== "findings") {
@@ -1118,7 +1118,8 @@ export async function respondToReviewCommand(
     ? await dependencies.readCandidateLineage(source.responseBinding?.candidate.target ?? source.target)
     : null;
   if (candidateBoundFix !== null) {
-    changedTarget = candidateBoundFix.candidateFixTarget.targetId === source.target.targetId
+    const reviewedCandidateTarget = source.responseBinding?.candidate.target ?? source.target;
+    changedTarget = candidateBoundFix.candidateFixTarget.targetId === reviewedCandidateTarget.targetId
       ? null
       : candidateBoundFix.candidateFixTarget;
   }

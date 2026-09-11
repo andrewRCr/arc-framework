@@ -719,6 +719,25 @@ describe("review-fix Candidate lineage", () => {
       }),
     }));
 
+    const verifiedFix = {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-private-member-fix"],
+      },
+    } as const;
+    const unchanged = await runArcWithStdin(
+      ["review", "respond", "-"],
+      root,
+      `${JSON.stringify(verifiedFix)}\n`,
+    );
+    expect(unchanged.exitCode).not.toBe(0);
+    expect(JSON.parse(unchanged.stdout)).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("changed exact target") },
+    });
+
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "apply approved fix"]);
@@ -732,15 +751,6 @@ describe("review-fix Candidate lineage", () => {
       locus: "candidate-fix-pending",
       target: { kind: "delivery-member", headSha: delivery.firstMemberHead },
     });
-    const verifiedFix = {
-      schemaVersion: 1,
-      source,
-      dispositions,
-      verifiedFix: {
-        applicability: "focused",
-        verificationEvidenceRefs: ["verification://focused-private-member-fix"],
-      },
-    } as const;
     await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
       .resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
