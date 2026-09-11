@@ -4,6 +4,7 @@ import {
   declareInteractionSite,
   type CommandInputDeclaration,
 } from "./lib/command-input/declaration.js";
+import { DEV_BUILD_REFRESH_COMMAND_PATHS } from "./lib/dev-check.js";
 
 const terminalSubprocessPolicy = {
   acquisition: "subprocess" as const,
@@ -29,6 +30,15 @@ const hostedGhSubprocessPolicy = {
   cancellation: "not-applicable" as const,
   automation: { noInput: "same" as const, flags: [], acceptedSyntax: [] },
   mutationBoundary: "delivery GitHub subprocess boundary",
+  subprocess: "close-stdin" as const,
+};
+
+const devBuildRefreshSubprocessPolicy = {
+  acquisition: "subprocess" as const,
+  schemaOwnership: "none" as const,
+  cancellation: "not-applicable" as const,
+  automation: { noInput: "same" as const, flags: [], acceptedSyntax: [] },
+  mutationBoundary: "post-action development build refresh",
   subprocess: "close-stdin" as const,
 };
 
@@ -147,5 +157,14 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "scripts/review-gate/hosted/gh-process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       hostedGhSubprocessPolicy,
     )] : []),
+  ],
+})), ...DEV_BUILD_REFRESH_COMMAND_PATHS.map((commandPath) => ({
+  commandPath,
+  aliases: [],
+  sites: [
+    declareInteractionSite(
+      { file: "lib/dev-check.ts", kind: "subprocess", callee: "execFile", occurrence: 1 },
+      devBuildRefreshSubprocessPolicy,
+    ),
   ],
 }))] satisfies readonly CommandInputDeclaration[];
