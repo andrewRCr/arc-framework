@@ -27,16 +27,18 @@
  * `files` array excludes — and a source entry fails the first. Either way the
  * helper returns `{ kind: "skip" }` and the CLI proceeds as normal.
  *
- * The pure verdict function takes injected fs primitives so tests can pin
- * each shape without touching the real filesystem. Refusal, and the single
- * compaction-seed exception to it, live at the cli.ts preAction boundary.
+ * The pure verdict and post-command refresh functions take injected
+ * boundaries so tests can pin each shape without touching the real
+ * filesystem. Refusal, the single compaction-seed exception, and refresh
+ * eligibility live at the cli.ts action-hook boundary.
  *
  * @module
  */
 
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
 export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
@@ -73,6 +75,26 @@ export type DevCheckResult =
       /** Repo-relative path of the newest src file. */
       newestSrc: string;
     };
+
+/** Exact developer command that regenerates the self-hosting runtime bundle. */
+export const DEV_BUILD_REFRESH_COMMAND = "npm run build:fast";
+
+/** Injectable freshness and build boundaries for the post-command refresh. */
+export interface DevBuildRefreshDeps {
+  /** Read freshness before and after any required rebuild. */
+  check: () => DevCheckResult;
+  /** Regenerate the developer bundle without re-entering the ARC CLI. */
+  rebuild: () => Promise<
+    { kind: "completed" }
+    | { kind: "failed"; message: string }
+  >;
+}
+
+/** Outcome of handing the next self-hosting command a fresh runtime bundle. */
+export type DevBuildRefreshResult =
+  | { kind: "not-required" }
+  | { kind: "refreshed" }
+  | { kind: "failed"; command: typeof DEV_BUILD_REFRESH_COMMAND; message: string };
 
 /** Injectable dependencies for the dev-check verdict function. */
 export interface DevCheckDeps {
@@ -139,6 +161,68 @@ export function checkDevBuildStaleness(deps: DevCheckDeps): DevCheckResult {
   }
 
   return { kind: "fresh" };
+}
+
+/**
+ * Refresh a bundle that became stale while the current command was running.
+ *
+ * The second check is the handoff proof: a successful build process alone does
+ * not establish that the next command will consume current source.
+ *
+ * @param deps - Freshness reader and runtime-only rebuild boundary
+ * @returns Whether no work was needed, freshness was restored, or manual retry is required
+ */
+export async function refreshStaleDevBuild(
+  deps: DevBuildRefreshDeps,
+): Promise<DevBuildRefreshResult> {
+  const before = deps.check();
+  if (before.kind !== "stale") return { kind: "not-required" };
+
+  const rebuilt = await deps.rebuild();
+  if (rebuilt.kind === "failed") {
+    return { kind: "failed", command: DEV_BUILD_REFRESH_COMMAND, message: rebuilt.message };
+  }
+
+  return deps.check().kind === "fresh"
+    ? { kind: "refreshed" }
+    : {
+        kind: "failed",
+        command: DEV_BUILD_REFRESH_COMMAND,
+        message: "the rebuilt bundle is still stale",
+      };
+}
+
+/**
+ * Bind post-command refresh to the running CLI bundle and its repository root.
+ * Published installs remain inert because their staleness check returns `skip`.
+ *
+ * @param cliJsPath - Absolute path of the running CLI entry point
+ * @returns The post-command freshness handoff result
+ */
+export async function refreshDevBuildAfterAction(
+  cliJsPath: string,
+): Promise<DevBuildRefreshResult> {
+  const check = (): DevCheckResult => checkDevBuildStaleness(createDevCheckDeps(cliJsPath));
+  const packageRoot = dirname(dirname(cliJsPath));
+  const repositoryRoot = resolve(packageRoot, "..", "..");
+  return refreshStaleDevBuild({
+    check,
+    rebuild: () => runFastDevBuild(repositoryRoot),
+  });
+}
+
+function runFastDevBuild(cwd: string): Promise<
+  { kind: "completed" }
+  | { kind: "failed"; message: string }
+> {
+  const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+  return new Promise((settle) => {
+    execFile(executable, ["run", "build:fast"], { cwd }, (error) => {
+      settle(error === null
+        ? { kind: "completed" }
+        : { kind: "failed", message: error.message });
+    });
+  });
 }
 
 /**

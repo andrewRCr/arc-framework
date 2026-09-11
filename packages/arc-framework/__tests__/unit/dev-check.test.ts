@@ -14,10 +14,12 @@ import {
   createDevCheckDeps,
   hashSourceInputs,
   isBuiltBundleEntry,
+  refreshDevBuildAfterAction,
+  refreshStaleDevBuild,
   selectBundleInputs,
   type DevCheckDeps,
 } from "../../src/lib/dev-check.js";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -153,6 +155,113 @@ describe("checkDevBuildStaleness", () => {
       }),
     );
     expect(mtimeFresh).toEqual({ kind: "fresh" });
+  });
+});
+
+describe("refreshStaleDevBuild", () => {
+  const stale = {
+    kind: "stale" as const,
+    basis: "content-hash" as const,
+    srcAge: 1,
+    distAge: 10,
+    newestSrc: "src/cli.ts",
+  };
+
+  it.each(["skip", "fresh"] as const)("does not rebuild a %s bundle", async (kind) => {
+    let rebuilds = 0;
+
+    const result = await refreshStaleDevBuild({
+      check: () => ({ kind }),
+      rebuild: async () => {
+        rebuilds += 1;
+        return { kind: "completed" };
+      },
+    });
+
+    expect(result).toEqual({ kind: "not-required" });
+    expect(rebuilds).toBe(0);
+  });
+
+  it("rebuilds a stale bundle and proves the refreshed output", async () => {
+    const checks = [stale, { kind: "fresh" as const }];
+    let rebuilds = 0;
+
+    const result = await refreshStaleDevBuild({
+      check: () => checks.shift() ?? stale,
+      rebuild: async () => {
+        rebuilds += 1;
+        return { kind: "completed" };
+      },
+    });
+
+    expect(result).toEqual({ kind: "refreshed" });
+    expect(rebuilds).toBe(1);
+  });
+
+  it("returns an exact retry command when rebuilding fails", async () => {
+    const result = await refreshStaleDevBuild({
+      check: () => stale,
+      rebuild: async () => ({ kind: "failed", message: "tsup failed" }),
+    });
+
+    expect(result).toEqual({
+      kind: "failed",
+      command: "npm run build:fast",
+      message: "tsup failed",
+    });
+  });
+
+  it("does not claim freshness when the rebuilt bundle remains stale", async () => {
+    const result = await refreshStaleDevBuild({
+      check: () => stale,
+      rebuild: async () => ({ kind: "completed" }),
+    });
+
+    expect(result).toEqual({
+      kind: "failed",
+      command: "npm run build:fast",
+      message: "the rebuilt bundle is still stale",
+    });
+  });
+});
+
+describe("refreshDevBuildAfterAction", () => {
+  it("runs the repository fast-build script and rechecks its package bundle", async () => {
+    const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
+    try {
+      const packageRoot = join(repositoryRoot, "packages", "arc-framework");
+      const sourceDir = join(packageRoot, "src");
+      const distDir = join(packageRoot, "dist");
+      mkdirSync(sourceDir, { recursive: true });
+      mkdirSync(distDir, { recursive: true });
+
+      const sourcePath = join(sourceDir, "cli.ts");
+      const cliPath = join(distDir, "cli.js");
+      const stampPath = join(distDir, "dev-build-stamp.json");
+      writeFileSync(sourcePath, "export const current = true;\n");
+      writeFileSync(cliPath, "#!/usr/bin/env node\n");
+      writeFileSync(join(distDir, "metafile-esm.json"), JSON.stringify({
+        inputs: { "src/cli.ts": { bytes: 1 } },
+      }));
+      writeFileSync(stampPath, `${JSON.stringify({ schemaVersion: 1, inputsHash: "stale" })}\n`);
+
+      const inputsHash = hashSourceInputs([sourcePath], packageRoot);
+      writeFileSync(join(repositoryRoot, "refresh.cjs"), [
+        'const { writeFileSync } = require("node:fs");',
+        `writeFileSync(${JSON.stringify(stampPath)}, ${JSON.stringify(
+          `${JSON.stringify({ schemaVersion: 1, inputsHash })}\n`,
+        )});`,
+        "",
+      ].join("\n"));
+      writeFileSync(join(repositoryRoot, "package.json"), JSON.stringify({
+        private: true,
+        scripts: { "build:fast": "node refresh.cjs" },
+      }));
+
+      await expect(refreshDevBuildAfterAction(cliPath)).resolves.toEqual({ kind: "refreshed" });
+    } finally {
+      rmSync(repositoryRoot, { recursive: true, force: true });
+    }
   });
 });
 

@@ -1,10 +1,10 @@
 /**
  * Stale-build guard E2E tests.
  *
- * The guard lives in a `preAction` hook inside `cli.ts`, whose module body
- * parses and runs on import — so it is reachable only from outside the process.
- * Holding the compaction-seed exemption at that call site is the design, which
- * puts this coverage here rather than in a unit test.
+ * The guard lives in action hooks inside `cli.ts`, whose module body parses and
+ * runs on import — so it is reachable only from outside the process. Holding
+ * the compaction-seed exemption and refresh eligibility at that call site is
+ * the design, which puts this coverage here rather than in a unit test.
  */
 
 import { execFile } from "node:child_process";
@@ -154,6 +154,7 @@ describe("stale-build guard", () => {
     expect(result.stderr).not.toContain("Refusing");
     expect(result.stderr).toContain("arc dev build is stale");
     expect(result.stderr).toContain("Run `npm run build:fast` before relying on output.");
+    expect(result.stderr).not.toContain("could not refresh the dev build");
 
     const envelope: unknown = JSON.parse(result.stdout);
     expect(envelope).toMatchObject({ mode: "session-init" });
