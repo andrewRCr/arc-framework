@@ -167,6 +167,22 @@ The top four E2E files remain `candidate-lineage`, `delivery-position`, `command
 `lifecycle-exit` is fifth by 0.44 s, so the measured anchor correction remains the one identified by the first
 baseline.
 
+### Worker sizing sweep
+
+The lane was measured in three-run alternating samples at 50%, 75%, and native sizing. On this 24-logical-CPU
+host, those modes resolved to 12, 18, and 23 workers respectively.
+
+| Requested sizing | Effective workers | Wall clock | Summed file time | Wall change from 50% |
+| ---------------- | ----------------- | ---------- | ---------------- | -------------------- |
+| 50%              | 12                | 44.93 s    | 457.99 s         | baseline             |
+| 75%              | 18                | 45.13 s    | 573.62 s         | +0.5%                |
+| native           | 23                | 46.12 s    | 701.69 s         | +2.7%                |
+
+Neither raised setting improves wall clock, and both increase the work performed as contention grows. Because no
+candidate cleared the 10% adoption band, the conditional sibling-session degradation probe did not fire. The
+local runner keeps the configuration's 50% default, no runner-only override is added, and the CI cap remains
+unchanged.
+
 ### Post-cost CI run
 
 Workflow dispatch `34651274160` ran successfully on the two-slot `arc-ci-mini` at the same exact head. This is one

@@ -652,32 +652,14 @@ the re-baselined ranking.
   top decile and E2E ranking head, and successful CI dispatch `34651274160` at 1,131 summed job-seconds. The local
   lane is 44.93 s; the CI result improves 17.9% but misses the derived bar by 54 s on this single sample.
 
-### `[ ]` **6.2 Size the local worker cap for admitted tiers against the noise band**
+### `[x]` **6.2 Size the local worker cap for admitted tiers against the noise band**
 
 - _Goal:_ Admitted tiers use as much of the machine as the admission lock makes safe, without moving the config
   default that unit-only runs depend on.
 
-- _Rationale:_ The config caps local runs at 50% of cores to leave headroom for sibling agent sessions. The
-  admission lock now guarantees only one admitted run executes machine-wide, so an admitted run can safely use
-  more — but unit-only runs stay outside the lock by design and are what the per-task gate reaches, so the config
-  default must not move.
-
-    - Raise workers only inside the tier runner, for the tiers it admits. The worker resolver reads its
-      environment variable ahead of the 50% fallback, and the runner starts Vitest in process, so setting the
-      variable before startup reaches the config. The unit-only script bypasses the runner entirely and keeps the
-      default without needing a guard.
-    - Gate the raise on `CI`, not on whether the variable is already set. CI runs integration and E2E through this
-      same runner, and the workflow sets the variable at workflow scope, where it resolves to an empty string on a
-      hosted runner — which the resolver treats as unset and answers with native sizing. A presence check reads
-      that empty value as absent and would cap a hosted run at the raised percentage, which is a CI worker-cap
-      change. The admission module alongside it already reads `CI` this way.
-    - Measure the lane at 50%, 75%, and native sizing; adopt a raise only if it clears the noise band with no
-      sibling-session degradation in a paired run. The sweep varies worker sizing deliberately, so it is a sizing
-      sweep under 2.2's rule rather than a lever claim to be refused.
-    - Adopting a raise lowers the lane's summed-time floor, and 2.7 derived its lane bar against the sizing in
-      force then. Land that re-derivation as a forward amendment by the same route, never as an edit to the
-      recorded bar.
-    - The CI cap is untouched.
+- _Outcome:_ Three-run medians at 50%, 75%, and native sizing were 44.93 s, 45.13 s, and 46.12 s. Neither raise
+  improved wall clock, while summed file time rose from 457.99 s to 573.62 s and 701.69 s, so the 50% default and
+  CI cap remain unchanged; no adoption candidate existed to trigger the conditional sibling probe or bar amendment.
 
 ### `[ ]` **6.3 Re-select the pinned CI anchor files from the tier-isolated ranking**
 
