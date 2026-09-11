@@ -601,6 +601,7 @@ async function resolveFrontlineSource(
     dispositionContext: dispositionSourceContextForResult(result),
     actors: await dependencies.resolveFrontlineActors(),
     frontlineOutcome: result.outcome,
+    laneLineage: result.admission.lineage,
   };
 }
 

@@ -597,8 +597,21 @@ substituting a selection in prose.
 `candidate-publication-required / resume-pre-publication` renders `payload.recommendedActionText` verbatim and
 invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary
 pre-publication procedure. At `candidate-publish-ready`, invoke `arc publish {name} --json`; require its idempotent
-Integrating result, then complete the already-open Step 2 review for any carried reservation. Run Tier 1 over the
-exact new head and staged boundary correction, then commit:
+Integrating result, then complete the already-open Step 2 review for any carried reservation. Continue at the shared
+publication-boundary commit below.
+
+`candidate-publication-required / refresh-shipped-delivery` renders `payload.recommendedActionText` verbatim and
+invokes `payload.attestArgv` unchanged. Require its unchanged `delivery-status-required` locus, then restart this
+step. This shipped continuation does not enter private pre-publication review or invoke `arc publish`.
+
+`terminal-rebind-required / reconcile-delivery-state` invokes `arc delivery reconcile - --json` with
+`payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
+This reuses ordinary delivery reconciliation and adds no new operation.
+
+`candidate-publication-commit-required / commit-boundary` renders `payload.recommendedActionText` verbatim and
+requires the staged path to equal `payload.boundaryPath`, then continues below.
+
+For either staged publication route, run Tier 1 over the exact new head and boundary correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -616,10 +629,6 @@ Repeat the Step 1 push extension contract.
 
 Restart this step. Ordinary review and publication settlement remain authoritative; Candidate applicability
 supplies neither verdict.
-
-`terminal-rebind-required / reconcile-delivery-state` invokes `arc delivery reconcile - --json` with
-`payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
-This reuses ordinary delivery reconciliation and adds no new operation.
 
 `blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
 

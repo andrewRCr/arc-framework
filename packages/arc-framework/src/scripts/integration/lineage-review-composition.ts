@@ -116,10 +116,11 @@ export function createLineageReviewComposer(input: {
     return order;
   };
 
-  // Every approved response in the lineage settles at the head the checkpoint approves, so one
-  // derivation of the current change set serves the whole plan — including sets that authorized no
-  // fix and therefore moved no implementation themselves. Refusing a different head keeps
-  // composition bound to the exact revision the reducer validated.
+  // Fix-bearing responses in the lineage settle at the head the checkpoint approves, so one
+  // derivation of the current change set serves those actions. A no-fix member-shaped response
+  // instead retains its exact origin: the terminal Candidate is a different target kind even when
+  // both targets name the same commit. Refusing a different checkpoint head keeps composition bound
+  // to the exact revision the reducer validated.
   const settledTarget = async (approvedHead: string): Promise<ReviewTarget> => {
     const { settings } = await readConfigSettings(input.cwd);
     const target = await deriveLocalReviewTarget({
@@ -193,9 +194,10 @@ export function createLineageReviewComposer(input: {
     const actions = scoped.map(([, { approved, origin }]) => {
       const current = currentApprovedDispositionNode(approved);
       const dispositions = current.approvedDisposition;
+      const hasFix = dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix");
       return composeReviewResponseSettlementAction({
         originTarget: origin,
-        fixTarget,
+        fixTarget: !hasFix && origin.kind === "delivery-member" ? origin : fixTarget,
         request: {
           schemaVersion: 1,
           source: approved.source.kind === "attested-local"
