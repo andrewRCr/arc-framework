@@ -230,14 +230,31 @@ lieu of `_Outcome:_`. All three (Goal + two categories) protected post-completio
 
 ### Revision Numbering (R Scheme)
 
-Expanding a previously-complete subtask without destroying existing numbering:
+Expanding a task plan without destroying existing numbering:
 
-- `X.Y.R` — subtask-level discovered/remaining work
-- `X.R` — phase-level follow-on that cuts across a whole phase (e.g., post-Phase-3 quality-gate
-  close)
+- `X.Y.R` — subtask-level discovered or remaining work, available only while `X.Y` is still open
+- `X.R` — phase-level follow-on that cuts across a whole phase (e.g., post-Phase-3 quality-gate close), and the
+  corrective parent for one amendment — a change to settled design made after the plan was authored
+- `X.R2`, `X.R3` — one corrective parent per further amendment to the same phase
 - `X.Y.R.a`, `X.R.a` — children when the revision item itself needs subtasks
 
 Preserves original numbering and audit trail. Documents mid-implementation discoveries.
+
+**A completed parent is never reopened to host corrective work.** `[x]` is terminal derived state and does not
+reverse; execution resumes at the first open parent in document order, so work hung beneath a completed one is
+never reached. A corrective parent is reused only while it is still open — a completed `X.R` never absorbs the
+next amendment. When an amendment changes what a completed task recorded, that task keeps its marker and the
+corrective parent carries the work.
+
+**Placement.** The corrective parent sits in the phase whose work it corrects, ahead of that phase's verifiers,
+and is never nested under one — a verifier records an outcome, it never hosts the work that produces one. See
+[Segments and Verification Boundaries](#segments-and-verification-boundaries) for the verifier family.
+
+**Placement yields to member immutability.** When the affected phase falls inside a delivery member that has
+already landed, the corrective parent goes in the earliest unlanded member that can carry it, or in the terminal
+member, taking the host phase's id and the ordinary position inside it — ahead of the host member's verifier. The
+id stays positional; the parent's Goal names the task it corrects. Placing it earlier in the host member's range
+is the Owner's call when that member's remaining tasks depend on the correction.
 
 ### Emoji Usage
 

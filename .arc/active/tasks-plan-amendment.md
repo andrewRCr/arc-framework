@@ -18,13 +18,10 @@ ahead of that phase's verifier plus an `X.R2`, an `X.Y.R`, and an `_Amended in:_
 parses without refusal through the structural scan, the segmentation scan, the task cursor, and the delivery task
 inventory, with the parent's Goal digest unchanged by the appended bullet.
 
-### `[ ]` **1.1 Extend the R scheme with per-amendment parent ids and yielded placement — D6**
+### `[x]` **1.1 Extend the R scheme with per-amendment parent ids and yielded placement — D6**
 
 - _Goal:_ A second and third amendment's corrective work sit in one task list without colliding ids, and a session
   resuming mid-detour reaches the open corrective parent from the cursor alone.
-
-- _Note:_ The scans and cursor are shipped code this task does not change; the fixture is a regression guard that
-  runs first because a refusal would falsify the id scheme rather than the task.
 
     - `[x]` **1.1.a Fixture proving the three id forms against every shipped consumer**
         - `__tests__/fixtures/amendment-task-list.ts` carries the shared list: two `slice` segments, `1.R` and
@@ -34,14 +31,18 @@ inventory, with the parent's Goal digest unchanged by the appended bullet.
           structural or segmentation diagnostic, the cursor at `1.R` / `1.R.a`, and an inventory classifying both
           corrective parents as implementation work.
 
-    - `[ ]` **1.1.b § Revision Numbering states the series, placement, and the retired practice**
-        - This section is the definition site for the id series and the placement mechanics; the workflow cites
-          it rather than restating them.
-        - `X.R2` / `X.R3`: one parent per amendment, reused only while still open.
-        - Placement: in the affected phase, before that phase's verifiers; never nested under a verifier.
-        - Yielded placement under a bound plan: the earliest unlanded member that can carry it, taking the host
-          phase's id and ordinary position.
-        - Reopening a completed parent to hang revision work under it is stated as retired — what is, not what was.
+    - `[x]` **1.1.b § Revision Numbering states the series, placement, and the retired practice**
+        - `strategy-task-list-formatting.md` § Revision Numbering now carries the `X.R2` / `X.R3` series, the
+          ahead-of-verifier placement rule, yielded placement under a bound plan, and parent reopening stated as
+          the prohibition it is rather than as a practice that changed.
+        - The `X.R` gloss gained the corrective-parent sense beside its existing phase-level follow-on one; the
+          section stays additive, so no prior use of the scheme is narrowed.
+
+- _Outcome:_ The `X.R2` series, ahead-of-verifier placement, yielded placement, and the retirement of parent
+  reopening are stated once in `strategy-task-list-formatting.md` and proven against all four shipped consumers.
+  The shipped pre-commit default still reads `1.R2` as a requirement code; only this project's
+  `hooks.strict_meta_ref_patterns` override is narrowed, so the id series is not yet expressible in an installed
+  project.
 
 ### `[ ]` **1.2 Protect `_Amended in:_` across completion — D6**
 
