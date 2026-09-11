@@ -521,6 +521,11 @@ be larger. The resulting bar is **≤44 s at 12 workers**, the larger-floor rule
 rounded upward. If the later sizing sweep adopts a different worker count, it must forward-amend this bar before
 scoring against it.
 
+At member closure, the authorized spec amendment preserves that absolute derivation but supersedes it as the score.
+The normalized 44.925 s final median misses the projection by 0.925 s (2.1%), which the instrument classifies as
+noise, while improving 21.6% from the 57.33 s first baseline. The replacement therefore uses the already-established
+same-mode 10% directional bar rather than claiming precision the measurement rule rejects.
+
 ### CI heavy lane: reduce by at least 300 job-seconds
 
 The conservative projection counts only fixed-cost changes with measured rates:

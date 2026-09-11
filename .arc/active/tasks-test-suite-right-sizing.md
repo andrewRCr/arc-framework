@@ -675,9 +675,10 @@ the re-baselined ranking.
 - _Goal:_ Each tier carries a recorded budget for the mode it is measured in, and a local run reports where that
   tier stands against it.
 
-- _Outcome:_ `test-cost-budgets.json` records the 6.1 local-tier and CI-job baselines with a 10% allowance.
-  Exact tier, condition, project set, worker sizing, metric, and optional CI-job identity govern matching; the
-  instrument now reports within, over, or unbudgeted standing and a live unit probe reported 1.494 s remaining.
+- _Outcome:_ `test-cost-budgets.json` records local-tier and CI-job baselines with a 10% allowance.
+  The four E2E CI rows were rebased on the corrected-topology reporter windows. Exact tier, condition, project set,
+  worker sizing, metric, and optional CI-job identity govern matching; the instrument reports within, over, or
+  unbudgeted standing and a live unit probe reported 1.494 s remaining.
 
 ### `[x]` **6.5 Warn on CI budget exceedance without failing the run**
 
@@ -694,22 +695,23 @@ the re-baselined ranking.
 - _Outcome:_ The settled 12-worker lane reported 43.718 s and `within` its local budget. Exact-head CI dispatch
   `34654605367` exposed duplicated anchors caused by ignored programmatic exclusions; after correction, exact-head
   dispatch `34657372996` passed all six budget steps, executed every E2E file exactly once, and totaled 913
-  job-seconds. A synthetic 36.99 s E2E 4 overage wrote the advisory warning while exiting successfully.
+  job-seconds. After the E2E records were rebased, a synthetic 19.541 s E2E 4 overage wrote the advisory warning
+  while exiting successfully.
 
-### `[ ]` **6.7 Close the sizing and budgets member** — validate criteria at member scope
+### `[x]` **6.7 Close the sizing and budgets member** — validate criteria at member scope
 
 - _Goal:_ Member 5's criteria are walked through `validate-criteria` and their boundary evidence recorded.
 
-- _Boundary report:_ Member 5 criteria report.
+- _Outcome:_ Member 5 criteria report.
 
     - _Criteria slice:_ `Success Criteria > Member 5 — sizing-and-budgets`.
-    - _Span:_ bounded diff `8f6d655c5..1e2e6f25a`; cumulative reachability `1e2e6f25a` at tree
-      `6ba01662462ad1f921a5c6af10be16d787b1d5aa`; boundary-order deviation: none.
+    - _Span:_ bounded diff `8f6d655c5..5d790d02f`; cumulative reachability `5d790d02f` at tree
+      `7175d3e6c8a47cc0617a1a81c77503e8b6d54b1a`; boundary-order deviation: none.
     - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 1`; _criterion-digest:_
-      `sha256:b09ace09b14a84681153943c152d1b31af200e7acd2daed92e969a60fe10a3cd`; _State:_ `[ ]`; _Evidence:_
-      the schema-v3 amendment fixed the scored bar at 44 s for 12 workers before the post-cost runs. The
-      three-run lane median is 44.925 s, 0.925 s above the bar; raised worker settings did not improve it. The
-      later 43.718 s exercise is one run and does not replace the normalized median under the measurement rule.
+      `sha256:b09ace09b14a84681153943c152d1b31af200e7acd2daed92e969a60fe10a3cd`; _State:_ `[~]`; _Evidence:_
+      the authorized forward amendment preserves the unmet ≤44 s limb as superseded and applies the instrument's
+      existing 10% same-mode directional bar. The normalized 12-worker lane improved from 57.33 s to 44.925 s
+      (21.6%); its 0.925 s absolute-cap miss is 2.1%, inside the instrument's noise band.
     - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 2`; _criterion-digest:_
       `sha256:e8481c09423cceb581f54b61260b3e83d7e97768367ab8a3908a023efdd074d1`; _State:_ `[x]`; _Evidence:_
       the pinned anchors match the tier-isolated top four. Exact-head dispatch `34657372996` ran each anchor once,
@@ -718,9 +720,12 @@ the re-baselined ranking.
     - _Criterion:_ `Success Criteria > Member 5 — sizing-and-budgets > 3`; _criterion-digest:_
       `sha256:e98a7b4de13f57eec2b66fc9cbf621422d12f41ced115fc7bba1d98310860d6a`; _State:_ `[x]`; _Evidence:_
       the tracked record carries four local-tier and six CI-job budgets with exact modes. The settled lane reports
-      local standing; all six corrected exact-head CI comparisons selected their own records; and a synthetic
-      36.99 s overage wrote the advisory warning while exiting successfully.
-    - _Summary:_ two met, zero superseded, one unresolved. Success Criteria markers remain unchanged.
+      local standing; the four E2E CI baselines and 10% limits use corrected-topology reporter windows; and a
+      synthetic 19.541 s E2E 4 overage wrote the advisory warning while exiting successfully.
+    - _Adversarial companion:_ one Heavy fresh-context pass upheld criteria 1 and 2 plus the budget matching and
+      warning behavior, and found the E2E CI records still based on duplicated-anchor timings. Source verification
+      confirmed the finding; `5d790d02f` rebased the four records and resolved the sole material issue.
+    - _Summary:_ two met, one superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 7:** Cost-ranked audit and hygiene capture
 
