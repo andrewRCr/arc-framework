@@ -587,15 +587,13 @@ currentness and attestation outcomes without requiring the separately owned prop
   one scope/evidence contract. Real CLI coverage proves focused convergence while omitted approval scope retains the
   conservative full path.
 
-### `[ ]` **5.5 Record the verification-authority amendment** — D13
+### `[x]` **5.5 Record the verification-authority amendment** — D13
 
 - _Goal:_ the architectural record identifies the disposition approval as scope authority without weakening the
   Candidate root attestation or its subject-digest applicability.
 
-    - Add a dated Tier 2 annotation under § Amending This Document in
-      `adr-034-use-windowed-landing-around-agentic-review.md`, stating the stable authority relationship rather than
-      implementation or work-unit history.
-    - Run focused ADR references and Markdown checks after the annotation.
+- _Outcome:_ ADR-034 now records disposition-set approval as scope authority and fresh, sufficiently broad lineage
+  evidence as the convergence condition, without changing root attestation or subject-digest applicability.
 
 ### `[ ]` **5.6 Exercise the scoped-verification slice** — D2-D3, D12-D13 — validate exit criterion at segment scope
 
