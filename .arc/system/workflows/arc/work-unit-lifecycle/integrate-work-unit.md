@@ -165,10 +165,9 @@ state from `hostRef`. Every hook and review invocation shares this exact-head co
 head, recompose `openedChangeRequest` from the canonical current head before re-entry.
 
 Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean` and
-regenerable-only drift silent. For substantive overlap, reconcile early only when the interaction is clear and
-reviewing first would waste the pass; use an append-only merge, rerun Tier 1 gates, push, and recompose the target
-without a permission stop. A conflict, material interaction, or uncertain product decision stops. This advisory
-never replaces Step 10's authoritative final drift read.
+regenerable-only drift silent and surface substantive or uncertain interaction as review context. This read is
+advisory only: it authorizes no merge, commit, push, or target recomposition. Base mutation belongs exclusively to
+Step 10's authoritative checkpoint planner and its typed base-merge arm.
 
 Read `integrationBoundary.reservation` from the typed status projection. A null reservation means the standard lane
 already settled or was a typed no-op before submission; do not invent a post-PR obligation. A carried reservation
@@ -627,7 +626,9 @@ For `reconcile-regenerable`, invoke
 --regenerate-roadmap --json`.
 `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
 `head-contained-by-base / rerun-checkpoint` restart this step.
-`blocked / stop`, `conflict / stop`, and `regenerable-refused / stop` stop before every later fire point.
+`blocked / stop`, `conflict / stop`, and `regenerable-refused / stop` stop before every later fire point. Before
+stopping, render the supplied semantic reason, detail, decisive coordinates, and `continuation` remedy or terminal
+explanation.
 `skipped-clean / continue-reconcile` restarts this step without a push. On `merged / run-quality-gates`, run Tier 1
 over the exact merged head. These are the ordinary new-head automated checks; make no applicability or review
 judgment before the checkpoint classifies the exact target.

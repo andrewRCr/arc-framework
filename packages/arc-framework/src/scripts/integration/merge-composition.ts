@@ -7,12 +7,13 @@ import {
   createCurrentBaseDriftAdapters,
   workUnitPathTreatmentContext,
 } from "../../lib/base-drift/current-adapters.js";
-import { runBaseDrift } from "../../lib/git/base-distance.js";
+import { runBaseDrift, type BaseDriftResult } from "../../lib/git/base-distance.js";
 import {
   getCurrentBranch,
   observeGitMergeFeasibility,
   resolveIdentity,
   type GitExec,
+  type GitMergeFeasibility,
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -21,6 +22,7 @@ import {
   ChangeRequestMergeObservationSchema,
   observeChangeRequestMergeAdmission,
   resolveChangeRequest,
+  type ChangeRequestMergeObservation,
   type ChangeRequestResolutionPort,
 } from "../review-gate/change-request.js";
 import { observeRequiredChecks } from "../review-gate/checks-await.js";
@@ -50,6 +52,7 @@ import { respondToReviewCommand } from "../review-gate/runtime/respond-command.j
 import { readIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { composeCheckpointMovementPlan, CheckpointMovementObservationSchema } from "./checkpoint.js";
 import {
+  type IntegrationFinalPlan,
   type IntegrationMergeDependencies,
   type IntegrationMergeTarget,
 } from "./merge.js";
@@ -71,6 +74,44 @@ const GitHubMergeConfirmationSchema = z.object({
   base: z.object({ ref: z.string().min(1) }).loose(),
   head: z.object({ ref: z.string().min(1), sha: z.string().min(1) }).loose(),
 }).loose();
+
+/** Bind final work-unit movement evidence to one refreshed host target. */
+export function composeIntegrationFinalPlan(input: {
+  readonly drift: Pick<
+    BaseDriftResult,
+    "verdict" | "baseOid" | "headOid" | "movement" | "integrationEvidence"
+  >;
+  readonly target: IntegrationMergeTarget;
+  readonly feasibility: GitMergeFeasibility;
+  readonly admission: ChangeRequestMergeObservation;
+}): IntegrationFinalPlan {
+  const { drift, target } = input;
+  if (drift.baseOid === null || typeof drift.headOid !== "string" || drift.headOid !== target.headSha
+    || drift.movement === undefined
+    || (drift.verdict !== "clean" && drift.verdict !== "reconcile")) {
+    return {
+      status: "unavailable",
+      target,
+      baseOid: drift.baseOid,
+      detail: typeof drift.headOid === "string" && drift.headOid !== target.headSha
+        ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head ${target.headSha}.`
+        : "The final authoritative base movement could not be established.",
+    };
+  }
+  const observation = CheckpointMovementObservationSchema.parse({
+    movement: drift.movement,
+    integrationEvidenceComplete: drift.integrationEvidence?.coverage === "complete",
+    feasibility: input.feasibility,
+    admission: input.admission,
+  });
+  return {
+    status: "available",
+    target,
+    baseOid: drift.baseOid,
+    observation,
+    plan: composeCheckpointMovementPlan(observation),
+  };
+}
 
 function failureDetail(error: unknown): string {
   const detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, " ").trim();
@@ -317,12 +358,16 @@ export function createIntegrationMergeDependencies(input: {
         liveTarget(target),
       ]);
       if (drift.baseOid === null || drift.movement === undefined
+        || typeof drift.headOid !== "string" || drift.headOid !== observedTarget.headSha
         || (drift.verdict !== "clean" && drift.verdict !== "reconcile")) {
         return {
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: "The final authoritative base movement could not be established.",
+          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
+            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
+              + `${observedTarget.headSha}.`
+            : "The final authoritative base movement could not be established.",
         };
       }
       const coordinates = {
@@ -343,19 +388,7 @@ export function createIntegrationMergeDependencies(input: {
       const admission = admissionOverride === undefined
         ? await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort)
         : ChangeRequestMergeObservationSchema.parse({ ...coordinates, ...admissionOverride });
-      const observation = CheckpointMovementObservationSchema.parse({
-        movement: drift.movement,
-        integrationEvidenceComplete: drift.integrationEvidence?.coverage === "complete",
-        feasibility,
-        admission,
-      });
-      return {
-        status: "available",
-        target: observedTarget,
-        baseOid: drift.baseOid,
-        observation,
-        plan: composeCheckpointMovementPlan(observation),
-      };
+      return composeIntegrationFinalPlan({ drift, target: observedTarget, feasibility, admission });
     },
     mergePinned: async (target, method) => {
       let response: z.infer<typeof GitHubMergeResponseSchema> | null = null;

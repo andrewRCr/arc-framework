@@ -46,6 +46,7 @@ function baseDistance(
     overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
     register: null,
     ...overrides,
+    headOid: overrides.headOid ?? "b".repeat(40),
   };
 }
 

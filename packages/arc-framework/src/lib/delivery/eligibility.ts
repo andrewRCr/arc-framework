@@ -42,6 +42,64 @@ export interface DeliveryEligibilitySnapshot {
   readonly regenerablePaths: readonly string[];
 }
 
+/** Reconstruct the lifecycle treatment derived from one freshly observed path set. */
+export function deriveDeliveryRegenerablePaths(
+  lifecyclePaths: readonly string[],
+  workUnitId: string,
+): readonly string[] {
+  return [...new Set(lifecyclePaths)].sort(byteSort).filter((path) => (
+    classifyPathTreatment(path, { workUnit: workUnitId }) === "regenerable"
+  ));
+}
+
+/** Bind rewrite-time lifecycle validation to one member of a closed eligibility snapshot. */
+export function deriveDeliveryMemberLifecycleRevalidation(input: {
+  readonly snapshot: DeliveryEligibilitySnapshot;
+  readonly deliverableId: string;
+}): {
+  readonly protectedBaseRef: string;
+  readonly chainBaseRef: string;
+  readonly candidateRef: string;
+  readonly paths: readonly string[];
+  readonly regenerablePaths: readonly string[];
+} | null {
+  const index = input.snapshot.members.findIndex((member) => member.deliverableId === input.deliverableId);
+  const member = input.snapshot.members[index];
+  const predecessor = index === 0 ? input.snapshot.chainBase : input.snapshot.members[index - 1];
+  if (index < 0 || member === undefined || predecessor === undefined) return null;
+  return {
+    protectedBaseRef: input.snapshot.protectedBase.ref,
+    chainBaseRef: predecessor.head,
+    candidateRef: member.ref,
+    paths: input.snapshot.lifecyclePaths,
+    regenerablePaths: input.snapshot.regenerablePaths,
+  };
+}
+
+/** Bind a standalone rewrite to the predecessor already present in its requested operation snapshot. */
+export function deriveDeliveryRewriteLifecycleRevalidation(input: {
+  readonly protectedBaseRef: string;
+  readonly requestedPredecessorHead: string;
+  readonly candidateRef: string;
+  readonly lifecyclePaths: readonly string[];
+  readonly workUnitId: string;
+}): {
+  readonly protectedBaseRef: string;
+  readonly chainBaseRef: string;
+  readonly candidateRef: string;
+  readonly paths: readonly string[];
+  readonly regenerablePaths: readonly string[];
+} {
+  const paths = [...new Set(input.lifecyclePaths)].sort(byteSort);
+  return {
+    protectedBaseRef: input.protectedBaseRef,
+    chainBaseRef: input.requestedPredecessorHead,
+    candidateRef: input.candidateRef,
+    paths,
+    regenerablePaths: deriveDeliveryRegenerablePaths(paths, input.workUnitId),
+  };
+}
+
 /** Read-only dependencies used by eligibility preparation, gate bracketing, and close. */
 export interface DeliveryEligibilityDependencies {
   observeRef(ref: string): Promise<DeliveryEligibilityCoordinates | null>;
@@ -336,9 +394,7 @@ export async function prepareDeliveryEligibility(input: {
     return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
   }
   const lifecyclePaths = [...new Set(input.lifecyclePaths)].sort(byteSort);
-  const regenerablePaths = lifecyclePaths.filter((path) => (
-    classifyPathTreatment(path, { workUnit: input.plan.workUnitId }) === "regenerable"
-  ));
+  const regenerablePaths = deriveDeliveryRegenerablePaths(lifecyclePaths, input.plan.workUnitId);
   const members: DeliveryEligibilityMember[] = [];
   for (const [index, candidate] of input.candidates.entries()) {
     const coordinates = observed[index + 2];
@@ -509,13 +565,29 @@ async function closeMechanicalDeliveryEligibility(
       detail: "The reobserved predecessor relation does not match the prepared snapshot.",
     };
   }
-  if (snapshot.chainBase.head !== snapshot.protectedBase.head
-    || snapshot.chainBase.tree !== snapshot.protectedBase.tree) {
-    const currentChainBase = await deps.observeRef(snapshot.chainBase.head);
-    if (currentChainBase === null || currentChainBase.head !== snapshot.chainBase.head
-      || currentChainBase.tree !== snapshot.chainBase.tree) {
-      return { status: "refused", reason: "evidence-unavailable" };
-    }
+  const relationChainBaseHead = currentRelation.relation.kind === "exact"
+    || currentRelation.relation.kind === "disjoint-ahead"
+    ? currentRelation.relation.chainBase
+    : null;
+  if (relationChainBaseHead === null || snapshot.chainBase.head !== relationChainBaseHead) {
+    return {
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: firstMember.deliverableId,
+      relation: currentRelation.relation,
+      detail: "The snapshot chain base does not match the freshly reobserved predecessor relation.",
+    };
+  }
+  const currentChainBase = relationChainBaseHead === snapshot.protectedBase.head
+    ? snapshot.protectedBase
+    : await deps.observeRef(relationChainBaseHead);
+  if (currentChainBase === null || currentChainBase.head !== relationChainBaseHead
+    || currentChainBase.tree !== snapshot.chainBase.tree) {
+    return { status: "refused", reason: "evidence-unavailable" };
+  }
+  const expectedRegenerablePaths = deriveDeliveryRegenerablePaths(snapshot.lifecyclePaths, snapshot.workUnitId);
+  if (!samePaths(expectedRegenerablePaths, snapshot.regenerablePaths)) {
+    return { status: "refused", reason: "lifecycle-paths-moved" };
   }
   const completeness = await deps.compareNormalizedCompleteness({
     protectedBase: snapshot.protectedBase,
@@ -575,6 +647,10 @@ function sameOverlap(
     && left.substantivePaths.every((path, index) => path === right.substantivePaths[index])
     && left.regenerablePaths.length === right.regenerablePaths.length
     && left.regenerablePaths.every((path, index) => path === right.regenerablePaths[index]);
+}
+
+function samePaths(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((path, index) => path === right[index]);
 }
 
 function validateDeliveryCandidateGateResults(

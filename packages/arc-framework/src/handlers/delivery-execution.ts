@@ -18,6 +18,8 @@ import { parseMetaFile } from "../lib/active/meta-reader.js";
 import { workUnitPathTreatmentContext } from "../lib/base-drift/current-adapters.js";
 import {
   closeDeliveryEligibilityForPublication,
+  deriveDeliveryMemberLifecycleRevalidation,
+  deriveDeliveryRewriteLifecycleRevalidation,
   executeWithFreshDeliveryEligibility,
   prepareDeliveryEligibility,
   type DeliveryEligibilitySnapshot,
@@ -5908,12 +5910,11 @@ async function executeDeliveryCommand(
       },
       resolveCoordinate: (head) => observeDeliveryEligibilityRef(exec, head),
       proveCarried: (endpoints) => proveGitDeliveryContribution({ exec: createRawGitExec(cwd), ...endpoints }),
-      apply: async ({ plan, current, rewrite }) => {
+      apply: async ({ plan, current, rewrite, snapshot }) => {
         const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const requested = rewrite.requested.members[0];
-        const snapshot = latestSnapshot;
         if (member?.ref === null || member?.coordinates === null || member === undefined
-          || requested?.coordinates === null || requested === undefined || snapshot === null) {
+          || requested?.coordinates === null || requested === undefined) {
           return { status: "refused" as const };
         }
         const memberRef = member.ref;
@@ -5932,16 +5933,12 @@ async function executeDeliveryCommand(
           requested: rewrite.requested,
           contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
           revalidateLifecycle: async () => {
-            const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
-            if (candidate === undefined) return { status: "refused" as const };
-            const checked = await revalidateDeliveryLifecycleContribution({
-              exec,
-              protectedBaseRef: parsed.protectedBaseRef,
-              chainBaseRef: parsed.protectedBaseRef,
-              candidateRef: candidate.ref,
-              paths: snapshot.lifecyclePaths,
-              regenerablePaths: [],
+            const lifecycleInput = deriveDeliveryMemberLifecycleRevalidation({
+              snapshot,
+              deliverableId: rewrite.deliverableId,
             });
+            if (lifecycleInput === null) return { status: "refused" as const };
+            const checked = await revalidateDeliveryLifecycleContribution({ exec, ...lifecycleInput });
             return { status: checked.status };
           },
           rewriteRef: (effect) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...effect }),
@@ -5986,22 +5983,28 @@ async function executeDeliveryCommand(
     if (planRead.status !== "ok" || planRead.value === null || stateRead.status !== "ok" || stateRead.value === null) {
       return { status: "refused", reason: "delivery-unavailable" };
     }
+    const plan = planRead.value;
+    const requestedMember = parsed.requested.members[0];
+    if (requestedMember?.coordinates === null || requestedMember === undefined) {
+      return { status: "refused", reason: "position-mismatch" };
+    }
+    const requestedCoordinates = requestedMember.coordinates;
     const rawExec = createRawGitExec(cwd);
     return executeDeliverySuffixRewrite({
-      plan: planRead.value,
+      plan,
       current: stateRead.value,
       deliverableId: parsed.deliverableId,
       requested: parsed.requested,
       contributionMode: parsed.contributionMode,
       revalidateLifecycle: async () => {
-        const checked = await revalidateDeliveryLifecycleContribution({
-          exec,
+        const lifecycleInput = deriveDeliveryRewriteLifecycleRevalidation({
           protectedBaseRef: parsed.protectedBaseRef,
-          chainBaseRef: parsed.protectedBaseRef,
+          requestedPredecessorHead: requestedCoordinates.base,
           candidateRef: parsed.candidateRef,
-          paths: parsed.lifecyclePaths,
-          regenerablePaths: [],
+          lifecyclePaths: parsed.lifecyclePaths,
+          workUnitId: plan.workUnitId,
         });
+        const checked = await revalidateDeliveryLifecycleContribution({ exec, ...lifecycleInput });
         return { status: checked.status };
       },
       rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...input }),

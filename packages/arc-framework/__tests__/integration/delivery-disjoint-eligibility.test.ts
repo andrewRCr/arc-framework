@@ -282,6 +282,7 @@ describe("disjoint delivery eligibility", () => {
       behind: 1,
       base: "main",
       baseOid: observedTip,
+      headOid: terminalHead,
       movement: "disjoint" as const,
       integrationEvidence: {
         coverage: "complete" as const,

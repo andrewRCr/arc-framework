@@ -439,6 +439,7 @@ describe("delivery suffix rematerialization", () => {
       regenerablePaths: [],
     };
     const seenRevisions: number[] = [];
+    const seenSnapshots: DeliveryEligibilitySnapshot[] = [];
     const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }));
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [initial.members[1]!.deliverableId],
@@ -453,8 +454,9 @@ describe("delivery suffix rematerialization", () => {
       reobserveCandidate: async () => true,
       resolveCoordinate,
       proveCarried,
-      apply: async ({ current: input, rewrite }) => {
+      apply: async ({ current: input, rewrite, snapshot: admittedSnapshot }) => {
         seenRevisions.push(input.revision);
+        seenSnapshots.push(admittedSnapshot);
         current = {
           revision: input.revision + 1,
           value: {
@@ -476,6 +478,7 @@ describe("delivery suffix rematerialization", () => {
       },
     });
     expect(seenRevisions).toEqual([7, 8]);
+    expect(seenSnapshots).toEqual([snapshot, snapshot]);
     expect(proveCarried).toHaveBeenCalledTimes(6);
   });
 

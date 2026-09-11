@@ -160,8 +160,7 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
     : null;
   const terminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
 
-  if (request.candidate.implementationChanged
-    && request.candidate.convergenceVerification === "pending") {
+  if (request.candidate.convergenceVerification === "pending") {
     const requiredScope = request.candidate.convergenceScope;
     const attestArgv = attestConvergenceArgv(
       request.workUnit,

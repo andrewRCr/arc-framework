@@ -142,7 +142,10 @@ describe("base merge composition", () => {
     };
     const port = createBaseMergePort({ cwd: "/repo", baseBranch: "main", exec });
 
-    await expect(port.mergeAppendOnly(oid("a"), oid("c"))).resolves.toEqual({ status: "conflict" });
+    await expect(port.mergeAppendOnly(oid("a"), oid("c"))).resolves.toEqual({
+      status: "conflict",
+      detail: "Merge conflicts remain in: conflict.txt.",
+    });
     expect(state).toEqual({ head: oid("c"), clean: true, merging: false });
   });
 

@@ -158,6 +158,7 @@ export const AttestResultSchema = z.union([
     status: z.literal("refused"),
     reason: z.enum([
       "verification-evidence-required",
+      "verification-evidence-reused",
       "verification-evidence-inapplicable",
       "verification-scope-insufficient",
       "focused-scope-inapplicable",
@@ -341,6 +342,20 @@ export async function runAttest(
         newRoot: false,
       });
     }
+    if (verificationEvidenceRef === record.attestation.verificationEvidenceRef
+      || record.lineageAttestations.some((attestation) =>
+        attestation.verificationEvidenceRef === verificationEvidenceRef)) {
+      return scopedRefusal({
+        reason: "verification-evidence-reused",
+        name,
+        candidateId: currentness.candidateId,
+        subjectDigest: current.subject.subjectDigest,
+        requestedScope,
+        requiredScope,
+        verificationEvidenceRef,
+        newRoot: false,
+      });
+    }
     const lineageAttestation = createCandidateLineageAttestation({
       candidateId: currentness.candidateId,
       target: { revision: currentness.recognizedRevision, subject: current.subject },
@@ -393,6 +408,7 @@ export async function runAttest(
 interface ScopedRefusalInput {
   reason:
     | "verification-evidence-required"
+    | "verification-evidence-reused"
     | "verification-evidence-inapplicable"
     | "verification-scope-insufficient"
     | "focused-scope-inapplicable";
@@ -407,6 +423,7 @@ interface ScopedRefusalInput {
 
 function scopedRefusal(input: ScopedRefusalInput): AttestResult {
   const convergence = input.reason === "verification-evidence-required"
+    || input.reason === "verification-evidence-reused"
     || input.reason === "verification-scope-insufficient";
   const attestArgv = convergence
     ? [
@@ -435,6 +452,8 @@ function scopedRefusal(input: ScopedRefusalInput): AttestResult {
     },
     recommendedActionText: input.reason === "verification-evidence-required"
       ? `Run ${input.requiredScope} convergence verification and supply its fresh evidence reference.`
+      : input.reason === "verification-evidence-reused"
+        ? `Run ${input.requiredScope} convergence verification and supply a new evidence reference.`
       : input.reason === "verification-scope-insufficient"
         ? `Run full convergence verification; focused evidence cannot satisfy this Candidate subject.`
         : "Run full work-unit verification before attesting a Candidate root or re-root.",

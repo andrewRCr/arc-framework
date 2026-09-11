@@ -544,6 +544,69 @@ describe("Candidate lineage currentness", () => {
     }).success).toBe(true);
   });
 
+  it("applies prior lineage attestations while guarding a later focused attestation", () => {
+    const root = attestation();
+    const fullSubject = snapshot(canonicalDigest({ source: "full-fix" }));
+    const focusedSubject = snapshot(canonicalDigest({ source: "focused-fix-after-full" }));
+    const full = createCandidateReviewResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_A, subject: snapshot() },
+      newTarget: { revision: SHA_B, subject: fullSubject },
+      dispositionId: canonicalDigest({ dispositions: "full-first" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "full",
+      approvedVerification: "full",
+      verificationEvidenceRefs: ["test://candidate/full-first"],
+      implementationChanged: true,
+    });
+    const focused = createCandidateReviewResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: full.newTarget,
+      newTarget: { revision: SHA_C, subject: focusedSubject },
+      dispositionId: canonicalDigest({ dispositions: "focused-second" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      approvedVerification: "focused",
+      verificationEvidenceRefs: ["test://candidate/focused-second"],
+      implementationChanged: true,
+    });
+    const fullAttestation = createCandidateLineageAttestation({
+      candidateId: root.candidateId,
+      target: full.newTarget,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-12T13:00:00.000Z",
+      verificationEvidenceRef: "verification://example/full-first",
+      scope: "full",
+    });
+    const focusedAttestation = createCandidateLineageAttestation({
+      candidateId: root.candidateId,
+      target: focused.newTarget,
+      attestedBy: "andrew",
+      attestedAt: "2026-08-12T14:00:00.000Z",
+      verificationEvidenceRef: "verification://example/focused-second",
+      scope: "focused",
+    });
+
+    const parsed = CandidateManagedRecordV1Schema.safeParse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [full, focused],
+      lineageAttestations: [fullAttestation, focusedAttestation],
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw new Error("expected prior full convergence to discharge before focused scope");
+    expect(projectCandidateCurrentness({ record: parsed.data, current: focused.newTarget })).toMatchObject({
+      status: "current",
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    });
+  });
+
   it("advances through an approved review response and retains verification applicability", () => {
     const root = attestation();
     const changed = snapshot(canonicalDigest({ source: "review-fix" }));

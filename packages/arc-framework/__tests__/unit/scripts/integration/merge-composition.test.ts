@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { ChangeRequestResolutionPort } from
   "../../../../src/scripts/review-gate/change-request.js";
-import { createIntegrationMergeDependencies } from
+import { composeIntegrationFinalPlan, createIntegrationMergeDependencies } from
   "../../../../src/scripts/integration/merge-composition.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -27,6 +27,38 @@ function port(headSha: string): ChangeRequestResolutionPort {
 }
 
 describe("integration merge composition", () => {
+  it("fails closed when final drift analyzed a different local head than the refreshed host target", () => {
+    const target = {
+      repository: "owner/repo",
+      pullRequest: 42,
+      baseRef: "main",
+      headRef: "feat/example",
+      headSha: oid("c"),
+    };
+    expect(composeIntegrationFinalPlan({
+      drift: {
+        verdict: "clean",
+        baseOid: oid("b"),
+        headOid: oid("d"),
+        movement: "disjoint",
+        integrationEvidence: null,
+      },
+      target,
+      feasibility: { state: "clean", base: oid("b"), head: target.headSha },
+      admission: {
+        state: "mergeable",
+        repository: target.repository,
+        changeRequest: target.pullRequest,
+        base: oid("b"),
+        head: target.headSha,
+      },
+    })).toMatchObject({
+      status: "unavailable",
+      baseOid: oid("b"),
+      detail: expect.stringContaining(oid("d")),
+    });
+  });
+
   it("observes required checks once without repeating a provider read", async () => {
     const target = {
       repository: "owner/repo",

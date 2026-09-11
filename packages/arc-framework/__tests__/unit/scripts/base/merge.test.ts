@@ -20,7 +20,7 @@ function repository(base = oid("a"), conflict = false) {
       state.merging = true;
       if (conflict) {
         state.merging = false;
-        return { status: "conflict" } as const;
+        return { status: "conflict", detail: "Merge conflicts remain in: conflict.txt." } as const;
       }
       state.history.push(baseOid);
       state.merging = false;
@@ -40,10 +40,15 @@ describe("base merge", () => {
       expectedHead: oid("b"),
     } as Parameters<typeof mergeExpectedBase>[0], port)).resolves.toMatchObject({
       state: "head-moved",
+      reason: "head-moved",
       nextAction: "rerun-checkpoint",
       expectedBase: oid("a"),
       expectedHead: oid("b"),
       actualHead: oid("c"),
+      coordinates: {
+        expectedBase: oid("a"), expectedHead: oid("b"), actualBase: oid("a"), actualHead: oid("c"),
+      },
+      continuation: { kind: "terminal-explanation" },
     });
     expect(state.history).toEqual(before);
   });
@@ -55,9 +60,12 @@ describe("base merge", () => {
     await expect(mergeExpectedBase({ expectedBase: oid("a"), expectedHead: oid("c") }, port))
       .resolves.toMatchObject({
       state: "base-moved",
+      reason: "base-moved",
       nextAction: "rerun-checkpoint",
       expectedBase: oid("a"),
       actualBase: oid("b"),
+      detail: expect.stringContaining("configured base moved"),
+      continuation: { kind: "terminal-explanation" },
     });
     expect(state.history).toEqual(before);
   });
@@ -104,9 +112,13 @@ describe("base merge", () => {
       expectedHead: oid("c"),
     }, ancestryPort)).resolves.toMatchObject({
       state: "head-contained-by-base",
+      reason: "head-contained-by-base",
       nextAction: "rerun-checkpoint",
       expectedBase: oid("a"),
       expectedHead: oid("c"),
+      actualBase: oid("a"),
+      actualHead: oid("c"),
+      continuation: { kind: "terminal-explanation" },
     });
     expect(state.history).toEqual(before);
   });
@@ -152,6 +164,29 @@ describe("base merge", () => {
       reason: "operational-failure",
       expectedBase: oid("a"),
       expectedHead: oid("c"),
+      actualBase: oid("a"),
+      actualHead: oid("c"),
+      detail: expect.stringMatching(/object|invalid/iu),
+      continuation: { kind: "terminal-explanation" },
+    });
+  });
+
+  it("preserves a refreshed base coordinate when the head observation fails", async () => {
+    const { port } = repository();
+    port.refreshHead = async () => {
+      throw new Error("head observation failed");
+    };
+    await expect(mergeExpectedBase({
+      expectedBase: oid("a"),
+      expectedHead: oid("c"),
+    }, port)).resolves.toMatchObject({
+      state: "blocked",
+      reason: "operational-failure",
+      detail: "head observation failed",
+      coordinates: {
+        expectedBase: oid("a"), expectedHead: oid("c"), actualBase: oid("a"), actualHead: null,
+      },
+      continuation: { kind: "terminal-explanation" },
     });
   });
 
@@ -162,8 +197,14 @@ describe("base merge", () => {
     await expect(mergeExpectedBase({ expectedBase: oid("a"), expectedHead: oid("c") }, port))
       .resolves.toMatchObject({
       state: "conflict",
+      reason: "merge-conflict",
       nextAction: "stop",
       expectedBase: oid("a"),
+      detail: "Merge conflicts remain in: conflict.txt.",
+      coordinates: {
+        expectedBase: oid("a"), expectedHead: oid("c"), actualBase: oid("a"), actualHead: oid("c"),
+      },
+      continuation: { kind: "terminal-explanation" },
     });
     expect(state).toMatchObject({ history: before, merging: false });
   });
@@ -192,8 +233,32 @@ describe("base merge", () => {
       conflictRemedy: "regenerate-roadmap",
     }, port)).resolves.toMatchObject({
       state: "regenerable-refused",
+      reason: "regenerable-remedy-refused",
       nextAction: "stop",
       detail: "Render was indeterminate.",
+      coordinates: {
+        expectedBase: oid("a"), expectedHead: oid("c"), actualBase: oid("a"), actualHead: oid("c"),
+      },
+      continuation: { kind: "terminal-explanation" },
     });
+  });
+
+  it("normalizes and bounds adapter failure detail", async () => {
+    const { port } = repository();
+    port.isAncestor = async () => {
+      throw new Error(`adapter\n failure ${"x".repeat(5_000)}`);
+    };
+    const result = await mergeExpectedBase({ expectedBase: oid("a"), expectedHead: oid("c") }, port);
+    expect(result).toMatchObject({
+      state: "blocked",
+      reason: "operational-failure",
+      coordinates: {
+        expectedBase: oid("a"), expectedHead: oid("c"), actualBase: oid("a"), actualHead: oid("c"),
+      },
+      continuation: { kind: "terminal-explanation" },
+    });
+    if (result.state !== "blocked") throw new Error("Expected a blocked result.");
+    expect(result.detail).not.toContain("\n");
+    expect(result.detail.length).toBeLessThanOrEqual(4_096);
   });
 });

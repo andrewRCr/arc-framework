@@ -385,7 +385,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
       remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
@@ -468,7 +468,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
       remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({
@@ -810,7 +810,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       currentHusk: async () => null,
       baseDistance: async () => ({
         mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-        base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+        base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
         remoteEvidence: "not-applicable",
       }),
       baseBranchSync: async () => ({
@@ -1022,7 +1022,7 @@ function makeRealWorktreeProbes(
     currentHusk: async () => null,
     baseDistance: async () => ({
       mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
-      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      base: "main", baseOid: null, headOid: null, integrationEvidence: null, overlap: null, register: null,
       remoteEvidence: "not-applicable",
     }),
     baseBranchSync: async () => ({

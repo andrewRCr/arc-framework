@@ -16,6 +16,7 @@ const target = {
 const drift = {
   verdict: "clean" as const,
   baseOid: oid("b"),
+  headOid: target.headSha,
   movement: "disjoint" as const,
   integrationEvidence: {
     coverage: "complete" as const,
@@ -40,6 +41,19 @@ const admission = {
 };
 
 describe("Errand final-plan composition", () => {
+  it("fails closed when drift analyzed a different local head than the refreshed host target", () => {
+    expect(composeErrandFinalPlan({
+      drift: { ...drift, headOid: oid("d") },
+      target,
+      feasibility: { state: "clean", base: oid("b"), head: target.headSha },
+      admission,
+    })).toMatchObject({
+      status: "unavailable",
+      baseOid: oid("b"),
+      detail: expect.stringContaining(oid("d")),
+    });
+  });
+
   it("carries review clearance and proceeds for exact disjoint evidence", () => {
     expect(composeErrandFinalPlan({
       drift,

@@ -300,10 +300,9 @@ remote base all name the same exact head. Any tracked change continues through t
    head-changing action, recompose `openedChangeRequest` from the canonical current head before re-entry.
 
    Before spending a hosted pass on a branch already behind its base, read `arc base drift --json`. Keep `clean`
-   and regenerable-only drift silent. For substantive overlap, reconcile early only when the interaction is clear
-   and reviewing first would waste the pass; use an append-only merge, rerun Tier 1 gates, push, and recompose the
-   target without a permission stop. A conflict, material interaction, or uncertain product decision stops. This
-   advisory never replaces Step 5's authoritative final drift read.
+   and regenerable-only drift silent and surface substantive or uncertain interaction as review context. This read
+   is advisory only: it authorizes no merge, commit, push, or target recomposition. Base mutation belongs
+   exclusively to Step 5's authoritative terminal planner and its typed base-merge arm.
 
    For every confidently recognized planning-grooming entry at this checkpoint, re-invoke
    `arc review planning-grooming resolve -` with the opened PR's exact current coordinates and freshly affirmed

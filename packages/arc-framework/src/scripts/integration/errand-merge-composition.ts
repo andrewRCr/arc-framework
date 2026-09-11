@@ -53,20 +53,24 @@ import type {
 export function composeErrandFinalPlan(input: {
   readonly drift: Pick<
     BaseDriftResult,
-    "verdict" | "baseOid" | "movement" | "integrationEvidence" | "overlap"
+    "verdict" | "baseOid" | "headOid" | "movement" | "integrationEvidence" | "overlap"
   >;
   readonly target: IntegrationMergeTarget;
   readonly feasibility: GitMergeFeasibility;
   readonly admission: ChangeRequestMergeObservation;
 }): ErrandMergeFinalPlan {
   if (input.drift.baseOid === null || input.drift.movement === undefined
+    || typeof input.drift.headOid !== "string" || input.drift.headOid !== input.target.headSha
     || input.drift.overlap === null
     || (input.drift.verdict !== "clean" && input.drift.verdict !== "reconcile")) {
     return {
       status: "unavailable",
       target: input.target,
       baseOid: input.drift.baseOid,
-      detail: "The final authoritative base movement could not be established.",
+      detail: typeof input.drift.headOid === "string" && input.drift.headOid !== input.target.headSha
+        ? `The authoritative drift head ${input.drift.headOid} does not match the refreshed host head `
+          + `${input.target.headSha}.`
+        : "The final authoritative base movement could not be established.",
     };
   }
   const coordinates = {
@@ -197,13 +201,17 @@ export function createErrandMergeDependencies(input: {
         common.refreshTarget(target),
       ]);
       if (drift.baseOid === null || drift.movement === undefined
+        || typeof drift.headOid !== "string" || drift.headOid !== observedTarget.headSha
         || drift.overlap === null
         || (drift.verdict !== "clean" && drift.verdict !== "reconcile")) {
         return {
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: "The final authoritative base movement could not be established.",
+          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
+            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
+              + `${observedTarget.headSha}.`
+            : "The final authoritative base movement could not be established.",
         };
       }
       const coordinates = {

@@ -88,6 +88,7 @@ export async function analyzeBaseDistanceSnapshot(
       behind: 0,
       base: options.baseBranch,
       baseOid: null,
+      headOid: null,
       integrationEvidence: null,
       overlap: null,
       register: null,
@@ -105,6 +106,7 @@ export async function analyzeBaseDistanceSnapshot(
       behind: 0,
       base: options.baseBranch,
       baseOid: null,
+      headOid: null,
       unavailableReason: "remote-base-absent",
       integrationEvidence: null,
       overlap: null,
@@ -129,6 +131,7 @@ export async function analyzeBaseDistanceSnapshot(
       behind: 0,
       base: options.baseBranch,
       baseOid,
+      headOid: null,
       unavailableReason: "base-object-pending-fetch",
       integrationEvidence: null,
       overlap: null,
@@ -152,11 +155,14 @@ export async function analyzeBaseDistanceSnapshot(
     ...execOptions,
     objectAccess: "local-only",
   });
+  const headOid = (await localOnlyExec("git", ["rev-parse", "--verify", "HEAD^{commit}"])).stdout.trim();
+  if (!isGitObjectId(headOid)) throw new Error("Git returned an invalid local head OID.");
   const analysis = await analyzeAvailableBase({
     exec: localOnlyExec,
     mode,
     baseBranch: options.baseBranch,
     baseOid,
+    headOid,
     resolver: options.resolver,
     resolverFactory: options.resolverFactory,
     classifyReconciliation: options.classifyReconciliation ?? (() => "reviewable"),
@@ -217,6 +223,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
         behind: 0,
         base: baseBranch,
         baseOid: null,
+        headOid: null,
         unavailableReason: "remote-base-absent",
         integrationEvidence: null,
         overlap: null,
@@ -266,6 +273,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
       behind: analysis.behind,
       base: analysis.base,
       baseOid: analysis.baseOid,
+      headOid: analysis.headOid,
       movement: analysis.movement,
       unavailableReason: analysis.unavailableReason,
       integrationEvidence: analysis.integrationEvidence,
@@ -282,6 +290,7 @@ interface AnalyzeAvailableBaseOptions {
   mode: BaseDriftMode;
   baseBranch: string;
   baseOid: string;
+  headOid: string;
   resolver?: IntegrationEvidenceResolver;
   resolverFactory?: IntegrationEvidenceResolverFactory;
   classifyReconciliation: PathTreatmentClassifier;
@@ -293,11 +302,12 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
     mode,
     baseBranch,
     baseOid,
+    headOid,
     resolver,
     resolverFactory,
     classifyReconciliation,
   } = options;
-  const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", baseOid);
+  const { ahead, behind, state } = await countAheadBehindRef(exec, headOid, baseOid);
 
   if (behind === 0) {
     return {
@@ -308,6 +318,7 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
       behind,
       base: baseBranch,
       baseOid,
+      headOid,
       movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
@@ -323,10 +334,16 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
   }
 
   const [integrationEvidence, overlap] = await Promise.all([
-    analyzeIntegrationEvidence({ exec, baseOid, resolver: resolveResolver(resolver, resolverFactory, baseOid) }),
+    analyzeIntegrationEvidence({
+      exec,
+      baseOid,
+      headOid,
+      resolver: resolveResolver(resolver, resolverFactory, baseOid),
+    }),
     analyzeBaseOverlap({
       exec,
       baseOid,
+      headOid,
       ahead,
       behind,
       classify: classifyReconciliation,
@@ -341,6 +358,7 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
     behind,
     base: baseBranch,
     baseOid,
+    headOid,
     movement,
     integrationEvidence,
     overlap,
@@ -381,6 +399,7 @@ function unavailable(
     behind: 0,
     base,
     baseOid: null,
+    headOid: null,
     unavailableReason: reason,
     integrationEvidence: null,
     overlap: null,

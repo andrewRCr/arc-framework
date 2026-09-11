@@ -99,6 +99,7 @@ export interface DeliverySuffixRematerializationDependencies {
     readonly plan: DeliveryPlanV1;
     readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
     readonly rewrite: DeliverySuffixRewritePlan;
+    readonly snapshot: DeliveryEligibilitySnapshot;
   }): Promise<
     | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
     | { readonly status: "refused" }
@@ -304,7 +305,12 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
     if (rewrite === undefined || !(await dependencies.reobserveCandidate(rewrite))) {
       return { status: "refused", reason: "candidate-moved" };
     }
-    const applied = await dependencies.apply({ plan: fresh.plan, current: fresh.current, rewrite });
+    const applied = await dependencies.apply({
+      plan: fresh.plan,
+      current: fresh.current,
+      rewrite,
+      snapshot: fresh.snapshot,
+    });
     if (applied.status !== "applied") return { status: "refused", reason: "rewrite-refused" };
     expectedState = applied.state;
     nextIndex += 1;

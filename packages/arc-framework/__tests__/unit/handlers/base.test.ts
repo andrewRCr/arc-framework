@@ -54,7 +54,12 @@ describe("base merge handler", () => {
       state: "blocked",
       reason: "invalid-input",
       expectedBase: null,
-      expectedHead: null,
+      expectedHead: headOid,
+      coordinates: { expectedBase: null, expectedHead: headOid, actualBase: null, actualHead: null },
+      continuation: {
+        kind: "remedy",
+        remedy: { argv: ["arc", "base", "merge", "--help"] },
+      },
     });
     expect(setExitCode).toHaveBeenCalledWith(64);
   });
@@ -78,6 +83,9 @@ describe("base merge handler", () => {
       reason: "operational-failure",
       expectedBase: oid,
       expectedHead: headOid,
+      detail: "Not inside an ARC project.",
+      coordinates: { expectedBase: oid, expectedHead: headOid, actualBase: null, actualHead: null },
+      continuation: { kind: "terminal-explanation" },
     });
     expect(merge).not.toHaveBeenCalled();
     expect(setExitCode).toHaveBeenCalledWith(1);

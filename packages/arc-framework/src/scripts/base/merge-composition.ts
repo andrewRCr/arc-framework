@@ -34,11 +34,12 @@ async function mergeInProgress(exec: GitExec, cwd: string): Promise<boolean> {
   }
 }
 
-async function hasUnmergedEntries(exec: GitExec, cwd: string): Promise<boolean> {
-  return (await exec("git", ["diff", "--name-only", "--diff-filter=U"], {
+async function readUnmergedEntries(exec: GitExec, cwd: string): Promise<string[]> {
+  const stdout = (await exec("git", ["diff", "--name-only", "--diff-filter=U"], {
     cwd,
     objectAccess: "local-only",
-  })).stdout.trim() !== "";
+  })).stdout.trim();
+  return stdout === "" ? [] : [...new Set(stdout.split(/\r?\n/u).filter(Boolean))].sort();
 }
 
 async function resolveParents(exec: GitExec, cwd: string, commitOid: string): Promise<string[]> {
@@ -141,7 +142,8 @@ export function createBaseMergePort(input: {
         return { status: "merged", headOid: after };
       } catch (error) {
         if (!await mergeInProgress(input.exec, input.cwd)) throw error;
-        const contentConflict = await hasUnmergedEntries(input.exec, input.cwd);
+        const conflictPaths = await readUnmergedEntries(input.exec, input.cwd);
+        const contentConflict = conflictPaths.length > 0;
         let remedyRefusal: string | null = null;
         if (contentConflict && conflictRemedy === "regenerate-roadmap") {
           try {
@@ -161,7 +163,7 @@ export function createBaseMergePort(input: {
                 ? `The readiness conflict remedy was skipped (${remedy.reason}).`
                 : `The readiness conflict remedy failed: ${remedy.message}`;
             if (remedyRefusal === null) {
-              if (await hasUnmergedEntries(input.exec, input.cwd)) {
+              if ((await readUnmergedEntries(input.exec, input.cwd)).length > 0) {
                 remedyRefusal = "The readiness conflict remedy left unmerged paths.";
               } else {
                 const [currentHead, currentMergeHead] = await Promise.all([
@@ -227,7 +229,10 @@ export function createBaseMergePort(input: {
         }
         if (remedyRefusal !== null) return { status: "remedy-refused", detail: remedyRefusal };
         if (!contentConflict) throw error;
-        return { status: "conflict" };
+        return {
+          status: "conflict",
+          detail: `Merge conflicts remain in: ${conflictPaths.join(", ")}.`,
+        };
       }
     },
   };

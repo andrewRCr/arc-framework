@@ -824,6 +824,34 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
+  it("routes pending convergence through verification even when implementationChanged is false", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: false,
+        convergenceVerification: "pending",
+        convergenceScope: "focused",
+      },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope: "focused",
+        verificationKind: "focused",
+      },
+    });
+  });
+
   it("rejects a convergence action whose kind or argv disagrees with its scope", () => {
     const action = {
       kind: "run-convergence-verification",

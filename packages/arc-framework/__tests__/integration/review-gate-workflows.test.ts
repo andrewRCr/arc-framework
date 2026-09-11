@@ -830,11 +830,14 @@ describe("trusted review-gate workflows", () => {
   });
 
   it("keeps early drift advisory separate from final authoritative reconciliation", async () => {
-    const [packageIntegration, instanceIntegration] = await Promise.all([
+    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageErrand).toBe(instanceErrand);
     const reviewSettlement = sectionBetween(
       packageIntegration,
       "### 3) Confirm review coordination",
@@ -845,8 +848,17 @@ describe("trusted review-gate workflows", () => {
     const advisory = packageIntegration.indexOf("Before spending a hosted pass");
     const finalGate = packageIntegration.indexOf("### 10) Behind-base reconcile gate and merge");
     expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
+    const advisoryText = packageIntegration.slice(advisory, finalGate);
+    expect(advisoryText).toContain("authorizes no merge, commit, push, or target recomposition");
+    expect(advisoryText).not.toContain("use an append-only merge");
     expect(packageIntegration.indexOf("arc base merge --expected-base", finalGate)).toBeGreaterThan(finalGate);
     expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
+
+    const errandAdvisory = packageErrand.indexOf("Before spending a hosted pass");
+    const errandFinal = packageErrand.indexOf("5. **Publish review responses");
+    const errandAdvisoryText = packageErrand.slice(errandAdvisory, errandFinal);
+    expect(errandAdvisoryText).toContain("authorizes no merge, commit, push, or target recomposition");
+    expect(errandAdvisoryText).not.toContain("use an append-only merge");
   });
 
   it("preserves checkpoint readiness through an exact-head merge window", async () => {

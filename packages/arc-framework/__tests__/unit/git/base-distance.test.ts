@@ -8,6 +8,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
 
 const BASE_OID = "b".repeat(40);
+const HEAD_OID = "f".repeat(40);
 const MERGE_OID = "c".repeat(40);
 const PARENT_A = "d".repeat(40);
 const PARENT_B = "e".repeat(40);
@@ -29,6 +30,7 @@ function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] 
       return { stdout: "" };
     }
     if (args.join(" ") === "rev-parse --is-shallow-repository") return { stdout: "false" };
+    if (args.join(" ") === "rev-parse --verify HEAD^{commit}") return { stdout: `${HEAD_OID}\n` };
     if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${BASE_OID}\n` };
     if (args[0] === "rev-list") return { stdout: options.distance ?? "0\t0\n" };
     if (args[0] === "merge-base") return { stdout: `${PARENT_A}\n` };
@@ -50,6 +52,7 @@ describe("snapshot-driven base distance", () => {
       if (options?.objectAccess !== "local-only") {
         throw new Error(`lazy object access allowed: ${args.join(" ")}`);
       }
+      if (args.join(" ") === "rev-parse --verify HEAD^{commit}") return { stdout: `${HEAD_OID}\n` };
       if (args[0] === "rev-list") return { stdout: "2\t0\n" };
       throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
     };
@@ -68,6 +71,7 @@ describe("snapshot-driven base distance", () => {
       behind: 0,
       base: "main",
       baseOid: BASE_OID,
+      headOid: HEAD_OID,
       remoteEvidence: "exact",
     });
   });
@@ -77,6 +81,7 @@ describe("snapshot-driven base distance", () => {
       if (options?.objectAccess !== "local-only") {
         throw new Error(`lazy object access allowed: ${args.join(" ")}`);
       }
+      if (args.join(" ") === "rev-parse --verify HEAD^{commit}") return { stdout: `${HEAD_OID}\n` };
       if (args[0] === "rev-list") return { stdout: "0\t1\n" };
       if (args[0] === "log") return { stdout: `${MERGE_OID}\0${PARENT_A}\0ordinary base commit\0` };
       if (args[0] === "merge-base") return { stdout: `${PARENT_A}\n` };
@@ -96,6 +101,7 @@ describe("snapshot-driven base distance", () => {
       ahead: 0,
       behind: 1,
       baseOid: BASE_OID,
+      headOid: HEAD_OID,
       movement: "disjoint",
       integrationEvidence: { coverage: "partial", scannedCommitCount: 1 },
       overlap: { status: "available", substantivePaths: [] },
@@ -208,6 +214,7 @@ describe("snapshot-driven base distance", () => {
     ["malformed output", { stdout: "not counts" }, /Malformed git rev-list/u],
   ] as const)("propagates local distance %s", async (_label, distanceResponse, expected) => {
     const exec: GitExec = async (_command, args) => {
+      if (args.join(" ") === "rev-parse --verify HEAD^{commit}") return { stdout: `${HEAD_OID}\n` };
       if (args[0] !== "rev-list") throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
       return typeof distanceResponse === "function" ? distanceResponse() : distanceResponse;
     };
@@ -232,6 +239,10 @@ describe("base drift raw-distance boundary", () => {
     });
     expect(result.verdict).toBe("clean");
     expect(result.baseOid).toBe(BASE_OID);
+    expect(result.headOid).toBe(HEAD_OID);
+    expect(calls).toContainEqual([
+      "rev-list", "--left-right", "--count", `${HEAD_OID}...${BASE_OID}`,
+    ]);
     expect(calls.some((args) => args[0] === "fetch")).toBe(true);
   });
 

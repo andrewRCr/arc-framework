@@ -70,7 +70,7 @@ describe("base overlap evidence", () => {
   it("short-circuits to available empty when either side has no unique commits", async () => {
     const { exec, calls } = overlapExec("", "");
     const result = await analyzeBaseOverlap({
-      exec, baseOid: BASE, ahead: 0, behind: 2, classify: () => "reviewable",
+      exec, baseOid: BASE, headOid: "c".repeat(40), ahead: 0, behind: 2, classify: () => "reviewable",
     });
     expect(result).toEqual({ status: "available", substantivePaths: [], regenerablePaths: [] });
     expect(calls).toEqual([]);
@@ -84,6 +84,7 @@ describe("base overlap evidence", () => {
     const result = await analyzeBaseOverlap({
       exec,
       baseOid: BASE,
+      headOid: "c".repeat(40),
       ahead: 2,
       behind: 3,
       classify: (path) => path === "ROADMAP"
@@ -103,11 +104,11 @@ describe("base overlap evidence", () => {
   it("distinguishes a failed base-side diff from empty overlap", async () => {
     const exec: GitExec = async (_cmd, args) => {
       if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n` };
-      if (args.at(-1) === `${MERGE_BASE}..HEAD`) return { stdout: "a.ts\0" };
+      if (args.at(-1) === `${MERGE_BASE}..${"c".repeat(40)}`) return { stdout: "a.ts\0" };
       throw new Error("base diff failed");
     };
     await expect(analyzeBaseOverlap({
-      exec, baseOid: BASE, ahead: 1, behind: 1, classify: () => "reviewable",
+      exec, baseOid: BASE, headOid: "c".repeat(40), ahead: 1, behind: 1, classify: () => "reviewable",
     })).resolves.toEqual({ status: "unavailable", reason: "base-diff-failed" });
   });
 });

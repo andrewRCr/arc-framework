@@ -23,6 +23,7 @@ const CLEAN_DRIFT = {
   behind: 0,
   base: "main",
   baseOid: oid("b"),
+  headOid: oid("c"),
   movement: "disjoint" as const,
   integrationEvidence: {
     coverage: "complete" as const,
@@ -46,6 +47,7 @@ function dependencies(): IntegrationCheckpointDependencies {
       behind: 1,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
       movement: "overlapping",
       integrationEvidence: {
         coverage: "complete",
@@ -481,6 +483,7 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: null,
+      headOid: null,
       unavailableReason: "fetch-failed",
       integrationEvidence: null,
       overlap: null,
@@ -568,6 +571,7 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
       movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
@@ -877,6 +881,7 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
       movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",

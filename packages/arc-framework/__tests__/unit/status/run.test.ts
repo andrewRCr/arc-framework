@@ -267,6 +267,7 @@ function baseDistance(
     overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
     register: null,
     ...overrides,
+    headOid: overrides.headOid ?? "b".repeat(40),
   };
   // Compared as literals rather than through `includes`, so the narrowed state reaches
   // the returned value: the not-applicable arm is bounded to exactly these states, and

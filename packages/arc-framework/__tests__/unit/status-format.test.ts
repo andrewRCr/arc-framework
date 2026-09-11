@@ -184,6 +184,7 @@ function makeSessionInitResult(
         behind: 0,
         base: "main",
         baseOid: "a".repeat(40),
+        headOid: "b".repeat(40),
         integrationEvidence: {
           coverage: "complete",
           scannedCommitCount: 0,

@@ -320,6 +320,11 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
     }
     const requiredScope = requiredConvergenceScopeAtSubject(
       record.transitions,
+      record.lineageAttestations.slice(0, index),
+      {
+        revision: record.attestation.baseRevision,
+        subject: record.subject,
+      },
       attestation.target.subject.subjectDigest,
     );
     if (requiredScope !== null && !candidateConvergenceScopeCovers(attestation.scope, requiredScope)) {
@@ -579,20 +584,29 @@ function reduceReviewResponseConvergence(
 
 function requiredConvergenceScopeAtSubject(
   transitions: readonly CandidateLineageTransitionV1[],
+  priorAttestations: readonly CandidateLineageAttestationV1[],
+  rootTarget: CandidateLineageTarget,
   subjectDigest: string,
 ): "focused" | "full" | null {
+  let target = rootTarget;
   let convergence: CandidateConvergenceProjection = SATISFIED_CONVERGENCE;
   let result: "focused" | "full" | null = null;
   for (const transition of transitions) {
     if (transition.transitionKind === "verification-response") {
       convergence = SATISFIED_CONVERGENCE;
     } else if (transition.transitionKind === "review-response") {
+      convergence = applyLineageAttestations(priorAttestations, target, convergence);
       convergence = reduceReviewResponseConvergence(convergence, transition);
     }
     if ((transition.transitionKind === "review-response" || transition.transitionKind === "verification-response")
       && transition.newTarget.subject.subjectDigest === subjectDigest) {
       const required = convergence.convergenceVerification === "pending" ? convergence.convergenceScope : null;
       if (required === "full" || (required === "focused" && result === null)) result = required;
+    }
+    if (transition.transitionKind === "review-response" || transition.transitionKind === "verification-response") {
+      target = transition.newTarget;
+    } else if (transition.transitionKind === "applicability-selection" && transition.choice !== "changed") {
+      target = transition.currentTarget;
     }
   }
   return result;
@@ -635,7 +649,7 @@ export function reduceCandidateDurableBaseline(
   let selectedChange: CandidateApplicabilitySelectionV1 | null = null;
   for (const transition of record.transitions) {
     if (transition.transitionKind === "review-response") {
-      convergence = applyLineageAttestations(record, target, convergence);
+      convergence = applyLineageAttestations(record.lineageAttestations, target, convergence);
       convergence = reduceReviewResponseConvergence(convergence, transition);
       target = transition.newTarget;
       implementationChanged ||= transition.implementationChanged;
@@ -660,7 +674,7 @@ export function reduceCandidateDurableBaseline(
     target = transition.currentTarget;
     selectedChange = null;
   }
-  convergence = applyLineageAttestations(record, target, convergence);
+  convergence = applyLineageAttestations(record.lineageAttestations, target, convergence);
   return {
     candidateId: record.attestation.candidateId,
     target,
@@ -671,12 +685,12 @@ export function reduceCandidateDurableBaseline(
 }
 
 function applyLineageAttestations(
-  record: CandidateManagedRecordV1,
+  lineageAttestations: readonly CandidateLineageAttestationV1[],
   target: CandidateLineageTarget,
   convergence: CandidateConvergenceProjection,
 ): CandidateConvergenceProjection {
   if (convergence.convergenceVerification === "satisfied") return convergence;
-  return record.lineageAttestations.some((attestation) =>
+  return lineageAttestations.some((attestation) =>
     attestation.target.subject.subjectDigest === target.subject.subjectDigest
       && candidateConvergenceScopeCovers(attestation.scope, convergence.convergenceScope))
     ? SATISFIED_CONVERGENCE

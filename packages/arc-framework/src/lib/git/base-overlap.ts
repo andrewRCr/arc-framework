@@ -16,6 +16,7 @@ import { isGitProcessError } from "./process-error.js";
 export interface AnalyzeBaseOverlapOptions {
   exec: GitExec;
   baseOid: string;
+  headOid: string;
   ahead: number;
   behind: number;
   classify: PathTreatmentClassifier;
@@ -80,7 +81,7 @@ export async function analyzeBaseOverlap(
 
   const result = await analyzeRevisionOverlapWithClassifier({
     exec: options.exec,
-    leftRevision: "HEAD",
+    leftRevision: options.headOid,
     rightRevision: options.baseOid,
     classify: options.classify,
   });

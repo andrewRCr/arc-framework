@@ -75,6 +75,8 @@ export interface BaseDriftResult {
   behind: number;
   base: string | null;
   baseOid: string | null;
+  /** Exact local commit analyzed by a healthy reading; null when no graph reading was available. */
+  headOid: string | null;
   /** Path interaction for a healthy reading; omitted when drift is unavailable or skipped. */
   movement?: BaseMovement;
   unavailableReason?: BaseDriftUnavailableReason;

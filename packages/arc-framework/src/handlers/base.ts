@@ -23,6 +23,7 @@ import { createBaseMergePort } from "../scripts/base/merge-composition.js";
 import {
   BaseMergeInputSchema,
   BaseMergeResultSchema,
+  blockedBaseMergeResult,
   mergeExpectedBase,
   type BaseMergeResult,
 } from "../scripts/base/merge.js";
@@ -105,6 +106,11 @@ export interface BaseMergeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
+function parseBaseMergeOid(value: string): string | null {
+  const parsed = BaseMergeInputSchema.shape.expectedBase.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 /** Run the exact-base append-only merge procedure. */
 export async function handleBaseMerge(
   options: BaseMergeOptions,
@@ -134,31 +140,23 @@ export async function handleBaseMerge(
     ...(options.regenerateRoadmap === true ? { conflictRemedy: "regenerate-roadmap" } : {}),
   });
   if (!parsed.success) {
-    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
-      schemaVersion: 1,
-      mode: "base-merge",
-      state: "blocked",
-      nextAction: "stop",
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(blockedBaseMergeResult({
       reason: "invalid-input",
       detail: parsed.error.issues.map(({ message }) => message).join("; "),
-      expectedBase: null,
-      expectedHead: null,
-    }))}\n`);
+      expectedBase: parseBaseMergeOid(options.expectedBase),
+      expectedHead: parseBaseMergeOid(options.expectedHead),
+    })))}\n`);
     dependencies.setExitCode(64);
     return;
   }
   const cwd = dependencies.resolveRoot();
   if (cwd === null) {
-    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse({
-      schemaVersion: 1,
-      mode: "base-merge",
-      state: "blocked",
-      nextAction: "stop",
+    dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(blockedBaseMergeResult({
       reason: "operational-failure",
       detail: "Not inside an ARC project.",
       expectedBase: parsed.data.expectedBase,
       expectedHead: parsed.data.expectedHead,
-    }))}\n`);
+    })))}\n`);
     dependencies.setExitCode(1);
     return;
   }
@@ -171,16 +169,12 @@ export async function handleBaseMerge(
       parsed.data.conflictRemedy,
     );
   } catch (error) {
-    result = {
-      schemaVersion: 1,
-      mode: "base-merge",
-      state: "blocked",
-      nextAction: "stop",
+    result = blockedBaseMergeResult({
       reason: "operational-failure",
-      detail: error instanceof Error ? error.message : String(error),
+      detail: error,
       expectedBase: parsed.data.expectedBase,
       expectedHead: parsed.data.expectedHead,
-    };
+    });
   }
   dependencies.write(`${JSON.stringify(BaseMergeResultSchema.parse(result))}\n`);
   if (result.state === "blocked") dependencies.setExitCode(1);
@@ -205,6 +199,7 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         behind: 0,
         base: null,
         baseOid: null,
+        headOid: null,
         unavailableReason: "config-unavailable",
         integrationEvidence: null,
         overlap: null,

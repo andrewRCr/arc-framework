@@ -411,6 +411,7 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
       behind: 0,
       base: "main",
       baseOid: await resolveGitCandidateBaseRevision({ cwd: root, baseBranch: "main", exec: gitExec }),
+      headOid: await git(root, ["rev-parse", "HEAD"]),
       movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
