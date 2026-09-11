@@ -19,6 +19,8 @@ describe("runTestCostMeasurement", () => {
           getTestModules: () => [{
             relativeModuleId: "cost.test.ts",
             project: { name: "unit" },
+            state: () => "passed",
+            ok: () => true,
             diagnostic: () => ({ collectDuration: 10, setupDuration: 20, duration: 30 }),
             children: {
               allTests: function* () {
@@ -54,6 +56,8 @@ describe("runTestCostMeasurement", () => {
       expect.any(Function),
     );
     expect(result).toMatchObject({
+      schemaVersion: 2,
+      outcome: "passed",
       wallClockMs: 250,
       summedFileTimeMs: 60,
       admissionWaitMs: 45,
@@ -67,6 +71,52 @@ describe("runTestCostMeasurement", () => {
       "/repo/.test-cost-runs/run.json",
       `${JSON.stringify(result, null, 2)}\n`,
     );
+  });
+
+  it("refuses to retain a run whose Vitest module failed", async () => {
+    const persist = vi.fn(async () => {});
+    const exit = vi.fn(async () => {});
+    const start = vi.fn(async () => ({
+      state: {
+        getTestModules: () => [{
+          relativeModuleId: "failed.test.ts",
+          project: { name: "unit" },
+          state: () => "failed",
+          ok: () => false,
+          diagnostic: () => ({ collectDuration: 1, setupDuration: 1, duration: 1 }),
+          children: {
+            allTests: function* () {
+              yield {
+                id: "failed-case",
+                fullName: "failed case",
+                options: { timeout: 5_000 },
+                result: () => ({ state: "failed" }),
+                diagnostic: () => ({ duration: 1 }),
+              };
+            },
+          },
+        }],
+      },
+      shouldKeepServer: () => false,
+      exit,
+    } as never));
+    const admit = vi.fn(async (_input, action) => ({ result: await action() }));
+
+    await expect(runTestCostMeasurement({
+      cwd: "/repo",
+      env: {},
+      mode,
+      outputPath: "/out.json",
+    }, {
+      admit,
+      now: () => 1,
+      parseCli: () => ({ filter: [], options: { run: true } }),
+      persist,
+      start,
+    })).rejects.toThrow(/failed\.test\.ts.*failed/u);
+
+    expect(persist).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledOnce();
   });
 
   it("always closes the completed Vitest controller", async () => {

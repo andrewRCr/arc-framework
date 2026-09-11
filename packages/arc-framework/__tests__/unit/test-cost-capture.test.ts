@@ -26,6 +26,8 @@ function moduleFixture(
   return {
     relativeModuleId: path,
     project: { name: projectName },
+    state: () => "passed",
+    ok: () => true,
     diagnostic: () => ({ collectDuration, setupDuration, duration: executionDuration }),
     children: {
       allTests: function* () {

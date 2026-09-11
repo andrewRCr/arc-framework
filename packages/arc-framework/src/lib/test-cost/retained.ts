@@ -87,3 +87,18 @@ export function normalizeRetainedTestCostRuns(
     },
   };
 }
+
+export function assertRetainedTestCostRun(
+  value: unknown,
+  label: string,
+): asserts value is RetainedTestCostRun {
+  if (typeof value !== "object" || value === null) {
+    throw new Error(`Invalid retained test-cost run: ${label}`);
+  }
+  const candidate = value as Readonly<Record<string, unknown>>;
+  if (candidate["schemaVersion"] !== 2
+    || candidate["outcome"] !== "passed"
+    || !Array.isArray(candidate["files"])) {
+    throw new Error(`Retained test-cost run lacks a successful outcome: ${label}`);
+  }
+}

@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { normalizeRetainedTestCostRuns } from "../../src/lib/test-cost/retained.js";
+import {
+  assertRetainedTestCostRun,
+  normalizeRetainedTestCostRuns,
+} from "../../src/lib/test-cost/retained.js";
 import type { RetainedTestCostRun } from "../../src/lib/test-cost/run.js";
 
 function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
@@ -26,7 +29,8 @@ function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
     }],
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    outcome: "passed",
     capturedAt: "2026-09-11T00:00:00.000Z",
     mode: { condition: "tier-isolated", projectSet: "unit", workerSizing: "12" },
     wallClockMs: durationMs,
@@ -56,5 +60,12 @@ describe("normalizeRetainedTestCostRuns", () => {
     const different = { ...changed, files: [{ ...changed.files[0]!, path: "b.test.ts" }] };
     expect(() => normalizeRetainedTestCostRuns([changed, different]))
       .toThrow(/file membership/u);
+  });
+
+  it("refuses a retained run without a successful outcome", () => {
+    const ineligible = { ...run(100), outcome: "failed" };
+
+    expect(() => assertRetainedTestCostRun(ineligible, "ineligible.json"))
+      .toThrow(/successful outcome/u);
   });
 });

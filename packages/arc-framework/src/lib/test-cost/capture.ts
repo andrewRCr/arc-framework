@@ -19,6 +19,8 @@ export interface ReportedCostModule {
   readonly relativeModuleId: string;
   readonly project: { readonly name: string };
   readonly children: { allTests(): Iterable<ReportedCostTest> };
+  state(): "skipped" | "pending" | "failed" | "passed" | "queued";
+  ok(): boolean;
   diagnostic(): {
     readonly collectDuration: number;
     readonly setupDuration: number;
@@ -62,12 +64,20 @@ export interface CapturedTestCost {
  * accepted here and therefore cannot accidentally be counted twice.
  */
 export function captureTestCost(modules: readonly ReportedCostModule[]): CapturedTestCost {
+  for (const module of modules) requireCompletedModule(module);
   const files = modules.map(captureFile);
   if (files.length === 0) throw new Error("Vitest returned no file timing data");
   return {
     files,
     summedFileTimeMs: files.reduce((sum, file) => sum + file.durationMs, 0),
   };
+}
+
+function requireCompletedModule(module: ReportedCostModule): void {
+  const state = module.state();
+  if ((state !== "passed" && state !== "skipped") || !module.ok()) {
+    throw new Error(`Vitest module ${module.relativeModuleId} did not complete successfully (${state})`);
+  }
 }
 
 function captureFile(module: ReportedCostModule): TestCostFile {

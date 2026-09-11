@@ -33,7 +33,8 @@ export interface TestCostRunDependencies {
 }
 
 export interface RetainedTestCostRun {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
+  readonly outcome: "passed";
   readonly capturedAt: string;
   readonly mode: MeasurementMode;
   readonly wallClockMs: number;
@@ -94,7 +95,8 @@ export async function runTestCostMeasurement(
   );
   const { captured, startedAtMs, wallClockMs } = admitted.result;
   const run: RetainedTestCostRun = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    outcome: "passed",
     capturedAt: new Date(startedAtMs).toISOString(),
     mode: input.mode,
     wallClockMs,
