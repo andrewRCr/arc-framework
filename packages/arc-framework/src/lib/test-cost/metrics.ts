@@ -29,12 +29,16 @@ export function resolveTimeoutHeadroom(
 }
 
 export function isSubstrateBoundFile(path: string): boolean {
-  const basename = path.replaceAll("\\", "/").split("/").at(-1) ?? path;
+  const normalizedPath = path.replaceAll("\\", "/");
+  const basename = normalizedPath.split("/").at(-1) ?? path;
   return basename === "user.test.ts"
+    || basename === "user-sync.test.ts"
     || basename === "multi-clone.test.ts"
     || basename === "branch-bounded-notes-export.test.ts"
     || basename === "local-sync-state.test.ts"
     || basename === "errand-record-sync.test.ts"
+    || /^user-sync-.+\.test\.ts$/u.test(basename)
+    || /(?:^|\/)user-sync\//u.test(normalizedPath)
     || /^user-notes-.+\.test\.ts$/u.test(basename)
     || /^notes-.+\.test\.ts$/u.test(basename)
     || /^sync-state-.+\.test\.ts$/u.test(basename)

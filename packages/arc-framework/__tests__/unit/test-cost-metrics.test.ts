@@ -27,6 +27,9 @@ describe("substrate-bound share", () => {
     "__tests__/integration/sync-state-ref.test.ts",
     "__tests__/integration/multi-clone.test.ts",
     "__tests__/e2e/sync-purity.e2e.test.ts",
+    "__tests__/unit/user-sync-compaction.test.ts",
+    "__tests__/unit/git/user-sync.test.ts",
+    "__tests__/unit/user-sync/schema.test.ts",
   ])("classifies the settled notes/sync/multi-clone rule: %s", (path) => {
     expect(isSubstrateBoundFile(path)).toBe(true);
   });
