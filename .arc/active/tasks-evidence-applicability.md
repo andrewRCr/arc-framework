@@ -595,18 +595,14 @@ currentness and attestation outcomes without requiring the separately owned prop
 - _Outcome:_ ADR-034 now records disposition-set approval as scope authority and fresh, sufficiently broad lineage
   evidence as the convergence condition, without changing root attestation or subject-digest applicability.
 
-### `[ ]` **5.6 Exercise the scoped-verification slice** — D2-D3, D12-D13 — validate exit criterion at segment scope
+### `[x]` **5.6 Exercise the scoped-verification slice** — D2-D3, D12-D13 — validate exit criterion at segment scope
 
 - _Goal:_ constructed Candidate lineages demonstrate every scoped-verification outcome without depending on the
   separately owned proposal-side producer.
 
-    - Exercise targeted after a satisfied root and after an attested focused response; both remain satisfied on the
-      transition's Tier 1 evidence.
-    - Exercise focused pending-to-attested convergence and full pending-to-Tier-3 convergence with fresh evidence
-      references, including a broader full attestation satisfying focused.
-    - Exercise missing convergence evidence, focused-against-full, focused root/re-root, impossible status/scope
-      pairs, and missing-field fallback to full through both JSON and interactive results.
-    - Exercise an unexplained delta to confirm it still establishes a fresh root and repeats the criteria walk.
+- _Outcome:_ constructed transitions and real CLI lineages cover targeted carry, focused and full convergence,
+  broader evidence, conservative omission, invalid pairs and requests, fresh-evidence refusal, and deliberate
+  unexplained-delta re-rooting without a production dependency on the proposal-side writer.
 
 ### `[ ]` **5.7 Close the scoped-verification member** — D2-D3, D12-D13 — validate criteria at member scope
 

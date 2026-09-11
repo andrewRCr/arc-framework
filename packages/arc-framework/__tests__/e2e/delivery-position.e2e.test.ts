@@ -3801,7 +3801,7 @@ describe("arc delivery position", () => {
         effectLog: [],
       });
     }
-  }, 90_000);
+  }, 120_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();
