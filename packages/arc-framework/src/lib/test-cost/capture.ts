@@ -1,6 +1,10 @@
 /** Extract complete per-file and per-test costs from Vitest's reported task graph. */
 
-import { resolveTimeoutHeadroom, TEST_COST_CLI_TIMEOUT_META } from "./metrics.js";
+import {
+  resolveTimeoutHeadroom,
+  TEST_COST_CLI_SPAWN_COUNT_META,
+  TEST_COST_CLI_TIMEOUT_META,
+} from "./metrics.js";
 
 export interface ReportedCostTest {
   readonly id: string;
@@ -27,6 +31,7 @@ export interface TestCostCase {
   readonly durationMs: number;
   readonly vitestTimeoutMs: number;
   readonly cliTimeoutMs?: number;
+  readonly cliSpawnCount?: number;
   readonly timeoutCeilingMs: number;
   readonly headroomMs: number;
   readonly headroomFraction: number;
@@ -84,8 +89,15 @@ function captureFile(module: ReportedCostModule): TestCostFile {
     const cliTimeoutValue = typeof metadata === "object" && metadata !== null
       ? (metadata as Readonly<Record<string, unknown>>)[TEST_COST_CLI_TIMEOUT_META]
       : undefined;
+    const cliSpawnCount = typeof metadata === "object" && metadata !== null
+      ? (metadata as Readonly<Record<string, unknown>>)[TEST_COST_CLI_SPAWN_COUNT_META]
+      : undefined;
     if (cliTimeoutValue !== undefined && typeof cliTimeoutValue !== "number") {
       throw new Error(`Invalid CLI timeout metadata for ${test.fullName}`);
+    }
+    if (cliSpawnCount !== undefined
+      && (typeof cliSpawnCount !== "number" || !Number.isInteger(cliSpawnCount) || cliSpawnCount < 0)) {
+      throw new Error(`Invalid CLI spawn-count metadata for ${test.fullName}`);
     }
     return [{
       id: test.id,
@@ -93,6 +105,7 @@ function captureFile(module: ReportedCostModule): TestCostFile {
       durationMs,
       vitestTimeoutMs,
       ...(cliTimeoutValue === undefined ? {} : { cliTimeoutMs: cliTimeoutValue }),
+      ...(cliSpawnCount === undefined ? {} : { cliSpawnCount }),
       ...resolveTimeoutHeadroom(durationMs, vitestTimeoutMs, cliTimeoutValue),
     }];
   });

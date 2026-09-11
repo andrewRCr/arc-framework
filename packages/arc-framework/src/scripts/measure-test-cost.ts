@@ -26,6 +26,7 @@ const summary = {
   summedFileTimeMs: run.summedFileTimeMs,
   fileCount: run.fileCount,
   testCount: run.testCount,
+  cliSpawnCount: run.cliSpawnCount,
   substrate: run.substrate,
   ...(run.admissionWaitMs === undefined ? {} : { admissionWaitMs: run.admissionWaitMs }),
 };

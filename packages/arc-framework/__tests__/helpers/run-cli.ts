@@ -16,7 +16,7 @@
 import { spawn } from "node:child_process";
 
 import { CLI_PATH, assertCliBuilt } from "./cli-spawn.js";
-import { recordCliTimeoutForCurrentTest } from "./test-cost-timeout.js";
+import { recordCliInvocationForCurrentTest } from "./test-cost-timeout.js";
 
 /** Default subprocess timeout in milliseconds. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -57,7 +57,7 @@ export function runCli(
   options: RunCliOptions = {},
 ): Promise<RunCliResult> {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
-  recordCliTimeoutForCurrentTest(timeout);
+  recordCliInvocationForCurrentTest(timeout);
   const env = { ...process.env, ...(options.env ?? {}) };
 
   return new Promise<RunCliResult>((resolveResult, rejectResult) => {

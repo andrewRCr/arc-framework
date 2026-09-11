@@ -12,7 +12,15 @@ function moduleFixture(
   projectName: string,
   collectDuration: number,
   setupDuration: number,
-  tests: Array<{ id: string; name: string; duration?: number; timeout?: number; cliTimeout?: number; state?: string }>,
+  tests: Array<{
+    id: string;
+    name: string;
+    duration?: number;
+    timeout?: number;
+    cliTimeout?: number;
+    cliSpawnCount?: number;
+    state?: string;
+  }>,
 ): ReportedCostModule {
   return {
     relativeModuleId: path,
@@ -25,7 +33,10 @@ function moduleFixture(
             id: test.id,
             fullName: test.name,
             options: { timeout: test.timeout ?? 5_000 },
-            meta: () => test.cliTimeout === undefined ? {} : { arcTestCostCliTimeoutMs: test.cliTimeout },
+            meta: () => ({
+              ...(test.cliTimeout === undefined ? {} : { arcTestCostCliTimeoutMs: test.cliTimeout }),
+              ...(test.cliSpawnCount === undefined ? {} : { arcTestCostCliSpawnCount: test.cliSpawnCount }),
+            }),
             result: () => ({ state: test.state ?? "passed" }),
             diagnostic: () => test.duration === undefined ? undefined : { duration: test.duration },
           };
@@ -124,12 +135,14 @@ describe("captureTestCost", () => {
         duration: 2_000,
         timeout: 30_000,
         cliTimeout: 10_000,
+        cliSpawnCount: 2,
       }]),
     ]).files[0]?.tests ?? [];
 
     expect(test).toMatchObject({
       vitestTimeoutMs: 30_000,
       cliTimeoutMs: 10_000,
+      cliSpawnCount: 2,
       timeoutCeilingMs: 10_000,
       headroomMs: 8_000,
       headroomFraction: 0.8,

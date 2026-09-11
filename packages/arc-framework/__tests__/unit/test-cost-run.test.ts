@@ -59,6 +59,7 @@ describe("runTestCostMeasurement", () => {
       admissionWaitMs: 45,
       fileCount: 1,
       testCount: 1,
+      cliSpawnCount: 0,
       substrate: { durationMs: 0, shareFraction: 0, files: [] },
     });
     expect(exit).toHaveBeenCalledOnce();

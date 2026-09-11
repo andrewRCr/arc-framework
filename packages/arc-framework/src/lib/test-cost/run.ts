@@ -40,6 +40,7 @@ export interface RetainedTestCostRun {
   readonly summedFileTimeMs: number;
   readonly fileCount: number;
   readonly testCount: number;
+  readonly cliSpawnCount?: number;
   readonly admissionWaitMs?: number;
   readonly substrate: SubstrateShare;
   readonly files: readonly TestCostFile[];
@@ -100,6 +101,10 @@ export async function runTestCostMeasurement(
     summedFileTimeMs: captured.summedFileTimeMs,
     fileCount: captured.files.length,
     testCount: captured.files.reduce((total, file) => total + file.tests.length, 0),
+    cliSpawnCount: captured.files.reduce(
+      (total, file) => total + file.tests.reduce((fileTotal, test) => fileTotal + (test.cliSpawnCount ?? 0), 0),
+      0,
+    ),
     ...(admitted.waitMs === undefined ? {} : { admissionWaitMs: admitted.waitMs }),
     substrate: summarizeSubstrateShare(captured.files),
     files: captured.files,

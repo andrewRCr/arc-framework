@@ -32,6 +32,7 @@ function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
     summedFileTimeMs: durationMs,
     fileCount: 1,
     testCount: 1,
+    cliSpawnCount: 0,
     ...(waitMs === undefined ? {} : { admissionWaitMs: waitMs }),
     substrate: { durationMs: 0, shareFraction: 0, files: [] },
     files: [file],
@@ -42,7 +43,7 @@ describe("normalizeRetainedTestCostRuns", () => {
   it("normalizes summary, files, substrate, and observed waits by median", () => {
     expect(normalizeRetainedTestCostRuns([run(90), run(100, 30), run(110, 50)]))
       .toMatchObject({
-        summary: { sampleCount: 3, normalization: "median", wallClockMs: 100 },
+        summary: { sampleCount: 3, normalization: "median", wallClockMs: 100, cliSpawnCount: 0 },
         files: [{ path: "a.test.ts", durationMs: 100, testCount: 1 }],
         substrate: { durationMs: 0, shareFraction: 0, files: [] },
         waits: { observedCount: 2, medianMs: 40 },

@@ -12,6 +12,7 @@ export interface NormalizedRetainedCost {
     readonly summedFileTimeMs: number;
     readonly fileCount: number;
     readonly testCount: number;
+    readonly cliSpawnCount?: number;
   };
   readonly files: readonly {
     readonly path: string;
@@ -63,7 +64,12 @@ export function normalizeRetainedTestCostRuns(
   });
   const waits = runs.flatMap((run) => run.admissionWaitMs === undefined ? [] : [run.admissionWaitMs]);
   return {
-    summary,
+    summary: {
+      ...summary,
+      ...(runs.every((run) => run.cliSpawnCount !== undefined)
+        ? { cliSpawnCount: median(runs.map((run) => run.cliSpawnCount ?? 0), "CLI spawn count") }
+        : {}),
+    },
     files,
     substrate: {
       durationMs: median(runs.map((run) => run.substrate.durationMs), "substrate duration"),
