@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design — second adversarial pass folded alongside a delivery-plan sweep, thirteen items
-  across §§ 1-10 (2026-09-10, `101f6fb62`); readiness read: not ready, a third pass is recommended.
+- **Last Completed:** create-spec — spec crystallized at `detailed` · RFC with one adversarial pass folded, draft
+  retired to `notes-plan-amendment.md`, `Class: Heavy` persisted (2026-09-11, `8815d6a5a`).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
