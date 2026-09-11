@@ -7,35 +7,38 @@ import {
   canonicalDigest,
   sortByCanonicalBytes,
 } from "../canonical/canonical-json.js";
-import { PathTreatmentSchema } from "../evidence-applicability/path-treatment.js";
+import { composeEvidenceDelta, reduceEvidenceApplicability } from "../evidence-applicability/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";
+import {
+  CandidateCanonicalDigestSchema,
+  CandidateGitObjectIdSchema,
+  CandidateLineageTargetSchema,
+  CandidateSubjectDeltaSchema,
+  CandidateSubjectEntrySchema,
+  CandidateSubjectSnapshotSchema,
+  CandidateSubjectTreatmentSchema,
+  CandidateVerificationApplicabilitySchema,
+  type CandidateLineageTarget,
+  type CandidateSubjectDelta,
+  type CandidateSubjectSnapshot,
+  type CandidateVerificationApplicability,
+} from "./candidate-evidence.js";
+
+export {
+  CandidateLineageTargetSchema,
+  CandidateSubjectDeltaSchema,
+  CandidateSubjectSnapshotSchema,
+  CandidateVerificationApplicabilitySchema,
+};
+export type {
+  CandidateLineageTarget,
+  CandidateSubjectDelta,
+  CandidateSubjectSnapshot,
+  CandidateVerificationApplicability,
+};
 
 const CandidateSemanticsSchema = z.literal("candidate-attestation/v1");
-const CandidateCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const CandidateGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const CandidatePathSchema = z.string().min(1)
-  .refine(
-    (value) => !value.startsWith("/") && !value.includes("\\") && !value.split("/").includes(".."),
-    "must be a repository-relative POSIX path",
-  )
-  .refine((value) => value.normalize("NFC") === value, "must use NFC-normalized repository path bytes");
-const CandidateSubjectTreatmentSchema = PathTreatmentSchema;
-const CandidateTreeEntryModeSchema = z.union([
-  z.string().regex(/^[0-7]{6}$/u),
-  z.literal("absent"),
-]);
-const CandidateSubjectEntrySchema = z.strictObject({
-  path: CandidatePathSchema,
-  digest: CandidateCanonicalDigestSchema,
-  mode: CandidateTreeEntryModeSchema,
-  treatment: CandidateSubjectTreatmentSchema,
-});
-export const CandidateSubjectSnapshotSchema = z.strictObject({
-  entries: z.array(CandidateSubjectEntrySchema),
-  subjectDigest: CandidateCanonicalDigestSchema,
-});
-export type CandidateSubjectSnapshot = z.infer<typeof CandidateSubjectSnapshotSchema>;
 
 export const CandidateAttestationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -52,13 +55,6 @@ export const CandidateAttestationV1Schema = z.strictObject({
 });
 export type CandidateAttestationV1 = z.infer<typeof CandidateAttestationV1Schema>;
 
-export const CandidateLineageTargetSchema = z.strictObject({
-  revision: CandidateGitObjectIdSchema,
-  subject: CandidateSubjectSnapshotSchema,
-});
-export type CandidateLineageTarget = z.infer<typeof CandidateLineageTargetSchema>;
-export const CandidateVerificationApplicabilitySchema = z.enum(["targeted", "focused", "full"]);
-export type CandidateVerificationApplicability = z.infer<typeof CandidateVerificationApplicabilitySchema>;
 
 export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
   transitionKind: z.literal("review-response"),
@@ -537,21 +533,65 @@ export function candidateConvergenceScopeCovers(
   return supplied === "full" || required === "focused";
 }
 
+export const CandidateConvergenceProjectionSchema = z.union([
+  z.strictObject({
+    convergenceVerification: z.literal("satisfied"),
+    convergenceScope: z.null(),
+  }),
+  z.strictObject({
+    convergenceVerification: z.literal("pending"),
+    convergenceScope: z.enum(["focused", "full"]),
+  }),
+]);
+export type CandidateConvergenceProjection = z.infer<typeof CandidateConvergenceProjectionSchema>;
+
+const SATISFIED_CONVERGENCE = {
+  convergenceVerification: "satisfied",
+  convergenceScope: null,
+} as const satisfies CandidateConvergenceProjection;
+
+function reduceReviewResponseConvergence(
+  current: CandidateConvergenceProjection,
+  transition: CandidateReviewResponseEvidenceV1,
+): CandidateConvergenceProjection {
+  const result = reduceEvidenceApplicability(composeEvidenceDelta({
+    cause: "approved-fix",
+    response: {
+      candidateId: transition.candidateId,
+      dispositionId: transition.dispositionId,
+      oldTarget: transition.oldTarget,
+      newTarget: transition.newTarget,
+      applicability: transition.applicability,
+      ...(transition.approvedVerification === undefined
+        ? {}
+        : { approvedVerification: transition.approvedVerification }),
+    },
+    delta: diffCandidateSubjectSnapshots(transition.oldTarget.subject, transition.newTarget.subject),
+  }), "verification");
+  if (result.verdict === "carries") return current;
+  if (result.verdict === "fresh") {
+    return { convergenceVerification: "pending", convergenceScope: "full" };
+  }
+  return current.convergenceVerification === "pending" && current.convergenceScope === "full"
+    ? current
+    : { convergenceVerification: "pending", convergenceScope: "focused" };
+}
+
 function requiredConvergenceScopeAtSubject(
   transitions: readonly CandidateLineageTransitionV1[],
   subjectDigest: string,
 ): "focused" | "full" | null {
-  let required: "focused" | "full" | null = null;
+  let convergence: CandidateConvergenceProjection = SATISFIED_CONVERGENCE;
   let result: "focused" | "full" | null = null;
   for (const transition of transitions) {
     if (transition.transitionKind === "verification-response") {
-      required = null;
-    } else if (transition.transitionKind === "review-response" && transition.implementationChanged) {
-      const approved = transition.approvedVerification ?? "full";
-      if (approved === "full" || (approved === "focused" && required === null)) required = approved;
+      convergence = SATISFIED_CONVERGENCE;
+    } else if (transition.transitionKind === "review-response") {
+      convergence = reduceReviewResponseConvergence(convergence, transition);
     }
     if ((transition.transitionKind === "review-response" || transition.transitionKind === "verification-response")
       && transition.newTarget.subject.subjectDigest === subjectDigest) {
+      const required = convergence.convergenceVerification === "pending" ? convergence.convergenceScope : null;
       if (required === "full" || (required === "focused" && result === null)) result = required;
     }
   }
@@ -559,13 +599,12 @@ function requiredConvergenceScopeAtSubject(
 }
 
 export type CandidateCurrentnessProjection =
-  | {
+  | ({
       status: "current";
       candidateId: string;
       recognizedRevision: string;
       implementationChanged: boolean;
-      convergenceVerification: "satisfied" | "pending";
-    }
+    } & CandidateConvergenceProjection)
   | {
       status: "blocked";
       candidateId: string;
@@ -575,13 +614,12 @@ export type CandidateCurrentnessProjection =
       nextAction: "Run full work-unit verification to establish a new Candidate lineage root.";
     };
 
-export interface CandidateDurableBaselineProjection {
+export type CandidateDurableBaselineProjection = {
   candidateId: string;
   target: CandidateLineageTarget;
   implementationChanged: boolean;
-  verificationCompleted: boolean;
   selectedChange: CandidateApplicabilitySelectionV1 | null;
-}
+} & CandidateConvergenceProjection;
 
 /** Reduce the storage-neutral Candidate root and ordered authority transitions to one durable baseline. */
 export function reduceCandidateDurableBaseline(
@@ -593,20 +631,21 @@ export function reduceCandidateDurableBaseline(
     subject: record.subject,
   };
   let implementationChanged = false;
-  let verificationCompleted = true;
+  let convergence: CandidateConvergenceProjection = SATISFIED_CONVERGENCE;
   let selectedChange: CandidateApplicabilitySelectionV1 | null = null;
   for (const transition of record.transitions) {
     if (transition.transitionKind === "review-response") {
+      convergence = applyLineageAttestations(record, target, convergence);
+      convergence = reduceReviewResponseConvergence(convergence, transition);
       target = transition.newTarget;
       implementationChanged ||= transition.implementationChanged;
-      if (transition.implementationChanged) verificationCompleted = false;
       selectedChange = null;
       continue;
     }
     if (transition.transitionKind === "verification-response") {
       target = transition.newTarget;
       implementationChanged ||= transition.implementationChanged;
-      verificationCompleted = true;
+      convergence = SATISFIED_CONVERGENCE;
       selectedChange = null;
       continue;
     }
@@ -621,13 +660,27 @@ export function reduceCandidateDurableBaseline(
     target = transition.currentTarget;
     selectedChange = null;
   }
+  convergence = applyLineageAttestations(record, target, convergence);
   return {
     candidateId: record.attestation.candidateId,
     target,
     implementationChanged,
-    verificationCompleted,
     selectedChange,
+    ...convergence,
   };
+}
+
+function applyLineageAttestations(
+  record: CandidateManagedRecordV1,
+  target: CandidateLineageTarget,
+  convergence: CandidateConvergenceProjection,
+): CandidateConvergenceProjection {
+  if (convergence.convergenceVerification === "satisfied") return convergence;
+  return record.lineageAttestations.some((attestation) =>
+    attestation.target.subject.subjectDigest === target.subject.subjectDigest
+      && candidateConvergenceScopeCovers(attestation.scope, convergence.convergenceScope))
+    ? SATISFIED_CONVERGENCE
+    : convergence;
 }
 
 /**
@@ -649,20 +702,16 @@ export function projectCandidateCurrentness(input: {
     return blockedProjection(record.attestation.candidateId, revision, current, subject);
   }
   const operationalOnlyAdvance = current.revision !== revision;
-  // Convergence is a claim about content: a lineage attestation records that full verification ran
-  // over one exact reviewable subject. Keying it to the subject alone is what lets it survive the
-  // head movement `recognizedRevision` already absorbs — an attestation written at the recognized
-  // head could never equal the response revision it was confirming, and pinning either revision
-  // would break again at the next operational-only advance. The revision stays recorded as
-  // provenance for which head carried the verification.
-  const convergenceSatisfied = baseline.verificationCompleted || record.lineageAttestations.some((attestation) =>
-    attestation.target.subject.subjectDigest === subject.subjectDigest);
+  const convergence = CandidateConvergenceProjectionSchema.parse({
+    convergenceVerification: baseline.convergenceVerification,
+    convergenceScope: baseline.convergenceScope,
+  });
   return {
     status: "current",
     candidateId: record.attestation.candidateId,
     recognizedRevision: operationalOnlyAdvance ? current.revision : revision,
     implementationChanged,
-    convergenceVerification: convergenceSatisfied ? "satisfied" : "pending",
+    ...convergence,
   };
 }
 
@@ -681,13 +730,6 @@ function blockedProjection(
     nextAction: "Run full work-unit verification to establish a new Candidate lineage root.",
   };
 }
-
-export const CandidateSubjectDeltaSchema = z.strictObject({
-  added: z.array(CandidatePathSchema),
-  removed: z.array(CandidatePathSchema),
-  changed: z.array(CandidatePathSchema),
-});
-export type CandidateSubjectDelta = z.infer<typeof CandidateSubjectDeltaSchema>;
 
 /** Compute the exact reviewable path delta between two Candidate subjects. */
 export function diffCandidateSubjectSnapshots(

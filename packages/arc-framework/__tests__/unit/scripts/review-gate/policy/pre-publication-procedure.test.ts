@@ -26,6 +26,7 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   prePublicationBoundary,
+  PrePublicationReviewRequestSchema,
   PrePublicationReviewEnvelopeSchema,
   projectCandidateDeltaVerification,
   projectPrePublicationReview,
@@ -508,12 +509,36 @@ function request(overrides: Record<string, unknown> = {}) {
       maxPasses: 2,
       attempts: [],
     },
-    candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: false, convergenceVerification: "satisfied" },
+    candidate: {
+      subjectDigest: SUBJECT_DIGEST,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    },
     ...overrides,
   };
 }
 
 describe("projectPrePublicationReview", () => {
+  it("rejects impossible convergence status and scope pairs", () => {
+    expect(PrePublicationReviewRequestSchema.safeParse(request({
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "satisfied",
+        convergenceScope: "focused",
+      },
+    })).success).toBe(false);
+    expect(PrePublicationReviewRequestSchema.safeParse(request({
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: null,
+      },
+    })).success).toBe(false);
+  });
+
   it("carries the exact target through to every locus that routes to an exact-target operation", () => {
     const exact = createReviewTarget({
       schemaVersion: 2,
@@ -733,7 +758,12 @@ describe("projectPrePublicationReview", () => {
   it("requires one final convergence verification only after the review obligations settle", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "pending" },
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: "full",
+      },
     });
     const result = projectPrePublicationReview({
       ...base,
@@ -756,7 +786,12 @@ describe("projectPrePublicationReview", () => {
   it("submits a converged implementation-changing lineage after full verification", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "satisfied" },
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "satisfied",
+        convergenceScope: null,
+      },
     });
     const result = projectPrePublicationReview({
       ...base,

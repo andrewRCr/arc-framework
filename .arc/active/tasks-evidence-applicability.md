@@ -552,42 +552,22 @@ currentness and attestation outcomes without requiring the separately owned prop
   record guards reject narrower evidence at an approved full subject while accepting full evidence for either scope.
   Existing construction sites write explicit full scope without aliases, migration readers, or a second identity.
 
-### `[ ]` **5.3 Reduce convergence across scoped lineage attestations** — D2-D3, D12
+### `[x]` **5.3 Reduce convergence across scoped lineage attestations** — D2-D3, D12
 
 - _Goal:_ every Candidate currentness consumer derives convergence satisfaction and pending scope from one lineage
   reducer, including targeted fixes that advance an already attested baseline.
 
-- **Additional Context:** `notes-evidence-applicability.md` § Scoped verification decisions
+    - `[x]` **5.3.a Walk attestations and transitions as one lineage**
+        - The durable reducer applies subject-bound attestations before later responses, composes every response through
+          the shared approved-fix envelope and verification reducer, and retains the broadest pending requirement.
 
-    - `[ ]` **5.3.a Walk attestations and transitions as one lineage**
-        - Extend `reduceCandidateDurableBaseline` to recognize attestations at each running subject before applying a
-          response and after the final transition. Compose every response through D2's `approved-fix` producer and
-          invoke D3's shared reducer with verification evidence; map only its `carries | supplemental | fresh`
-          verdict to inherited satisfaction, pending focused, or pending full. Do not reproduce an
-          `approvedVerification` switch in the lineage reducer. Return the broadest pending requirement through one
-          closed shape: `satisfied` with null scope or `pending` with `focused | full` scope.
-        - Build `test-first` (one behavior at a time):
-            - the D2/D3 result is the only scope-to-convergence decision and the transition fixtures cross the Member
-              1 → Member 3 boundary;
-            - targeted-only movement stays satisfied;
-            - targeted after attested focused stays satisfied;
-            - focused remains pending until a focused-or-full attestation covers its subject;
-            - any full response dominates pending focused work; and
-            - a focused attestation never satisfies a full requirement; and
-            - unexplained deltas retain the fresh-root path.
+    - `[x]` **5.3.b Project the single result through currentness**
+        - Currentness, effective targets, delivery, lifecycle, checkpoint, status, and pre-publication requests now
+          share the closed satisfied/null or pending/focused|full projection and reject impossible pairs.
 
-    - `[ ]` **5.3.b Project the single result through currentness**
-        - Extend `CandidateCurrentnessProjection`, `projectCandidateCurrentness`, and the effective-target projections
-          with the shared closed convergence shape, removing any independent boolean/scope reconstruction and
-          rejecting `satisfied + scope` or `pending + null`.
-        - Update Candidate record helpers and every direct reducer/currentness caller so checkpoint, delivery,
-          lifecycle, status, and review preparation consume the same projection. Make
-          `PrePublicationReviewRequestSchema` reuse or enforce the same relationship.
-        - Build `test-first` (one behavior at a time):
-            - effective-target projections preserve satisfaction and pending scope;
-            - impossible convergence pairs fail at every typed boundary;
-            - checkpoint, delivery, lifecycle, status, and review preparation agree on the same record; and
-            - Candidate lineage E2E coverage matches the focused unit projections.
+- _Outcome:_ targeted evidence carries established satisfaction, focused and full requirements close only through
+  sufficiently broad subject attestations, and omitted scope conservatively projects full. A cycle-free Candidate
+  evidence contract lets the lineage invoke the shared reducer without duplicating the scope decision.
 
 ### `[ ]` **5.4 Enforce focused and full attestation semantics** — D12
 

@@ -129,6 +129,7 @@ function terminalRebindFixture(plan = deliveryThreeMemberStackPlanFixture()) {
     recognition: { kind: "durable" as const },
     implementationChanged: false,
     convergenceVerification: "satisfied" as const,
+    convergenceScope: null,
   };
   const coordinates = {
     base: f.state.target!.coordinates!.head,
@@ -201,6 +202,7 @@ describe("delivery terminal integration", () => {
       memberDeliverableIds: [terminal.deliverableId],
       retainedTerminalTarget: { revision: CANDIDATE_HEAD, baselineRelation: "exact" as const },
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     } as unknown as typeof f.input.candidate;
     const coordinates = { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) };
     const state = {
@@ -254,6 +256,7 @@ describe("delivery terminal integration", () => {
       memberDeliverableIds: [terminal.deliverableId],
       retainedTerminalTarget: { revision: recordHead, baselineRelation: "equivalent" as const },
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     } as unknown as typeof f.input.candidate;
     const coordinates = { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) };
     const state = {
@@ -302,6 +305,7 @@ describe("delivery terminal integration", () => {
       memberDeliverableIds: [terminal.deliverableId],
       retainedTerminalTarget: { revision: driftedHead, baselineRelation: "ancestor" as const },
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     } as unknown as typeof f.input.candidate;
     const state = {
       ...f.state,
@@ -341,6 +345,7 @@ describe("delivery terminal integration", () => {
       memberDeliverableIds: [terminal.deliverableId],
       retainedTerminalTarget: { revision: CANDIDATE_HEAD, baselineRelation: "exact" as const },
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     } as unknown as typeof f.input.candidate;
     const coordinates = { ...f.coordinates, head: recordHead, tree: "e".repeat(40) };
     const state = {
@@ -391,6 +396,7 @@ describe("delivery terminal integration", () => {
       memberDeliverableIds: [terminal.deliverableId],
       retainedTerminalTarget: { revision: CANDIDATE_HEAD, baselineRelation: "exact" as const },
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     } as unknown as typeof f.input.candidate;
     const coordinates = { ...f.coordinates, head: advancedHead, tree: "c".repeat(40) };
     const state = {
@@ -444,6 +450,7 @@ describe("delivery terminal integration", () => {
       memberDeliverableIds,
       retainedTerminalTarget: { revision: pendingHead, baselineRelation: "ancestor" as const },
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     } as unknown as typeof f.input.candidate;
     const coordinates = { ...f.coordinates, head: correctedHead, tree: "e".repeat(40) };
     const state = {
@@ -516,6 +523,7 @@ describe("delivery terminal integration", () => {
       memberDeliverableIds: [terminal.deliverableId],
       retainedTerminalTarget: { revision: CANDIDATE_HEAD, baselineRelation: "exact" as const },
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     } as unknown as typeof f.input.candidate;
 
     expect(rebindDeliveryTerminalCoordinates({

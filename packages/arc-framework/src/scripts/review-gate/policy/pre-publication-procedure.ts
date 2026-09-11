@@ -50,6 +50,11 @@ const StandardPolicyRequestSchema = ReviewPolicyRequestSchema.refine(
   "standard policy input must select the standard lane",
 );
 
+const PrePublicationCandidateCommonSchema = {
+  subjectDigest: CandidateSubjectDigestSchema,
+  implementationChanged: z.boolean(),
+};
+
 export const PrePublicationReviewRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   workUnit: SlugSchema,
@@ -67,11 +72,18 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
-  candidate: z.strictObject({
-    subjectDigest: CandidateSubjectDigestSchema,
-    implementationChanged: z.boolean(),
-    convergenceVerification: z.enum(["satisfied", "pending"]),
-  }),
+  candidate: z.union([
+    z.strictObject({
+      ...PrePublicationCandidateCommonSchema,
+      convergenceVerification: z.literal("satisfied"),
+      convergenceScope: z.null(),
+    }),
+    z.strictObject({
+      ...PrePublicationCandidateCommonSchema,
+      convergenceVerification: z.literal("pending"),
+      convergenceScope: z.enum(["focused", "full"]),
+    }),
+  ]),
 }).superRefine((request, context) => {
   if (!samePolicyTarget(request.frontline.target, request.standard.target)) {
     context.addIssue({ code: "custom", path: ["standard", "target"], message: "must match the frontline target" });

@@ -5445,6 +5445,7 @@ async function executeDeliveryCommand(
             memberDeliverableIds,
             retainedTerminalTarget,
             convergenceVerification: "satisfied",
+            convergenceScope: null,
           };
           candidateTargetRevision = currentTarget.revision;
         }

@@ -25,7 +25,10 @@ import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
 import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
-import { candidateReviewResponses } from "../../../lib/work-unit/candidate-attestation.js";
+import {
+  CandidateConvergenceProjectionSchema,
+  candidateReviewResponses,
+} from "../../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
 import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
@@ -253,13 +256,17 @@ export function createPrePublicationCompositionDependencies(input: {
             : `Candidate applicability could not recognize the current target (${effective.nextAction}).`;
         return { status: "blocked", reason };
       }
+      const convergence = CandidateConvergenceProjectionSchema.parse({
+        convergenceVerification: effective.convergenceVerification,
+        convergenceScope: effective.convergenceScope,
+      });
       return {
         status: "current",
         candidateId: effective.candidateId,
         headSha: effective.recognizedTarget.revision,
         subjectDigest: effective.recognizedTarget.subject.subjectDigest,
         implementationChanged: effective.implementationChanged,
-        convergenceVerification: effective.convergenceVerification,
+        ...convergence,
         lineageHeadShas: [...new Set([
           record.attestation.baseRevision,
           ...candidateReviewResponses(record)

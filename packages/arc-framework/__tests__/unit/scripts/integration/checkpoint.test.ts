@@ -84,6 +84,7 @@ function dependencies(): IntegrationCheckpointDependencies {
       recognizedRevision: oid("c"),
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     }),
     composeCandidateApplicabilityResolutionSelector: async () => {
       throw new Error("a current Candidate does not require an applicability selector");
@@ -894,6 +895,7 @@ describe("integration checkpoint", () => {
       recognizedRevision: oid("c"),
       implementationChanged: true,
       convergenceVerification: "pending",
+      convergenceScope: "full",
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -904,6 +906,7 @@ describe("integration checkpoint", () => {
           candidate: {
             implementationChanged: true,
             convergenceVerification: "pending",
+            convergenceScope: "full",
           },
         },
       });

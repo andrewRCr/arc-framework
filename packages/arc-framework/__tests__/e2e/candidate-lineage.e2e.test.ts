@@ -812,6 +812,10 @@ describe("review-fix Candidate lineage", () => {
     if (candidate.status !== "current") {
       throw new Error("expected a current Candidate lineage");
     }
+    expect(candidate).toMatchObject({
+      convergenceVerification: "pending",
+      convergenceScope: "full",
+    });
     expect(candidate.lineageHeadShas).toContain(reviewedHead);
     await expect(composition.readLaneProgress(
       "standard",

@@ -465,6 +465,7 @@ beforeEach(() => {
       subject: { subjectDigest: `sha256:${"b".repeat(64)}` },
     },
     convergenceVerification: "satisfied",
+    convergenceScope: null,
   });
   mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: "boundary-version" });
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");

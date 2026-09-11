@@ -196,6 +196,7 @@ describe("runAttest", () => {
       },
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
 
     await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))

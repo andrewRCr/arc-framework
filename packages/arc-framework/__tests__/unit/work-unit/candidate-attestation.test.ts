@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
+  CandidateConvergenceProjectionSchema,
   CandidateManagedRecordV1Schema,
   createCandidateAttestation,
   createCandidateLineageAttestation,
@@ -355,6 +356,7 @@ describe("Candidate lineage currentness", () => {
       status: "current",
       recognizedRevision: SHA_B,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
   });
 
@@ -460,6 +462,7 @@ describe("Candidate lineage currentness", () => {
       recognizedRevision: SHA_D,
       implementationChanged: true,
       convergenceVerification: "pending",
+      convergenceScope: "full",
     });
   });
 
@@ -573,6 +576,7 @@ describe("Candidate lineage currentness", () => {
       recognizedRevision: SHA_B,
       implementationChanged: true,
       convergenceVerification: "pending",
+      convergenceScope: "full",
     });
     expect(response).toMatchObject({ applicability: "focused", verificationEvidenceRefs: ["test://candidate/focused"] });
   });
@@ -616,6 +620,7 @@ describe("Candidate lineage currentness", () => {
       recognizedRevision: SHA_B,
       implementationChanged: true,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
   });
 
@@ -636,7 +641,12 @@ describe("Candidate lineage currentness", () => {
         lineageAttestations: [],
       },
       current: { revision: SHA_C, subject: current },
-    })).toMatchObject({ status: "current", recognizedRevision: SHA_C, convergenceVerification: "satisfied" });
+    })).toMatchObject({
+      status: "current",
+      recognizedRevision: SHA_C,
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    });
   });
 
   it("lets an exact response target bridge an unrecorded operational-only revision", () => {
@@ -650,6 +660,7 @@ describe("Candidate lineage currentness", () => {
       approvedBy: "andrew",
       appliedBy: "codex",
       applicability: "targeted",
+      approvedVerification: "targeted",
       verificationEvidenceRefs: ["test://candidate/targeted"],
       implementationChanged: true,
     });
@@ -667,8 +678,112 @@ describe("Candidate lineage currentness", () => {
     })).toMatchObject({
       status: "current",
       recognizedRevision: SHA_C,
-      convergenceVerification: "pending",
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
+  });
+
+  it("carries attested focused convergence through a later targeted response", () => {
+    const root = attestation();
+    const focusedSubject = snapshot(canonicalDigest({ source: "focused-fix" }));
+    const targetedSubject = snapshot(canonicalDigest({ source: "targeted-fix" }));
+    const focused = createCandidateReviewResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_A, subject: snapshot() },
+      newTarget: { revision: SHA_B, subject: focusedSubject },
+      dispositionId: canonicalDigest({ dispositions: "focused" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      approvedVerification: "focused",
+      verificationEvidenceRefs: ["test://candidate/focused-fix"],
+      implementationChanged: true,
+    });
+    const targeted = createCandidateReviewResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: focused.newTarget,
+      newTarget: { revision: SHA_C, subject: targetedSubject },
+      dispositionId: canonicalDigest({ dispositions: "targeted" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "targeted",
+      approvedVerification: "targeted",
+      verificationEvidenceRefs: ["test://candidate/targeted-fix"],
+      implementationChanged: true,
+    });
+    const record = CandidateManagedRecordV1Schema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [focused, targeted],
+      lineageAttestations: [createCandidateLineageAttestation({
+        candidateId: root.candidateId,
+        target: focused.newTarget,
+        attestedBy: "andrew",
+        attestedAt: "2026-08-12T13:00:00.000Z",
+        verificationEvidenceRef: "verification://example/focused",
+        scope: "focused",
+      })],
+    });
+
+    expect(projectCandidateCurrentness({
+      record,
+      current: targeted.newTarget,
+    })).toMatchObject({
+      status: "current",
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    });
+  });
+
+  it("returns the broadest pending scope from the shared verification reducer", () => {
+    const root = attestation();
+    const focused = createCandidateReviewResponseEvidence({
+      candidateId: root.candidateId,
+      oldTarget: { revision: SHA_A, subject: snapshot() },
+      newTarget: { revision: SHA_B, subject: snapshot(canonicalDigest({ source: "focused" })) },
+      dispositionId: canonicalDigest({ dispositions: "focused" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      approvedVerification: "focused",
+      verificationEvidenceRefs: ["test://candidate/focused"],
+      implementationChanged: true,
+    });
+    const full = createCandidateReviewResponseEvidence({
+      ...focused,
+      oldTarget: focused.newTarget,
+      newTarget: { revision: SHA_C, subject: snapshot(canonicalDigest({ source: "full" })) },
+      dispositionId: canonicalDigest({ dispositions: "full" }),
+      approvedVerification: "full",
+      verificationEvidenceRefs: ["test://candidate/full"],
+    });
+    const record = CandidateManagedRecordV1Schema.parse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: root,
+      subject: snapshot(),
+      transitions: [focused, full],
+      lineageAttestations: [],
+    });
+
+    expect(projectCandidateCurrentness({ record, current: full.newTarget })).toMatchObject({
+      status: "current",
+      convergenceVerification: "pending",
+      convergenceScope: "full",
+    });
+  });
+
+  it("rejects impossible convergence status and scope pairs", () => {
+    expect(CandidateConvergenceProjectionSchema.safeParse({
+      convergenceVerification: "satisfied",
+      convergenceScope: "focused",
+    }).success).toBe(false);
+    expect(CandidateConvergenceProjectionSchema.safeParse({
+      convergenceVerification: "pending",
+      convergenceScope: null,
+    }).success).toBe(false);
   });
 
   it("blocks an unexplained reviewable delta with its exact path delta and one recovery action", () => {
