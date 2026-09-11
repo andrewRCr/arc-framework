@@ -14,7 +14,8 @@ export const ReviewFindingIdentitySchema = z.string().trim().min(1).max(512)
   .refine((value) => value.normalize("NFC") === value, {
     message: "finding identity must use NFC-normalized Unicode",
   });
-const FindingLocusSchema = z.string().trim().min(1).max(2048);
+/** Bounded source location carried with a normalized review finding. */
+export const ReviewFindingLocusSchema = z.string().trim().min(1).max(2048);
 const MarkdownPunctuation = new Set(Array.from("\\`*_{}[]()#+.!|-"));
 export const ReviewFindingSourceOrdinalSchema = z.int().positive();
 export const ReviewFindingSourceLabelSchema = z.string()
@@ -24,7 +25,7 @@ export const ReviewFindingContentSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
   severity: ReviewSeveritySchema,
   nit: z.literal(true).optional(),
-  locus: FindingLocusSchema,
+  locus: ReviewFindingLocusSchema,
   evidenceUrlOrId: EvidenceReferenceSchema,
   recursFindingId: ReviewFindingIdentitySchema.optional(),
 }).superRefine((finding, context) => {

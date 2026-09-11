@@ -372,7 +372,11 @@ describe("local review preparation request", () => {
         predecessorHeadSha: objectId("a"),
         basisHeadSha: objectId("9"),
         headSha: context.memberTarget.headSha,
-        requiredFindingIds: ["F-material"],
+        requiredFindings: [{
+          producerId: "hosted/attempt-1",
+          findingId: "F-material",
+          locus: "src/member.ts:1",
+        }],
       };
 
       const prepared = await prepareLocalReview({
@@ -391,7 +395,9 @@ describe("local review preparation request", () => {
         },
       });
       if (prepared.state !== "ready") throw new Error("local correction review was not ready");
+      expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("hosted/attempt-1");
       expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("F-material");
+      expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain("src/member.ts:1");
       expect(prepared.payload.reviewerPayload.reviewerInstructions).toContain(
         `${correctionScope.predecessorHeadSha}..${correctionScope.headSha}`,
       );

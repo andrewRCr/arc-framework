@@ -3702,7 +3702,11 @@ describe("hosted review fan-out lifecycle", () => {
           predecessorHeadSha: harness.oldFirst,
           basisHeadSha: harness.oldFirst,
           headSha: correctionHead,
-          requiredFindingIds: [finding.findingId],
+          requiredFindings: [{
+            producerId: attemptId,
+            findingId: finding.findingId,
+            locus: finding.locus,
+          }],
         },
       },
       routedObligation: {

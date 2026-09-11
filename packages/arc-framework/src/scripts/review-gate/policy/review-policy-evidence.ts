@@ -144,19 +144,25 @@ export async function readIncrementalPredecessorResponseEvidence(
   dispositionStore: ApprovedDispositionRecordStore,
 ): Promise<IncrementalPredecessorResponseEvidence> {
   if (predecessor.originalOutcome === "clean") {
-    return { status: "performed", requiredFindingIds: [] };
+    return { status: "performed", requiredFindings: [] };
   }
   const predecessorRecord = await dispositionStore.readDispositionRecord(predecessor.producerId);
   if (predecessorRecord === null) {
-    return { status: "incomplete", requiredFindingIds: [] };
+    return { status: "incomplete", requiredFindings: [] };
   }
   const approved = validateApprovedDispositionRecordForResult(predecessorRecord, predecessor);
   const node = currentApprovedDispositionNode(approved);
   const dispositions = node.approvedDisposition.dispositionSet.findings;
-  const requiredFindingIds = dispositions
+  const requiredFindings = dispositions
     .filter(({ sourceVerification, verifiedSeverity }) => sourceVerification === "verified"
       && (verifiedSeverity === "major" || verifiedSeverity === "critical"))
-    .map(({ findingId }) => findingId);
+    .map(({ findingId }) => {
+      const finding = predecessor.findings.find((candidate) => candidate.findingId === findingId);
+      if (finding === undefined) {
+        throw new Error("approved material finding has no immutable producer finding");
+      }
+      return { producerId: predecessor.producerId, findingId, locus: finding.locus };
+    });
   const hasFix = dispositions.some(({ disposition }) => disposition === "fix");
   const fixPerformed = !hasFix
     || node.deliveryMemberFixResponse !== null
@@ -166,7 +172,7 @@ export async function readIncrementalPredecessorResponseEvidence(
     || predecessor.settled;
   return {
     status: fixPerformed && hostSettlementPerformed ? "performed" : "incomplete",
-    requiredFindingIds,
+    requiredFindings,
   };
 }
 

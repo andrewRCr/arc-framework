@@ -18,6 +18,11 @@ import {
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (value: string): string => canonicalDigest({ value });
+const instruction = (producerId: string, findingId: string) => ({
+  producerId,
+  findingId,
+  locus: `src/${producerId}.ts:1`,
+});
 
 function result(input: {
   id: string;
@@ -31,7 +36,7 @@ function result(input: {
     producerId: string;
     predecessorHead?: string;
     basisHead: string;
-    requiredFindingIds?: readonly string[];
+    requiredFindings?: readonly ReturnType<typeof instruction>[];
   };
 }): ReviewResult {
   const kind = input.kind ?? "hosted";
@@ -90,7 +95,7 @@ function result(input: {
               predecessorHeadSha: input.predecessor.predecessorHead ?? input.predecessor.basisHead,
               basisHeadSha: input.predecessor.basisHead,
               headSha: input.head,
-              requiredFindingIds: [...(input.predecessor.requiredFindingIds ?? [])],
+              requiredFindings: [...(input.predecessor.requiredFindings ?? [])],
             },
           }),
     },
@@ -131,7 +136,7 @@ function harness(results: readonly ReviewResult[]) {
   const resultReader: ReviewResultReader = { readResult };
   const readResponseEvidence = vi.fn<IncrementalCoverageBasisDependencies["readResponseEvidence"]>(async () => ({
     status: "performed" as const,
-    requiredFindingIds: [] as string[],
+    requiredFindings: [],
   }));
   const confirmApplicability = vi.fn<IncrementalCoverageBasisDependencies["confirmApplicability"]>(
     async () => "applicable" as const,
@@ -281,13 +286,13 @@ describe("incremental coverage basis", () => {
       predecessor: {
         producerId: predecessor.producerId,
         basisHead: predecessor.target.headSha,
-        requiredFindingIds: ["F1"],
+        requiredFindings: [instruction(predecessor.producerId, "F1")],
       },
     });
     const incomplete = harness([predecessor]);
     incomplete.readResponseEvidence.mockResolvedValue({
       status: "incomplete",
-      requiredFindingIds: ["F1"],
+      requiredFindings: [instruction(predecessor.producerId, "F1")],
     });
     await expect(resolveIncrementalCoverageBasis(incremental, incomplete)).resolves.toMatchObject({
       status: "inadequate",
@@ -297,7 +302,10 @@ describe("incremental coverage basis", () => {
     const omitted = harness([predecessor]);
     omitted.readResponseEvidence.mockResolvedValue({
       status: "performed",
-      requiredFindingIds: ["F1", "F2"],
+      requiredFindings: [
+        instruction(predecessor.producerId, "F1"),
+        instruction(predecessor.producerId, "F2"),
+      ],
     });
     await expect(resolveIncrementalCoverageBasis(incremental, omitted)).resolves.toMatchObject({
       status: "inadequate",
@@ -322,13 +330,15 @@ describe("incremental coverage basis", () => {
         producerId: middle.producerId,
         predecessorHead: middle.target.headSha,
         basisHead: complete.target.headSha,
-        requiredFindingIds: ["F-root"],
+        requiredFindings: [instruction(complete.producerId, "F-root")],
       },
     });
     const dependencies = harness([complete, middle]);
     dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
       status: "performed",
-      requiredFindingIds: predecessor.producerId === complete.producerId ? ["F-root"] : [],
+      requiredFindings: predecessor.producerId === complete.producerId
+        ? [instruction(complete.producerId, "F-root")]
+        : [],
     }));
 
     await resolveIncrementalCoverageBasis(current, dependencies);
@@ -349,7 +359,7 @@ describe("incremental coverage basis", () => {
       predecessor: {
         producerId: complete.producerId,
         basisHead: complete.target.headSha,
-        requiredFindingIds: ["F-root"],
+        requiredFindings: [instruction(complete.producerId, "F-root")],
       },
     });
     const current = result({
@@ -365,13 +375,81 @@ describe("incremental coverage basis", () => {
     const dependencies = harness([complete, middle]);
     dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
       status: "performed",
-      requiredFindingIds: predecessor.producerId === complete.producerId ? ["F-root"] : [],
+      requiredFindings: predecessor.producerId === complete.producerId
+        ? [instruction(complete.producerId, "F-root")]
+        : [],
     }));
 
     await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
       status: "inadequate",
       reason: "material-finding-omitted",
       findingId: "F-root",
+    });
+  });
+
+  it("does not collapse same-named material findings from different producers", async () => {
+    const complete = result({ id: "complete", head: oid("a"), coverage: "complete" });
+    const middle = result({
+      id: "middle",
+      head: oid("b"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: complete.producerId,
+        basisHead: complete.target.headSha,
+        requiredFindings: [instruction(complete.producerId, "F1")],
+      },
+    });
+    const current = result({
+      id: "current",
+      head: oid("c"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: middle.producerId,
+        predecessorHead: middle.target.headSha,
+        basisHead: complete.target.headSha,
+        requiredFindings: [instruction(complete.producerId, "F1")],
+      },
+    });
+    const dependencies = harness([complete, middle]);
+    dependencies.readResponseEvidence.mockImplementation(async (predecessor) => ({
+      status: "performed",
+      requiredFindings: [instruction(predecessor.producerId, "F1")],
+    }));
+
+    await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "material-finding-omitted",
+      producerId: middle.producerId,
+      findingId: "F1",
+    });
+  });
+
+  it("rejects a material instruction whose locus differs from its producer evidence", async () => {
+    const complete = result({ id: "complete", head: oid("a"), coverage: "complete" });
+    const incremental = result({
+      id: "incremental",
+      head: oid("b"),
+      coverage: "incremental",
+      predecessor: {
+        producerId: complete.producerId,
+        basisHead: complete.target.headSha,
+        requiredFindings: [{
+          ...instruction(complete.producerId, "F1"),
+          locus: "src/wrong.ts:1",
+        }],
+      },
+    });
+    const dependencies = harness([complete]);
+    dependencies.readResponseEvidence.mockResolvedValue({
+      status: "performed",
+      requiredFindings: [instruction(complete.producerId, "F1")],
+    });
+
+    await expect(resolveIncrementalCoverageBasis(incremental, dependencies)).resolves.toMatchObject({
+      status: "inadequate",
+      reason: "material-finding-mismatch",
+      producerId: complete.producerId,
+      findingId: "F1",
     });
   });
 });

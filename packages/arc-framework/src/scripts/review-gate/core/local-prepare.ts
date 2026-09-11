@@ -52,12 +52,14 @@ function localReviewerInstructions(
 ): string {
   const scope = source.correctionScope;
   if (scope === undefined) return guidance.reviewerInstructions;
-  const findings = scope.requiredFindingIds.length === 0
+  const findings = scope.requiredFindings.length === 0
     ? "none"
-    : scope.requiredFindingIds.join(", ");
+    : scope.requiredFindings
+      .map(({ producerId, findingId, locus }) => `${producerId} / ${findingId} at ${locus}`)
+      .join(", ");
   return `${guidance.reviewerInstructions}\n\n`
     + `Incremental correction scope: review ${scope.predecessorHeadSha}..${scope.headSha}; `
-    + `the complete coverage basis begins at ${scope.basisHeadSha}. Re-examine material finding IDs `
+    + `the complete coverage basis begins at ${scope.basisHeadSha}. Re-examine material findings `
     + `${findings}, including their original loci when outside the changed lines.`;
 }
 

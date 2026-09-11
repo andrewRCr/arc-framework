@@ -121,19 +121,30 @@ export function buildIncrementalCorrectionScope(input: {
       ? predecessorScope.basisHeadSha
       : null;
   if (basisHeadSha === null) return null;
-  const inheritedFindingIds = predecessor.admission.effectiveCoverage === "complete"
+  const inheritedFindings = predecessor.admission.effectiveCoverage === "complete"
     ? []
-    : predecessorScope?.requiredFindingIds ?? [];
+    : predecessorScope?.requiredFindings ?? [];
+  const findingKey = ({ producerId, findingId }: { readonly producerId: string; readonly findingId: string }) => (
+    canonicalize([producerId, findingId])
+  );
+  const requiredFindings = new Map<string, (typeof response.requiredFindings)[number]>();
+  for (const finding of [...inheritedFindings, ...response.requiredFindings]) {
+    const key = findingKey(finding);
+    const existing = requiredFindings.get(key);
+    if (existing !== undefined && canonicalize(existing) !== canonicalize(finding)) return null;
+    requiredFindings.set(key, finding);
+  }
   return IncrementalReviewScopeSchema.parse({
     schemaVersion: 1,
     predecessorProducerId: predecessor.producerId,
     predecessorHeadSha: predecessor.target.headSha,
     basisHeadSha,
     headSha: input.currentHeadSha,
-    requiredFindingIds: [...new Set([
-      ...inheritedFindingIds,
-      ...response.requiredFindingIds,
-    ])].sort(),
+    requiredFindings: [...requiredFindings.values()].sort((left, right) => (
+      left.producerId.localeCompare(right.producerId)
+      || left.findingId.localeCompare(right.findingId)
+      || left.locus.localeCompare(right.locus)
+    )),
   });
 }
 

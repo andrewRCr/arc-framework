@@ -75,7 +75,11 @@ describe("local review source descriptor", () => {
       predecessorHeadSha: "f".repeat(40),
       basisHeadSha: semanticFields.diffBaseSha,
       headSha: semanticFields.headSha,
-      requiredFindingIds: ["F-1"],
+      requiredFindings: [{
+        producerId: "hosted/attempt-1",
+        findingId: "F-1",
+        locus: "src/example.ts:1",
+      }],
     };
     const first = createLocalReviewSource({
       ...semanticFields,

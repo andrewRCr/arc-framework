@@ -71,7 +71,11 @@ async function fixture(options: { correction?: boolean } = {}) {
             predecessorHeadSha,
             basisHeadSha: diffBaseSha,
             headSha: target.headSha,
-            requiredFindingIds: ["F-1"],
+            requiredFindings: [{
+              producerId: "hosted/attempt-1",
+              findingId: "F-1",
+              locus: "src/example.ts:1",
+            }],
           },
         }
       : {}),

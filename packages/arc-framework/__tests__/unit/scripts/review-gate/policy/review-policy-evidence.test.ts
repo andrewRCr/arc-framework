@@ -24,6 +24,7 @@ import type { ReviewResult } from
 import { bindReviewSourceReference } from
   "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import {
+  readIncrementalPredecessorResponseEvidence,
   resolveEvidenceBoundReviewPolicy,
   resolveEvidenceBoundReviewPolicyContinuation,
 } from
@@ -402,6 +403,24 @@ describe("evidence-bound review policy", () => {
       }],
     };
   }
+
+  it("qualifies material re-examination instructions with immutable producer evidence", async () => {
+    const result = findingsHostedResult(["major", "minor"]);
+    const record = approvedRecord(result, [
+      { sourceVerification: "verified", verifiedSeverity: "major", disposition: "reject" },
+      { sourceVerification: "verified", verifiedSeverity: "minor", disposition: "reject" },
+    ]);
+    const store = dependencies(result, record).dispositionStore;
+
+    await expect(readIncrementalPredecessorResponseEvidence(result, store)).resolves.toEqual({
+      status: "performed",
+      requiredFindings: [{
+        producerId: result.producerId,
+        findingId: "finding-1",
+        locus: "src/example.ts:1",
+      }],
+    });
+  });
 
   it("admits clean convergence only from the exact immutable producer", async () => {
     const result = cleanHostedResult();
@@ -816,7 +835,7 @@ describe("evidence-bound review policy", () => {
           basisHeadSha: predecessor.target.headSha,
           predecessorHeadSha: predecessor.target.headSha,
           headSha: incrementalTarget.headSha,
-          requiredFindingIds: [],
+          requiredFindings: [],
         },
       },
     };
@@ -857,7 +876,7 @@ describe("evidence-bound review policy", () => {
           predecessorHeadSha: predecessor.target.headSha,
           basisHeadSha: predecessor.target.headSha,
           headSha: predecessor.target.headSha,
-          requiredFindingIds: [],
+          requiredFindings: [],
         },
       },
     };

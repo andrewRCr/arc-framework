@@ -3,12 +3,14 @@
 import { canonicalize } from "../../../lib/kernel/index.js";
 
 import type { ReviewResultReader } from "../core/ports.js";
+import type { IncrementalReviewFindingInstruction } from
+  "../core/incremental-review-scope.js";
 import type { ReviewResult } from "../core/review-result.js";
 
 /** Response evidence needed before a predecessor may support narrower review. */
 export type IncrementalPredecessorResponseEvidence =
-  | { readonly status: "performed"; readonly requiredFindingIds: readonly string[] }
-  | { readonly status: "incomplete"; readonly requiredFindingIds: readonly string[] };
+  | { readonly status: "performed"; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] }
+  | { readonly status: "incomplete"; readonly requiredFindings: readonly IncrementalReviewFindingInstruction[] };
 
 /** Current-target applicability result for one immutable predecessor producer. */
 export type IncrementalPredecessorApplicability =
@@ -43,7 +45,8 @@ export type IncrementalCoverageBasisFailure =
   | "applicability-required"
   | "applicability-unavailable"
   | "response-incomplete"
-  | "material-finding-omitted";
+  | "material-finding-omitted"
+  | "material-finding-mismatch";
 
 export type IncrementalCoverageBasisResult =
   | {
@@ -114,7 +117,7 @@ export async function resolveIncrementalCoverageBasis(
       readonly basisProducerId: string;
       readonly basisHeadSha: string;
       readonly producerIds: readonly string[];
-      readonly requiredFindingIds: readonly string[];
+      readonly requiredFindings: readonly IncrementalReviewFindingInstruction[];
     } | Extract<IncrementalCoverageBasisResult, { readonly status: "inadequate" }>;
 
   const visit = async (
@@ -127,7 +130,7 @@ export async function resolveIncrementalCoverageBasis(
         basisProducerId: result.producerId,
         basisHeadSha: result.target.headSha,
         producerIds: [result.producerId],
-        requiredFindingIds: [],
+        requiredFindings: [],
       };
     }
     const scope = result.admission.correctionScope;
@@ -166,9 +169,18 @@ export async function resolveIncrementalCoverageBasis(
       );
     }
     const response = await dependencies.readResponseEvidence(predecessor)
-      .catch(() => ({ status: "incomplete" as const, requiredFindingIds: [] }));
+      .catch(() => ({ status: "incomplete" as const, requiredFindings: [] }));
     if (response.status !== "performed") {
       return inadequate("response-incomplete", { producerId: predecessor.producerId });
+    }
+    const responseMismatch = response.requiredFindings.find(({ producerId }) => (
+      producerId !== predecessor.producerId
+    ));
+    if (responseMismatch !== undefined) {
+      return inadequate("material-finding-mismatch", {
+        producerId: responseMismatch.producerId,
+        findingId: responseMismatch.findingId,
+      });
     }
     const nextPath = new Set(path);
     nextPath.add(scope.predecessorProducerId);
@@ -177,22 +189,31 @@ export async function resolveIncrementalCoverageBasis(
     if (basis.basisHeadSha !== scope.basisHeadSha) {
       return inadequate("basis-gap", { producerId: predecessor.producerId });
     }
-    const requiredFindingIds = [...new Set([
-      ...basis.requiredFindingIds,
-      ...response.requiredFindingIds,
-    ])];
-    const instructed = new Set(scope.requiredFindingIds);
-    const omitted = requiredFindingIds.find((findingId) => !instructed.has(findingId));
+    const instructionKey = ({ producerId, findingId }: IncrementalReviewFindingInstruction) => (
+      canonicalize([producerId, findingId])
+    );
+    const requiredFindings = [...basis.requiredFindings, ...response.requiredFindings];
+    const instructed = new Map(scope.requiredFindings.map((finding) => [instructionKey(finding), finding]));
+    const omitted = requiredFindings.find((finding) => !instructed.has(instructionKey(finding)));
     if (omitted !== undefined) {
       return inadequate("material-finding-omitted", {
-        producerId: predecessor.producerId,
-        findingId: omitted,
+        producerId: omitted.producerId,
+        findingId: omitted.findingId,
+      });
+    }
+    const mismatched = requiredFindings.find((finding) => (
+      canonicalize(instructed.get(instructionKey(finding))) !== canonicalize(finding)
+    ));
+    if (mismatched !== undefined) {
+      return inadequate("material-finding-mismatch", {
+        producerId: mismatched.producerId,
+        findingId: mismatched.findingId,
       });
     }
     return {
       ...basis,
       producerIds: [...basis.producerIds, result.producerId],
-      requiredFindingIds,
+      requiredFindings,
     };
   };
 

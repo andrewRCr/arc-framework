@@ -1404,7 +1404,11 @@ describe("review status", () => {
       predecessorHeadSha: oid("a"),
       basisHeadSha: oid("a"),
       headSha: hostedAction.target.headSha,
-      requiredFindingIds: ["F-material"],
+      requiredFindings: [{
+        producerId: "hosted/attempt-1",
+        findingId: "F-material",
+        locus: "src/member.ts:1",
+      }],
     };
     expect(composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
@@ -1498,7 +1502,7 @@ describe("review status", () => {
         predecessorHeadSha: oid("a"),
         basisHeadSha: oid("a"),
         headSha: oid("d"),
-        requiredFindingIds: [],
+        requiredFindings: [],
       },
     }).success).toBe(false);
   });

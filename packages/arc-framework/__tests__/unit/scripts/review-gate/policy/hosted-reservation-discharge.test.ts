@@ -39,6 +39,11 @@ const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const MEMBER_ONE = `sha256:${"3".repeat(64)}`;
 const MEMBER_TWO = `sha256:${"4".repeat(64)}`;
 const target = (headSha: string) => ({ repository: "arc-framework/example", pullRequest: 42, headSha });
+const findingInstruction = (producerId: string, findingId: string) => ({
+  producerId,
+  findingId,
+  locus: `src/${findingId}.ts:1`,
+});
 
 function deliveryHost(
   requests: Readonly<Record<string, {
@@ -383,7 +388,7 @@ function hostedReviewResult(input: {
     readonly predecessorProducerId: string;
     readonly predecessorHeadSha: string;
     readonly basisHeadSha: string;
-    readonly requiredFindingIds: readonly string[];
+    readonly requiredFindings: readonly ReturnType<typeof findingInstruction>[];
   };
 }): ReviewResult {
   const reviewTarget = createReviewTarget({
@@ -428,7 +433,7 @@ function hostedReviewResult(input: {
               schemaVersion: 1 as const,
               ...input.correctionScope,
               headSha: input.headSha,
-              requiredFindingIds: [...input.correctionScope.requiredFindingIds],
+              requiredFindings: [...input.correctionScope.requiredFindings],
             },
           }),
     },
@@ -1981,7 +1986,7 @@ describe("hosted reservation discharge", () => {
       predecessorHeadSha: prior.producerTarget.headSha,
       basisHeadSha: prior.producerTarget.headSha,
       headSha: oid("b"),
-      requiredFindingIds: [],
+      requiredFindings: [],
     };
 
     await expect(projectHostedReservationDischarge({
@@ -2055,7 +2060,10 @@ describe("hosted reservation discharge", () => {
       predecessorHeadSha: incremental.producerTarget.headSha,
       basisHeadSha: complete.producerTarget.headSha,
       headSha: oid("c"),
-      requiredFindingIds: ["finding-a", "finding-b"],
+      requiredFindings: [
+        findingInstruction(complete.attemptId, "finding-a"),
+        findingInstruction(incremental.attemptId, "finding-b"),
+      ],
     };
 
     await expect(projectHostedReservationDischarge({
@@ -2073,7 +2081,7 @@ describe("hosted reservation discharge", () => {
             ...expectedScope,
             predecessorProducerId: complete.attemptId,
             predecessorHeadSha: complete.producerTarget.headSha,
-            requiredFindingIds: ["finding-a"],
+            requiredFindings: [findingInstruction(complete.attemptId, "finding-a")],
           },
     })).resolves.toMatchObject({
       discharged: false,
@@ -2141,7 +2149,7 @@ describe("hosted reservation discharge", () => {
             predecessorHeadSha: complete.producerTarget.headSha,
             basisHeadSha: complete.producerTarget.headSha,
             headSha: oid("c"),
-            requiredFindingIds: [],
+            requiredFindings: [],
           }
         : null,
     });
@@ -2158,21 +2166,27 @@ describe("hosted reservation discharge", () => {
         predecessorProducerId: "hosted/complete-a",
         predecessorHeadSha: oid("a"),
         basisHeadSha: oid("a"),
-        requiredFindingIds: ["finding-a"],
+        requiredFindings: [findingInstruction("hosted/complete-a", "finding-a")],
       },
     });
 
     expect(buildIncrementalCorrectionScope({
       predecessor,
       currentHeadSha: oid("c"),
-      response: { status: "performed", requiredFindingIds: ["finding-b"] },
+      response: {
+        status: "performed",
+        requiredFindings: [findingInstruction(predecessor.producerId, "finding-b")],
+      },
     })).toEqual({
       schemaVersion: 1,
       predecessorProducerId: predecessor.producerId,
       predecessorHeadSha: oid("b"),
       basisHeadSha: oid("a"),
       headSha: oid("c"),
-      requiredFindingIds: ["finding-a", "finding-b"],
+      requiredFindings: [
+        findingInstruction("hosted/complete-a", "finding-a"),
+        findingInstruction(predecessor.producerId, "finding-b"),
+      ],
     });
   });
 
@@ -2190,7 +2204,7 @@ describe("hosted reservation discharge", () => {
         predecessorProducerId: "hosted/incremental-b",
         predecessorHeadSha: oid("b"),
         basisHeadSha: oid("a"),
-        requiredFindingIds: [],
+        requiredFindings: [],
       },
     });
 
