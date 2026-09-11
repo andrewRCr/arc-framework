@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "fail-malformed-active-task-cursor-commits",
+  "claimId": "7e9746117a8e83fe0fdbd02919aaf708",
+  "createdAt": "2026-09-11T17:54:14.072Z",
+  "updatedAt": "2026-09-11T17:54:14.072Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reject staged active task lists whose malformed or contradictory checkbox state would hide the deterministic execution cursor.",
+  "branch": "chore/fail-malformed-active-task-cursor-commits",
+  "origin": "inbox",
+  "originEntry": "Fail commits that leave an active task cursor malformed",
+  "originEntrySourceDigest": "sha256:79c8961225e8f75ba0b4edc859cd19d59fc870492f7ff193fbfc063d25f121f4",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
