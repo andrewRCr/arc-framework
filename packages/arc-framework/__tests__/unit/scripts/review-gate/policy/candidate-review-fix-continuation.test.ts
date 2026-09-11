@@ -139,6 +139,32 @@ describe("Candidate review-fix continuation", () => {
     });
   });
 
+  it("retains Candidate authority when frontline reviewed a bound private member", () => {
+    const candidate = candidateRecord();
+    const ordinary = approvedRecord(candidate);
+    const record = ApprovedDispositionRecordSchema.parse({
+      ...ordinary,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: ordinary.fixAuthorization?.oldHeadSha,
+      },
+    });
+
+    expect(selectPendingCandidateReviewFixRecord({
+      workUnitId: "example",
+      candidate,
+      records: [record],
+    })).toMatchObject({
+      status: "selected",
+      candidateId: candidate.attestation.candidateId,
+      operationId: record.operationId,
+      reviewedHead: record.fixAuthorization?.oldHeadSha,
+    });
+  });
+
   it("does not revive authority already consumed by Candidate lineage", () => {
     const candidate = candidateRecord();
     const record = approvedRecord(candidate);
