@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-candidate-reroot-followups",
+  "claimId": "021a9d7da4d244b6c863ca29d981c012",
+  "createdAt": "2026-09-11T16:22:12.163Z",
+  "updatedAt": "2026-09-11T16:22:12.163Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Create the two approved planned work-unit stubs for Candidate re-root recovery continuity and concurrency-safe Errand promotion.",
+  "branch": "chore/route-candidate-reroot-followups",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
