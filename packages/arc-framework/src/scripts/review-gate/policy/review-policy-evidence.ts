@@ -293,7 +293,10 @@ export async function resolveEvidenceBoundReviewPolicy(
  */
 export async function resolveEvidenceBoundReviewPolicyContinuation(
   input: unknown,
-  response: { readonly terminalResponsePerformed: boolean },
+  response: {
+    readonly terminalResponsePerformed: boolean;
+    readonly coverageSelected?: boolean;
+  },
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<ReviewResolveEnvelope> {
   const request = ReviewPolicyCommandRequestSchema.parse(input);
@@ -301,8 +304,11 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
     ? ReviewPolicyCommandRequestSchema.parse({ ...request, ceilingOverride: undefined })
     : request;
   const terminal = await resolveEvidenceBoundReviewPolicy(terminalRequest, dependencies);
-  if (!response.terminalResponsePerformed
-    || terminal.state !== "findings") return terminal;
+  const findingsResponseComplete = response.terminalResponsePerformed && terminal.state === "findings";
+  const coverageSelectionComplete = response.coverageSelected === true
+    && terminal.state === "coverage-required"
+    && (!terminal.payload.responseRequired || response.terminalResponsePerformed);
+  if (!findingsResponseComplete && !coverageSelectionComplete) return terminal;
   return resolveReviewPolicy({
     ...request,
     attempts: [],

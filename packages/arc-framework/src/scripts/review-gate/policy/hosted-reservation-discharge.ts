@@ -34,7 +34,8 @@ import type { ReviewContributionApplicabilityResult } from
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
 import { projectHostedFinding, type HostedAwaitEnvelope } from "../hosted/await.js";
-import type { HostedReviewCoverage } from "../hosted/request.js";
+import { HostedProviderIdSchema, type HostedReviewCoverage } from "../hosted/request.js";
+import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
@@ -54,6 +55,11 @@ import type {
   IncrementalPredecessorApplicability,
   IncrementalPredecessorResponseEvidence,
 } from "./incremental-coverage-basis.js";
+import {
+  ReviewCoverageSelectionActionSchema,
+  type ReviewCoverageSelectionAction,
+  type ReviewCoverageSelectionChoice,
+} from "./review-coverage-selection.js";
 
 type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
 type EarlierApplicableAttempt = Extract<
@@ -251,6 +257,25 @@ export interface HostedReservationDischarge {
   requestAttempts?: readonly HostedReservationRequestAttempt[];
   requestCoverage?: HostedReviewCoverage;
   correctionScope?: IncrementalReviewScope;
+  coverageSelectionAction?: ReviewCoverageSelectionAction;
+}
+
+function coverageSelectionChoices(
+  sourceIds: readonly string[],
+  correctionScope?: IncrementalReviewScope,
+): ReviewCoverageSelectionChoice[] {
+  return sourceIds.flatMap((sourceId) => {
+    const complete: ReviewCoverageSelectionChoice = { sourceId, coverage: "complete" };
+    if (sourceId === "delegated-agent") {
+      return correctionScope === undefined
+        ? [complete]
+        : [{ sourceId, coverage: "incremental" }, complete];
+    }
+    const provider = HostedProviderIdSchema.safeParse(sourceId);
+    return provider.success && hostedProviderAdmitsCoverage(provider.data, "incremental")
+      ? [{ sourceId, coverage: "incremental" }, complete]
+      : [complete];
+  });
 }
 
 function oneRequestedCoverage(
@@ -618,10 +643,25 @@ export async function projectHostedReservationDischarge(input: {
           };
         }
         if (currentTerminal.outcome === "clean" || policy.state !== "findings") {
+          const coverageSelectionAction = policy.state === "coverage-required" && target.vehicle !== undefined
+            ? ReviewCoverageSelectionActionSchema.parse({
+                schemaVersion: 1,
+                kind: "review-coverage-selection",
+                workUnitId: target.vehicle.workUnitId,
+                sourceId: policy.payload.sourceId,
+                pass: policy.payload.pass,
+                completedPasses: policy.payload.completedPasses,
+                consumedPass: policy.payload.consumedPass,
+                choices: coverageSelectionChoices(reservation.sources),
+                interactionText: "Select one listed source and coverage pair, then re-run `arc review status "
+                  + `--work-unit ${target.vehicle.workUnitId} --source <sourceId> --coverage <coverage> --json\`.`,
+              })
+            : undefined;
           return {
             discharged: false,
             detail: `The terminal review producer did not establish convergence (${policy.state}/${policy.nextAction}).`,
             nextSource: null,
+            ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
           };
         }
         break;

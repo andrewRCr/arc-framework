@@ -1277,6 +1277,17 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: null,
       detail: expect.stringContaining("coverage-required/select-coverage"),
+      coverageSelectionAction: {
+        schemaVersion: 1,
+        kind: "review-coverage-selection",
+        workUnitId: "delivery",
+        sourceId: "coderabbit-pr",
+        pass: 1,
+        completedPasses: 1,
+        consumedPass: true,
+        choices: [{ sourceId: "coderabbit-pr", coverage: "complete" }],
+        interactionText: expect.stringContaining("--coverage"),
+      },
     });
   });
 

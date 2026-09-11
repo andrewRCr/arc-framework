@@ -50,9 +50,17 @@ import {
   DeliveryReviewTerminusAcceptanceActionSchema,
 } from "./policy/delivery-review-terminus.js";
 import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
+import {
+  ReviewCoverageSelectionActionSchema,
+  selectReviewCoverageChoice,
+  type ReviewCoverageSelectionAction,
+} from "./policy/review-coverage-selection.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
-export const ReviewStatusSourceIdSchema = HostedProviderIdSchema;
+export const ReviewStatusSourceIdSchema = z.union([
+  HostedProviderIdSchema,
+  z.literal("delegated-agent"),
+]);
 const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSchema.refine(
   (projection) => projection.state !== "applicable" && projection.state !== "decision-required",
   "blocked review applicability must carry a closed non-decision result",
@@ -205,6 +213,15 @@ const RoutedReviewCoverageUnsupportedSchema = z.strictObject({
     "unsupported delivery review coverage requires an outstanding conjunction",
   ),
 });
+const RoutedReviewCoverageRequiredSchema = z.strictObject({
+  state: z.literal("coverage-required"),
+  detail: z.string().min(1),
+  conjunction: DeliveryReviewConjunctionSchema.refine(
+    (conjunction) => conjunction.status === "outstanding",
+    "coverage selection requires an outstanding delivery review conjunction",
+  ),
+  coverageSelectionAction: ReviewCoverageSelectionActionSchema,
+});
 
 export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
@@ -212,6 +229,7 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
   }),
   RoutedReviewCoverageUnsupportedSchema,
+  RoutedReviewCoverageRequiredSchema,
   z.strictObject({
     state: z.literal("settled"),
     detail: z.string().min(1),
@@ -354,6 +372,7 @@ interface ReviewDischargeIntervention {
   readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
   readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
   readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+  readonly coverageSelectionAction?: ReviewCoverageSelectionAction;
 }
 
 /** Git-proved mechanical movement from one exact stored terminus vehicle to its current terminal target. */
@@ -379,6 +398,7 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
     readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
     readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
     readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+    readonly coverageSelectionAction?: ReviewCoverageSelectionAction;
     readonly completedPasses: number;
   };
   readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
@@ -399,6 +419,7 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
   const hasPendingIntervention = input.discharge.responsePlan !== undefined
     || input.discharge.awaitAction !== undefined
     || input.discharge.localResumeAction !== undefined
+    || input.discharge.coverageSelectionAction !== undefined
     || (!replayedApplicability && (input.discharge.nextSource === null
       || (input.discharge.applicability !== undefined && input.discharge.applicability.state !== "applicable")));
   return terminus !== undefined
@@ -490,6 +511,20 @@ function composeReviewDischargeIntervention(
       localResumeAction: discharge.localResumeAction,
     });
   }
+  if (discharge.coverageSelectionAction !== undefined) {
+    if (conjunction === undefined) {
+      return {
+        state: "blocked",
+        detail: "Review coverage selection is unavailable without one exact delivery-member subject.",
+      };
+    }
+    return RoutedReviewObligationSchema.parse({
+      state: "coverage-required",
+      detail: discharge.detail,
+      conjunction,
+      coverageSelectionAction: discharge.coverageSelectionAction,
+    });
+  }
   return null;
 }
 
@@ -538,6 +573,7 @@ export function composeDeliveryReviewObligation(input: {
     responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
     awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
     localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+    coverageSelectionAction?: ReviewCoverageSelectionAction;
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
     requestScopeSelection?: z.infer<typeof DeliveryLocalReviewScopeSelectionSchema>;
@@ -612,7 +648,21 @@ export function composeDeliveryReviewObligation(input: {
     });
   }
   const target = input.targets[firstOutstandingIndex];
-  const discharge = effectiveDischarges[firstOutstandingIndex];
+  let discharge = effectiveDischarges[firstOutstandingIndex];
+  const selectedCoverage = discharge?.coverageSelectionAction === undefined
+    ? null
+    : selectReviewCoverageChoice(discharge.coverageSelectionAction, {
+        sourceId: input.requestInvocation?.sourceId,
+        coverage: input.requestCoverage,
+      });
+  if (discharge !== undefined && selectedCoverage !== null) {
+    discharge = {
+      ...discharge,
+      coverageSelectionAction: undefined,
+      nextSource: selectedCoverage.sourceId,
+      requestCoverage: selectedCoverage.coverage,
+    };
+  }
   if (discharge !== undefined) {
     const intervention = composeReviewDischargeIntervention(
       discharge,
@@ -887,6 +937,17 @@ const ReviewStatusCoverageUnsupportedSchema = z.strictObject({
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
+const ReviewStatusCoverageRequiredSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  routedObligation: RoutedReviewCoverageRequiredSchema,
+  deliveryCursor: DeliveryReviewCursorSchema.refine(
+    (cursor) => cursor.status === "outstanding" && cursor.currentMember !== null,
+    "coverage selection requires an outstanding delivery cursor",
+  ),
+  state: z.literal("coverage-required"),
+  nextAction: z.literal("select-coverage"),
+  coverageSelectionAction: ReviewCoverageSelectionActionSchema,
+});
 export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
@@ -904,6 +965,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusChecksPendingSchema>
   | z.infer<typeof ReviewStatusBaseMovedSchema>
   | z.infer<typeof ReviewStatusCoverageUnsupportedSchema>
+  | z.infer<typeof ReviewStatusCoverageRequiredSchema>
   | z.infer<typeof ReviewStatusBlockedSchema>;
 const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
   ReviewStatusSettledSchema,
@@ -922,6 +984,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusChecksPendingSchema,
   ReviewStatusBaseMovedSchema,
   ReviewStatusCoverageUnsupportedSchema,
+  ReviewStatusCoverageRequiredSchema,
   ReviewStatusBlockedSchema,
 ]);
 export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
@@ -1112,6 +1175,23 @@ export async function resolveReviewStatus(
       nextAction: "obtain-ceiling-override",
       consequence: base.routedObligation.consequence,
     };
+  }
+  if (base.routedObligation.state === "coverage-required") {
+    if (currentMember === null || conjunction === undefined) {
+      throw new Error("Review coverage selection requires one exact outstanding delivery member.");
+    }
+    return ReviewStatusCoverageRequiredSchema.parse({
+      ...base,
+      deliveryCursor: {
+        status: conjunction.status,
+        completedMemberCount: conjunction.members.filter((member) => member.state === "discharged").length,
+        memberCount: conjunction.members.length,
+        currentMember,
+      },
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      coverageSelectionAction: base.routedObligation.coverageSelectionAction,
+    });
   }
   if (base.currentBaseOid === null) {
     return {

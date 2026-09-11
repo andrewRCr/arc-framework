@@ -7,7 +7,7 @@ import {
 } from "../../../lib/delivery/review-vehicle.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
-import { HostedProviderIdSchema } from "../hosted/request.js";
+import { HostedProviderIdSchema, type HostedReviewCoverage } from "../hosted/request.js";
 import {
   assertStandardReviewExecutionAdmission,
   projectReviewPolicyAttempt,
@@ -64,6 +64,12 @@ export type HostedReservationPolicyResolution =
   | { readonly status: "unavailable"; readonly detail: string };
 
 type HostedReservationPolicyInput = Parameters<typeof resolveHostedReservationPolicy>[0];
+type EvidenceBoundHostedReservationPolicyInput = HostedReservationPolicyInput & {
+  readonly coverageSelection?: {
+    readonly sourceId: string;
+    readonly coverage: HostedReviewCoverage;
+  };
+};
 type HostedReservationEvidenceDependencies = Pick<
   EvidenceBoundReviewPolicyDependencies,
   "resultReader" | "dispositionStore" | "confirmTarget" | "confirmIncrementalApplicability"
@@ -242,7 +248,7 @@ export function resolveHostedReservationPolicy(input: {
  * @returns The verified policy resolution or a typed progress-projection refusal.
  */
 export async function resolveEvidenceBoundHostedReservationPolicy(
-  input: HostedReservationPolicyInput,
+  input: EvidenceBoundHostedReservationPolicyInput,
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<HostedReservationPolicyResolution> {
   const progress = projectHostedReservationPolicyProgress(input);
@@ -274,6 +280,7 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
   ));
   const policy = await resolveEvidenceBoundReviewPolicyContinuation(request, {
     terminalResponsePerformed: latestCurrentAttempt?.outcome === "settled-findings",
+    coverageSelected: input.coverageSelection !== undefined,
   }, {
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
@@ -343,7 +350,12 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
 ): Promise<void> {
   assertHostedCoverageAdmission(input.provider, input.coverage);
   assertHostedPolicyResolution(
-    await resolveEvidenceBoundHostedReservationPolicy(input, dependencies),
+    await resolveEvidenceBoundHostedReservationPolicy({
+      ...input,
+      ...(input.invocation?.mode === "force" && input.invocation.sourceId === input.provider
+        ? { coverageSelection: { sourceId: input.provider, coverage: input.coverage } }
+        : {}),
+    }, dependencies),
     input.provider,
   );
 }

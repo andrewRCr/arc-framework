@@ -794,6 +794,79 @@ describe("evidence-bound review policy", () => {
         },
       },
     });
+
+    const request = {
+      ...findingsRequest(result),
+      standardReview: { ...standardReview, retrigger: "incremental" as const },
+    };
+    const evidence = {
+      ...dependencies(result, record),
+      sources: ["codex-pr"],
+      maxPasses: 2,
+    };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: false,
+      coverageSelected: true,
+    }, evidence)).resolves.toMatchObject({
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      payload: { responseRequired: true },
+    });
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+      coverageSelected: true,
+    }, evidence)).resolves.toMatchObject({
+      state: "ready",
+      nextAction: "hosted-request",
+      payload: { pass: 2, sourceId: "codex-pr" },
+    });
+  });
+
+  it("opens a fresh pass after an inadequate clean producer receives a coverage choice", async () => {
+    const original = cleanHostedResult();
+    if (original.kind !== "hosted") throw new Error("expected hosted result");
+    const requirement = createReviewRequirement({
+      target: original.target,
+      projection: { ...standardReview, retrigger: "incremental" },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("expected requirement");
+    const result: ReviewResult = {
+      ...original,
+      requirement,
+      admission: {
+        ...original.admission,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        policyVersion: requirement.policyVersion,
+      },
+    };
+    const request = {
+      ...cleanRequest(result),
+      standardReview: { ...standardReview, retrigger: "incremental" as const },
+    };
+    const evidence = {
+      ...dependencies(result),
+      sources: ["codex-pr"],
+      maxPasses: 2,
+    };
+
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: false,
+      coverageSelected: false,
+    }, evidence)).resolves.toMatchObject({
+      state: "coverage-required",
+      nextAction: "select-coverage",
+    });
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: false,
+      coverageSelected: true,
+    }, evidence)).resolves.toMatchObject({
+      state: "ready",
+      nextAction: "hosted-request",
+      payload: { pass: 2, sourceId: "codex-pr" },
+    });
   });
 
   it("derives adequate incremental coverage from an explicit applicable complete predecessor", async () => {

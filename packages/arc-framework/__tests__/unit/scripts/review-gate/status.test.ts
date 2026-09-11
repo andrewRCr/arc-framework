@@ -19,6 +19,7 @@ import {
   composeDeliveryReviewObligation,
   composeSingletonReviewObligation,
   ReviewStatusResultSchema,
+  ReviewStatusWorkUnitInputSchema,
   RoutedReviewObligationSchema,
   resolveReviewStatus,
   type ReviewStatusObservation,
@@ -219,6 +220,14 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
 }
 
 describe("review status", () => {
+  it("accepts the delegated carrier named by a coverage-selection action", () => {
+    expect(ReviewStatusWorkUnitInputSchema.safeParse({
+      workUnitId: "example",
+      coverage: "incremental",
+      sourceId: "delegated-agent",
+    }).success).toBe(true);
+  });
+
   it("rejects a stale target reference", async () => {
     await expect(resolveReviewStatus({ target }, port({ actualHeadSha: oid("f") }))).resolves.toMatchObject({
       state: "blocked",
@@ -1466,6 +1475,90 @@ describe("review status", () => {
     })).toMatchObject({
       state: "review-required",
       action: { provider: "codex-pr", coverage: "incremental" },
+    });
+  });
+
+  it("preserves typed coverage selection through public delivery status", async () => {
+    const coverageSelectionAction = {
+      schemaVersion: 1 as const,
+      kind: "review-coverage-selection" as const,
+      workUnitId: memberVehicle.workUnitId,
+      sourceId: "coderabbit-pr",
+      pass: 1,
+      completedPasses: 1,
+      consumedPass: true as const,
+      choices: [{ sourceId: "coderabbit-pr", coverage: "complete" as const }],
+      interactionText: "Select complete coverage for the next member pass.",
+    };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The terminal result requires adequate coverage.",
+        nextSource: null,
+        coverageSelectionAction,
+        completedPasses: 1,
+        attemptHistory: [{
+          updatedAt: "2026-09-04T12:00:00.000Z",
+          headSha: hostedAction.target.headSha,
+          sourceId: "coderabbit-pr",
+          outcome: "clean",
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+          findingCount: 0,
+          settledFindingCount: 0,
+        }],
+      })],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "coverage-required",
+      coverageSelectionAction,
+      conjunction: {
+        members: [{ progress: { completedPasses: 1, passCeiling: 2 } }],
+      },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      coverageSelectionAction,
+      deliveryCursor: {
+        currentMember: { progress: { completedPasses: 1, passCeiling: 2 } },
+      },
+    });
+  });
+
+  it("consumes an exact coverage choice into the next admitted request", () => {
+    const coverageSelectionAction = {
+      schemaVersion: 1 as const,
+      kind: "review-coverage-selection" as const,
+      workUnitId: memberVehicle.workUnitId,
+      sourceId: "coderabbit-pr",
+      pass: 1,
+      completedPasses: 1,
+      consumedPass: true as const,
+      choices: [{ sourceId: "coderabbit-pr", coverage: "complete" as const }],
+      interactionText: "Select complete coverage for the next member pass.",
+    };
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The next complete pass is admitted.",
+        nextSource: "coderabbit-pr",
+        coverageSelectionAction,
+        requestAdmission: readyAdmission("coderabbit-pr"),
+      })],
+      requestCoverage: "complete",
+      requestInvocation: { mode: "force", sourceId: "coderabbit-pr" },
+    })).toMatchObject({
+      state: "review-required",
+      action: {
+        provider: "coderabbit-pr",
+        coverage: "complete",
+        invocation: { mode: "force", sourceId: "coderabbit-pr" },
+      },
     });
   });
 

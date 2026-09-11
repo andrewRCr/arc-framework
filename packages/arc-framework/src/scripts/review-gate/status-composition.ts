@@ -62,6 +62,7 @@ import {
 import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import type { DeliveryLocalReviewScopeSelection } from
   "./policy/delivery-local-review-admission.js";
+import { selectReviewCoverageChoice } from "./policy/review-coverage-selection.js";
 import {
   parseReviewChunkingThresholds,
   resolveReviewChunkingPolicy,
@@ -520,7 +521,27 @@ export async function readRoutedObligation(
             ownerTerminusAdvances,
           }));
       });
-      const firstOutstanding = discharges[firstOutstandingIndex];
+      const rawFirstOutstanding = discharges[firstOutstandingIndex];
+      let firstOutstanding: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number] | undefined =
+        composedDischarges[firstOutstandingIndex];
+      const selectedCoverage = firstOutstanding?.coverageSelectionAction === undefined
+        ? null
+        : selectReviewCoverageChoice(firstOutstanding.coverageSelectionAction, {
+            sourceId: judgment?.sourceId,
+            coverage: judgment?.coverage,
+          });
+      if (firstOutstanding !== undefined && selectedCoverage !== null) {
+        firstOutstanding = {
+          ...firstOutstanding,
+          coverageSelectionAction: undefined,
+          nextSource: selectedCoverage.sourceId,
+          requestCoverage: selectedCoverage.coverage,
+        };
+        const selectedDischarge = firstOutstanding;
+        composedDischarges = composedDischarges.map((discharge, index) => (
+          index === firstOutstandingIndex ? selectedDischarge : discharge
+        ));
+      }
       const firstTarget = deliveryTargets[firstOutstandingIndex];
       if (firstOutstanding?.nextSource !== null
         && firstOutstanding?.nextSource !== undefined
@@ -542,15 +563,16 @@ export async function readRoutedObligation(
           },
           vehicle: firstTarget.vehicle,
           maxPasses: policy.maxPasses,
-          ...(firstOutstanding.requestAttempts === undefined
+          ...(rawFirstOutstanding?.requestAttempts === undefined
             ? {}
-            : { requestAttempts: firstOutstanding.requestAttempts }),
+            : { requestAttempts: rawFirstOutstanding.requestAttempts }),
           ...(judgment?.ceilingOverride === undefined
             ? {}
             : { ceilingOverride: judgment.ceilingOverride }),
           ...(judgment?.sourceId === undefined
             ? {}
             : { invocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
+          ...(selectedCoverage === null ? {} : { coverageSelection: selectedCoverage }),
           ...(scopeSelection === undefined ? {} : { scopeSelection }),
         }, {
           resultReader,
