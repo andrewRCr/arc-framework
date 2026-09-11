@@ -6,7 +6,7 @@
 - [Timeout ceilings and load](#timeout-ceilings-and-load)
 - [Per-test rubric provenance](#per-test-rubric-provenance)
 - [Mutation testing](#mutation-testing)
-- [Successor input: in-process spines](#successor-input-in-process-spines)
+- [Spine conversion and the successor's remainder](#spine-conversion-and-the-successors-remainder)
 - [Sibling coordination detail](#sibling-coordination-detail)
 
 ## Suite composition
@@ -46,19 +46,28 @@ pass if a `notes-*` or completion record needs them.
 ## Mutation testing
 
 Stryker Mutator: open source, Apache-2.0; `@stryker-mutator/core` plus `@stryker-mutator/vitest-runner`, not
-installed. Setup is an hour or two; the cost is runtime, since each mutant re-runs the covering tests and the
-Vitest runner is single-threaded. Adopted only on the D7 trigger, on the affected pair, never across the corpus,
-never in CI; uninstalled at verification with any config file retained.
+installed. The runner pins its core peer to an exact version and accepts any Vitest at or above 2.0, so the two
+install as a matched pair — taking the latest core alongside the runner fails peer resolution. Setup is an hour or
+two; the cost is runtime, since each mutant re-runs the covering tests and the Vitest runner is single-threaded.
+Adopted only on the D7 trigger, on the affected pair, never across the corpus, never in CI; uninstalled at
+verification with any config file retained.
 
-## Successor input: in-process spines
+## Spine conversion and the successor's remainder
 
 The largest E2E files are lifecycle spines that spawn the CLI dozens of times per scenario — `delivery-position`
-(4,170 LOC), `candidate-lineage`, `errand`, `session-init`. Where a scenario only needs handler-seam outcomes,
-integration can drive the verb cores through CLI-generated inputs (`testing-standards` sanctions that seam) at a
-fraction of the cost, keeping one real-spawn smoke per verb and destructive verbs at E2E. A general in-process
-harness (invoking the entry in-process with captured stdio and per-test cwd) removes spawn cost wholesale but
-carries process-isolation risk under Vitest's pools. Routed to `in-process-cli-harness`; its remaining prize must
-be re-derived after D4 removes ~42% of per-spawn cost.
+(4,170 LOC), `candidate-lineage`, `errand`, `session-init`. Two levers reach them, and this work unit takes one.
+
+**In scope — D7's conversion.** Where a scenario needs only handler-seam outcomes, integration can drive the verb
+cores through CLI-generated inputs (`testing-standards` sanctions that seam) at a fraction of the cost, keeping one
+real-spawn smoke per verb and destructive verbs at E2E. Handlers set `process.exitCode` rather than exiting, so the
+seam carries exit-code assertions without the entry's process semantics.
+
+**Routed out — the general harness.** Invoking the entry in process with captured stdio and a per-test working
+directory removes spawn cost wholesale, and carries process-isolation risk under Vitest's pools: `process.exit`
+would end a worker, the working directory is per-process rather than per-test, and module caches outlive the test
+that filled them. That is `in-process-cli-harness`. Its population is what conversion leaves behind — cases whose
+subject is the entry's own behavior — and its prize is re-derived after D4 removes ~42% of per-spawn cost and
+conversion removes the cases that never needed a spawn.
 
 ## Sibling coordination detail
 

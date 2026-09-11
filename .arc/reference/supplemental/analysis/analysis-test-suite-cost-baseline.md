@@ -34,8 +34,18 @@ npx vitest run --project integration --reporter=json --outputFile=<path>
 npx vitest run --project e2e --reporter=json --outputFile=<path>
 ```
 
-Per-file duration is `endTime - startTime` from each `testResults` entry; "summed" is those durations added, which
-exceeds wall clock because files run in parallel.
+Per-file duration here is `endTime - startTime` from each `testResults` entry; "summed" is those durations added,
+which exceeds wall clock because files run in parallel.
+
+**That window is test time only, so every summed figure below is a lower bound.** The reporter derives it from
+test results alone — `min(start)` to `max(start + duration)` — so a file's transform, module import, and
+file-level hooks fall outside it, and the window sums to the file's test durations. On one unit-tier run the
+summed window was 123.5 s against the same run's reported 78.8 s of transform and 131.3 s of import. The omission
+matters most for levers that act on that fixed term: module-registry reuse across files moves almost nothing else,
+and splitting a file re-pays it once per new file. A per-file figure that counts it is `collectDuration +
+setupDuration` plus the file's test durations, read from the run's file tasks rather than the JSON payload —
+`collectDuration` already includes the file's import time, and the payload carries no run-level end time, so wall
+clock has to be taken from the run itself.
 
 **Three measurement modes, and they are not comparable.** This is the single most important caveat here, and
 mixing modes produced two wrong conclusions during the session that generated this document.
@@ -157,9 +167,12 @@ absolute path anywhere, `.git/` included. The `addBareRemote` shape does: `.git/
 absolute `/tmp/arc-remote-*` path, and the remote is a sibling temp directory, not nested in the fixture. Note
 that `ugrep`-backed `grep` functions skip hidden files under `-r` and return a false clean; use `/usr/bin/grep`.
 
-**Remote leak.** `addBareRemote` returns its temp directory and leaves removal to the caller; of the twelve test
-files that call it, one removes the directory. The measuring machine held 1,210 leaked `arc-remote-*` directories
-(213 MB) from prior runs.
+**Remote leak.** `addBareRemote` returns its temp directory and leaves removal to the caller. Eleven integration
+files call it and effectively all of them clean up — via `afterEach`, a cleanup set, or per-test removal. Exactly
+two call sites discard the return and therefore cannot: one in `user.test.ts`, one in `sync-state-ref.test.ts`.
+The removal primitive throws after its retries rather than failing quietly, so silent teardown failure is not a
+further cause. The measuring machine held 1,210 leaked `arc-remote-*` directories (213 MB) from prior runs —
+those two sites across many runs, plus runs killed at a timeout before teardown.
 
 ### `e2e` — 1,784 s over 53 files
 

@@ -9,7 +9,7 @@
 
 - **Origin:** Housekeep follow-up from recurring test-suite wall-clock friction.
 - **Design:** `spec-test-suite-right-sizing.md`
-- **Task List:** [none]
+- **Task List:** `tasks-test-suite-right-sizing.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -18,7 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
