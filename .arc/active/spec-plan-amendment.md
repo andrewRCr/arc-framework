@@ -221,9 +221,9 @@ threshold.
 The planning workflows are never re-entered whole inside an `Active` work unit, and `draft-design` is never
 re-entered at all. An amendment that invalidates the purpose, most of the design, or a landed member's contract
 re-opens what the thing _is_ rather than how it lands, and the instrument is `decompose-work-unit`'s shipped
-extraction mode (`arc decompose <origin> --extract`): the origin keeps its implementation and ships as the surviving,
-still-valid part; the invalidated concern becomes a new work unit that gets the full canonical process from the
-headwater.
+extraction mode — an additive result staged from a cut map, then source thinning: the origin keeps its
+implementation and ships as the surviving, still-valid part; the invalidated concern becomes a new work unit that
+gets the full canonical process from the headwater.
 
 Two consequences are accepted. **Extraction moves scope, not code:** a landed member's contract is immutable (the
 classifier refuses `landed-member-changed`), so when the invalidated part has already landed, the origin ships it
@@ -515,20 +515,34 @@ Prose:
 - the task-list formatting strategy — § Revision Numbering gains the `X.R2` ids, the placement rules, and the
   retirement of parent reopening; `_Amended in:_` joins `_Retired in:_` as a protected post-completion bullet; the
   appended-criterion group rule joins § Success Criteria; the `— Dn` suffix recommendation.
-- the task-list template — `_Amended in:_` beside the protected bullets.
-- `generate-tasks` — the `— Dn` recommendation in the parent-task skeleton step, and the segmentation section
-  becoming a declared callsite of the extracted method.
+- the task-list template — `_Amended in:_` shown as a Goal-child detail bullet; it is the first protected
+  detail bullet the template carries, and that shape is what keeps the parent's Goal digest stable.
+- `generate-tasks` — the `— Dn` recommendation in the parent-task skeleton step, the segmentation section
+  becoming a declared callsite of the extracted method, and one pre-save checklist clause excepting `_Amended in:_`
+  from the no-amendment-provenance rule, which the checklist otherwise forbids in the task bodies D6 requires it in.
+- `strategy-workflow-authoring.md` — the method-declaration rule restated conditionally. Its categorical form
+  ("a workflow never redeclares those dependencies") does not disambiguate a method the declaring body fires
+  directly, which `amend-design` is the first case of; loading is fire-point-gated and the resolved graph dedupes,
+  so what the rule protects is encapsulation rather than context. The refinement ships with this work unit rather
+  than after it, so the first instance does not land ahead of the wording that licenses it.
 - the four spec templates — a trailing `## Amendments` section carrying the heading and one example row; the
   grammar itself is defined once, in the workflow's record section (D5), never restated per template.
 - the formatting strategy's evidence-sink rule — gains the one forward pointer it lacks: where a failed exit
   criterion's correction lands (`amend-design`).
+- the package-project sync strategy's file inventory — its Framework and Configurable counts and its enumerated
+  Configurable list are hand-maintained and move with the three added files.
 
 Code, in the CLI package — registration only, no behavior:
 
 - `lib/skills/resolution.ts` — `arc-amend-design` joins `CANONICAL_SKILLS`;
-- `init-recipe.json` — the workflow, the method, and the skill join the install set; the skills and methods READMEs
-  and the project instance's manifest refresh to match;
-- the explicit init/update inventory tests that enumerate skills, methods, and supplemental workflows.
+- `lib/classification.ts` — the extracted method joins the Configurable set; the list is hand-maintained and
+  Framework is the default, so an omission mis-classifies the file rather than failing loudly;
+- `init-recipe.json` — the workflow, the method, and the skill join the install set; the skills README, which
+  enumerates every skill, gains a row, and the project instance's manifest gains an entry per file. The methods
+  README lists only methods carrying related methods, so an independent method adds no row there;
+- the explicit init/update inventory tests that enumerate skills, methods, and supplemental workflows, plus the
+  sync test's direct-planning-consumer list, which `amend-design` joins by declaring
+  `assess-design-proportionality`.
 
 ## Alternatives & Rationale
 
@@ -648,15 +662,20 @@ inventing it; scale does not fire.
 - The task-list formatting strategy carries the `X.R2` ids, the placement rules including yielded placement, the
   retirement of parent reopening, `_Amended in:_` as a protected post-completion bullet, the appended-criterion group
   rule, the `— Dn` recommendation, and the evidence-sink rule's forward pointer; the task-list template carries
-  `_Amended in:_`; `generate-tasks` carries the `— Dn` recommendation in its parent-task skeleton step.
+  `_Amended in:_`; `generate-tasks` carries the `— Dn` recommendation in its parent-task skeleton step and the
+  checklist clause excepting `_Amended in:_` from its no-amendment-provenance rule.
+- `strategy-workflow-authoring.md`'s method-declaration rule reads conditionally — a workflow declares what its
+  own body fires, never what it would carry only on a declared method's behalf — with the striking test stated, and
+  no existing corpus declaration changes under it.
 - The three sectioned spec templates carry a trailing `## Amendments` section and the brief a trailing
   `**Amendments:**` label, each with a placeholder row; the grammar is defined once, in the workflow.
-- A task list carrying an `X.R`, an `X.R2`, an `X.Y.R`, and an `_Amended in:_` bullet under a `[x]` parent parses
-  without refusal through the structural and segmentation scans, the task cursor, and the delivery task inventory,
-  with the Goal digest unchanged by the appended bullet.
+- A task list declaring more than one segment, carrying an `X.R` inside a segment-closing phase ahead of that
+  phase's verifier plus an `X.R2`, an `X.Y.R`, and an `_Amended in:_` bullet under a `[x]` parent, parses without
+  refusal through the structural and segmentation scans, the task cursor, and the delivery task inventory, with the
+  Goal digest unchanged by the appended bullet.
 - Every edited framework surface's shipped content is identical in the package source and the project copy —
-  Framework files by the sync test, Configurable methods' `.default` sections by diff — with the task loop edited
-  in its template.
+  Framework files and the two edited Configurable methods by the sync test's whole-file equality, other
+  Configurable files by `.default` diff — with the task loop and `generate-tasks` edited in their templates.
 - All quality gates pass (tests, linting, type checking).
 - Ready for integration.
 
