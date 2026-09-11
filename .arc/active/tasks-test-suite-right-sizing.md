@@ -558,31 +558,15 @@ _Exit criterion:_ Every handler and command module the entry imports is converte
 eager set with its import-time side effect named, the build still emits a single `dist/cli.js`, and built-artifact
 startup on `view` measures at or below the target as a standalone probe.
 
-### `[ ]` **5.1 Pin single-file output and enumerate import-time side effects across the handler set**
+### `[x]` **5.1 Pin single-file output and enumerate import-time side effects across the handler set**
 
 - _Goal:_ The build is committed to one output file before any dynamic import exists, and every module whose body
   registers something at import time is identified and kept eager.
 
-- _Rationale:_ The bundler defaults ESM splitting on and the config sets no key, so today's single-file output is
-  a consequence of the bundle having no dynamic imports rather than a configured contract. Adding them without
-  pinning it would silently produce the dist-layout change the design forbids.
-
-    - The runtime-only build derives from the shared options, so pinning it once reaches both build paths.
-    - Registration that runs at import time — a kernel or domain schema registered as a module-body side effect —
-      changes behavior when its module loads lazily: it would run only once its handler is invoked. Enumerate
-      these across the handler set and keep any module carrying one in the eager set.
-    - The enumeration has a known starting point rather than an empty one. The roadmap-conflict remedy module is
-      imported by the entry and is already guarded by an integration test asserting its side effect does not fire
-      on `--help`. Reuse that assertion shape, and note that making this module lazy strengthens the property that
-      test asserts rather than threatening it.
-    - A scan of the handler modules found no top-level side-effectful statement, so the eager-retention set may be
-      near-empty; the build calls its register functions explicitly rather than relying on module bodies. Confirm
-      properly rather than trusting either signal.
-    - The kernel stays eager, as does the dev-mode staleness check, preserving the guard that owns bundle
-      freshness.
-    - Build `test-first` (one behavior at a time):
-        - the build emits exactly one bundle entry with a dynamic import present in the graph
-        - a module carrying an import-time registration is absent from the lazy set
+- _Outcome:_ Shared build options now pin `splitting: false`; a dynamic-import fixture proves both full and fast
+  builds retain one JavaScript entry. The loading-boundary inventory covers all 31 implementation modules imported
+  by `cli.ts` and rejects import-time registrations in the lazy set; none require eager retention. Kernel wiring,
+  interaction policy, version/error support, and the dev-mode freshness guard remain eager by design.
 
 ### `[ ]` **5.2 Convert a representative handler and confirm the yield and the single-file bundle**
 
