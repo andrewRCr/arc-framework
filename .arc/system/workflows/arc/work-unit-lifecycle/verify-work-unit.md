@@ -36,9 +36,9 @@ If the [`self-review` method][self-review] is effectively active, execute it aga
 the base branch. Classify findings per [`review-triage`][review-triage], obtain approval for the complete disposition
 set, and commit approved fixes per [`commit-footer`][commit-footer] before continuing.
 
-Run the full quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
+Run the complete quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
-clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
+clean throughout implementation, completing every project-designated gate supplies the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 

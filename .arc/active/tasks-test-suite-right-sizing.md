@@ -113,32 +113,28 @@ runs everything, and no project or framework document instructs a whole-suite lo
 - _Outcome:_ Project rules, command guidance, testing architecture, and contributor setup now distinguish routine,
   affected-unit, and whole-project verification consistently.
 
-### `[ ]` **1.3 Amend the shipped whole-suite assertions through the package source**
+### `[x]` **1.3 Amend the shipped whole-suite assertions through the package source**
 
 - _Goal:_ Shipped quality-gate and verification guidance stops asserting a whole-suite local attestation, without
   minting any framework-layer capability for designating a tier as CI-enforced.
 
-- _Approach:_ Amend only enough to stop over-asserting. These edits remove a claim; they add no mechanism. A
-  project designating a tier as CI-enforced stays out of scope.
+    - `[x]` **1.3.a Amend the Tier 3 definition in the quality-gates strategy**
 
-    - `[ ]` **1.3.a Amend the Tier 3 definition in the quality-gates strategy**
+        - Defined Tier 3 as the complete project-designated local gate while leaving test-tier and lane assignment
+          with the project.
 
-        - Its Tier 3 list carries "Full integration/E2E test suite (all configurations)" and its rules carry
-          "Never skip or partially run Tier 3".
-        - Reword so Tier 3 remains whole against whatever the project designates as locally enforced, leaving
-          tier-to-lane assignment with the project.
+    - `[x]` **1.3.b Amend the verification workflow's attestation sentence**
 
-    - `[ ]` **1.3.b Amend the verification workflow's attestation sentence**
+        - Made completion of every project-designated gate the final local attestation without asserting that a
+          whole-project test run is universal.
 
-        - Its first step asserts that the full-suite run "serves as attestation that everything passes as a
-          whole"; the same paragraph already routes commands through the project's quality-gates strategy, so
-          that sentence is the only over-assertion there.
+    - `[x]` **1.3.c Sync the package source into the project copy**
 
-    - `[ ]` **1.3.c Sync the package source into the project copy**
+        - Authored both Framework files in package source and projected their matching `.arc/` copies through
+          `render:framework`.
 
-        - Edits are authored in the package source and synced down; never copy between the two copies.
-        - **Additional Context:** `strategy-package-project-sync.md` § File Inventory and Dependency Map —
-          confirm each target's copy relationship before editing.
+- _Outcome:_ Shipped strategy and verification guidance now require a complete configured gate without minting a
+  framework-level rule for which test lanes must run locally.
 
 ### `[ ]` **1.4 Re-run the document-contract checks and repair what the amendments broke**
 

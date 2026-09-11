@@ -93,7 +93,7 @@ npm run test:e2e -- --grep "@navigation"
 
 ---
 
-### Tier 3: Full Suite (Per-Phase / Pre-PR)
+### Tier 3: Complete Project Gate (Per-Phase / Pre-PR)
 
 **When:**
 
@@ -106,16 +106,15 @@ npm run test:e2e -- --grep "@navigation"
 - Full type checking (entire project)
 - Full linting (entire project)
 - Full format checking
-- Full unit test suite
-- Full integration/E2E test suite (all configurations)
+- Every test lane the project designates for local Tier 3 enforcement
 - Build verification
 - Markdown linting (for documentation changes)
 
 **Time budget:** 5-15+ minutes (acceptable because it's infrequent)
 
-**Guidance:**
+**Guidance:** Complete every project-designated Tier 3 check. Test-tier and lane assignment belongs to the project;
+the framework does not promote a locally excluded lane into this gate.
 
-- Never skip or partially run Tier 3
 - If Tier 3 fails, fix before proceeding (see Quality gate failure in
   [DEV-RULES.ARC][dev-rules-arc])
 
