@@ -528,7 +528,12 @@ export { readFile, writeFile, mkdir, rm, readdir, stat, join, dirname };
 // Re-export the teardown primitive so integration tests route inline
 // git-backed removals through it without reaching past the tier helper.
 export { removeGitBackedDir };
-export { copyPreparedRepository, prepareRepositoryTemplate } from "./prepared-repository.js";
+export {
+  copyPreparedRepository,
+  prepareRepositoryTemplate,
+  PREPARED_REMOTE_PATH,
+  PREPARED_WORKTREE_PATH,
+} from "./prepared-repository.js";
 export type {
   PreparedRepositoryKind,
   PreparedRepositoryShape,

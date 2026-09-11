@@ -1,12 +1,16 @@
 /** Prepared integration-repository templates and independent per-test copies. */
 
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { removeGitBackedDir } from "./temp-repo.js";
 
 export type PreparedRepositoryKind = "plain" | "remote-bearing" | "worktree-bearing";
+
+/** Self-contained support paths used by prepared repository shapes. */
+export const PREPARED_REMOTE_PATH = ".arc-fixture/remote.git";
+export const PREPARED_WORKTREE_PATH = ".arc-fixture/worktree";
 
 /** Stable identity for one compatible prepared-repository shape. */
 export interface PreparedRepositoryShape {
@@ -55,9 +59,36 @@ export async function copyPreparedRepository(
   await rm(destination, { recursive: true, force: true });
   try {
     await cp(template.root, destination, { recursive: true });
+    if (shape.kind === "remote-bearing") {
+      await rewriteRequiredPath(
+        join(destination, ".git", "config"),
+        template.root,
+        destination,
+      );
+    }
+    if (shape.kind === "worktree-bearing") {
+      await rewriteRequiredPath(
+        join(destination, PREPARED_WORKTREE_PATH, ".git"),
+        template.root,
+        destination,
+      );
+      await rewriteRequiredPath(
+        join(destination, ".git", "worktrees", "worktree", "gitdir"),
+        template.root,
+        destination,
+      );
+    }
     return destination;
   } catch (error) {
     await removeGitBackedDir(destination);
     throw error;
   }
+}
+
+async function rewriteRequiredPath(file: string, from: string, to: string): Promise<void> {
+  const content = await readFile(file, "utf8");
+  if (!content.includes(from)) {
+    throw new Error(`Prepared repository expected an absolute template reference in ${file}`);
+  }
+  await writeFile(file, content.replaceAll(from, to), "utf8");
 }

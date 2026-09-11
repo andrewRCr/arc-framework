@@ -424,25 +424,15 @@ adopted or rejected against the noise band.
   request receives a distinct recursive copy, while a kind or key mismatch is refused. Real Git integration tests
   prove copied tracked-tree parity and concurrent-write independence.
 
-### `[ ]` **3.2 Audit and rewrite absolute references on copy**
+### `[x]` **3.2 Audit and rewrite absolute references on copy**
 
 - _Goal:_ No copied fixture carries an absolute reference back to its template, a shared object store, or a shared
   remote.
 
-- _Rationale:_ The plain fixture carries none, but the bare-remote shape records the remote's absolute path in
-  `.git/config`, and a linked worktree's `.git` file and its `gitdir` pointer are absolute by documented design. A
-  naive copy of those shapes silently couples every "independent" test to one remote or object store.
-
-- _Note:_ A wrapped `grep` may exclude `.git` and honor ignore files, returning a false clean on exactly the paths
-  this audit targets. Run the audit through `/usr/bin/grep`.
-
-    - Seventeen integration files create a worktree, several building one per test in setup, so the
-      worktree-bearing shape is a fixture class in its own right: 3.1 sizes its template classes across the plain,
-      remote-bearing, and worktree-bearing shapes, and this task's copy rules cover all three.
-    - Build `test-first` (one behavior at a time):
-        - a copied plain fixture contains no occurrence of the template's path, `.git/` included
-        - a copied remote-bearing shape resolves its remote to its own path, never the template's
-        - a copied worktree-bearing shape resolves its git directory within itself
+- _Outcome:_ Remote-bearing templates keep the bare repository under their fixture root and rewrite the copied
+  origin URL to that copy; worktree-bearing templates similarly rewrite both sides of Git's `.git`/`gitdir`
+  pointer pair. A real `/usr/bin/grep -R -a` audit covers hidden Git metadata and proves that plain, remote, and
+  worktree copies contain no absolute template reference.
 
 ### `[ ]` **3.3 Fix the bare-remote leak and give each test its own remote**
 
