@@ -327,6 +327,61 @@ describe("refreshDevBuildAfterAction", () => {
       rmSync(repositoryRoot, { recursive: true, force: true });
     }
   });
+
+  it("keeps the previous freshness stamp when promotion fails before replacing the CLI", async () => {
+    const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
+    try {
+      const packageRoot = join(repositoryRoot, "packages", "arc-framework");
+      const sourceDir = join(packageRoot, "src");
+      const distDir = join(packageRoot, "dist");
+      mkdirSync(sourceDir, { recursive: true });
+      mkdirSync(distDir, { recursive: true });
+
+      const sourcePath = join(sourceDir, "cli.ts");
+      const cliPath = join(distDir, "cli.js");
+      const stampPath = join(distDir, "dev-build-stamp.json");
+      const oldStamp = `${JSON.stringify({ schemaVersion: 1, inputsHash: "stale" })}\n`;
+      writeFileSync(sourcePath, "export const current = true;\n");
+      writeFileSync(cliPath, "known-good-bundle\n");
+      writeFileSync(join(distDir, "metafile-esm.json"), JSON.stringify({
+        inputs: { "src/cli.ts": { bytes: 1 } },
+      }));
+      writeFileSync(stampPath, oldStamp);
+      writeFileSync(join(distDir, "z-blocked"), "not a directory\n");
+
+      const inputsHash = hashSourceInputs([sourcePath], packageRoot);
+      writeFileSync(join(repositoryRoot, "promotion-failure.cjs"), [
+        'const { mkdirSync, writeFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        'const outDir = process.env.ARC_DEV_BUILD_OUT_DIR;',
+        'if (!outDir) throw new Error("missing staged output directory");',
+        'mkdirSync(join(outDir, "z-blocked"), { recursive: true });',
+        'writeFileSync(join(outDir, "cli.js"), "new-bundle\\n");',
+        `writeFileSync(join(outDir, "metafile-esm.json"), ${JSON.stringify(
+          `${JSON.stringify({ inputs: { "src/cli.ts": { bytes: 1 } } })}\n`,
+        )});`,
+        `writeFileSync(join(outDir, "dev-build-stamp.json"), ${JSON.stringify(
+          `${JSON.stringify({ schemaVersion: 1, inputsHash })}\n`,
+        )});`,
+        'writeFileSync(join(outDir, "z-blocked", "file"), "blocked\\n");',
+        "",
+      ].join("\n"));
+      writeFileSync(join(repositoryRoot, "package.json"), JSON.stringify({
+        private: true,
+        scripts: { "build:fast": "node promotion-failure.cjs" },
+      }));
+
+      await expect(refreshDevBuildAfterAction(cliPath)).resolves.toMatchObject({
+        kind: "failed",
+        command: "npm run build:fast",
+      });
+      expect(readFileSync(cliPath, "utf8")).toBe("known-good-bundle\n");
+      expect(readFileSync(stampPath, "utf8")).toBe(oldStamp);
+      expect(readdirSync(packageRoot).filter((entry) => entry.startsWith(".arc-dev-build-"))).toEqual([]);
+    } finally {
+      rmSync(repositoryRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("isDevBuildRefreshCommandPath", () => {

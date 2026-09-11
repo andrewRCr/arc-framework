@@ -286,11 +286,12 @@ async function promoteStagedDevBuild(stagingDir: string, distDir: string): Promi
   const stagedFiles = await listRelativeFiles(stagingDir);
   const liveFiles = await listRelativeFiles(distDir);
   const entry = "cli.js";
-  if (!stagedFiles.includes(entry)) {
-    throw new Error("staged build did not produce cli.js");
+  const stamp = DEV_BUILD_STAMP_NAME;
+  if (!stagedFiles.includes(entry) || !stagedFiles.includes(stamp)) {
+    throw new Error("staged build did not produce cli.js and its freshness stamp");
   }
 
-  for (const file of stagedFiles.filter((candidate) => candidate !== entry)) {
+  for (const file of stagedFiles.filter((candidate) => candidate !== entry && candidate !== stamp)) {
     const destination = join(distDir, file);
     await mkdir(dirname(destination), { recursive: true });
     await rename(join(stagingDir, file), destination);
@@ -299,6 +300,10 @@ async function promoteStagedDevBuild(stagingDir: string, distDir: string): Promi
   // The package bin always resolves this path. Replacing the file by rename keeps
   // either the old or new complete entry visible to concurrent invocations.
   await rename(join(stagingDir, entry), join(distDir, entry));
+
+  // Publish freshness only after the new entry is live. Any earlier promotion
+  // failure therefore leaves the old stamp to fail closed against changed source.
+  await rename(join(stagingDir, stamp), join(distDir, stamp));
 
   const stagedFileSet = new Set(stagedFiles);
   await Promise.all(liveFiles
