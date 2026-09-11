@@ -1216,7 +1216,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     });
   });
 
-  it("reads a content change to a relocated work-unit artifact as a reviewable delta", async () => {
+  it("keeps an edited relocated work-unit artifact evidence-neutral", async () => {
     const root = await fixture();
     expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
@@ -1231,8 +1231,8 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["commit", "-m", "edit the archived task list"]);
 
     await expect(checkpointOver(root, "with-integration")).resolves.toMatchObject({
-      state: "candidate-applicability",
-      payload: { state: "decision-required" },
+      state: "candidate-publication-required",
+      nextAction: "resume-pre-publication",
     });
   });
 

@@ -108,11 +108,11 @@ describe("Candidate subject classification", () => {
     expect(target.revision).toBe(HEAD);
     expect(target.subject.entries).toHaveLength(staged.length);
     expect(entries.get("packages/arc-framework/src/example.ts")?.treatment).toBe("reviewable");
-    expect(entries.get(".arc/active/tasks-example.md")?.treatment).toBe("reviewable");
-    expect(entries.get(".arc/active/meta-example.md")?.treatment).toBe("operational");
-    expect(entries.get(".arc/backlog/ROADMAP.md")?.treatment).toBe("operational");
+    expect(entries.get(".arc/active/tasks-example.md")?.treatment).toBe("evidence-neutral");
+    expect(entries.get(".arc/active/meta-example.md")?.treatment).toBe("evidence-neutral");
+    expect(entries.get(".arc/backlog/ROADMAP.md")?.treatment).toBe("regenerable");
     expect(entries.get(".arc/system/.internal/candidates/example.json")?.treatment)
-      .toBe("candidate-projection");
+      .toBe("evidence-neutral");
   });
 
   it("keys a relocated artifact to the stage it passes through, not the location it now occupies", async () => {
@@ -122,7 +122,7 @@ describe("Candidate subject classification", () => {
     });
     const archived = await collect([relocated], { [relocated]: "the verified task list" });
 
-    expect(archived.get(relocated)?.treatment).toBe("operational");
+    expect(archived.get(relocated)?.treatment).toBe("evidence-neutral");
     expect(archived.get(".arc/active/tasks-example.md")).toEqual(
       settled.get(".arc/active/tasks-example.md"),
     );
@@ -146,8 +146,8 @@ describe("Candidate subject classification", () => {
       [relocated]: "the verified task list",
     });
 
-    expect(entries.get(relocated)?.treatment).toBe("operational");
-    expect(entries.get(".arc/active/tasks-example.md")).toMatchObject({ treatment: "reviewable" });
+    expect(entries.get(relocated)?.treatment).toBe("evidence-neutral");
+    expect(entries.get(".arc/active/tasks-example.md")).toMatchObject({ treatment: "evidence-neutral" });
     expect(entries.get(".arc/active/tasks-example.md")?.digest)
       .toBe(entries.get(relocated)?.digest);
   });
@@ -172,7 +172,7 @@ describe("Candidate subject classification", () => {
 
     expect(after.subject.entries).toEqual(expect.arrayContaining([expect.objectContaining({
       path: boundary,
-      treatment: "candidate-projection",
+      treatment: "evidence-neutral",
     })]));
     expect(after.subject.subjectDigest).toBe(before.subject.subjectDigest);
   });
@@ -201,13 +201,10 @@ describe("Unstaged reviewable content", () => {
     expect(await collectUnstaged([
       "packages/arc-framework/src/example.ts",
       ".arc/active/tasks-example.md",
-    ])).toEqual([
-      ".arc/active/tasks-example.md",
-      "packages/arc-framework/src/example.ts",
-    ]);
+    ])).toEqual(["packages/arc-framework/src/example.ts"]);
   });
 
-  it("stays silent over the operational and projection writes a lifecycle tree carries", async () => {
+  it("stays silent over evidence-neutral and regenerable lifecycle writes", async () => {
     expect(await collectUnstaged([
       ".arc/active/meta-example.md",
       ".arc/backlog/ROADMAP.md",
@@ -225,7 +222,7 @@ describe("Unstaged reviewable content", () => {
 
   it("follows a relocated artifact to the treatment its content receives", async () => {
     expect(await collectUnstaged([".arc/completed/2026-q3/01_example/tasks-example.md"]))
-      .toEqual([".arc/completed/2026-q3/01_example/tasks-example.md"]);
+      .toEqual([]);
     expect(await collectUnstaged([".arc/completed/2026-q3/01_example/meta-example.md"]))
       .toEqual([]);
   });

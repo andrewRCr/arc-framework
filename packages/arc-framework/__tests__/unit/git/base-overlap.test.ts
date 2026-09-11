@@ -22,20 +22,25 @@ describe("base overlap evidence", () => {
   it("short-circuits to available empty when either side has no unique commits", async () => {
     const { exec, calls } = overlapExec("", "");
     const result = await analyzeBaseOverlap({
-      exec, baseOid: BASE, ahead: 0, behind: 2, classify: () => "substantive",
+      exec, baseOid: BASE, ahead: 0, behind: 2, classify: () => "reviewable",
     });
     expect(result).toEqual({ status: "available", substantivePaths: [], regenerablePaths: [] });
     expect(calls).toEqual([]);
   });
 
   it("partitions, deduplicates, and sorts shared paths", async () => {
-    const { exec, calls } = overlapExec("z.ts\0ROADMAP\0a.ts\0", "ROADMAP\0z.ts\0a.ts\0");
+    const { exec, calls } = overlapExec(
+      "z.ts\0ROADMAP\0meta-example.md\0a.ts\0",
+      "ROADMAP\0z.ts\0meta-example.md\0a.ts\0",
+    );
     const result = await analyzeBaseOverlap({
       exec,
       baseOid: BASE,
       ahead: 2,
       behind: 3,
-      classify: (path) => path === "ROADMAP" ? "regenerable" : "substantive",
+      classify: (path) => path === "ROADMAP"
+        ? "regenerable"
+        : path === "meta-example.md" ? "evidence-neutral" : "reviewable",
     });
     expect(result).toEqual({
       status: "available",
@@ -54,7 +59,7 @@ describe("base overlap evidence", () => {
       throw new Error("base diff failed");
     };
     await expect(analyzeBaseOverlap({
-      exec, baseOid: BASE, ahead: 1, behind: 1, classify: () => "substantive",
+      exec, baseOid: BASE, ahead: 1, behind: 1, classify: () => "reviewable",
     })).resolves.toEqual({ status: "unavailable", reason: "base-diff-failed" });
   });
 });

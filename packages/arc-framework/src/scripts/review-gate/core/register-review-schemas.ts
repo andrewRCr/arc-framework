@@ -24,7 +24,6 @@ import { registerReviewAssuranceSchemas } from "../policy/assurance-schema.js";
 import { registerReviewRoutingSchemas } from "../policy/routing-schema.js";
 import { registerReviewPrimitiveSchemas } from "./review-primitives.js";
 import { registerForwardLifecycleTailSchema } from "./lifecycle-tail.js";
-import { registerReviewApplicabilitySchemas } from "./applicability.js";
 import { registerForwardReceiptLedgerSchema } from "./forward-receipt-ledger-schema.js";
 import { registerSeverityGatingPolicySchema } from "./severity-gating-policy.js";
 import { assertReviewDurableRecordInventory } from "./schema-inventory.js";
@@ -33,7 +32,6 @@ import { registerReviewSupportCommandSchemas } from "../support-command-schemas.
 /** Compose every currently implemented review schema into a fresh kernel registry. */
 export function registerReviewDomainSchemas(registry: KernelRegistry): KernelRegistry {
   registerChangeFactSchemas(registry);
-  registerReviewApplicabilitySchemas(registry);
   registerReviewGateV2Schemas(registry);
   registerFindingRecordSchemas(registry);
   registerFixAuthorizationSchemas(registry);
