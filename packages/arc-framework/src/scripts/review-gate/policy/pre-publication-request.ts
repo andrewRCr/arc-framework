@@ -536,6 +536,21 @@ export async function composePrePublicationReviewRequest(
       },
       deliveryMember: selected.vehicle,
     };
+  } else if (pendingCandidateFix
+    && immutable.status === "resolved"
+    && immutable.target.kind === "delivery-member") {
+    exactTarget = immutable.target;
+    policyTarget = {
+      repository: target.repository,
+      pullRequest: null,
+      headSha: immutable.target.headSha,
+    };
+    policyLineage = [immutable.target.headSha];
+    frontline = withCeilingOverride(
+      "frontline",
+      policyTarget,
+      await composeLane("frontline", policyTarget, policyLineage),
+    );
   } else {
     exactTarget = immutable.status === "resolved" ? immutable.target : null;
     policyTarget = target;

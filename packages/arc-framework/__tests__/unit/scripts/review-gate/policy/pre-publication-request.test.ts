@@ -429,18 +429,30 @@ describe("composePrePublicationReviewRequest", () => {
     });
     const readDeliveryReviewTargets = vi.fn();
     const deriveImmutableTarget = vi.fn();
+    const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> => ({
+      status: "recorded",
+      completedPasses: lane === "frontline" ? 1 : 2,
+      attempts: [],
+    }));
     const composition = await composePrePublicationReviewRequest(
       { workUnit: "example" },
       dependencies({
         readCandidate: async () => ({ ...currentCandidate, pendingReviewTarget: member.target }),
         readDeliveryReviewTargets,
         deriveImmutableTarget,
+        readLaneProgress,
       }),
     );
 
     expect(composition.status).toBe("composed");
     if (composition.status !== "composed") return;
     expect(composition.request.target).toEqual(member.target);
+    expect(composition.request.frontline.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.standard.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.frontline.completedPasses).toBe(1);
+    expect(composition.request.standard.completedPasses).toBe(2);
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", member.target.headSha, [member.target.headSha]);
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", member.target.headSha, [member.target.headSha]);
     expect(composition.request.responseBinding).toBeUndefined();
     expect(readDeliveryReviewTargets).not.toHaveBeenCalled();
     expect(deriveImmutableTarget).not.toHaveBeenCalled();
