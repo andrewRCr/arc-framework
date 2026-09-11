@@ -109,7 +109,7 @@ function captureFile(module: ReportedCostModule): TestCostFile {
       vitestTimeoutMs,
       ...(cliTimeoutValue === undefined ? {} : { cliTimeoutMs: cliTimeoutValue }),
       ...(cliSpawnCount === undefined ? {} : { cliSpawnCount }),
-      ...resolveTimeoutHeadroom(durationMs, vitestTimeoutMs, cliTimeoutValue),
+      ...resolveTimeoutHeadroom(durationMs, vitestTimeoutMs),
     }];
   });
   const testTimeMs = tests.reduce((sum, test) => sum + test.durationMs, 0);

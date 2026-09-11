@@ -20,14 +20,10 @@ export interface SubstrateShare {
 export function resolveTimeoutHeadroom(
   durationMs: number,
   vitestTimeoutMs: number,
-  cliTimeoutMs?: number,
 ): TimeoutHeadroom {
   requireNonNegative(durationMs, "test duration");
   requirePositive(vitestTimeoutMs, "Vitest timeout");
-  if (cliTimeoutMs !== undefined) requirePositive(cliTimeoutMs, "CLI timeout");
-  const timeoutCeilingMs = cliTimeoutMs === undefined
-    ? vitestTimeoutMs
-    : Math.min(vitestTimeoutMs, cliTimeoutMs);
+  const timeoutCeilingMs = vitestTimeoutMs;
   const headroomMs = timeoutCeilingMs - durationMs;
   return { timeoutCeilingMs, headroomMs, headroomFraction: headroomMs / timeoutCeilingMs };
 }

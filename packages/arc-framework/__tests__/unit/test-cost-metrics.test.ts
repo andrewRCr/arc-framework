@@ -10,13 +10,12 @@ import {
 import type { TestCostFile } from "../../src/lib/test-cost/capture.js";
 
 describe("resolveTimeoutHeadroom", () => {
-  it("uses the tightest ceiling actually in force", () => {
-    expect(resolveTimeoutHeadroom(2_000, 30_000, 10_000)).toEqual({
-      timeoutCeilingMs: 10_000,
-      headroomMs: 8_000,
-      headroomFraction: 0.8,
+  it("reports whole-test headroom against the Vitest task ceiling", () => {
+    expect(resolveTimeoutHeadroom(12_000, 30_000)).toEqual({
+      timeoutCeilingMs: 30_000,
+      headroomMs: 18_000,
+      headroomFraction: 0.6,
     });
-    expect(resolveTimeoutHeadroom(2_000, 30_000, 60_000).timeoutCeilingMs).toBe(30_000);
   });
 });
 

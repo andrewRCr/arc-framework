@@ -133,12 +133,12 @@ describe("captureTestCost", () => {
     expect(file).toMatchObject({ durationMs: 18, testTimeMs: 0, tests: [] });
   });
 
-  it("reports headroom against a tighter runCli timeout", () => {
+  it("keeps per-invocation CLI limits separate from whole-test headroom", () => {
     const [test] = captureTestCost([
       moduleFixture("cli.test.ts", "integration", 1, 1, [{
         id: "cli",
         name: "cli",
-        duration: 2_000,
+        duration: 12_000,
         timeout: 30_000,
         cliTimeout: 10_000,
         cliSpawnCount: 2,
@@ -149,9 +149,9 @@ describe("captureTestCost", () => {
       vitestTimeoutMs: 30_000,
       cliTimeoutMs: 10_000,
       cliSpawnCount: 2,
-      timeoutCeilingMs: 10_000,
-      headroomMs: 8_000,
-      headroomFraction: 0.8,
+      timeoutCeilingMs: 30_000,
+      headroomMs: 18_000,
+      headroomFraction: 0.6,
     });
   });
 });
