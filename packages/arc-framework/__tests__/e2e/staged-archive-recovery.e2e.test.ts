@@ -31,7 +31,7 @@ interface RecoveryReport {
     };
     loadSet: {
       ok: boolean;
-      value?: { entries: Array<{ path: string }> };
+      value?: { entries: Array<{ path: string; readMode: { kind: string } }> };
     };
   };
   verdict: { status: string; ready: boolean; stopReasons: Array<{ kind: string }> };
@@ -119,7 +119,9 @@ describe("staged archive recovery", () => {
     expect(stagedPaths).toContain(".arc/active/meta-staged-archive-recovery.md");
     const archivedMeta = stagedPaths.find((path) =>
       /^\.arc\/completed\/[^/]+\/\d+_staged-archive-recovery\/meta-staged-archive-recovery\.md$/u.test(path));
-    expect(archivedMeta).toBeDefined();
+    if (archivedMeta === undefined) {
+      throw new Error("archive did not stage the completed work-unit meta");
+    }
 
     const seeded = await runArc(
       ["status", "--session-init", "--write-compaction-seed", "--json"],
