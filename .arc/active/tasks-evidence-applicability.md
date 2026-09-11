@@ -639,10 +639,18 @@ currentness and attestation outcomes without requiring the separately owned prop
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ the complete work-unit Candidate is proven against every grouped criterion, cross-member seam, quality
   gate, and integration-readiness obligation before publication begins.
+
+- _Quality gates:_ Tier 3 passed at `df363c846` / tree `85fa75aa7`: 886 test files passed and one skipped;
+  11,881 tests passed and one skipped; Markdown, TypeScript, shell, ARC trigger/domain/section, both typecheck, diff,
+  mirror, pre-commit, commit-validation, and production-build checks all passed.
+- _Success criteria:_ 21 met, zero superseded, zero unresolved. All 16 member criteria retain their exact recorded
+  loci and digests with no union regression; all five cross-member seams passed over the complete diff
+  `dff5f8909..df363c846` and reachable tree `85fa75aa7`. Two Heavy adversarial passes completed; the approved nine
+  second-pass findings were fixed under disposition set `sha256:c028b5de8044054ed39ccb2207950a41ad69d30b5b27d08819e174338589c4a7`.
 
 ---
 
@@ -650,67 +658,67 @@ currentness and attestation outcomes without requiring the separately owned prop
 
 ### Member 1 — `applicability-substrate`
 
-- `[ ]` One path-treatment registry supplies equivalent classifications to every existing caller, preserves the
+- `[x]` One path-treatment registry supplies equivalent classifications to every existing caller, preserves the
   bounded `regenerable` set, and treats the complete identity-bound own-WU planning group as non-evidence-bearing for
   Candidate implementation review regardless of storage mode while foreign WU and shipped implementation content
   remains reviewable.
-- `[ ]` Every producer composes a total evidence-delta envelope, and one exhaustive reducer returns only `carries`,
+- `[x]` Every producer composes a total evidence-delta envelope, and one exhaustive reducer returns only `carries`,
   `supplemental`, or `fresh`; impossible cross-axis combinations are rejected, evidence-relevant unknown,
   unavailable, or over-bound inputs remain conservative, and cause-inapplicable axes stay inert.
-- `[ ]` The unused review-applicability module, schema inventory row, and tests are removed without disturbing the
+- `[x]` The unused review-applicability module, schema inventory row, and tests are removed without disturbing the
   unrelated `applicabilityId` contract.
 
 ### Member 2 — `concurrent-integration`
 
-- `[ ]` Disjoint singleton movement with exact Git feasibility and bound host admission reaches approval without a
+- `[x]` Disjoint singleton movement with exact Git feasibility and bound host admission reaches approval without a
   base reconcile, re-judgment, or recompose.
-- `[ ]` Overlapping clean movement and host-required currency take one typed reconcile when evidence is complete;
+- `[x]` Overlapping clean movement and host-required currency take one typed reconcile when evidence is complete;
   regenerable-only conflict reuses the bounded remedy, while substantive conflict and incomplete evidence stop.
-- `[ ]` Opaque host refusal, unavailable admission, established operational failure, uncertain mutation, and changed
+- `[x]` Opaque host refusal, unavailable admission, established operational failure, uncertain mutation, and changed
   coordinates retain distinct typed exits; exact confirmation settles ambiguous mutating responses, retry cannot
   duplicate the effect, and neither distance nor provider-specific vocabulary invents a policy cause.
-- `[ ]` Delivery eligibility carries the observed protected-base tip, real chain base, and predecessor relation
+- `[x]` Delivery eligibility carries the observed protected-base tip, real chain base, and predecessor relation
   separately; close revalidates their exact relation, initial and suffix materialization preserve the chain base, an
   admitted nonterminal keeps its chain-baseline readiness entry and lands one-sided with the custom driver disabled,
   a competing nonterminal render refuses, and terminal dual-sided conflict routes through D5 while interacting
   movement still refuses.
-- `[ ]` Terminal drift classification reaches the durable Candidate baseline before currentness, shares one versioned
+- `[x]` Terminal drift classification reaches the durable Candidate baseline before currentness, shares one versioned
   record across explicit-base projections, and returns a typed recompose result if that version moves before
   checkpoint persistence.
-- `[ ]` Review status carries disjoint base movement and reruns only for overlapping or unknown movement, preserving
+- `[x]` Review status carries disjoint base movement and reruns only for overlapping or unknown movement, preserving
   exact coordinates, overlap or unavailability detail, and an executable checkpoint continuation or explicit
   terminal explanation.
-- `[ ]` Work-unit and Errand terminal operations authorize the exact approved head into the named target ref under
+- `[x]` Work-unit and Errand terminal operations authorize the exact approved head into the named target ref under
   configured host policy, disclose the residual provider race, and confirm the exact merged request on success;
   Errands return bounded residual judgment for fresh approval and use direct merge rather than native auto-merge.
-- `[ ]` Pending or unavailable required checks promptly return an idempotent checkpoint continuation without polling;
+- `[x]` Pending or unavailable required checks promptly return an idempotent checkpoint continuation without polling;
   failed checks and stale bindings invalidate and re-lock with actionable remedies.
-- `[ ]` The residual-judgment method is classified, installed, manifest-registered, reverse-indexed, and represented
+- `[x]` The residual-judgment method is classified, installed, manifest-registered, reverse-indexed, and represented
   in the package-project inventory; shipped workflows dispatch only typed results, load it only at marked fire-points,
   and state integration and concurrency doctrine without an ARC-side policy or queue.
 
 ### Member 3 — `scoped-verification`
 
-- `[ ]` Constructed Candidate transitions prove targeted inheritance, focused attestation, full verification,
+- `[x]` Constructed Candidate transitions prove targeted inheritance, focused attestation, full verification,
   fresh convergence-evidence binding, missing-field fallback to full, and unchanged unexplained-delta behavior.
-- `[ ]` One closed convergence shape prevents impossible status/scope pairs, and every currentness consumer derives
+- `[x]` One closed convergence shape prevents impossible status/scope pairs, and every currentness consumer derives
   satisfaction and pending scope from the same lineage reducer after each response crosses Member 1's `approved-fix`
   producer and shared verification reducer; no second scope table exists.
-- `[ ]` The attest verb and record guards accept evidence at least as broad as the pending convergence scope, reject
+- `[x]` The attest verb and record guards accept evidence at least as broad as the pending convergence scope, reject
   missing evidence, and reject `focused` requests at root, re-root, or against a full-pending baseline before write.
   JSON and interactive results preserve actionable scope, coordinate, evidence, and remedy detail.
-- `[ ]` ADR-034 records the approver-bound scope authority without changing the Candidate root attestation or its
+- `[x]` ADR-034 records the approver-bound scope authority without changing the Candidate root attestation or its
   subject-digest applicability.
 
 ### Cross-member seams
 
-- `[ ]` Each delivery member is independently landable in order; the verification member consumes but does not
+- `[x]` Each delivery member is independently landable in order; the verification member consumes but does not
   duplicate or wait for `review-signal-convergence`'s proposal-side producer.
-- `[ ]` All mandatory lifecycle rows and external-seam authority claims are exercised at the earliest member boundary
+- `[x]` All mandatory lifecycle rows and external-seam authority claims are exercised at the earliest member boundary
   that can observe them, with union and seam coherence retained for terminal verification.
-- `[ ]` Every non-success variant in the enumerated changed public-operation inventory preserves a stable semantic
+- `[x]` Every non-success variant in the enumerated changed public-operation inventory preserves a stable semantic
   reason, useful sanitized detail and decisive coordinates, plus executable structured remedy argv or an explicit
   terminal explanation; JSON and interactive projections agree, and no adapter error is swallowed or stranded in
   logs.
-- `[ ]` All quality gates pass, including both type checks, the full test suite, Markdown lint, and ARC contract checks.
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass, including both type checks, the full test suite, Markdown lint, and ARC contract checks.
+- `[x]` Ready for integration.
