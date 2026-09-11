@@ -26,6 +26,13 @@ import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { selectPrePublicationReservationTarget } from
   "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { projectPrePublicationCandidateRead } from
+  "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+  type CandidateManagedRecordV1,
+} from "../../../../../src/lib/work-unit/candidate-attestation.js";
 
 const HEAD = "a".repeat(40);
 const PREPUBLICATION_HEAD = "b".repeat(40);
@@ -136,6 +143,75 @@ function dependencies(
 }
 
 describe("composePrePublicationReviewRequest", () => {
+  it("recomposes the reviewed head while an approved Candidate fix awaits settlement", () => {
+    const subject = createCandidateSubjectSnapshot([]);
+    const attestation = createCandidateAttestation({
+      workUnit: "example",
+      subject,
+      baseRevision: HEAD,
+      attestedBy: "andrew",
+      attestedAt: "2026-09-08T12:00:00.000Z",
+      verificationEvidenceRef: "verification://root",
+    });
+    const record: CandidateManagedRecordV1 = {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation,
+      subject,
+      transitions: [],
+      lineageAttestations: [],
+    };
+
+    expect(projectPrePublicationCandidateRead({
+      record,
+      effective: {
+        schemaVersion: 1,
+        mode: "candidate-effective-target",
+        state: "changed",
+        nextAction: "establish-new-root",
+        candidateId: attestation.candidateId,
+        durableBaselineTarget: { revision: HEAD, subject },
+        currentTarget: {
+          revision: PREPUBLICATION_HEAD,
+          subject: createCandidateSubjectSnapshot([{
+            path: "src/index.ts",
+            mode: "100644",
+            digest: `sha256:${"f".repeat(64)}`,
+            treatment: "reviewable",
+          }]),
+        },
+        projectionDigest: `sha256:${"1".repeat(64)}`,
+        residualDigest: `sha256:${"2".repeat(64)}`,
+        selectedBy: "andrew",
+      },
+      pending: {
+        status: "selected",
+        candidateId: attestation.candidateId,
+        operationId: "operation-1",
+        reviewedHead: "9".repeat(40),
+        reviewedTarget: createReviewTarget({
+          schemaVersion: 2,
+          semanticsVersion: "review-gate/v2",
+          kind: "delivery-member",
+          repositoryId: "arc-framework/example",
+          baseRef: "main",
+          diffBaseSha: "8".repeat(40),
+          diffBaseTree: "7".repeat(40),
+          headSha: "9".repeat(40),
+          headTree: "6".repeat(40),
+        }),
+      },
+    })).toMatchObject({
+      status: "current",
+      candidateId: attestation.candidateId,
+      headSha: "9".repeat(40),
+      subjectDigest: subject.subjectDigest,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      lineageHeadShas: expect.arrayContaining([HEAD, "9".repeat(40)]),
+    });
+  });
+
   it.each(["planned", "bound"] as const)(
     "selects a delivery marker from one authoritative %s plan",
     (status) => {

@@ -12,6 +12,7 @@ import {
   DeliveryOperationSnapshotV1Schema,
   DeliveryStateV1Schema,
   type DeliveryOperationSnapshotV1,
+  type DeliveryPendingReviewFixVerificationV1,
   type DeliveryPlanV1,
   type DeliveryStateV1,
   type DeliveryTerminalAuthoringMovementV1,
@@ -578,6 +579,7 @@ export async function executeDeliverySuffixRewrite(input: {
   /** Selected review fixes are authorized content changes, not false equivalence claims. */
   readonly contributionMode?: "prove-equivalent" | "selected-change";
   readonly operationMode?: "review-fix" | "selected-change";
+  readonly supersedePendingReviewFixVerification?: DeliveryPendingReviewFixVerificationV1;
   readonly revalidateLifecycle: () => Promise<
     | { readonly status: "ok" }
     | {
@@ -606,6 +608,7 @@ export async function executeDeliverySuffixRewrite(input: {
         | "position-mismatch"
         | "selected-change-authority-required"
         | "lifecycle-contribution"
+        | "pending-review-fix-verification"
         | "reservation-refused"
         | "state-conflict"
         | "precondition-mismatch"
@@ -615,7 +618,9 @@ export async function executeDeliverySuffixRewrite(input: {
       readonly detail?: string;
     }
 > {
-  if (input.contributionMode === "selected-change" && input.operationMode !== "selected-change") {
+  if (input.contributionMode === "selected-change"
+    && input.operationMode !== "selected-change"
+    && input.supersedePendingReviewFixVerification === undefined) {
     return { status: "refused", reason: "selected-change-authority-required" };
   }
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.deliverableId);
@@ -652,8 +657,25 @@ export async function executeDeliverySuffixRewrite(input: {
     expectedStateRevision: input.current.revision,
     before,
     requested: input.requested,
+    ...(input.supersedePendingReviewFixVerification === undefined
+      ? {}
+      : {
+          supersedePendingReviewFixVerification: input.supersedePendingReviewFixVerification,
+          reviewFixSelectedDeliverableId:
+            input.supersedePendingReviewFixVerification.selectedDeliverableId,
+          reviewFixVerificationDeliverableIds:
+            input.supersedePendingReviewFixVerification.memberDeliverableIds,
+        }
+    ),
   });
-  if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
+  if (reserved.status !== "reserved") {
+    return {
+      status: "refused",
+      reason: reserved.reason === "pending-review-fix-verification"
+        ? reserved.reason
+        : "reservation-refused",
+    };
+  }
   const persistedReservation = await input.stateStore.publish(
     input.plan.planId, reserved.state, input.current.revision,
   );

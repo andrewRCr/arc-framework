@@ -71,6 +71,19 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toMatch(/already-open Step 2 review[\s\S]*restart this step/iu);
   });
 
+  it.each(WORKFLOWS)("commits a renewed shipped delivery boundary without private review replay in %s", async (path) => {
+    const content = await readFile(path, "utf8");
+    const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
+    const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
+    const step = content.slice(start, end);
+
+    expect(step).toContain("`candidate-publication-required / refresh-shipped-delivery`");
+    expect(step).toContain("`candidate-publication-commit-required / commit-boundary`");
+    expect(step).toMatch(/refresh-shipped-delivery[\s\S]*payload\.attestArgv[\s\S]*restart this step/iu);
+    expect(step).toMatch(/commit-boundary[\s\S]*refresh publication boundary[\s\S]*restart this step/iu);
+    expect(step).toMatch(/refresh-shipped-delivery[\s\S]*does not enter private pre-publication review/iu);
+  });
+
   it.each(WORKFLOWS)("orders typed procedures around the final integration interlock in %s", async (path) => {
     const content = await readFile(path, "utf8");
     const start = content.indexOf("### 10) Behind-base reconcile gate and merge");

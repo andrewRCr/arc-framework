@@ -1,6 +1,8 @@
 /** Preparation of a complete review-fix suffix from the delivery top. */
 
-import { canonicalize, type CanonicalDigest } from "../kernel/index.js";
+import { z } from "zod";
+
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import { classifyDeliveryPlanAmendment, type DeliveryPlanAmendmentResult } from "./amendment.js";
 import type { DeliveryChainAdoptionResult } from "./chain-adoption.js";
 import type {
@@ -17,9 +19,15 @@ import type {
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type {
   DeliveryOperationSnapshotV1,
+  DeliveryPendingReviewFixVerificationV1,
   DeliveryPlanV1,
 } from "./schema.js";
-import { DeliveryStateV1Schema, type DeliveryStateV1 } from "./schema.js";
+import {
+  DeliveryCanonicalDigestSchema,
+  DeliveryPendingReviewFixVerificationV1Schema,
+  DeliveryStateV1Schema,
+  type DeliveryStateV1,
+} from "./schema.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import {
   installDeliveryReviewFixVerification,
@@ -53,6 +61,16 @@ export interface DeliverySuffixRematerializedResult {
     readonly tier1Required: true;
   };
 }
+
+/** Projected pending-verification identity that one rematerialization may supersede. */
+export const DeliveryPendingVerificationSupersessionIdentitySchema = z.strictObject({
+  pendingVerification: DeliveryPendingReviewFixVerificationV1Schema,
+  expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  continuationDigest: DeliveryCanonicalDigestSchema,
+});
+export type DeliveryPendingVerificationSupersessionIdentity = z.infer<
+  typeof DeliveryPendingVerificationSupersessionIdentitySchema
+>;
 
 /** Final rematerialization result after the top and recoverable verification continuation settle together. */
 export type DeliverySuffixRematerializedSettledResult = Omit<
@@ -100,9 +118,11 @@ export interface DeliverySuffixRematerializationDependencies {
     readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
     readonly rewrite: DeliverySuffixRewritePlan;
     readonly snapshot: DeliveryEligibilitySnapshot;
+    readonly supersedePendingReviewFixVerification?: DeliveryPendingReviewFixVerificationV1;
   }): Promise<
     | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
-    | { readonly status: "refused" }
+    | { readonly status: "refused"; readonly reason: "pending-review-fix-verification" }
+    | { readonly status: "refused"; readonly reason?: never }
   >;
 }
 
@@ -226,6 +246,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
 /** Reclose, reprove, and apply every non-terminal suffix rewrite in persisted order. */
 export async function executeFreshDeliverySuffixRematerialization(input: {
   readonly selectedDeliverableIds: readonly string[];
+  readonly supersedePendingReviewFixVerification?: DeliveryPendingVerificationSupersessionIdentity;
 }, dependencies: DeliverySuffixRematerializationDependencies): Promise<
   | DeliverySuffixRematerializedResult
   | DeliveryContributionRefusal
@@ -243,6 +264,7 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
         | "snapshot-mismatch"
         | "suffix-incomplete"
         | "selected-member-invalid"
+        | "pending-review-fix-verification"
         | "direct-delivery-ref";
     }
 > {
@@ -260,6 +282,17 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
     if (expectedState !== null && (fresh.current.revision !== expectedState.revision
       || canonicalize(fresh.current.value) !== canonicalize(expectedState.value))) {
       return { status: "refused", reason: "state-moved" };
+    }
+    const supersession = input.supersedePendingReviewFixVerification;
+    if (expectedState === null && supersession !== undefined
+      && (fresh.current.revision !== supersession.expectedStateRevision
+        || canonicalDigest(fresh.current.value) !== supersession.continuationDigest
+        || canonicalize(fresh.current.value.pendingReviewFixVerification)
+          !== canonicalize(supersession.pendingVerification)
+        || input.selectedDeliverableIds.length !== 1
+        || input.selectedDeliverableIds[0]
+          !== supersession.pendingVerification.selectedDeliverableId)) {
+      return { status: "refused", reason: "pending-review-fix-verification" };
     }
     const prepared = await prepareDeliverySuffixRematerialization({
       plan: fresh.plan,
@@ -294,9 +327,10 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
         contributionVerdicts,
         nextAction: "verify-review-fix",
         verification: {
-          memberDeliverableIds: contributionVerdicts
-            .filter((verdict) => verdict.contribution === "changed")
-            .map((verdict) => verdict.deliverableId),
+          memberDeliverableIds: supersession?.pendingVerification.memberDeliverableIds
+            ?? contributionVerdicts
+              .filter((verdict) => verdict.contribution === "changed")
+              .map((verdict) => verdict.deliverableId),
           tier1Required: true,
         },
       };
@@ -310,8 +344,19 @@ export async function executeFreshDeliverySuffixRematerialization(input: {
       current: fresh.current,
       rewrite,
       snapshot: fresh.snapshot,
+      ...(supersession !== undefined
+        ? {
+            supersedePendingReviewFixVerification:
+              supersession.pendingVerification,
+          }
+        : {}),
     });
-    if (applied.status !== "applied") return { status: "refused", reason: "rewrite-refused" };
+    if (applied.status !== "applied") {
+      if (applied.reason === "pending-review-fix-verification") {
+        return { status: "refused", reason: applied.reason };
+      }
+      return { status: "refused", reason: "rewrite-refused" };
+    }
     expectedState = applied.state;
     nextIndex += 1;
   }

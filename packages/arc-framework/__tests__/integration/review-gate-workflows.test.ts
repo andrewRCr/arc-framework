@@ -410,6 +410,34 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("settles a verified Candidate fix before Candidate re-root", async () => {
+    const path = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile(`packages/arc-framework/arc/${path}`),
+      readRepositoryFile(`.arc/${path}`),
+    ]);
+    expect(project).toBe(packaged);
+
+    const responseSection = sectionBetween(
+      packaged,
+      "For every finding, run",
+      "Proceed only from `candidate-publish-ready`",
+    );
+    const compactResponse = responseSection.replace(/\s+/gu, " ");
+    const fixCommit = compactResponse.indexOf("commit atomically");
+    const verifiedResponse = compactResponse.indexOf("`verifiedFix`");
+    const responseCommit = compactResponse.indexOf("commit its staged Candidate response");
+    const candidateReroot = compactResponse.indexOf("rerun Step 1");
+
+    expect(fixCommit).toBeGreaterThanOrEqual(0);
+    expect(verifiedResponse).toBeGreaterThan(fixCommit);
+    expect(responseCommit).toBeGreaterThan(verifiedResponse);
+    expect(candidateReroot).toBeGreaterThan(responseCommit);
+    expect(responseSection).toMatch(
+      /candidate-advanced \/ continue-review[\s\S]*candidate-current \/ continue-review/iu,
+    );
+  });
+
   it("routes Errand review and re-entry through the public command protocol", async () => {
     const [packaged, project] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),

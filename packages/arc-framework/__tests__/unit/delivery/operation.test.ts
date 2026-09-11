@@ -455,6 +455,73 @@ describe("reserveDeliveryOperation", () => {
     });
   });
 
+  it("carries exact pending verification through a rematerialization reservation", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const predecessorDeliverableId = state.members[0]!.deliverableId;
+    const selectedDeliverableId = state.members[1]!.deliverableId;
+    const pending = {
+      ...state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId,
+        memberDeliverableIds: [selectedDeliverableId],
+      },
+    };
+
+    const result = reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: pending },
+      plan,
+      {
+        ...operationRequest(pending, { affectedDeliverableIds: [predecessorDeliverableId] }),
+        supersedePendingReviewFixVerification: pending.pendingReviewFixVerification,
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+        reviewFixVerificationDeliverableIds: pending.pendingReviewFixVerification.memberDeliverableIds,
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "reserved",
+      state: {
+        pendingReviewFixVerification: null,
+        activeOperation: {
+          kind: "rewrite",
+          mode: "review-fix",
+          affectedDeliverableIds: [predecessorDeliverableId],
+          reviewFixSelectedDeliverableId: selectedDeliverableId,
+          reviewFixVerificationDeliverableIds: pending.pendingReviewFixVerification.memberDeliverableIds,
+        },
+      },
+    });
+
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: pending },
+      plan,
+      {
+        ...operationRequest(pending, { affectedDeliverableIds: [predecessorDeliverableId] }),
+        supersedePendingReviewFixVerification: {
+          ...pending.pendingReviewFixVerification,
+          selectedDeliverableId: predecessorDeliverableId,
+        },
+      },
+    )).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("refuses a rematerialization continuation without exact pending-verification authority", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const selectedDeliverableId = state.members[1]!.deliverableId;
+
+    expect(reserveDeliveryOperation(
+      { revision: STATE_REVISION, value: state },
+      plan,
+      {
+        ...operationRequest(state),
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+        reviewFixVerificationDeliverableIds: [selectedDeliverableId],
+      },
+    )).toEqual({ status: "refused", reason: "operation-invalid" });
+  });
+
   it("reserves only a paired plan-ordered review-fix verification set inside the affected suffix", () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);

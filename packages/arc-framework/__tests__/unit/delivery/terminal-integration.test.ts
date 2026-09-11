@@ -150,6 +150,7 @@ function terminalRebindFixture(plan = deliveryThreeMemberStackPlanFixture()) {
         candidateSubjectDigest: candidate.recognizedTarget.subject.subjectDigest,
       },
       repository: "owner/repo",
+      protectedTargetRef: f.state.target!.ref,
       request: {
         binding: terminal.changeRequest!,
         repository: "owner/repo",

@@ -27,6 +27,8 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createFixAuthorization } from
+  "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type {
@@ -383,6 +385,17 @@ function candidateLineageBinding(
   current: { revision: string; subject: ReturnType<typeof candidateSubject> },
 ) {
   const baseline = reduceCandidateDurableBaseline(record);
+  const candidateFixTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: records.target.kind,
+    repositoryId: records.target.repositoryId,
+    baseRef: records.target.baseRef,
+    diffBaseSha: records.target.diffBaseSha,
+    diffBaseTree: records.target.diffBaseTree,
+    headSha: current.revision,
+    headTree: current.revision === records.target.headSha ? records.target.headTree : objectId("f"),
+  });
   return {
     workUnit: "example",
     record,
@@ -390,6 +403,7 @@ function candidateLineageBinding(
     reviewed: effectiveCurrent(record, { revision: records.target.headSha, subject: baseline.target.subject }),
     effective: effectiveCurrent(record, current),
     current,
+    candidateFixTarget,
     unstagedReviewablePaths: [],
   };
 }
@@ -433,6 +447,29 @@ function lineageDependencies(
     },
     stageCandidateResponse: async () => ({ recordPath: CANDIDATE_RECORD_PATH }),
   };
+  const dispositions = localRequest(records).dispositions;
+  const candidateDisposition = ApprovedDispositionRecordSchema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "review-advisory/v1",
+    repositoryId: records.target.repositoryId,
+    operationId: records.operation.operationId,
+    candidate: { workUnit: "example", candidateId: record.attestation.candidateId },
+    errand: null,
+    deliveryMember: null,
+    source: {
+      kind: "attested-local",
+      receiptRef: records.receiptRef,
+      localSourceRef: records.operation.sourceRef,
+    },
+    approvedDisposition: dispositions,
+    fixAuthorization: createFixAuthorization({
+      dispositionState: dispositions,
+      oldTarget: records.target,
+    }),
+    errandFixResponse: null,
+    deliveryMemberFixResponse: null,
+  });
+  deps.dispositionStore.readDispositionRecord = async () => candidateDisposition;
   return { deps, record, appends };
 }
 
@@ -1281,6 +1318,19 @@ describe("review response command", () => {
 });
 
 describe("verified-fix Candidate settlement", () => {
+  it("requires the durable Candidate response record before consuming fix authority", async () => {
+    const records = fixture();
+    const { deps } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    deps.dispositionStore.readDispositionRecord = async () => null;
+
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps)).rejects.toThrow(
+      "a verified fix requires its exact approved response record",
+    );
+  });
+
   it("appends the approved response and its delta evidence to the Candidate record", async () => {
     const records = fixture();
     const { deps, record, appends } = lineageDependencies(records, {
@@ -1312,6 +1362,27 @@ describe("verified-fix Candidate settlement", () => {
       implementationChanged: true,
       oldTarget: { revision: records.target.headSha },
       newTarget: { revision: objectId("e") },
+    });
+  });
+
+  it("uses Candidate lineage when a Candidate-bound delivery-member target confirms unchanged", async () => {
+    const records = fixture(memberVehicle);
+    const { deps, appends } = lineageDependencies(records, {
+      revision: objectId("e"),
+      subject: candidateSubject("fixed"),
+    });
+    deps.confirmTarget = async (target) => ({ state: "current", target });
+
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps)).resolves.toMatchObject({
+      state: "candidate-advanced",
+      nextAction: "continue-review",
+    });
+    expect(appends).toHaveLength(1);
+    expect(candidateReviewResponses(appends[0]?.record ?? candidateRecord())[0]).toMatchObject({
+      oldTarget: { revision: records.target.headSha },
+      newTarget: { revision: objectId("e") },
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://focused-fix"],
     });
   });
 
@@ -1485,10 +1556,15 @@ describe("verified-fix Candidate settlement", () => {
 
   it("refuses a verified fix whose exact target never changed", async () => {
     const records = fixture();
+    const deps = dependencies(records);
+
+    await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+    });
 
     await expect(respondToReviewCommand(
       verifiedFixRequest(records),
-      dependencies(records),
+      deps,
     )).rejects.toThrow("requires a changed exact target");
   });
 

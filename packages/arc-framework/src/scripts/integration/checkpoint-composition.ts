@@ -2,6 +2,8 @@
 
 import { resolve } from "node:path";
 
+import { resolveTaskListPath } from "../../commands/active/status.js";
+import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import {
   createCurrentBaseDriftAdapters,
   workUnitPathTreatmentContext,
@@ -10,7 +12,6 @@ import type { RawGitExec } from "../../lib/change-facts.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import {
-  getCurrentBranch,
   analyzeRevisionOverlap,
   observeGitMergeFeasibility,
   resolveIdentity,
@@ -40,8 +41,13 @@ import {
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
-import { projectGitDeliveryTerminalRecordAdvance } from
-  "../../lib/delivery/public-review-continuation-git.js";
+import { inspectRepositoryDeliveryCandidateRenewal } from "../../lib/delivery/repository-entry.js";
+import {
+  projectGitDeliveryTerminalCoordinateAdvance,
+  projectGitDeliveryTerminalRecordAdvance,
+} from "../../lib/delivery/public-review-continuation-git.js";
+import { validateDeliveryPublicReviewContinuation } from
+  "../../lib/delivery/public-review-continuation.js";
 import {
   sameDeliveryReviewMemberIdentity,
   type DeliveryReviewMemberVehicle,
@@ -51,8 +57,12 @@ import {
   classifyDeliveryTerminalDrift,
 } from "../../lib/delivery/terminal-integration.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
+import { canonicalize } from "../../lib/kernel/index.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
-import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
+import {
+  readSubmissionBoundary,
+  resolveSubmissionBoundaryPath,
+} from "../../lib/work-unit/submission-boundary-store.js";
 import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import {
   observeChangeRequestMergeAdmission,
@@ -94,7 +104,11 @@ import {
   isDeliveryReviewMemberDischargedByOwnerTerminus,
   type DeliveryReviewOwnerTerminusAdvance,
 } from "../review-gate/status.js";
-import { projectPublicationBoundary } from "../review-gate/policy/integration-boundary-locus.js";
+import {
+  parseIntegrationBoundaryLocus,
+  projectCorrectiveDeliveryStatusBoundary,
+  projectPublicationBoundary,
+} from "../review-gate/policy/integration-boundary-locus.js";
 import {
   CheckpointReadyCompositionSchema,
   HOSTED_REVIEW_REQUIREMENT_ID,
@@ -251,9 +265,32 @@ export interface IntegrationLifecycleStoragePort {
   readSnapshot(): Promise<IntegrationLifecycleStorageSnapshot>;
 }
 
+function parseRecord(text: string, path: string): Record<string, unknown> {
+  let value: unknown;
+  try {
+    value = JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new Error(`${path}: malformed JSON`, { cause: error });
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${path}: expected an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
 async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string; head: string }> {
-  const branch = await getCurrentBranch(exec);
-  if (branch === null) throw new Error("The integration checkpoint requires an attached branch.");
+  let branch: string;
+  try {
+    branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd,
+      objectAccess: "local-only",
+    })).stdout.trim();
+  } catch {
+    throw new Error("The integration checkpoint requires an attached branch.");
+  }
+  if (branch === "HEAD" || branch === "") {
+    throw new Error("The integration checkpoint requires an attached branch.");
+  }
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd, objectAccess: "local-only" })).stdout.trim();
   if (!GitObjectIdSchema.safeParse(head).success) throw new Error("The current integration head is invalid.");
   return { branch, head };
@@ -308,6 +345,13 @@ function unavailableDeliveryDrift(
     evidence,
     nextAction: { command: "rerun-checkpoint" as const, workUnit },
   };
+}
+
+async function readGitPaths(exec: GitExec, cwd: string, args: string[]): Promise<string[]> {
+  return (await exec("git", args, { cwd, objectAccess: "local-only" })).stdout
+    .split("\0")
+    .filter((path) => path !== "")
+    .sort();
 }
 
 async function resolveOpenChangeRequest(exec: GitExec, cwd: string) {
@@ -707,7 +751,10 @@ export function createIntegrationCheckpointDependencies(input: {
         && publicationBoundary.candidateSubjectDigest
           === value.effective.recognizedTarget.subject.subjectDigest
         ? { status: "current" }
-        : { status: "refresh-required" };
+        : {
+            status: "refresh-required",
+            kind: publicationBoundary?.reservation?.target.kind === "delivery" ? "delivery" : "singleton",
+          };
     },
     composeDelivery: async ({ workUnit, candidate: currentness, baseRevision }) => {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);
@@ -953,6 +1000,127 @@ export function createIntegrationCheckpointDependencies(input: {
           ...endpoints,
         }),
       });
+    },
+    readShippedDeliveryPublicationCommit: async (workUnit, baseRevision) => {
+      const boundaryPath = resolveSubmissionBoundaryPath(workUnit);
+      const [stagedPaths, unstagedPaths, untrackedPaths] = await Promise.all([
+        readGitPaths(input.exec, input.cwd, ["diff", "--cached", "--name-only", "-z", "--"]),
+        readGitPaths(input.exec, input.cwd, ["diff", "--name-only", "-z", "--"]),
+        readGitPaths(input.exec, input.cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
+      ]);
+      const clean = stagedPaths.length === 0 && unstagedPaths.length === 0 && untrackedPaths.length === 0;
+      if (!clean && (canonicalize(stagedPaths) !== canonicalize([boundaryPath])
+        || unstagedPaths.length > 0
+        || untrackedPaths.length > 0)) {
+        return {
+          status: "blocked",
+          detail: "The worktree contains changes beyond the exact staged publication boundary.",
+        };
+      }
+
+      const { head } = await currentHead(input.exec, input.cwd);
+      const [headBoundaryText, stagedBoundaryText] = await Promise.all([
+        input.exec("git", ["show", `HEAD:${boundaryPath}`], {
+          cwd: input.cwd,
+          objectAccess: "local-only",
+        }).then(({ stdout }) => stdout),
+        input.exec("git", ["show", `:${boundaryPath}`], {
+          cwd: input.cwd,
+          objectAccess: "local-only",
+        }).then(({ stdout }) => stdout),
+      ]);
+      const headBoundary = parseIntegrationBoundaryLocus(parseRecord(headBoundaryText, boundaryPath));
+      const stagedBoundary = parseIntegrationBoundaryLocus(parseRecord(stagedBoundaryText, boundaryPath));
+      const value = await candidate(workUnit, baseRevision);
+      if (value === null || value.effective.state !== "current") {
+        throw new Error("The current shipped delivery Candidate is unavailable.");
+      }
+
+      const headFs = createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec });
+      const { index } = await resolveComposedLifecycleIndex({ cwd: input.cwd, fs: headFs });
+      const metaPath = index.get(workUnit)?.path ?? null;
+      if (metaPath === null) throw new Error("The shipped delivery lifecycle record is unavailable.");
+      const meta = parseMetaRecord(await headFs.readFile(resolve(input.cwd, metaPath)));
+      const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
+      if (taskListPath === null) throw new Error("The shipped delivery task-list binding is unavailable.");
+
+      const renewal = await inspectRepositoryDeliveryCandidateRenewal({
+        cwd: input.cwd,
+        taskListPath,
+        workUnitId: workUnit,
+        baseBranch: (await settings()).settings["branch.base"],
+        exec: input.exec,
+        sourceBoundary: headBoundary,
+      });
+      if (renewal.status !== "ready") {
+        throw new Error(`The shipped delivery publication renewal is ${renewal.status}.`);
+      }
+      const expectedBoundary = projectCorrectiveDeliveryStatusBoundary({
+        workUnit,
+        candidateId: value.effective.candidateId,
+        candidateSubjectDigest: value.effective.recognizedTarget.subject.subjectDigest,
+        supersedesCandidateId: value.record.attestation.supersedes ?? null,
+        sourceBoundary: headBoundary,
+        deliveryContinuation: renewal.deliveryContinuation,
+      });
+      if (expectedBoundary.locus !== "delivery-status-required"
+        || expectedBoundary.deliveryContinuation === undefined) {
+        throw new Error("The shipped delivery publication renewal could not be projected.");
+      }
+      if (clean) {
+        if (canonicalize(headBoundary) === canonicalize(expectedBoundary)) return { status: "none" };
+        const headDeliveryContinuation = headBoundary.locus === "delivery-status-required"
+          ? headBoundary.deliveryContinuation
+          : undefined;
+        const refreshedContinuation = {
+          ...headBoundary,
+          deliveryContinuation: expectedBoundary.deliveryContinuation,
+        };
+        if (canonicalize(refreshedContinuation) !== canonicalize(expectedBoundary)
+          || headDeliveryContinuation === undefined) {
+          return { status: "refresh-required" };
+        }
+        const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+        if (records.status !== "resolved") {
+          throw new Error("The shipped delivery terminal records are unavailable.");
+        }
+        const terminalCoordinates = records.state.members.at(-1)?.coordinates ?? null;
+        if (terminalCoordinates === null) {
+          throw new Error("The shipped delivery terminal coordinates are unavailable.");
+        }
+        const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+          cwd: input.cwd,
+          exec: input.exec,
+          candidate: value.effective,
+          workUnitId: workUnit,
+          baseBranch: (await settings()).settings["branch.base"],
+          terminalCoordinates,
+        });
+        const continuation = validateDeliveryPublicReviewContinuation({
+          continuation: headDeliveryContinuation,
+          plan: records.plan,
+          state: records.state,
+          stateRevision: records.stateRevision,
+          ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
+        });
+        return continuation.status === "current"
+          ? { status: "none" }
+          : { status: "refresh-required" };
+      }
+      if (canonicalize(stagedBoundary) !== canonicalize(expectedBoundary)) {
+        const refreshedContinuation = {
+          ...stagedBoundary,
+          deliveryContinuation: expectedBoundary.deliveryContinuation,
+        };
+        if (canonicalize(refreshedContinuation) === canonicalize(expectedBoundary)) {
+          return { status: "refresh-required" };
+        }
+        return {
+          status: "blocked",
+          detail: "The staged publication boundary is not the exact shipped delivery renewal.",
+        };
+      }
+      return { status: "commit-required", boundaryPath };
     },
     resolveMergeMethod: async (repository, stackPosition) => {
       const config = await settings();

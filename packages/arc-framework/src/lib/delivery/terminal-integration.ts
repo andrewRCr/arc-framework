@@ -165,6 +165,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
     readonly candidateSubjectDigest: string | null;
   };
   readonly repository: string;
+  readonly protectedTargetRef: string;
   readonly request: DeliveryTerminalRebindTopObservation;
   readonly coordinates: DeliveryMemberCoordinatesV1;
   readonly settledRecordEffectHead?: string;
@@ -240,7 +241,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
   }
   const predecessor = validated.state.members[terminalIndex - 1];
   const targetBaseMatches = target.coordinates !== null
-    && input.request.baseRef === target.ref.replace(/^refs\/heads\//u, "")
+    && input.request.baseRef === input.protectedTargetRef.replace(/^refs\/heads\//u, "")
     && coordinates.data.base === target.coordinates.head;
   const predecessorBaseMatches = predecessor !== undefined
     && predecessor.ref !== null
