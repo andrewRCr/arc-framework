@@ -543,7 +543,8 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })));
 });
 
-describe("Git v3 repository plan", () => {
+export function registerGitV3RepositoryPlanCompositionTests(): void {
+  describe("Git v3 repository plan", () => {
   it.each([
     ["draft", false],
     ["draft", true],
@@ -1106,7 +1107,12 @@ describe("Git v3 repository plan", () => {
     });
   }, 30_000);
 
-  it("binds a real started source and distinct base predecessor without mutating either checkout", async () => {
+  });
+}
+
+export function registerGitV3RepositoryPlanExecutionTests(): void {
+  describe("Git v3 repository plan", () => {
+    it("binds a real started source and distinct base predecessor without mutating either checkout", async () => {
     const { repo, baseHead, sourceHead, completedMap, dependencies } = await startedRepository();
     const refsBefore = await git(repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads"]);
     const statusBefore = await git(repo, ["status", "--porcelain=v1"]);
@@ -1874,4 +1880,5 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["branch", "--list", "plan/origin", "chore/decompose-origin"])).toBe("");
     expect(await git(repo, ["worktree", "list", "--porcelain"])).toBe(worktreesBefore);
   });
-});
+  });
+}

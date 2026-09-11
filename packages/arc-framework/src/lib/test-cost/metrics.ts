@@ -31,7 +31,8 @@ export function resolveTimeoutHeadroom(
 export function isSubstrateBoundFile(path: string): boolean {
   const normalizedPath = path.replaceAll("\\", "/");
   const basename = normalizedPath.split("/").at(-1) ?? path;
-  return basename === "user.test.ts"
+  return basename === "user-local-lifecycle.test.ts"
+    || basename === "user-remote-lifecycle.test.ts"
     || basename === "user-sync.test.ts"
     || basename === "multi-clone.test.ts"
     || basename === "branch-bounded-notes-export.test.ts"

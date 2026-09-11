@@ -1277,7 +1277,8 @@ async function awaitThroughProductionHandler(
   return { output: JSON.parse(output.join("")) as unknown, exitCodes };
 }
 
-describe("hosted review fan-out lifecycle", () => {
+export function registerReviewFanOutApplicabilityTests(): void {
+  describe("hosted review fan-out lifecycle", () => {
   it("lets an exact-head Owner terminus preempt moved-target applicability without provider spend", async () => {
     const harness = await createHarness();
     await writeFile(
@@ -2207,7 +2208,12 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
   });
 
-  it("admits an explicitly incremental first-outstanding action at the production request boundary", async () => {
+  });
+}
+
+export function registerReviewFanOutProductionTests(): void {
+  describe("hosted review fan-out lifecycle", () => {
+    it("admits an explicitly incremental first-outstanding action at the production request boundary", async () => {
     const harness = await createHarness();
     const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
     const status = await statusThroughHandler(harness, {
@@ -3442,4 +3448,5 @@ describe("hosted review fan-out lifecycle", () => {
       reviewUrl: "https://example.test/review-singleton",
     })).resolves.toMatchObject({ state: "clean" });
   });
-});
+  });
+}

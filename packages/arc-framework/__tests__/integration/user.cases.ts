@@ -268,7 +268,8 @@ async function writePartialPushMarker(
   });
 }
 
-describe("user save and load", () => {
+export function registerUserSaveAndLoadTests(): void {
+  describe("user save and load", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -668,9 +669,11 @@ describe("user save and load", () => {
     // Clone + push/pull/load runs near the 5s integration default; give this one test headroom under
     // fork-pool contention rather than widening the suite default.
   }, 15_000);
-});
+  });
+}
 
-describe("user workspace rename", () => {
+export function registerUserWorkspaceRenameTests(): void {
+  describe("user workspace rename", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -707,9 +710,11 @@ describe("user workspace rename", () => {
     expect(manifest.files["new-name/SESSION-NOTES.md"]).toBe("# Preserved continuity\n");
     expect(manifest.files["old-name/SESSION-NOTES.md"]).toBeUndefined();
   });
-});
+  });
+}
 
-describe("user load — backup and stale detection", () => {
+export function registerUserLoadBackupTests(): void {
+  describe("user load — backup and stale detection", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -872,9 +877,11 @@ describe("user load — backup and stale detection", () => {
     expect(backups).toContain(BACKUP_FILENAME);
     expect(backups.filter((name) => name !== BACKUP_FILENAME)).toHaveLength(3);
   });
-});
+  });
+}
 
-describe("user load — retired-subdir reconciliation", () => {
+export function registerUserRetiredSubdirTests(): void {
+  describe("user load — retired-subdir reconciliation", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -1196,9 +1203,11 @@ describe("user load — retired-subdir reconciliation", () => {
     const backups = await listBackupFiles(userDir);
     expect(backups.some((name) => /^\.pre-load-backup-.*\.json$/u.test(name))).toBe(false);
   });
-});
+  });
+}
 
-describe("user save/load — subdirectory support", () => {
+export function registerUserSubdirectoryTests(): void {
+  describe("user save/load — subdirectory support", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -1424,9 +1433,11 @@ describe("user save/load — subdirectory support", () => {
     expect(status.diskStatus).toBe("current");
     expect(status.unsavedDirection).toBeNull();
   });
-});
+  });
+}
 
-describe("user save/load — split-source worktree surfaces", () => {
+export function registerUserSplitSourceTests(): void {
+  describe("user save/load — split-source worktree surfaces", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -1622,9 +1633,11 @@ describe("user save/load — split-source worktree surfaces", () => {
       await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
     }
   });
-});
+  });
+}
 
-describe("user add", () => {
+export function registerUserAddTests(): void {
+  describe("user add", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -1684,9 +1697,11 @@ describe("user add", () => {
     expect(gitignore).toContain(".arc/user/*/");
     expect(gitignore).not.toContain(".arc/user/new-dev/");
   });
-});
+  });
+}
 
-describe("user push and pull", () => {
+export function registerUserPushPullTests(): void {
+  describe("user push and pull", () => {
   let tempDir: string;
   let remoteDir: string;
   let cloneDir: string | undefined;
@@ -2207,9 +2222,11 @@ describe("user push and pull", () => {
 
     expect(syncState).not.toHaveProperty("partialPush");
   });
-});
+  });
+}
 
-describe("user status", () => {
+export function registerUserStatusTests(): void {
+  describe("user status", () => {
   let tempDir: string;
   let remoteDir: string;
   let cloneDir: string | undefined;
@@ -2751,9 +2768,11 @@ describe("user status", () => {
     // No worktree probe was invoked, so the field is omitted.
     expect(result.worktree).toBeUndefined();
   });
-});
+  });
+}
 
-describe("user open", () => {
+export function registerUserOpenTests(): void {
+  describe("user open", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -2891,9 +2910,11 @@ describe("user open", () => {
 
     await expect(readFile(staleSeed, "utf-8")).rejects.toThrow();
   });
-});
+  });
+}
 
-describe("user close", () => {
+export function registerUserCloseTests(): void {
+  describe("user close", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -2924,4 +2945,5 @@ describe("user close", () => {
       runUserClose({ cwd: tempDir, identity: "test-user", wuName: "never-opened" }),
     ).resolves.toBeUndefined();
   });
-});
+  });
+}

@@ -507,21 +507,15 @@ tier's post-work summed-time floor.
   outside this bounded correction; these outliers now run in the reviewed lane before merge rather than on every
   ordinary push.
 
-### `[ ]` **4.3 Split the integration files still above the tier floor**
+### `[x]` **4.3 Split the integration files still above the tier floor**
 
 - _Goal:_ No integration file exceeds the tier's summed-time floor, which is what the routine lane's wall clock
   sits on once fixtures are shared.
 
-- _Context:_ The floor is inclusive summed time over the workers in force — test time plus each file's transform,
-  import, and hook cost. The pre-instrument figures put it near 28 s at 12 workers; counting the fixed term raises
-  it, so take the number from the instrument rather than carrying that one. A split changes no test body and no
-  assertion, but each new file re-pays its own fixed cost, so splitting buys wall clock at a real CPU price —
-  split to clear the floor, not past it.
-
-    - After 4.1, the candidates are `user` and `review-fan-out-lifecycle`, plus `decompose-v3-repository-plan` if
-      4.1's rule keeps it in the tier.
-    - `user` has eleven `describe` blocks to cut along; the other two are one flat block each, so their seams come
-      from fixture shape and case count rather than existing structure.
+- _Outcome:_ The 28.36 s pre-split floor identified `user`, `review-fan-out-lifecycle`, and
+  `decompose-v3-repository-plan`; each now registers its unchanged cases through two balanced drivers. A fresh
+  12-worker run measured a 30.35 s post-work floor with a 27.86 s maximum file and reduced wall clock from 40.33 s
+  to 33.48 s despite the expected repeated import cost. Both renamed `user` drivers remain substrate-classified.
 
 ### `[ ]` **4.4 Exhaust and batch-verify the tier placement surface** — validate exit criterion at segment scope
 
