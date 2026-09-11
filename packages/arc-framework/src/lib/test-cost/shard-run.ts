@@ -6,6 +6,7 @@ import { relative } from "node:path";
 import { execa } from "execa";
 
 import {
+  parseWorkflowE2EAnchors,
   parseWorkflowE2EExclusions,
   validateE2EShardMembership,
   type E2EShardMembership,
@@ -33,9 +34,13 @@ export async function deriveEffectiveE2EShards(
 ): Promise<E2EShardMembership> {
   const workflow = await dependencies.readWorkflow(input.workflowPath);
   const exclusions = parseWorkflowE2EExclusions(workflow);
+  const anchorsByLeg = parseWorkflowE2EAnchors(workflow);
   const shardCount = input.shardCount ?? 4;
   if (!Number.isInteger(shardCount) || shardCount < 2) {
     throw new Error("E2E shard count must be an integer of at least two");
+  }
+  if (anchorsByLeg.length !== shardCount) {
+    throw new Error(`CI workflow declares ${anchorsByLeg.length} E2E anchors for ${shardCount} shard legs`);
   }
   const commonArgs = [
     "list",
@@ -56,7 +61,7 @@ export async function deriveEffectiveE2EShards(
   const legs = await Promise.all(
     Array.from({ length: shardCount }, async (_, index) => await readMembership(`${index + 1}/${shardCount}`)),
   );
-  return validateE2EShardMembership(wholeTier, exclusions, legs);
+  return validateE2EShardMembership(wholeTier, exclusions, legs, anchorsByLeg);
 }
 
 const DEFAULT_DEPENDENCIES: E2EShardRunDependencies = {

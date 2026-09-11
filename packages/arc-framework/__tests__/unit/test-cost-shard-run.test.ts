@@ -27,15 +27,31 @@ describe("deriveEffectiveE2EShards", () => {
       env: {},
     }, {
       execute,
-      readWorkflow: async () => "--exclude='**/anchor.e2e.test.ts'",
+      readWorkflow: async () => `
+        - shard: 1
+          anchor: anchor-a.e2e.test.ts
+        - shard: 2
+          anchor: anchor-b.e2e.test.ts
+        - shard: 3
+          anchor: anchor-c.e2e.test.ts
+        - shard: 4
+          anchor: anchor-d.e2e.test.ts
+        --exclude='**/anchor-a.e2e.test.ts'
+        --exclude='**/anchor-b.e2e.test.ts'
+        --exclude='**/anchor-c.e2e.test.ts'
+        --exclude='**/anchor-d.e2e.test.ts'
+      `,
     });
 
     expect(result.legs).toEqual([
-      ["a.test.ts"], ["b.test.ts"], ["c.test.ts"], ["d.test.ts"],
+      { shard: 1, anchor: "anchor-a.e2e.test.ts", remainder: ["a.test.ts"] },
+      { shard: 2, anchor: "anchor-b.e2e.test.ts", remainder: ["b.test.ts"] },
+      { shard: 3, anchor: "anchor-c.e2e.test.ts", remainder: ["c.test.ts"] },
+      { shard: 4, anchor: "anchor-d.e2e.test.ts", remainder: ["d.test.ts"] },
     ]);
     expect(execute).toHaveBeenCalledTimes(5);
     expect(execute.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([
-      "list", "--project", "e2e", "--exclude", "**/anchor.e2e.test.ts", "--shard=1/4", "--json",
+      "list", "--project", "e2e", "--exclude", "**/anchor-a.e2e.test.ts", "--shard=1/4", "--json",
     ]));
   });
 });
