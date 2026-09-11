@@ -136,22 +136,13 @@ runs everything, and no project or framework document instructs a whole-suite lo
 - _Outcome:_ Shipped strategy and verification guidance now require a complete configured gate without minting a
   framework-level rule for which test lanes must run locally.
 
-### `[ ]` **1.4 Re-run the document-contract checks and repair what the amendments broke**
+### `[x]` **1.4 Re-run the document-contract checks and repair what the amendments broke**
 
 - _Goal:_ The checks binding these documents to each other and to the code pass against the new wording, and any
   assertion that broke on reflow rather than on meaning is made resilient.
 
-- _Context:_ The binding check is the self-hosting drift test, which renders the package source and diffs it
-  against the project copy — it fails whenever 1.3 edits one copy and not the other. It runs in the contract
-  subset (`npm run test:arc-contracts`), which is the targeted way to reach it.
-
-- _Note:_ The phrases under amendment carry no direct assertion anywhere in the suite, so a prose failure here
-  surfaces as a neighbouring assertion breaking on reflow — the shape a sibling session already hit once, where a
-  valid rewrap split a phrase across a newline.
-
-    - Run the contract subset and the ARC contract lints; widen only if a failure points outside them.
-    - Fix brittleness surfaced here; do not go looking for more. Anything noticed beyond these files is an
-      incidental observation for Phase 7's hygiene deliverable.
+- _Outcome:_ The framework-sync contract subset accepted both rendered Framework copies, and the trigger,
+  domain-rule, and section-reference contracts required no repair after the wording changes.
 
 ### `[ ]` **1.5 Exercise the routine lane end to end** — validate exit criterion at segment scope
 
