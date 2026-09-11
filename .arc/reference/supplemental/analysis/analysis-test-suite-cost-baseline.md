@@ -13,6 +13,7 @@ below is the durable record.
 
 - [Method and its limits](#method-and-its-limits)
 - [Tier baselines](#tier-baselines)
+- [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
 - [Effective E2E shard membership](#effective-e2e-shard-membership)
 - [Timeout, admission, and substrate signals](#timeout-admission-and-substrate-signals)
@@ -102,6 +103,93 @@ while its 361.01 s summed time over 12 workers is a 30.08 s arithmetic floor. Un
 files shrink or split.
 
 `build:fast`, which the integration global setup runs on every invocation, costs 1.2 s warm.
+
+## Post-cost baseline
+
+The post-Phase 5 baseline was captured at `8f6d655c5` on the same WSL2 host and with the same local mode as the
+first instrument baseline. Each local row is the median of three successful retained schema-v3 runs; one E2E
+sample waited 9.85 s for admission, and that wait remains separate from its timed window.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases | Change from first baseline |
+| --------------------- | ---------- | ---------------- | ----- | -------------- | -------------------------- |
+| `unit` + `unit-mocks` | 11.12 s    | 112.50 s         | 696   | 9,766          | -52.6% wall / -20.2% sum   |
+| `integration`         | 40.04 s    | 338.72 s         | 138   | 1,379          | -6.1% wall / -6.2% sum     |
+| Routine lane (no E2E) | 44.93 s    | 457.99 s         | 834   | 11,145         | -21.6% wall / -16.5% sum   |
+| `e2e`                 | 215.31 s   | 1,248.16 s       | 55    | 563            | -16.4% wall / -23.1% sum   |
+
+The tier moves explain the changed file and case populations. Integration's movement is inside the 10% noise
+band and is not claimed as a separate lever. The routine lane is above the earlier 44 s bar by 0.93 s; worker
+sizing is deliberately unsettled at this point, so the sizing sweep must resolve the scored bar before the member
+closes.
+
+### Post-cost concentration
+
+The integration top decile and the E2E head below are the cost-ranked audit input. Share is of the post-cost
+tier's normalized summed file time.
+
+| Integration file                        | Seconds | Cases | Share |
+| --------------------------------------- | ------- | ----- | ----- |
+| `decompose-v3-repository-plan.test.ts`  | 38.35   | 53    | 11.3% |
+| `review-fan-out-lifecycle.test.ts`      | 35.34   | 15    | 10.4% |
+| `user.test.ts`                          | 34.81   | 94    | 10.3% |
+| `classify-change.test.ts`               | 27.43   | 122   | 8.1%  |
+| `harness-hooks/codex-cli.test.ts`       | 18.92   | 37    | 5.6%  |
+| `delivery-field-runs.test.ts`           | 11.21   | 9     | 3.3%  |
+| `init.test.ts`                          | 10.22   | 39    | 3.0%  |
+| `github-provider-refresh.test.ts`       | 8.27    | 5     | 2.4%  |
+| `user-notes-compaction.test.ts`         | 7.84    | 18    | 2.3%  |
+| `teardown.test.ts`                      | 7.10    | 22    | 2.1%  |
+| `notes-export-state-coherence.test.ts`  | 7.09    | 13    | 2.1%  |
+| `one-shot-script-entrypoints.test.ts`   | 6.86    | 3     | 2.0%  |
+| `command-surface-documentation.test.ts` | 4.95    | 8     | 1.5%  |
+| `delivery-member-six-lifecycle.test.ts` | 4.81    | 7     | 1.4%  |
+| `start-dispatch.test.ts`                | 4.78    | 17    | 1.4%  |
+
+| E2E file                                 | Seconds | Cases | Share |
+| ---------------------------------------- | ------- | ----- | ----- |
+| `candidate-lineage.e2e.test.ts`          | 204.77  | 33    | 16.4% |
+| `delivery-position.e2e.test.ts`          | 122.64  | 23    | 9.8%  |
+| `command-input-no-input.e2e.test.ts`     | 99.55   | 77    | 8.0%  |
+| `errand.e2e.test.ts`                     | 90.85   | 47    | 7.3%  |
+| `lifecycle-exit.e2e.test.ts`             | 90.41   | 24    | 7.2%  |
+| `delivery-plan.e2e.test.ts`              | 78.60   | 18    | 6.3%  |
+| `session-init.e2e.test.ts`               | 65.88   | 29    | 5.3%  |
+| `review-protocol.e2e.test.ts`            | 38.82   | 8     | 3.1%  |
+| `delivery-terminal-recovery.e2e.test.ts` | 35.67   | 18    | 2.9%  |
+| `publication-spine.e2e.test.ts`          | 26.22   | 7     | 2.1%  |
+| `rename.e2e.test.ts`                     | 25.52   | 8     | 2.0%  |
+| `delivery-authoring.e2e.test.ts`         | 22.07   | 4     | 1.8%  |
+| `user.e2e.test.ts`                       | 21.22   | 13    | 1.7%  |
+| `locus-errand-roundtrip.e2e.test.ts`     | 20.77   | 7     | 1.7%  |
+| `decompose-command-modes.e2e.test.ts`    | 19.49   | 4     | 1.6%  |
+
+The top four E2E files remain `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand`.
+`lifecycle-exit` is fifth by 0.44 s, so the measured anchor correction remains the one identified by the first
+baseline.
+
+### Post-cost CI run
+
+Workflow dispatch `34651274160` ran successfully on the two-slot `arc-ci-mini` at the same exact head. This is one
+CI-job sample rather than a median; the dispatch exercises every heavy job but skips the PR-only `ci-ok` and
+`merge-ok` rollups.
+
+| Job                                | Seconds   |
+| ---------------------------------- | --------- |
+| Classify lane & weight             | 7         |
+| Shared setup                       | 18        |
+| Lint & Typecheck                   | 66        |
+| Unit Tests                         | 40        |
+| Integration Tests                  | 186       |
+| E2E Tests (1)                      | 151       |
+| E2E Tests (2)                      | 221       |
+| E2E Tests (3)                      | 268       |
+| E2E Tests (4)                      | 154       |
+| Portability (concurrency guards)   | 20        |
+| **Summed successful job duration** | **1,131** |
+
+Against the six-run 1,377 s first baseline, the observed reduction is 246 job-seconds (17.9%). The run therefore
+misses the derived 1,077 s bar by 54 s. That difference is recorded as measured rather than attributed to a lever
+from one CI sample; later member validation must resolve the criterion from the evidence then available.
 
 ## Where the time concentrates
 

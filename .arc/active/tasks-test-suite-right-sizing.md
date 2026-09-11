@@ -643,13 +643,14 @@ _Exit criterion:_ A budget is recorded per tier per measurement mode, the instru
 against it, CI warns on exceedance without failing, and the local worker cap and pinned CI anchor set each reflect
 the re-baselined ranking.
 
-### `[ ]` **6.1 Re-baseline the suite through the instrument**
+### `[x]` **6.1 Re-baseline the suite through the instrument**
 
 - _Goal:_ One post-work baseline in every mode the criteria score against serves the sizing picks, the budgets,
   and the next phase's gate, rather than three separate measurement passes.
 
-    - Baseline the unit projects, the lane, integration, and E2E locally, plus summed job duration in CI mode.
-    - The concentration reading this produces is the input Phase 7's gate decides on.
+- _Outcome:_ `analysis-test-suite-cost-baseline.md` records three-run local medians at 12 workers, the integration
+  top decile and E2E ranking head, and successful CI dispatch `34651274160` at 1,131 summed job-seconds. The local
+  lane is 44.93 s; the CI result improves 17.9% but misses the derived bar by 54 s on this single sample.
 
 ### `[ ]` **6.2 Size the local worker cap for admitted tiers against the noise band**
 
