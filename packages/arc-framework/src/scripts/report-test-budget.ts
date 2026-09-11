@@ -41,7 +41,7 @@ function parseArguments(argv: readonly string[]): ReportTestBudgetArguments {
     if (key === undefined || value === undefined || !key.startsWith("--")) {
       throw new Error("CI test-budget arguments must be complete --name value pairs");
     }
-    if (!["--tier", "--project-set", "--workers", "--ci-job", "--started-at-ms"].includes(key)) {
+    if (!["--tier", "--project-set", "--workers", "--ci-job", "--started-at-seconds"].includes(key)) {
       throw new Error(`Unknown CI test-budget argument: ${key}`);
     }
     if (values.has(key)) throw new Error(`Duplicate CI test-budget argument: ${key}`);
@@ -49,16 +49,16 @@ function parseArguments(argv: readonly string[]): ReportTestBudgetArguments {
   }
   const projectSet = values.get("--project-set");
   if (!isMeasurementProjectSet(projectSet)) throw new Error("CI test-budget project set is missing or invalid");
-  const startedAtMs = Number(values.get("--started-at-ms"));
-  if (!Number.isSafeInteger(startedAtMs) || startedAtMs < 0) {
-    throw new Error("CI test-budget start time must be a non-negative integer");
+  const startedAtSeconds = Number(values.get("--started-at-seconds"));
+  if (!Number.isSafeInteger(startedAtSeconds) || startedAtSeconds < 0) {
+    throw new Error("CI test-budget start time must be non-negative epoch seconds");
   }
   return {
     tier: requireText(values.get("--tier"), "tier"),
     projectSet,
     workerSizing: requireText(values.get("--workers"), "worker sizing"),
     ciJob: requireText(values.get("--ci-job"), "CI job"),
-    startedAtMs,
+    startedAtMs: startedAtSeconds * 1_000,
   };
 }
 

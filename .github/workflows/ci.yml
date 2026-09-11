@@ -321,7 +321,7 @@ jobs:
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
-      run: echo "TEST_COST_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         persist-credentials: false
@@ -343,7 +343,7 @@ jobs:
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier unit --project-set unit --workers "${VITEST_MAX_WORKERS:-native}"
-        --ci-job "unit" --started-at-ms "$TEST_COST_STARTED_AT_MS"
+        --ci-job "unit" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   integration:
     name: Integration Tests
@@ -355,7 +355,7 @@ jobs:
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
-      run: echo "TEST_COST_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
@@ -384,7 +384,7 @@ jobs:
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier integration --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
-        --ci-job "integration" --started-at-ms "$TEST_COST_STARTED_AT_MS"
+        --ci-job "integration" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   e2e:
     name: E2E Tests (${{ matrix.shard }})
@@ -411,7 +411,7 @@ jobs:
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
-      run: echo "TEST_COST_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         persist-credentials: false
@@ -450,7 +450,7 @@ jobs:
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier e2e --project-set e2e --workers "${VITEST_MAX_WORKERS:-native}"
-        --ci-job "e2e-${{ matrix.shard }}" --started-at-ms "$TEST_COST_STARTED_AT_MS"
+        --ci-job "e2e-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   # Linux confirmation for the same-machine write-safety guards. The
   # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`
