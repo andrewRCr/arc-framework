@@ -42,6 +42,16 @@ const target = {
 
 const SUBJECT_DIGEST = `sha256:${"e".repeat(64)}`;
 
+const postAttestContinuation = {
+  reviewedHead: target.headSha,
+  nextAction: {
+    kind: "continue-pre-publication-review" as const,
+    command: "arc review pre-publication example --resume opaque-review-judgment --json",
+    interactionText: "Resume pre-publication review over the converged Candidate.",
+  },
+  projectionDisposition: "keep-staged-until-publication" as const,
+};
+
 const ownerAcceptedTerminus = {
   schemaVersion: 1 as const,
   semanticsVersion: "review-terminus/v1" as const,
@@ -375,6 +385,7 @@ describe("integration boundary locus", () => {
       candidateSubjectDigest: SUBJECT_DIGEST,
       reservation: null,
       terminus: ownerAcceptedTerminus,
+      postAttestContinuation,
     });
     expect(resumed).toMatchObject({ terminus: ownerAcceptedTerminus });
 
@@ -467,15 +478,41 @@ describe("integration boundary locus", () => {
       candidateId: `sha256:${"c".repeat(64)}`,
       candidateSubjectDigest: SUBJECT_DIGEST,
       reservation: carried,
+      postAttestContinuation,
     })).toMatchObject({
       locus: "candidate-review-pending",
       candidateSubjectDigest: SUBJECT_DIGEST,
       reservation: carried,
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: postAttestContinuation.nextAction.command,
       },
+      postAttestContinuation,
     });
+  });
+
+  it("rejects a convergence boundary without exact post-attest continuation", () => {
+    expect(IntegrationBoundaryLocusSchema.safeParse({
+      ...projectCandidateReviewBoundary({
+        workUnit: "example",
+        candidateId: `sha256:${"c".repeat(64)}`,
+        candidateSubjectDigest: SUBJECT_DIGEST,
+      }),
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        command: "arc attest example --json",
+        interactionText: "Run convergence verification.",
+      },
+    }).success).toBe(false);
+  });
+
+  it("keeps initial Candidate review entry free of reviewed-head continuation evidence", () => {
+    expect(projectCandidateReviewBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+    })).not.toHaveProperty("postAttestContinuation");
   });
 });
 
@@ -798,7 +835,7 @@ describe("projectPrePublicationReview", () => {
         ...(base.frontline as Record<string, unknown>),
         frontlineActive: false,
       },
-    });
+    }, postAttestContinuation);
 
     expect(result).toMatchObject({
       locus: "candidate-convergence-verification-pending",
@@ -806,6 +843,7 @@ describe("projectPrePublicationReview", () => {
       nextAction: {
         kind: "run-convergence-verification",
         command: "arc attest example --json",
+        postAttestContinuation,
       },
     });
   });
@@ -864,6 +902,7 @@ describe("projectPrePublicationReview", () => {
         candidateId: valid.candidateId,
         candidateSubjectDigest: valid.candidateSubjectDigest,
         reservation: valid.reservation,
+        postAttestContinuation,
       }),
       target: valid.target,
     };

@@ -400,11 +400,26 @@ describe("attest → pre-publication → publish", () => {
       candidateSubjectDigest: current.subject.subjectDigest,
       locus: "candidate-convergence-verification-pending",
       reservation: { sources: ["coderabbit-pr", "codex-pr"] },
+      nextAction: {
+        kind: "run-convergence-verification",
+        postAttestContinuation: {
+          reviewedHead: current.revision,
+          projectionDisposition: "keep-staged-until-publication",
+          nextAction: {
+            kind: "continue-pre-publication-review",
+            command: expect.stringMatching(
+              /^arc review pre-publication example --resume [A-Za-z0-9_-]+ --json$/u,
+            ),
+          },
+        },
+      },
     });
+    const postAttestContinuation = pendingConvergenceBoundary.nextAction.postAttestContinuation;
 
     const converged = await runArc(["attest", "example", "--json"], repository);
     expect(converged.exitCode, JSON.stringify(converged)).toBe(0);
-    expect(JSON.parse(converged.stdout)).toMatchObject({
+    const convergedResult = JSON.parse(converged.stdout);
+    expect(convergedResult).toMatchObject({
       status: "attested",
       operation: "convergence",
       locus: {
@@ -412,10 +427,8 @@ describe("attest → pre-publication → publish", () => {
         candidateId: reviewedEnvelope.candidateId,
         candidateSubjectDigest: current.subject.subjectDigest,
         reservation: { sources: ["coderabbit-pr", "codex-pr"] },
-        nextAction: {
-          kind: "continue-pre-publication-review",
-          command: "arc review pre-publication example --json",
-        },
+        nextAction: postAttestContinuation.nextAction,
+        postAttestContinuation,
       },
     });
 
@@ -425,6 +438,8 @@ describe("attest → pre-publication → publish", () => {
       candidateId: reviewedEnvelope.candidateId,
       candidateSubjectDigest: current.subject.subjectDigest,
       reservation: { sources: ["coderabbit-pr", "codex-pr"] },
+      nextAction: postAttestContinuation.nextAction,
+      postAttestContinuation,
     });
 
     // Recreate the durable state left when the Candidate write succeeds but the later boundary
@@ -434,43 +449,21 @@ describe("attest → pre-publication → publish", () => {
     await git(repository, ["add", boundaryPath]);
     const recovered = await runArc(["attest", "example", "--json"], repository);
     expect(recovered.exitCode, JSON.stringify(recovered)).toBe(0);
-    expect(JSON.parse(recovered.stdout)).toMatchObject({
+    const recoveredResult = JSON.parse(recovered.stdout);
+    expect(recoveredResult).toMatchObject({
       status: "unchanged",
       locus: {
         locus: "candidate-review-pending",
         candidateId: reviewedEnvelope.candidateId,
         candidateSubjectDigest: current.subject.subjectDigest,
         reservation: { sources: ["coderabbit-pr", "codex-pr"] },
-        nextAction: {
-          kind: "continue-pre-publication-review",
-          command: "arc review pre-publication example --json",
-        },
+        nextAction: postAttestContinuation.nextAction,
+        postAttestContinuation,
       },
     });
 
-    // Follow the advertised continuation exactly. Active self-review first returns its own opaque
-    // replay command; following that command must still recover the carried reservation and reach
-    // publish readiness without a test-only judgment override.
-    const continued = await runArc(
-      ["review", "pre-publication", "example", "--json"],
-      repository,
-      { env: OFFLINE_ENV },
-    );
-    expect(continued.exitCode, JSON.stringify(continued)).toBe(0);
-    const continuedEnvelope = JSON.parse(continued.stdout) as {
-      locus: string;
-      nextAction: { kind: string; command: string };
-    };
-    expect(continuedEnvelope).toMatchObject({
-      locus: "candidate-review-pending",
-      nextAction: {
-        kind: "run-self-review",
-        command: expect.stringMatching(
-          /^arc review pre-publication example --resume [A-Za-z0-9_-]+ --json$/u,
-        ),
-      },
-    });
-    const replayArgv = continuedEnvelope.nextAction.command.split(" ");
+    // Follow the action returned by attestation exactly; no caller reconstructs lost judgments.
+    const replayArgv = recoveredResult.locus.nextAction.command.split(" ");
     expect(replayArgv.shift()).toBe("arc");
     const rereviewed = await runArc(replayArgv, repository, { env: OFFLINE_ENV });
     expect(rereviewed.exitCode, JSON.stringify(rereviewed)).toBe(0);

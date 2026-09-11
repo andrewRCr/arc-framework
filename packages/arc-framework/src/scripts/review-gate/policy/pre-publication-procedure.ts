@@ -35,6 +35,7 @@ import {
   StandardReviewReservationTargetSchema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
+  type PostAttestContinuation,
   type StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
 
@@ -91,6 +92,10 @@ type PrePublicationNextAction =
   | z.infer<typeof ContinuePrePublicationActionSchema>
   | z.infer<typeof RunConvergenceVerificationActionSchema>
   | z.infer<typeof PublishCandidateActionSchema>;
+type RoutinePrePublicationNextAction = Exclude<
+  PrePublicationNextAction,
+  z.infer<typeof RunConvergenceVerificationActionSchema>
+>;
 
 export { StandardReviewReservationV1Schema } from "./integration-boundary-locus.js";
 export type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
@@ -125,7 +130,10 @@ export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): 
 }
 
 /** Project the next pre-publication action while delegating lane mechanics to the review-policy driver. */
-export function projectPrePublicationReview(input: unknown): PrePublicationReviewEnvelope {
+export function projectPrePublicationReview(
+  input: unknown,
+  postAttestContinuation?: PostAttestContinuation,
+): PrePublicationReviewEnvelope {
   const request = PrePublicationReviewRequestSchema.parse(input);
   if (request.selfReview === "pending") {
     return envelope(request, {
@@ -151,11 +159,12 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
     && request.candidate.convergenceVerification === "pending") {
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: action(
-        request.workUnit,
-        "run-convergence-verification",
-        "Run one final Tier 3 over the converged Candidate lineage, then invoke arc attest.",
-      ),
+      nextAction: RunConvergenceVerificationActionSchema.parse({
+        kind: "run-convergence-verification",
+        command: `arc attest ${request.workUnit} --json`,
+        interactionText: "Run one final Tier 3 over the converged Candidate lineage, then invoke arc attest.",
+        postAttestContinuation,
+      }),
       reservation,
       terminus,
     });
@@ -284,15 +293,17 @@ function envelope(
 
 function action(
   workUnit: string,
-  kind: PrePublicationNextAction["kind"],
+  kind: RoutinePrePublicationNextAction["kind"],
   interactionText: string,
-): PrePublicationNextAction {
+): RoutinePrePublicationNextAction {
   const command = kind === "publish-candidate"
     ? `arc publish ${workUnit} --json`
-    : kind === "run-convergence-verification"
-      ? `arc attest ${workUnit} --json`
-      : `arc review pre-publication ${workUnit} --json`;
-  return { kind, command, interactionText };
+    : `arc review pre-publication ${workUnit} --json`;
+  return z.union([
+    RunSelfReviewActionSchema,
+    ContinuePrePublicationActionSchema,
+    PublishCandidateActionSchema,
+  ]).parse({ kind, command, interactionText });
 }
 
 function isSettledFrontline(state: z.infer<typeof ReviewResolveEnvelopeSchema>["state"]): boolean {

@@ -15,6 +15,7 @@ import { StandardReviewObligationProjectionSchema } from "./standard-review-proj
 import {
   DeliveryReviewMemberTerminusSchema,
   OwnerAcceptedReviewTerminusSchema,
+  type DeliveryReviewMemberTerminus,
   type OwnerAcceptedReviewTerminus,
 } from "./review-terminus.js";
 
@@ -33,6 +34,12 @@ export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
   ...ActionFields,
 });
+export const PostAttestContinuationSchema = z.strictObject({
+  reviewedHead: GitObjectIdSchema,
+  nextAction: ContinuePrePublicationActionSchema,
+  projectionDisposition: z.literal("keep-staged-until-publication"),
+});
+export type PostAttestContinuation = z.infer<typeof PostAttestContinuationSchema>;
 export const ContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
   workUnitId: SlugSchema,
@@ -67,6 +74,7 @@ const LegacyContinueHostedReviewActionSchema = z.strictObject({
 export const RunConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
   ...ActionFields,
+  postAttestContinuation: PostAttestContinuationSchema,
 });
 export const PublishCandidateActionSchema = z.strictObject({
   kind: z.literal("publish-candidate"),
@@ -161,6 +169,7 @@ export const CandidatePolicyReviewBoundarySchema = z.strictObject({
 export const CandidateReviewResumeBoundarySchema = z.strictObject({
   ...CandidateReviewBoundaryFields,
   nextAction: ContinuePrePublicationActionSchema,
+  postAttestContinuation: PostAttestContinuationSchema.optional(),
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
 });
@@ -365,6 +374,8 @@ export function projectCandidateReviewResumeBoundary(input: {
   candidateSubjectDigest: string;
   reservation: StandardReviewReservationV1 | null;
   terminus?: OwnerAcceptedReviewTerminus | null;
+  deliveryReviewTermini?: readonly DeliveryReviewMemberTerminus[];
+  postAttestContinuation: PostAttestContinuation;
 }): IntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
@@ -376,14 +387,12 @@ export function projectCandidateReviewResumeBoundary(input: {
     candidateId,
     candidateSubjectDigest,
     locus: "candidate-review-pending",
-    nextAction: {
-      kind: "continue-pre-publication-review",
-      command: `arc review pre-publication ${workUnit} --json`,
-      interactionText: "Resume pre-publication review over the converged Candidate.",
-    },
+    nextAction: input.postAttestContinuation.nextAction,
+    postAttestContinuation: input.postAttestContinuation,
     policy: null,
     reservation: input.reservation,
     terminus: input.terminus ?? null,
+    deliveryReviewTermini: input.deliveryReviewTermini ?? [],
   });
 }
 

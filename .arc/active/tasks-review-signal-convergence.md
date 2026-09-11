@@ -624,28 +624,14 @@ Coverage labels and contribution applicability cannot substitute for evaluator s
 _Purpose:_ Close the public-command sequence from reviewed Candidate through staged attestation and publication,
 including interrupted writes and premature-commit refusal, without changing review or merge authority.
 
-### `[ ]` **7.1 Persist post-attest continuation with exact prepublication replay judgments**
+### `[x]` **7.1 Persist post-attest continuation with exact prepublication replay judgments**
 
 - _Goal:_ Prepublication re-entry retains reviewed-head ordering and exact continuation until readiness or explicit
   recovery, without regressing advanced authority.
 
-- _Note:_ Spec § 8; SC 16 and 17.
-
-- _Approach:_ Extend the existing publication boundary action in `integration-boundary-locus.ts` and prepublication
-  composition. Use existing opaque resume transport and `keep-staged-until-publication`, not another receipt.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Convergence action preserves prior review judgments, scope/coverage, reservation/Owner context, and consumed
-          override.
-
-        - Continuation is replay input, not a clean assertion; current authority still resolves from durable records.
-
-        - The resumed Candidate boundary retains reviewed-head/projection context after replacing the convergence
-          action. Plain prepublication and token re-entry enforce the same pending ordering guard; readiness advances
-          past it, and later retries cannot reinstall it or regress the boundary.
-
-        - Initial root/re-root attestation remains unchanged and acquires no fictional reviewed-head evidence.
+- _Outcome:_ Convergence boundaries now persist the reviewed head, exact opaque judgment replay, and staged-projection
+  disposition; convergence attestation and interrupted-write repair return that same context while initial Candidate
+  attestation remains unchanged.
 
 ### `[ ]` **7.2 Reconcile attestation repair, readiness admission, and prepare/verify dispatch**
 

@@ -100,6 +100,7 @@ import {
 import {
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
+  type PostAttestContinuation,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   readSubmissionBoundaryVersioned,
@@ -3190,6 +3191,34 @@ export interface ReviewPrePublicationHandlerDependencies {
   setExitCode(code: number): void;
 }
 
+function buildPrePublicationResumeCommand(input: {
+  workUnit: string;
+  judgment: ReviewPrePublicationJudgment;
+  replaySelfReview: "settled" | undefined;
+  replayLanes: unknown;
+  currentFrontlineHeadSha: string;
+  frontlineCeilingOverrideApplied: boolean;
+}): string {
+  let replayLanes = input.replayLanes;
+  let replayFrontlineCeilingHeadSha = input.judgment.frontlineCeilingHeadSha;
+  if (input.frontlineCeilingOverrideApplied) {
+    replayFrontlineCeilingHeadSha = input.currentFrontlineHeadSha;
+  } else if (replayFrontlineCeilingHeadSha !== undefined
+    && replayFrontlineCeilingHeadSha !== input.currentFrontlineHeadSha) {
+    replayLanes = consumeFrontlineCeilingOverride(replayLanes);
+    replayFrontlineCeilingHeadSha = undefined;
+  }
+  const resume = Buffer.from(canonicalize({
+    ...(input.replaySelfReview === undefined ? {} : { selfReview: input.replaySelfReview }),
+    ...(input.judgment.changeSet === undefined ? {} : { changeSet: input.judgment.changeSet }),
+    ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
+    ...(replayFrontlineCeilingHeadSha === undefined
+      ? {}
+      : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
+  }), "utf8").toString("base64url");
+  return `arc review pre-publication ${input.workUnit} --resume ${resume} --json`;
+}
+
 function defaultPrePublicationDependencies(
   interaction?: InteractionContext,
 ): ReviewPrePublicationHandlerDependencies {
@@ -3375,7 +3404,24 @@ export async function handleReviewPrePublication(
       return;
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
-    envelope = projectPrePublicationReview(composition.request);
+    const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
+    const postAttestContinuation: PostAttestContinuation = {
+      reviewedHead: currentFrontlineHeadSha,
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: buildPrePublicationResumeCommand({
+          workUnit: composition.request.workUnit,
+          judgment,
+          replaySelfReview: composition.request.selfReview === "settled" ? "settled" : judgment.selfReview,
+          replayLanes: judgment.lanes,
+          currentFrontlineHeadSha,
+          frontlineCeilingOverrideApplied: false,
+        }),
+        interactionText: "Resume pre-publication review over the converged Candidate.",
+      },
+      projectionDisposition: "keep-staged-until-publication",
+    };
+    envelope = projectPrePublicationReview(composition.request, postAttestContinuation);
     if (envelope.nextAction.kind === "continue-pre-publication-review"
       || envelope.nextAction.kind === "run-self-review") {
       // The run-self-review command is the re-entry *after* the method has run, so it carries
@@ -3383,34 +3429,24 @@ export async function handleReviewPrePublication(
       const replaySelfReview = envelope.nextAction.kind === "run-self-review"
         ? "settled"
         : judgment.selfReview;
-      let replayLanes = envelope.locus === "candidate-fix-pending"
+      const replayLanes = envelope.locus === "candidate-fix-pending"
         ? consumeOwnerAcceptedTerminus(judgment.lanes)
         : judgment.lanes;
-      const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
       const frontlineCeilingOverrideApplied = envelope.policy?.state === "ready"
         && envelope.policy.nextAction === "run-frontline"
         && envelope.policy.payload.ceilingOverrideApplied;
-      let replayFrontlineCeilingHeadSha = judgment.frontlineCeilingHeadSha;
-      if (frontlineCeilingOverrideApplied) {
-        replayFrontlineCeilingHeadSha = currentFrontlineHeadSha;
-      } else if (replayFrontlineCeilingHeadSha !== undefined
-        && replayFrontlineCeilingHeadSha !== currentFrontlineHeadSha) {
-        replayLanes = consumeFrontlineCeilingOverride(replayLanes);
-        replayFrontlineCeilingHeadSha = undefined;
-      }
-      const resume = Buffer.from(canonicalize({
-        ...(replaySelfReview === undefined ? {} : { selfReview: replaySelfReview }),
-        ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
-        ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
-        ...(replayFrontlineCeilingHeadSha === undefined
-          ? {}
-          : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
-      }), "utf8").toString("base64url");
       envelope = PrePublicationReviewEnvelopeSchema.parse({
         ...envelope,
         nextAction: {
           ...envelope.nextAction,
-          command: `arc review pre-publication ${envelope.workUnit} --resume ${resume} --json`,
+          command: buildPrePublicationResumeCommand({
+            workUnit: envelope.workUnit,
+            judgment,
+            replaySelfReview,
+            replayLanes,
+            currentFrontlineHeadSha,
+            frontlineCeilingOverrideApplied,
+          }),
         },
       });
     }

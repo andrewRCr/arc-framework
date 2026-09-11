@@ -2851,6 +2851,8 @@ export async function handleAttest(
               candidateSubjectDigest: publication.candidateSubjectDigest,
               reservation: existingBoundary.reservation,
               terminus: existingBoundary.terminus,
+              deliveryReviewTermini: existingBoundary.deliveryReviewTermini,
+              postAttestContinuation: existingBoundary.nextAction.postAttestContinuation,
             })
           : null;
         const locus = deliveryLocus ?? convergenceResume

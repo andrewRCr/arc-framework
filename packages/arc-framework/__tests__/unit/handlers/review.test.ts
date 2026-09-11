@@ -2188,6 +2188,90 @@ describe("handleReviewPrePublication", () => {
     }));
   });
 
+  it("persists exact caller judgments as the post-attest replay input", async () => {
+    const judgment = {
+      selfReview: "settled" as const,
+      changeSet: { kind: "implementation", sensitivity: "high" },
+      lanes: {
+        frontline: {
+          scope: { mode: "focused", paths: ["src/example.ts"] },
+          coverage: { basis: "predecessor", complete: true },
+        },
+        standard: { terminus: { mode: "owner-accepted" } },
+      },
+      frontlineCeilingHeadSha: target.headSha,
+    };
+    const initialResume = Buffer.from(JSON.stringify(judgment), "utf8").toString("base64url");
+    let persisted: unknown;
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request: {
+          ...request,
+          selfReview: "settled" as const,
+          candidate: {
+            subjectDigest: request.candidate.subjectDigest,
+            implementationChanged: true,
+            convergenceVerification: "pending" as const,
+          },
+        },
+        advisories: [],
+      })),
+      persistBoundary: vi.fn(async (_root, value) => {
+        persisted = value;
+      }),
+    });
+
+    await handleReviewPrePublication("example", { json: true, resume: initialResume }, dependencies);
+
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      nextAction: {
+        postAttestContinuation: {
+          reviewedHead: string;
+          nextAction: { command: string };
+          projectionDisposition: string;
+        };
+      };
+    };
+    const continuation = envelope.nextAction.postAttestContinuation;
+    expect(continuation).toMatchObject({
+      reviewedHead: target.headSha,
+      projectionDisposition: "keep-staged-until-publication",
+      nextAction: {
+        command: expect.stringMatching(
+          /^arc review pre-publication example --resume [A-Za-z0-9_-]+ --json$/u,
+        ),
+      },
+    });
+    expect(persisted).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: { postAttestContinuation: continuation },
+    });
+    const replayToken = continuation.nextAction.command.split(" ")[5];
+    expect(JSON.parse(Buffer.from(replayToken ?? "", "base64url").toString("utf8"))).toEqual(judgment);
+
+    const replayDependencies = boundary({
+      compose: vi.fn(async (_root, _input, replayed) => ({
+        status: "composed",
+        request: {
+          ...request,
+          selfReview: replayed.selfReview === judgment.selfReview
+            && canonicalDigest(replayed.changeSet) === canonicalDigest(judgment.changeSet)
+            && canonicalDigest(replayed.lanes) === canonicalDigest(judgment.lanes)
+            && replayed.frontlineCeilingHeadSha === judgment.frontlineCeilingHeadSha
+            ? "settled" as const
+            : "pending" as const,
+        },
+        advisories: [],
+      })),
+    });
+    await handleReviewPrePublication("example", { json: true, resume: replayToken }, replayDependencies);
+
+    expect(JSON.parse(String(replayDependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+  });
+
   it("reports a failed boundary write instead of claiming a settled locus", async () => {
     const dependencies = boundary({
       compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
