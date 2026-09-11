@@ -3,7 +3,7 @@
   "slug": "fail-malformed-active-task-cursor-commits",
   "claimId": "7e9746117a8e83fe0fdbd02919aaf708",
   "createdAt": "2026-09-11T17:54:14.072Z",
-  "updatedAt": "2026-09-11T17:54:14.072Z",
+  "updatedAt": "2026-09-11T18:53:40.182Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Reject staged active task lists whose malformed or contradictory checkbox state would hide the deterministic execution cursor.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Fail commits that leave an active task cursor malformed",
   "originEntrySourceDigest": "sha256:79c8961225e8f75ba0b4edc859cd19d59fc870492f7ff193fbfc063d25f121f4",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/fail-malformed-active-task-cursor-commits",
+    "headSha": "4a6ab66b963eff53b78da5b9481dd3fc65f7d76b"
+  }
 }
