@@ -456,6 +456,29 @@ describe("trusted review-gate workflows", () => {
     );
   });
 
+  it("keeps convergence projections staged through returned prepublication re-entry", async () => {
+    const preparePath = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+    const verifyPath = "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md";
+    const [packagedPrepare, projectPrepare, packagedVerify, projectVerify] = await Promise.all([
+      readRepositoryFile(`packages/arc-framework/arc/${preparePath}`),
+      readRepositoryFile(`.arc/${preparePath}`),
+      readRepositoryFile(`packages/arc-framework/arc/${verifyPath}`),
+      readRepositoryFile(`.arc/${verifyPath}`),
+    ]);
+    expect(projectPrepare).toBe(packagedPrepare);
+    expect(projectVerify).toBe(packagedVerify);
+
+    const convergence = sectionBetween(
+      packagedPrepare,
+      "A null `policy` means no lane operation is open",
+      "Proceed only from `candidate-publish-ready`",
+    );
+    expect(convergence).toMatch(/run-convergence-verification[\s\S]*exact action returned by `arc attest`/iu);
+    expect(convergence).toMatch(/keep (?:every )?projection staged[\s\S]*`candidate-publish-ready`/iu);
+    expect(convergence).not.toMatch(/commit (?:the )?convergence/iu);
+    expect(packagedVerify).toMatch(/initial Candidate attestation[\s\S]*convergence\s+attestation/iu);
+  });
+
   it("routes Errand review and re-entry through the public command protocol", async () => {
     const [packaged, project] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),

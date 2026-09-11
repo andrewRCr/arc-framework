@@ -633,33 +633,14 @@ including interrupted writes and premature-commit refusal, without changing revi
   disposition; convergence attestation and interrupted-write repair return that same context while initial Candidate
   attestation remains unchanged.
 
-### `[ ]` **7.2 Reconcile attestation repair, readiness admission, and prepare/verify dispatch**
+### `[x]` **7.2 Reconcile attestation repair, readiness admission, and prepare/verify dispatch**
 
 - _Goal:_ Attestation repair resumes readiness without consuming another review, while premature head changes refuse
   before dispatch.
 
-- _Note:_ Spec § 8; SC 16–18.
-
-- _Approach:_ Update `handlers/lifecycle.ts`, prepublication readiness, and paired prepare/verify wording together.
-  Follow the returned continuation with projections staged until the existing publication transition.
-
-    - Build `test-first` (one behavior at a time):
-
-        - Candidate persistence followed by boundary interruption repairs idempotently and retains the exact
-          continuation.
-
-        - Same Candidate/subject/reviewed head resumes; changed reviewable content reroutes under existing authority.
-
-        - Same subject with a premature head-changing commit returns ordering conflict before policy or pass
-          consumption.
-
-        - Explicit current-head recovery uses normal applicability/cap gates; post-readiness subject-stable commits
-          remain valid; no reset, automatic evaluator launch, receipt rebinding, or new Git hook is introduced.
-
-        - The diagnostic returns an explicit `attestationOrderingRecovery` variant in existing resume transport,
-          binding Candidate/subject, reviewed/current heads, and boundary version. Only selected, revalidated recovery
-          replaces the pending guard through the version-checked boundary write. Stale input refuses; ordinary re-entry
-          cannot bypass the guard. Preserve equivalent-head review reuse and valid carried judgments.
+- _Outcome:_ Prepublication now refuses premature same-subject head movement with an explicit version-bound recovery
+  action, consumes matching recovery through the locked boundary writer, and rejects stale input. Prepare and verify
+  follow the returned attestation action with projections staged until the single publication commit.
 
 ### `[ ]` **7.3 Exercise clean-at-cap publication, interrupted re-entry, and head movement**
 

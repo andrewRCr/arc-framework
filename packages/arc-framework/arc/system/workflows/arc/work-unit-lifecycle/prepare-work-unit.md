@@ -104,6 +104,11 @@ A null `policy` means no lane operation is open — follow the envelope's `nextA
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
 
+When `nextAction.kind` is `run-convergence-verification`, complete its final Tier 3 without an intervening commit,
+invoke its command, and follow the exact action returned by `arc attest`. Keep every projection staged while that
+returned action re-enters prepublication, through `candidate-publish-ready`; the publication transition in Step 3 is
+the single lifecycle projection commit.
+
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
 - `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at

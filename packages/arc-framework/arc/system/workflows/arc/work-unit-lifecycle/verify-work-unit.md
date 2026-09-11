@@ -118,6 +118,10 @@ closure: execute its exact `continuation.argv`, then require `attested / re-root
 malformed continuation, any other action or result, or a blocked result reached without fresh full verification
 stops; never infer or reconstruct a re-root command from prose.
 
+This Step 3 invocation is the initial Candidate attestation or an explicitly requested new root. A later convergence
+attestation belongs to `prepare-work-unit`; it keeps its projections staged and creates no second verification commit
+boundary.
+
 ## Completion Notes
 
 When marking the verification task `[x]`, include completion notes that make the task

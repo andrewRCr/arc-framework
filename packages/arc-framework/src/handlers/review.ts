@@ -98,6 +98,7 @@ import {
   type PrePublicationReviewEnvelope,
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
 import {
+  CandidateReviewResumeBoundarySchema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
   type PostAttestContinuation,
@@ -107,6 +108,7 @@ import {
   resolveSubmissionBoundaryPath,
   SubmissionBoundaryVersionConflictError,
   writeSubmissionBoundary,
+  type VersionedSubmissionBoundary,
 } from "../lib/work-unit/submission-boundary-store.js";
 import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
 import { GitObjectIdSchema } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
@@ -3177,15 +3179,55 @@ export interface ReviewPrePublicationJudgment {
   frontlineCeilingHeadSha: string | undefined;
 }
 
+const AttestationOrderingRecoverySchema = z.strictObject({
+  candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  candidateSubjectDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  reviewedHead: GitObjectIdSchema,
+  currentHead: GitObjectIdSchema,
+  expectedBoundaryVersion: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+});
+const PrePublicationReplayInputSchema = z.strictObject({
+  selfReview: z.literal("settled").optional(),
+  changeSet: z.json().optional(),
+  lanes: z.json().optional(),
+  frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
+  attestationOrderingRecovery: AttestationOrderingRecoverySchema.optional(),
+});
+type PrePublicationReplayInput = z.infer<typeof PrePublicationReplayInputSchema>;
+
+function decodePrePublicationReplay(token: string): PrePublicationReplayInput {
+  return PrePublicationReplayInputSchema.parse(JSON.parse(Buffer.from(token, "base64url").toString("utf8")));
+}
+
+function replayTokenFromAction(command: string, workUnit: string): string {
+  const argv = command.split(" ");
+  if (argv.length !== 7
+    || argv[0] !== "arc"
+    || argv[1] !== "review"
+    || argv[2] !== "pre-publication"
+    || argv[3] !== workUnit
+    || argv[4] !== "--resume"
+    || argv[6] !== "--json") {
+    throw new Error("The pending post-attest continuation has no exact opaque replay command.");
+  }
+  return z.string().regex(/^[A-Za-z0-9_-]+$/u).parse(argv[5]);
+}
+
 export interface ReviewPrePublicationHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
+  readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
   compose(
     root: string,
     input: z.infer<typeof ReviewPrePublicationInputSchema>,
     judgment: ReviewPrePublicationJudgment,
   ): Promise<PrePublicationComposition>;
   persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
+  recoverAttestationOrdering(
+    root: string,
+    boundary: IntegrationBoundaryLocus,
+    expectedVersion: string,
+  ): Promise<void>;
   write(text: string): void;
   warn(text: string): void;
   setExitCode(code: number): void;
@@ -3228,8 +3270,14 @@ function defaultPrePublicationDependencies(
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
     readText: (source) => boundary.readText(source),
+    readBoundary: async (root, workUnit) => {
+      const snapshot = await readSubmissionBoundaryVersioned(root, workUnit);
+      boundarySnapshots.set(workUnit, snapshot);
+      return snapshot;
+    },
     compose: async (root, input, judgment) => {
-      const snapshot = await readSubmissionBoundaryVersioned(root, input.name);
+      const snapshot = boundarySnapshots.get(input.name)
+        ?? await readSubmissionBoundaryVersioned(root, input.name);
       boundarySnapshots.set(input.name, snapshot);
       const composition = await composePrePublicationReviewRequest(
         {
@@ -3276,6 +3324,11 @@ function defaultPrePublicationDependencies(
         : settled), snapshot.version);
       await exec("git", ["add", "--", path], { cwd: root });
     },
+    recoverAttestationOrdering: async (root, recovered, expectedVersion) => {
+      const path = await writeSubmissionBoundary(root, recovered, expectedVersion);
+      await exec("git", ["add", "--", path], { cwd: root });
+      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit));
+    },
     write: (text) => {
       boundary.write(text);
     },
@@ -3318,7 +3371,10 @@ export async function handleReviewPrePublication(
   const emitFailure = (
     error: unknown,
     phase: "request" | "execution" | "output",
-    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">,
+    code?: Extract<
+      ReviewPrePublicationRefusalCode,
+      "candidate-unexplained-delta" | "attestation-ordering-conflict"
+    >,
   ): void => {
     const envelope = code === undefined
       ? reviewCommandError(
@@ -3358,17 +3414,13 @@ export async function handleReviewPrePublication(
   const readJudgment = async (source: string | undefined): Promise<unknown> =>
     source === undefined ? undefined : JSON.parse(await dependencies.readText(source));
 
+  let replayInput: PrePublicationReplayInput | null;
   let judgment: ReviewPrePublicationJudgment;
   try {
-    const resumed = input.data.resume === undefined
+    replayInput = input.data.resume === undefined
       ? null
-      : z.strictObject({
-          selfReview: z.literal("settled").optional(),
-          changeSet: z.json().optional(),
-          lanes: z.json().optional(),
-          frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
-        }).parse(JSON.parse(Buffer.from(input.data.resume, "base64url").toString("utf8")));
-    judgment = resumed === null
+      : decodePrePublicationReplay(input.data.resume);
+    judgment = replayInput === null
       ? {
           selfReview: input.data.selfReview,
           changeSet: await readJudgment(input.data.changeSet),
@@ -3376,10 +3428,10 @@ export async function handleReviewPrePublication(
           frontlineCeilingHeadSha: undefined,
         }
       : {
-          selfReview: resumed.selfReview,
-          changeSet: resumed.changeSet,
-          lanes: resumed.lanes,
-          frontlineCeilingHeadSha: resumed.frontlineCeilingHeadSha,
+          selfReview: replayInput.selfReview,
+          changeSet: replayInput.changeSet,
+          lanes: replayInput.lanes,
+          frontlineCeilingHeadSha: replayInput.frontlineCeilingHeadSha,
         };
   } catch (error) {
     emitFailure(error, "request");
@@ -3398,9 +3450,82 @@ export async function handleReviewPrePublication(
 
   let envelope: PrePublicationReviewEnvelope;
   try {
+    const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
     const composition = await dependencies.compose(root, input.data, judgment);
     if (composition.status === "refused") {
       emitFailure(new Error(composition.reason), "execution", composition.code);
+      return;
+    }
+    const orderingRecovery = replayInput?.attestationOrderingRecovery;
+    const parsedPendingBoundary = CandidateReviewResumeBoundarySchema.safeParse(boundarySnapshot.boundary);
+    const pendingBoundary = parsedPendingBoundary.success
+      && parsedPendingBoundary.data.postAttestContinuation !== undefined
+      ? parsedPendingBoundary.data
+      : null;
+    const pending = pendingBoundary?.postAttestContinuation;
+    const currentHead = composition.request.frontline.target.headSha;
+    if (orderingRecovery !== undefined) {
+      if (pendingBoundary === null
+        || pending === undefined
+        || boundarySnapshot.version === null
+        || boundarySnapshot.version !== orderingRecovery.expectedBoundaryVersion
+        || pendingBoundary.candidateId !== composition.request.candidateId
+        || pendingBoundary.candidateSubjectDigest !== composition.request.candidate.subjectDigest
+        || pendingBoundary.candidateId !== orderingRecovery.candidateId
+        || pendingBoundary.candidateSubjectDigest !== orderingRecovery.candidateSubjectDigest
+        || pending.reviewedHead !== orderingRecovery.reviewedHead
+        || currentHead !== orderingRecovery.currentHead
+        || currentHead === pending.reviewedHead) {
+        emitFailure(new Error("The attestation-ordering recovery input is stale or no longer matches the pending boundary."),
+          "execution", "attestation-ordering-conflict");
+        return;
+      }
+      const recovered = { ...pendingBoundary };
+      delete recovered.postAttestContinuation;
+      try {
+        await dependencies.recoverAttestationOrdering(
+          root,
+          parseIntegrationBoundaryLocus(recovered),
+          boundarySnapshot.version,
+        );
+      } catch (error) {
+        if (!(error instanceof SubmissionBoundaryVersionConflictError)) throw error;
+        emitFailure(error, "execution", "attestation-ordering-conflict");
+        return;
+      }
+    } else if (pendingBoundary !== null
+      && pending !== undefined
+      && pendingBoundary.candidateId === composition.request.candidateId
+      && pendingBoundary.candidateSubjectDigest === composition.request.candidate.subjectDigest
+      && currentHead !== pending.reviewedHead) {
+      if (boundarySnapshot.version === null) {
+        throw new Error("The pending post-attest continuation has no durable boundary version.");
+      }
+      const replay = decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name));
+      const recoveryResume = Buffer.from(canonicalize({
+        ...replay,
+        attestationOrderingRecovery: {
+          candidateId: composition.request.candidateId,
+          candidateSubjectDigest: composition.request.candidate.subjectDigest,
+          reviewedHead: pending.reviewedHead,
+          currentHead,
+          expectedBoundaryVersion: boundarySnapshot.version,
+        },
+      }), "utf8").toString("base64url");
+      const message = `Pre-publication reviewed ${pending.reviewedHead}, but the current head is ${currentHead} before readiness.`;
+      const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+        schemaVersion: 1,
+        mode: "review-pre-publication",
+        diagnostics: [{ code: "attestation-ordering-conflict", message }],
+        error: { code: "attestation-ordering-conflict", message },
+        remedy: spineRemedy(
+          "Pre-publication review cannot cross an unacknowledged post-attestation head change.",
+          "Explicitly recover at the current head",
+          ["arc", "review", "pre-publication", input.data.name, "--resume", recoveryResume, "--json"],
+        ),
+      });
+      dependencies.write(`${JSON.stringify(refusal)}\n`);
+      dependencies.setExitCode(1);
       return;
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);

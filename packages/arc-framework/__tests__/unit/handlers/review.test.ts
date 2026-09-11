@@ -35,7 +35,10 @@ import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import { resolveProcessInteractionContext } from
   "../../../src/lib/command-input/interaction-context.js";
-import { IntegrationBoundaryLocusSchema } from
+import {
+  IntegrationBoundaryLocusSchema,
+  projectCandidateReviewResumeBoundary,
+} from
   "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createReviewRequirement,
@@ -2101,6 +2104,8 @@ describe("handleReviewPrePublication", () => {
   function boundary(overrides: Record<string, unknown> = {}) {
     return {
       resolveRoot: () => "/repo",
+      readBoundary: async () => ({ boundary: null, version: null }),
+      recoverAttestationOrdering: vi.fn(),
       persistBoundary: vi.fn(),
       write: vi.fn(),
       warn: vi.fn(),
@@ -2270,6 +2275,146 @@ describe("handleReviewPrePublication", () => {
     expect(JSON.parse(String(replayDependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
     });
+  });
+
+  it("refuses a same-subject head change with an explicit version-bound recovery action", async () => {
+    const reviewedHead = target.headSha;
+    const currentHead = "f".repeat(40);
+    const replayJudgment = { selfReview: "settled" as const };
+    const replayToken = Buffer.from(JSON.stringify(replayJudgment), "utf8").toString("base64url");
+    const pending = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      reservation: null,
+      postAttestContinuation: {
+        reviewedHead,
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: `arc review pre-publication example --resume ${replayToken} --json`,
+          interactionText: "Resume pre-publication review over the converged Candidate.",
+        },
+        projectionDisposition: "keep-staged-until-publication",
+      },
+    });
+    const compose = vi.fn(async () => ({
+      status: "composed" as const,
+      request: {
+        ...request,
+        selfReview: "settled" as const,
+        reservationTarget: { ...request.reservationTarget, headSha: currentHead },
+        frontline: { ...request.frontline, target: { ...request.frontline.target, headSha: currentHead } },
+        standard: { ...request.standard, target: { ...request.standard.target, headSha: currentHead } },
+      },
+      advisories: [],
+    }));
+    const readBoundary = async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` });
+    const dependencies = boundary({
+      readBoundary,
+      compose,
+    });
+
+    await handleReviewPrePublication("example", { json: true }, dependencies);
+
+    const refusal = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
+      error: { code: string };
+      remedy: { argv: string[] };
+    };
+    expect(refusal.error.code).toBe("attestation-ordering-conflict");
+    expect(refusal.remedy.argv.slice(0, 4)).toEqual(["arc", "review", "pre-publication", "example"]);
+    const recoveryToken = refusal.remedy.argv[5];
+    const recoveryInput = JSON.parse(Buffer.from(recoveryToken ?? "", "base64url").toString("utf8"));
+    expect(recoveryInput).toEqual({
+      selfReview: "settled",
+      attestationOrderingRecovery: {
+        candidateId: request.candidateId,
+        candidateSubjectDigest: request.candidate.subjectDigest,
+        reviewedHead,
+        currentHead,
+        expectedBoundaryVersion: `sha256:${"9".repeat(64)}`,
+      },
+    });
+    expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+
+    const tokenReentry = boundary({
+      readBoundary,
+      compose,
+    });
+    await handleReviewPrePublication("example", { json: true, resume: replayToken }, tokenReentry);
+    expect(JSON.parse(String(tokenReentry.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "attestation-ordering-conflict" },
+    });
+  });
+
+  it("applies only the matching recovery and cannot replace a newer boundary version", async () => {
+    const reviewedHead = target.headSha;
+    const currentHead = "f".repeat(40);
+    const boundaryVersion = `sha256:${"9".repeat(64)}`;
+    const replayToken = Buffer.from(JSON.stringify({ selfReview: "settled" }), "utf8").toString("base64url");
+    const pending = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      reservation: null,
+      postAttestContinuation: {
+        reviewedHead,
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: `arc review pre-publication example --resume ${replayToken} --json`,
+          interactionText: "Resume pre-publication review over the converged Candidate.",
+        },
+        projectionDisposition: "keep-staged-until-publication",
+      },
+    });
+    const currentRequest = {
+      ...request,
+      selfReview: "settled" as const,
+      reservationTarget: { ...request.reservationTarget, headSha: currentHead },
+      frontline: { ...request.frontline, target: { ...request.frontline.target, headSha: currentHead } },
+      standard: { ...request.standard, target: { ...request.standard.target, headSha: currentHead } },
+    };
+    const conflict = boundary({
+      readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
+      compose: vi.fn(async () => ({ status: "composed", request: currentRequest, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", { json: true }, conflict);
+    const recoveryToken = (JSON.parse(String(conflict.write.mock.calls[0]?.[0])) as {
+      remedy: { argv: string[] };
+    }).remedy.argv[5];
+
+    let durableBoundary: unknown = pending;
+    const recovered = boundary({
+      readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
+      compose: vi.fn(async () => ({ status: "composed", request: currentRequest, advisories: [] })),
+      recoverAttestationOrdering: vi.fn(async (_root, value) => {
+        durableBoundary = value;
+      }),
+      persistBoundary: vi.fn(async (_root, value) => {
+        durableBoundary = value;
+      }),
+    });
+    await handleReviewPrePublication("example", { json: true, resume: recoveryToken }, recovered);
+
+    expect(JSON.parse(String(recovered.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+    expect(durableBoundary).toMatchObject({ locus: "candidate-publish-ready" });
+    expect(durableBoundary).not.toHaveProperty("postAttestContinuation");
+
+    durableBoundary = pending;
+    const stale = boundary({
+      readBoundary: async () => ({ boundary: pending, version: `sha256:${"8".repeat(64)}` }),
+      compose: vi.fn(async () => ({ status: "composed", request: currentRequest, advisories: [] })),
+      recoverAttestationOrdering: vi.fn(async (_root, value) => {
+        durableBoundary = value;
+      }),
+    });
+    await handleReviewPrePublication("example", { json: true, resume: recoveryToken }, stale);
+
+    expect(JSON.parse(String(stale.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "attestation-ordering-conflict" },
+    });
+    expect(durableBoundary).toEqual(pending);
   });
 
   it("reports a failed boundary write instead of claiming a settled locus", async () => {

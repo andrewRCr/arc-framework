@@ -83,6 +83,7 @@ export type ReviewCommandErrorCode = z.infer<typeof ReviewCommandErrorCodeSchema
 export const ReviewPrePublicationRefusalCodeSchema = z.enum([
   ...ReviewCommandErrorCodeSchema.options,
   "candidate-unexplained-delta",
+  "attestation-ordering-conflict",
 ]);
 export type ReviewPrePublicationRefusalCode = z.infer<
   typeof ReviewPrePublicationRefusalCodeSchema
@@ -120,6 +121,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
     "Pre-publication review requires the current reviewable subject to belong to the verified Candidate lineage.",
     "Run full verification, then establish a new Candidate root",
     attestNewRootArgv(workUnit),
+  ),
+  "attestation-ordering-conflict": (workUnit) => spineRemedy(
+    "Pre-publication review cannot cross an unacknowledged post-attestation head change.",
+    "Re-enter the pending continuation and select its explicit recovery action",
+    prePublicationResumeArgv(workUnit),
   ),
 };
 
