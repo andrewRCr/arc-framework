@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "recover-integration-context-across-staged-archive-sweep",
+  "claimId": "1277bf45afa2c13e291d07238f7b5e30",
+  "createdAt": "2026-09-11T01:05:46.932Z",
+  "updatedAt": "2026-09-11T01:05:46.932Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "recover-integration-context-across-staged-archive-sweep",
+  "branch": "chore/recover-integration-context-across-staged-archive-sweep",
+  "origin": "inbox",
+  "originEntry": "Recover integration context across a staged archive sweep",
+  "originEntrySourceDigest": "sha256:532cfa1a757f6906b2416047d7e9894b70768a04c95c46234c2b89915fa9160c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
