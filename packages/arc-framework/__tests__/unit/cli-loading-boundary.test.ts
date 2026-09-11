@@ -151,7 +151,7 @@ describe("CLI loading boundary", () => {
 
   it("keeps import-time registrations outside the lazy module set", async () => {
     const modules = collectImplementationModules(await readFile(cliPath, "utf8"));
-    expect(modules.map(({ specifier }) => specifier)).toEqual(expectedImplementationModules);
+    expect(modules.map(({ specifier }) => specifier).sort()).toEqual([...expectedImplementationModules].sort());
 
     const violations: string[] = [];
     for (const module of modules) {
@@ -162,5 +162,22 @@ describe("CLI loading boundary", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("loads the representative view handler only when its command runs", async () => {
+    const modules = collectImplementationModules(await readFile(cliPath, "utf8"));
+    expect(modules.find(({ specifier }) => specifier === "./handlers/view.js")).toEqual({
+      specifier: "./handlers/view.js",
+      eager: false,
+      lazy: true,
+    });
+  });
+
+  it("loads every implementation module only when its command runs", async () => {
+    const modules = collectImplementationModules(await readFile(cliPath, "utf8"));
+    expect(modules.filter(({ eager }) => eager).map(({ specifier }) => specifier)).toEqual([]);
+    expect(modules.filter(({ lazy }) => lazy).map(({ specifier }) => specifier).sort()).toEqual(
+      [...expectedImplementationModules].sort(),
+    );
   });
 });

@@ -14,195 +14,99 @@ import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
-import { handleInit, type InitOptions } from "./handlers/init.js";
-import { handleJoin, type JoinOptions } from "./handlers/join.js";
-import { handleStart, type StartOptions } from "./handlers/start.js";
-import {
-  handleErrandCheck,
-  handleErrandOpen,
-  handleErrandLink,
-  handleErrandMaterialize,
-  handleErrandLeave,
-  handleErrandClose,
-  handleErrandAbandon,
-  handleErrandPromote,
-  type ErrandCheckOptions,
-  type ErrandOpenOptions,
-  type ErrandLinkOptions,
-  type ErrandMaterializeOptions,
-  type ErrandLeaveOptions,
-  type ErrandCloseOptions,
-  type ErrandAbandonOptions,
-  type ErrandPromoteOptions,
+import { isDecomposeMachineReadableInvocation } from "./lib/work-unit/decompose-command-routing.js";
+import type { InitOptions } from "./handlers/init.js";
+import type { JoinOptions } from "./handlers/join.js";
+import type { StartOptions } from "./handlers/start.js";
+import type {
+  ErrandCheckOptions,
+  ErrandOpenOptions,
+  ErrandLinkOptions,
+  ErrandMaterializeOptions,
+  ErrandLeaveOptions,
+  ErrandCloseOptions,
+  ErrandAbandonOptions,
+  ErrandPromoteOptions,
 } from "./handlers/errand.js";
-import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
-import {
-  handleBaseDrift,
-  handleBaseMerge,
-  handleBaseSync,
-  type BaseDriftOptions,
-  type BaseMergeOptions,
-  type BaseSyncOptions,
+import type { HousekeepCheckOptions } from "./handlers/housekeep.js";
+import type {
+  BaseDriftOptions,
+  BaseMergeOptions,
+  BaseSyncOptions,
 } from "./handlers/base.js";
-import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
-import {
-  handleDeliveryCompose,
-  handleDeliveryPlanAbandon,
-  handleDeliveryPlanFromBranch,
-  handleDeliveryPlanFromTasks,
-  handleDeliveryPlanInventorySchema,
-  type DeliveryComposeOptions,
-  type DeliveryPlanAbandonOptions,
-  type DeliveryPlanFromBranchOptions,
-  type DeliveryPlanFromTasksOptions,
-  type DeliveryPlanInventorySchemaOptions,
+import type { PlanCheckOptions } from "./handlers/plan.js";
+import type {
+  DeliveryComposeOptions,
+  DeliveryPlanAbandonOptions,
+  DeliveryPlanFromBranchOptions,
+  DeliveryPlanFromTasksOptions,
+  DeliveryPlanInventorySchemaOptions,
 } from "./handlers/delivery.js";
-import {
-  handleDeliveryExecution,
-  type DeliveryExecutionOptions,
-} from "./handlers/delivery-execution.js";
-import {
-  handleDeliveryEntryInspect,
-  type DeliveryEntryInspectOptions,
-} from "./handlers/delivery-entry.js";
-import {
-  handleDeliveryTransferExport,
-  handleDeliveryTransferImport,
-  type DeliveryTransferExportOptions,
-  type DeliveryTransferImportOptions,
+import type { DeliveryExecutionOptions } from "./handlers/delivery-execution.js";
+import type { DeliveryEntryInspectOptions } from "./handlers/delivery-entry.js";
+import type {
+  DeliveryTransferExportOptions,
+  DeliveryTransferImportOptions,
 } from "./handlers/delivery-transfer.js";
-import { handleCandidateApplicabilityResolve } from "./handlers/candidate.js";
-import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
-import {
-  handleStub,
-  handleDecompose,
-  handlePromote,
-  handleDemote,
-  handlePark,
-  handleResume,
-  handleMaterialize,
-  handleActivate,
-  handleDeactivate,
-  handlePublish,
-  handleReopen,
-  handleAbandon,
-  handleArchive,
-  handleTeardown,
-  handleSetStage,
-  handleFinalizeStage,
-  handleAttest,
-  handleRepointDesign,
-  handleRename,
-  isDecomposeMachineReadableInvocation,
-  type PromoteOptions,
-  type StubOptions,
-  type ParkOptions,
-  type ResumeOptions,
-  type MaterializeOptions,
-  type ActivateOptions,
-  type PublishOptions,
-  type ReopenOptions,
-  type AbandonOptions,
-  type ArchiveOptions,
-  type TeardownOptions,
-  type DecomposeOptions,
-  type AttestOptions,
+import type {
+  PromoteOptions,
+  StubOptions,
+  ParkOptions,
+  ResumeOptions,
+  MaterializeOptions,
+  ActivateOptions,
+  PublishOptions,
+  ReopenOptions,
+  AbandonOptions,
+  ArchiveOptions,
+  TeardownOptions,
+  DecomposeOptions,
+  AttestOptions,
 } from "./handlers/lifecycle.js";
-import {
-  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxMarkExecuteBound,
-  handleUserInboxRemove, handleUserOpen,
-  handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
-  handleUserReconcileReferences,
-  type UserInboxRemoveOptions,
-  type UserReconcileReferencesOptions,
-  type UserPushOptions,
-  type UserFetchOptions,
-  type UserCompactHandlerOptions,
-  type UserStatusOptions,
-  type UserLoadOptions,
-  type UserPullOptions,
+import type {
+  UserInboxRemoveOptions,
+  UserReconcileReferencesOptions,
+  UserPushOptions,
+  UserFetchOptions,
+  UserCompactHandlerOptions,
+  UserStatusOptions,
+  UserLoadOptions,
+  UserPullOptions,
 } from "./handlers/user.js";
-import { handleExtensionsStatus, type ExtensionsStatusCliOptions } from "./handlers/extensions.js";
-import {
-  handleConfigStatus,
-  handleConfigValidate,
-  type ConfigStatusCliOptions,
-} from "./handlers/config.js";
-import {
-  handleActiveStatus,
-  handleActiveRoster,
-  handleActiveInFlight,
-  type ActiveStatusCliOptions,
-  type ActiveRosterCliOptions,
-  type ActiveInFlightCliOptions,
+import type { ExtensionsStatusCliOptions } from "./handlers/extensions.js";
+import type { ConfigStatusCliOptions, ConfigValidateCliOptions } from "./handlers/config.js";
+import type {
+  ActiveStatusCliOptions,
+  ActiveRosterCliOptions,
+  ActiveInFlightCliOptions,
 } from "./handlers/active.js";
-import { handleStatus, type StatusCliOptions } from "./handlers/status.js";
-import { handleLocus } from "./handlers/locus.js";
-import { handleView, type ViewCliOptions } from "./handlers/view.js";
-import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
-import { handleSync, type SyncOptions } from "./handlers/sync.js";
-import { handleUserSync, type UserSyncOptions } from "./handlers/user-sync.js";
-import { handleLogStandalone } from "./handlers/log.js";
-import {
-  handleIntegrationCheckpoint,
-  handleIntegrationMerge,
-  type IntegrationCheckpointOptions,
-  type IntegrationMergeOptions,
+import type { StatusCliOptions } from "./handlers/status.js";
+import type { LocusCliOptions } from "./handlers/locus.js";
+import type { ViewCliOptions } from "./handlers/view.js";
+import type { RecoverAuditOptions } from "./handlers/recover.js";
+import type { SyncOptions } from "./handlers/sync.js";
+import type { UserSyncOptions } from "./handlers/user-sync.js";
+import type { LogStandaloneOptions } from "./handlers/log.js";
+import type {
+  IntegrationCheckpointOptions,
+  IntegrationMergeOptions,
 } from "./handlers/integration.js";
-import {
-  handleMergeLockHold,
-  handleMergeLockRelease,
-  handleMergeLockResolve,
-  handleReviewReadiness,
-  handleReviewResolve,
-  handleReviewChunkingResolve,
-  handleReviewRequestSchema,
-  handleReviewFrontlineResolve,
-  handleReviewFrontlineRun,
-  handleReviewHostedAwait,
-  handleReviewHostedRequest,
-  handleReviewHostedSettle,
-  handleReviewLocalAttest,
-  handleReviewLocalPrepare,
-  handleReviewLocalResume,
-  handleReviewPlanningLane,
-  handleReviewPlanningGroomingResolve,
-  handleReviewPrePublication,
-  handleReviewChangeRequestResolve,
-  handleReviewMergeMethodResolve,
-  handleReviewChecksAwait,
-  handleReviewStatus,
-  handleReviewTerminusAccept,
-  handleReviewReduce,
-  handleReviewRespond,
-  type ReviewPrePublicationOptions,
-  type ReviewPlanningLaneOptions,
-  type ReviewChangeRequestResolveOptions,
-  type ReviewMergeMethodResolveOptions,
-  type ReviewChecksAwaitOptions,
-  type ReviewStatusOptions,
+import type {
+  ReviewPrePublicationOptions,
+  ReviewPlanningLaneOptions,
+  ReviewChangeRequestResolveOptions,
+  ReviewMergeMethodResolveOptions,
+  ReviewChecksAwaitOptions,
+  ReviewStatusOptions,
 } from "./handlers/review.js";
-import { handleWuReconcile, type WuReconcileOptions } from "./handlers/reconcile.js";
-import {
-  handleCheckCommitMessage,
-  type HandleCheckCommitMessageOptions,
-} from "./commands/check.js";
-import {
-  handleReleaseCommit,
-  handleReleaseOptIn,
-  handleReleaseOptOut,
-  handleReleasePush,
-  handleReleaseSetupInstall,
-  handleReleaseSetupPrintPatterns,
-  handleReleaseSetupUninstall,
-  handleReleaseSetupVerify,
-  handleReleaseStatus,
-  type ReleaseSetupInstallOptions,
-  type ReleaseSetupPrintPatternsOptions,
-  type ReleaseSetupUninstallOptions,
-  type ReleaseSetupVerifyOptions,
+import type { WuReconcileOptions } from "./handlers/reconcile.js";
+import type { HandleCheckCommitMessageOptions } from "./commands/check.js";
+import type {
+  ReleaseSetupInstallOptions,
+  ReleaseSetupPrintPatternsOptions,
+  ReleaseSetupUninstallOptions,
+  ReleaseSetupVerifyOptions,
 } from "./commands/release.js";
-import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
 
 const program = new Command();
 
@@ -220,7 +124,9 @@ const checkCmd = program
 
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
-  .action(runRoadmapConflictAutoRemedyCommand);
+  .action(async () => {
+    await (await import("./scripts/remedy-roadmap-conflict.js")).runRoadmapConflictAutoRemedyCommand();
+  });
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
@@ -247,11 +153,16 @@ checkCmd
   .option("--json", "Emit a versioned JSON envelope")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, input: string[], opts: HandleCheckCommitMessageOptions) =>
-      handleCheckCommitMessage(input, {
-        ...opts,
-        dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
-      }, context),
+    async (context, input: string[], opts: HandleCheckCommitMessageOptions) => {
+      await (await import("./commands/check.js")).handleCheckCommitMessage(
+        input,
+        {
+          ...opts,
+          dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
+        },
+        context,
+      );
+    },
   ));
 
 // --- Init & Join ---
@@ -269,7 +180,9 @@ program
   .option("--dry-run", "Preview reconfigure changes without applying (requires --reconfigure)")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, opts: InitOptions) => handleInit(opts, context),
+    async (context, opts: InitOptions) => {
+      await (await import("./handlers/init.js")).handleInit(opts, context);
+    },
   ));
 
 program
@@ -282,7 +195,9 @@ program
   .option("--reconfigure", "Change personal workspace settings (role, tools)")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, opts: JoinOptions) => handleJoin(opts, context),
+    async (context, opts: JoinOptions) => {
+      await (await import("./handlers/join.js")).handleJoin(opts, context);
+    },
   ));
 
 // --- Work units ---
@@ -298,7 +213,9 @@ wu
   .option("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string | undefined, opts: WuReconcileOptions) => handleWuReconcile(slug, opts, context),
+    async (context, slug: string | undefined, opts: WuReconcileOptions) => {
+      await (await import("./handlers/reconcile.js")).handleWuReconcile(slug, opts, context);
+    },
   ));
 
 program
@@ -323,7 +240,9 @@ program
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, name: string | undefined, opts: StartOptions) => handleStart(name, opts, context),
+    async (context, name: string | undefined, opts: StartOptions) => {
+      await (await import("./handlers/start.js")).handleStart(name, opts, context);
+    },
   ));
 
 // --- Lifecycle verbs (top-level peers of `arc start`) ---
@@ -344,7 +263,9 @@ program
   .option("--class <value>", "Initial resolved Class (Light | Heavy | Novel); omitted → `[TBD]`")
   .action(withInteractionContext(
     { yes: "none" },
-    (context, name: string | undefined, opts: StubOptions) => handleStub(name, opts, context),
+    async (context, name: string | undefined, opts: StubOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleStub(name, opts, context);
+    },
   ));
 
 program
@@ -360,7 +281,9 @@ program
     {
       machineReadable: isDecomposeMachineReadableInvocation,
     },
-    (context, origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts, context),
+    async (context, origin: string | undefined, opts: DecomposeOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleDecompose(origin, opts, context);
+    },
   ));
 
 program
@@ -368,7 +291,9 @@ program
   .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
   .action(withInteractionContext(
     {},
-    (context, slug: string, newSlug: string) => handleRename(slug, newSlug, context),
+    async (context, slug: string, newSlug: string) => {
+      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, context);
+    },
   ));
 
 program
@@ -377,7 +302,9 @@ program
   .option("--class <value>", "Resolved Class (Light | Heavy | Novel) when the stub is still `[TBD]`")
   .action(withInteractionContext(
     { yes: "none" },
-    (context, slug: string | undefined, opts: PromoteOptions) => handlePromote(slug, opts, context),
+    async (context, slug: string | undefined, opts: PromoteOptions) => {
+      await (await import("./handlers/lifecycle.js")).handlePromote(slug, opts, context);
+    },
   ));
 
 program
@@ -385,7 +312,9 @@ program
   .description("Lower a planned stub back to provisional")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined) => handleDemote(slug, context),
+    async (context, slug: string | undefined) => {
+      await (await import("./handlers/lifecycle.js")).handleDemote(slug, context);
+    },
   ));
 
 program
@@ -395,7 +324,9 @@ program
   .option("--land <commit>", "Stage an exact planning transition on a partial-protection base")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts, context),
+    async (context, slug: string | undefined, opts: ParkOptions) => {
+      await (await import("./handlers/lifecycle.js")).handlePark(slug, opts, context);
+    },
   ));
 
 program
@@ -407,7 +338,9 @@ program
   .option("--here", "Re-attach in the current worktree instead of spawning a new one")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts, context),
+    async (context, slug: string | undefined, opts: ResumeOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleResume(slug, opts, context);
+    },
   ));
 
 program
@@ -419,7 +352,9 @@ program
   .option("--here", "Check out in the current worktree instead of spawning a new one")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts, context),
+    async (context, slug: string | undefined, opts: MaterializeOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleMaterialize(slug, opts, context);
+    },
   ));
 
 program
@@ -430,7 +365,9 @@ program
   .option("--action <action>", "Next action pointer → meta `Next Action` (required)")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts, context),
+    async (context, slug: string | undefined, opts: ActivateOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleActivate(slug, opts, context);
+    },
   ));
 
 program
@@ -438,7 +375,9 @@ program
   .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined) => handleDeactivate(slug, context),
+    async (context, slug: string | undefined) => {
+      await (await import("./handlers/lifecycle.js")).handleDeactivate(slug, context);
+    },
   ));
 
 program
@@ -450,7 +389,9 @@ program
   .option("--json", "Emit the typed publication-resume boundary as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string | undefined, opts: PublishOptions) => handlePublish(slug, opts, context),
+    async (context, slug: string | undefined, opts: PublishOptions) => {
+      await (await import("./handlers/lifecycle.js")).handlePublish(slug, opts, context);
+    },
   ));
 
 const integrateCmd = program
@@ -474,8 +415,9 @@ integrateCmd
   .requiredOption("--json", "Emit the typed checkpoint verdict as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, name: string, opts: IntegrationCheckpointOptions) =>
-      handleIntegrationCheckpoint(name, opts, context),
+    async (context, name: string, opts: IntegrationCheckpointOptions) => {
+      await (await import("./handlers/integration.js")).handleIntegrationCheckpoint(name, opts, context);
+    },
   ));
 
 integrateCmd
@@ -485,8 +427,9 @@ integrateCmd
   .requiredOption("--json", "Emit the typed merge verdict as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, name: string, opts: IntegrationMergeOptions) =>
-      handleIntegrationMerge(name, opts, context),
+    async (context, name: string, opts: IntegrationMergeOptions) => {
+      await (await import("./handlers/integration.js")).handleIntegrationMerge(name, opts, context);
+    },
   ));
 
 program
@@ -496,7 +439,9 @@ program
   .option("--task <task>", "Return to an exact reopened task instead of Candidate preparation")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts, context),
+    async (context, slug: string | undefined, opts: ReopenOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleReopen(slug, opts, context);
+    },
   ));
 
 program
@@ -505,7 +450,9 @@ program
   .option("-y, --yes", "Confirm the destructive cascade (required to proceed)")
   .action(withInteractionContext(
     { yes: "authority" },
-    (context, slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts, context),
+    async (context, slug: string | undefined, opts: AbandonOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleAbandon(slug, opts, context);
+    },
   ));
 
 program
@@ -515,7 +462,9 @@ program
   .option("--completed <date>", "Completion date YYYY-MM-DD → meta `Completed` (defaults to today)")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts, context),
+    async (context, slug: string | undefined, opts: ArchiveOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleArchive(slug, opts, context);
+    },
   ));
 
 program
@@ -529,7 +478,9 @@ program
   )
   .action(withInteractionContext(
     {},
-    (context, name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts, context),
+    async (context, name: string | undefined, opts: TeardownOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleTeardown(name, opts, context);
+    },
   ));
 
 program
@@ -544,7 +495,9 @@ program
   )
   .action(withInteractionContext(
     {},
-    (context, stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts, context),
+    async (context, stage: string, opts: { advance?: boolean }) => {
+      await (await import("./handlers/lifecycle.js")).handleSetStage(stage, opts, context);
+    },
   ));
 
 program
@@ -556,7 +509,9 @@ program
   .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
   .action(withInteractionContext(
     {},
-    (context, firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts, context),
+    async (context, firePoint: string, opts: { class?: string }) => {
+      await (await import("./handlers/lifecycle.js")).handleFinalizeStage(firePoint, opts, context);
+    },
   ));
 
 program
@@ -577,7 +532,9 @@ program
   )
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, name: string, opts: AttestOptions) => handleAttest(name, opts, context),
+    async (context, name: string, opts: AttestOptions) => {
+      await (await import("./handlers/lifecycle.js")).handleAttest(name, opts, context);
+    },
   ));
 
 const candidate = program
@@ -593,7 +550,9 @@ candidateApplicability
   .description("Re-derive and bind one exact applicability selection")
   .action(withInteractionContext(
     { machineReadable: () => true },
-    (context, name: string, input: string) => handleCandidateApplicabilityResolve(name, input, context),
+    async (context, name: string, input: string) => {
+      await (await import("./handlers/candidate.js")).handleCandidateApplicabilityResolve(name, input, context);
+    },
   ));
 
 program
@@ -604,7 +563,9 @@ program
   )
   .action(withInteractionContext(
     {},
-    (context, event: string) => handleRepointDesign(event, context),
+    async (context, event: string) => {
+      await (await import("./handlers/lifecycle.js")).handleRepointDesign(event, context);
+    },
   ));
 
 const errand = program
@@ -620,7 +581,9 @@ errand
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ErrandCheckOptions) => handleErrandCheck(opts, context),
+    async (context, opts: ErrandCheckOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandCheck(opts, context);
+    },
   ));
 
 errand
@@ -633,7 +596,9 @@ errand
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts, context),
+    async (context, slug: string, opts: ErrandOpenOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandOpen(slug, opts, context);
+    },
   ));
 
 errand
@@ -645,7 +610,9 @@ errand
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts, context),
+    async (context, slug: string, opts: ErrandLinkOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandLink(slug, opts, context);
+    },
   ));
 
 errand
@@ -658,7 +625,9 @@ errand
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string, opts: ErrandLeaveOptions) => handleErrandLeave(slug, opts, context),
+    async (context, slug: string, opts: ErrandLeaveOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandLeave(slug, opts, context);
+    },
   ));
 
 errand
@@ -669,7 +638,9 @@ errand
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string, opts: ErrandMaterializeOptions) => handleErrandMaterialize(slug, opts, context),
+    async (context, slug: string, opts: ErrandMaterializeOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandMaterialize(slug, opts, context);
+    },
   ));
 
 errand
@@ -679,7 +650,9 @@ errand
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts, context),
+    async (context, slug: string, opts: ErrandCloseOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandClose(slug, opts, context);
+    },
   ));
 
 errand
@@ -689,7 +662,9 @@ errand
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string, opts: ErrandAbandonOptions) => handleErrandAbandon(slug, opts, context),
+    async (context, slug: string, opts: ErrandAbandonOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandAbandon(slug, opts, context);
+    },
   ));
 
 errand
@@ -704,7 +679,9 @@ errand
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, slug: string, opts: ErrandPromoteOptions) => handleErrandPromote(slug, opts, context),
+    async (context, slug: string, opts: ErrandPromoteOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandPromote(slug, opts, context);
+    },
   ));
 
 const housekeep = program
@@ -720,7 +697,9 @@ housekeep
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: HousekeepCheckOptions) => handleHousekeepCheck(opts, context),
+    async (context, opts: HousekeepCheckOptions) => {
+      await (await import("./handlers/housekeep.js")).handleHousekeepCheck(opts, context);
+    },
   ));
 
 const baseCmd = program
@@ -733,7 +712,9 @@ baseCmd
   .option("--json", "Emit the typed base-drift analysis as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: BaseDriftOptions) => handleBaseDrift(opts, context),
+    async (context, opts: BaseDriftOptions) => {
+      await (await import("./handlers/base.js")).handleBaseDrift(opts, context);
+    },
   ));
 
 baseCmd
@@ -744,7 +725,9 @@ baseCmd
   .requiredOption("--json", "Emit the typed merge outcome as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: BaseMergeOptions) => handleBaseMerge(opts, context),
+    async (context, opts: BaseMergeOptions) => {
+      await (await import("./handlers/base.js")).handleBaseMerge(opts, context);
+    },
   ));
 
 baseCmd
@@ -753,7 +736,9 @@ baseCmd
   .option("--json", "Emit the typed synchronization outcome as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: BaseSyncOptions) => handleBaseSync(opts, context),
+    async (context, opts: BaseSyncOptions) => {
+      await (await import("./handlers/base.js")).handleBaseSync(opts, context);
+    },
   ));
 
 const plan = program
@@ -770,7 +755,9 @@ plan
   .option("--json", "Emit the planning-entry route as JSON (for skill consumption)")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: PlanCheckOptions) => handlePlanCheck(opts, context),
+    async (context, opts: PlanCheckOptions) => {
+      await (await import("./handlers/plan.js")).handlePlanCheck(opts, context);
+    },
   ));
 
 const delivery = program
@@ -780,25 +767,25 @@ const delivery = program
 const deliveryAuthoring = delivery.command("authoring").description("Resolve deterministic authoring locators");
 deliveryAuthoring.command("locate").description("Resolve exact candidate refs and detached gate paths")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("authoring-locate", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-locate", { ...opts, input }, context);
+  }));
 deliveryAuthoring.command("rematerialize").description("Prepare one exact private candidate ref and detached gate pair")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("authoring-rematerialize", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-rematerialize", { ...opts, input }, context);
+  }));
 deliveryAuthoring.command("rebind").description("Bind one clean detached authoring head to its candidate ref")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("authoring-rebind", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-rebind", { ...opts, input }, context);
+  }));
 
 delivery.command("closeout").description("Reap completed delivery residue and retire its exact records")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("closeout", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("closeout", { ...opts, input }, context);
+  }));
 
 delivery.command("entry").description("Inspect the operator-invoked delivery entry route")
   .command("inspect").description("Read authoritative delivery intent and binding facts")
@@ -806,141 +793,143 @@ delivery.command("entry").description("Inspect the operator-invoked delivery ent
   .option("--json", "Emit the strict entry route as JSON")
   .action(withInteractionContext(
     { machineReadable: () => true },
-    (context, opts: DeliveryEntryInspectOptions) => handleDeliveryEntryInspect(opts, context),
+    async (context, opts: DeliveryEntryInspectOptions) => {
+      await (await import("./handlers/delivery-entry.js")).handleDeliveryEntryInspect(opts, context);
+    },
   ));
 
 const deliveryEligibility = delivery.command("eligibility").description("Validate one exact delivery candidate chain");
 deliveryEligibility.command("prepare").description("Pin and validate the authored candidate chain")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("eligibility-prepare", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("eligibility-prepare", { ...opts, input }, context);
+  }));
 deliveryEligibility.command("close").description("Close the post-gate eligibility observation window")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("eligibility-close", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("eligibility-close", { ...opts, input }, context);
+  }));
 delivery.command("publish").description("Publish exact member refs and open or adopt every change request")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("publish", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("publish", { ...opts, input }, context);
+  }));
 const deliveryNative = delivery.command("native").description("Compose optional host-native stack presentation");
 deliveryNative.command("observe").description("Observe exact native registration without mutation")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("native-observe", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-observe", { ...opts, input }, context);
+  }));
 deliveryNative.command("link").description("Optionally register an already-materialized exact chain")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("native-link", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-link", { ...opts, input }, context);
+  }));
 deliveryNative.command("unlink").description("Remove native presentation before sequential delivery")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("native-unlink", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-unlink", { ...opts, input }, context);
+  }));
 deliveryNative.command("land-select").description("Select the native or unlinked landing arm from fresh facts")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("native-land-select", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-select", { ...opts, input }, context);
+  }));
 deliveryNative.command("land-prepare").description("Validate and reserve one exact native landing set")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("native-land-prepare", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-prepare", { ...opts, input }, context);
+  }));
 deliveryNative.command("land-submit").description("Submit one freshly authorized native landing effect")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("native-land-submit", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-submit", { ...opts, input }, context);
+  }));
 deliveryNative.command("land-status").description("Poll and reconcile one persisted native landing identity")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("native-land-status", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-status", { ...opts, input }, context);
+  }));
 const deliveryRefresh = delivery.command("refresh")
   .description("Plan, execute, or adopt one provider-refreshed suffix");
 deliveryRefresh.command("plan").description("Plan the exact operator-refreshed registered suffix")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("refresh-plan", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-plan", { ...opts, input }, context);
+  }));
 deliveryRefresh.command("execute").description("Prepare and publish one provider-native suffix refresh")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("refresh-execute", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-execute", { ...opts, input }, context);
+  }));
 deliveryRefresh.command("adopt").description("Observe, prove, and adopt one externally refreshed suffix")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("refresh-adopt", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-adopt", { ...opts, input }, context);
+  }));
 const deliveryReviewFix = delivery.command("review-fix")
   .description("Route and publish one approved delivery-member review fix");
 deliveryReviewFix.command("continue").description("Resume the exact delivery review-fix continuation")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("review-fix-continue", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-continue", { ...opts, input }, context);
+  }));
 deliveryReviewFix.command("plan").description("Select linked publication or complete rematerialization")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("review-fix-plan", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-plan", { ...opts, input }, context);
+  }));
 deliveryReviewFix.command("publish").description("Publish one selected member before provider-native suffix refresh")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("review-fix-publish", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-publish", { ...opts, input }, context);
+  }));
 deliveryReviewFix.command("acknowledge").description("Consume one completed review-fix verification continuation")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("review-fix-acknowledge", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-acknowledge", { ...opts, input }, context);
+  }));
 delivery.command("position").description("Derive the exact current delivery position")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("position", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("position", { ...opts, input }, context);
+  }));
 const deliveryLand = delivery.command("land").description("Prepare and apply one attended member landing");
 deliveryLand.command("prepare").description("Prepare one exact landing presentation")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("land-prepare", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("land-prepare", { ...opts, input }, context);
+  }));
 deliveryLand.command("apply").description("Apply one freshly authorized landing")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("land-apply", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("land-apply", { ...opts, input }, context);
+  }));
 delivery.command("reconcile").description("Reconcile one persisted delivery operation")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("reconcile", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("reconcile", { ...opts, input }, context);
+  }));
 delivery.command("rewrite").description("Rewrite one reviewed suffix member by exact lease")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("rewrite", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("rewrite", { ...opts, input }, context);
+  }));
 delivery.command("rematerialize").description("Reclose and rewrite one complete reviewed suffix")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("rematerialize", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("rematerialize", { ...opts, input }, context);
+  }));
 delivery.command("teardown").description("Retire one proven-landed member ref while retaining its binding")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("teardown", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("teardown", { ...opts, input }, context);
+  }));
 delivery.command("top-remedy").description("Apply one explicitly selected terminal request remedy")
   .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
-  .action(withInteractionContext({ machineReadable: () => true }, (context, input: string, opts: DeliveryExecutionOptions) => (
-    handleDeliveryExecution("top-remedy", { ...opts, input }, context)
-  )));
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("top-remedy", { ...opts, input }, context);
+  }));
 
 delivery
   .command("compose")
@@ -949,7 +938,9 @@ delivery
   .option("--json", "Emit the typed composition result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: DeliveryComposeOptions) => handleDeliveryCompose(opts, context),
+    async (context, opts: DeliveryComposeOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryCompose(opts, context);
+    },
   ));
 
 const deliveryPlan = delivery
@@ -966,8 +957,8 @@ deliveryPlanInventory
   .option("--json", "Emit the schema through the typed delivery command envelope")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (_context, opts: DeliveryPlanInventorySchemaOptions) => {
-      handleDeliveryPlanInventorySchema(opts);
+    async (_context, opts: DeliveryPlanInventorySchemaOptions) => {
+      (await import("./handlers/delivery.js")).handleDeliveryPlanInventorySchema(opts);
     },
   ));
 
@@ -979,7 +970,9 @@ deliveryPlan
   .option("--json", "Emit the typed authoring result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: DeliveryPlanFromTasksOptions) => handleDeliveryPlanFromTasks(opts, context),
+    async (context, opts: DeliveryPlanFromTasksOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryPlanFromTasks(opts, context);
+    },
   ));
 
 deliveryPlan
@@ -991,7 +984,9 @@ deliveryPlan
   .option("--json", "Emit the typed authoring result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: DeliveryPlanFromBranchOptions) => handleDeliveryPlanFromBranch(opts, context),
+    async (context, opts: DeliveryPlanFromBranchOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryPlanFromBranch(opts, context);
+    },
   ));
 
 deliveryPlan
@@ -1000,7 +995,9 @@ deliveryPlan
   .option("--json", "Emit the typed abandonment result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: DeliveryPlanAbandonOptions) => handleDeliveryPlanAbandon(opts, context),
+    async (context, opts: DeliveryPlanAbandonOptions) => {
+      await (await import("./handlers/delivery.js")).handleDeliveryPlanAbandon(opts, context);
+    },
   ));
 
 const deliveryTransfer = delivery
@@ -1014,7 +1011,9 @@ deliveryTransfer
   .option("--json", "Emit the typed export result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: DeliveryTransferExportOptions) => handleDeliveryTransferExport(opts, context),
+    async (context, opts: DeliveryTransferExportOptions) => {
+      await (await import("./handlers/delivery-transfer.js")).handleDeliveryTransferExport(opts, context);
+    },
   ));
 
 deliveryTransfer
@@ -1024,7 +1023,9 @@ deliveryTransfer
   .option("--json", "Emit the typed import result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: DeliveryTransferImportOptions) => handleDeliveryTransferImport(opts, context),
+    async (context, opts: DeliveryTransferImportOptions) => {
+      await (await import("./handlers/delivery-transfer.js")).handleDeliveryTransferImport(opts, context);
+    },
   ));
 
 // --- Lifecycle ---
@@ -1035,18 +1036,24 @@ program
   .option("-q, --quiet", "Suppress changelog output")
   .action(withInteractionContext(
     {},
-    (context, opts: { quiet?: boolean }) => handleUpdate(opts, context),
+    async (context, opts: { quiet?: boolean }) => {
+      await (await import("./handlers/installation.js")).handleUpdate(opts, context);
+    },
   ));
 
 program
   .command("health")
   .description("Show health of installed ARC framework files")
-  .action(handleHealth);
+  .action(async () => {
+    await (await import("./handlers/installation.js")).handleHealth();
+  });
 
 program
   .command("diff")
   .description("Show differences between installed and latest framework files")
-  .action(handleDiff);
+  .action(async () => {
+    await (await import("./handlers/installation.js")).handleDiff();
+  });
 
 // --- User ---
 
@@ -1061,7 +1068,9 @@ userCmd
   .description("Create a user directory for a team member")
   .action(withInteractionContext(
     {},
-    (context, identity: string) => handleUserAdd(identity, context),
+    async (context, identity: string) => {
+      await (await import("./handlers/user.js")).handleUserAdd(identity, context);
+    },
   ));
 
 userCmd
@@ -1069,13 +1078,17 @@ userCmd
   .description("Open per-WU user workspace subdir (seeds SESSION-NOTES.md from template)")
   .action(withInteractionContext(
     {},
-    (context, wuName: string) => handleUserOpen(wuName, context),
+    async (context, wuName: string) => {
+      await (await import("./handlers/user.js")).handleUserOpen(wuName, context);
+    },
   ));
 
 userCmd
   .command("close <wu-name>")
   .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
-  .action(handleUserClose);
+  .action(async (wuName: string) => {
+    await (await import("./handlers/user.js")).handleUserClose(wuName);
+  });
 
 userCmd
   .command("inbox-mark-execute-bound")
@@ -1085,7 +1098,9 @@ userCmd
   .addHelpText("after", '\nRequest JSON:\n  {"schemaVersion":1,"orderedTitles":["First","Second"]}\n')
   .action(withInteractionContext(
     { machineReadable: () => true },
-    (context, input: string) => handleUserInboxMarkExecuteBound(input, context),
+    async (context, input: string) => {
+      await (await import("./handlers/user.js")).handleUserInboxMarkExecuteBound(input, context);
+    },
   ));
 
 userCmd
@@ -1095,13 +1110,17 @@ userCmd
   .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action(withInteractionContext(
     {},
-    (context, slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts, context),
+    async (context, slug: string | undefined, opts: UserInboxRemoveOptions) => {
+      await (await import("./handlers/user.js")).handleUserInboxRemove(slug, opts, context);
+    },
   ));
 
 userCmd
   .command("save")
   .description("Save user directory to user notes on HEAD")
-  .action(handleUserSave);
+  .action(async () => {
+    await (await import("./handlers/user.js")).handleUserSave();
+  });
 
 userCmd
   .command("load")
@@ -1109,7 +1128,9 @@ userCmd
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(withInteractionContext(
     { yes: "compatibility" },
-    (context, opts: UserLoadOptions) => handleUserLoad(opts, context),
+    async (context, opts: UserLoadOptions) => {
+      await (await import("./handlers/user.js")).handleUserLoad(opts, context);
+    },
   ));
 
 userCmd
@@ -1118,7 +1139,9 @@ userCmd
   .option("--force", "Force-push even when remote and local notes conflict")
   .action(withInteractionContext(
     {},
-    (context, opts: UserPushOptions) => handleUserPush(opts, context),
+    async (context, opts: UserPushOptions) => {
+      await (await import("./handlers/user.js")).handleUserPush(opts, context);
+    },
   ));
 
 userCmd
@@ -1127,7 +1150,9 @@ userCmd
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .action(withInteractionContext(
     {},
-    (context, opts: UserFetchOptions) => handleUserFetch(opts, context),
+    async (context, opts: UserFetchOptions) => {
+      await (await import("./handlers/user.js")).handleUserFetch(opts, context);
+    },
   ));
 
 userCmd
@@ -1137,7 +1162,9 @@ userCmd
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(withInteractionContext(
     { yes: "authority" },
-    (context, opts: UserPullOptions) => handleUserPull(opts, context),
+    async (context, opts: UserPullOptions) => {
+      await (await import("./handlers/user.js")).handleUserPull(opts, context);
+    },
   ));
 
 userCmd
@@ -1146,7 +1173,9 @@ userCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: UserCompactHandlerOptions) => handleUserCompact(opts, context),
+    async (context, opts: UserCompactHandlerOptions) => {
+      await (await import("./handlers/user.js")).handleUserCompact(opts, context);
+    },
   ));
 
 userCmd
@@ -1159,7 +1188,9 @@ userCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (context, opts: UserStatusOptions) => handleUserStatus(opts, context),
+    async (context, opts: UserStatusOptions) => {
+      await (await import("./handlers/user.js")).handleUserStatus(opts, context);
+    },
   ));
 
 userCmd
@@ -1169,7 +1200,9 @@ userCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: UserReconcileReferencesOptions) => handleUserReconcileReferences(opts, context),
+    async (context, opts: UserReconcileReferencesOptions) => {
+      await (await import("./handlers/user.js")).handleUserReconcileReferences(opts, context);
+    },
   ));
 
 userCmd
@@ -1178,7 +1211,9 @@ userCmd
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(withInteractionContext(
     { yes: "authority" },
-    (context, opts: UserSyncOptions) => handleUserSync(opts, context),
+    async (context, opts: UserSyncOptions) => {
+      await (await import("./handlers/user-sync.js")).handleUserSync(opts, context);
+    },
   ));
 
 // --- Extensions ---
@@ -1195,7 +1230,9 @@ extensionsCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (_context, opts: ExtensionsStatusCliOptions) => handleExtensionsStatus(opts),
+    async (_context, opts: ExtensionsStatusCliOptions) => {
+      await (await import("./handlers/extensions.js")).handleExtensionsStatus(opts);
+    },
   ));
 
 // --- Config ---
@@ -1211,14 +1248,18 @@ configCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (_context, opts: ConfigStatusCliOptions) => handleConfigStatus(opts),
+    async (_context, opts: ConfigStatusCliOptions) => {
+      await (await import("./handlers/config.js")).handleConfigStatus(opts);
+    },
   ));
 
 configCmd
   .command("validate")
   .description("Validate arc-config.yml settings")
   .option("--file <path>", "Validate an explicitly selected configuration file")
-  .action(handleConfigValidate);
+  .action(async (opts: ConfigValidateCliOptions) => {
+    await (await import("./handlers/config.js")).handleConfigValidate(opts);
+  });
 
 // --- Active ---
 
@@ -1233,7 +1274,9 @@ activeCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    (context, opts: ActiveStatusCliOptions) => handleActiveStatus(opts, context),
+    async (context, opts: ActiveStatusCliOptions) => {
+      await (await import("./handlers/active.js")).handleActiveStatus(opts, context);
+    },
   ));
 
 activeCmd
@@ -1242,7 +1285,9 @@ activeCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ActiveRosterCliOptions) => handleActiveRoster(opts, context),
+    async (context, opts: ActiveRosterCliOptions) => {
+      await (await import("./handlers/active.js")).handleActiveRoster(opts, context);
+    },
   ));
 
 activeCmd
@@ -1253,7 +1298,9 @@ activeCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ActiveInFlightCliOptions) => handleActiveInFlight(opts, context),
+    async (context, opts: ActiveInFlightCliOptions) => {
+      await (await import("./handlers/active.js")).handleActiveInFlight(opts, context);
+    },
   ));
 
 // --- View ---
@@ -1270,7 +1317,9 @@ program
   .option("--for <slug>", "Override ambient context with the named work-unit slug")
   .action(withInteractionContext(
     {},
-    (context, kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts, context),
+    async (context, kind: string | undefined, opts: ViewCliOptions) => {
+      await (await import("./handlers/view.js")).handleView(kind, opts, context);
+    },
   ));
 
 // --- Status (composite) ---
@@ -1331,7 +1380,9 @@ program
         || opts.sessionHandoff === true
         || opts.recover === true,
     },
-    (context, slug: string | undefined, opts: StatusCliOptions) => handleStatus(slug, opts, context),
+    async (context, slug: string | undefined, opts: StatusCliOptions) => {
+      await (await import("./handlers/status.js")).handleStatus(slug, opts, context);
+    },
   ));
 
 // --- Locus ---
@@ -1340,7 +1391,9 @@ program
   .command("locus")
   .description("Inspect the local checkout and session locus roster")
   .option("--json", "Emit one typed session locus envelope as JSON")
-  .action(handleLocus);
+  .action(async (opts: LocusCliOptions) => {
+    await (await import("./handlers/locus.js")).handleLocus(opts);
+  });
 
 // --- Recover ---
 
@@ -1355,7 +1408,9 @@ recoverCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: RecoverAuditOptions) => handleRecoverAudit(opts, context),
+    async (context, opts: RecoverAuditOptions) => {
+      await (await import("./handlers/recover.js")).handleRecoverAudit(opts, context);
+    },
   ));
 
 // --- Sync (orchestrator) ---
@@ -1378,7 +1433,9 @@ program
   // injectable `output` parameter.
   .action(withInteractionContext(
     { yes: "authority", machineReadable: (opts) => opts.json === true },
-    (context, opts: SyncOptions) => handleSync(opts, undefined, context),
+    async (context, opts: SyncOptions) => {
+      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context);
+    },
   ));
 
 // --- Release ---
@@ -1398,7 +1455,9 @@ releaseCmd
   .argument("[args...]", "Arguments forwarded to `git commit`")
   .action(withInteractionContext(
     {},
-    (context, args: string[]) => handleReleaseCommit({ args }, context),
+    async (context, args: string[]) => {
+      await (await import("./commands/release.js")).handleReleaseCommit({ args }, context);
+    },
   ));
 
 releaseCmd
@@ -1410,7 +1469,9 @@ releaseCmd
   .argument("[args...]", "Arguments forwarded to `git push`")
   .action(withInteractionContext(
     {},
-    (context, args: string[]) => handleReleasePush({ args }, context),
+    async (context, args: string[]) => {
+      await (await import("./commands/release.js")).handleReleasePush({ args }, context);
+    },
   ));
 
 releaseCmd
@@ -1419,7 +1480,7 @@ releaseCmd
     "Record per-developer opt-in for release-mode wrappers (writes local git config `arc.releaseOptedIn = true`)",
   )
   .action(async () => {
-    await handleReleaseOptIn();
+    await (await import("./commands/release.js")).handleReleaseOptIn();
   });
 
 releaseCmd
@@ -1428,7 +1489,7 @@ releaseCmd
     "Record per-developer opt-out for release-mode wrappers (writes local git config `arc.releaseOptedIn = false`)",
   )
   .action(async () => {
-    await handleReleaseOptOut();
+    await (await import("./commands/release.js")).handleReleaseOptOut();
   });
 
 releaseCmd
@@ -1437,7 +1498,9 @@ releaseCmd
   .option("--json", "Emit a schemaVersion 2 JSON envelope")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    async (context, opts: { json?: boolean }) => handleReleaseStatus({ json: opts.json }, context),
+    async (context, opts: { json?: boolean }) => {
+      await (await import("./commands/release.js")).handleReleaseStatus({ json: opts.json }, context);
+    },
   ));
 
 const setupCmd = releaseCmd
@@ -1461,7 +1524,9 @@ setupCmd
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
   .action(withInteractionContext(
     { yes: "authority", machineReadable: (opts) => opts.json === true },
-    (context, opts: ReleaseSetupInstallOptions) => handleReleaseSetupInstall(opts, context),
+    async (context, opts: ReleaseSetupInstallOptions) => {
+      await (await import("./commands/release.js")).handleReleaseSetupInstall(opts, context);
+    },
   ));
 
 setupCmd
@@ -1473,8 +1538,8 @@ setupCmd
       .choices(["harness", "raw"])
       .default("harness"),
   )
-  .action((opts: ReleaseSetupPrintPatternsOptions) => {
-    handleReleaseSetupPrintPatterns(opts);
+  .action(async (opts: ReleaseSetupPrintPatternsOptions) => {
+    (await import("./commands/release.js")).handleReleaseSetupPrintPatterns(opts);
   });
 
 setupCmd
@@ -1485,7 +1550,9 @@ setupCmd
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, opts: ReleaseSetupUninstallOptions) => handleReleaseSetupUninstall(opts, context),
+    async (context, opts: ReleaseSetupUninstallOptions) => {
+      await (await import("./commands/release.js")).handleReleaseSetupUninstall(opts, context);
+    },
   ));
 
 setupCmd
@@ -1494,7 +1561,9 @@ setupCmd
   .option("--harness <name>", "Filter verification report to a harness")
   .action(withInteractionContext(
     {},
-    async (context, opts: ReleaseSetupVerifyOptions) => handleReleaseSetupVerify(opts, context),
+    async (context, opts: ReleaseSetupVerifyOptions) => {
+      await (await import("./commands/release.js")).handleReleaseSetupVerify(opts, context);
+    },
   ));
 
 // --- Log ---
@@ -1514,7 +1583,9 @@ logCmd
     "--category <category>",
     "Filter by standalone category (maintenance|planning|documentation|refactor|code review)",
   )
-  .action(handleLogStandalone);
+  .action(async (opts: LogStandaloneOptions) => {
+    await (await import("./handlers/log.js")).handleLogStandalone(opts);
+  });
 
 // --- Merge ---
 
@@ -1543,7 +1614,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nRequest JSON:\n  ${mergeLockResolveHelp}\n`)
-  .action((input: string) => handleMergeLockResolve(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockResolve(input);
+  });
 
 mergeLockCmd
   .command("hold")
@@ -1551,7 +1624,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
-  .action((input: string) => handleMergeLockHold(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockHold(input);
+  });
 
 mergeLockCmd
   .command("release")
@@ -1559,7 +1634,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
-  .action((input: string) => handleMergeLockRelease(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockRelease(input);
+  });
 
 // --- Review ---
 
@@ -1578,7 +1655,9 @@ reviewCmd
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, options: ReviewChangeRequestResolveOptions) => handleReviewChangeRequestResolve(options, context),
+    async (context, options: ReviewChangeRequestResolveOptions) => {
+      await (await import("./handlers/review.js")).handleReviewChangeRequestResolve(options, context);
+    },
   ));
 
 reviewCmd
@@ -1592,7 +1671,9 @@ reviewCmd
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
-    (context, options: ReviewStatusOptions) => handleReviewStatus(options, context),
+    async (context, options: ReviewStatusOptions) => {
+      await (await import("./handlers/review.js")).handleReviewStatus(options, context);
+    },
   ));
 
 reviewCmd
@@ -1609,7 +1690,9 @@ reviewCmd
   )
   .action(withInteractionContext(
     { machineReadable: true },
-    (context, input: string) => handleReviewTerminusAccept(input, context),
+    async (context, input: string) => {
+      await (await import("./handlers/review.js")).handleReviewTerminusAccept(input, context);
+    },
   ));
 
 reviewCmd
@@ -1623,7 +1706,9 @@ reviewCmd
     "non-delivery",
   )
   .requiredOption("--json", "Emit a typed JSON result")
-  .action((options: ReviewMergeMethodResolveOptions) => handleReviewMergeMethodResolve(options));
+  .action(async (options: ReviewMergeMethodResolveOptions) => {
+    await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options);
+  });
 
 reviewCmd
   .command("checks")
@@ -1636,21 +1721,26 @@ reviewCmd
   .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
   .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
   .requiredOption("--json", "Emit a typed JSON result")
-  .action((options: ReviewChecksAwaitOptions) => handleReviewChecksAwait(options));
+  .action(async (options: ReviewChecksAwaitOptions) => {
+    await (await import("./handlers/review.js")).handleReviewChecksAwait(options);
+  });
 
 reviewCmd
   .command("readiness")
   .description("Validate exact-head lifecycle readiness as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewReadiness(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewReadiness(input);
+  });
 
 reviewCmd
   .command("planning-lane <base> <head>")
   .description("Classify an exact Git change for planning clearance")
   .option("--repository <path>", "Repository containing both exact commits")
-  .action((base: string, head: string, opts: ReviewPlanningLaneOptions) =>
-    handleReviewPlanningLane(base, head, opts));
+  .action(async (base: string, head: string, opts: ReviewPlanningLaneOptions) => {
+    await (await import("./handlers/review.js")).handleReviewPlanningLane(base, head, opts);
+  });
 
 const planningGroomingResolveHelp = JSON.stringify({
   schemaVersion: 1,
@@ -1679,12 +1769,15 @@ reviewCmd
   .addHelpText("after", `\nRequest JSON:\n  ${planningGroomingResolveHelp}\n`)
   .action(withInteractionContext(
     { machineReadable: true },
-    (context, input: string | undefined, opts: { schema?: boolean }) => {
+    async (context, input: string | undefined, opts: { schema?: boolean }) => {
       if (opts.schema === true) {
-        handleReviewRequestSchema("review-planning-grooming-resolve-request", input);
+        (await import("./handlers/review.js")).handleReviewRequestSchema(
+          "review-planning-grooming-resolve-request",
+          input,
+        );
         return;
       }
-      return handleReviewPlanningGroomingResolve(input ?? "", {}, context);
+      await (await import("./handlers/review.js")).handleReviewPlanningGroomingResolve(input ?? "", {}, context);
     },
   ));
 
@@ -1693,7 +1786,9 @@ reviewCmd
   .description("Resolve the next configured review-policy action as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewResolve(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewResolve(input);
+  });
 
 const frontlineCmd = reviewCmd
   .command("frontline")
@@ -1704,7 +1799,9 @@ frontlineCmd
   .description("Resolve explicit change-set facts and one-run intent as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewFrontlineResolve(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewFrontlineResolve(input);
+  });
 
 frontlineCmd
   .command("run")
@@ -1714,12 +1811,12 @@ frontlineCmd
   .option("--schema", "Print the registered public request schema bundle")
   .action(withInteractionContext(
     { machineReadable: true },
-    (context, input: string | undefined, opts: { schema?: boolean }) => {
+    async (context, input: string | undefined, opts: { schema?: boolean }) => {
       if (opts.schema === true) {
-        handleReviewRequestSchema("review-frontline-run-request", input);
+        (await import("./handlers/review.js")).handleReviewRequestSchema("review-frontline-run-request", input);
         return;
       }
-      return handleReviewFrontlineRun(input ?? "", {}, context);
+      await (await import("./handlers/review.js")).handleReviewFrontlineRun(input ?? "", {}, context);
     },
   ));
 
@@ -1736,7 +1833,9 @@ hostedCmd
     "after",
     "\nContinuation:\n  Submit the emitted action unchanged to `arc review hosted await -`.\n",
   )
-  .action((input: string) => handleReviewHostedRequest(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewHostedRequest(input);
+  });
 
 hostedCmd
   .command("await")
@@ -1747,14 +1846,18 @@ hostedCmd
     "after",
     "\nPending continuation:\n  Submit the emitted action unchanged to this command.\n",
   )
-  .action((input: string) => handleReviewHostedAwait(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewHostedAwait(input);
+  });
 
 hostedCmd
   .command("settle")
   .description("Reply to and resolve one hosted review finding as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewHostedSettle(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewHostedSettle(input);
+  });
 
 reviewCmd
   .command("chunking")
@@ -1764,12 +1867,12 @@ reviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
-  .action((input: string | undefined, opts: { schema?: boolean }) => {
+  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
-      handleReviewRequestSchema("review-chunking-resolve-request", input);
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-chunking-resolve-request", input);
       return;
     }
-    return handleReviewChunkingResolve(input ?? "");
+    await (await import("./handlers/review.js")).handleReviewChunkingResolve(input ?? "");
   });
 
 const localReviewCmd = reviewCmd
@@ -1781,35 +1884,45 @@ localReviewCmd
   .description("Derive and prepare one immutable local review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewLocalPrepare(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewLocalPrepare(input);
+  });
 
 localReviewCmd
   .command("attest")
   .description("Attest one normalized local review result as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewLocalAttest(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewLocalAttest(input);
+  });
 
 localReviewCmd
   .command("resume")
   .description("Resume one durable local review as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewLocalResume(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewLocalResume(input);
+  });
 
 reviewCmd
   .command("respond")
   .description("Prepare or persist one source-bound review disposition set as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewRespond(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewRespond(input);
+  });
 
 reviewCmd
   .command("reduce")
   .description("Reduce one durable review operation as JSON")
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action((input: string) => handleReviewReduce(input));
+  .action(async (input: string) => {
+    await (await import("./handlers/review.js")).handleReviewReduce(input);
+  });
 
 reviewCmd
   .command("pre-publication <name>")
@@ -1824,8 +1937,9 @@ reviewCmd
   .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: () => true },
-    (context, name: string, options: ReviewPrePublicationOptions) =>
-      handleReviewPrePublication(name, options, {}, context),
+    async (context, name: string, options: ReviewPrePublicationOptions) => {
+      await (await import("./handlers/review.js")).handleReviewPrePublication(name, options, {}, context);
+    },
   ));
 
 // --- Dev-mode stale-build guard (self-hosting only) ---

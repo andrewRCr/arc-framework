@@ -568,38 +568,25 @@ startup on `view` measures at or below the target as a standalone probe.
   by `cli.ts` and rejects import-time registrations in the lazy set; none require eager retention. Kernel wiring,
   interaction policy, version/error support, and the dev-mode freshness guard remain eager by design.
 
-### `[ ]` **5.2 Convert a representative handler and confirm the yield and the single-file bundle**
+### `[~]` **5.2 Convert a representative handler and confirm the yield and the single-file bundle**
 
 - _Goal:_ One converted handler proves the shape end to end — the verb behaves identically, the bundle stays one
   file, and the measured startup saving matches the probe — before the shape is applied at scale.
 
-- _Context:_ Commander registration stays eager: names, descriptions, and options must be registered up front for
-  parsing and `--help`. Only the handler body moves behind `await import()` at invocation, and the entry already
-  parses asynchronously, so no restructuring is needed there.
+- _Outcome:_ The `view` route established the action-site dynamic-import shape and retained the single-file bundle,
+  but its isolated conversion produced no detectable yield while the other 30 implementation modules remained
+  eager. The planned one-handler performance checkpoint was superseded by the atomic full-surface conversion in
+  Task 5.3.
 
-    - The shared interaction wrapper needs no change: it is generic in its return type, so an action that becomes
-      async flows through unchanged. It resolves the interaction context synchronously before invoking the action,
-      so policy resolution stays eager whenever the handler body loads.
-    - Probe `view` standalone against its recorded ~0.36 s baseline under the same condition, so the comparison is
-      like-for-like. It is the representative verb throughout: it loads a handler, it is non-destructive, and its
-      0.21 s lazy-handler probe sits clear of the 0.25 s bar rather than on it — `status` probed at exactly 0.25 s,
-      which would leave the criterion decided by run-to-run noise.
-
-### `[ ]` **5.3 Convert the remaining handler modules in import order**
+### `[x]` **5.3 Convert the remaining handler modules in import order**
 
 - _Goal:_ Every handler and command module the entry imports loads lazily at invocation, or is recorded as
   deliberately eager with its import-time side effect named.
 
-- _Context:_ The conversion unit is the module, not the action site. The entry reaches its commands through
-  roughly thirty imported handler and command modules, while its ~141 action sites are call sites that follow from
-  which module went lazy — several of them sharing one module, so they convert together rather than
-  independently. Take both live counts at execution rather than carrying these.
-
-    - Batch by module in the entry's import order: that list is the enumerable surface itself, which makes "every
-      module dispositioned" directly checkable and the sequence resumable across sessions.
-    - Each module's call sites convert with it, so a regression localizes to one module rather than to a command
-      family cutting across several.
-    - This changes when handler modules load, not what they do — the suite is its own regression test.
+- _Outcome:_ All 31 implementation modules now load from their action sites through literal dynamic imports; the
+  built static graph reaches only seven eager inputs and no handler, command implementation, or remedy script.
+  Lightweight decomposition routing remains eager in its own module, and command-input source discovery now follows
+  literal dynamic imports so the repository inventory stays complete under the new loading boundary.
 
 ### `[ ]` **5.4 Exhaust and batch-verify the conversion surface** — validate exit criterion at segment scope
 
