@@ -452,19 +452,15 @@ adopted or rejected against the noise band.
   totaled 2.66 s (0.19 s median), under 10% of body time and 1% of the integration baseline; the dominant 11.4 s
   and 5.3 s cases spend their time in genuine delivery progression. No Phase 3 fixture lever applies here.
 
-### `[ ]` **3.5 Adopt template fixtures across the cost-ranked non-spawning files**
+### `[x]` **3.5 Adopt template fixtures across the cost-ranked non-spawning files**
 
 - _Goal:_ The non-spawning files that dominate integration summed time build from templates, worked in descending
   cost order and stopped where the yield stops paying.
 
-- _Rationale:_ Fixture construction is 26–29% of `user.test.ts` and 32–36% of `init.test.ts`, so per-file yield is
-  bounded near that share. 112 of 137 files carry a repo-building signal, but cost concentrates — this is a
-  ranked adoption, not a sweep of all 133 non-spawning files.
-
-    - Work from the instrument's ranking; 3.1's independence tests are the guard that each conversion is safe.
-    - Stop on the same arithmetic 7.2 uses rather than a second threshold: stop when three consecutive ranked
-      files each yield under 2% of the tier's summed time. That keeps "far enough down the ranking" a reading
-      rather than a judgment, and it is the phase's only check, since a `layer` carries no segment verifier.
+- _Outcome:_ `user.test.ts` now copies four file-scoped prepared shapes covering initialized, committed,
+  remote-bearing, and alternate-identity repositories. Paired isolated runs cut its test time 78.36→58.83 s and
+  38.81→25.01 s. The next three ranked non-spawning files yielded below the 7.22 s threshold: fan-out has no
+  fixture lever, `init`'s measured ceiling is 3.67 s, and `delivery-field-runs` already shares one clone per file.
 
 ### `[ ]` **3.6 Confirm or reject the tmpfs and non-isolated candidates against the noise band**
 
