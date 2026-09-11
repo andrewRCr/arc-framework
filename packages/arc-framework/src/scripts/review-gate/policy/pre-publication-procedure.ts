@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import {
   CandidateLineageTargetSchema,
   CandidateManagedRecordV1Schema,
@@ -161,13 +162,25 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
 
   if (request.candidate.implementationChanged
     && request.candidate.convergenceVerification === "pending") {
+    const requiredScope = request.candidate.convergenceScope;
+    const attestArgv = attestConvergenceArgv(
+      request.workUnit,
+      requiredScope,
+      "{verificationEvidenceRef}",
+    );
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: action(
-        request.workUnit,
-        "run-convergence-verification",
-        "Run one final Tier 3 over the converged Candidate lineage, then invoke arc attest.",
-      ),
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope,
+        verificationKind: requiredScope === "focused" ? "focused" : "tier-3",
+        verificationEvidenceRefRequired: true,
+        attestArgv: [...attestArgv],
+        command: attestArgv.join(" "),
+        interactionText: requiredScope === "focused"
+          ? "Run the bounded focused verification approved for this convergence, then invoke the carried attest action."
+          : "Run Tier 3 over the converged Candidate lineage, then invoke the carried attest action.",
+      },
       reservation,
       terminus,
     });
@@ -291,15 +304,24 @@ function envelope(
 
 function action(
   workUnit: string,
-  kind: PrePublicationNextAction["kind"],
+  kind: Exclude<PrePublicationNextAction["kind"], "run-convergence-verification">,
   interactionText: string,
 ): PrePublicationNextAction {
-  const command = kind === "publish-candidate"
-    ? `arc publish ${workUnit} --json`
-    : kind === "run-convergence-verification"
-      ? `arc attest ${workUnit} --json`
-      : `arc review pre-publication ${workUnit} --json`;
-  return { kind, command, interactionText };
+  if (kind === "publish-candidate") {
+    return PublishCandidateActionSchema.parse({
+      kind,
+      command: `arc publish ${workUnit} --json`,
+      interactionText,
+    });
+  }
+  const value = {
+    kind,
+    command: `arc review pre-publication ${workUnit} --json`,
+    interactionText,
+  };
+  return kind === "run-self-review"
+    ? RunSelfReviewActionSchema.parse(value)
+    : ContinuePrePublicationActionSchema.parse(value);
 }
 
 function isSettledFrontline(state: z.infer<typeof ReviewResolveEnvelopeSchema>["state"]): boolean {

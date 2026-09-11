@@ -18,6 +18,7 @@ import {
   projectPublicationBoundary,
   recoverIntegratingBoundary,
   recoverPublicationBoundary,
+  RunConvergenceVerificationActionSchema,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createCandidateAttestation,
@@ -778,9 +779,65 @@ describe("projectPrePublicationReview", () => {
       reservation: { sources: ["codex-pr", "delegated-agent"] },
       nextAction: {
         kind: "run-convergence-verification",
-        command: "arc attest example --json",
+        requiredScope: "full",
+        verificationKind: "tier-3",
+        verificationEvidenceRefRequired: true,
+        command: "arc attest example --scope full --verification-evidence-ref {verificationEvidenceRef} --json",
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "full",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
       },
     });
+  });
+
+  it("projects the bounded verification and exact attest action for focused convergence", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: "focused",
+      },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope: "focused",
+        verificationKind: "focused",
+        verificationEvidenceRefRequired: true,
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+    });
+  });
+
+  it("rejects a convergence action whose kind or argv disagrees with its scope", () => {
+    const action = {
+      kind: "run-convergence-verification",
+      requiredScope: "focused",
+      verificationKind: "tier-3",
+      verificationEvidenceRefRequired: true,
+      attestArgv: [
+        "arc", "attest", "example", "--scope", "full",
+        "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+      ],
+      command: "arc attest example --scope full --verification-evidence-ref {verificationEvidenceRef} --json",
+      interactionText: "Run verification.",
+    };
+    expect(RunConvergenceVerificationActionSchema.safeParse(action).success).toBe(false);
   });
 
   it("submits a converged implementation-changing lineage after full verification", () => {

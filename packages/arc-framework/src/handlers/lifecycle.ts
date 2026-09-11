@@ -643,6 +643,8 @@ export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
+  scope: z.enum(["focused", "full"]).default("full"),
+  verificationEvidenceRef: z.string().trim().min(1).optional(),
   expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
 }).strict().superRefine((value, refinement) => {
@@ -782,6 +784,8 @@ export const lifecycleCommandInputRegistrations = [
       "operand.name": "name",
       "option.json": "json",
       "option.new-root": "newRoot",
+      "option.scope": "scope",
+      "option.verification-evidence-ref": "verificationEvidenceRef",
       "option.expected-candidate": "expectedCandidate",
       "option.expected-subject": "expectedSubject",
     },
@@ -2597,6 +2601,8 @@ export async function handleFinalizeStage(
 export interface AttestOptions {
   json?: boolean;
   newRoot?: boolean;
+  scope?: "focused" | "full";
+  verificationEvidenceRef?: string;
   expectedCandidate?: string;
   expectedSubject?: string;
 }
@@ -2614,6 +2620,8 @@ export async function handleAttest(
       name: name?.trim(),
       json: opts.json,
       newRoot: opts.newRoot,
+      scope: opts.scope,
+      verificationEvidenceRef: opts.verificationEvidenceRef,
       expectedCandidate: opts.expectedCandidate,
       expectedSubject: opts.expectedSubject,
     },
@@ -2893,6 +2901,8 @@ export async function handleAttest(
       name: input.name,
       lifecycle: meta.state,
       newRoot: input.newRoot === true,
+      scope: input.scope,
+      verificationEvidenceRef: input.verificationEvidenceRef,
       ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
         ? {}
         : {
@@ -2935,13 +2945,28 @@ export async function handleAttest(
   } else if (result.status === "blocked") {
     p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
   } else if (result.status === "refused") {
-    p.log.error(result.recommendedActionText);
+    if ("candidateId" in result) {
+      p.log.error([
+        result.recommendedActionText,
+        `Candidate: ${result.candidateId ?? "[none]"}`,
+        `Subject: ${result.subjectDigest}`,
+        `Scope: ${result.requestedScope} requested; ${result.requiredScope} required`,
+        `Fresh evidence: ${result.verificationEvidenceProvided ? "supplied" : "missing"}`,
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    } else {
+      p.log.error(result.recommendedActionText);
+    }
   } else {
     const lines = [
       `Work unit: ${result.locus.workUnit}`,
       `Candidate: ${result.locus.candidateId}`,
       `Locus:     ${result.locus.locus}`,
     ];
+    if ("operation" in result && result.operation === "convergence") {
+      lines.push(`Scope:     ${result.scope}`);
+      lines.push(`Evidence:  ${result.verificationEvidenceRef}`);
+    }
     p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
     p.outro("Done.");
   }

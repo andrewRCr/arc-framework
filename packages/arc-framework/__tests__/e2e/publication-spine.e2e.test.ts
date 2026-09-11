@@ -23,6 +23,7 @@ import { createStandardReviewReservation } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   CandidateManagedRecordV1Schema,
+  createCandidateReviewResponseEvidence,
   parseCandidateManagedRecord,
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
@@ -374,13 +375,25 @@ describe("attest → pre-publication → publish", () => {
       oldTarget: { revision: record.attestation.baseRevision, subject: record.subject },
       current,
     });
-    const response = recordCandidateVerifiedResponse({
+    const independentlyProducedResponse = recordCandidateVerifiedResponse({
       projection,
       dispositionId: canonicalDigest({ disposition: "approved" }),
       approvedBy: "test-user",
       appliedBy: "test-agent",
       applicability: "focused",
       verificationEvidenceRefs: ["test://focused"],
+    });
+    const response = createCandidateReviewResponseEvidence({
+      candidateId: independentlyProducedResponse.candidateId,
+      oldTarget: independentlyProducedResponse.oldTarget,
+      newTarget: independentlyProducedResponse.newTarget,
+      dispositionId: independentlyProducedResponse.dispositionId,
+      approvedBy: independentlyProducedResponse.approvedBy,
+      appliedBy: independentlyProducedResponse.appliedBy,
+      applicability: independentlyProducedResponse.applicability,
+      approvedVerification: "focused",
+      verificationEvidenceRefs: independentlyProducedResponse.verificationEvidenceRefs,
+      implementationChanged: independentlyProducedResponse.implementationChanged,
     });
     await writeFile(candidatePath, serializeCandidateManagedRecord(CandidateManagedRecordV1Schema.parse({
       ...record,
@@ -394,6 +407,19 @@ describe("attest → pre-publication → publish", () => {
       { env: OFFLINE_ENV },
     );
     expect(resumed.exitCode, JSON.stringify(resumed)).toBe(0);
+    expect(JSON.parse(resumed.stdout)).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope: "focused",
+        verificationKind: "focused",
+        verificationEvidenceRefRequired: true,
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+    });
     const pendingConvergenceBoundary = JSON.parse(await readFile(boundaryPath, "utf8"));
     expect(pendingConvergenceBoundary).toMatchObject({
       candidateId: reviewedEnvelope.candidateId,
@@ -402,11 +428,16 @@ describe("attest → pre-publication → publish", () => {
       reservation: { sources: ["coderabbit-pr", "codex-pr"] },
     });
 
-    const converged = await runArc(["attest", "example", "--json"], repository);
+    const converged = await runArc([
+      "attest", "example", "--scope", "focused",
+      "--verification-evidence-ref", "verification://focused-pre-publication-convergence", "--json",
+    ], repository);
     expect(converged.exitCode, JSON.stringify(converged)).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({
       status: "attested",
       operation: "convergence",
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused-pre-publication-convergence",
       locus: {
         locus: "candidate-review-pending",
         candidateId: reviewedEnvelope.candidateId,

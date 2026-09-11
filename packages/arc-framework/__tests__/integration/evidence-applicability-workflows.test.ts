@@ -9,6 +9,8 @@ import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-trigger
 
 const root = resolve(import.meta.dirname, "../../../..");
 
+const prepareWorkflow = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+
 const workflows = {
   integrate: "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
   deliver: "system/workflows/arc/supplemental/deliver-stack.md",
@@ -29,6 +31,16 @@ function occurrences(content: string, value: string): number {
 }
 
 describe("evidence applicability workflow fire-points", () => {
+  it("renders scoped convergence only from the typed pre-publication action", async () => {
+    const workflow = await readPair(prepareWorkflow);
+
+    expect(workflow).toContain("`nextAction.requiredScope`");
+    expect(workflow).toContain("`nextAction.verificationKind`");
+    expect(workflow).toContain("`nextAction.attestArgv`");
+    expect(workflow).toContain("`{verificationEvidenceRef}`");
+    expect(workflow).toMatch(/never select a\s+verification scope in prose/iu);
+  });
+
   it.each(Object.entries(workflows))("declares bounded residual judgment in %s", async (_name, path) => {
     const workflow = await readPair(path);
     const frontmatter = parseWorkflowFrontmatter(workflow);

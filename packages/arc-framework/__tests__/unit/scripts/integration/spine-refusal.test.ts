@@ -96,7 +96,10 @@ describe("spine refusal remedies", () => {
 
   it("interpolates the refused work unit into slug-bearing commands", () => {
     expect(checkpointRemedy("candidate-convergence-pending", "example").argv)
-      .toEqual(["arc", "attest", "example"]);
+      .toEqual([
+        "arc", "attest", "example", "--scope", "full",
+        "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+      ]);
     expect(mergeRemedy("head-mismatch", "example").argv)
       .toEqual(["arc", "integrate", "checkpoint", "example", "--json"]);
     expect(prePublicationRemedy("corrupt-state", "example").argv)

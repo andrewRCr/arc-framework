@@ -569,45 +569,23 @@ currentness and attestation outcomes without requiring the separately owned prop
   sufficiently broad subject attestations, and omitted scope conservatively projects full. A cycle-free Candidate
   evidence contract lets the lineage invoke the shared reducer without duplicating the scope decision.
 
-### `[ ]` **5.4 Enforce focused and full attestation semantics** — D12
+### `[x]` **5.4 Enforce focused and full attestation semantics** — D12
 
 - _Goal:_ only evidence at least as broad as the pending approved scope can satisfy Candidate convergence, and the
   operator receives the correct bounded or full verification action.
 
-- **Additional Context:** `notes-evidence-applicability.md` § Scoped verification decisions
+    - `[x]` **5.4.a Extend the typed attest operation**
+        - The public verb now binds focused or full scope to fresh convergence evidence, rejects missing, narrow, or
+          root-inapplicable inputs before write, and preserves decisive coordinates and exact remedies in JSON and
+          interactive output.
 
-    - `[ ]` **5.4.a Extend the typed attest operation**
-        - Add `--scope focused | full` with default `full` and a convergence-only
-          `--verification-evidence-ref <reference>` through `verbs/attest.ts`, `AttestOptions`,
-          `AttestCommandInputSchema`, the input-policy mapping, Commander registration, handler invocation and
-          formatting, and scoped attestation argv helpers.
-        - Require a fresh non-empty evidence reference before a convergence write; never substitute the root
-          `tasks-{name}.md#verification` reference. Echo recorded scope and evidence on success.
-        - Permit `focused` only for pending focused convergence, permit `full` for either pending scope, and refuse
-          focused root/re-root or focused-against-full before write. Each refusal carries the Candidate and subject,
-          requested and required scope, missing-evidence state when applicable, and the exact focused/full
-          verification action.
-        - Build `test-first` (one behavior at a time):
-            - omitted scope records `full` only when fresh convergence evidence is supplied;
-            - focused and broader full evidence satisfy focused convergence and echo the recorded binding;
-            - missing evidence, focused-against-full, and focused root/re-root refuse without a write; and
-            - verb, record guard, JSON, and interactive projections preserve the required scope, decisive
-              coordinates, evidence requirement, and corrective action.
+    - `[x]` **5.4.b Project the scoped verification request**
+        - Pre-publication and checkpoint projections carry schema-validated focused or Tier 3 actions with exact
+          evidence-bearing attest argv; `prepare-work-unit.md` renders only that typed action in both framework copies.
 
-    - `[ ]` **5.4.b Project the scoped verification request**
-        - Extend `RunConvergenceVerificationActionSchema`, `pre-publication-procedure.ts`,
-          `pre-publication-request.ts`, and `pre-publication-composition.ts` so the typed action carries the required
-          scope and verification kind, names one bounded focused check or today's Tier 3 full check, and gives the
-          exact scoped attest syntax once that check yields its evidence reference. Targeted produces no convergence
-          action.
-        - Update both copies of `prepare-work-unit.md` only where they render the typed action; keep selection logic
-          inside the CLI and add workflow pin coverage. Leave `verify-work-unit.md` on its existing full root/re-root
-          procedure because it has no convergence-action fire-point.
-        - Build `test-first` (one behavior at a time):
-            - focused and full pending states emit their bounded and Tier 3 actions;
-            - targeted emits no convergence action; and
-            - an omitted transition field requests full verification; and
-            - request/action schemas reject impossible status/scope pairs and preserve the evidence-ref requirement.
+- _Outcome:_ the operation, durable record, pre-publication request, checkpoint remedy, and workflow surface agree on
+  one scope/evidence contract. Real CLI coverage proves focused convergence while omitted approval scope retains the
+  conservative full path.
 
 ### `[ ]` **5.5 Record the verification-authority amendment** — D13
 

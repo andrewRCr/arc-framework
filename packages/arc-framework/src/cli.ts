@@ -568,6 +568,11 @@ program
     "--new-root",
     "Root a new lineage over the current fully verified subject, superseding a blocked Candidate",
   )
+  .option("--scope <scope>", "Verification scope for convergence: focused | full", "full")
+  .option(
+    "--verification-evidence-ref <reference>",
+    "Fresh verification evidence reference for a convergence attestation",
+  )
   .option(
     "--expected-candidate <candidate-id>",
     "Require the blocked Candidate selected by a prior attestation refusal",

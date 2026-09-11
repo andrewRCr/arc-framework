@@ -66,7 +66,32 @@ const LegacyContinueHostedReviewActionSchema = z.strictObject({
 });
 export const RunConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
+  requiredScope: z.enum(["focused", "full"]),
+  verificationKind: z.enum(["focused", "tier-3"]),
+  verificationEvidenceRefRequired: z.literal(true),
+  attestArgv: z.array(z.string().trim().min(1)).length(8),
   ...ActionFields,
+}).superRefine((action, context) => {
+  const expectedKind = action.requiredScope === "focused" ? "focused" : "tier-3";
+  if (action.verificationKind !== expectedKind) {
+    context.addIssue({
+      code: "custom",
+      path: ["verificationKind"],
+      message: "must match the required convergence scope",
+    });
+  }
+  const expected = [
+    "arc", "attest", action.attestArgv[2], "--scope", action.requiredScope,
+    "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+  ];
+  if (JSON.stringify(action.attestArgv) !== JSON.stringify(expected)
+    || action.command !== expected.join(" ")) {
+    context.addIssue({
+      code: "custom",
+      path: ["attestArgv"],
+      message: "must carry the exact scoped attest invocation",
+    });
+  }
 });
 export const PublishCandidateActionSchema = z.strictObject({
   kind: z.literal("publish-candidate"),

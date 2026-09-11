@@ -831,11 +831,16 @@ describe("review-fix Candidate lineage", () => {
       payload: { candidate: { status: "current", implementationChanged: true } },
     });
 
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({
       status: "attested",
       operation: "convergence",
+      scope: "full",
+      verificationEvidenceRef: "verification://full-convergence",
       locus: { locus: "candidate-review-pending" },
     });
 
@@ -867,7 +872,10 @@ describe("review-fix Candidate lineage", () => {
     await git(root, ["commit", "-m", "record verified response"]);
     expect(await git(root, ["rev-parse", "HEAD"])).not.toBe(responseHead);
 
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-operational-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
 
@@ -1135,7 +1143,10 @@ describe("review-fix Candidate lineage", () => {
       })).resolves.toMatchObject({ state: "candidate-advanced" });
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
 
-      const converged = await runArc(["attest", "example", "--json"], origin);
+      const converged = await runArc([
+        "attest", "example", "--scope", "full",
+        "--verification-evidence-ref", "verification://full-stationary-convergence", "--json",
+      ], origin);
       expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
       expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
@@ -1273,7 +1284,10 @@ describe("review-fix Candidate lineage", () => {
       },
     })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await git(root, ["commit", "-m", "record hosted verified response"]);
-    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-hosted-convergence", "--json",
+    ], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "hosted convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
@@ -1456,7 +1470,10 @@ describe("review-fix Candidate lineage", () => {
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     })).resolves.toMatchObject({ state: "candidate-advanced" });
     await git(root, ["commit", "-m", "record verified response"]);
-    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-span-convergence", "--json",
+    ], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     expect(approvedHead).not.toBe(deferredHead);
@@ -1541,7 +1558,10 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
   })).resolves.toMatchObject({ state: "candidate-advanced" });
   await git(root, ["commit", "-m", "record verified response"]);
 
-  expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+  expect((await runArc([
+    "attest", "example", "--scope", "full",
+    "--verification-evidence-ref", "verification://full-settlement-convergence", "--json",
+  ], root)).exitCode).toBe(0);
   await git(root, ["commit", "-m", "convergence verification"]);
   return { root, approvedHead: await git(root, ["rev-parse", "HEAD"]) };
 }
