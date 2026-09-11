@@ -2020,6 +2020,60 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("uses the newest responded same-head terminal producer as the correction predecessor", async () => {
+    const headSha = oid("b");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: headSha,
+    });
+    const current = attempt(headSha, "codex-pr", "settled-findings", vehicle);
+    const producerTarget = current.hosted?.reviewTarget;
+    if (producerTarget === undefined) throw new Error("expected hosted producer target");
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: current.attemptId,
+      predecessorHeadSha: headSha,
+      basisHeadSha: headSha,
+      headSha,
+      requiredFindings: [findingInstruction(current.attemptId, "finding-current")],
+    };
+
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("codex-pr", ["codex-pr", "delegated-agent"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded",
+          completedPasses: 1,
+          completePasses: 1,
+          attempts: [current],
+        },
+      }),
+      readEarlierAttemptApplicability: async () => ({ status: "not-found" }),
+      resolveIncrementalCorrectionScope: async (candidate, currentHeadSha) => (
+        candidate.attemptId === current.attemptId
+          && candidate.sourceId === current.sourceId
+          && candidate.producerTarget?.targetId === producerTarget.targetId
+          && currentHeadSha === headSha
+          ? correctionScope
+          : null
+      ),
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "codex-pr",
+      correctionScope,
+    });
+  });
+
   it("extends the latest incremental predecessor instead of skipping back to its complete root", async () => {
     const completeTarget = createReviewTarget({
       schemaVersion: 2,

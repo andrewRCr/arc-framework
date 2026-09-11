@@ -67,6 +67,15 @@ type EarlierApplicableAttempt = Extract<
   { status: "complete" }
 >["attempts"][number];
 
+/** Minimal immutable producer identity eligible to seed one exact correction scope. */
+export interface IncrementalCorrectionScopeCandidate {
+  readonly attemptId: string;
+  readonly logicalPass: number;
+  readonly sourceId: string;
+  readonly outcome: string;
+  readonly producerTarget?: ReviewResult["target"];
+}
+
 /** Resolve one immutable predecessor against the current Candidate applicability projection. */
 export function incrementalApplicabilityFromEarlierRead(input: {
   readonly producerId: string;
@@ -161,6 +170,21 @@ function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
 function terminalPolicyOutcome(outcome: string): "clean" | "settled-findings" {
   if (outcome === "clean" || outcome === "settled-findings") return outcome;
   throw new Error("Terminal discharge evidence has no policy-bearing outcome.");
+}
+
+function currentCorrectionScopeCandidate(
+  attempt: ProjectedLaneAttempt,
+): IncrementalCorrectionScopeCandidate | null {
+  const producerTarget = attempt.local?.target ?? attempt.hosted?.reviewTarget;
+  if (producerTarget === undefined
+    || (attempt.outcome !== "clean" && attempt.outcome !== "settled-findings")) return null;
+  return {
+    attemptId: attempt.attemptId,
+    logicalPass: attempt.logicalPass,
+    sourceId: attempt.sourceId,
+    outcome: attempt.outcome,
+    producerTarget,
+  };
 }
 
 function attemptMatchesTarget(
@@ -514,7 +538,7 @@ export async function projectHostedReservationDischarge(input: {
   resolveTerminalPolicy: (attempt: ProjectedLaneAttempt) => Promise<ReviewResolveEnvelope>;
   resolveEarlierTerminalPolicy: (attempt: EarlierApplicableAttempt) => Promise<ReviewResolveEnvelope>;
   resolveIncrementalCorrectionScope?: (
-    attempt: EarlierApplicableAttempt,
+    attempt: IncrementalCorrectionScopeCandidate,
     currentHeadSha: string,
   ) => Promise<IncrementalReviewScope | null>;
 }): Promise<HostedReservationDischarge> {
@@ -617,6 +641,7 @@ export async function projectHostedReservationDischarge(input: {
       ? attempt.logicalPass
       : latest
   ), null);
+  let latestCurrentCorrectionCandidate: IncrementalCorrectionScopeCandidate | null = null;
   if (latestCurrentTerminalPass !== null) {
     const admittedLocalTerminal = [...currentAttemptHistory].reverse().find((attempt) => (
       attempt.logicalPass === latestCurrentTerminalPass
@@ -643,6 +668,12 @@ export async function projectHostedReservationDischarge(input: {
           };
         }
         if (currentTerminal.outcome === "clean" || policy.state !== "findings") {
+          const correctionCandidate = currentCorrectionScopeCandidate(currentTerminal);
+          const correctionScope = policy.state === "coverage-required"
+            && correctionCandidate !== null
+            && input.resolveIncrementalCorrectionScope !== undefined
+            ? await input.resolveIncrementalCorrectionScope(correctionCandidate, target.headSha)
+            : null;
           const coverageSelectionAction = policy.state === "coverage-required" && target.vehicle !== undefined
             ? ReviewCoverageSelectionActionSchema.parse({
                 schemaVersion: 1,
@@ -652,7 +683,10 @@ export async function projectHostedReservationDischarge(input: {
                 pass: policy.payload.pass,
                 completedPasses: policy.payload.completedPasses,
                 consumedPass: policy.payload.consumedPass,
-                choices: coverageSelectionChoices(reservation.sources),
+                choices: coverageSelectionChoices(
+                  reservation.sources,
+                  correctionScope ?? undefined,
+                ),
                 interactionText: "Select one listed source and coverage pair, then re-run `arc review status "
                   + `--work-unit ${target.vehicle.workUnitId} --source <sourceId> --coverage <coverage> --json\`.`,
               })
@@ -661,9 +695,11 @@ export async function projectHostedReservationDischarge(input: {
             discharged: false,
             detail: `The terminal review producer did not establish convergence (${policy.state}/${policy.nextAction}).`,
             nextSource: null,
+            ...(correctionScope === null ? {} : { correctionScope }),
             ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
           };
         }
+        latestCurrentCorrectionCandidate = currentCorrectionScopeCandidate(currentTerminal);
         break;
       }
       if (admittedLocalTerminal !== undefined) continue;
@@ -693,21 +729,24 @@ export async function projectHostedReservationDischarge(input: {
   };
   const correctionContext = async (): Promise<{ correctionScope?: IncrementalReviewScope }> => {
     if (input.resolveIncrementalCorrectionScope === undefined) return {};
-    await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
-    const candidates = reservation.sources.flatMap((sourceId) => {
-      const earlier = activeEarlierBySource?.get(sourceId);
-      return earlier?.status === "complete"
-        ? earlier.attempts.filter((attempt) => (
-            (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
-            && (attempt.applicability === "request-review"
-              || attempt.applicability === "retain-prior-attempt")
-          ))
-        : [];
-    }).sort((left, right) => right.logicalPass - left.logicalPass
-      || right.updatedAt.localeCompare(left.updatedAt)
-      || left.attemptId.localeCompare(right.attemptId));
-    const candidate = candidates[0];
-    if (candidate === undefined) return {};
+    let candidate = latestCurrentCorrectionCandidate;
+    if (candidate === null) {
+      await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
+      const candidates = reservation.sources.flatMap((sourceId) => {
+        const earlier = activeEarlierBySource?.get(sourceId);
+        return earlier?.status === "complete"
+          ? earlier.attempts.filter((attempt) => (
+              (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
+              && (attempt.applicability === "request-review"
+                || attempt.applicability === "retain-prior-attempt")
+            ))
+          : [];
+      }).sort((left, right) => right.logicalPass - left.logicalPass
+        || right.updatedAt.localeCompare(left.updatedAt)
+        || left.attemptId.localeCompare(right.attemptId));
+      candidate = candidates[0] ?? null;
+    }
+    if (candidate === null) return {};
     const correctionScope = await input.resolveIncrementalCorrectionScope(candidate, target.headSha);
     return correctionScope === null ? {} : { correctionScope };
   };
@@ -1182,7 +1221,7 @@ export function createHostedReservationDischargeReader(input: {
       });
     };
     const resolveIncrementalCorrectionScope = async (
-      attempt: EarlierApplicableAttempt,
+      attempt: IncrementalCorrectionScopeCandidate,
       currentHeadSha: string,
     ): Promise<IncrementalReviewScope | null> => {
       if (attempt.producerTarget === undefined) return null;
