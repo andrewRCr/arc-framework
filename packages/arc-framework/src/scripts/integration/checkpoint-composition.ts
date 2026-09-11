@@ -8,7 +8,7 @@ import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-ada
 import type { RawGitExec } from "../../lib/change-facts.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
-import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
+import { resolveIdentity, type GitExec } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
@@ -184,8 +184,18 @@ function parseRecord(text: string, path: string): Record<string, unknown> {
 }
 
 async function currentHead(exec: GitExec, cwd: string): Promise<{ branch: string; head: string }> {
-  const branch = await getCurrentBranch(exec);
-  if (branch === null) throw new Error("The integration checkpoint requires an attached branch.");
+  let branch: string;
+  try {
+    branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd,
+      objectAccess: "local-only",
+    })).stdout.trim();
+  } catch {
+    throw new Error("The integration checkpoint requires an attached branch.");
+  }
+  if (branch === "HEAD" || branch === "") {
+    throw new Error("The integration checkpoint requires an attached branch.");
+  }
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd, objectAccess: "local-only" })).stdout.trim();
   if (!GitObjectIdSchema.safeParse(head).success) throw new Error("The current integration head is invalid.");
   return { branch, head };
