@@ -44,6 +44,7 @@ describe("substrate-bound share", () => {
       setupDurationMs: 0,
       fixedCostMs: 0,
       testTimeMs: durationMs,
+      executionDurationMs: durationMs,
       durationMs,
       tests: [],
     });

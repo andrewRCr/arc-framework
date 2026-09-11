@@ -22,6 +22,7 @@ export interface ReportedCostModule {
   diagnostic(): {
     readonly collectDuration: number;
     readonly setupDuration: number;
+    readonly duration: number;
   };
 }
 
@@ -44,6 +45,7 @@ export interface TestCostFile {
   readonly setupDurationMs: number;
   readonly fixedCostMs: number;
   readonly testTimeMs: number;
+  readonly executionDurationMs: number;
   readonly durationMs: number;
   readonly tests: readonly TestCostCase[];
 }
@@ -72,6 +74,7 @@ function captureFile(module: ReportedCostModule): TestCostFile {
   const diagnostic = module.diagnostic();
   const collectDurationMs = requireDuration(diagnostic.collectDuration, `${module.relativeModuleId} collection`);
   const setupDurationMs = requireDuration(diagnostic.setupDuration, `${module.relativeModuleId} setup`);
+  const executionDurationMs = requireDuration(diagnostic.duration, `${module.relativeModuleId} execution`);
   const reportedTests = [...module.children.allTests()];
   if (reportedTests.length === 0) {
     throw new Error(`Vitest returned no test tasks for ${module.relativeModuleId}`);
@@ -118,7 +121,8 @@ function captureFile(module: ReportedCostModule): TestCostFile {
     setupDurationMs,
     fixedCostMs,
     testTimeMs,
-    durationMs: fixedCostMs + testTimeMs,
+    executionDurationMs,
+    durationMs: fixedCostMs + executionDurationMs,
     tests,
   };
 }

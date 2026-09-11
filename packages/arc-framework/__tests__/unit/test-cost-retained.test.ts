@@ -13,6 +13,7 @@ function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
     setupDurationMs: 10,
     fixedCostMs: 20,
     testTimeMs: durationMs - 20,
+    executionDurationMs: durationMs - 20,
     durationMs,
     tests: [{
       id: "a",

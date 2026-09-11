@@ -19,7 +19,7 @@ describe("runTestCostMeasurement", () => {
           getTestModules: () => [{
             relativeModuleId: "cost.test.ts",
             project: { name: "unit" },
-            diagnostic: () => ({ collectDuration: 10, setupDuration: 20 }),
+            diagnostic: () => ({ collectDuration: 10, setupDuration: 20, duration: 30 }),
             children: {
               allTests: function* () {
                 yield {

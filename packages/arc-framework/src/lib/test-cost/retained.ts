@@ -20,6 +20,7 @@ export interface NormalizedRetainedCost {
     readonly durationMs: number;
     readonly fixedCostMs: number;
     readonly testTimeMs: number;
+    readonly executionDurationMs: number;
     readonly testCount: number;
   }[];
   readonly substrate: {
@@ -59,6 +60,10 @@ export function normalizeRetainedTestCostRuns(
       durationMs: median(samples.map((file) => file.durationMs), `${path} duration`),
       fixedCostMs: median(samples.map((file) => file.fixedCostMs), `${path} fixed cost`),
       testTimeMs: median(samples.map((file) => file.testTimeMs), `${path} test time`),
+      executionDurationMs: median(
+        samples.map((file) => file.executionDurationMs),
+        `${path} execution duration`,
+      ),
       testCount: median(samples.map((file) => file.tests.length), `${path} test count`),
     };
   });

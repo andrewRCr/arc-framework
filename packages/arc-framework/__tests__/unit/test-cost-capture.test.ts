@@ -21,11 +21,12 @@ function moduleFixture(
     cliSpawnCount?: number;
     state?: string;
   }>,
+  executionDuration: number = tests.reduce((total, test) => total + (test.duration ?? 0), 0),
 ): ReportedCostModule {
   return {
     relativeModuleId: path,
     project: { name: projectName },
-    diagnostic: () => ({ collectDuration, setupDuration }),
+    diagnostic: () => ({ collectDuration, setupDuration, duration: executionDuration }),
     children: {
       allTests: function* () {
         for (const test of tests) {
@@ -60,15 +61,20 @@ describe("captureTestCost", () => {
     expect(result.summedFileTimeMs).toBe(41);
   });
 
-  it("adds collection and setup as fixed file cost without double-counting imports", () => {
+  it("adds complete module execution cost without double-counting test time", () => {
     const [file] = captureTestCost([
       moduleFixture("fixed.test.ts", "unit", 17, 19, [
         { id: "one", name: "one", duration: 2 },
         { id: "two", name: "two", duration: 3 },
-      ]),
+      ], 11),
     ]).files;
 
-    expect(file).toMatchObject({ fixedCostMs: 36, testTimeMs: 5, durationMs: 41 });
+    expect(file).toMatchObject({
+      fixedCostMs: 36,
+      testTimeMs: 5,
+      executionDurationMs: 11,
+      durationMs: 47,
+    });
   });
 
   it("retains every executed it.each case", () => {
