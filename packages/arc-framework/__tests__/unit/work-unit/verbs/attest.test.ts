@@ -618,7 +618,8 @@ describe("runAttest", () => {
     const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
 
-    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("staged-later") });
+    const observedTarget = { revision: CHANGED_REVISION, subject: subject("staged-later") };
+    fixture.setCurrentTarget(observedTarget);
     const result = await runAttest(fixture.context, {
       name: "example",
       lifecycle: "Active",
@@ -632,7 +633,19 @@ describe("runAttest", () => {
     expect(result).toEqual({
       status: "refused",
       reason: "re-root-subject-mismatch",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+      observed: {
+        candidateId: blocked.candidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(fixture.state().publicationCount).toBe(1);
   });
@@ -646,7 +659,9 @@ describe("runAttest", () => {
     if (firstBlocked.status !== "blocked") throw new Error("expected first blocked Candidate delta");
 
     await runAttest(fixture.context, { name: "example", lifecycle: "Active", newRoot: true });
-    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("second-refusal") });
+    const observedCandidateId = fixture.state().storedRecord!.attestation.candidateId;
+    const observedTarget = { revision: CHANGED_REVISION, subject: subject("second-refusal") };
+    fixture.setCurrentTarget(observedTarget);
     const result = await runAttest(fixture.context, {
       name: "example",
       lifecycle: "Active",
@@ -660,7 +675,19 @@ describe("runAttest", () => {
     expect(result).toEqual({
       status: "refused",
       reason: "re-root-candidate-mismatch",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId: firstBlocked.candidateId,
+        subjectDigest: firstTarget.subject.subjectDigest,
+      },
+      observed: {
+        candidateId: observedCandidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(fixture.state().publicationCount).toBe(2);
   });
@@ -673,7 +700,8 @@ describe("runAttest", () => {
     const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
 
-    fixture.setCurrentTarget({ revision: REVISION, subject: subject() });
+    const observedTarget = { revision: REVISION, subject: subject() };
+    fixture.setCurrentTarget(observedTarget);
     const result = await runAttest(fixture.context, {
       name: "example",
       lifecycle: "Active",
@@ -687,9 +715,52 @@ describe("runAttest", () => {
     expect(result).toEqual({
       status: "refused",
       reason: "re-root-no-longer-blocked",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+      observed: {
+        candidateId: blocked.candidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it("reports an absent observed Candidate on a stale re-root continuation", async () => {
+    const fixture = harness();
+    const expected = {
+      candidateId: canonicalDigest({ expected: "candidate" }),
+      subjectDigest: subject("missing-candidate").subjectDigest,
+    };
+
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: expected,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-candidate-mismatch",
+      expected,
+      observed: {
+        candidateId: null,
+        subjectDigest: subject().subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
+    });
+    expect(fixture.state().publicationCount).toBe(0);
   });
 
   it("establishes a new lineage root over a blocked Candidate on deliberate invocation", async () => {

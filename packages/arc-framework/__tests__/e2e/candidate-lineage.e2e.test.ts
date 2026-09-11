@@ -947,13 +947,31 @@ describe("review-fix Candidate lineage", () => {
 
     await writeFile(join(root, "reviewed.txt"), "later staged subject\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
+    const observedTarget = await collectGitCandidateTarget({
+      cwd: root,
+      name: "example",
+      baseBranch: "main",
+      exec: gitExec,
+    });
     const replayed = await runArc(continuation.slice(1), root);
 
     expect(replayed.exitCode).toBe(1);
     expect(JSON.parse(replayed.stdout)).toEqual({
       status: "refused",
       reason: "re-root-subject-mismatch",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId,
+        subjectDigest: continuation[7],
+      },
+      observed: {
+        candidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(await readCandidateRecord(root, "example")).toEqual(recordBeforeReplay);
     expect(recordBeforeReplay?.attestation.candidateId).toBe(candidateId);

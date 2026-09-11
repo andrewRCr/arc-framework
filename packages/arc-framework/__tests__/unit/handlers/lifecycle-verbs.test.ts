@@ -1579,6 +1579,32 @@ describe("handleAttest", () => {
     ));
   });
 
+  it("renders re-root race coordinates, reason, and refresh action interactively", async () => {
+    mockRunAttest.mockResolvedValueOnce({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
+      expected: {
+        candidateId: `sha256:${"a".repeat(64)}`,
+        subjectDigest: `sha256:${"b".repeat(64)}`,
+      },
+      observed: {
+        candidateId: `sha256:${"a".repeat(64)}`,
+        subjectDigest: `sha256:${"c".repeat(64)}`,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "foo", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
+    });
+
+    await handleAttest("foo", { newRoot: true });
+
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringMatching(
+      /Reason: re-root-subject-mismatch[\s\S]*Expected Candidate: sha256:a{64}[\s\S]*Observed Candidate: sha256:a{64}[\s\S]*Expected Subject: sha256:b{64}[\s\S]*Observed Subject: sha256:c{64}[\s\S]*Next: arc attest foo --json/u,
+    ));
+  });
+
   it("renders recorded convergence scope and evidence in interactive output", async () => {
     mockRunAttest.mockResolvedValueOnce({
       status: "attested",

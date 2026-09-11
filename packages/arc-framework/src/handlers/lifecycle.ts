@@ -2945,7 +2945,17 @@ export async function handleAttest(
   } else if (result.status === "blocked") {
     p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
   } else if (result.status === "refused") {
-    if ("candidateId" in result) {
+    if ("expected" in result) {
+      p.log.error([
+        result.recommendedActionText,
+        `Reason: ${result.reason}`,
+        `Expected Candidate: ${result.expected.candidateId}`,
+        `Observed Candidate: ${result.observed.candidateId ?? "[none]"}`,
+        `Expected Subject: ${result.expected.subjectDigest}`,
+        `Observed Subject: ${result.observed.subjectDigest}`,
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    } else {
       p.log.error([
         result.recommendedActionText,
         `Candidate: ${result.candidateId ?? "[none]"}`,
@@ -2954,8 +2964,6 @@ export async function handleAttest(
         `Fresh evidence: ${result.verificationEvidenceProvided ? "supplied" : "missing"}`,
         `Next: ${result.nextAction.attestArgv.join(" ")}`,
       ].join("\n"));
-    } else {
-      p.log.error(result.recommendedActionText);
     }
   } else {
     const lines = [

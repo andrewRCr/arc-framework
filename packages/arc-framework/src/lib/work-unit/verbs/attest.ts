@@ -58,6 +58,15 @@ const AttestReRootContinuationSchema = z.strictObject({
     z.literal("--json"),
   ]),
 });
+const AttestRefreshActionSchema = z.strictObject({
+  kind: z.literal("refresh-attestation"),
+  attestArgv: z.tuple([
+    z.literal("arc"),
+    z.literal("attest"),
+    SlugSchema,
+    z.literal("--json"),
+  ]),
+});
 
 const AttestScopeSchema = z.enum(["focused", "full"]);
 const AttestConvergenceVerificationActionSchema = z.strictObject({
@@ -153,6 +162,12 @@ export const AttestResultSchema = z.union([
       "re-root-subject-mismatch",
       "re-root-no-longer-blocked",
     ]),
+    expected: AttestExpectedBlockedSchema,
+    observed: z.strictObject({
+      candidateId: CandidateDigestSchema.nullable(),
+      subjectDigest: CandidateDigestSchema,
+    }),
+    nextAction: AttestRefreshActionSchema,
     recommendedActionText: z.string().trim().min(1),
   }),
   z.strictObject({
@@ -226,6 +241,19 @@ export async function runAttest(
     : z.string().trim().min(1).parse(params.verificationEvidenceRef);
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
   const existing = await context.readRecord(name);
+  const refuseStaleReRoot = (
+    reason: "re-root-candidate-mismatch" | "re-root-subject-mismatch" | "re-root-no-longer-blocked",
+    expected: { candidateId: string; subjectDigest: string },
+    observedCandidateId: string | null,
+  ): AttestResult => reRootRefusal({
+    reason,
+    name,
+    expected,
+    observed: {
+      candidateId: observedCandidateId,
+      subjectDigest: current.subject.subjectDigest,
+    },
+  });
   if (existing.record !== null) {
     const record = CandidateManagedRecordV1Schema.parse(existing.record);
     const currentness = projectStagedCandidateCurrentness({
@@ -281,14 +309,16 @@ export async function runAttest(
         };
       }
       if (expectedBlocked !== undefined && expectedBlocked.candidateId !== currentness.candidateId) {
-        return reRootRefusal("re-root-candidate-mismatch");
+        return refuseStaleReRoot("re-root-candidate-mismatch", expectedBlocked, currentness.candidateId);
       }
       if (expectedBlocked !== undefined && expectedBlocked.subjectDigest !== current.subject.subjectDigest) {
-        return reRootRefusal("re-root-subject-mismatch");
+        return refuseStaleReRoot("re-root-subject-mismatch", expectedBlocked, currentness.candidateId);
       }
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
-    if (expectedBlocked !== undefined) return reRootRefusal("re-root-no-longer-blocked");
+    if (expectedBlocked !== undefined) {
+      return refuseStaleReRoot("re-root-no-longer-blocked", expectedBlocked, currentness.candidateId);
+    }
     if (currentness.convergenceVerification === "satisfied") {
       if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
         return scopedRefusal({
@@ -396,7 +426,9 @@ export async function runAttest(
     };
   }
 
-  if (expectedBlocked !== undefined) return reRootRefusal("re-root-candidate-mismatch");
+  if (expectedBlocked !== undefined) {
+    return refuseStaleReRoot("re-root-candidate-mismatch", expectedBlocked, null);
+  }
   if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
     return scopedRefusal({
       reason: requestedScope === "focused"
@@ -470,14 +502,23 @@ function scopedRefusal(input: ScopedRefusalInput): AttestResult {
   });
 }
 
-function reRootRefusal(
-  reason: "re-root-candidate-mismatch" | "re-root-subject-mismatch" | "re-root-no-longer-blocked",
-): AttestResult {
-  return {
+function reRootRefusal(input: {
+  reason: "re-root-candidate-mismatch" | "re-root-subject-mismatch" | "re-root-no-longer-blocked";
+  name: string;
+  expected: { candidateId: string; subjectDigest: string };
+  observed: { candidateId: string | null; subjectDigest: string };
+}): AttestResult {
+  return AttestResultSchema.parse({
     status: "refused",
-    reason,
-    recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
-  };
+    reason: input.reason,
+    expected: input.expected,
+    observed: input.observed,
+    nextAction: {
+      kind: "refresh-attestation",
+      attestArgv: ["arc", "attest", input.name, "--json"],
+    },
+    recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
+  });
 }
 
 /** Attest one fresh lineage root over the current target, recording any Candidate it supersedes. */
