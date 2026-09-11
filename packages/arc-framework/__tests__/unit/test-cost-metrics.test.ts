@@ -21,8 +21,7 @@ describe("resolveTimeoutHeadroom", () => {
 
 describe("substrate-bound share", () => {
   it.each([
-    "__tests__/integration/user-local-lifecycle.test.ts",
-    "__tests__/integration/user-remote-lifecycle.test.ts",
+    "__tests__/integration/user.test.ts",
     "__tests__/integration/user-notes-compaction.test.ts",
     "__tests__/integration/notes-publication-proof.test.ts",
     "__tests__/integration/sync-state-ref.test.ts",
@@ -52,16 +51,12 @@ describe("substrate-bound share", () => {
       tests: [],
     });
     expect(summarizeSubstrateShare([
-      file("__tests__/integration/user-local-lifecycle.test.ts", 15),
-      file("__tests__/integration/user-remote-lifecycle.test.ts", 10),
+      file("__tests__/integration/user.test.ts", 25),
       file("__tests__/integration/other.test.ts", 75),
     ])).toEqual({
       durationMs: 25,
       shareFraction: 0.25,
-      files: [
-        "__tests__/integration/user-local-lifecycle.test.ts",
-        "__tests__/integration/user-remote-lifecycle.test.ts",
-      ],
+      files: ["__tests__/integration/user.test.ts"],
     });
     expect(summarizeSubstrateShare([file("other.test.ts", 100)])).toEqual({
       durationMs: 0,

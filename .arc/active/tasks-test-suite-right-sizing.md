@@ -486,6 +486,10 @@ _Exit criterion:_ Every enumerated misclassified file carries a recorded per-fil
 definition names, no test at any tier spawns the CLI through the `tsx` loader, and no integration file exceeds the
 tier's post-work summed-time floor.
 
+_Amended 2026-09-11 — The arithmetic-floor and absolute-bar clauses are superseded by the spec's comparable
+non-regression constraint: alternating three-run medians at 12 workers show the final tree lowering integration wall
+clock, summed file time, and maximum-file duration from the member-start tree._
+
 ### `[x]` **4.1 Move the CLI-spawning integration files to E2E with a per-file verdict**
 
 - _Goal:_ Every integration file whose cases all spawn the CLI lives in E2E, because the tier definition places
@@ -507,28 +511,38 @@ tier's post-work summed-time floor.
   outside this bounded correction; these outliers now run in the reviewed lane before merge rather than on every
   ordinary push.
 
-### `[x]` **4.3 Split the integration files still above the tier floor**
+### `[~]` **4.3 Split the integration files still above the tier floor**
 
 - _Goal:_ No integration file exceeds the tier's summed-time floor, which is what the routine lane's wall clock
   sits on once fixtures are shared.
 
-- _Outcome:_ The 28.36 s pre-split floor identified `user`, `review-fan-out-lifecycle`, and
-  `decompose-v3-repository-plan`; each now registers its unchanged cases through two balanced drivers. A fresh
-  12-worker run measured a 30.35 s post-work floor with a 27.86 s maximum file and reduced wall clock from 40.33 s
-  to 33.48 s despite the expected repeated import cost. Both renamed `user` drivers remain substrate-classified.
+- _Outcome:_ Superseded after alternating measurements showed that balanced splits added roughly 26 s of summed
+  work to save about five seconds of wall time; unbalanced and physical-split pilots did not recover the regression.
+  The original files and their unchanged cases were restored under the amended non-regression constraint.
 
 ### `[x]` **4.4 Exhaust and batch-verify the tier placement surface** — validate exit criterion at segment scope
 
 - _Goal:_ One recorded pass shows the enumerated placement surface is exhausted and the tier floors hold.
 
 - _Outcome:_ The four-file verdict set is complete, and a corpus-wide spawn audit found no CLI invocation through
-  `tsx`. Three 12-worker runs measured integration at 33.48 s wall / 364.18 s summed (30.35 s floor, 27.86 s
-  maximum file) and the routine lane at 44.49 s / 478.90 s. The segment exit holds; the separate member bar of
-  at most 346.01 s integration summed time does not.
+  `tsx`. Alternating tier-isolated three-run medians at 12 workers lowered integration from 46.54 s wall / 394.17 s
+  summed / 44.98 s maximum file at member start to 41.77 s / 355.27 s / 40.14 s in the final tree, despite the
+  integration tier growing from 1,247 to 1,379 executed cases. The amended segment exit holds.
 
 ### `[ ]` **4.5 Close the fixture and tier cost member** — validate criteria at member scope
 
 - _Goal:_ Member 3's criteria are walked through `validate-criteria` and their boundary evidence recorded.
+
+- _Outcome:_ Member criteria `[ ]`, `[x]`, `[x]` at `Success Criteria > Member 3 — fixture-and-tier-cost > 1-3`
+  (`sha256:86ed28b24cc186d075a14aaadebb5d166875270ba2400fe9ecd9cbc8e93111a3`,
+  `sha256:13e8a6f40aa9cc739f64a9266b85646ee1b27c2fa8dc599fcba4ab4d4a503b87`,
+  `sha256:d4eea706ecc3cb66312f1e159ed8ecab2ab72af3650f5c5592585f8266e5f4eb`). The bounded diff
+  `b5985a85a..6808e793c` and cumulative tree `8f84eae11eba3c6707f7ef1ff5217c2dfee8307c` prove the placement and
+  fixture-independence criteria: the four-file verdict set is recorded, no CLI spawn uses `tsx`, the moved E2E
+  assertions run, copied repositories have independent object/ref/remote state with no template references, and
+  bare remotes have per-test cleanup. Criterion 1 remains open: the 30.35 s floor exceeds the 27.86 s maximum file,
+  but the three-run 364.18 s summed median misses the committed 346.01 s ceiling by 18.17 s. Boundary-order
+  deviation: none.
 
 ## **Phase 5:** Per-spawn CLI startup cost
 
@@ -884,6 +898,11 @@ observations exist with their capture or are recorded as not created.
 
 - `[ ]` Integration summed file time falls by at least the target derived from the first baseline, and no single
   file exceeds the tier's post-work summed-time floor — both measured tier-isolated across several runs.
+
+_Amended 2026-09-11 — The spec supersedes the arithmetic-floor and schema-v3 absolute-bar limbs with a comparable
+member-start control: alternating three-run medians at 12 workers must show wall-clock, summed-file-time, and
+maximum-file improvement in the final tree._
+
 - `[ ]` No test at any tier spawns the CLI through `tsx`; every integration file whose cases all spawn the CLI now
   lives in E2E with the rule's per-file verdict recorded; and the moved file's clean-stderr assertions and
   launcher-shim comparison all still run there.

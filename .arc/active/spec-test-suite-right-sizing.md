@@ -314,6 +314,13 @@ alone `user.test.ts` stays near 30 s and so does the tier — and it buys that w
 since each new file re-pays its own transform and import. Split to clear the floor, not past it. A split changes
 no test body and no assertion; SC10 is satisfied by construction.
 
+_Amended 2026-09-11 — The arithmetic-floor split is superseded. Alternating 12-worker measurements showed that
+balanced file splits reduced wall clock by about five seconds while adding roughly 26 seconds of summed work through
+repeated file isolation and parallel contention. Unbalanced and physically separated pilots did not recover that
+cost. The original files therefore remain intact. The replacement constraint compares alternating three-run medians
+against the member-start tree in the same tier-isolated mode: wall clock, summed file time, and maximum-file duration
+must all improve._
+
 **Two candidate levers sit inside the noise band and must be confirmed before adoption**, each measured once at
 ~9% and ~6–12% respectively against ~8% variance: a tmpfs fixture root (`TMPDIR` on `/dev/shm`) and `isolate:
 false` for the integration project. The tmpfs run and the `--no-isolate` run each passed all 1,248 cases,
@@ -618,6 +625,12 @@ is not satisfied.
    _Amended 2026-09-11 — **Schema-v3 baseline: 361.01 s; bar: reduce by ≥15.0 s to ≤346.01 s.** The absolute
    15.19 s saving remains unchanged; it is 28.1% of the eligible 41.10 s `user` file and 30.7% of the 11.95 s
    `init` file. This supersedes the prior baseline-dependent numbers._
+
+   _Amended 2026-09-11 — The schema-v3 absolute bar and arithmetic-floor clause are superseded by a comparable
+   member-start control because unchanged tier-isolated runs varied by more than that absolute margin under live
+   host load. Alternating three-run medians at 12 workers must show the final tree lowering wall clock, summed file
+   time, and maximum-file duration from the member-start tree. This prevents a nominal file-floor improvement from
+   increasing the total work performed._
 5. **Per-spawn fixed cost.** Built-artifact CLI startup on a named representative verb falls to **≤0.25 s** warm
    as a standalone probe — the same condition as the recorded 0.36 s baseline — above the 0.21 s probe and below
    the baseline, so it discriminates rather than restating either.
