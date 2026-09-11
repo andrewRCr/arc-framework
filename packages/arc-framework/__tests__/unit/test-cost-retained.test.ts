@@ -29,8 +29,9 @@ function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
     }],
   };
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     outcome: "passed",
+    unhandledErrorCount: 0,
     capturedAt: "2026-09-11T00:00:00.000Z",
     mode: { condition: "tier-isolated", projectSet: "unit", workerSizing: "12" },
     wallClockMs: durationMs,

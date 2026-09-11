@@ -96,8 +96,9 @@ export function assertRetainedTestCostRun(
     throw new Error(`Invalid retained test-cost run: ${label}`);
   }
   const candidate = value as Readonly<Record<string, unknown>>;
-  if (candidate["schemaVersion"] !== 2
+  if (candidate["schemaVersion"] !== 3
     || candidate["outcome"] !== "passed"
+    || candidate["unhandledErrorCount"] !== 0
     || !Array.isArray(candidate["files"])) {
     throw new Error(`Retained test-cost run lacks a successful outcome: ${label}`);
   }

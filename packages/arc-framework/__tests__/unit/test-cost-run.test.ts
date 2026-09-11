@@ -33,6 +33,7 @@ describe("runTestCostMeasurement", () => {
               },
             },
           }],
+          getUnhandledErrors: () => [],
         },
         shouldKeepServer: () => false,
         exit,
@@ -56,8 +57,9 @@ describe("runTestCostMeasurement", () => {
       expect.any(Function),
     );
     expect(result).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       outcome: "passed",
+      unhandledErrorCount: 0,
       wallClockMs: 250,
       summedFileTimeMs: 60,
       admissionWaitMs: 45,
@@ -96,6 +98,7 @@ describe("runTestCostMeasurement", () => {
             },
           },
         }],
+        getUnhandledErrors: () => [],
       },
       shouldKeepServer: () => false,
       exit,
@@ -119,10 +122,57 @@ describe("runTestCostMeasurement", () => {
     expect(exit).toHaveBeenCalledOnce();
   });
 
+  it("refuses to retain passed modules when Vitest reports an unhandled run error", async () => {
+    const persist = vi.fn(async () => {});
+    const exit = vi.fn(async () => {});
+    const start = vi.fn(async () => ({
+      state: {
+        getTestModules: () => [{
+          relativeModuleId: "passed.test.ts",
+          project: { name: "unit" },
+          state: () => "passed",
+          ok: () => true,
+          diagnostic: () => ({ collectDuration: 1, setupDuration: 1, duration: 1 }),
+          children: {
+            allTests: function* () {
+              yield {
+                id: "passed-case",
+                fullName: "passed case",
+                options: { timeout: 5_000 },
+                result: () => ({ state: "passed" }),
+                diagnostic: () => ({ duration: 1 }),
+              };
+            },
+          },
+        }],
+        getUnhandledErrors: () => [new Error("worker failure")],
+      },
+      shouldKeepServer: () => false,
+      exit,
+    } as never));
+    const admit = vi.fn(async (_input, action) => ({ result: await action() }));
+
+    await expect(runTestCostMeasurement({
+      cwd: "/repo",
+      env: {},
+      mode,
+      outputPath: "/out.json",
+    }, {
+      admit,
+      now: () => 1,
+      parseCli: () => ({ filter: [], options: { run: true } }),
+      persist,
+      start,
+    })).rejects.toThrow(/unhandled run error/u);
+
+    expect(persist).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledOnce();
+  });
+
   it("always closes the completed Vitest controller", async () => {
     const exit = vi.fn(async () => {});
     const start = vi.fn(async () => ({
-      state: { getTestModules: () => [] },
+      state: { getTestModules: () => [], getUnhandledErrors: () => [] },
       shouldKeepServer: () => false,
       exit,
     } as never));

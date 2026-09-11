@@ -15,7 +15,10 @@ import type { MeasurementMode, MeasurementProjectSet } from "./mode.js";
 type ParsedVitestOptions = ReturnType<typeof parseCLI>["options"];
 
 interface MeasurementController {
-  readonly state: { getTestModules(): TestModule[] };
+  readonly state: {
+    getTestModules(): TestModule[];
+    getUnhandledErrors(): unknown[];
+  };
   shouldKeepServer(): boolean;
   exit(): Promise<void>;
 }
@@ -33,8 +36,9 @@ export interface TestCostRunDependencies {
 }
 
 export interface RetainedTestCostRun {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly outcome: "passed";
+  readonly unhandledErrorCount: 0;
   readonly capturedAt: string;
   readonly mode: MeasurementMode;
   readonly wallClockMs: number;
@@ -82,10 +86,15 @@ export async function runTestCostMeasurement(
       const startedAtMs = dependencies.now();
       const context = await dependencies.start("test", filter, options);
       try {
+        const unhandledErrorCount = context.state.getUnhandledErrors().length;
+        if (unhandledErrorCount > 0) {
+          throw new Error(`Vitest reported ${unhandledErrorCount} unhandled run error(s)`);
+        }
         const captured = captureTestCost(context.state.getTestModules());
         return {
           captured,
           startedAtMs,
+          unhandledErrorCount: 0 as const,
           wallClockMs: dependencies.now() - startedAtMs,
         };
       } finally {
@@ -93,10 +102,11 @@ export async function runTestCostMeasurement(
       }
     },
   );
-  const { captured, startedAtMs, wallClockMs } = admitted.result;
+  const { captured, startedAtMs, unhandledErrorCount, wallClockMs } = admitted.result;
   const run: RetainedTestCostRun = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     outcome: "passed",
+    unhandledErrorCount,
     capturedAt: new Date(startedAtMs).toISOString(),
     mode: input.mode,
     wallClockMs,
