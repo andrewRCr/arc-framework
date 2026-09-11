@@ -116,6 +116,7 @@ function operationOver(target: ReviewTarget) {
     lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
     logicalPass: 1,
     retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" },
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -149,6 +150,7 @@ function operationOver(target: ReviewTarget) {
     lineage: admission.lineage,
     logicalPass: admission.logicalPass,
     retryGeneration: admission.retryGeneration,
+    coverageAdmission: admission.coverageAdmission,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,

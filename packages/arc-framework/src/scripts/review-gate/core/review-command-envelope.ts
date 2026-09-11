@@ -39,6 +39,7 @@ import {
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
+import { LocalReviewCoverageSelectionActionSchema } from "./local-review-coverage.js";
 import { FrontlineAdmissionSchema } from "./frontline-admission.js";
 import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
 import { HostedRequestResultSchema, HostedTargetSchema } from "../hosted/request.js";
@@ -580,6 +581,12 @@ export const FrontlineRunEnvelopeSchema = z.union([
 
 export const LocalPrepareEnvelopeSchema = z.union([
   envelopeVariant("review-local-prepare", "exempt", "none", z.strictObject({})),
+  envelopeVariant(
+    "review-local-prepare",
+    "coverage-required",
+    "select-coverage",
+    z.strictObject({ coverageSelectionAction: LocalReviewCoverageSelectionActionSchema }),
+  ),
   envelopeVariant(
     "review-local-prepare",
     "review-complete",

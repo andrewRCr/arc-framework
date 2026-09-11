@@ -72,6 +72,7 @@ function fixture() {
     lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
     logicalPass: 1,
     retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" },
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -134,7 +135,7 @@ describe("local prepare publication ordering", () => {
     const records = fixture();
     const payload = createLocalReviewSourcePayload(records.admission, {
       persistedVersion: 1,
-      state: {} as never,
+      state: { coverageAdmission: records.admission.coverageAdmission } as never,
       sourceRef: "sources/source.json",
       sourceDigest: records.source.sourceDigest,
       reviewRoot: records.source.materializationRef,

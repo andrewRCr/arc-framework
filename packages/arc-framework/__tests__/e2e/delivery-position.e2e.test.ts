@@ -1821,6 +1821,7 @@ describe("arc delivery position", () => {
       },
       logicalPass: 1,
       retryGeneration: 0,
+      coverageAdmission: { requestedCoverage: "complete" },
       policyBindingDigest: canonicalDigest({ binding: "local" }),
       requestMechanism: "local-attestation",
     });
@@ -1859,6 +1860,7 @@ describe("arc delivery position", () => {
       lineage: admission.lineage,
       logicalPass: admission.logicalPass,
       retryGeneration: admission.retryGeneration,
+      coverageAdmission: admission.coverageAdmission,
       deliveryAdmission: {
         schemaVersion: 1,
         sourceId: "delegated-agent",

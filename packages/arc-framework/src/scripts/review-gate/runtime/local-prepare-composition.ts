@@ -71,8 +71,14 @@ import { createLocalFrontlineSourcePreferenceReader } from
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
-import { assertEvidenceBoundReviewExecutionAdmission } from "../policy/review-policy-evidence.js";
+import {
+  assertEvidenceBoundReviewExecutionAdmission,
+  resolveEvidenceBoundReviewPolicyContinuation,
+} from "../policy/review-policy-evidence.js";
+import { resolveLocalReviewCoverageSelection } from
+  "../policy/local-review-coverage-selection.js";
 import { laneContinuationOperationId } from "../lane-progress.js";
+import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 
 const LOCAL_STANDARD_SOURCE = {
   sourceKind: "agent",
@@ -88,6 +94,7 @@ export function createLocalPrepareDependencies(input: {
   const operationStore = new LocalReviewOperationStateStore(publisher);
   const sourceStore = new RepositoryLocalReviewSourceStore(publisher);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const resultReader = createRepositoryReviewResultReader(publisher);
   const sweepAdapter = new RepositoryLocalReviewSourceSweepAdapter(input.exec, input.cwd);
   let receiptStore: Promise<LocalForwardReviewReceiptStore> | null = null;
   const receipts = () => {
@@ -237,10 +244,13 @@ export function createLocalPrepareDependencies(input: {
     validatePolicyAdmission: async ({
       repositoryId,
       target,
+      lineage,
       standardReview,
       completedPasses,
       attempts,
       terminalResponsePerformed,
+      predecessorOperationId,
+      coverageAdmission,
       judgment,
     }) => {
       const settings = (await readConfigSettings(input.cwd)).settings;
@@ -279,7 +289,7 @@ export function createLocalPrepareDependencies(input: {
             pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
             headSha: target.headSha,
           };
-      const resolution = await assertEvidenceBoundReviewExecutionAdmission({
+      const policyRequest = {
         schemaVersion: 1,
         target: policyTarget,
         lane: "standard",
@@ -304,19 +314,35 @@ export function createLocalPrepareDependencies(input: {
               },
             }),
         ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
-      }, {
+      };
+      const policyDependencies = {
+        sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
+        maxPasses: policy.maxPasses,
+        resultReader,
+        dispositionStore,
+        confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
+      };
+      const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
         terminalResponsePerformed,
+      }, policyDependencies);
+      const coverage = await resolveLocalReviewCoverageSelection({
+        policy: unresolved,
+        target,
+        sourceId: "delegated-agent",
+        lineage,
+        standardReview,
+        ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
+        ...(coverageAdmission === undefined ? {} : { coverageAdmission }),
+      }, { resultReader, dispositionStore });
+      if (coverage.state === "coverage-required") return coverage;
+      const resolution = await assertEvidenceBoundReviewExecutionAdmission(policyRequest, {
+        terminalResponsePerformed,
+        ...(coverage.coverageSelected ? { coverageSelected: true } : {}),
       }, {
         sourceId: "delegated-agent",
         nextAction: "local-prepare",
-      }, {
-        sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
-        maxPasses: policy.maxPasses,
-        resultReader: createRepositoryReviewResultReader(publisher),
-        dispositionStore,
-        confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
-      });
-      return resolution.payload.pass;
+      }, policyDependencies);
+      return { state: "ready", pass: resolution.payload.pass };
     },
     validateDeliveryAdmission: async (admission) => {
       const before = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);
@@ -345,14 +371,14 @@ export function createLocalPrepareDependencies(input: {
       }
       return reservation.obligation;
     },
-    describeSource: (operationId, target, deliveryAdmission) => createLocalReviewSourceDescriptor({
+    describeSource: (operationId, target, coverageAdmission) => createLocalReviewSourceDescriptor({
       exec: input.exec,
       cwd: input.cwd,
       operationId,
       target,
-      ...(deliveryAdmission?.correctionScope === undefined
+      ...(coverageAdmission.correctionScope === undefined
         ? {}
-        : { correctionScope: deliveryAdmission.correctionScope }),
+        : { correctionScope: coverageAdmission.correctionScope }),
     }),
     materialize: (source) => ensureLocalReviewSourceMaterialized({ exec: input.exec, source }),
   };

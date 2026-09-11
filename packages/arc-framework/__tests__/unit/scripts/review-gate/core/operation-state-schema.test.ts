@@ -129,6 +129,7 @@ const localReview = {
   lineage: localLineage,
   logicalPass: 1,
   retryGeneration: 0,
+  coverageAdmission: { requestedCoverage: "complete" as const },
   repositoryId: "repo-1",
   targetId: localTarget.targetId,
   requestId: localCarrier.request.requestId,

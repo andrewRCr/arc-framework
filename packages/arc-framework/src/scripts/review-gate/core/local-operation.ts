@@ -29,6 +29,10 @@ import {
   type ReviewScopeMode,
 } from "./review-primitives.js";
 import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
+import {
+  LocalReviewCoverageAdmissionSchema,
+  type LocalReviewCoverageAdmission,
+} from "./local-review-coverage.js";
 
 const LocalOperationIdentityPreimageSchema = z.strictObject({
   domain: z.literal("arc.review-gate.local-operation-id/v1"),
@@ -40,6 +44,7 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   scopeMode: ReviewScopeModeSchema,
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
+  coverageAdmission: LocalReviewCoverageAdmissionSchema,
   deliveryAdmissionDigest: ReviewCanonicalDigestSchema.nullable(),
   lineage: LaneSubjectLineageSchema,
   logicalPass: z.number().int().positive(),
@@ -54,6 +59,7 @@ export interface LocalReviewAdmissionInput {
   scopeMode?: ReviewScopeMode;
   policyBindingDigest: string;
   requestMechanism: string;
+  coverageAdmission: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
   lineage: LaneSubjectLineage;
   logicalPass: number;
@@ -69,6 +75,7 @@ export interface LocalReviewAdmission {
   scopeMode: ReviewScopeMode;
   policyBindingDigest: string;
   requestMechanism: string;
+  coverageAdmission: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
   lineage: LaneSubjectLineage;
   logicalPass: number;
@@ -105,6 +112,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
   const requirement = validateReviewRequirement(target, input.requirement);
   const policyBindingDigest = ReviewCanonicalDigestSchema.parse(input.policyBindingDigest);
   const requestMechanism = ReviewIdentifierSchema.parse(input.requestMechanism);
+  const coverageAdmission = LocalReviewCoverageAdmissionSchema.parse(input.coverageAdmission);
   const lineage = LaneSubjectLineageSchema.parse(input.lineage);
   const logicalPass = z.number().int().positive().parse(input.logicalPass);
   const retryGeneration = z.number().int().nonnegative().parse(input.retryGeneration);
@@ -143,6 +151,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     scopeMode,
     policyBindingDigest,
     requestMechanism,
+    coverageAdmission,
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
       ? null
       : canonicalDigest(input.deliveryAdmission),
@@ -160,6 +169,7 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     scopeMode,
     policyBindingDigest,
     requestMechanism,
+    coverageAdmission,
     lineage,
     logicalPass,
     retryGeneration,
@@ -203,6 +213,7 @@ export async function resolveLocalReviewAdmission(
     || canonicalize(persisted.state.lineage) !== canonicalize(admission.lineage)
     || persisted.state.logicalPass !== admission.logicalPass
     || persisted.state.retryGeneration !== admission.retryGeneration
+    || canonicalize(persisted.state.coverageAdmission) !== canonicalize(admission.coverageAdmission)
     || canonicalize(persisted.state.deliveryAdmission ?? null)
       !== canonicalize(admission.deliveryAdmission ?? null)
     || canonicalize(persisted.state.vehicle) !== canonicalize(admission.authority.vehicle)

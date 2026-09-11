@@ -22,7 +22,6 @@ import type {
 } from "../core/ports.js";
 import { LocalAttestEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
-  localReviewRequestedCoverage,
   readAdmittedLocalLaneAttempt,
   recordLaneAttempt,
   recordLocalReceiptConclusion,
@@ -125,7 +124,6 @@ async function attestLocalReviewWithinLocalReviewLock(
   if (await readAdmittedLocalLaneAttempt(dependencies.operationStore, state) === null) {
     throw new LocalAttestCommandError("corrupt-state", "local review operation is not durably admitted");
   }
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
   const result = normalizeLocalReviewResult(request.result, {
     repositoryId: state.repositoryId,
     targetId: state.targetId,
@@ -154,7 +152,10 @@ async function attestLocalReviewWithinLocalReviewLock(
         requestId: state.requestId,
         vehicle: state.vehicle,
         target: state.target,
-        requestedCoverage,
+        requestedCoverage: state.coverageAdmission.requestedCoverage,
+        ...(state.coverageAdmission.correctionScope === undefined
+          ? {}
+          : { correctionScope: state.coverageAdmission.correctionScope }),
         effectiveCoverage: null,
         scopeMode: state.scopeMode,
         ...(state.deliveryAdmission === undefined

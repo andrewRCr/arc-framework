@@ -21,13 +21,14 @@ import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 import {
   allHostedReservationTargetsDischarged,
-  buildIncrementalCorrectionScope,
   confirmIncrementalPredecessorApplicability,
   createHostedReservationDischargeReader,
   incrementalApplicabilityFromEarlierRead,
   projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
+import { buildIncrementalCorrectionScope } from
+  "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";

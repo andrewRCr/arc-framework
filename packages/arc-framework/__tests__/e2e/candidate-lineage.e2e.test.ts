@@ -324,8 +324,22 @@ function prepareRequest() {
 
 /** Run one local review to a findings receipt and return the response source it reduces to. */
 async function reviewToFindings(root: string): Promise<{ kind: "attested-local"; receiptRef: string }> {
-  const prepared = (await invoke(root, ["review", "local", "prepare", "-"], prepareRequest()))
-    .payload as unknown as PreparePayload;
+  let preparation = await invoke(root, ["review", "local", "prepare", "-"], prepareRequest());
+  if (preparation.state === "coverage-required") {
+    const action = (preparation.payload as {
+      coverageSelectionAction: {
+        choices: readonly { requestedCoverage: "incremental" | "complete" }[];
+      };
+    }).coverageSelectionAction;
+    const complete = action.choices.find(({ requestedCoverage }) => requestedCoverage === "complete");
+    if (complete === undefined) throw new Error("local coverage recovery offered no complete choice");
+    preparation = await invoke(root, ["review", "local", "prepare", "-"], {
+      ...prepareRequest(),
+      coverageAdmission: complete,
+    });
+  }
+  expect(preparation).toMatchObject({ state: "ready", nextAction: "launch-review" });
+  const prepared = preparation.payload as unknown as PreparePayload;
   await invoke(root, ["review", "local", "attest", "-"], {
     schemaVersion: 1,
     operationId: prepared.operationId,

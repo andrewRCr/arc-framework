@@ -74,6 +74,12 @@ import {
   type DeliveryLocalReviewAdmission,
 } from "../policy/delivery-local-review-admission.js";
 import type { ReviewScopeMode } from "../core/review-primitives.js";
+import {
+  LocalReviewCoverageAdmissionSchema,
+  type LocalReviewCoverageSelectionAction,
+  projectLocalReviewCoverageAdmission,
+  type LocalReviewCoverageAdmission,
+} from "../core/local-review-coverage.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
 
@@ -88,6 +94,8 @@ export const LocalPrepareRequestSchema = z.strictObject({
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
   /** Caller-held bounded judgment for a non-delivery standard-lane admission. */
   policyJudgment: ReviewLaneJudgmentSchema.optional(),
+  /** Exact source-neutral coverage selected for a non-delivery local operation. */
+  coverageAdmission: LocalReviewCoverageAdmissionSchema.optional(),
 }).superRefine((request, context) => {
   if (request.memberHeadObjectId !== undefined && request.deliveryAdmission === undefined) {
     context.addIssue({
@@ -110,6 +118,13 @@ export const LocalPrepareRequestSchema = z.strictObject({
       code: "custom",
       path: ["policyJudgment"],
       message: "delivery admission already carries the exact standard-lane judgment",
+    });
+  }
+  if (request.deliveryAdmission !== undefined && request.coverageAdmission !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["coverageAdmission"],
+      message: "delivery admission already carries the exact local review coverage",
     });
   }
 });
@@ -162,12 +177,21 @@ export interface LocalPrepareDependencies {
   validatePolicyAdmission(input: {
     repositoryId: string;
     target: ReviewTarget;
+    lineage: LaneSubjectLineage;
     standardReview: StandardReviewObligationProjection;
     completedPasses: number;
     attempts: ReviewPolicyCommandRequest["attempts"];
     terminalResponsePerformed: boolean;
+    predecessorOperationId?: string;
+    coverageAdmission?: LocalReviewCoverageAdmission;
     judgment?: ReviewLaneJudgment;
-  }): Promise<number>;
+  }): Promise<
+    | { readonly state: "ready"; readonly pass: number }
+    | {
+        readonly state: "coverage-required";
+        readonly action: LocalReviewCoverageSelectionAction;
+      }
+  >;
   validateDeliveryAdmission(
     admission: DeliveryLocalReviewAdmission,
   ): Promise<StandardReviewObligationProjection | undefined>;
@@ -181,7 +205,7 @@ export interface LocalPrepareDependencies {
   describeSource(
     operationId: string,
     target: ReviewTarget,
-    deliveryAdmission?: DeliveryLocalReviewAdmission,
+    coverageAdmission: LocalReviewCoverageAdmission,
   ): Promise<LocalReviewSource>;
   materialize(source: LocalReviewSource): Promise<{ reviewRoot: string }>;
   now(): string;
@@ -198,6 +222,16 @@ function cleanupExpired(state: LocalReviewState, nowInput: string): boolean {
     throw new Error("invalid local review cleanup clock");
   }
   return now >= admittedAt + state.cleanupTtlMs;
+}
+
+function localAttemptCoverageAdmission(input: {
+  readonly requestedCoverage: "incremental" | "complete";
+  readonly correctionScope?: LocalReviewCoverageAdmission["correctionScope"];
+}): LocalReviewCoverageAdmission {
+  return LocalReviewCoverageAdmissionSchema.parse({
+    requestedCoverage: input.requestedCoverage,
+    ...(input.correctionScope === undefined ? {} : { correctionScope: input.correctionScope }),
+  });
 }
 
 async function retryLaneOwnerConflicts<T>(
@@ -230,6 +264,7 @@ async function replayPendingLocalAdmission(input: {
   target: ReviewTarget;
   lineage: LaneSubjectLineage;
   scopeMode: ReviewScopeMode;
+  coverageAdmission: LocalReviewCoverageAdmission;
   cleanupTtlMs: number;
 }): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
   const owner = await readLaneProgressOwner(input.dependencies.operationStore, {
@@ -246,6 +281,11 @@ async function replayPendingLocalAdmission(input: {
   if (pending[0]?.local?.scopeMode !== undefined
     && pending[0].local.scopeMode !== input.scopeMode) {
     throw new LocalPrepareCommandError("local pending admission has a different review scope");
+  }
+  if (pending[0]?.local !== undefined
+    && canonicalize(localAttemptCoverageAdmission(pending[0].local))
+      !== canonicalize(input.coverageAdmission)) {
+    throw new LocalPrepareCommandError("local pending admission has different review coverage");
   }
   const completed = owner?.attempts
     .filter((attempt) => attempt.terminalProducer
@@ -274,6 +314,7 @@ async function replayPendingLocalAdmission(input: {
     || state.scopeMode !== input.scopeMode
     || state.logicalPass !== attempt.logicalPass
     || state.retryGeneration !== attempt.retryGeneration
+    || canonicalize(state.coverageAdmission) !== canonicalize(input.coverageAdmission)
     || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
     throw new LocalPrepareCommandError("local pending admission does not match its operation");
   }
@@ -392,9 +433,9 @@ async function replayPendingLocalAdmission(input: {
         headSha: replayState.target.headSha,
         sourceRef: replayState.sourceRef,
         sourceDigest: replayState.sourceDigest,
-        ...(replayState.deliveryAdmission?.correctionScope === undefined
+        ...(replayState.coverageAdmission.correctionScope === undefined
           ? {}
-          : { correctionScope: replayState.deliveryAdmission.correctionScope }),
+          : { correctionScope: replayState.coverageAdmission.correctionScope }),
         guidance: replayState.guidance,
         guidanceDigest: replayState.guidanceDigest,
         reviewerInstructions: replayState.reviewerInstructions,
@@ -433,6 +474,15 @@ export async function prepareLocalReview(
   const scopeMode = request.deliveryAdmission?.scopeSelection?.mode
     ?? request.policyJudgment?.scopeMode
     ?? "whole-target";
+  const coverageAdmission = request.deliveryAdmission === undefined
+    ? request.coverageAdmission ?? LocalReviewCoverageAdmissionSchema.parse({
+        requestedCoverage: "complete",
+      })
+    : projectLocalReviewCoverageAdmission(request.deliveryAdmission);
+  if (coverageAdmission.correctionScope !== undefined
+    && coverageAdmission.correctionScope.headSha !== target.headSha) {
+    throw new LocalPrepareCommandError("local review correction scope does not match its target");
+  }
   const laneLock = { lane: "standard" as const, repositoryId, headSha: target.headSha, lineage };
   const withAdmissionLocks = <T>(action: () => Promise<T>): Promise<T> =>
     dependencies.withLaneOperationLock(
@@ -446,6 +496,7 @@ export async function prepareLocalReview(
     target,
     lineage,
     scopeMode,
+    coverageAdmission,
     cleanupTtlMs,
   }));
   if (pendingReplay !== null) return pendingReplay;
@@ -531,6 +582,7 @@ export async function prepareLocalReview(
       target,
       lineage,
       scopeMode,
+      coverageAdmission,
       cleanupTtlMs,
     });
     if (concurrentReplay !== null) {
@@ -562,6 +614,8 @@ export async function prepareLocalReview(
       && retryableLocalFailure.local !== undefined
       && retryableLocalFailure.sourceId === dependencies.laneSourceId
       && retryableLocalFailure.local.scopeMode === scopeMode
+      && canonicalize(localAttemptCoverageAdmission(retryableLocalFailure.local))
+        === canonicalize(coverageAdmission)
       ? retryableLocalFailure
       : undefined;
     const policyAttempts = activeAttempts.filter((attempt) => (
@@ -571,15 +625,31 @@ export async function prepareLocalReview(
       || attempt.sourceId !== dependencies.laneSourceId
       || attempt.logicalPass !== retryingLocalFailure.logicalPass
     )).map(projectReviewPolicyAttempt);
-    const logicalPass = request.deliveryAdmission?.pass ?? await dependencies.validatePolicyAdmission({
-      repositoryId,
-      target,
-      standardReview: projection,
-      completedPasses: owner?.completedPasses ?? 0,
-      attempts: policyAttempts,
-      terminalResponsePerformed: currentAttempts.at(-1)?.outcome === "settled-findings",
-      ...(request.policyJudgment === undefined ? {} : { judgment: request.policyJudgment }),
-    });
+    const predecessorOperationId = [...(owner?.attempts ?? [])].reverse().find((attempt) => (
+      attempt.terminalProducer
+      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
+      && attempt.headSha !== target.headSha
+    ))?.attemptId;
+    const policyAdmission = request.deliveryAdmission === undefined
+      ? await dependencies.validatePolicyAdmission({
+          repositoryId,
+          target,
+          lineage,
+          standardReview: projection,
+          completedPasses: owner?.completedPasses ?? 0,
+          attempts: policyAttempts,
+          terminalResponsePerformed: currentAttempts.at(-1)?.outcome === "settled-findings",
+          ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
+          ...(request.coverageAdmission === undefined
+            ? {}
+            : { coverageAdmission: request.coverageAdmission }),
+          ...(request.policyJudgment === undefined ? {} : { judgment: request.policyJudgment }),
+        })
+      : { state: "ready" as const, pass: request.deliveryAdmission.pass };
+    if (policyAdmission.state === "coverage-required") {
+      return { state: "coverage-required" as const, action: policyAdmission.action };
+    }
+    const logicalPass = policyAdmission.pass;
     if (retryingLocalFailure !== undefined
       && logicalPass !== retryingLocalFailure.logicalPass) {
       throw new LocalPrepareCommandError("local review retry changed its admitted logical pass");
@@ -587,7 +657,8 @@ export async function prepareLocalReview(
     const priorRetryGenerations = owner?.attempts
       .filter((attempt) => attempt.logicalPass === logicalPass
         && attempt.sourceId === dependencies.laneSourceId
-        && attempt.local?.scopeMode === scopeMode)
+        && attempt.local?.scopeMode === scopeMode
+        && canonicalize(localAttemptCoverageAdmission(attempt.local)) === canonicalize(coverageAdmission))
       .map(({ retryGeneration }) => retryGeneration) ?? [];
     const retryGeneration = priorRetryGenerations.length === 0
       ? 0
@@ -600,6 +671,7 @@ export async function prepareLocalReview(
       scopeMode,
       policyBindingDigest: policy.binding.bindingDigest,
       requestMechanism: policy.binding.requestMechanism,
+      coverageAdmission,
       lineage,
       logicalPass,
       retryGeneration,
@@ -716,7 +788,7 @@ export async function prepareLocalReview(
         break;
       }
       const source = LocalReviewSourceSchema.parse(
-        await dependencies.describeSource(resolution.operationId, target, request.deliveryAdmission),
+        await dependencies.describeSource(resolution.operationId, target, coverageAdmission),
       );
       try {
         const preparation = await publishLocalReviewPreparation(
@@ -775,6 +847,16 @@ export async function prepareLocalReview(
   }));
   if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
   if (settled.state === "replayed") return settled.envelope;
+  if (settled.state === "coverage-required") {
+    return LocalPrepareEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-prepare",
+      diagnostics: diagnostics(allDiagnostics),
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      payload: { coverageSelectionAction: settled.action },
+    });
+  }
   if (settled.state === "completed") {
     return LocalPrepareEnvelopeSchema.parse({
       schemaVersion: 1,

@@ -22,7 +22,6 @@ import {
   hostedLaneAttemptId,
   invalidateConditionalNextPassAuthorization,
   inspectConditionalNextPassInvalidation,
-  localReviewRequestedCoverage,
   laneContinuationOperationId,
   laneProgressOperationId,
   acknowledgeHostedRequest,
@@ -32,6 +31,7 @@ import {
   recordHostedRequestConclusion,
   readLaneProgress,
   readLaneProgressAcrossLineage,
+  readLaneProgressOwner,
   recordLaneAttempt,
   recordLaneResponsePerformance,
   settleLaneAttempt,
@@ -134,17 +134,6 @@ async function seedConditionalAuthorization(
 }
 
 describe("lane progress", () => {
-  it("uses explicit delivery coverage instead of inferring it from retrigger policy", () => {
-    expect(localReviewRequestedCoverage(
-      { retrigger: "incremental" },
-      { requestedCoverage: "complete" },
-    )).toBe("complete");
-    expect(localReviewRequestedCoverage(
-      { retrigger: "full-final" },
-      { requestedCoverage: "incremental" },
-    )).toBe("incremental");
-  });
-
   it("creates the record on a lane's first recorded attempt", async () => {
     const store = createStore();
     const state = await recordLaneAttempt(store, {
@@ -283,6 +272,53 @@ describe("lane progress", () => {
 
     expect(moved).toBe(first);
     expect(sibling).not.toBe(first);
+  });
+
+  it("retains one head-bound Errand owner across correction head movement", () => {
+    const owner = (identity: string, headSha: string) => laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: identity,
+        headSha,
+      },
+    });
+
+    expect(owner("repair-review-state", objectId("d")))
+      .toBe(owner("repair-review-state", objectId("c")));
+    expect(owner("other-errand", objectId("d")))
+      .not.toBe(owner("repair-review-state", objectId("c")));
+  });
+
+  it("reads an Errand predecessor owner from its corrected head", async () => {
+    const store = createStore();
+    const priorLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("c"),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage: priorLineage,
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    const owner = await readLaneProgressOwner(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("d"),
+      lineage: { ...priorLineage, headSha: objectId("d") },
+    });
+
+    expect(owner).toMatchObject({
+      completedPasses: 1,
+      attempts: [{ attemptId: attempt.attemptId, outcome: "clean" }],
+    });
   });
 
   it("retains exact target facts on attempts owned by one moving lineage", async () => {

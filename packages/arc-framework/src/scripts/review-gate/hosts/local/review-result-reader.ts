@@ -160,6 +160,10 @@ export class LocalReviewResultReader implements ReviewResultReader {
       || attempt.headSha !== state.target.headSha
       || local.requestId !== state.requestId
       || local.scopeMode !== state.scopeMode
+      || canonicalize({
+        requestedCoverage: local.requestedCoverage,
+        ...(local.correctionScope === undefined ? {} : { correctionScope: local.correctionScope }),
+      }) !== canonicalize(state.coverageAdmission)
       || canonicalize(local.target) !== canonicalize(state.target)
       || canonicalize(local.vehicle) !== canonicalize(state.vehicle)
       || canonicalize(local.deliveryAdmission ?? null) !== canonicalize(state.deliveryAdmission ?? null)
@@ -185,6 +189,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
         sourceDigest: state.sourceDigest,
         guidanceDigest: state.guidanceDigest,
         requestedCoverage: local.requestedCoverage,
+        correctionScope: local.correctionScope ?? null,
         effectiveCoverage: local.effectiveCoverage,
         scopeMode: state.scopeMode,
         deliveryAdmission: state.deliveryAdmission ?? null,
@@ -207,9 +212,9 @@ export class LocalReviewResultReader implements ReviewResultReader {
         effectiveCoverage: local.effectiveCoverage,
         scopeMode: state.scopeMode,
         policyVersion: state.policyVersion,
-        ...(state.deliveryAdmission?.correctionScope === undefined
+        ...(local.correctionScope === undefined
           ? {}
-          : { correctionScope: state.deliveryAdmission.correctionScope }),
+          : { correctionScope: local.correctionScope }),
       },
       receiptRef: entry.durableEvidenceRef,
       localSourceRef: state.sourceRef,

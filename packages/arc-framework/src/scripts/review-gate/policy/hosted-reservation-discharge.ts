@@ -47,13 +47,10 @@ import {
   readIncrementalPredecessorResponseEvidence,
   resolveEvidenceBoundReviewPolicy,
 } from "./review-policy-evidence.js";
+import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import {
-  IncrementalReviewScopeSchema,
-  type IncrementalReviewScope,
-} from "../core/incremental-review-scope.js";
-import type {
-  IncrementalPredecessorApplicability,
-  IncrementalPredecessorResponseEvidence,
+  buildIncrementalCorrectionScope,
+  type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
 import {
   ReviewCoverageSelectionActionSchema,
@@ -118,48 +115,6 @@ export async function confirmIncrementalPredecessorApplicability(input: {
     producerId: predecessor.producerId,
     producerTarget: predecessor.target,
     earlier: await input.readEarlierAttemptApplicability(sourceId),
-  });
-}
-
-/** Build the next exact correction scope from one responded predecessor result. */
-export function buildIncrementalCorrectionScope(input: {
-  readonly predecessor: ReviewResult;
-  readonly currentHeadSha: string;
-  readonly response: IncrementalPredecessorResponseEvidence;
-}): IncrementalReviewScope | null {
-  const { predecessor, response } = input;
-  if (predecessor.kind === "frontline" || response.status !== "performed") return null;
-  const predecessorScope = predecessor.admission.correctionScope;
-  const basisHeadSha = predecessor.admission.effectiveCoverage === "complete"
-    ? predecessor.target.headSha
-    : predecessorScope?.headSha === predecessor.target.headSha
-      ? predecessorScope.basisHeadSha
-      : null;
-  if (basisHeadSha === null) return null;
-  const inheritedFindings = predecessor.admission.effectiveCoverage === "complete"
-    ? []
-    : predecessorScope?.requiredFindings ?? [];
-  const findingKey = ({ producerId, findingId }: { readonly producerId: string; readonly findingId: string }) => (
-    canonicalize([producerId, findingId])
-  );
-  const requiredFindings = new Map<string, (typeof response.requiredFindings)[number]>();
-  for (const finding of [...inheritedFindings, ...response.requiredFindings]) {
-    const key = findingKey(finding);
-    const existing = requiredFindings.get(key);
-    if (existing !== undefined && canonicalize(existing) !== canonicalize(finding)) return null;
-    requiredFindings.set(key, finding);
-  }
-  return IncrementalReviewScopeSchema.parse({
-    schemaVersion: 1,
-    predecessorProducerId: predecessor.producerId,
-    predecessorHeadSha: predecessor.target.headSha,
-    basisHeadSha,
-    headSha: input.currentHeadSha,
-    requiredFindings: [...requiredFindings.values()].sort((left, right) => (
-      left.producerId.localeCompare(right.producerId)
-      || left.findingId.localeCompare(right.findingId)
-      || left.locus.localeCompare(right.locus)
-    )),
   });
 }
 

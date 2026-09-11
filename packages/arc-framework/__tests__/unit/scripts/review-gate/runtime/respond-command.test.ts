@@ -121,6 +121,7 @@ function fixture(
     lineage,
     logicalPass: 1,
     retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" },
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -154,6 +155,7 @@ function fixture(
     lineage: admission.lineage,
     logicalPass: admission.logicalPass,
     retryGeneration: admission.retryGeneration,
+    coverageAdmission: admission.coverageAdmission,
     attestationRuntimeKind: authority.attestationRuntimeKind,
     sourceRef: "source.json",
     sourceDigest: source.sourceDigest,

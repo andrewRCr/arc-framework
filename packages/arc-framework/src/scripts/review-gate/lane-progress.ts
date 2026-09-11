@@ -331,26 +331,8 @@ function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): bool
   });
 }
 
-/**
- * Derive the local carrier's requested coverage from its admitted requirement.
- *
- * @param requirement - The standard review requirement admitted for the local operation.
- * @param admission - Optional delivery admission carrying its explicit requested coverage.
- * @returns The delivery admission's coverage; otherwise the requirement-derived coverage.
- */
-export function localReviewRequestedCoverage(
-  requirement: { readonly retrigger: "none" | "incremental" | "full-final" },
-  admission?: { readonly requestedCoverage: "incremental" | "complete" },
-): "incremental" | "complete" {
-  if (requirement.retrigger === "none") {
-    throw new Error("local review admission requires a reviewable coverage policy");
-  }
-  if (admission !== undefined) return admission.requestedCoverage;
-  return requirement.retrigger === "incremental" ? "incremental" : "complete";
-}
-
 function localLaneAttemptMatchesState(attempt: LaneAttempt, state: LocalReviewState): boolean {
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
+  const requestedCoverage = state.coverageAdmission.requestedCoverage;
   return attempt.attemptId === state.operationId
     && attempt.logicalPass === state.logicalPass
     && attempt.retryGeneration === state.retryGeneration
@@ -364,6 +346,9 @@ function localLaneAttemptMatchesState(attempt: LaneAttempt, state: LocalReviewSt
       vehicle: state.vehicle,
       target: state.target,
       requestedCoverage,
+      ...(state.coverageAdmission.correctionScope === undefined
+        ? {}
+        : { correctionScope: state.coverageAdmission.correctionScope }),
       effectiveCoverage: attempt.terminalProducer ? requestedCoverage : null,
       scopeMode: state.scopeMode,
       ...(state.deliveryAdmission === undefined
@@ -389,7 +374,7 @@ export async function recordLocalReceiptConclusion(
     input.receipt,
   );
   const consumedPass = receipt.result === "clean" || receipt.result === "findings";
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
+  const requestedCoverage = state.coverageAdmission.requestedCoverage;
   const outcome = receipt.result === "unavailable"
     ? "transient-unavailable"
     : receipt.result === "failed" ? "terminal-failure" : receipt.result;
@@ -431,6 +416,9 @@ export async function recordLocalReceiptConclusion(
       vehicle: state.vehicle,
       target: state.target,
       requestedCoverage,
+      ...(state.coverageAdmission.correctionScope === undefined
+        ? {}
+        : { correctionScope: state.coverageAdmission.correctionScope }),
       effectiveCoverage: consumedPass ? requestedCoverage : null,
       scopeMode: state.scopeMode,
       ...(state.deliveryAdmission === undefined
@@ -480,18 +468,32 @@ export function hostedAwaitLaneOutcome(state: string): LaneAttemptOutcome | null
  * @param input - The lane and the exact target it is reviewing.
  * @returns The operation identifier for that lane and target.
  */
+function laneOwnerSubject(lineage: LaneSubjectLineage): Omit<
+  Extract<LaneSubjectLineage, { kind: "head-bound" }>,
+  "headSha"
+> | Exclude<LaneSubjectLineage, { kind: "head-bound" }> {
+  return lineage.kind === "head-bound"
+    ? {
+        kind: lineage.kind,
+        vehicleKind: lineage.vehicleKind,
+        vehicleIdentity: lineage.vehicleIdentity,
+      }
+    : lineage;
+}
+
 export function laneProgressOperationId(input: {
   lane: LaneProgressState["lane"];
   repositoryId: string;
   headSha: string;
   lineage?: LaneSubjectLineage;
 }): string {
-  const subject = input.lineage ?? {
+  const lineage = input.lineage ?? {
     kind: "head-bound" as const,
     vehicleKind: "review-target",
     vehicleIdentity: `${input.repositoryId}/${input.headSha}`,
     headSha: input.headSha,
   };
+  const subject = laneOwnerSubject(lineage);
   const digest = createHash("sha256")
     .update(canonicalize({
       domain: "arc.review.lane-progress-owner/v1",
@@ -510,13 +512,7 @@ export function laneContinuationOperationId(input: {
   headSha: string;
   lineage: LaneSubjectLineage;
 }): string {
-  const subject = input.lineage.kind === "head-bound"
-    ? {
-        kind: input.lineage.kind,
-        vehicleKind: input.lineage.vehicleKind,
-        vehicleIdentity: input.lineage.vehicleIdentity,
-      }
-    : input.lineage;
+  const subject = laneOwnerSubject(input.lineage);
   const digest = createHash("sha256")
     .update(canonicalize({
       domain: "arc.review.lane-continuation-lock/v1",
@@ -1151,7 +1147,6 @@ export async function recordLocalPendingAttempt(
   },
 ): Promise<LaneProgressState> {
   const { state } = input;
-  const requestedCoverage = localReviewRequestedCoverage(state.requirement, state.deliveryAdmission);
   return recordLaneAttempt(store, {
     lane: "standard",
     repositoryId: state.repositoryId,
@@ -1170,7 +1165,10 @@ export async function recordLocalPendingAttempt(
       requestId: state.requestId,
       vehicle: state.vehicle,
       target: state.target,
-      requestedCoverage,
+      requestedCoverage: state.coverageAdmission.requestedCoverage,
+      ...(state.coverageAdmission.correctionScope === undefined
+        ? {}
+        : { correctionScope: state.coverageAdmission.correctionScope }),
       effectiveCoverage: null,
       scopeMode: state.scopeMode,
       ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
@@ -2320,7 +2318,8 @@ export async function readLaneProgressOwnerVersioned(
     || state.kind !== "lane-progress"
     || state.lane !== input.lane
     || state.repositoryId !== input.repositoryId
-    || canonicalize(state.lineage) !== canonicalize(input.lineage)) return { version, state: null };
+    || canonicalize(laneOwnerSubject(state.lineage))
+      !== canonicalize(laneOwnerSubject(input.lineage))) return { version, state: null };
   return { version, state };
 }
 

@@ -66,6 +66,43 @@ describe("local review preparation request", () => {
     }).routingFacts).toEqual(routingFactsInput);
   });
 
+  it("admits source-neutral complete or exact incremental coverage", () => {
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "local-predecessor",
+      predecessorHeadSha: objectId("a"),
+      basisHeadSha: objectId("9"),
+      headSha: objectId("c"),
+      requiredFindings: [],
+    };
+    expect(LocalPrepareRequestSchema.parse({
+      schemaVersion: 1,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+      coverageAdmission: { requestedCoverage: "complete" },
+    })).toMatchObject({ coverageAdmission: { requestedCoverage: "complete" } });
+    expect(LocalPrepareRequestSchema.parse({
+      schemaVersion: 1,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+      coverageAdmission: { requestedCoverage: "incremental", correctionScope },
+    })).toMatchObject({
+      coverageAdmission: { requestedCoverage: "incremental", correctionScope },
+    });
+    expect(() => LocalPrepareRequestSchema.parse({
+      schemaVersion: 1,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+      coverageAdmission: { requestedCoverage: "incremental" },
+    })).toThrow(/correction scope/u);
+    expect(() => LocalPrepareRequestSchema.parse({
+      schemaVersion: 1,
+      evaluatorIdentity: "evaluator-1",
+      routingFacts,
+      coverageAdmission: { requestedCoverage: "complete", correctionScope },
+    })).toThrow(/correction scope/u);
+  });
+
   it("refuses a member selector without the exact delivery admission", () => {
     const memberHeadObjectId = objectId("e");
     expect(() => LocalPrepareRequestSchema.parse({
@@ -242,9 +279,9 @@ describe("local review preparation request", () => {
       );
       const validatePolicyAdmission = vi.fn(async (
         _input: Parameters<Parameters<typeof prepareLocalReview>[1]["validatePolicyAdmission"]>[0],
-      ) => {
+      ): Promise<unknown> => {
         void _input;
-        return 1;
+        return { state: "ready", pass: 1 };
       });
       const composeAssurance = vi.fn(async () => ({
         status: "resolved" as const,
@@ -404,6 +441,89 @@ describe("local review preparation request", () => {
       );
     });
 
+    it("delivers an exact non-delivery correction through the same coverage admission", async () => {
+      const context = fixture();
+      const correctionScope = {
+        schemaVersion: 1 as const,
+        predecessorProducerId: "local-predecessor",
+        predecessorHeadSha: objectId("a"),
+        basisHeadSha: objectId("9"),
+        headSha: context.changeSetTarget.headSha,
+        requiredFindings: [{
+          producerId: "local-predecessor",
+          findingId: "F-material",
+          locus: "src/work-unit.ts:4",
+        }],
+      };
+
+      const prepared = await prepareLocalReview({
+        ...request,
+        coverageAdmission: { requestedCoverage: "incremental", correctionScope },
+      }, context.dependencies);
+
+      expect(prepared).toMatchObject({
+        state: "ready",
+        payload: { reviewerPayload: { correctionScope } },
+      });
+      expect(context.published()).toMatchObject({
+        coverageAdmission: { requestedCoverage: "incremental", correctionScope },
+      });
+      expect(context.laneProgress()).toMatchObject({
+        attempts: [{
+          local: {
+            requestedCoverage: "incremental",
+            correctionScope,
+          },
+        }],
+      });
+    });
+
+    it("returns a typed coverage choice instead of silently launching after an inadequate pass", async () => {
+      const context = fixture();
+      const correctionScope = {
+        schemaVersion: 1 as const,
+        predecessorProducerId: "local-predecessor",
+        predecessorHeadSha: objectId("a"),
+        basisHeadSha: objectId("9"),
+        headSha: context.changeSetTarget.headSha,
+        requiredFindings: [],
+      };
+      context.validatePolicyAdmission.mockResolvedValueOnce({
+        state: "coverage-required",
+        action: {
+          schemaVersion: 1,
+          kind: "local-review-coverage-selection",
+          sourceId: "delegated-agent",
+          target: context.changeSetTarget,
+          pass: 1,
+          completedPasses: 1,
+          consumedPass: true,
+          choices: [
+            { requestedCoverage: "incremental", correctionScope },
+            { requestedCoverage: "complete" },
+          ],
+          interactionText: "Select one listed coverage admission and re-run local preparation.",
+        },
+      });
+
+      const result = await prepareLocalReview(request, context.dependencies);
+
+      expect(result).toMatchObject({
+        state: "coverage-required",
+        nextAction: "select-coverage",
+        payload: {
+          coverageSelectionAction: {
+            kind: "local-review-coverage-selection",
+            choices: [
+              { requestedCoverage: "incremental", correctionScope },
+              { requestedCoverage: "complete" },
+            ],
+          },
+        },
+      });
+      expect(context.operations.size).toBe(0);
+    });
+
     it("persists the admitted local attempt before returning executable review inputs", async () => {
       const context = fixture();
 
@@ -424,7 +544,7 @@ describe("local review preparation request", () => {
           local: {
             operationId: prepared.payload.operationId,
             requestId: prepared.payload.request.requestId,
-            requestedCoverage: "incremental",
+            requestedCoverage: "complete",
             effectiveCoverage: null,
             scopeMode: "whole-target",
           },
@@ -525,7 +645,7 @@ describe("local review preparation request", () => {
       };
       context.validatePolicyAdmission.mockImplementation(async ({ completedPasses }) => {
         if (completedPasses > 0) throw new Error("review pass already completed");
-        return 1;
+        return { state: "ready", pass: 1 };
       });
 
       await expect(prepareLocalReview(request, context.dependencies))
@@ -876,7 +996,7 @@ describe("local review preparation request", () => {
           completedPasses,
           attempts,
           judgment,
-        }) => assertStandardReviewExecutionAdmission({
+        }) => ({ state: "ready", pass: assertStandardReviewExecutionAdmission({
           target: {
             repository: "owner/repository",
             pullRequest: null,
@@ -894,7 +1014,7 @@ describe("local review preparation request", () => {
             ...judgment,
             invocation: { mode: "force", sourceId: "delegated-agent" },
           },
-        }).payload.pass;
+        }).payload.pass });
         const dependencies = { ...context.dependencies, validatePolicyAdmission };
         const first = await prepareLocalReview(request, dependencies);
         const state = context.published();
@@ -998,7 +1118,7 @@ describe("local review preparation request", () => {
           attemptId: state.operationId,
           now: "2026-08-06T18:01:00Z",
         });
-        context.validatePolicyAdmission.mockResolvedValueOnce(2);
+        context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2 });
 
         const next = await prepareLocalReview(request, context.dependencies);
 
@@ -1067,7 +1187,7 @@ describe("local review preparation request", () => {
           producedHeadSha: state.target.headSha,
           now: "2026-08-06T18:01:00Z",
         });
-        context.validatePolicyAdmission.mockResolvedValueOnce(2);
+        context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2 });
 
         await expect(prepareLocalReview({
           ...request,
@@ -1217,7 +1337,7 @@ describe("local review preparation request", () => {
         diagnostics: [] as [],
       }),
       validatePolicySelection: () => undefined,
-      validatePolicyAdmission: async () => 1,
+      validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1 }),
       validateDeliveryAdmission: async () => undefined,
       operationStore: {
         readOperation: async (operationId: string) => {
@@ -1347,7 +1467,7 @@ describe("local review preparation request", () => {
           diagnostics: [] as [],
         }),
         validatePolicySelection: () => undefined,
-        validatePolicyAdmission: async () => 1,
+        validatePolicyAdmission: async () => ({ state: "ready" as const, pass: 1 }),
         validateDeliveryAdmission: async () => undefined,
         operationStore: {
           readOperation: async (operationId: string) => (
@@ -1501,8 +1621,8 @@ describe("local review preparation request", () => {
           outcome: result,
           terminalProducer: true,
           local: {
-            requestedCoverage: "incremental",
-            effectiveCoverage: "incremental",
+            requestedCoverage: "complete",
+            effectiveCoverage: "complete",
           },
         }],
       });

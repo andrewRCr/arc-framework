@@ -133,6 +133,8 @@ export function projectHostedReservationPolicyProgress(input: {
       if (!hostedIdentityMatches && !localMatches) continue;
       const coverageBinding = localMatches ? local : hosted;
       if (coverageBinding === undefined) continue;
+      const requestedCoverage = localMatches ? local.requestedCoverage : hosted?.requestedCoverage;
+      if (requestedCoverage === undefined) continue;
       historyTimeline.push({
         operationId: state.operationId,
         attemptIndex,
@@ -141,7 +143,7 @@ export function projectHostedReservationPolicyProgress(input: {
           headSha: attempt.headSha,
           sourceId: attempt.sourceId,
           outcome: attempt.outcome,
-          requestedCoverage: coverageBinding.requestedCoverage,
+          requestedCoverage,
           effectiveCoverage: coverageBinding.effectiveCoverage,
           findingCount: hosted?.sealedResult?.findings.length ?? 0,
           settledFindingCount: hosted?.settledFindingIds.length ?? 0,

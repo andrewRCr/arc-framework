@@ -81,6 +81,7 @@ function state(
     lineage,
     logicalPass: 1,
     retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" },
     repositoryId: "repo-1",
     targetId: target.targetId,
     requestId: carrier.request.requestId,

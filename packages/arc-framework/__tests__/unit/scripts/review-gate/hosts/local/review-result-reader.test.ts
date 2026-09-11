@@ -106,6 +106,7 @@ function localFixture(options: {
     lineage,
     logicalPass: 1,
     retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" },
   });
   const source = createLocalReviewSource({
     schemaVersion: 1,
@@ -136,6 +137,7 @@ function localFixture(options: {
     lineage,
     logicalPass: 1,
     retryGeneration: 0,
+    coverageAdmission: admission.coverageAdmission,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: admission.policyBindingDigest,
     attestationRuntimeKind: admission.authority.attestationRuntimeKind,

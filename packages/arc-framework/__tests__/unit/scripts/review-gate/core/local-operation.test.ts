@@ -62,6 +62,7 @@ function fixture() {
     },
     logicalPass: 1,
     retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" as const },
     policyBindingDigest: digest("local-policy"),
     requestMechanism: "local-prepare",
   };
@@ -92,6 +93,7 @@ describe("local review operation identity", () => {
       lineage: admission.lineage,
       logicalPass: admission.logicalPass,
       retryGeneration: admission.retryGeneration,
+      coverageAdmission: admission.coverageAdmission,
       scopeMode: admission.scopeMode,
       attestationRuntimeKind: admission.authority.attestationRuntimeKind,
       sourceRef: "review-source.json",

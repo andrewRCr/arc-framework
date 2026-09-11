@@ -328,7 +328,10 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
  */
 export async function assertEvidenceBoundReviewExecutionAdmission(
   input: unknown,
-  response: { readonly terminalResponsePerformed: boolean },
+  response: {
+    readonly terminalResponsePerformed: boolean;
+    readonly coverageSelected?: boolean;
+  },
   expectation: {
     readonly sourceId: string;
     readonly nextAction: "local-prepare" | "hosted-request";

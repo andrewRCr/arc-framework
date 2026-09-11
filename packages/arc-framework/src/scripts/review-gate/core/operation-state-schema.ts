@@ -35,6 +35,8 @@ import {
   ReviewPassSchema,
 } from "./review-pass.js";
 import { ReviewScopeModeSchema } from "./review-primitives.js";
+import { LocalReviewCoverageAdmissionSchema } from "./local-review-coverage.js";
+import { IncrementalReviewScopeSchema } from "./incremental-review-scope.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -105,6 +107,7 @@ export const LocalReviewStateSchema = z.strictObject({
   lineage: LaneSubjectLineageSchema,
   logicalPass: z.number().int().positive(),
   retryGeneration: z.number().int().nonnegative(),
+  coverageAdmission: LocalReviewCoverageAdmissionSchema,
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
   policyVersion: CanonicalDigestSchema,
   policyBindingDigest: CanonicalDigestSchema,
@@ -134,6 +137,12 @@ export const LocalReviewStateSchema = z.strictObject({
     if (state.deliveryAdmission !== undefined
       && (state.laneSourceId !== state.deliveryAdmission.sourceId
         || state.scopeMode !== (state.deliveryAdmission.scopeSelection?.mode ?? "whole-target")
+        || canonicalize(state.coverageAdmission) !== canonicalize({
+          requestedCoverage: state.deliveryAdmission.requestedCoverage,
+          ...(state.deliveryAdmission.correctionScope === undefined
+            ? {}
+            : { correctionScope: state.deliveryAdmission.correctionScope }),
+        })
         || state.vehicle.kind !== "delivery-member"
         || state.vehicle.identity !== state.deliveryAdmission.vehicle.deliverableId
         || target.kind !== "delivery-member"
@@ -575,10 +584,22 @@ const LocalLaneAttemptBindingSchema = z.strictObject({
   vehicle: ReviewVehicleSchema,
   target: ReviewTargetSchema,
   requestedCoverage: HostedReviewCoverageSchema,
+  correctionScope: IncrementalReviewScopeSchema.optional(),
   effectiveCoverage: HostedReviewCoverageSchema.nullable(),
   scopeMode: ReviewScopeModeSchema,
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
 }).superRefine((local, context) => {
+  const coverageAdmission = LocalReviewCoverageAdmissionSchema.safeParse({
+    requestedCoverage: local.requestedCoverage,
+    ...(local.correctionScope === undefined ? {} : { correctionScope: local.correctionScope }),
+  });
+  if (!coverageAdmission.success) {
+    context.addIssue({
+      code: "custom",
+      path: ["requestedCoverage"],
+      message: "local lane progress has invalid coverage admission",
+    });
+  }
   if (local.requestedCoverage === "complete"
     && local.effectiveCoverage !== null
     && local.effectiveCoverage !== "complete") {
@@ -598,6 +619,15 @@ const LocalLaneAttemptBindingSchema = z.strictObject({
   if (local.deliveryAdmission !== undefined
     && (local.vehicle.kind !== "delivery-member"
       || local.scopeMode !== (local.deliveryAdmission.scopeSelection?.mode ?? "whole-target")
+      || canonicalize({
+        requestedCoverage: local.requestedCoverage,
+        ...(local.correctionScope === undefined ? {} : { correctionScope: local.correctionScope }),
+      }) !== canonicalize({
+        requestedCoverage: local.deliveryAdmission.requestedCoverage,
+        ...(local.deliveryAdmission.correctionScope === undefined
+          ? {}
+          : { correctionScope: local.deliveryAdmission.correctionScope }),
+      })
       || local.vehicle.identity !== local.deliveryAdmission.vehicle.deliverableId
       || local.target.kind !== "delivery-member"
       || local.target.headSha !== local.deliveryAdmission.vehicle.head)) {

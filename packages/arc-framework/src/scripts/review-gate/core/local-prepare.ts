@@ -40,9 +40,9 @@ export function createLocalReviewSourcePayload(
     headSha: admission.target.headSha,
     sourceRef: preparation.sourceRef,
     sourceDigest: preparation.sourceDigest,
-    ...(preparation.state.deliveryAdmission?.correctionScope === undefined
+    ...(preparation.state.coverageAdmission.correctionScope === undefined
       ? {}
-      : { correctionScope: preparation.state.deliveryAdmission.correctionScope }),
+      : { correctionScope: preparation.state.coverageAdmission.correctionScope }),
   });
 }
 
@@ -84,7 +84,7 @@ export async function publishLocalReviewPreparation(
   },
 ): Promise<LocalReviewPreparation> {
   const source = LocalReviewSourceSchema.parse(sourceInput);
-  const admittedCorrectionScope = admission.deliveryAdmission?.correctionScope;
+  const admittedCorrectionScope = admission.coverageAdmission.correctionScope;
   if (source.repositoryId !== admission.target.repositoryId
     || source.targetId !== admission.target.targetId
     || source.diffBaseSha !== admission.target.diffBaseSha
@@ -111,6 +111,7 @@ export async function publishLocalReviewPreparation(
     lineage: admission.lineage,
     logicalPass: admission.logicalPass,
     retryGeneration: admission.retryGeneration,
+    coverageAdmission: admission.coverageAdmission,
     ...(admission.deliveryAdmission === undefined
       ? {}
       : { deliveryAdmission: admission.deliveryAdmission }),
