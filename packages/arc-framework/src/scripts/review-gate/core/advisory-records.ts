@@ -120,6 +120,16 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
       path: ["fixAuthorization"],
     });
   }
+  if (candidateOwnedPrivateMember
+    && record.deliveryMember !== null
+    && record.fixAuthorization !== null
+    && record.deliveryMember.head !== record.fixAuthorization.oldHeadSha) {
+    context.addIssue({
+      code: "custom",
+      message: "a Candidate-owned private member must bind the exact fix authorization head",
+      path: ["deliveryMember", "head"],
+    });
+  }
   const response = record.errandFixResponse;
   if (response !== null) {
     if (record.errand === null || record.candidate !== null || record.deliveryMember !== null

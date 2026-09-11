@@ -732,7 +732,7 @@ describe("review-fix Candidate lineage", () => {
       locus: "candidate-fix-pending",
       target: { kind: "delivery-member", headSha: delivery.firstMemberHead },
     });
-    await expect(invoke(root, ["review", "respond", "-"], {
+    const verifiedFix = {
       schemaVersion: 1,
       source,
       dispositions,
@@ -740,7 +740,11 @@ describe("review-fix Candidate lineage", () => {
         applicability: "focused",
         verificationEvidenceRefs: ["verification://focused-private-member-fix"],
       },
-    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    } as const;
+    await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
+      .resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
+      .resolves.toMatchObject({ state: "candidate-current", nextAction: "continue-review" });
     const advanced = await readCandidateRecord(root, "example");
     expect(candidateReviewResponses(advanced ?? { transitions: [] })).toMatchObject([{
       oldTarget: { revision: candidateHead },

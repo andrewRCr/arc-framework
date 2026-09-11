@@ -703,7 +703,7 @@ async function persistCandidateResponse(
     const matching = matchingResponses[0];
     if (matching === undefined
       || matching.candidateId !== lineage.record.attestation.candidateId
-      || matching.oldTarget.revision !== source.target.headSha
+      || matching.oldTarget.revision !== candidateTarget.headSha
       || matching.newTarget.revision !== recordedResponses.at(-1)?.newTarget.revision
       || matching.approvedBy !== dispositions.approval.approvedBy
       || matching.appliedBy !== dispositions.dispositionSet.proposedBy
