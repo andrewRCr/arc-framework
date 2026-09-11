@@ -70,6 +70,7 @@ describe("one-shot TypeScript package scripts", () => {
     expect(packageManifest.scripts).toMatchObject({
       "benchmark:session-envelope": "npm run build && node --import tsx __tests__/benchmarks/session-envelope-validation.ts",
       "benchmark:test-cost": "node --import tsx src/scripts/measure-test-cost.ts",
+      "benchmark:test-cost:compare": "node --import tsx src/scripts/compare-test-cost.ts",
       "benchmark:test-cost:normalize": "node --import tsx src/scripts/normalize-test-cost.ts",
       "benchmark:test-cost:shards": "node --import tsx src/scripts/measure-e2e-shards.ts",
       "inventory:command-inputs": "node --import tsx src/scripts/render-command-input-inventory.ts",
