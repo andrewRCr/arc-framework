@@ -151,12 +151,15 @@ runs everything, and no project or framework document instructs a whole-suite lo
 
     - _Amended 2026-09-10 — Validate the live contract as configured: required context `merge-ok` must depend on
       and fail closed with `ci-ok`. Record both the GitHub ruleset binding and the workflow dependency._
+    - _Amended 2026-09-10 — Published `docs/**` guidance is frozen for a dedicated public-release pass. Validate
+      the active project/framework authoring surfaces here; `docs-content-sweep` owns public-prose reconciliation._
 
 - _Outcome:_ Clean-tree runs completed the admitted lane in 58.21 s (821 files, 11,103 tests; one file/test skipped)
   and all projects in 297.67 s (874 files, 11,631 tests; one file/test skipped). The live holder named this branch,
-  worktree, and tier `lane`; the current-authority audit found no whole-suite claim for `npm test` or universal
-  Tier 3 lane mandate. At 2026-09-10T22:08:22-05:00, active ruleset `main-protection` required `merge-ok`, whose CI
-  job depends on `ci_ok` and fails unless that result is `success`.
+  worktree, and tier `lane`; the active-authority targets carry no whole-suite claim for `npm test` or universal
+  Tier 3 lane mandate. Published-doc drift is deferred to `docs-content-sweep`. At 2026-09-10T22:08:22-05:00,
+  active ruleset `main-protection` required `merge-ok`, whose CI job depends on `ci_ok` and fails unless that result
+  is `success`.
 
 ### `[ ]` **1.6 Close the lane and policy member** — validate criteria at member scope
 

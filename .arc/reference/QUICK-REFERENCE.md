@@ -235,7 +235,7 @@ repo Tier 3 exceeds Tier 2 by `build` alone, so the two tiers have nearly conver
 the eventual tier-model rework rather than a license to substitute one for the other.
 
 ```bash
-# 1-9: the Tier 2 block above (which carries the full CI-required set), then:
+# 1-9: the Tier 2 block above (the complete project-designated local set), then:
 
 # 10. Build verification
 npm run build
