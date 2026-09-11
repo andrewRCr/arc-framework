@@ -73,7 +73,7 @@ methodology strategy).
 
 **Running targeted integration/E2E tests:**
 
-Don't run the full suite at Tier 2 — that's Tier 3. Instead:
+Keep Tier 2 within the project's designated gate. When targeted integration/E2E evidence is required:
 
 - Run specific test files that cover the area you modified
 - Run tests tagged for the feature area (if using a tag system)
