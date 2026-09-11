@@ -61,7 +61,10 @@ describe("withLocalHeavyTestAdmission", () => {
   it("queues behind the shared holder with useful diagnostics, then releases after the run", async () => {
     const lines: string[] = [];
     let clock = Date.parse("2026-09-08T20:00:00.000Z");
-    const action = vi.fn(async () => "complete");
+    const action = vi.fn(async () => {
+      clock = Date.parse("2026-09-08T20:02:05.000Z");
+      return "complete";
+    });
     const releaseLock = vi.fn(async () => {});
     const acquireLock = vi.fn(async (_path, options) => {
       options.onWait?.({

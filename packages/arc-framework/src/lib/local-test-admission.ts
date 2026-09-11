@@ -216,6 +216,9 @@ export async function withLocalHeavyTestAdmission<T>(
     processInstance: dependencies.processInstance,
     processScope,
   });
+  const admissionWaitMs = waitState.observed
+    ? dependencies.now() - admissionStartedAt
+    : undefined;
 
   if (waitState.observed) {
     dependencies.writeLine(`Local heavy-test slot acquired after waiting; starting ${tierLabel(input.tier)} tests.`);
@@ -295,7 +298,7 @@ export async function withLocalHeavyTestAdmission<T>(
   }
   return {
     result,
-    ...(waitState.observed ? { waitMs: dependencies.now() - admissionStartedAt } : {}),
+    ...(admissionWaitMs === undefined ? {} : { waitMs: admissionWaitMs }),
   };
 }
 
