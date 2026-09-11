@@ -53,11 +53,15 @@ inventory, with the parent's Goal digest unchanged by the appended bullet.
   `_Amended in:_` is authored as a bullet at Goal-child depth — an indented continuation line would fold into the
   Goal extent and move its digest.
 
-    - `[ ]` **1.2.a Fixture proving the bullet survives completion with the Goal digest intact**
-        - Extend the shared fixture with an `_Amended in:_ X.R (An)` bullet beneath a `[x]` parent's Goal.
-        - Assert the structural scan and cursor accept it, that the parent's `semanticDigest` from
-          `extractTaskGoalInventory` is byte-identical with and without the appended bullet, and that the
-          descriptor lint returns no diagnostic over the fixture.
+    - `[x]` **1.2.a Fixture proving the bullet survives completion with the Goal digest intact**
+        - The fixture gained an `amendedIn` option appending `_Amended in:_ 1.R (A1)` at Goal-child depth beneath
+          the completed parent; it splits on the Goal's tail line and throws rather than silently emitting the
+          base list if that anchor ever drifts.
+        - Goal text, the parent's `semanticDigest`, and the whole `inventoryDigest` a bound plan compares are all
+          byte-identical with and without the bullet; a companion case authors the same words as a continuation
+          line and shows the digest move, so the depth is what the protection rests on.
+        - The descriptor lint is asserted clean but is weak here by construction: a completed parent's cluster
+          carries only `_Goal:_`, and the spacing rule needs two adjacent descriptors before it inspects anything.
 
     - `[ ]` **1.2.b The formatting strategy and task-list template carry the bullet**
         - Add `_Amended in:_` beside `_Retired in:_` in both completion paragraphs — the root-level

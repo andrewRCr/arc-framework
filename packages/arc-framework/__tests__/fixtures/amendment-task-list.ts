@@ -77,7 +77,27 @@ _Exit criterion:_ The extension is exercised end to end alongside the capability
 /** Repository-relative path the segmentation scan reports diagnostics against. */
 export const amendmentPlacementTaskListPath = ".arc/active/tasks-amendment-placement.md";
 
+/** Shape options for the amendment placement task list. */
+export interface AmendmentTaskListOptions {
+  /**
+   * Append the post-completion amendment bullet beneath the completed parent's Goal. It sits at
+   * Goal-child depth, which ends the descriptor extent rather than extending it — the one shape
+   * that records the correction without moving the digest a bound plan compares.
+   */
+  readonly amendedIn?: boolean;
+}
+
+/** Final physical line of the completed parent's wrapped Goal. */
+export const completedParentGoalTail = "  surface it serves.\n";
+
+const AMENDED_IN_BULLET = "\n    - _Amended in:_ 1.R (A1)\n";
+
 /** Build the amendment placement task list every shipped task-list consumer must accept. */
-export function amendmentPlacementTaskList(): string {
-  return AMENDMENT_PLACEMENT_TASK_LIST;
+export function amendmentPlacementTaskList(options: AmendmentTaskListOptions = {}): string {
+  if (options.amendedIn !== true) return AMENDMENT_PLACEMENT_TASK_LIST;
+  const parts = AMENDMENT_PLACEMENT_TASK_LIST.split(completedParentGoalTail);
+  if (parts.length !== 2) {
+    throw new Error("amendment fixture: the completed parent's Goal tail is no longer unique");
+  }
+  return parts.join(`${completedParentGoalTail}${AMENDED_IN_BULLET}`);
 }

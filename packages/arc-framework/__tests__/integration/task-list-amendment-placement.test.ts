@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   amendmentPlacementTaskList,
   amendmentPlacementTaskListPath,
+  completedParentGoalTail,
 } from "../fixtures/amendment-task-list.js";
-import { buildDeliveryTaskInventory } from "../../src/lib/delivery/task-inventory.js";
+import {
+  buildDeliveryTaskInventory,
+  extractTaskGoalInventory,
+} from "../../src/lib/delivery/task-inventory.js";
+import { validateTaskDescriptorSpacing } from "../../src/lib/markdown/descriptor-spacing.js";
 import { resolveTaskListCursor } from "../../src/lib/task-list/cursor.js";
 import { scanTaskListStructure } from "../../src/lib/task-list/scanner.js";
 import { scanTaskListSegmentation } from "../../src/lib/task-list/segmentation.js";
@@ -75,5 +80,60 @@ describe("amendment placement across shipped task-list consumers", () => {
         { taskId: "2.2", role: { kind: "verification", scope: "segment" } },
         { taskId: "3.1", role: { kind: "verification", scope: "work-unit" } },
       ]);
+  });
+});
+
+describe("post-completion amendment bullet", () => {
+  const amended = amendmentPlacementTaskList({ amendedIn: true });
+
+  function completedParentGoal(markdown: string) {
+    return extractTaskGoalInventory(markdown).find((entry) => entry.taskId === "1.1");
+  }
+
+  it("leaves the cursor on the open corrective parent", () => {
+    expect(scanTaskListStructure(amended).status).toBe("scanned");
+
+    const result = resolveTaskListCursor(amended);
+    expect(result.status).toBe("found");
+    if (result.status !== "found") return;
+    expect(result.cursor.section.id).toBe("1.R");
+    expect(result.cursor.leaf.id).toBe("1.R.a");
+  });
+
+  it("leaves the completed parent's Goal text and digest byte-identical", () => {
+    const before = completedParentGoal(content);
+    const after = completedParentGoal(amended);
+
+    expect(before?.semanticDigest).toBeDefined();
+    expect(after?.goal).toBe(before?.goal);
+    expect(after?.semanticDigest).toBe(before?.semanticDigest);
+  });
+
+  it("leaves the inventory digest a bound plan compares byte-identical", () => {
+    const before = buildDeliveryTaskInventory(content);
+    const after = buildDeliveryTaskInventory(amended);
+
+    expect(before.status).toBe("ok");
+    expect(after.status).toBe("ok");
+    if (before.status !== "ok" || after.status !== "ok") return;
+    expect(after.inventory.inventoryDigest).toBe(before.inventory.inventoryDigest);
+  });
+
+  it("draws no descriptor-spacing diagnostic", () => {
+    expect(validateTaskDescriptorSpacing({
+      path: amendmentPlacementTaskListPath,
+      content: amended,
+    })).toEqual([]);
+  });
+
+  it("moves the digest when the same text is authored as a continuation line instead", () => {
+    const asContinuation = content.replace(
+      completedParentGoalTail,
+      `${completedParentGoalTail}  Amended in 1.R (A1).\n`,
+    );
+
+    expect(asContinuation).not.toBe(content);
+    expect(completedParentGoal(asContinuation)?.semanticDigest)
+      .not.toBe(completedParentGoal(content)?.semanticDigest);
   });
 });
