@@ -160,8 +160,8 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 ```markdown
 ## **Phase N:** Testing & Quality Gates
 
-- [ ] **N.1 Run full test suite**
-- [ ] **N.2 Run full integration/E2E suite**
+- [ ] **N.1 Run the project-designated local test gate**
+- [ ] **N.2 Run any explicit integration/E2E checkpoint the project requires**
 - [ ] **N.3 Run all quality gates**
 ```
 
