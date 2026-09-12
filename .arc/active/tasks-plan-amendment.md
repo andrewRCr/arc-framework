@@ -488,9 +488,9 @@ source and the project copy.
       init test is a single-representative spot check and needs nothing. Every assertion in those arrays is
       positive-only, so a missed array is silently green rather than red.
 
-    - `init-recipe.json` and `classification.ts` follow. Each artifact's recipe entry, project copy, and manifest
-      entry land in one commit, as the method-install precedent did — the sync test's exact manifest/recipe
-      equality makes a recipe entry on its own red.
+    - `init-recipe.json` and `classification.ts` follow. Each artifact's recipe entry and manifest entry land in
+      one commit — the sync test's exact manifest/recipe equality makes a recipe entry on its own red. Both
+      project copies already landed with the artifacts themselves, so registration is all this task adds.
 
     - The methods README is a coupling table for methods that have related methods, and states that unlisted
       methods are independent. This one is independent, so it gains no row.
@@ -506,8 +506,9 @@ source and the project copy.
   hand-maintained inventory still describes the pre-amendment corpus.
 
     - `[ ]` **5.3.a Pre-existing project copies reconciled against package source**
-        - Scope is the files this work unit edits; the three new files and their manifest entries arrived with
-          their recipe entries in 5.1 and 5.2.
+        - Scope is the files this work unit edits; the three new files' manifest entries arrived with their
+          recipe entries in 5.1 and 5.2, and the skill's project copy with them. The method's and the workflow's
+          project copies landed with the artifacts themselves, ahead of registration.
         - Run the render for the edited Framework files. It refuses any recipe-resolved source whose output is
           missing, and that refusal is global — which is why the new files' copies could not have waited for this
           task.
@@ -522,6 +523,12 @@ source and the project copy.
         - Five hand-maintained numbers move: the Framework count in prose and again in the summary table, the
           Configurable count in a heading and the same table, and the installed-file total as the fifth.
         - The enumerated Configurable list gains the new method.
+
+    - `[ ]` **5.3.d `resolve-plan-segmentation`'s consumer row names both workflows**
+        - Its blockquote `**Workflow:**` row still lists `generate-tasks.md` alone; `amend-design` declares and
+          fires it, and the success criterion covering the method's two consumers would otherwise catch the
+          omission only at terminal verification.
+        - The row sits above the override sections, so both copies carry the same edit.
 
 ### `[ ]` **5.R Accept `X.R2` ids in the shipped meta-reference pattern**
 
