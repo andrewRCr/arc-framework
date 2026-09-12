@@ -5,6 +5,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - resolve-plan-segmentation
     - assess-boundary-fit
     - assess-design-proportionality
     - test-first
@@ -42,7 +43,7 @@ already advanced `Current Workflow` here.
 
 Make **one scale-axis read** — the implementation surface and the codebase-grounding breadth a correct task plan
 needs — then run [`resolve-planning-depth`][arc-methods-rpd], [`classify-work-unit`][arc-methods-cwu], and
-**Resolve plan segmentation** below from that read. One read drives all three, yielding this run's **level**
+[`resolve-plan-segmentation`][arc-methods-rps] from that read. One read drives all three, yielding this run's **level**
 (`low` / `medium` / `high`), confirming, ratcheting, or correcting **`Class`**, and producing an ordered sequence of
 segments with modes. Segmentation also reads the spec's lifecycle statements. The methods own how the read maps to
 a level and the mid-stage re-entry valve.
@@ -59,22 +60,8 @@ overlay (it reaches novelty only indirectly, through scale).
 **Signature:** `resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes;
 ordering doctrine`
 
-When authoring the phase structure and its exit criteria, divide the plan into an ordered sequence of contiguous
-segments. Each segment spans one or more phases and closes on one stated kind of progress. Attach the mode to the
-segment, not the work unit; mixed-mode plans are ordinary, while a single-mode plan is the simplest case. The read is
-universal — a light work unit still yields one segment with an evident mode.
-
-Choose each segment's mode from the dominant residual risk after planning closes:
-
-| Residual risk lies in                                           | Mode              | The segment closes on                              |
-| --------------------------------------------------------------- | ----------------- | -------------------------------------------------- |
-| **Composition** — do the parts assemble into intended behavior? | **`slice`**       | a thin end-to-end capability that can be exercised |
-| **Substrate contract** — is the shared thing underneath right?  | **`layer`**       | a complete, settled layer                          |
-| **Mechanics at scale** — does this transformation work N times? | **`replication`** | the enumerated surface exhausted, batch-verified   |
-
-`pilot-then-replicate` is a composition, not a fourth mode: use a thin `slice` segment to prove one instance, then a
-`replication` segment to exhaust the enumerated surface. Order segments to retire the dominant residual risk earliest;
-place the first `slice` as early as its required substrate allows.
+Run [`resolve-plan-segmentation`][arc-methods-rps] from the scale-axis read above, together with the spec's
+lifecycle statements, when authoring the phase structure and its exit criteria.
 
 ## Generate in the resolved level
 
@@ -593,6 +580,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
 [arc-methods-adp]: ../../methods/assess-design-proportionality.md
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
+[arc-methods-rps]: ../../methods/resolve-plan-segmentation.md
 [arc-methods-abf]: ../../methods/assess-boundary-fit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

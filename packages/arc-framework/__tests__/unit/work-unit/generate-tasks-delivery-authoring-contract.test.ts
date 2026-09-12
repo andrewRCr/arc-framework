@@ -58,6 +58,22 @@ describe("generate-tasks delivery authoring contract", () => {
       join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
       "utf8",
     );
+    const packagedMethod = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/methods/resolve-plan-segmentation.md"),
+      "utf8",
+    );
+    const installedMethod = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/methods/resolve-plan-segmentation.md"),
+      "utf8",
+    );
+
+    for (const method of [packagedMethod, installedMethod]) {
+      expect(method).toMatch(/\*\*Composition\*\*[^\n]*\*\*`slice`\*\*/u);
+      expect(method).toMatch(/\*\*Substrate contract\*\*[^\n]*\*\*`layer`\*\*/u);
+      expect(method).toMatch(/\*\*Mechanics at scale\*\*[^\n]*\*\*`replication`\*\*/u);
+      expect(method).toContain("Order segments to retire the dominant residual risk earliest");
+      expect(method).toContain("place the first `slice` as early as its required substrate allows");
+    }
 
     for (const workflow of [packaged, installed]) {
       const segmentationStart = workflow.indexOf("## Resolve plan segmentation");
@@ -69,11 +85,8 @@ describe("generate-tasks delivery authoring contract", () => {
       expect(segmentation).toContain(
         "resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes",
       );
-      expect(segmentation).toMatch(/\*\*Composition\*\*[^\n]*\*\*`slice`\*\*/u);
-      expect(segmentation).toMatch(/\*\*Substrate contract\*\*[^\n]*\*\*`layer`\*\*/u);
-      expect(segmentation).toMatch(/\*\*Mechanics at scale\*\*[^\n]*\*\*`replication`\*\*/u);
-      expect(segmentation).toContain("Order segments to retire the dominant residual risk earliest");
-      expect(segmentation).toContain("place the first `slice` as early as its required substrate allows");
+      expect(segmentation).toContain("[`resolve-plan-segmentation`][arc-methods-rps]");
+      expect(parseWorkflowFrontmatter(workflow).methods).toContain("resolve-plan-segmentation");
 
       expect(workflow).toContain(
         "On a composition-risk plan, every mandatory lifecycle row stated by the spec is present in Success Criteria",

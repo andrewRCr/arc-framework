@@ -96,40 +96,29 @@ method its arms declare.
 _Mode:_ `layer` through Phase 3 — closes on the complete substrate the detour rests on: the procedure itself plus
 the corpus conventions it composes against, each load-bearing term with one definition site.
 
-### `[ ]` **2.1 Extract `resolve-plan-segmentation` into a method — D12**
+### `[x]` **2.1 Extract `resolve-plan-segmentation` into a method — D12**
 
 - _Goal:_ The segmentation procedure has one definition site that a second consumer can declare, with
   `generate-tasks` firing it by declaration rather than carrying it inline.
 
-- _Note:_ Methods are Configurable, so the extraction wraps the moved content in method frontmatter plus
-  `.override` / `.default` sections. The content itself moves unchanged.
+    - `[x]` **2.1.a Create the method from the `generate-tasks` § Resolve plan segmentation content**
+        - The procedure body and the mode table moved verbatim into `.default`, under neutral package frontmatter
+          and an empty `## resolve-plan-segmentation.override`.
+        - The blockquote carries Workflow, When, Signature, and Contract; the Contract line is the new assertion,
+          the signature a move.
 
-- _Context:_ `lint:arc:triggers` enumerates `system/methods/` and fails on any method no workflow declares, so the
-  new file and its `generate-tasks` declaration land in the same commit.
+    - `[x]` **2.1.b `generate-tasks` declares and fires it at a marked callsite**
+        - The section is now a signature callsite — the signature retained, the method fired through an
+          invocation-marking link, and the name declared in `arc.methods`.
+        - The scale-axis read's cross-reference is the third method link beside `resolve-planning-depth` and
+          `classify-work-unit`.
 
-- _Note:_ `generate-tasks` is template-only in the package, like the task loop — edit the template and render;
-  there is no hand-edited project-side original.
-
-- _Context:_ The new method is authored in the package source; its `.arc/` counterpart lands with its recipe entry
-  in Phase 5. Until then the rendered project workflow declares a method with no project-side file — accepted, and
-  gated by nothing.
-
-- _Shape:_ Pre-commit neutrality requires the package method to carry `override-active: false` and an
-  `## <name>.override` body of exactly `[No override configured]`.
-
-- **Additional Context:** `strategy-workflow-authoring.md` — frontmatter and method-declaration conventions; the
-  task works directly in that strategy's domain.
-
-    - `[ ]` **2.1.a Create the method from the `generate-tasks` § Resolve plan segmentation content**
-        - The procedure body and the mode table move verbatim into `.default`.
-        - The method's leading blockquote — Workflow, When, Signature, Contract — is authored at extraction. The
-          source section carries a signature but no contract, so that line is a new assertion, not a move.
-
-    - `[ ]` **2.1.b `generate-tasks` declares and fires it at a marked callsite**
-        - The inline section becomes a declared signature callsite; verify the fire-point is marked, since the
-          audit checks declaration only.
-        - The scale-axis read's cross-reference still names the procedure as a bolded section "below". Make it a
-          method link like its two siblings, so the file stops describing two relationships to one thing.
+- _Outcome:_ `resolve-plan-segmentation.md` ships as a Configurable method with its content unchanged; the template
+  edit rendered to the project workflow. The project copy of the method landed here rather than with its recipe
+  entry in Phase 5: the rendered workflow's link to it is a reference definition, and the pre-commit link check
+  rejects one that does not resolve inside the same copy. Phase 5 still owns the recipe, classification, manifest,
+  and inventory entries. The segmentation contract test's mode-table and ordering assertions now read the method in
+  both copies; the workflow keeps the signature, the fire-point link, and the declaration.
 
 ### `[ ]` **2.2 Author the `amend-design` spine, vocabulary, and entry gate — D1, D2, D11**
 
