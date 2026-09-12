@@ -13,13 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.6 — method-declaration rule refined to its conditional form; Phase 2 complete
-- **Next Task:** Task 3.1 — State effective-report composition and the delta form in `validate-criteria`
-  (line ~270)
+- **Last Completed:** Task 3.4 — design-element citation recommended in the formatting strategy and
+  `generate-tasks`; Phase 3 complete
+- **Next Task:** Task 4.1 — Author the `arc-amend-design` skill door (line ~361)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — check whether `review-signal-convergence` has landed before grounding the
-  `validate-criteria` edit; both copies are held byte-identical by the sync test.
+- **Next Action:** Begin Task 4.1 — the workflow's project copy already exists, so 4.x's anchored links resolve.
+  First correct 5.2's one-commit clause and 5.3.a's "arrived with their recipe entries", both falsified by it.
 
 - **PR URL:** [none]
 - **Completed:** [none]
