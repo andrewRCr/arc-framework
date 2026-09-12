@@ -124,6 +124,73 @@ gate, and none lands work inside the verifier's own increment.
 > statement or criterion, the depth read, and the recommended arm; await approval before proceeding to the
 > amendment capture.
 
+## Depth and rigor
+
+The arm says what changes and who decides; **depth** says how much must be derived, and it is what sets the rigor.
+Run [`resolve-planning-depth`][resolve-planning-depth] over the finding and the gap — not over the work unit — and
+take the level it returns. The work unit's `Class` does not govern here.
+
+- **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate and no adversarial
+  pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
+- **`medium`** — a bounded set of decisions to compose. The canonical procedures run **at scope, never whole**:
+  the spec stage's authoring moves and [`spec-review`][spec-review]'s coherence slice over the affected elements;
+  [`task-audit`][task-audit] over the affected phases; and
+  [`resolve-plan-segmentation`][resolve-plan-segmentation] only when a new segment appears. Offer
+  [`adversarial-review`][adversarial-review] over the footprint, neutrally.
+- **`high`** — design that must be authored rather than corrected. The same procedures at scope, with the
+  adversarial pass recommended. Run [`classify-work-unit`][classify-work-unit] to ratchet `Class` to the realized
+  floor; the write itself lands at the capture commit (§ The capture commit).
+
+**Stage procedures at scope move nothing.** They carry no lifecycle prerequisite beyond the artifacts existing, so
+running them inside an active work unit moves no lifecycle state, advances no stage pointer, and repoints nothing.
+Skip their ceremony steps by reference.
+
+### The assurance invariant
+
+An amendment's artifacts pass the gates the originals passed, over the amendment's footprint, at the amendment's
+depth. The adversarial rubric is [`assess-design-proportionality`][assess-design-proportionality] plus
+[`design-audit`][design-audit] plus [`spec-review`][spec-review]'s coherence slice — the finalization rubric the
+original cleared, minus nothing. Pass prior findings through `adversarial-review`'s `prior-findings` input so
+untouched elements are never re-attacked. Closure re-runs the detecting check (§ Closure).
+
+### The accretion guard
+
+Many `low` amendments can sum to a design nobody re-read. The log makes that visible, and the response is the
+consolidation read [`draft-design`][draft-design] already applies to an accreting draft: one coherence pass, one
+proportionality pass over the accreted union, and the adversarial offer over that union — once the log's footprint
+has touched a material share of the design. Suggest it, never enforce it; no threshold is named.
+
+## The ceiling
+
+An amendment that invalidates the purpose, most of the design, or a landed delivery member's contract re-opens
+what the work unit **is** rather than how it lands. Exit by extraction — [`decompose-work-unit`][decompose] in its
+extraction mode, invoked per that workflow's own shape, since a complete extraction stages an additive result from
+a cut map and then thins the source. The origin keeps its implementation and ships as the surviving, still-valid
+part; the invalidated concern becomes a new work unit that takes the full canonical process from the headwater.
+
+Never a whole planning-workflow re-entry, and never a lifecycle regression.
+
+Two consequences are accepted.
+
+- **Extraction moves scope, not code.** A landed member's contract is immutable, so where the invalidated part has
+  already landed, the origin ships it as-is and the new work unit corrects it after merge — unless a later
+  unlanded member can carry the correction in this work unit, in which case the design arm applies and the ceiling
+  does not.
+- **"Can carry" is a judgment read.** The delivery classifier refuses any change to a landed member, which narrows
+  the question to the unlanded members and the terminal; nothing computes the answer. And a hole large enough to
+  be an unauthored design area, while the work unit's identity still holds, is the Owner's call between the design
+  arm at `high` and re-entering the planning stage — this procedure never makes that call.
+
 ---
 
 [validate-criteria]: ../../../methods/validate-criteria.md
+[resolve-planning-depth]: ../../../methods/resolve-planning-depth.md
+[classify-work-unit]: ../../../methods/classify-work-unit.md
+[resolve-plan-segmentation]: ../../../methods/resolve-plan-segmentation.md
+[task-audit]: ../../../methods/task-audit.md
+[spec-review]: ../../../methods/spec-review.md
+[adversarial-review]: ../../../methods/adversarial-review.md
+[assess-design-proportionality]: ../../../methods/assess-design-proportionality.md
+[design-audit]: ../../../methods/design-audit.md
+[draft-design]: ../draft-design.md
+[decompose]: ../work-unit-lifecycle/decompose-work-unit.md

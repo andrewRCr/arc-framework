@@ -153,30 +153,31 @@ the corpus conventions it composes against, each load-bearing term with one defi
   sections 2.3 through 2.5 author; they are plain section references rather than links, so the file stays
   self-consistent as those sections land.
 
-### `[ ]` **2.3 Author the depth ladder, assurance invariant, and ceiling — D3, D4**
+### `[x]` **2.3 Author the depth ladder, assurance invariant, and ceiling — D3, D4**
 
 - _Goal:_ An amendment's rigor follows its own derivation depth rather than the work unit's `Class`, and a change
   that reopens what the work unit is exits by extraction instead of lifecycle regression.
 
-    - `[ ]` **2.3.a The three-rung ladder and the canonical procedures at scope**
-        - `low` / `medium` / `high` per `resolve-planning-depth`, naming which procedures run at scope on each rung.
-        - At `high`, the work unit's `Class` ratchets to the realized floor through `classify-work-unit` — the
-          read that gives that method its fire-point; the write itself is 2.5.b's.
-        - State that stage procedures at scope move no lifecycle state, advance no stage pointer, and repoint
+    - `[x]` **2.3.a The three-rung ladder and the canonical procedures at scope**
+        - `low` / `medium` / `high` resolved over the finding and the gap, each rung naming the procedures that
+          run at scope on it; `classify-work-unit` takes its fire-point from the `high` rung's ratchet read.
+        - Stage procedures at scope are stated to move no lifecycle state, advance no stage pointer, and repoint
           nothing.
 
-    - `[ ]` **2.3.b The assurance invariant and the accretion guard**
-        - Amended artifacts pass the gates the originals passed, over the footprint, at the amendment's depth;
-          prior findings carry through so untouched elements are never re-attacked.
-        - The accretion guard suggests a consolidation read and names no threshold.
+    - `[x]` **2.3.b The assurance invariant and the accretion guard**
+        - The rubric is named in full, with prior findings carried through so untouched elements are never
+          re-attacked; the guard suggests a consolidation read against no threshold.
 
-    - `[ ]` **2.3.c The ceiling and its two accepted consequences**
-        - The exit is the decomposition workflow's extraction mode, named as the operation and referenced for
-          its invocation shape: a complete extraction stages an additive result from a cut map and then thins the
-          source, so no single command line belongs here.
-        - Never a whole planning-workflow re-entry, and never a lifecycle regression.
-        - A landed member's contract is immutable, and the "can carry" read is judgment the classifier narrows
+    - `[x]` **2.3.c The ceiling and its two accepted consequences**
+        - The exit names `decompose-work-unit`'s extraction mode as the operation and defers to that workflow for
+          its invocation shape.
+        - Extraction moves scope rather than code, and the "can carry" read stays judgment the classifier narrows
           rather than makes.
+
+- _Outcome:_ Eight of the nine declared methods now have a marked fire-point — the ladder fires
+  `resolve-planning-depth`, `task-audit`, `spec-review`, `resolve-plan-segmentation`, `adversarial-review`, and
+  `classify-work-unit`, and the assurance invariant fires `assess-design-proportionality` and `design-audit`.
+  `validate-criteria` is the remaining one, and closure fires it.
 
 ### `[ ]` **2.4 Author the amendment record, placement rules, and propagation sweep — D5, D6, D7**
 
