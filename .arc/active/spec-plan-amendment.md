@@ -701,3 +701,5 @@ inventing it; scale does not fire.
 - **A1** — 2026-09-11 — design: the work unit does change always-loaded content, so the claim that it does not is
   superseded. _Supersedes:_ § Cross-cutting Considerations ¶Forward compatibility. _Trigger:_ door. _Work:_ 2.6.
   _Revalidated:_ verify-work-unit.
+- **A2** — 2026-09-11 — task: the shipped meta-reference pattern refuses the `X.R2` ids the placement rules settle.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ pending → 6.1.

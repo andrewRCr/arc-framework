@@ -523,6 +523,25 @@ source and the project copy.
           Configurable count in a heading and the same table, and the installed-file total as the fifth.
         - The enumerated Configurable list gains the new method.
 
+### `[ ]` **5.R Accept `X.R2` ids in the shipped meta-reference pattern**
+
+- _Goal:_ Per A2, supply what 5.2's registration scope missed: the shipped pattern that refuses `X.R2` accepts it,
+  so a project following the placement rules is not blocked by its own pre-commit hook.
+
+- _Note:_ Nothing pins the pattern's content, so there is no test to go red first; 6.1 verifies by exercising a
+  task id through the hook rather than by asserting the string.
+
+    - `[ ]` **5.R.a Narrow the shipped `hooks.strict_meta_ref_patterns` default**
+        - The default `\b[RB][0-9]+\b` treats a dot as a word boundary, so the numbered tail of `1.R2` reads as a
+          requirement code and the commit is refused. Require a non-identifier, non-dot character before a bare
+          R/B id; bare `R12` / `B3` and the quoted `R/C` rename scores must still match.
+        - The package `arc-config.yml` default, its comment's rationale, and both hook copies move together.
+
+    - `[ ]` **5.R.b This repo's override reconciled against the shipped default**
+        - The override narrowed only the project copy ahead of the default. Once the default carries the same
+          reading, remove the override as redundant or state why it still differs — an override silently equal to
+          its default is drift waiting to happen.
+
 ### `[ ]` **5.4 Reachable and installable procedure — D12** — validate exit criterion at segment scope
 
 - _Goal:_ A fresh install is exercised end to end: the three artifacts arrive, the skill resolves, and each
