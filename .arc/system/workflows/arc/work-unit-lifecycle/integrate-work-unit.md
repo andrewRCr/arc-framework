@@ -211,6 +211,12 @@ A `review-hosted-request` or `review-local-prepare` result may also carry `termi
 pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
 execute the returned review action unchanged.
 
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
+attention disposition while retaining `consider-chunks`. Require the status action to carry either the exact-target
+chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected by the
+Owner. A missing or stale selection stops before either hosted or local invocation.
+
 When the Owner accepts any returned delivery-member terminus, add
 `judgment: { "mode": "owner-accepted" }` to `terminusAction` and pass the resulting envelope unchanged to:
 

@@ -64,6 +64,7 @@ export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
   coverage: HostedReviewCoverageSchema.optional(),
+  sourceId: ReviewStatusSourceIdSchema.optional(),
 });
 export type ReviewStatusTargetInput = z.infer<typeof ReviewStatusTargetInputSchema>;
 export const ReviewStatusWorkUnitInputSchema = z.strictObject({
@@ -982,6 +983,7 @@ export interface ReviewStatusPort {
     target: z.infer<typeof ChangeRequestTargetRefSchema>,
     ceilingOverride?: ReviewCeilingOverride,
     coverage?: HostedReviewCoverage,
+    sourceId?: string,
   ): Promise<ReviewStatusObservation>;
 }
 
@@ -991,7 +993,12 @@ export async function resolveReviewStatus(
   port: ReviewStatusPort,
 ): Promise<ReviewStatusResult> {
   const request = ReviewStatusTargetInputSchema.parse(input);
-  const observation = await port.observe(request.target, request.ceilingOverride, request.coverage);
+  const observation = await port.observe(
+    request.target,
+    request.ceilingOverride,
+    request.coverage,
+    request.sourceId,
+  );
   const actualHeadSha = ObjectIdSchema.parse(observation.actualHeadSha);
   const conjunction = "conjunction" in observation.routedObligation
     ? observation.routedObligation.conjunction
