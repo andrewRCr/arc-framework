@@ -16,6 +16,7 @@ const expectedImplementationModules = [
   "./handlers/join.js",
   "./handlers/start.js",
   "./handlers/errand.js",
+  "./handlers/errand-merge.js",
   "./handlers/housekeep.js",
   "./handlers/base.js",
   "./handlers/plan.js",

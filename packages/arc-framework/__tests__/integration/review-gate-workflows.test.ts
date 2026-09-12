@@ -924,9 +924,11 @@ describe("trusted review-gate workflows", () => {
     )).toBeGreaterThan(finalGate);
     expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
 
-    const errandAdvisory = packageErrand.indexOf("Before spending a hosted pass");
-    const errandFinal = packageErrand.indexOf("5. **Publish review responses");
-    const errandAdvisoryText = packageErrand.slice(errandAdvisory, errandFinal);
+    const errandAdvisoryText = sectionBetween(
+      packageErrand,
+      "4. **Enter the open PR.**",
+      "5. **Settle the final head.**",
+    );
     expect(errandAdvisoryText).toContain("authorizes no merge, commit, push, or target recomposition");
     expect(errandAdvisoryText).not.toContain("use an append-only merge");
   });
