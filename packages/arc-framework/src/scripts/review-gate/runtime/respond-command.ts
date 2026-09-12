@@ -191,7 +191,10 @@ export interface RespondCommandDependencies {
     hostedTarget: HostedTarget;
   }): Promise<{ currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null>;
   /** Active work-unit checkout where a Candidate-bound private-member fix must be authored. */
-  resolveCandidateFixAuthoring(workUnit: string): Promise<CandidateBoundMemberFixAuthoring | null>;
+  resolveCandidateFixAuthoring(input: {
+    workUnit: string;
+    expectedHead: string;
+  }): Promise<CandidateBoundMemberFixAuthoring | null>;
   now(): string;
   /** Null when the response target identifies no active or archived Candidate lineage. */
   readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
@@ -1254,7 +1257,30 @@ export async function respondToReviewCommand(
     );
   }
   if (requiresCandidateMemberAuthoring && lineage !== null) {
-    candidateMemberAuthoring = await dependencies.resolveCandidateFixAuthoring(lineage.workUnit);
+    const binding = source.responseBinding?.candidate;
+    if (binding === undefined
+      || binding.workUnit !== lineage.workUnit
+      || binding.candidateId !== lineage.record.attestation.candidateId
+      || binding.target.headSha !== lineage.reviewed.recognizedTarget.revision) {
+      throw new RespondCommandError(
+        "corrupt-state",
+        "Candidate-bound delivery-member fix authoring does not match its managed Candidate lineage.",
+      );
+    }
+    const currentness = projectEffectiveCandidateCurrentness(lineage.effective);
+    if (!("status" in currentness) || currentness.status !== "current") {
+      return staleTargetEnvelope(source.operationId, binding.target, lineage.candidateFixTarget);
+    }
+    if (currentness.recognizedRevision !== lineage.candidateFixTarget.headSha) {
+      throw new RespondCommandError(
+        "corrupt-state",
+        "Candidate-bound delivery-member fix authoring resolved inconsistent current Candidate heads.",
+      );
+    }
+    candidateMemberAuthoring = await dependencies.resolveCandidateFixAuthoring({
+      workUnit: lineage.workUnit,
+      expectedHead: currentness.recognizedRevision,
+    });
   }
   if (requiresCandidateMemberAuthoring && candidateMemberAuthoring === null) {
     throw new RespondCommandError(

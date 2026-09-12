@@ -31,6 +31,7 @@ import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
+  GitObjectIdSchema,
   ReviewRequestV2Schema,
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
@@ -658,6 +659,7 @@ const HostedSettlementPlanSchema = z.strictObject({
 export const CandidateBoundMemberFixAuthoringSchema = z.strictObject({
   kind: z.literal("candidate"),
   workUnit: SlugSchema,
+  head: GitObjectIdSchema,
   ref: z.string().trim().min(1),
   checkoutPath: z.string().trim().min(1),
   deliverySuffixReconstruction: z.literal("after-candidate-advance"),

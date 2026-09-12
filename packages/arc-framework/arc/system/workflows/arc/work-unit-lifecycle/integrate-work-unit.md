@@ -276,7 +276,7 @@ before-fix settlement first, then pass `payload.correctionAction` unchanged. Aut
 authoring.
 
 A Candidate-bound private-member fix instead returns `ready-to-fix / apply-fix` with `payload.authoring`. Author
-only in that exact active work-unit checkout and ref, follow the Candidate response path in
+only at that exact active work-unit checkout, ref, and head; follow the Candidate response path in
 [`prepare-work-unit.md`](prepare-work-unit.md), and reconstruct the delivery suffix only after Candidate advance as
 the returned `deliverySuffixReconstruction` directs. A `ready-to-fix` response without `authoring` remains the
 ordinary singleton route and never substitutes for the delivery-owned controller.

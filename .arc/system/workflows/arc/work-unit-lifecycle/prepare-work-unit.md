@@ -132,8 +132,8 @@ atomically, and produce a new target. Disclose review applicability from the exa
 narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
 authority, contract, materially interacting, or uncertain changes. Clearance never carries.
 A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a Candidate-bound private-member fix.
-Author only in its exact `authoring.checkoutPath` and `authoring.ref`; a missing or different locus stops before
-mutation. Never author this fix in the disposable member checkout.
+Author only in its exact `authoring.checkoutPath`, `authoring.ref`, and `authoring.head`; a missing or different
+locus stops before mutation. Never author this fix in the disposable member checkout.
 After the fix commit, re-invoke the same approved `arc review respond -` request with `verifiedFix` carrying the
 selected applicability and verification evidence. Require `candidate-advanced / continue-review` or idempotent
 `candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment

@@ -298,13 +298,15 @@ function dependencies(records: ReturnType<typeof fixture>) {
     }),
     resolveActiveErrand: async () => null,
     resolveDeliveryMemberFixTarget: async () => null,
-    resolveCandidateFixAuthoring: async (workUnit) => CandidateBoundMemberFixAuthoringSchema.parse({
-      kind: "candidate",
-      workUnit,
-      ref: "refs/heads/feat/example",
-      checkoutPath: "/repo",
-      deliverySuffixReconstruction: "after-candidate-advance",
-    }),
+    resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) =>
+      CandidateBoundMemberFixAuthoringSchema.parse({
+        kind: "candidate",
+        workUnit,
+        head: expectedHead,
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        deliverySuffixReconstruction: "after-candidate-advance",
+      }),
     now: () => "2026-07-23T21:00:00Z",
     readCandidateLineage: async () => {
       const record = candidateRecord();

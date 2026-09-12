@@ -704,6 +704,23 @@ describe("review-fix Candidate lineage", () => {
     }).responseSource;
     const dispositions = await approvedSet(root, source, "fix", provider.findingId);
     await git(root, ["tag", "feat/example"]);
+    await writeFile(join(root, "unreviewed.txt"), "unreviewed Candidate change\n", "utf8");
+    await git(root, ["add", "unreviewed.txt"]);
+    await git(root, ["commit", "-m", "unreviewed Candidate change"]);
+    const changedCandidateHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+    })).resolves.toMatchObject({
+      state: "stale-target",
+      nextAction: "prepare-current-target",
+      payload: {
+        attemptedTarget: { headSha: candidateHead },
+        currentTarget: { headSha: changedCandidateHead },
+      },
+    });
+    await git(root, ["reset", "--hard", candidateHead]);
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
@@ -715,6 +732,7 @@ describe("review-fix Candidate lineage", () => {
         authoring: {
           kind: "candidate",
           workUnit: "example",
+          head: candidateHead,
           ref: "refs/heads/feat/example",
           checkoutPath: root,
           deliverySuffixReconstruction: "after-candidate-advance",

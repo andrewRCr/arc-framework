@@ -181,7 +181,7 @@ export function createRespondDependencies(input: {
         return null;
       }
     },
-    resolveCandidateFixAuthoring: async (workUnit) => {
+    resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) => {
       const owner = await candidateMutationOwner();
       if (owner.status !== "owned" || owner.workUnit !== workUnit) return null;
       let ref: string;
@@ -193,9 +193,14 @@ export function createRespondDependencies(input: {
         return null;
       }
       if (!ref.startsWith("refs/heads/") || ref === "refs/heads/") return null;
+      const head = (await input.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+        cwd: input.cwd,
+      })).stdout.trim();
+      if (head !== expectedHead) return null;
       return CandidateBoundMemberFixAuthoringSchema.parse({
         kind: "candidate",
         workUnit,
+        head,
         ref,
         checkoutPath: input.cwd,
         deliverySuffixReconstruction: "after-candidate-advance",
