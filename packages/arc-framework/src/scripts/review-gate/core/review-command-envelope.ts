@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
+import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
   attestNewRootArgv,
   SpineRemedySchema,
@@ -30,6 +31,7 @@ import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
+  GitObjectIdSchema,
   ReviewRequestV2Schema,
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
@@ -653,6 +655,19 @@ const HostedSettlementPlanSchema = z.strictObject({
   afterFixFindingIds: z.array(IdentifierSchema),
 });
 
+/** Exact work-unit locus for authoring a Candidate-bound private-member fix. */
+export const CandidateBoundMemberFixAuthoringSchema = z.strictObject({
+  kind: z.literal("candidate"),
+  workUnit: SlugSchema,
+  head: GitObjectIdSchema,
+  ref: z.string().trim().min(1),
+  checkoutPath: z.string().trim().min(1),
+  deliverySuffixReconstruction: z.literal("after-candidate-advance"),
+});
+export type CandidateBoundMemberFixAuthoring = z.infer<
+  typeof CandidateBoundMemberFixAuthoringSchema
+>;
+
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
@@ -693,6 +708,7 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
       reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
+      authoring: CandidateBoundMemberFixAuthoringSchema.optional(),
     }),
   ),
   envelopeVariant(

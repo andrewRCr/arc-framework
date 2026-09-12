@@ -53,6 +53,33 @@ function pendingHostedAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt)
   });
 }
 
+function retryableFrontlineAttemptCanAdvance(previous: LaneAttempt, next: LaneAttempt): boolean {
+  const retryable = previous.outcome === "timed-out"
+    || previous.outcome === "rate-limited"
+    || previous.outcome === "transient-unavailable";
+  return retryable
+    && previous.sourceId === next.sourceId
+    && previous.chunkSeriesComplete === false
+    && previous.hosted === undefined
+    && previous.local === undefined
+    && next.hosted === undefined
+    && next.local === undefined;
+}
+
+/** Present retry generations as one policy attempt without rewriting their durable operation outcomes. */
+function projectFrontlineAttempts(attempts: readonly LaneAttempt[]): readonly LaneAttempt[] {
+  const projected: LaneAttempt[] = [];
+  for (const attempt of attempts) {
+    const previous = projected.at(-1);
+    if (previous !== undefined && retryableFrontlineAttemptCanAdvance(previous, attempt)) {
+      projected[projected.length - 1] = attempt;
+    } else {
+      projected.push(attempt);
+    }
+  }
+  return projected;
+}
+
 /** Resolve the stable identity of one hosted request attempt. */
 export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
   return `hosted/${canonicalDigest(handle).slice("sha256:".length)}`;
@@ -139,6 +166,7 @@ export async function recordLaneAttempt(
     local?: LaneAttempt["local"];
     now: string;
     advancePendingHostedAttempt?: boolean;
+    advanceRetryableFrontlineAttempt?: boolean;
   },
 ): Promise<LaneProgressState> {
   const operationId = laneProgressOperationId(input);
@@ -174,6 +202,14 @@ export async function recordLaneAttempt(
     await store.publishOperation(advanced, version);
     return advanced;
   }
+  const previous = existing?.attempts.at(-1);
+  const advancesRetryableFrontlineAttempt = input.lane === "frontline"
+    && input.advanceRetryableFrontlineAttempt === true
+    && previous !== undefined
+    && retryableFrontlineAttemptCanAdvance(previous, attempt);
+  const attempts = advancesRetryableFrontlineAttempt
+    ? [...(existing?.attempts.slice(0, -1) ?? []), attempt]
+    : [...(existing?.attempts ?? []), attempt];
   const next = LaneProgressStateSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "review-operation/v1",
@@ -185,7 +221,7 @@ export async function recordLaneAttempt(
     changeRequestId: input.changeRequestId,
     headSha: input.headSha,
     completedPasses: (existing?.completedPasses ?? 0) + (input.consumedPass ? 1 : 0),
-    attempts: [...existing?.attempts ?? [], attempt],
+    attempts,
   });
   await store.publishOperation(next, version);
   return next;
@@ -488,6 +524,7 @@ export async function recordFrontlineAttempt(
     outcome: laneOutcome,
     consumedPass: laneOutcome === "clean" || laneOutcome === "findings",
     chunkSeriesComplete: laneOutcome === "clean" || laneOutcome === "findings",
+    advanceRetryableFrontlineAttempt: true,
     now: input.now,
   });
 }
@@ -564,7 +601,9 @@ export async function readLaneProgress(
   return {
     status: "recorded",
     completedPasses: state.completedPasses,
-    attempts: state.attempts,
+    attempts: state.lane === "frontline"
+      ? projectFrontlineAttempts(state.attempts)
+      : state.attempts,
   };
 }
 

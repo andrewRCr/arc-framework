@@ -30,6 +30,7 @@ const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
 const COMPLETE_REPLY = /^[ \t]*Full review finished\.[ \t]*$/imu;
 const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
+const COMMAND_INVOCATION_MARKER = /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu;
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
@@ -73,9 +74,115 @@ function commandReplyCompleted(
       ? INCREMENTAL_REPLY.test(comment.body)
       : COMPLETE_REPLY.test(comment.body) || INCREMENTAL_REPLY.test(comment.body);
   return comment.createdAt >= requestedAt
-    && /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/iu.test(comment.body)
+    && commandInvocationMarkerCount(comment.body) > 0
     && /<summary>\s*✅\s*Action performed\s*<\/summary>/iu.test(comment.body)
     && completionMatches;
+}
+
+function commandInvocationMarkerCount(body: string): number {
+  return [...body.matchAll(COMMAND_INVOCATION_MARKER)].length;
+}
+
+function hasSingleCommandInvocationMarker(body: string): boolean {
+  return commandInvocationMarkerCount(body) === 1;
+}
+
+function refusalReason(body: string): string | null {
+  const refusalSummaries = [...body.matchAll(
+    /<summary>\s*⚠️\s*Action not completed\s*<\/summary>/giu,
+  )];
+  const reasons = [...body.matchAll(/^[ \t]*(Review skipped:[^\r\n]+?)[ \t]*$/gimu)];
+  return hasSingleCommandInvocationMarker(body) && refusalSummaries.length === 1 && reasons.length === 1
+    ? reasons[0]?.[1]?.trim() ?? null
+    : null;
+}
+
+function isRequestCommand(comment: HostedGitHubIssueComment): boolean {
+  return requestCommandCoverage(comment) !== null;
+}
+
+function requestCommandCoverage(comment: HostedGitHubIssueComment): HostedReviewCoverage | null {
+  const body = comment.body.trim();
+  if (body === COMMANDS.complete) return "complete";
+  if (body === COMMANDS.incremental) return "incremental";
+  return null;
+}
+
+function authenticatedReplySettlesRequest(
+  comment: HostedGitHubIssueComment,
+  request: HostedGitHubIssueComment,
+): boolean {
+  const coverage = requestCommandCoverage(request);
+  return coverage !== null
+    && comment.actorIdentity === BOT_USER_ID
+    && comment.appId === APP_ID
+    && (commandReplyCompleted(comment, request.createdAt, coverage)
+      || (comment.createdAt >= request.createdAt && refusalReason(comment.body) !== null));
+}
+
+function earlierRequestGenerationsSettled(
+  comments: readonly HostedGitHubIssueComment[],
+  requestId: string,
+): boolean {
+  const requests = comments
+    .filter(isRequestCommand)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+  const requestIndex = requests.findIndex((comment) => comment.id === requestId);
+  if (requestIndex < 0) return false;
+  for (let index = 0; index < requestIndex; index += 1) {
+    const earlierRequest = requests[index];
+    const nextRequest = requests[index + 1];
+    if (earlierRequest === undefined || nextRequest === undefined
+      || earlierRequest.createdAt === nextRequest.createdAt) {
+      return false;
+    }
+    const settled = comments.some((comment) =>
+      authenticatedReplySettlesRequest(comment, earlierRequest)
+      && comment.createdAt < nextRequest.createdAt);
+    if (!settled) return false;
+  }
+  return true;
+}
+
+function correlatedRefusalReason(
+  comments: readonly HostedGitHubIssueComment[],
+  request: HostedRequestHandle["artifact"],
+  coverage: HostedReviewCoverage,
+): string | null {
+  if (request.kind !== "issue-comment") return null;
+  const requestMatches = comments.filter((comment) => comment.id === request.id);
+  const requestComment = requestMatches[0];
+  if (requestMatches.length !== 1
+    || requestComment === undefined
+    || requestComment.url !== request.url
+    || requestComment.createdAt !== request.createdAt
+    || requestComment.body.trim() !== COMMANDS[coverage]) {
+    return null;
+  }
+
+  const competingRequest = comments.some((comment) =>
+    comment.id !== request.id
+    && isRequestCommand(comment)
+    && comment.createdAt === request.createdAt);
+  if (competingRequest || !earlierRequestGenerationsSettled(comments, request.id)) return null;
+  const nextRequest = comments
+    .filter((comment) =>
+      comment.id !== request.id
+      && isRequestCommand(comment)
+      && comment.createdAt > request.createdAt)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))[0];
+  const providerReplies = comments
+    .filter((comment) =>
+      comment.actorIdentity === BOT_USER_ID
+      && comment.appId === APP_ID
+      && comment.createdAt >= request.createdAt
+      && (nextRequest === undefined || comment.createdAt < nextRequest.createdAt))
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+  for (const reply of providerReplies) {
+    const reason = refusalReason(reply.body);
+    if (reason !== null) return reason;
+  }
+  return null;
 }
 
 function severity(body: string): "blocker" | "major" | "minor" | null {
@@ -395,23 +502,24 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
   ): Promise<HostedObservation> {
     return this.observeSince(
       handle.target,
-      handle.artifact.createdAt,
+      handle.artifact,
       handle.effectiveCoverage,
       options,
     );
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, "1970-01-01T00:00:00.000Z", null);
+    return this.observeSince(target, null, null);
   }
 
   private async observeSince(
     target: HostedTarget,
-    requestedAt: string,
+    requestArtifact: HostedRequestHandle["artifact"] | null,
     coverage: HostedReviewCoverage | null,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
+      const requestedAt = requestArtifact?.createdAt ?? "1970-01-01T00:00:00.000Z";
       const [checks, statuses, reviews, threads, comments] = await Promise.all([
         this.github.readCheckRuns(target, options),
         this.github.readCommitStatuses(target, options),
@@ -419,6 +527,12 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         this.github.readThreads(target, options),
         this.github.readIssueComments(target, options),
       ]);
+      const refusal = requestArtifact === null || coverage === null
+        ? null
+        : correlatedRefusalReason(comments, requestArtifact, coverage);
+      if (refusal !== null) {
+        return { kind: "terminal-failure", reason: `provider-request-refused: ${refusal}` };
+      }
       const providerChecks = checks.filter((check) =>
         check.name === "CodeRabbit" && check.appOwnerIdentity === APP_OWNER_ID);
       if (providerChecks.some((check) => /\b(?:quota|rate[ -]?limit)\b/iu.test(check.summary))) {

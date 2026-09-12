@@ -202,7 +202,9 @@ Only after every request ID exists, compose the exact non-terminal native-link r
 arc delivery native link - --json
 ```
 
-Only `decision-required` continues. Render both texts verbatim — `recommendedOptInText` and
+An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without
+an operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
+`recommendedOptInText` and
 `recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
 After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
 
@@ -210,10 +212,12 @@ After the choice, set `optIn` to its exact boolean value and resubmit the otherw
 arc delivery native link - --json
 ```
 
-The terminal is never registered. A one-member delivery has no registration set and skips both invocations. `linked`
-continues only after a fresh exact host observation. An opt-out `unlinked` result makes zero native host calls and
-enters the ordinary singleton path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the
-explicit unlink verb; `refused` stops. On the linked path, refresh presentation facts before every landing:
+The terminal is never registered. A one-member delivery has no registration set and skips both invocations. A
+two-member delivery has a singleton registration set below the provider floor, so its initial read returns
+`unlinked` without resubmission. `linked` continues only after a fresh exact host observation. An opt-out `unlinked`
+result makes zero native host calls and enters the ordinary singleton path. `downgrade-required` renders
+`recommendedActionText` verbatim and invokes the explicit unlink verb; `refused` stops. On the linked path, refresh
+presentation facts before every landing:
 
 ```bash
 arc delivery native observe - --json

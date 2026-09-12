@@ -22,6 +22,16 @@ import {
 } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  ReviewOperationStateSchema,
+  type ReviewOperationState,
+} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import type { ReviewOperationStateStore } from
+  "../../../../../src/scripts/review-gate/core/ports.js";
+import {
+  readLaneProgressAcrossLineage,
+  recordLaneAttempt,
+} from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { selectPrePublicationReservationTarget } from
@@ -141,7 +151,80 @@ function dependencies(
   };
 }
 
+function memoryOperationStore(): ReviewOperationStateStore {
+  const records = new Map<string, { version: number; state: ReviewOperationState }>();
+  return {
+    readOperation: async (operationId) => records.get(operationId) ?? { version: 0, state: null },
+    publishOperation: async (state, expectedVersion) => {
+      const current = records.get(state.operationId);
+      if ((current?.version ?? 0) !== expectedVersion) throw new Error("version-conflict");
+      records.set(state.operationId, {
+        version: expectedVersion + 1,
+        state: ReviewOperationStateSchema.parse(state),
+      });
+      return { version: expectedVersion + 1 };
+    },
+  };
+}
+
 describe("composePrePublicationReviewRequest", () => {
+  it("re-enters after a frontline timeout retry with one composable source attempt", async () => {
+    if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
+    const store = memoryOperationStore();
+    const sourceId = "coderabbit-cli";
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: immutableTarget.target.repositoryId,
+      changeRequestId: null,
+      headSha: immutableTarget.target.headSha,
+      attemptId: "frontline-generation-0",
+      sourceId,
+      outcome: "timed-out",
+      consumedPass: false,
+      chunkSeriesComplete: false,
+      now: "2026-08-15T12:00:00Z",
+    });
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: immutableTarget.target.repositoryId,
+      changeRequestId: null,
+      headSha: immutableTarget.target.headSha,
+      attemptId: "frontline-generation-1",
+      sourceId,
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        readAssurance: async () => ({
+          ...resolvedAssurance,
+          activity: { selfReview: true, frontlineReview: true },
+        }),
+        readLanePolicy: async (lane) => lane === "frontline"
+          ? { sources: [sourceId], maxPasses: 2 }
+          : { sources: ["codex-pr"], maxPasses: 2 },
+        readLaneProgress: async (lane, headSha, lineageHeadShas) =>
+          readLaneProgressAcrossLineage(store, {
+            lane,
+            repositoryId: immutableTarget.target.repositoryId,
+            headSha,
+            lineageHeadShas,
+          }),
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline).toMatchObject({
+      completedPasses: 1,
+      attempts: [{ sourceId, outcome: "clean" }],
+    });
+  });
+
   it("recomposes the reviewed head while an approved Candidate fix awaits settlement", () => {
     const subject = createCandidateSubjectSnapshot([]);
     const attestation = createCandidateAttestation({
