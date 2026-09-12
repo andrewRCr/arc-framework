@@ -57,7 +57,7 @@ methodology strategy).
 
 - Everything in Tier 1 (full project scope)
 - Targeted E2E/integration tests for affected areas (when parent task touched E2E-tested code)
-- Build verification
+- Build verification when included in the project's designated Tier 2 gate
 
 **Time budget:** 1-5 minutes
 
@@ -69,7 +69,7 @@ methodology strategy).
 3. **Cross-cutting changes:** Did it modify shared infrastructure (middleware, shared utilities,
    configuration, dependency injection)?
 4. **If no integration/E2E relevance:** Skip targeted tests but still run full-project Tier 1
-   checks + build.
+   checks and any build check designated for Tier 2 by the project.
 
 **Running targeted integration/E2E tests:**
 

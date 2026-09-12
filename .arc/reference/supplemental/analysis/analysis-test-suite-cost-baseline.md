@@ -648,6 +648,10 @@ double counting and leaving those later measurements as upside rather than prere
 | Skipping `build:fast` when `dist/` fresh   | 1.2 s                                   | High — effectively nil           |
 | Batching git spawns per fixture            | ~24 ms of ~106 ms per build             | High — effectively nil           |
 
+The preliminary hand baseline put a sequential full-local run at ~353 s and measured the one-command routine
+lane at 55.5–58.3 s, implying roughly 83–84% less wall time on that basis. The retained 80% result above comes
+from paired clean-tree runs and is the comparable outcome measurement.
+
 The two low-confidence rows are the reason the variance caveat matters: both sit at or below the ~8% run-to-run
 spread and neither is established by the single runs recorded here.
 
