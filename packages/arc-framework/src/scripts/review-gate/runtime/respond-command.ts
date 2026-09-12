@@ -54,7 +54,10 @@ import {
   frontlineResponseBindingMatchesTarget,
   type BoundFrontlineResponseBinding,
 } from "../core/frontline-response-binding.js";
-import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
+import {
+  RespondEnvelopeSchema,
+  type CandidateBoundMemberFixAuthoring,
+} from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
@@ -187,6 +190,11 @@ export interface RespondCommandDependencies {
     originatingTarget: ReviewTarget;
     hostedTarget: HostedTarget;
   }): Promise<{ currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null>;
+  /** Active work-unit checkout where a Candidate-bound private-member fix must be authored. */
+  resolveCandidateFixAuthoring(input: {
+    workUnit: string;
+    expectedHead: string;
+  }): Promise<CandidateBoundMemberFixAuthoring | null>;
   now(): string;
   /** Null when the response target identifies no active or archived Candidate lineage. */
   readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
@@ -1239,6 +1247,54 @@ export async function respondToReviewCommand(
   const errand = lineage === null && deliveryMember === null
     ? await dependencies.resolveActiveErrand()
     : null;
+  const requiresCandidateMemberAuthoring = plan.state === "ready-to-fix"
+    && source.responseBinding !== undefined;
+  let candidateMemberAuthoring: CandidateBoundMemberFixAuthoring | null = null;
+  if (requiresCandidateMemberAuthoring && lineage === null) {
+    throw new RespondCommandError(
+      "corrupt-state",
+      "Candidate-bound delivery-member fix authoring requires the active work-unit checkout.",
+    );
+  }
+  if (requiresCandidateMemberAuthoring && lineage !== null) {
+    const binding = source.responseBinding?.candidate;
+    if (binding === undefined
+      || binding.workUnit !== lineage.workUnit
+      || binding.candidateId !== lineage.record.attestation.candidateId
+      || binding.target.headSha !== lineage.reviewed.recognizedTarget.revision) {
+      throw new RespondCommandError(
+        "corrupt-state",
+        "Candidate-bound delivery-member fix authoring does not match its managed Candidate lineage.",
+      );
+    }
+    const currentness = projectEffectiveCandidateCurrentness(lineage.effective);
+    if (!("status" in currentness) || currentness.status !== "current") {
+      return staleTargetEnvelope(source.operationId, binding.target, lineage.candidateFixTarget);
+    }
+    if (currentness.recognizedRevision !== lineage.candidateFixTarget.headSha) {
+      throw new RespondCommandError(
+        "corrupt-state",
+        "Candidate-bound delivery-member fix authoring resolved inconsistent current Candidate heads.",
+      );
+    }
+    if (lineage.unstagedReviewablePaths.length > 0) {
+      throw new RespondCommandError(
+        "invalid-input",
+        "Candidate-bound delivery-member fix authoring requires no unstaged reviewable paths; found: "
+          + lineage.unstagedReviewablePaths.join(", "),
+      );
+    }
+    candidateMemberAuthoring = await dependencies.resolveCandidateFixAuthoring({
+      workUnit: lineage.workUnit,
+      expectedHead: currentness.recognizedRevision,
+    });
+  }
+  if (requiresCandidateMemberAuthoring && candidateMemberAuthoring === null) {
+    throw new RespondCommandError(
+      "corrupt-state",
+      "Candidate-bound delivery-member fix authoring requires the active work-unit checkout.",
+    );
+  }
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
@@ -1328,6 +1384,7 @@ export async function respondToReviewCommand(
           }),
       ...(frontlineFollowUp === undefined ? {} : { frontlineFollowUp }),
       ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
+      ...(candidateMemberAuthoring === null ? {} : { authoring: candidateMemberAuthoring }),
     },
   });
 }

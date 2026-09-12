@@ -131,12 +131,17 @@ gates ([`quality-gate-commands`][arc-methods-qg]), commit
 atomically, and produce a new target. Disclose review applicability from the exact delta: `targeted` for confidently
 narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
 authority, contract, materially interacting, or uncertain changes. Clearance never carries.
+A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a Candidate-bound private-member fix.
+Author only in its exact `authoring.checkoutPath`, `authoring.ref`, and `authoring.head`; a missing or different
+locus stops before mutation. Never author this fix in the disposable member checkout.
 After the fix commit, re-invoke the same approved `arc review respond -` request with `verifiedFix` carrying the
 selected applicability and verification evidence. Require `candidate-advanced / continue-review` or idempotent
 `candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
 before any Candidate-currentness or delivery-preparation read.
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
-§ Prepare private delivery candidates when directed before re-invoking pre-publication review.
+§ Prepare private delivery candidates when directed before re-invoking pre-publication review. For a response
+carrying `authoring`, its `deliverySuffixReconstruction: after-candidate-advance` value requires that reconstruction
+to wait until the Candidate response has advanced.
 
 Proceed only from `candidate-publish-ready`; its durable boundary carries any hosted-first reservation or exact
 Owner-accepted terminus into publication without classifying either as settled, no-op, or clean.

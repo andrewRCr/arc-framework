@@ -45,6 +45,7 @@ import {
   deriveLocalReviewTargetFromCoordinates,
 } from "../hosts/local/repository-target.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { CandidateBoundMemberFixAuthoringSchema } from "../core/review-command-envelope.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {
@@ -179,6 +180,31 @@ export function createRespondDependencies(input: {
       } catch {
         return null;
       }
+    },
+    resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) => {
+      const owner = await candidateMutationOwner();
+      if (owner.status !== "owned" || owner.workUnit !== workUnit) return null;
+      let ref: string;
+      try {
+        ref = (await input.exec("git", ["symbolic-ref", "--quiet", "HEAD"], {
+          cwd: input.cwd,
+        })).stdout.trim();
+      } catch {
+        return null;
+      }
+      if (!ref.startsWith("refs/heads/") || ref === "refs/heads/") return null;
+      const head = (await input.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+        cwd: input.cwd,
+      })).stdout.trim();
+      if (head !== expectedHead) return null;
+      return CandidateBoundMemberFixAuthoringSchema.parse({
+        kind: "candidate",
+        workUnit,
+        head,
+        ref,
+        checkoutPath: input.cwd,
+        deliverySuffixReconstruction: "after-candidate-advance",
+      });
     },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {
