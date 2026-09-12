@@ -214,6 +214,8 @@ the corpus conventions it composes against, each load-bearing term with one defi
 - _Goal:_ The detour closes when the check that opened it passes again, the point-in-time design is recoverable
   from git, and an amendment under a bound plan composes with the shipped classifier instead of surprising it.
 
+    - _Amended in:_ 2.R (A3)
+
     - `[x]` **2.5.a Per-site closure and the delta**
         - The five-row closure table, with the detour being open kept distinct from `_Revalidated:_` naming the
           closing check.
@@ -255,6 +257,15 @@ the corpus conventions it composes against, each load-bearing term with one defi
   `adversarial-review` declaration reads as licensed on arrival. Re-verifying the nine declarations at phase close
   found the assurance invariant naming its rubric declaratively rather than firing it; that line now reads as an
   invocation, so all nine fire-points are marked.
+
+### `[x]` **2.R State the Candidate-applicability obligation in the shipped closure section**
+
+- _Goal:_ Per A3, a session amending after attestation learns from the procedure itself that closing its own check
+  leaves the applicability of prior review, verification, and merge evidence unsettled.
+
+- _Outcome:_ Both copies close the section by naming what a Candidate's existence puts back in question and where
+  it is settled — the review-applicability disclosure `prepare-work-unit` already ships, so the line composes
+  against shipped content rather than waiting on the work unit that owns the judgment.
 
 ## **Phase 3:** Corpus conventions the amendment composes against
 

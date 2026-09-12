@@ -344,7 +344,10 @@ apply.
 **Terminal closure is unchanged** — [`verify-work-unit`][verify-work-unit] reruns its walk against the current
 work-unit subject as it already prescribes; the delta form is for member re-records.
 
-Which gates re-run is the project's own selection rule; this procedure names no tiers.
+Which gates re-run is the project's own selection rule; this procedure names no tiers. Once a Candidate exists,
+whether prior review, verification, and merge evidence still holds — and at what scope — is settled by the
+review-applicability disclosure [`prepare-work-unit`][prepare-work-unit] prescribes, never here. An amendment
+landing after attestation closes its own check and still owes that disclosure.
 
 ## Under a bound delivery plan
 
@@ -399,3 +402,4 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 [deliver-stack]: deliver-stack.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [verify-work-unit]: ../work-unit-lifecycle/verify-work-unit.md
+[prepare-work-unit]: ../work-unit-lifecycle/prepare-work-unit.md

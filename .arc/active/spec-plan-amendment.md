@@ -703,3 +703,5 @@ inventing it; scale does not fire.
   _Revalidated:_ verify-work-unit.
 - **A2** — 2026-09-11 — task: the shipped meta-reference pattern refuses the `X.R2` ids the placement rules settle.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ pending → 6.1.
+- **A3** — 2026-09-12 — task: the shipped closure section carries the Candidate-applicability ownership D8 states
+  and its derivation dropped. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ pending → 6.1.
