@@ -229,7 +229,7 @@ export async function linkPlannedDeliveryNativeStack(input: {
   readonly repository: string;
   readonly baseRef: string;
   readonly members: readonly DeliveryNativeStackMember[];
-  readonly optIn: boolean;
+  readonly optIn?: boolean;
 }, port: DeliveryNativeStackPort): Promise<DeliveryNativeStackLinkResult> {
   if (input.state.pendingReviewFixVerification !== null) {
     return {
@@ -260,6 +260,7 @@ export async function linkPlannedDeliveryNativeStack(input: {
       recommendedActionText: "Register exactly the current planned non-terminal member set.",
     };
   }
+  if (input.optIn === undefined) return resolveDeliveryNativeStackLinkDecision(derived.input.members);
   return linkDeliveryNativeStack({ ...derived.input, optIn: input.optIn }, port);
 }
 

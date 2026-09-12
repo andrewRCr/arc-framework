@@ -202,8 +202,9 @@ Only after every request ID exists, compose the exact non-terminal native-link r
 arc delivery native link - --json
 ```
 
-An initial `unlinked` result enters the ordinary singleton path without an operator choice; `refused` stops. Only
-`decision-required` reaches the choice. Render both texts verbatim — `recommendedOptInText` and
+An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without
+an operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
+`recommendedOptInText` and
 `recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
 After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
 

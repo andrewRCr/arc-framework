@@ -198,7 +198,6 @@ import {
   deriveDeliveryNativeTarget,
   linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
-  resolveDeliveryNativeStackLinkDecision,
 } from "../lib/delivery/native-stack.js";
 import {
   deriveNativeDeliveryMemberChain,
@@ -1807,13 +1806,6 @@ async function executeDeliveryCommand(
   interaction?: InteractionContext,
   internalContext?: { readonly settledRecordEffectHead: string | null },
 ): Promise<unknown> {
-  let nativeLinkRequest: z.infer<typeof NativeLinkSchema> | null = null;
-  if (command === "native-link") {
-    nativeLinkRequest = NativeLinkSchema.parse(request);
-    if (nativeLinkRequest.optIn === undefined) {
-      return resolveDeliveryNativeStackLinkDecision(nativeLinkRequest.members);
-    }
-  }
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
   const exec = createGitExec(interaction?.subprocess);
@@ -4571,8 +4563,7 @@ async function executeDeliveryCommand(
     }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-link") {
-    const parsed = nativeLinkRequest ?? NativeLinkSchema.parse(request);
-    if (parsed.optIn === undefined) return resolveDeliveryNativeStackLinkDecision(parsed.members);
+    const parsed = NativeLinkSchema.parse(request);
     const [planRead, stateRead] = await Promise.all([
       planStore.readCurrent(parsed.planId),
       stateStore.read(parsed.planId),
@@ -4591,7 +4582,7 @@ async function executeDeliveryCommand(
       repository: parsed.repository,
       baseRef: parsed.protectedBaseRef,
       members: parsed.members,
-      optIn: parsed.optIn,
+      ...(parsed.optIn === undefined ? {} : { optIn: parsed.optIn }),
     }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-land-select") {
