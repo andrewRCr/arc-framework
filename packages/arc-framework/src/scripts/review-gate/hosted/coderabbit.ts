@@ -78,6 +78,65 @@ function commandReplyCompleted(
     && completionMatches;
 }
 
+function refusalReason(body: string): string | null {
+  const invocationMarkers = [...body.matchAll(
+    /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu,
+  )];
+  const refusalSummaries = [...body.matchAll(
+    /<summary>\s*⚠️\s*Action not completed\s*<\/summary>/giu,
+  )];
+  const reasons = [...body.matchAll(/^[ \t]*(Review skipped:[^\r\n]+?)[ \t]*$/gimu)];
+  return invocationMarkers.length === 1 && refusalSummaries.length === 1 && reasons.length === 1
+    ? reasons[0]?.[1]?.trim() ?? null
+    : null;
+}
+
+function isRequestCommand(comment: HostedGitHubIssueComment): boolean {
+  const body = comment.body.trim();
+  return body === COMMANDS.complete || body === COMMANDS.incremental;
+}
+
+function correlatedRefusalReason(
+  comments: readonly HostedGitHubIssueComment[],
+  request: HostedRequestHandle["artifact"],
+  coverage: HostedReviewCoverage,
+): string | null {
+  if (request.kind !== "issue-comment") return null;
+  const requestMatches = comments.filter((comment) => comment.id === request.id);
+  const requestComment = requestMatches[0];
+  if (requestMatches.length !== 1
+    || requestComment === undefined
+    || requestComment.url !== request.url
+    || requestComment.createdAt !== request.createdAt
+    || requestComment.body.trim() !== COMMANDS[coverage]) {
+    return null;
+  }
+
+  const competingRequest = comments.some((comment) =>
+    comment.id !== request.id
+    && isRequestCommand(comment)
+    && comment.createdAt === request.createdAt);
+  if (competingRequest) return null;
+  const nextRequest = comments
+    .filter((comment) =>
+      comment.id !== request.id
+      && isRequestCommand(comment)
+      && comment.createdAt > request.createdAt)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))[0];
+  const providerReplies = comments
+    .filter((comment) =>
+      comment.actorIdentity === BOT_USER_ID
+      && comment.appId === APP_ID
+      && comment.createdAt > request.createdAt
+      && (nextRequest === undefined || comment.createdAt < nextRequest.createdAt))
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+  for (const reply of providerReplies) {
+    const reason = refusalReason(reply.body);
+    if (reason !== null) return reason;
+  }
+  return null;
+}
+
 function severity(body: string): "blocker" | "major" | "minor" | null {
   const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
   switch (match?.[2]?.toLowerCase()) {
@@ -395,23 +454,24 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
   ): Promise<HostedObservation> {
     return this.observeSince(
       handle.target,
-      handle.artifact.createdAt,
+      handle.artifact,
       handle.effectiveCoverage,
       options,
     );
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, "1970-01-01T00:00:00.000Z", null);
+    return this.observeSince(target, null, null);
   }
 
   private async observeSince(
     target: HostedTarget,
-    requestedAt: string,
+    requestArtifact: HostedRequestHandle["artifact"] | null,
     coverage: HostedReviewCoverage | null,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
+      const requestedAt = requestArtifact?.createdAt ?? "1970-01-01T00:00:00.000Z";
       const [checks, statuses, reviews, threads, comments] = await Promise.all([
         this.github.readCheckRuns(target, options),
         this.github.readCommitStatuses(target, options),
@@ -419,6 +479,12 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         this.github.readThreads(target, options),
         this.github.readIssueComments(target, options),
       ]);
+      const refusal = requestArtifact === null || coverage === null
+        ? null
+        : correlatedRefusalReason(comments, requestArtifact, coverage);
+      if (refusal !== null) {
+        return { kind: "terminal-failure", reason: `provider-request-refused: ${refusal}` };
+      }
       const providerChecks = checks.filter((check) =>
         check.name === "CodeRabbit" && check.appOwnerIdentity === APP_OWNER_ID);
       if (providerChecks.some((check) => /\b(?:quota|rate[ -]?limit)\b/iu.test(check.summary))) {
