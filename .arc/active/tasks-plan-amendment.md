@@ -328,20 +328,21 @@ existing corpus sense says which sense it means; each of the four spec forms car
 - _Outcome:_ Both edits continue an existing sentence instead of adding a parallel rule, so neither the assignment
   rule nor the evidence-sink rule now has a second statement to keep in step.
 
-### `[ ]` **3.4 Recommend design-element citation in parent-task titles — D7**
+### `[x]` **3.4 Recommend design-element citation in parent-task titles — D7**
 
 - _Goal:_ The sweep's hit list is greppable when a parent names the design element it realizes.
 
-- _Note:_ Recommended, never scanned. The suffix sits inside the bold title and composes with the trailing
-  verifier role suffixes; `tasks-plan-segmentation.md` is the shipped precedent for both combinations.
+    - `[x]` **3.4.a The formatting strategy's parent-task section carries the recommendation**
+        - The form is stated with an example carrying both suffixes: `— Dn` inside the bold, the verifier role
+          suffix trailing outside it, with a pointer to the section owning the second.
 
-- _Context:_ `generate-tasks` is template-only in the package — edit the template and render. A direct project-copy
-  edit is silently reverted by the render in 5.3.a.
+    - `[x]` **3.4.b `generate-tasks`' parent-task skeleton step carries it at the authoring moment**
+        - Added beneath the enumerable-unit anchor sentence the step already carries, and rendered to the project
+          copy.
 
-    - `[ ]` **3.4.a The formatting strategy's parent-task section carries the recommendation**
-        - State the form: the citation sits inside the bold title, ahead of any trailing verifier role suffix.
-
-    - `[ ]` **3.4.b `generate-tasks`' parent-task skeleton step carries it at the authoring moment**
+- _Outcome:_ Both sites scope the recommendation to RFC-form specs, where the enumerable units are design elements;
+  the other three forms keep the anchor sentence they already had. The workflow states the recommendation and defers
+  the form to the strategy, so the suffix has one definition.
 
 ## **Phase 4:** Entry surface — the doors and the detection sites
 

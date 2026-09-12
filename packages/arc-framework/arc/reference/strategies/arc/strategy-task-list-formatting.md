@@ -119,6 +119,17 @@ incidentally-bracketed prose in titles. Subtasks use the same backtick-wrapped m
 Numbers follow `1.1`, `1.2`, `2.1` (not `1.1.0`). Description is concise but complete — what,
 not how.
 
+**Design-element citation — recommended for an RFC-form spec.** When a parent realizes one of the spec's Proposed
+Design elements, cite it in the title as a trailing `— Dn`, or `— Dn, Dm` for several. The citation sits inside the
+bold and composes with the role suffixes, which trail outside it (§ Verification family):
+
+```text
+### `[ ]` **X.Y Description — D7** — validate criteria at member scope
+```
+
+It keeps the parents realizing a given design element greppable when that element is later
+[amended][amend-design]. Recommended, never scanned — a title without one is not refused.
+
 Phase headings (H2) and parent task headings (H3) provide the outline-pane navigation surface
 in editors. Subtasks remain bullets — promoting them to H4 would crowd outline panes without
 navigation benefit.

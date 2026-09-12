@@ -166,6 +166,10 @@ For each phase, draft parent-task skeletons — titles only, with anchors citing
 units** each parent satisfies — the form's traceable elements: numbered Requirements (PRD), structured Proposed
 Design elements (RFC), settled Decisions (`outline`), or the single falsifiable signal (`brief`).
 
+On an RFC-form spec, author that citation into the title itself: a trailing `— Dn` inside the bold, ahead of any
+role suffix. It keeps the parents realizing a given design element greppable when that element is later amended.
+Recommended, not required — see [task-list-formatting strategy][task-list-formatting] § Parent Tasks.
+
 **Principles:**
 
 - Each phase should produce testable, verifiable progress
