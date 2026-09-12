@@ -160,6 +160,16 @@
 - _Fold-in:_ define the narrow resumable frame and fail closed for unrelated or ambiguous unmerged entries; do not
   weaken ordinary dirty-path or conflict detection.
 
+### `[ ]` **Preserve Owner-directed continuation after a failed recovery audit**
+
+- _Routed from:_ live `test-suite-right-sizing` recovery friction, 2026-09-12.
+- _Concern:_ a forcing gate that treats every audit stop as a prohibition on all further action would let ARC
+  override an explicit project or work-unit Owner decision, including a bounded repair or fresh-session re-entry.
+  The audit's failed verdict must remain true, but it is not authority over the Owner's next action.
+- _Fold-in:_ define an explicit, auditable Owner-acknowledgement path for a named continuation under higher-priority
+  harness constraints. Keep a stopped audit, an authorized continuation, and a ready/recovered context distinct;
+  never clear the pending marker or claim a ready audit merely because the Owner chose to proceed.
+
 ## Problem / Motivation
 
 ARC's compaction-recovery mechanism emits a seed before compaction and, after it, tells the agent
