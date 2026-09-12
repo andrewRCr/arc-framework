@@ -7,9 +7,10 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `1`
-- **Plan Digest:** `sha256:0df81f0f51fb5b6138f127ab424f75e0d43f4bd68a7fc837b6cf21ea77184e1b`
-- **Projection:** `wu-integration-target`
+- **Plan Revision:** `2`
+- **Plan Digest:** `sha256:008f437224fa0076796ee1b20649bc2c8217c7eb3e5a0becccae13b2965ab348`
+- **Projection:** `stack-to-main`
+- **Landability:** All members are `independently-landable`.
 
 ### Members
 
