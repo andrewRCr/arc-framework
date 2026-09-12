@@ -445,17 +445,22 @@ only inside it.
           changes, the corrective parent is authored and committed first so `--task` has a leaf to anchor on, and
           a coherently bound delivery refuses here and routes to `deliver-stack`'s review-fix continuation instead.
 
-### `[ ]` **4.5 Route the audit doors onward — D1**
+### `[x]` **4.5 Route the audit doors onward — D1**
 
 - _Goal:_ An audit that surfaces a specific finding hands it to the procedure instead of ending at a finding list.
 
-    - `[ ]` **4.5.a `arc-task-audit` routes a specific finding onward**
-        - Extend the skill's existing route-onward sentence rather than adding a parallel one.
-        - Its existing broad-design escalation to the design audit stays.
+    - `[x]` **4.5.a `arc-task-audit` routes a specific finding onward**
+        - The existing route-onward sentence grew a fork rather than gaining a parallel one: a finding you can
+          point at enters `amend-design`, a broad design implication you cannot yet point at still escalates to
+          the design audit, and the closing "tasks against code" clause is unchanged.
 
-    - `[ ]` **4.5.b `arc-design-audit` routes a verified finding onward**
-        - This skill carries no outbound route today — its `arc-task-audit` mentions are inbound scope statements.
-          Author the line at the mid-impl escalation bullet rather than extending an existing sentence.
+    - `[x]` **4.5.b `arc-design-audit` routes a verified finding onward**
+        - The mid-impl escalation bullet now carries the skill's first outbound route: a finding already specific
+          enough skips this rubric, and one this audit verifies routes onward to the same gate.
+
+- _Outcome:_ The door rule now stands on all three skill surfaces — specificity picks the door, never confidence —
+  so each fires self-contained without reading the other two. Both audits keep their own rubric as the terminus
+  for what they are for; only a finding specific enough to act on leaves for the gate.
 
 ## **Phase 5:** Ship registration and two-copy parity
 
