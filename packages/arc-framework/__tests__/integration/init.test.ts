@@ -284,6 +284,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(manifest.files[skillPath]?.layer).toBe("core");
   });
 
+  it("installs the canonical amend-design skill source as core Framework", async () => {
+    const skillPath = "system/.internal/skills/arc-amend-design/SKILL.md";
+    expect((await stat(join(arcDir, skillPath))).isFile()).toBe(true);
+
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files[skillPath]?.classification).toBe("Framework");
+    expect(manifest.files[skillPath]?.layer).toBe("core");
+  });
+
   // --- Per-File Methods and Extensions ---
 
   it("installs every registered per-file method plus README in system/methods/", async () => {

@@ -483,25 +483,14 @@ _Exit criterion:_ A fresh install carries `amend-design.md`, `resolve-plan-segme
 resolves to a live anchor in the workflow; and every edited framework surface is identical across the package
 source and the project copy.
 
-### `[ ]` **5.1 Register `arc-amend-design` as a canonical skill — D12**
+### `[x]` **5.1 Register `arc-amend-design` as a canonical skill — D12**
 
 - _Goal:_ The skill installs and generates per-tool copies everywhere the canonical skills do.
 
-    - The name joins the unit skills test's fixture map first — that map generates synthetic `SKILL.md` files and
-      is keyed exhaustively by canonical skill name, so the addition fails as a typecheck error until
-      `CANONICAL_SKILLS` carries the name. Its description string is fixture text, never the shipped one; the two
-      already diverge for other skills.
-
-    - Then `CANONICAL_SKILLS`, the install recipe, and the skills README, which is a full enumeration with
-      one-line descriptions.
-
-    - The recipe entry, the project copy, and the manifest entry for this skill land in one commit. The sync test
-      asserts exact equality between manifest keys and recipe-derived outputs, so a recipe entry alone is red.
-
-    - Build `test-first` (one behavior at a time):
-        - The skill resolves through `CANONICAL_SKILLS` and generates one copy per configured tool
-        - A fresh install carries `system/.internal/skills/arc-amend-design/SKILL.md`
-        - The generated per-tool copies match the canonical body
+- _Outcome:_ Per-tool copies resolve from `CANONICAL_SKILLS` against the package source, so the existing exhaustive
+  loops covered them as soon as the name landed; the canonical in-project copy is recipe-driven and needed its own
+  assertion, now pinning its install and Framework/core classification. The render refuses to create a missing
+  output, so the project copy was written and tracked before the recipe and manifest entries joined it here.
 
 ### `[ ]` **5.2 Add the workflow and method to the install set — D12**
 

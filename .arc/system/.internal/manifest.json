@@ -517,6 +517,11 @@
       "layer": "core",
       "pristine_hash": "0305278f95d48eb3e24e7604ec31413b2774dd7093b2edee452afec015199176"
     },
+    "system/.internal/skills/arc-amend-design/SKILL.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "2e1d549846e8ceae76c15dfcfbc1d967c5193642071aefe8ace22eb5a7f4c5ec"
+    },
     "system/.internal/skills/arc-commit/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
