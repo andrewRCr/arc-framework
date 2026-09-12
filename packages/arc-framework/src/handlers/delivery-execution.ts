@@ -3807,6 +3807,28 @@ async function executeDeliveryCommand(
     if (active.status !== "resolved" || active.name !== plan.workUnitId || active.branch === null) return null;
     return `refs/heads/${active.branch}`;
   };
+  const resolveCurrentLifecyclePaths = async (
+    plan: z.infer<typeof DeliveryPlanV1Schema>,
+    protectedBaseRef: string,
+    topRef: string,
+  ): Promise<readonly string[] | null> => {
+    const active = await resolveActiveWu({ cwd });
+    if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
+    try {
+      const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+        readDirectory: (path) => readdir(resolve(cwd, path)),
+        readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
+      }).resolve({
+        workUnitId: plan.workUnitId,
+        activeMetaPath: validateManagedPath(active.path),
+        protectedBaseRef,
+        topRef,
+      });
+      return paths.paths;
+    } catch {
+      return null;
+    }
+  };
   const observePosition = async (
     plan: z.infer<typeof DeliveryPlanV1Schema>,
     current: { readonly revision: number; readonly value: z.infer<typeof DeliveryStateV1Schema> },
@@ -4907,7 +4929,19 @@ async function executeDeliveryCommand(
   }
 
   if (command === "eligibility-prepare") {
-    return prepareDeliveryEligibility(PrepareSchema.parse(request), eligibilityDeps);
+    const parsed = PrepareSchema.parse(request);
+    const lifecyclePaths = await resolveCurrentLifecyclePaths(
+      parsed.plan,
+      parsed.protectedBaseRef,
+      parsed.topRef,
+    );
+    if (lifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
+    const requestedPaths = sortByCanonicalBytes([...new Set(parsed.lifecyclePaths)]);
+    const currentPaths = sortByCanonicalBytes([...new Set(lifecyclePaths)]);
+    if (canonicalize(requestedPaths) !== canonicalize(currentPaths)) {
+      return { status: "refused", reason: "lifecycle-paths-moved" };
+    }
+    return prepareDeliveryEligibility({ ...parsed, lifecyclePaths: currentPaths }, eligibilityDeps);
   }
   if (command === "eligibility-close") {
     const parsed = CloseSchema.parse(request);
@@ -4921,24 +4955,11 @@ async function executeDeliveryCommand(
     return executeWithFreshDeliveryEligibility(parsed, {
       ...eligibilityDeps,
       resolveOriginatingTopRef,
-      resolveLifecyclePaths: async (plan) => {
-        const active = await resolveActiveWu({ cwd });
-        if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
-        try {
-          const paths = await new CurrentDeliveryLifecycleContributionPathSource({
-            readDirectory: (path) => readdir(resolve(cwd, path)),
-            readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId),
-          }).resolve({
-            workUnitId: plan.workUnitId,
-            activeMetaPath: validateManagedPath(active.path),
-            protectedBaseRef: parsed.protectedBaseRef,
-            topRef: parsed.topRef,
-          });
-          return paths.paths;
-        } catch {
-          return null;
-        }
-      },
+      resolveLifecyclePaths: (plan) => resolveCurrentLifecyclePaths(
+        plan,
+        parsed.protectedBaseRef,
+        parsed.topRef,
+      ),
       prepareMutation: ({ plan, snapshot }): Promise<
         | {
             readonly status: "prepared";
