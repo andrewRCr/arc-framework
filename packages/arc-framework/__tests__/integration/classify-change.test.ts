@@ -1,7 +1,7 @@
 /**
  * Harness smoke tests for `scripts/classify-change.sh`.
  *
- * Establishes the shell-script unit-test seam the path-classification and
+ * Establishes the shell-script integration-test seam the path-classification and
  * code-tree-hash work lands on: the subprocess spawn contract ({@link
  * runScript}), the script's subcommand-dispatch scaffold, and the temp-git-repo
  * scaffolding ({@link createTempRepo}) the tree-hash cases build on. Assertions
