@@ -267,31 +267,33 @@ _Exit criterion:_ No load-bearing term is restated across this work unit's ship 
 existing corpus sense says which sense it means; each of the four spec forms carries its amendment log; and
 `validate-criteria` states effective-report composition, the delta form, and the log-driven delta linkage.
 
-### `[ ]` **3.1 State effective-report composition and the delta form in `validate-criteria` — D8**
+### `[x]` **3.1 State effective-report composition and the delta form in `validate-criteria` — D8**
 
 - _Goal:_ A member re-record after an amendment supplements its boundary report instead of producing a second full
   one, and the terminal walk finds those supplements through the log.
 
-- _Note:_ The delta is a supplement to the existing report schema, not a second schema — it lists only what
-  changed, and never restates fields or digests the base report already carries.
+    - `[x]` **3.1.a Effective-report composition beside the report schema**
+        - The effective report is the base plus ordered deltas — same-locus entries overridden by the latest,
+          appended criteria present only in the delta, span taken from the latest — and is consumed wherever the
+          work-unit-scope walk consumes the base, naming both the group disposition and the regression detection.
 
-- _Context:_ Edits land in the method's `.default` section, the framework half a Configurable file's parity diff
-  compares.
+    - `[x]` **3.1.b The delta form and its per-criterion verdict**
+        - Changed criteria with evidence, appended criteria with theirs, the new span, and the summary; unchanged
+          criteria omitted and recorded digests never restated.
+        - `carries` / `supplemental` / `fresh` stated as vocabulary applied by judgment; the verdict never replaces
+          `state`, and a superseded criterion is `[~]` citing the row id with no verdict.
+        - `delta` and `verdict` both shadow an existing corpus sense, so each says which sense it means — a
+          supplement to one member's report rather than a work-tree diff, and per-criterion rather than the
+          report-level verdict the adversarial companion returns.
 
-    - `[ ]` **3.1.a Effective-report composition beside the report schema**
-        - Base report plus ordered deltas: same-locus entries overridden by the latest, appended criteria present
-          only in the delta, span taken from the latest. The work-unit walk consumes it where it consumes the base.
+    - `[x]` **3.1.c Log-driven linkage**
+        - Deltas are located through the `## Amendments` rows' `_Work:_` pointers — never positionally and never by
+          scanning a member's revision parents.
 
-    - `[ ]` **3.1.b The delta form and its per-criterion verdict**
-        - Changed criteria, the new span, the summary; unchanged criteria omitted.
-        - The three borrowed verdict tokens, stated as vocabulary-only; the verdict never replaces `state`, and a
-          superseded criterion is `[~]` citing the row id with no verdict.
-        - The token spellings come from the spec's own record and rename without design change; the owning work
-          unit's current vocabulary is not readable from this branch, so do not treat a lookup as verification.
-
-    - `[ ]` **3.1.c Log-driven linkage**
-        - The walk locates deltas through the `## Amendments` rows' `_Work:_` pointers — never positionally and
-          never by scanning a member's revision parents.
+- _Outcome:_ `validate-criteria` carries an `### Amendment deltas` section beside the report schema in both copies,
+  cross-referencing `amend-design` for the log rather than restating its grammar. The workflow's project copy landed
+  in this commit: the section links to it, and link resolution is checked per copy, so the citing edit could not
+  land first.
 
 ### `[ ]` **3.2 Add the amendment log to the four spec forms — D5**
 

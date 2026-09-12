@@ -98,6 +98,35 @@ At member scope, record the report as ordinary closing-task evidence without cha
 checkboxes. At work-unit scope, let the terminal verification workflow own marking after it consumes the flat report
 or the combined member-and-seam report.
 
+### Amendment deltas
+
+An amendment landing after a member's boundary report supplements that report rather than producing a second one.
+[`amend-design`][amend-design] owns the amendment record and its `## Amendments` log; what follows is the report
+side of that closure.
+
+A member's **effective report** is its base boundary report plus its ordered deltas: a same-locus entry is
+overridden by the latest delta carrying it, a criterion the amendment appended is present only in the delta, and
+the span is the latest delta's. Consume the effective report wherever the work-unit-scope walk above consumes the
+base one — dispositioning a member group and detecting cross-boundary regressions read it the same way.
+
+A **delta** here is a supplement to one member's report, not a diff of the work tree. It carries the changed
+criteria with their evidence, any criteria the amendment appended with theirs, the new span, and the summary.
+Unchanged criteria are omitted, and a digest already recorded in the base report is never restated.
+
+Each entry carries a **per-criterion verdict** saying why it is present or absent — a judgment applied per
+criterion, not the report-level verdict the adversarial companion below returns:
+
+- `carries` — the base entry still holds; this is why an unchanged criterion is absent from the delta;
+- `supplemental` — the entry is listed because evidence was added to what the base already carries; and
+- `fresh` — the entry is listed because its evidence now stands on its own.
+
+A verdict never replaces the entry's `state`, which stays `[x]` / `[~]` / `[ ]` as above. A criterion superseded by
+the amendment is `[~]` citing the log row's id and carries no verdict.
+
+Locate a member's deltas through the log: each `## Amendments` row's `_Work:_` names the corrective parent whose
+closing subtask carries that delta. Never locate one positionally, and never by scanning a member's revision
+parents — either would be a second authority over the same fact.
+
 ### Adversarial companion
 
 After the primary walk, offer one fresh-context pass over the same selected scope. Use the work unit's
@@ -122,5 +151,6 @@ adversarial-review:
 
 ---
 
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
 [process-task-loop]: ../workflows/arc/process-task-loop.md
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
