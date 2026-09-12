@@ -34,7 +34,7 @@ Pure function and module tests. No filesystem, no child processes, no git repos.
 
 **Characteristics:**
 
-- Fast (milliseconds per test), isolated, run on every change
+- Fast (milliseconds per test), isolated, selected for changes affecting unit tests
 - Import the module directly, call functions, assert on return values
 - Mock only at system boundaries (see [Mocking Rules](#mocking-rules))
 
