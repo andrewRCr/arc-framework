@@ -551,6 +551,9 @@ currentness and attestation outcomes without requiring the separately owned prop
 - _Outcome:_ lineage attestations now require `focused | full` scope in their strict schema and canonical bytes;
   record guards reject narrower evidence at an approved full subject while accepting full evidence for either scope.
   Existing construction sites write explicit full scope without aliases, migration readers, or a second identity.
+- _Review amendment (2026-09-12):_ the record also requires a `responseId` occurrence link so evidence can satisfy
+  only the exact pending response it was produced for; this link participates in record bytes but is not a separate
+  attestation digest.
 
 ### `[x]` **5.3 Reduce convergence across scoped lineage attestations** — D2-D3, D12
 
@@ -568,6 +571,8 @@ currentness and attestation outcomes without requiring the separately owned prop
 - _Outcome:_ targeted evidence carries established satisfaction, focused and full requirements close only through
   sufficiently broad subject attestations, and omitted scope conservatively projects full. A cycle-free Candidate
   evidence contract lets the lineage invoke the shared reducer without duplicating the scope decision.
+- _Review amendment (2026-09-12):_ the reducer resolves each attestation through its exact response occurrence before
+  scope application, preventing an earlier attestation from satisfying a later response at a repeated subject.
 
 ### `[x]` **5.4 Enforce focused and full attestation semantics** — D12
 
@@ -636,6 +641,9 @@ currentness and attestation outcomes without requiring the separately owned prop
     - _Adversarial companion:_ not run; the Heavy-class neutral offer was delegated to agent judgment, and the focused
       segment exercise plus the composed suite exposed no unresolved criterion warranting a third pass.
     - _Summary:_ four met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
+    - _Review amendment (2026-09-12):_ repeated-subject coverage in `candidate-attestation.test.ts` proves the
+      required `responseId` link prevents evidence replay across response occurrences while retaining the four
+      recorded criterion digests.
 
 ## **Phase 6:** Verification
 
@@ -711,6 +719,10 @@ currentness and attestation outcomes without requiring the separately owned prop
   JSON and interactive results preserve actionable scope, coordinate, evidence, and remedy detail.
 - `[x]` ADR-034 records the approver-bound scope authority without changing the Candidate root attestation or its
   subject-digest applicability.
+
+_Review clarification (2026-09-12):_ Criteria 1–3's fresh subject-bound evidence includes an exact `responseId`
+occurrence link. This prevents evidence for an earlier response from satisfying a later response when the subject
+digest recurs; the link is part of the managed record rather than a separate attestation digest.
 
 ### Cross-member seams
 

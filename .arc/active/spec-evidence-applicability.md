@@ -806,6 +806,12 @@ sibling owns production proposal-to-approval-to-response coverage. Neither work 
   record — no evidence store or new attestation identity is introduced. Scope and evidence participate in canonical
   managed-record serialization and therefore its version; `CandidateLineageAttestationV1` has no separate digest
   preimage to extend.
+
+_Amended 2026-09-12._ Each lineage attestation also carries the exact `responseId` whose pending convergence it
+satisfies. The field is a foreign-key-style occurrence binding, not a new attestation identity or digest: it prevents
+evidence for an earlier response from satisfying a later response when the same subject digest recurs. Record
+validation requires that occurrence to be pending at the attested subject before applying the attestation.
+
 - **Operation guard.** `arc attest` takes `--scope focused | full` with default `full` and a convergence-only
   verification-evidence operand. A root or unexplained-delta re-root remains full-only; `focused` is accepted only
   for a pending focused convergence requirement, while `full` may satisfy either pending requirement. A narrower or

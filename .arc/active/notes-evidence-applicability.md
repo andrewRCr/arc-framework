@@ -320,6 +320,10 @@ in the canonical bytes of the containing version-checked managed record. Adding 
 create lifecycle and guard obligations without serving a stated goal, so the task verifies managed-record version
 change instead of referring to a nonexistent digest preimage.
 
+The required `responseId` is not that second identity. It links the attestation to one exact pending review-response
+occurrence so a later response at a repeated subject digest cannot reuse earlier evidence. Record validation resolves
+the occurrence before scope reduction, and the repeated-subject regression proves the link cannot be replayed.
+
 The pre-publication action is the convergence presentation surface. Its typed schema and composer carry the required
 scope and focused-versus-full check kind; `prepare-work-unit.md` renders that action. `verify-work-unit.md` owns the
 initial full root/re-root path and contains no convergence fire-point, so it remains unchanged unless future source
