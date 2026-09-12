@@ -7,6 +7,7 @@ import { runLocalVitestTier } from "../../src/lib/local-vitest-runner.js";
 describe("runLocalVitestTier", () => {
   it.each([
     ["full", []],
+    ["unit", ["--project", "unit", "--project", "unit-mocks"]],
     ["lane", [
       "--project",
       "unit",

@@ -60,7 +60,11 @@ describe("isLocalHeavyTestTier", () => {
 describe("withLocalHeavyTestAdmission", () => {
   it("queues behind the shared holder with useful diagnostics, then releases after the run", async () => {
     const lines: string[] = [];
-    const action = vi.fn(async () => "complete");
+    let clock = Date.parse("2026-09-08T20:00:00.000Z");
+    const action = vi.fn(async () => {
+      clock = Date.parse("2026-09-08T20:02:05.000Z");
+      return "complete";
+    });
     const releaseLock = vi.fn(async () => {});
     const acquireLock = vi.fn(async (_path, options) => {
       options.onWait?.({
@@ -82,6 +86,7 @@ describe("withLocalHeavyTestAdmission", () => {
         holder: "unreadable",
         waitedMs: 60_000,
       });
+      clock = Date.parse("2026-09-08T20:01:05.000Z");
       return { path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" };
     });
 
@@ -96,7 +101,7 @@ describe("withLocalHeavyTestAdmission", () => {
         acquireLock,
         git: vi.fn(async (_command, args) => gitResult(args)),
         mkdir: vi.fn(async () => undefined),
-        now: () => Date.parse("2026-09-08T20:01:05.000Z"),
+        now: () => clock,
         pid: 42,
         processInstance: "test-process",
         releaseLock,
@@ -105,7 +110,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
     );
 
-    expect(result).toBe("complete");
+    expect(result).toEqual({ result: "complete", waitMs: 65_000 });
     expect(acquireLock).toHaveBeenCalledWith(
       "/repo/.git/arc/test-suite/.local-heavy-tests.lock",
       expect.objectContaining({
@@ -116,7 +121,7 @@ describe("withLocalHeavyTestAdmission", () => {
           branch: "feat/widget",
           tier: "integration",
           worktree: "/repo/worktree-a",
-          startedAt: "2026-09-08T20:01:05.000Z",
+          startedAt: "2026-09-08T20:00:00.000Z",
         },
         pid: 42,
         processInstance: "test-process",
@@ -417,11 +422,26 @@ describe("withLocalHeavyTestAdmission", () => {
       { cwd: "/repo/worktree-a", env, tier: "full" },
       action,
       { acquireLock, git },
-    )).resolves.toBe("complete");
+    )).resolves.toEqual({ result: "complete" });
 
     expect(action).toHaveBeenCalledOnce();
     expect(acquireLock).not.toHaveBeenCalled();
     expect(git).not.toHaveBeenCalled();
+  });
+
+  it("omits the wait reading when the admitted run never queued", async () => {
+    await expect(withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "lane" },
+      async () => "complete",
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
+        git: vi.fn(async (_command, args) => gitResult(args)),
+        mkdir: vi.fn(async () => undefined),
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+      },
+    )).resolves.toEqual({ result: "complete" });
   });
 
   it("releases the slot when the test runner fails", async () => {
