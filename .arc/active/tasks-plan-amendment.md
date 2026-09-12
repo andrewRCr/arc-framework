@@ -295,16 +295,20 @@ existing corpus sense says which sense it means; each of the four spec forms car
   in this commit: the section links to it, and link resolution is checked per copy, so the citing edit could not
   land first.
 
-### `[ ]` **3.2 Add the amendment log to the four spec forms — D5**
+### `[x]` **3.2 Add the amendment log to the four spec forms — D5**
 
 - _Goal:_ A spec reaching its first amendment has somewhere to record it without inventing a section shape.
 
-- _Note:_ Each template carries the heading and one placeholder example row only. The grammar and its token sets
-  stay defined once, in the workflow — four restated grammars is the drift this split exists to prevent.
+    - `[x]` **3.2.a Trailing `## Amendments` on the three sectioned forms**
+        - `outline`, `detailed` · `PRD`, and `detailed` · `RFC` each close on the heading, the guidance line, and
+          one example row whose `_Supersedes:_` names that form's own frozen section.
 
-    - `[ ]` **3.2.a Trailing `## Amendments` on the three sectioned forms**
+    - `[x]` **3.2.b Trailing `**Amendments:**` label on the brief form**
+        - The label matches the form's existing `**Success Criteria:**` shape rather than introducing a heading.
 
-    - `[ ]` **3.2.b Trailing `**Amendments:**` label on the brief form**
+- _Outcome:_ Every row is a placeholder example that points at `amend-design` for the grammar instead of carrying
+  one, so the four forms cannot drift apart from the definition or from each other. Each template gained its first
+  reference-definition block to hold that link.
 
 ### `[ ]` **3.3 Add the appended-criterion group rule and the evidence-sink forward pointer — D5, D6**
 

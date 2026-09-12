@@ -60,3 +60,16 @@ aspirations.
 
 Design questions still open — resolved during the work, not deferred as debt. A "resolve-before-starting"
 blocker here means the design isn't settled enough to build.
+
+## Amendments
+
+{The amendment log. One row per amendment — the amendment's identity, and the only mandatory write on every arm.
+The first amendment adds this section when the form's template predates it; the row grammar and its token sets are
+defined once, in [`amend-design`][amend-design]. Replace the example row with the first real one.}
+
+- **A1** — {YYYY-MM-DD} — design: {one-sentence summary of what the amendment settles}. _Supersedes:_
+  § Non-Goals ¶3. _Trigger:_ 4.2 member. _Work:_ 4.R. _Revalidated:_ 4.R.c.
+
+---
+
+[amend-design]: ../../../../../system/workflows/arc/supplemental/amend-design.md
