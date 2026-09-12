@@ -530,25 +530,29 @@ source and the project copy.
   nothing and instead proved parity: the render is a no-op across the work unit's whole Framework footprint. The
   hand-maintained inventory was the only surface still describing the pre-amendment corpus.
 
-### `[ ]` **5.R Accept `X.R2` ids and artifact-prefixed filenames in the shipped meta-reference patterns**
+### `[x]` **5.R Accept `X.R2` ids and artifact-prefixed filenames in the shipped meta-reference patterns**
 
 - _Goal:_ Per A2, supply what 5.2's registration scope missed: the shipped pattern that refuses `X.R2` accepts it,
   so a project following the placement rules is not blocked by its own pre-commit hook. Per A4, the broad pattern
   admits an artifact-prefixed method filename on the same left-boundary reading.
 
-- _Note:_ Nothing pins the pattern's content, so there is no test to go red first; 6.1 verifies by exercising a
-  task id through the hook rather than by asserting the string.
+    - `[x]` **5.R.a Narrow the shipped `hooks.strict_meta_ref_patterns` default**
+        - A bare R/B id now requires a non-identifier, non-dot character to its left, so `1.R2` and `1.R2.a` pass
+          while bare `R12`, `B3`, `PRD R7`, and the section symbol still match; the quoted `R/C` rename scores stay
+          filtered at the hook's own token-stripping step rather than by the pattern.
+        - The package `arc-config.yml` default, its comment's rationale, and both hook copies moved together.
 
-    - `[ ]` **5.R.a Narrow the shipped `hooks.strict_meta_ref_patterns` default**
-        - The default `\b[RB][0-9]+\b` treats a dot as a word boundary, so the numbered tail of `1.R2` reads as a
-          requirement code and the commit is refused. Require a non-identifier, non-dot character before a bare
-          R/B id; bare `R12` / `B3` and the quoted `R/C` rename scores must still match.
-        - The package `arc-config.yml` default, its comment's rationale, and both hook copies move together.
+    - `[x]` **5.R.b This repo's override reconciled against the shipped default**
+        - The value is now byte-identical to the shipped default, so what remained to remove was the comment
+          presenting it as an override — the misleading half. The key itself stays set: both copies carry all
+          forty-five keys explicitly, and dropping one would break that shape rather than express inheritance.
+        - The narrowing rationale moved into the shared shipped comment, so the two strict blocks are identical.
 
-    - `[ ]` **5.R.b This repo's override reconciled against the shipped default**
-        - The override narrowed only the project copy ahead of the default. Once the default carries the same
-          reading, remove the override as redundant or state why it still differs — an override silently equal to
-          its default is drift waiting to happen.
+- _Outcome:_ Both alternations failed the same way — an unguarded left edge — and both now require a
+  non-identifier, non-dot character there. A2 predicted the task-id case; A4 was the same defect reaching a
+  filename, found only because registering the extracted method tripped it. The shipped defaults, both hook
+  copies, and this repository's config move as one, and the repo now overrides only the broad pattern, where it
+  still genuinely differs.
 
     - `[x]` **5.R.c Narrow the shipped `hooks.meta_ref_patterns` default**
         - The artifact-name alternation now requires a non-identifier, non-dot character to its left, so

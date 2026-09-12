@@ -147,9 +147,12 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 # IDs, and section-symbol citations. The pre-commit hook additionally filters
 # known false-positive tokens (stripped per line before re-check, not whole-line
 # drops): PROJECT-PRD (framework template filename) and quoted three-digit Git
-# --name-status R/C scores ("R100", 'C075', …). Pipe-separated regex.
-#   default: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
-hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
+# --name-status R/C scores ("R100", 'C075', …). A bare R/B id requires a
+# non-identifier, non-dot character to its left: a dot is a word boundary, so an
+# unguarded pattern reads the numbered tail of a task id (1.R2, 1.R2.a) as a
+# requirement code. Pipe-separated regex.
+#   default: 'PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ '
+hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ '
 
 # Broad meta-project reference patterns scanned in production code only — test
 # files (see hooks.test_patterns) are exempted because parser tests legitimately
