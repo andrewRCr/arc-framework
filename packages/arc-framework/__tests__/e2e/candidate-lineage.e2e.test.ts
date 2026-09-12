@@ -299,6 +299,7 @@ async function installThreeMemberDelivery(root: string, deliveryState: "bound" |
   const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
   const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const states = new RepositoryDeliveryStateStore(publisher);
+  const gatePaths: string[] = [];
   expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
   if (deliveryState === "bound") {
     expect(await states.publish(plan.planId, state, 0)).toMatchObject({ status: "ok" });
@@ -315,9 +316,10 @@ async function installThreeMemberDelivery(root: string, deliveryState: "bound" |
       const gatePath = join(root, commonDir, "arc", "delivery-gates", plan.planId, member.chunkKey);
       await mkdir(join(gatePath, ".."), { recursive: true });
       await git(root, ["worktree", "add", "--detach", gatePath, candidateHead]);
+      gatePaths.push(gatePath);
     }
   }
-  return { plan, firstMemberHead: firstHead, operationMemberHead: targetHead, operationGateHead };
+  return { plan, firstMemberHead: firstHead, operationMemberHead: targetHead, operationGateHead, gatePaths };
 }
 
 async function expectStationaryWorkUnitLocus(
@@ -705,7 +707,34 @@ describe("review-fix Candidate lineage", () => {
       schemaVersion: 1,
       source,
       dispositions,
-    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    })).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+      payload: {
+        authoring: {
+          kind: "candidate",
+          workUnit: "example",
+          ref: "refs/heads/feat/example",
+          checkoutPath: root,
+          deliverySuffixReconstruction: "after-candidate-advance",
+        },
+      },
+    });
+
+    const disposableMemberCheckout = delivery.gatePaths[0];
+    if (disposableMemberCheckout === undefined) throw new Error("missing private-member gate checkout");
+    const mislocated = await runArcWithStdin(
+      ["review", "respond", "-"],
+      disposableMemberCheckout,
+      `${JSON.stringify({ schemaVersion: 1, source, dispositions })}\n`,
+    );
+    expect(mislocated.exitCode).not.toBe(0);
+    expect(JSON.parse(mislocated.stdout)).toMatchObject({
+      error: {
+        code: "corrupt-state",
+        message: expect.stringContaining("active work-unit checkout"),
+      },
+    });
 
     const records = await new LocalApprovedDispositionRecordStore(
       new RepositoryGitCommonStatePublisher(gitExec, root),

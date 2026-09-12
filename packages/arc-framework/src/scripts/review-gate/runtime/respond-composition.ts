@@ -45,6 +45,7 @@ import {
   deriveLocalReviewTargetFromCoordinates,
 } from "../hosts/local/repository-target.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { CandidateBoundMemberFixAuthoringSchema } from "../core/review-command-envelope.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {
@@ -179,6 +180,21 @@ export function createRespondDependencies(input: {
       } catch {
         return null;
       }
+    },
+    resolveCandidateFixAuthoring: async (workUnit) => {
+      const live = await readLocalReviewLiveContext(input);
+      if (live.context.workUnit?.identity !== workUnit) return null;
+      const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        cwd: input.cwd,
+      })).stdout.trim();
+      if (branch === "" || branch === "HEAD") return null;
+      return CandidateBoundMemberFixAuthoringSchema.parse({
+        kind: "candidate",
+        workUnit,
+        ref: `refs/heads/${branch}`,
+        checkoutPath: input.cwd,
+        deliverySuffixReconstruction: "after-candidate-advance",
+      });
     },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {

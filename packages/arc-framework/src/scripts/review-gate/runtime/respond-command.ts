@@ -54,7 +54,10 @@ import {
   frontlineResponseBindingMatchesTarget,
   type BoundFrontlineResponseBinding,
 } from "../core/frontline-response-binding.js";
-import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
+import {
+  RespondEnvelopeSchema,
+  type CandidateBoundMemberFixAuthoring,
+} from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
@@ -187,6 +190,8 @@ export interface RespondCommandDependencies {
     originatingTarget: ReviewTarget;
     hostedTarget: HostedTarget;
   }): Promise<{ currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null>;
+  /** Active work-unit checkout where a Candidate-bound private-member fix must be authored. */
+  resolveCandidateFixAuthoring(workUnit: string): Promise<CandidateBoundMemberFixAuthoring | null>;
   now(): string;
   /** Null when the response target identifies no active or archived Candidate lineage. */
   readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
@@ -1239,6 +1244,24 @@ export async function respondToReviewCommand(
   const errand = lineage === null && deliveryMember === null
     ? await dependencies.resolveActiveErrand()
     : null;
+  const requiresCandidateMemberAuthoring = plan.state === "ready-to-fix"
+    && source.responseBinding !== undefined;
+  let candidateMemberAuthoring: CandidateBoundMemberFixAuthoring | null = null;
+  if (requiresCandidateMemberAuthoring && lineage === null) {
+    throw new RespondCommandError(
+      "corrupt-state",
+      "Candidate-bound delivery-member fix authoring requires the active work-unit checkout.",
+    );
+  }
+  if (requiresCandidateMemberAuthoring && lineage !== null) {
+    candidateMemberAuthoring = await dependencies.resolveCandidateFixAuthoring(lineage.workUnit);
+  }
+  if (requiresCandidateMemberAuthoring && candidateMemberAuthoring === null) {
+    throw new RespondCommandError(
+      "corrupt-state",
+      "Candidate-bound delivery-member fix authoring requires the active work-unit checkout.",
+    );
+  }
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
@@ -1328,6 +1351,7 @@ export async function respondToReviewCommand(
           }),
       ...(frontlineFollowUp === undefined ? {} : { frontlineFollowUp }),
       ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
+      ...(candidateMemberAuthoring === null ? {} : { authoring: candidateMemberAuthoring }),
     },
   });
 }

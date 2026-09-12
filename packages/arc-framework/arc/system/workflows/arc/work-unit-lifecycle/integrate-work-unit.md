@@ -269,11 +269,17 @@ arc review respond -
 This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
 plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
 
-`delivery-correction-required / continue-delivery-correction` is the delivery-member fix route. Execute any
+`delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
 `authoring-required`, and edit only its exact `authoring.checkoutPath` and `authoring.ref` under the returned
 `authoringAuthorization`; resume only through `resumeAction`. A missing, stale, or different locus stops before
-authoring. `ready-to-fix / apply-fix` remains the ordinary singleton route and never substitutes for this one.
+authoring.
+
+A Candidate-bound private-member fix instead returns `ready-to-fix / apply-fix` with `payload.authoring`. Author
+only in that exact active work-unit checkout and ref, follow the Candidate response path in
+[`prepare-work-unit.md`](prepare-work-unit.md), and reconstruct the delivery suffix only after Candidate advance as
+the returned `deliverySuffixReconstruction` directs. A `ready-to-fix` response without `authoring` remains the
+ordinary singleton route and never substitutes for the delivery-owned controller.
 
 The action already carries the selected source, exact opened target, requested coverage, and any delivery-member
 vehicle. Status uses complete coverage by default; only the explicit supplemental route below returns incremental
