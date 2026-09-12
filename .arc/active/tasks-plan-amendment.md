@@ -561,10 +561,17 @@ source and the project copy.
         - The package `arc-config.yml` default, its comment's rationale, both hook copies, and this repository's
           override moved together; the two hook copies stay byte-identical.
 
-### `[ ]` **5.4 Reachable and installable procedure — D12** — validate exit criterion at segment scope
+### `[x]` **5.4 Reachable and installable procedure — D12** — validate exit criterion at segment scope
 
 - _Goal:_ A fresh install is exercised end to end: the three artifacts arrive, the skill resolves, and each
   detection-site directive is followed to a live anchor in the workflow.
+
+- _Outcome:_ Run against two real installs into a clean tree. The default install carried all three artifacts,
+  the workflow and skill classified Framework and the method Configurable; a tools-configured install generated
+  per-tool skill copies byte-matching the canonical body. All five detection-site directives resolve to live
+  anchors in the installed workflow, and the render reports the whole Framework footprint unchanged across both
+  copies. `reopen-work-unit`'s door resolves only in-repo — that file sits in neither the recipe nor the manifest,
+  so its directive reaches no installed project; a pre-existing ship gap rather than anything this segment moved.
 
 ## **Phase 6:** Verification
 
