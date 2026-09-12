@@ -5,6 +5,7 @@ arc:
   methods:
     - issue-triage
     - quality-gate-commands
+    - review-chunking
     - testing-standards
     - validate-criteria
   extensions:
@@ -198,6 +199,23 @@ execution-entry contract violation.
          reachability: cumulative tree through this member
      ```
 
+     Before advancing beyond the member, close its scale-attention result against the exact committed member span.
+     When the closing task's changes do not yet have their approved commit head, complete item 4 and item 5, then
+     return here before starting the next task. Invoke `arc review chunking resolve -` with the member's bounded
+     `{ kind, baseRef, diffBaseSha, headSha }` target and any existing exact-target scope selection.
+
+     - `disabled / none`, `below-threshold / continue-review`, and `scope-selected / continue-review` record the
+       returned exact target, state, and metrics as the member-close scale-attention result, then continue.
+     - `consider-chunks / select-review-scope` renders `recommendedActionText`, then applies the
+       [`review-chunking` method][review-chunking]. Record the selected bounded-review route or explicit capable
+       whole-target choice before continuing. An unbound coherent member re-cut remains an Owner decision.
+     - `evidence-unavailable / continue-review` and every malformed or unsupported result stop before member
+       advancement; absence of a measurement is not a below-threshold result.
+
+     Add the result and disposition to the closing task's outcome and close that task-list edit through the ordinary
+     task interlock before advancing. This completed-span result does not claim later work cannot enlarge the member;
+     private materialization performs a fresh exact-target check.
+
   4. **Report and stop:** Use the resolved completion branch when item 3 does not apply or reports no unresolved
      criterion. Use the unresolved member-report branch only when item 3 returns an unresolved `[ ]`. Then stop
      through the shared interlock.
@@ -268,9 +286,9 @@ execution-entry contract violation.
      the commit-interlock releases on task approval per
      [Configurability Architecture Strategy][config-arch] § Session interlocks; on
      approval signal, invoke the [arc-commit skill][arc-commit-skill] — it owns the
-     simple-vs-complex path decision and loads the format methods. After the commit lands, start
-     the bundle's named target immediately without re-prompting. Complexity criteria bump to
-     manual-with-prompt rather than invoking prepare-commits silently.
+     simple-vs-complex path decision and loads the format methods. After the commit lands, complete any deferred
+     delivery-member scale closeout in item 3, then start the bundle's named target without re-prompting. Complexity
+     criteria still bump to manual-with-prompt rather than invoking prepare-commits silently.
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
      doubt, split and ask. See [Commit Discipline][dev-rules-arc].
@@ -349,6 +367,7 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
+[review-chunking]: ../../methods/review-chunking.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
