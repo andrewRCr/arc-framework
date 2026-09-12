@@ -90,7 +90,6 @@ describe("delivery execution handler", () => {
         },
       },
     }],
-    ["remote ref namespace", { remote: "attacker" }],
   ] as const)("rejects caller-authored standalone rewrite authority from %s", async (_label, authority) => {
     const execute = vi.fn();
     const write = vi.fn();
@@ -115,6 +114,19 @@ describe("delivery execution handler", () => {
         argv: ["arc", "delivery", "rewrite", "--help"],
       },
     });
+  });
+
+  it("carries a non-default remote into standalone rewrite execution", async () => {
+    const request = { ...standaloneRewriteRequest(), remote: "upstream" };
+    const execute = vi.fn().mockRejectedValue(new Error("adapter failed"));
+    await handleDeliveryExecution("rewrite", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write: vi.fn(),
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledWith("rewrite", request, undefined);
   });
 
   it("preserves a bounded standalone rewrite failure and decisive requested coordinates", async () => {

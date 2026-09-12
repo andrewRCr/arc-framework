@@ -1020,6 +1020,16 @@ describe("handleReviewStatus", () => {
         detail: `Selected ${request.sourceId ?? "default"}.`,
       },
       currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const,
+      baseMovement: {
+        coordinates: {
+          repository: statusTarget.repository,
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: statusTarget.headSha,
+        },
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
       state: "review-required" as const,
       nextAction: "run-review" as const,
     }));
