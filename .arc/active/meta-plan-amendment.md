@@ -13,13 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — `tasks-plan-amendment.md` authored at level `high`; two adversarial passes
-  converged, folding eighteen findings; the spec amended at D4, D12, and four criteria. Activated to
-  `feat/plan-amendment` (2026-09-11, `c8e457b21`).
-- **Next Task:** Task 1.1 — Extend the R scheme with per-amendment parent ids and yielded placement
-- **Blockers:** [none]
+- **Last Completed:** Task 1.3 — amendment placement conventions validated at segment scope; Phase 1 complete
+- **Next Task:** Task 2.1 — Extract `resolve-plan-segmentation` into a method (line ~99)
+- **Blockers:** Pending decision — amend the shipped pre-commit `R`-code pattern to accept `X.R2`? (Phase 5 if taken)
 
-- **Next Action:** Begin Task 1.1.a — fixture proving the three id forms against every shipped consumer
+- **Next Action:** Begin Task 2.1.a — create the method from `generate-tasks` § Resolve plan segmentation
 
 - **PR URL:** [none]
 - **Completed:** [none]
