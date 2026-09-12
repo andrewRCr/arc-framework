@@ -222,6 +222,27 @@ The audit stopped before `decompose-command-modes.e2e.test.ts`, as required: thr
 already yielded less than the threshold. Prepared initialized repositories consolidate repeated setup for both
 worked suites, and `handler.ts` is the single stdout, stderr, exit-code, cwd, and environment capture path.
 
+### Post-audit baseline
+
+The final Phase 7 tree was re-measured in the same tier-isolated mode at 12 workers. Every row is the median of
+three successful retained schema-v3 runs; one E2E sample waited 433.96 s for local admission, outside its timed
+window.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases | CLI spawns |
+| --------------------- | ---------- | ---------------- | ----- | -------------- | ---------- |
+| `integration`         | 44.84 s    | 415.50 s         | 140   | 1,405          | 2          |
+| Routine lane (no E2E) | 48.79 s    | 529.55 s         | 838   | 11,178         | 2          |
+| `e2e`                 | 189.25 s   | 1,211.11 s       | 55    | 538            | 1,665      |
+
+The integration summed-time floor is 34.62 s at 12 workers. The two arrivals remain under it:
+`candidate-lineage.test.ts` is 31.60 s and `delivery-position.test.ts` is 25.75 s. The routine lane is 14.9%
+faster than the 57.33 s first baseline, clearing the directional bar's 10% reduction while absorbing the cheaper
+handler-seam coverage. E2E is 12.1% faster than its 215.31 s post-cost baseline.
+
+The final E2E top four are `candidate-lineage` (175.97 s), `command-input-no-input` (101.36 s), `errand`
+(93.68 s), and `lifecycle-exit` (93.09 s). The pinned CI anchor set already contains exactly those four files, so
+no re-selection is needed; `delivery-plan` (80.85 s) and the three-case `delivery-position` smoke (76.06 s) follow.
+
 ### Worker sizing sweep
 
 The lane was measured in three-run alternating samples at 50%, 75%, and native sizing. On this 24-logical-CPU
@@ -277,23 +298,23 @@ modes keep local and CI observations disjoint; the E2E CI entries additionally n
 | Tier        | Mode                              | Baseline  | Budget    |
 | ----------- | --------------------------------- | --------- | --------- |
 | Unit        | tier-isolated / unit / 12 workers | 11.116 s  | 12.228 s  |
-| Integration | tier-isolated / integration / 12  | 40.035 s  | 44.039 s  |
-| Lane        | tier-isolated / lane / 12         | 44.925 s  | 49.418 s  |
-| E2E         | tier-isolated / e2e / 12          | 215.309 s | 236.840 s |
+| Integration | tier-isolated / integration / 12  | 44.836 s  | 49.320 s  |
+| Lane        | tier-isolated / lane / 12         | 48.793 s  | 53.673 s  |
+| E2E         | tier-isolated / e2e / 12          | 189.246 s | 208.171 s |
 
 | CI job      | Mode                     | Baseline  | Budget    |
 | ----------- | ------------------------ | --------- | --------- |
 | Unit        | CI job / unit / 1 worker | 40 s      | 44.0 s    |
-| Integration | CI job / integration / 1 | 186 s     | 204.6 s   |
-| E2E 1       | CI job / e2e / 1         | 145.882 s | 160.471 s |
-| E2E 2       | CI job / e2e / 1         | 173.512 s | 190.864 s |
-| E2E 3       | CI job / e2e / 1         | 127.090 s | 139.799 s |
-| E2E 4       | CI job / e2e / 1         | 107.591 s | 118.351 s |
+| Integration | CI job / integration / 1 | 194.067 s | 213.474 s |
+| E2E 1       | CI job / e2e / 1         | 125.854 s | 138.440 s |
+| E2E 2       | CI job / e2e / 1         | 147.918 s | 162.710 s |
+| E2E 3       | CI job / e2e / 1         | 140.095 s | 154.105 s |
+| E2E 4       | CI job / e2e / 1         | 100.962 s | 111.059 s |
 
-The local rows and the unit/integration CI rows are the initial post-Phase 5 budgets. The E2E CI rows use the
-corrected-topology reporter windows from dispatch `34657372996`; the earlier observations repeated each anchor in
-its remainder shard and cannot serve as anti-regression baselines. The integration, lane, and affected E2E entries
-are refreshed after the cost-ranked conversions, so accepted Phase 7 movement does not present as regrowth.
+The unit local and CI rows retain their post-Phase 5 baselines because Phase 7 did not change that tier. The
+integration, lane, and E2E local rows use the post-audit baseline above; the integration and E2E CI rows use the
+exact-head reporter windows from dispatch `34666114866`. Accepted Phase 7 movement therefore does not present as
+regrowth. Earlier E2E observations that repeated each anchor in its remainder shard remain ineligible as baselines.
 
 ### Budget exercise
 
@@ -323,6 +344,19 @@ result in any remainder step. The run's ten successful job durations sum to 913 
 first baseline, that is a 464 job-second reduction (33.7%), clearing the fixed 300 job-second target by 164 s. After
 the corrected E2E baselines were recorded, a synthetic E2E 4 overage reported 137.892 s against 118.351 s, wrote a
 19.541 s advisory warning, and exited successfully.
+
+After the ranked conversions, exact-head dispatch `34666114866` completed every heavy job successfully. Its ten
+successful job durations sum to 887 s, 490 job-seconds (35.6%) below the 1,377 s first baseline and 190 s below the
+fixed target. The reporter windows below are the refreshed affected CI-job baselines; E2E 3's 140.095 s observation
+was 0.296 s over its pre-conversion budget, illustrating why the accepted redistribution needed a new record.
+
+| CI job      | Reporter window | Refreshed budget |
+| ----------- | --------------- | ---------------- |
+| Integration | 194.067 s       | 213.474 s        |
+| E2E 1       | 125.854 s       | 138.440 s        |
+| E2E 2       | 147.918 s       | 162.710 s        |
+| E2E 3       | 140.095 s       | 154.105 s        |
+| E2E 4       | 100.962 s       | 111.059 s        |
 
 ## Where the time concentrates
 

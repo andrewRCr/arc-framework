@@ -778,23 +778,15 @@ observations exist with their capture or are recorded as not created.
 - _Outcome:_ No standards noncompliance was noticed incidentally while applying the cost rubric. No hygiene
   observations analysis or coordination capture was created.
 
-### `[ ]` **7.5 Exercise the worked rankings end to end** — validate exit criterion at segment scope
+### `[x]` **7.5 Exercise the worked rankings end to end** — validate exit criterion at segment scope
 
 - _Goal:_ One recorded pass shows both rankings were worked to their stop rule and every disposition is accounted
   for.
 
-    - Both rankings are recorded with the baseline they came from, and the stop rule fired on each.
-    - Every deletion names its retained protector; every conversion names its new tier and the real-spawn smoke
-      still covering its verb; every consolidation kept its headroom and its replaced assertions.
-    - No case whose subject is the entry's own behavior was converted off E2E.
-    - Re-measure integration and the lane tier-isolated: no integration file exceeds the tier floor after the
-      arrivals, and the lane still meets the bar 2.7 derived. The bar constrains the conversion, not the reverse.
-    - Refresh the per-tier budgets against this measurement. A regrowth guard recorded at 6.4, before the last
-      change to tier cost, would warn on every run for a reason the work unit already accepted.
-    - Confirm the pinned CI anchor set still matches the E2E ranking after conversion, and re-select if it moved —
-      three of the four anchors are conversion targets, so a reduction can reorder the top of that ranking.
-    - The hygiene deliverable exists with its capture, or is recorded as not created.
-    - No mutation-testing dependency remains installed.
+- _Outcome:_ Three-run tier-isolated medians put both integration arrivals below the 34.62 s floor, keep the lane
+  14.9% faster than its first baseline, and reduce E2E to 189.25 s. The final ranking retains the current four CI
+  anchors; exact-head dispatch `34666114866` passed every heavy job at 887 summed job-seconds. Local and affected CI
+  budgets now use the final measurements; the audit made no deletion, mutation dependency, or hygiene capture.
 
 ### `[ ]` **7.6 Close the cost-ranked audit member** — validate criteria at member scope
 
