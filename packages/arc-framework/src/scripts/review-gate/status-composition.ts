@@ -792,7 +792,13 @@ export function createReviewStatusPort(
         const requiredChecks = aggregateChecks(
           await checksPort.readRequiredChecks(target.repository, resolution.candidate.number, signal),
         );
-        return { actualHeadSha: checkedHead, requiredChecks, routedObligation, ...base };
+        return {
+          actualHeadSha: checkedHead,
+          requiredChecks,
+          routedObligation,
+          ...base,
+          ...(subject.status === "resolved" ? { workUnitId: subject.workUnitId } : {}),
+        };
       } catch (error) {
         return {
           actualHeadSha: target.headSha,

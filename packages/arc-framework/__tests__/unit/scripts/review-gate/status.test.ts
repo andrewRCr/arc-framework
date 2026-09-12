@@ -277,6 +277,30 @@ describe("review status", () => {
     });
   });
 
+  it("routes a resolved singleton base movement through its work-unit checkpoint", async () => {
+    await expect(resolveReviewStatus({ target }, port({
+      workUnitId: "example",
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+    }))).resolves.toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
+    });
+  });
+
   it("retains a settled attempt across disjoint non-contained base movement", async () => {
     await expect(resolveReviewStatus({ target }, port({ baseContained: false }))).resolves.toMatchObject({
       state: "settled",
