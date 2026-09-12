@@ -9,16 +9,23 @@ export interface HandlerRunResult {
   exitCode: number;
 }
 
+/** Process inputs scoped to one in-process handler invocation. */
+export interface HandlerRunOptions {
+  env?: Readonly<Record<string, string>>;
+}
+
 /**
  * Run one CLI handler at an isolated repository locus and capture its process-facing result.
  *
  * @param cwd - Repository directory the handler should resolve as its ambient locus.
  * @param handler - Handler invocation using CLI-parsed inputs.
+ * @param options - Optional process environment visible only during this invocation.
  * @returns Captured standard output, standard error, and normalized exit code.
  */
 export async function runHandlerAt(
   cwd: string,
   handler: () => Promise<void>,
+  options: HandlerRunOptions = {},
 ): Promise<HandlerRunResult> {
   const originalCwd = process.cwd();
   const originalExitCode = process.exitCode;
@@ -32,6 +39,10 @@ export async function runHandlerAt(
     stderr.push(typeof chunk === "string" ? chunk : chunk.toString());
     return true;
   });
+  const originalEnvironment = new Map(
+    Object.keys(options.env ?? {}).map((key) => [key, process.env[key]]),
+  );
+  Object.assign(process.env, options.env);
   process.exitCode = undefined;
   try {
     process.chdir(cwd);
@@ -46,6 +57,10 @@ export async function runHandlerAt(
   } finally {
     process.chdir(originalCwd);
     process.exitCode = originalExitCode;
+    for (const [key, value] of originalEnvironment) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key);
+      else process.env[key] = value;
+    }
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
   }
