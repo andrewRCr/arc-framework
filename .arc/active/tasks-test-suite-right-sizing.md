@@ -788,9 +788,27 @@ observations exist with their capture or are recorded as not created.
   anchors; exact-head dispatch `34666114866` passed every heavy job at 887 summed job-seconds. Local and affected CI
   budgets now use the final measurements; the audit made no deletion, mutation dependency, or hygiene capture.
 
-### `[ ]` **7.6 Close the cost-ranked audit member** — validate criteria at member scope
+### `[x]` **7.6 Close the cost-ranked audit member** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria are walked through `validate-criteria` and their boundary evidence recorded.
+
+- _Outcome:_ Member 6 criteria report.
+
+    - _Criteria slice:_ `Success Criteria > Member 6 — cost-ranked-audit`.
+    - _Span:_ bounded diff `258e52098..5f07b67ee`; cumulative reachability `5f07b67ee` at tree
+      `e65dccae26db1583e2dd517a71b9b162fd75e8b6`; boundary-order deviation: none.
+    - _Criterion:_ `Success Criteria > Member 6 — cost-ranked-audit > 1`; _criterion-digest:_
+      `sha256:3c6c01ae6bdc347a34c46df66c2bc711acb2e364e9062e7f1937c0ace9b7dfa4`; _State:_ `[x]`; _Evidence:_
+      the audit deleted and consolidated no case. The shared suite move retains all 56 Candidate-lineage and
+      delivery-position scenarios, and source comparison preserves all 163 and 207 respective `expect` expressions.
+    - _Criterion:_ `Success Criteria > Member 6 — cost-ranked-audit > 2`; _criterion-digest:_
+      `sha256:b087153fe0e66c26b924eb04b9ebe2cfd4e2f75995f8c5c3dca87a15de570b78`; _State:_ `[x]`; _Evidence:_
+      the suite registrars single-source every case and partition them 5/28 for Candidate lineage and 20/3 for
+      delivery position. Only named semantic cases use the handler seam; the retained E2E cases exercise built-CLI
+      parsing, dispatch, public choreography, destructive verbs, and nested public-command effects.
+    - _Adversarial companion:_ declined at the Heavy-class neutral offer because the member's judgment surface was
+      already closed by source conservation, comparable three-run measurements, and exact-head heavy CI evidence.
+    - _Summary:_ two met, zero superseded, zero unresolved. Success Criteria markers remain unchanged.
 
 ## **Phase 8:** Verification
 
