@@ -554,13 +554,12 @@ source and the project copy.
           reading, remove the override as redundant or state why it still differs — an override silently equal to
           its default is drift waiting to happen.
 
-    - `[ ]` **5.R.c Narrow the shipped `hooks.meta_ref_patterns` default**
-        - The artifact-name alternation matches mid-token, so `resolve-plan-segmentation.md` reads as a work-unit
-          `plan-*` artifact and the commit registering the method is refused. Require the same non-identifier,
-          non-dot character to its left that 5.R.a requires before a bare R/B id; real `tasks-*`, `plan-*`, and
-          `notes-*` references must still match.
-        - The package `arc-config.yml` default, its comment's rationale, and both hook copies move together, as
-          does this repository's override.
+    - `[x]` **5.R.c Narrow the shipped `hooks.meta_ref_patterns` default**
+        - The artifact-name alternation now requires a non-identifier, non-dot character to its left, so
+          `resolve-plan-segmentation.md` no longer reads as a work-unit `plan-*` artifact while real `tasks-*`,
+          `plan-*`, and `notes-*` references still match, including one reached through a path separator.
+        - The package `arc-config.yml` default, its comment's rationale, both hook copies, and this repository's
+          override moved together; the two hook copies stay byte-identical.
 
 ### `[ ]` **5.4 Reachable and installable procedure — D12** — validate exit criterion at segment scope
 

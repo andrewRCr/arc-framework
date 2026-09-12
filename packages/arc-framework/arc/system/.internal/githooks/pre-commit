@@ -287,7 +287,7 @@ fi
 skip_extensions=$(arc_config_get "hooks.skip_extensions" "md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile")
 test_patterns=$(arc_config_get "hooks.test_patterns" "__tests__/|\.test\.|\.spec\.|/test/|/tests/")
 strict_meta_ref_patterns=$(arc_config_get "hooks.strict_meta_ref_patterns" "PRD R[0-9]+|\b[RB][0-9]+\b|§ ")
-meta_ref_patterns=$(arc_config_get "hooks.meta_ref_patterns" "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md")
+meta_ref_patterns=$(arc_config_get "hooks.meta_ref_patterns" "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md")
 # During a merge, `git diff --cached` is versus HEAD, so parent content
 # reads as author-added and already-landed tokens re-trigger. When
 # MERGE_HEAD exists, keep only lines added against both parents — content

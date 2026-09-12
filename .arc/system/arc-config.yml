@@ -160,10 +160,11 @@ hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|(^|[^._a-zA-Z0-9])[RB][0-9]+\b|§ '
 # consume task / phase / artifact-name strings as fixture input.
 # Reduce to remove checks that cause false positives for your project (e.g.,
 # tooling that legitimately operates on .arc/ paths). Pipe-separated regex.
-#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
+#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
 # This project's override drops the `\.arc/` pattern: framework code legitimately
-# operates on .arc/ paths (status-file resolvers, classification, etc.).
-hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
+# operates on .arc/ paths (status-file resolvers, classification, etc.). The
+# left-boundary guard matches the shipped default.
+hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|(^|[^-._a-zA-Z0-9])(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
 
 # Subject line hard limit for commit-msg hook.
 # Aligns with GitHub's truncation point and `git log --oneline` width.
