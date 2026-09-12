@@ -310,19 +310,23 @@ existing corpus sense says which sense it means; each of the four spec forms car
   one, so the four forms cannot drift apart from the definition or from each other. Each template gained its first
   reference-definition block to hold that link.
 
-### `[ ]` **3.3 Add the appended-criterion group rule and the evidence-sink forward pointer — D5, D6**
+### `[x]` **3.3 Add the appended-criterion group rule and the evidence-sink forward pointer — D5, D6**
 
 - _Goal:_ An amendment that appends a criterion knows which group can still resolve it, and a reader hitting the
   evidence-sink rule learns where a failed exit criterion's correction lands.
 
-    - `[ ]` **3.3.a § Success Criteria extends its assignment rule to the amendment case**
-        - The section already assigns each criterion to the earliest member boundary whose validator can see its
-          evidence. Extend that sentence rather than adding a parallel rule: the member carrying the corrective
+    - `[x]` **3.3.a § Success Criteria extends its assignment rule to the amendment case**
+        - The appended case reads as the same rule continued — the group of the member carrying the corrective
           parent, or the seam group when the correction lands at the terminal.
-        - State the consequence — a criterion appended to a closed member's group never resolves.
+        - The consequence is stated with its cause: a criterion appended to a closed member's group never resolves,
+          because terminal verification dispositions member groups from their recorded evidence.
 
-    - `[ ]` **3.3.b The evidence-sink rule gains its forward pointer**
-        - Where a failed exit criterion's correction lands, cited by section anchor.
+    - `[x]` **3.3.b The evidence-sink rule gains its forward pointer**
+        - Anchored on `amend-design` § Placement of revision work, hung off the clause that opens the gap — the
+          verifier never hosting the correction is why the reader needs somewhere else to look.
+
+- _Outcome:_ Both edits continue an existing sentence instead of adding a parallel rule, so neither the assignment
+  rule nor the evidence-sink rule now has a second statement to keep in step.
 
 ### `[ ]` **3.4 Recommend design-element citation in parent-task titles — D7**
 

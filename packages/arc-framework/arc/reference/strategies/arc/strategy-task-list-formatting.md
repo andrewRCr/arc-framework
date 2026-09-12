@@ -414,7 +414,9 @@ verifier appears in the terminal phase.
 A segment verifier is an evidence sink. Its completion records the scenario executed and its result as the ordinary
 `_Outcome:_`; it is not a criteria report and never hosts corrective work. Segment exit criteria therefore remain
 phase-preamble and closing-task evidence rather than Success Criteria entries. Mandatory lifecycle outcomes remain
-Success Criteria and consume that evidence at their assigned member or work-unit boundary.
+Success Criteria and consume that evidence at their assigned member or work-unit boundary. Because the verifier
+never hosts the correction, a failed exit criterion's corrective work lands in a revision parent of its own — see
+[`amend-design` § Placement of revision work][amend-design-placement].
 
 ---
 
@@ -478,7 +480,11 @@ backticked chunk key and one `### Cross-member seams` heading. A member's ordina
 terminal verification walks
 the seam group and dispositions member groups from their recorded boundary evidence. Assign each criterion to the
 earliest member boundary whose validator can see its evidence; criteria that no member boundary can see belong to
-the seam group. A single-deliverable work unit omits the subgroup headings and retains the flat form.
+the seam group. A criterion an [amendment][amend-design] appends follows the same rule: it joins the group of the
+member carrying the corrective parent, or the seam group when the correction lands at the terminal. One appended to
+a closed member's group never resolves, because terminal verification dispositions member groups from their
+recorded boundary evidence and never re-derives one. A single-deliverable work unit omits the subgroup headings and
+retains the flat form.
 
 Headings group; indentation must not. Criterion checkboxes stay at root indent. Two or three leading spaces make a
 criterion inert content and silently drop it from the walk; four or more spaces parse as a subtask without an open
@@ -513,6 +519,8 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [validate-criteria]: ../../../system/methods/validate-criteria.md
+[amend-design]: ../../../system/workflows/arc/supplemental/amend-design.md
+[amend-design-placement]: ../../../system/workflows/arc/supplemental/amend-design.md#placement-of-revision-work
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers
