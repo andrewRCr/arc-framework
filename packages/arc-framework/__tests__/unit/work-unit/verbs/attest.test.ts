@@ -107,6 +107,19 @@ async function pendingHarness(approvedVerification: "focused" | "full") {
 }
 
 describe("runAttest", () => {
+  it("rejects an unfilled convergence evidence placeholder before publication", async () => {
+    const { fixture } = await pendingHarness("full");
+    const publicationCount = fixture.state().publicationCount;
+
+    await expect(runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "full",
+      verificationEvidenceRef: "{verificationEvidenceRef}",
+    })).rejects.toThrow(/placeholder must be replaced/u);
+    expect(fixture.state().publicationCount).toBe(publicationCount);
+  });
+
   it("establishes the initial Candidate root and projects Candidate preparation", async () => {
     const { context, state } = harness();
 
@@ -540,6 +553,35 @@ describe("runAttest", () => {
       reason: "focused-scope-inapplicable",
       candidateId,
       requiredScope: "full",
+      nextAction: {
+        operation: "re-root",
+        expected: {
+          candidateId,
+          subjectDigest: subject("unexplained").subjectDigest,
+        },
+        attestArgv: [
+          "arc", "attest", "example", "--new-root",
+          "--expected-candidate", candidateId,
+          "--expected-subject", subject("unexplained").subjectDigest,
+          "--scope", "full", "--json",
+        ],
+      },
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("moved-again") });
+    await expect(runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      scope: "full",
+      expectedBlocked: {
+        candidateId,
+        subjectDigest: subject("unexplained").subjectDigest,
+      },
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
     });
     expect(fixture.state().publicationCount).toBe(1);
   });

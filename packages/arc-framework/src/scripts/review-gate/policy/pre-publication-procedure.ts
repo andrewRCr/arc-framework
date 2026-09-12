@@ -3,7 +3,6 @@
 import { z } from "zod";
 
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
-import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import {
   CandidateLineageTargetSchema,
   CandidateManagedRecordV1Schema,
@@ -30,6 +29,7 @@ import {
   CandidateReviewResumeBoundarySchema,
   CandidateSelfReviewBoundarySchema,
   ContinuePrePublicationActionSchema,
+  createRunConvergenceVerificationAction,
   createStandardReviewReservation as buildStandardReviewReservation,
   PublishCandidateActionSchema,
   RunConvergenceVerificationActionSchema,
@@ -134,7 +134,7 @@ export const PrePublicationReviewEnvelopeSchema = z.union([
   CandidatePolicyReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateReviewResumeBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateFixBoundarySchema.extend(PrePublicationEnvelopeFields),
-  CandidateConvergenceBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidateConvergenceBoundarySchema.safeExtend(PrePublicationEnvelopeFields),
   CandidatePublishReadyBoundarySchema.extend(PrePublicationEnvelopeFields),
 ]);
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
@@ -178,24 +178,9 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
 
   if (request.candidate.convergenceVerification === "pending") {
     const requiredScope = request.candidate.convergenceScope;
-    const attestArgv = attestConvergenceArgv(
-      request.workUnit,
-      requiredScope,
-      "{verificationEvidenceRef}",
-    );
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: {
-        kind: "run-convergence-verification",
-        requiredScope,
-        verificationKind: requiredScope === "focused" ? "focused" : "tier-3",
-        verificationEvidenceRefRequired: true,
-        attestArgv: [...attestArgv],
-        command: attestArgv.join(" "),
-        interactionText: requiredScope === "focused"
-          ? "Run the bounded focused verification approved for this convergence, then invoke the carried attest action."
-          : "Run Tier 3 over the converged Candidate lineage, then invoke the carried attest action.",
-      },
+      nextAction: createRunConvergenceVerificationAction(request.workUnit, requiredScope),
       reservation,
       terminus,
     });

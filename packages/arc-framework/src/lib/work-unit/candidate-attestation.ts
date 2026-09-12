@@ -40,6 +40,15 @@ export type {
 
 const CandidateSemanticsSchema = z.literal("candidate-attestation/v1");
 
+/** Reserved action placeholder that must be replaced before evidence enters a Candidate record. */
+export const CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER = "{verificationEvidenceRef}" as const;
+
+/** Fresh verification evidence reference accepted by Candidate attestation boundaries. */
+export const CandidateVerificationEvidenceRefSchema = z.string().trim().min(1).refine(
+  (value) => value !== CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  "verification evidence placeholder must be replaced with a fresh evidence reference",
+);
+
 export const CandidateAttestationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: CandidateSemanticsSchema,
@@ -49,7 +58,7 @@ export const CandidateAttestationV1Schema = z.strictObject({
   baseRevision: CandidateGitObjectIdSchema,
   attestedBy: z.string().trim().min(1),
   attestedAt: z.iso.datetime(),
-  verificationEvidenceRef: z.string().trim().min(1),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema,
   /** The Candidate this root replaces, present only on a re-rooted lineage. */
   supersedes: CandidateCanonicalDigestSchema.optional(),
 });
@@ -170,7 +179,7 @@ export const CandidateLineageAttestationV1Schema = z.strictObject({
   target: CandidateLineageTargetSchema,
   attestedBy: z.string().trim().min(1),
   attestedAt: z.iso.datetime(),
-  verificationEvidenceRef: z.string().trim().min(1),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema,
   scope: z.enum(["focused", "full"]),
 });
 export type CandidateLineageAttestationV1 = z.infer<typeof CandidateLineageAttestationV1Schema>;

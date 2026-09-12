@@ -5,6 +5,8 @@ import { z } from "zod";
 import {
   CandidateManagedRecordV1Schema,
   CandidateLineageTargetSchema,
+  CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  CandidateVerificationEvidenceRefSchema,
   candidatePendingConvergenceResponseId,
   candidateConvergenceScopeCovers,
   createCandidateAttestation,
@@ -82,7 +84,7 @@ const AttestConvergenceVerificationActionSchema = z.strictObject({
     z.literal("--scope"),
     AttestScopeSchema,
     z.literal("--verification-evidence-ref"),
-    z.literal("{verificationEvidenceRef}"),
+    z.literal(CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER),
     z.literal("--json"),
   ]),
 }).superRefine((action, context) => {
@@ -102,26 +104,75 @@ const AttestConvergenceVerificationActionSchema = z.strictObject({
     });
   }
 });
-const AttestRootVerificationActionSchema = z.strictObject({
+const AttestRootVerificationActionFields = {
   kind: z.literal("run-verification"),
   scope: z.literal("full"),
   verificationKind: z.literal("tier-3"),
   verificationEvidenceRequired: z.literal(false),
-  attestArgv: z.union([
-    z.tuple([
+};
+const AttestRootVerificationActionSchema = z.discriminatedUnion("operation", [
+  z.strictObject({
+    ...AttestRootVerificationActionFields,
+    operation: z.literal("root"),
+    attestArgv: z.tuple([
       z.literal("arc"), z.literal("attest"), SlugSchema,
       z.literal("--scope"), z.literal("full"), z.literal("--json"),
     ]),
-    z.tuple([
+  }),
+  z.strictObject({
+    ...AttestRootVerificationActionFields,
+    operation: z.literal("re-root"),
+    expected: AttestExpectedBlockedSchema,
+    attestArgv: z.tuple([
       z.literal("arc"), z.literal("attest"), SlugSchema, z.literal("--new-root"),
+      z.literal("--expected-candidate"), CandidateDigestSchema,
+      z.literal("--expected-subject"), CandidateDigestSchema,
       z.literal("--scope"), z.literal("full"), z.literal("--json"),
     ]),
-  ]),
-});
-const AttestVerificationActionSchema = z.discriminatedUnion("verificationEvidenceRequired", [
+  }).superRefine((action, context) => {
+    if (action.attestArgv[5] !== action.expected.candidateId
+      || action.attestArgv[7] !== action.expected.subjectDigest) {
+      context.addIssue({
+        code: "custom",
+        path: ["attestArgv"],
+        message: "must match the expected blocked Candidate and subject",
+      });
+    }
+  }),
+]);
+const AttestVerificationActionSchema = z.union([
   AttestConvergenceVerificationActionSchema,
   AttestRootVerificationActionSchema,
 ]);
+
+const AttestScopedRefusalResultSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.enum([
+    "verification-evidence-required",
+    "verification-evidence-reused",
+    "verification-evidence-inapplicable",
+    "verification-scope-insufficient",
+    "focused-scope-inapplicable",
+  ]),
+  candidateId: CandidateDigestSchema.nullable(),
+  subjectDigest: CandidateDigestSchema,
+  requestedScope: AttestScopeSchema,
+  requiredScope: AttestScopeSchema,
+  verificationEvidenceProvided: z.boolean(),
+  nextAction: AttestVerificationActionSchema,
+  recommendedActionText: z.string().trim().min(1),
+}).superRefine((result, context) => {
+  if (!result.nextAction.verificationEvidenceRequired
+    && result.nextAction.operation === "re-root"
+    && (result.candidateId !== result.nextAction.expected.candidateId
+      || result.subjectDigest !== result.nextAction.expected.subjectDigest)) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction", "expected"],
+      message: "must match the refused Candidate and subject",
+    });
+  }
+});
 
 export const AttestResultSchema = z.union([
   z.strictObject({
@@ -171,23 +222,7 @@ export const AttestResultSchema = z.union([
     nextAction: AttestRefreshActionSchema,
     recommendedActionText: z.string().trim().min(1),
   }),
-  z.strictObject({
-    status: z.literal("refused"),
-    reason: z.enum([
-      "verification-evidence-required",
-      "verification-evidence-reused",
-      "verification-evidence-inapplicable",
-      "verification-scope-insufficient",
-      "focused-scope-inapplicable",
-    ]),
-    candidateId: CandidateDigestSchema.nullable(),
-    subjectDigest: CandidateDigestSchema,
-    requestedScope: AttestScopeSchema,
-    requiredScope: AttestScopeSchema,
-    verificationEvidenceProvided: z.boolean(),
-    nextAction: AttestVerificationActionSchema,
-    recommendedActionText: z.string().trim().min(1),
-  }),
+  AttestScopedRefusalResultSchema,
 ]);
 export type AttestResult = z.infer<typeof AttestResultSchema>;
 
@@ -239,7 +274,7 @@ export async function runAttest(
   const requestedScope = AttestScopeSchema.parse(params.scope ?? "full");
   const verificationEvidenceRef = params.verificationEvidenceRef === undefined
     ? undefined
-    : z.string().trim().min(1).parse(params.verificationEvidenceRef);
+    : CandidateVerificationEvidenceRefSchema.parse(params.verificationEvidenceRef);
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
   const existing = await context.readRecord(name);
   const refuseStaleReRoot = (
@@ -460,14 +495,24 @@ function scopedRefusal(input: ScopedRefusalInput): AttestResult {
   const convergence = input.reason === "verification-evidence-required"
     || input.reason === "verification-evidence-reused"
     || input.reason === "verification-scope-insufficient";
+  const expectedReRoot = !convergence && input.newRoot
+    ? AttestExpectedBlockedSchema.parse({
+        candidateId: input.candidateId,
+        subjectDigest: input.subjectDigest,
+      })
+    : null;
   const attestArgv = convergence
     ? [
         "arc", "attest", input.name, "--scope", input.requiredScope,
-        "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        "--verification-evidence-ref", CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER, "--json",
       ]
-    : [
+    : expectedReRoot === null ? [
         "arc", "attest", input.name,
-        ...(input.newRoot ? ["--new-root"] : []),
+        "--scope", "full", "--json",
+      ] : [
+        "arc", "attest", input.name, "--new-root",
+        "--expected-candidate", expectedReRoot.candidateId,
+        "--expected-subject", expectedReRoot.subjectDigest,
         "--scope", "full", "--json",
       ];
   return AttestResultSchema.parse({
@@ -483,6 +528,12 @@ function scopedRefusal(input: ScopedRefusalInput): AttestResult {
       scope: input.requiredScope,
       verificationKind: input.requiredScope === "focused" ? "focused" : "tier-3",
       verificationEvidenceRequired: convergence,
+      ...(convergence
+        ? {}
+        : {
+            operation: input.newRoot ? "re-root" : "root",
+            ...(expectedReRoot === null ? {} : { expected: expectedReRoot }),
+          }),
       attestArgv,
     },
     recommendedActionText: input.reason === "verification-evidence-required"

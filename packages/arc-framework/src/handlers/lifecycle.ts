@@ -135,6 +135,8 @@ import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
 import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import { CandidateVerificationEvidenceRefSchema } from
+  "../lib/work-unit/candidate-attestation.js";
 import {
   collectGitCandidateTarget,
   collectUnstagedReviewablePaths,
@@ -644,7 +646,7 @@ export const AttestCommandInputSchema = z.object({
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
   scope: z.enum(["focused", "full"]).default("full"),
-  verificationEvidenceRef: z.string().trim().min(1).optional(),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema.optional(),
   expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
 }).strict().superRefine((value, refinement) => {
@@ -2962,6 +2964,9 @@ export async function handleAttest(
         `Subject: ${result.subjectDigest}`,
         `Scope: ${result.requestedScope} requested; ${result.requiredScope} required`,
         `Fresh evidence: ${result.verificationEvidenceProvided ? "supplied" : "missing"}`,
+        ...(result.nextAction.verificationEvidenceRequired
+          ? []
+          : [`Operation: ${result.nextAction.operation}`]),
         `Next: ${result.nextAction.attestArgv.join(" ")}`,
       ].join("\n"));
     }

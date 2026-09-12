@@ -10,6 +10,7 @@ import {
 } from "../../../../../src/scripts/review-gate/core/register-review-schemas.js";
 import {
   createStandardReviewReservation,
+  CandidateConvergenceBoundarySchema,
   IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
   projectCandidateFixResumeBoundary,
@@ -20,6 +21,7 @@ import {
   recoverIntegratingBoundary,
   recoverPublicationBoundary,
   RunConvergenceVerificationActionSchema,
+  createRunConvergenceVerificationAction,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createCandidateAttestation,
@@ -893,6 +895,22 @@ describe("projectPrePublicationReview", () => {
       interactionText: "Run verification.",
     };
     expect(RunConvergenceVerificationActionSchema.safeParse(action).success).toBe(false);
+  });
+
+  it("rejects a convergence action for another boundary work unit", () => {
+    expect(CandidateConvergenceBoundarySchema.safeParse({
+      schemaVersion: 1,
+      mode: "pre-publication-review",
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      terminus: null,
+      deliveryReviewTermini: [],
+      locus: "candidate-convergence-verification-pending",
+      nextAction: createRunConvergenceVerificationAction("other", "focused"),
+      policy: null,
+      reservation: null,
+    }).success).toBe(false);
   });
 
   it("submits a converged implementation-changing lineage after full verification", () => {

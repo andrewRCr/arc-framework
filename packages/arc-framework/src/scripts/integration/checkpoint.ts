@@ -30,6 +30,10 @@ import {
   type ChangeRequestMergeObservation,
 } from "../review-gate/change-request.js";
 import {
+  RunConvergenceVerificationActionSchema,
+  createRunConvergenceVerificationAction,
+} from "../review-gate/policy/integration-boundary-locus.js";
+import {
   CanonicalSettlementPlanSchema,
   settlementDispositionIds,
   type CanonicalSettlementPlan,
@@ -45,7 +49,6 @@ import {
   SpineRemedySchema,
   checkpointResumeArgv,
   attestArgv,
-  attestConvergenceArgv,
   attestNewRootArgv,
   spineRemedy,
   type SpineRemedy,
@@ -431,8 +434,12 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     }),
   }),
   z.strictObject({
-    ...CheckpointBlockedBaseShape,
+    ...ResultBaseShape,
+    ...CheckpointNonSuccessShape,
+    state: z.literal("blocked"),
+    nextAction: z.literal("run-convergence-verification"),
     reason: z.literal("candidate-convergence-pending"),
+    action: RunConvergenceVerificationActionSchema,
     payload: z.strictObject({
       candidate: z.custom<Extract<CandidateCurrentnessProjection, { status: "current" }>>(),
     }),
@@ -472,7 +479,9 @@ export type CheckpointBlockedReason = z.infer<typeof IntegrationCheckpointBlocke
 export const CHECKPOINT_BLOCKED_REASONS: readonly CheckpointBlockedReason[] =
   IntegrationCheckpointBlockedResultSchema.options.map((option) => option.shape.reason.value);
 
-const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) => SpineRemedy> = {
+type CheckpointRemedyReason = Exclude<CheckpointBlockedReason, "candidate-convergence-pending">;
+
+const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => SpineRemedy> = {
   "drift-unavailable": () => spineRemedy(
     "The checkpoint requires an authoritative base-drift read.",
     "Restore remote access, then re-read drift",
@@ -513,7 +522,6 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
     "Explain the reported delta through an approved response, or run full verification and root a new lineage over it",
     attestNewRootArgv(workUnit),
   ),
-  "candidate-convergence-pending": (workUnit) => checkpointConvergenceRemedy(workUnit, "full"),
   "merge-method-blocked": () => spineRemedy(
     "The configured merge method is allowed by host policy.",
     "Align the configured `merge.strategy` with the repository's allowed methods, then re-resolve",
@@ -543,22 +551,8 @@ const CHECKPOINT_REMEDIES: Record<CheckpointBlockedReason, (workUnit: string) =>
  * @param workUnit - The refused work unit, interpolated into slug-bearing commands.
  * @returns The remedy naming the failed invariant and one corrective command.
  */
-export function checkpointRemedy(reason: CheckpointBlockedReason, workUnit: string): SpineRemedy {
-  if (reason === "candidate-convergence-pending") {
-    return checkpointConvergenceRemedy(workUnit, "full");
-  }
+export function checkpointRemedy(reason: CheckpointRemedyReason, workUnit: string): SpineRemedy {
   return CHECKPOINT_REMEDIES[reason](workUnit);
-}
-
-function checkpointConvergenceRemedy(
-  workUnit: string,
-  scope: "focused" | "full",
-): SpineRemedy {
-  return spineRemedy(
-    "An implementation-changing lineage converges before it is checkpointed.",
-    `Run the ${scope} converged verification, then attest its fresh evidence`,
-    attestConvergenceArgv(workUnit, scope, "{verificationEvidenceRef}"),
-  );
 }
 
 export const IntegrationCheckpointResultSchema = z.union([
@@ -1032,11 +1026,11 @@ export async function checkpointIntegration(
       return IntegrationCheckpointResultSchema.parse({
         ...base,
         state: "blocked",
-        nextAction: "stop",
+        nextAction: "run-convergence-verification",
         reason: "candidate-convergence-pending",
         detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
         coordinates,
-        remedy: checkpointConvergenceRemedy(request.workUnit, candidate.convergenceScope),
+        action: createRunConvergenceVerificationAction(request.workUnit, candidate.convergenceScope),
         payload: { candidate },
       });
     }
@@ -1122,11 +1116,11 @@ export async function checkpointIntegration(
     return IntegrationCheckpointResultSchema.parse({
       ...base,
       state: "blocked",
-      nextAction: "stop",
+      nextAction: "run-convergence-verification",
       reason: "candidate-convergence-pending",
       detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
       coordinates,
-      remedy: checkpointConvergenceRemedy(request.workUnit, candidate.convergenceScope),
+      action: createRunConvergenceVerificationAction(request.workUnit, candidate.convergenceScope),
       payload: { candidate },
     });
   }

@@ -7,6 +7,8 @@ import {
   CHECKPOINT_BLOCKED_REASONS,
   checkpointRemedy,
 } from "../../../../src/scripts/integration/checkpoint.js";
+import { createRunConvergenceVerificationAction } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   IntegrationMergeResultSchema,
   MERGE_REFUSAL_REASONS,
@@ -33,6 +35,7 @@ describe("spine refusal remedies", () => {
 
   it("names an invariant and one corrective command for every checkpoint refusal", () => {
     for (const reason of CHECKPOINT_BLOCKED_REASONS) {
+      if (reason === "candidate-convergence-pending") continue;
       const remedy = SpineRemedySchema.parse(checkpointRemedy(reason, "example"));
 
       expect(remedy.invariant, reason).toMatch(/\.$/u);
@@ -95,7 +98,7 @@ describe("spine refusal remedies", () => {
   });
 
   it("interpolates the refused work unit into slug-bearing commands", () => {
-    expect(checkpointRemedy("candidate-convergence-pending", "example").argv)
+    expect(createRunConvergenceVerificationAction("example", "full").attestArgv)
       .toEqual([
         "arc", "attest", "example", "--scope", "full",
         "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",

@@ -85,6 +85,18 @@ describe("Candidate attestation", () => {
     }).success).toBe(true);
   });
 
+  it("rejects an unfilled evidence placeholder in a persisted root", () => {
+    const root = attestation();
+    expect(CandidateManagedRecordV1Schema.safeParse({
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation: { ...root, verificationEvidenceRef: "{verificationEvidenceRef}" },
+      subject: snapshot(),
+      transitions: [],
+      lineageAttestations: [],
+    }).success).toBe(false);
+  });
+
   it("binds the superseded Candidate into the identity of the root that replaces it", () => {
     const superseded = attestation();
     const replacement = createCandidateAttestation({

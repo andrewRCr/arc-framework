@@ -623,6 +623,11 @@ supplies neither verdict.
 
 `recompose-required / rerun-checkpoint` invokes its supplied remedy and restarts this step.
 
+`candidate-convergence-pending / run-convergence-verification` uses only the supplied action: run
+`action.verificationKind` at `action.requiredScope`, obtain a fresh verification evidence reference, replace only
+the `{verificationEvidenceRef}` operand in `action.attestArgv`, invoke that exact argv, then restart this step. Never
+invoke the placeholder-bearing argv unchanged or substitute the Candidate root verification reference.
+
 `blocked / stop` renders its supplied reason, detail, and structured remedy, then stops. The delivery-native
 `queue-not-atomic` refusal remains a stop and follows its supplied action. `ready / request-approval` continues at the
 ready checkpoint below.

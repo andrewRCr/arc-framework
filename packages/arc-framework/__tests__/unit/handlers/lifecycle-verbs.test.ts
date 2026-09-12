@@ -1461,6 +1461,10 @@ describe("handleAttest", () => {
       name: "foo",
       verificationEvidenceRef: " ",
     }).success).toBe(false);
+    expect(AttestCommandInputSchema.safeParse({
+      name: "foo",
+      verificationEvidenceRef: "{verificationEvidenceRef}",
+    }).success).toBe(false);
   });
 
   it("emits one typed JSON refusal when identity resolution fails", async () => {

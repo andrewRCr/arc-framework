@@ -1095,8 +1095,12 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "blocked",
         reason: "candidate-convergence-pending",
-        remedy: {
-          argv: [
+        nextAction: "run-convergence-verification",
+        action: {
+          kind: "run-convergence-verification",
+          requiredScope: "full",
+          verificationEvidenceRefRequired: true,
+          attestArgv: [
             "arc", "attest", "example", "--scope", "full",
             "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
           ],
