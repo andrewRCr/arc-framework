@@ -86,6 +86,10 @@ If the combined report contains any `[ ]` criterion, stop. Leave the terminal wo
 incomplete and do not enter Step 3 until the gap is fixed, deliberately superseded (including an approved
 deferral), or otherwise resolved; then rerun the criteria walk against the current work-unit subject.
 
+Enter [`amend-design`][amend-design] over the gap at that stop; its [entry gate][amend-design-gate] decides what
+the gap changes, and the corrective work takes a revision parent of its own rather than being patched in here. The
+rerun above is what closes it.
+
 **Criterion text is immutable.** Never rewrite a criterion to match what was built. The
 original text preserves intent; annotations capture reality.
 
@@ -142,3 +146,5 @@ verification-task exception). Cover both:
 [commit-footer]: ../../../methods/commit-footer.md
 [prepare-work-unit]: prepare-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
+[amend-design]: ../supplemental/amend-design.md
+[amend-design-gate]: ../supplemental/amend-design.md#entry-gate

@@ -415,18 +415,22 @@ only inside it.
   failure today and there is no slot to precompose from. It becomes a rendered line once an observer exists, and
   its precedent is not a licence for a second prose template.
 
-### `[ ]` **4.3 Direct terminal verification and review response into the procedure — D1, D2**
+### `[x]` **4.3 Direct terminal verification and review response into the procedure — D1, D2**
 
 - _Goal:_ An unmet criterion at terminal verification and a `fix` disposition that would change the spec both reach
   the gate instead of improvising a correction.
 
-    - `[ ]` **4.3.a `verify-work-unit`'s unmet-criterion stop carries the entry directive**
+    - `[x]` **4.3.a `verify-work-unit`'s unmet-criterion stop carries the entry directive**
+        - The directive follows the existing stop on an unmet criterion: enter by the entry-gate anchor, take the
+          corrective work to a revision parent instead of patching it in place, and let the rerun the stop already
+          prescribes close it.
 
-    - `[ ]` **4.3.b `review-response`'s `fix` disposition carries it**
-        - The tree runs over a `fix` before the set is approved; steps 1 and 2 exit to the ordinary review-fix path
-          with no row.
+    - `[x]` **4.3.b `review-response`'s `fix` disposition carries it**
+        - The directive closes the disposition-building paragraph, where a `fix` is still a proposal: the gate
+          either hands the correction back to the ordinary fix path with no record, or returns an amendment whose
+          row is proposed inside the same disposition set, so the approved set binds the amended target.
         - This one is a Configurable method: the directive lands in its `.default` section, not the Framework
-          workflow edit flow 4.3.a uses.
+          workflow edit flow 4.3.a uses. The sync test holds the whole file equal, so both copies still move.
 
 ### `[ ]` **4.4 Correct `reopen-work-unit`'s entry directive and task anchor — D6**
 
