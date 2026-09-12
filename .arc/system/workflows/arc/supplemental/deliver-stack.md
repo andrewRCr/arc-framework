@@ -296,6 +296,14 @@ exact-target chunked scope selection or, for the whole-target route, the exact-t
 by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
 carrier.
 
+After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
+
+```bash
+arc review status --target '{targetRef}' --source <hosted-source-id> --json
+```
+
+The source-less form retains the automatic chunked route.
+
 The default action requests complete coverage. When the exact corrective delta warrants only a focused supplemental
 hosted pass, request it from the same first-outstanding member position instead of editing an action:
 

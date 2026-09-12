@@ -627,7 +627,7 @@ export function createReviewStatusPort(
   },
 ): ReviewStatusPort {
   return {
-    observe: async (target, ceilingOverride, coverage) => {
+    observe: async (target, ceilingOverride, coverage, sourceId) => {
       try {
         const remote = input.remote ?? "origin";
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd, remote);
@@ -685,11 +685,12 @@ export function createReviewStatusPort(
               resolution.candidate.number,
               memberLookup,
               base.currentBaseOid ?? undefined,
-              ceilingOverride === undefined && coverage === undefined
+              ceilingOverride === undefined && coverage === undefined && sourceId === undefined
                 ? undefined
                 : {
                     ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
                     ...(coverage === undefined ? {} : { coverage }),
+                    ...(sourceId === undefined ? {} : { sourceId }),
                   },
               undefined,
               {

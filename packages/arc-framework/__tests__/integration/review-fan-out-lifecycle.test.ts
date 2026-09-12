@@ -649,6 +649,7 @@ async function statusThroughHandler(
   target: { repository: string; headRef: string; headSha: string },
   ceilingOverride?: ReviewCeilingOverride,
   coverage?: HostedReviewCoverage,
+  sourceId?: "coderabbit-pr" | "codex-pr",
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
@@ -656,11 +657,12 @@ async function statusThroughHandler(
     target: JSON.stringify(target),
     ...(ceilingOverride === undefined ? {} : { ceilingOverride: JSON.stringify(ceilingOverride) }),
     ...(coverage === undefined ? {} : { coverage }),
+    ...(sourceId === undefined ? {} : { source: sourceId }),
     json: true,
   }, undefined, {
     resolveRoot: () => harness.root,
     resolve: (root, input) => resolveReviewStatus(input, {
-      observe: async (statusTarget, admittedOverride, admittedCoverage) => ({
+      observe: async (statusTarget, admittedOverride, admittedCoverage, admittedSourceId) => ({
         actualHeadSha: statusTarget.headSha,
         requiredChecks: "green",
         routedObligation: await readRoutedObligation(
@@ -670,12 +672,13 @@ async function statusThroughHandler(
           42,
           new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
           harness.baseHead,
-          admittedOverride === undefined && admittedCoverage === undefined
+          admittedOverride === undefined && admittedCoverage === undefined && admittedSourceId === undefined
             ? undefined
             : {
                 ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
-              ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
-            },
+                ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
+                ...(admittedSourceId === undefined ? {} : { sourceId: admittedSourceId }),
+              },
           deliveryHost(harness),
         ),
         currentBaseOid: harness.baseHead,
@@ -2965,19 +2968,15 @@ describe("hosted review fan-out lifecycle", () => {
       headRef: "delivery/delivery-plan-record/first",
       headSha: harness.oldFirst,
     };
-    const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
-
-    await expect(readRoutedObligation(
-      harness.root,
-      harness.exec,
+    await expect(statusThroughHandler(
+      harness,
       statusTarget,
-      42,
-      memberLookup,
-      harness.baseHead,
-      { sourceId: "codex-pr" },
-      deliveryHost(harness),
+      undefined,
+      undefined,
+      "codex-pr",
     )).resolves.toMatchObject({
       state: "review-required",
+      nextAction: "review-hosted-request",
       action: {
         provider: "codex-pr",
         target: { headSha: harness.oldFirst },
