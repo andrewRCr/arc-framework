@@ -119,6 +119,10 @@ import {
   prepareRepositoryTemplate,
   type PreparedRepositoryTemplate,
 } from "../helpers/prepared-repository.js";
+import {
+  runArc as runBuiltArc,
+  runArcWithStdin as runBuiltArcWithStdin,
+} from "../e2e/helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -126,6 +130,9 @@ interface HandlerInvocationOptions {
   timeout?: number;
   env?: Record<string, string>;
 }
+
+type CandidateLineageSuiteMode = "integration" | "e2e";
+let suiteMode: CandidateLineageSuiteMode | undefined;
 
 function machineContext() {
   return resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
@@ -143,6 +150,7 @@ function optionValue(args: readonly string[], option: string): string | undefine
 
 /** Drive CLI-produced option values through their public handler seam. */
 async function runArc(args: string[], cwd: string): Promise<HandlerRunResult> {
+  if (suiteMode === "e2e") return runBuiltArc(args, cwd);
   return runHandlerAt(cwd, async () => {
     const command = args.join(" ");
     if (command === "init --yes --name example") {
@@ -177,6 +185,7 @@ async function runArcWithStdin(
   input: string,
   options: HandlerInvocationOptions = {},
 ): Promise<HandlerRunResult> {
+  if (suiteMode === "e2e") return runBuiltArcWithStdin(args, cwd, input, options);
   return runHandlerAt(cwd, async () => {
     const path = args.filter((arg) => arg !== "-" && arg !== "--json" && arg !== "--input").join(" ");
     const readText = async () => input;
@@ -2192,19 +2201,23 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
   });
 }
 
-/** Candidate-lineage integration shard, balanced by the converted per-test baseline. */
-export type CandidateLineageShard = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+const INTEGRATION_CASES = new Set([
+  "projects a mechanically carried Candidate as the effective pre-publication target",
+  "advances the lineage, blocks the checkpoint, and clears through attest",
+  "converges when an operational-only commit precedes the re-attestation",
+  "does not advance an owned Candidate from an unresolved work-unit carrier",
+  "keeps one marker-owned work-unit locus through correction, review, verification, and integration entry",
+]);
 
-/** Register one disjoint third of the Candidate-lineage handler scenarios. */
-export function registerCandidateLineageSuite(shard: CandidateLineageShard): void {
-  let index = 0;
+/** Register Candidate-lineage scenarios at the cheapest faithful boundary. */
+export function registerCandidateLineageSuite(mode: CandidateLineageSuiteMode): void {
+  suiteMode = mode;
   const it = ((
     name: string,
     handler: () => void | Promise<void>,
     timeout?: number,
   ) => {
-    const selected = index % 9 === shard - 1;
-    index += 1;
+    const selected = INTEGRATION_CASES.has(name) ? mode === "integration" : mode === "e2e";
     if (selected) vitestIt(name, handler, timeout);
   }) as typeof vitestIt;
   registerReviewFixCandidateLineage(it);

@@ -194,11 +194,11 @@ each file's whole baseline share was already below 2%, so no later integration f
 E2E reached its stop after ranks 12–14. The two conversions preserve their complete assertion sets; no deletion
 was made, so no mutation-testing decision was needed.
 
-1. `candidate-lineage.e2e.test.ts` — **convert** all 33 semantic cases to nine balanced integration files through
-   CLI-validated handler inputs. Real-spawn protectors remain in `attest.e2e.test.ts`,
-   `review-protocol.e2e.test.ts`, `publication-spine.e2e.test.ts`, `delivery-plan.e2e.test.ts`, and
-   `candidate-applicability.e2e.test.ts`. A concurrent probe kept every arrival below the 38.35 s floor; the
-   largest summed test window was 27.27 s.
+1. `candidate-lineage.e2e.test.ts` — **convert** the five highest-yield semantic cases to one integration file
+   through CLI-validated handler inputs; retain the other 28 cases at the real CLI. The first nine-file split kept
+   every arrival below the per-file floor but repeated the large fixture enough to raise the complete integration
+   tier to 52.83 s, so it was rejected. The corrected single arrival stays below the 38.35 s floor while the
+   retained file continues to protect parsing, dispatch, and public review choreography.
 2. `delivery-position.e2e.test.ts` — **convert** 22 semantic cases to `delivery-position.test.ts`; retain the
    registered-correction case as the real-CLI orchestration smoke because its handler intentionally launches
    nested public commands. Other verb protectors remain in the E2E files named above plus
@@ -219,7 +219,7 @@ was made, so no mutation-testing decision was needed.
 
 The audit stopped before `decompose-command-modes.e2e.test.ts`, as required: three consecutive sub-2% files had
 already yielded less than the threshold. Prepared initialized repositories consolidate repeated setup for both
-converted suites, and `handler.ts` is the single stdout, stderr, exit-code, cwd, and environment capture path.
+worked suites, and `handler.ts` is the single stdout, stderr, exit-code, cwd, and environment capture path.
 
 ### Worker sizing sweep
 
