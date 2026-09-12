@@ -230,6 +230,7 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",
       "system/workflows/arc/generate-tasks.template.md",
+      "system/workflows/arc/supplemental/amend-design.md",
     ];
 
     for (const path of workflowPaths) {

@@ -504,35 +504,31 @@ source and the project copy.
   Framework classification needed a dedicated assertion. Recipe and manifest entries landed together for both
   artifacts; the methods README gains no row, the method being independent.
 
-### `[ ]` **5.3 Hold both copies identical and the derived inventories current — D12**
+### `[x]` **5.3 Hold both copies identical and the derived inventories current — D12**
 
 - _Goal:_ Nothing this work unit edited differs between the package source and the project copy, and no
   hand-maintained inventory still describes the pre-amendment corpus.
 
-    - `[ ]` **5.3.a Pre-existing project copies reconciled against package source**
-        - Scope is the files this work unit edits; the three new files' manifest entries arrived with their
-          recipe entries in 5.1 and 5.2, and the skill's project copy with them. The method's and the workflow's
-          project copies landed with the artifacts themselves, ahead of registration.
-        - Run the render for the edited Framework files. It refuses any recipe-resolved source whose output is
-          missing, and that refusal is global — which is why the new files' copies could not have waited for this
-          task.
-        - `validate-criteria` and `review-response` are held **byte-identical in full** by the sync test, not just
-          across their `.default` sections. Reconcile them by targeted edit and verify whole-file equality; the
-          `.default`-diff rule is the fallback for Configurable files that test does not cover.
+    - `[x]` **5.3.a Pre-existing project copies reconciled against package source**
+        - The render reported all sixteen touched Framework files unchanged, both template counterparts included,
+          so no reconciliation was owed. `validate-criteria` and `review-response` are whole-file identical, as is
+          the extracted method; `arc-config.yml` carries only its documented project overrides.
 
-    - `[ ]` **5.3.b `amend-design` joins the direct planning-consumer list**
+    - `[x]` **5.3.b `amend-design` joins the direct planning-consumer list**
         - It declares `assess-design-proportionality`, so the sync test's consumer list covers it.
 
-    - `[ ]` **5.3.c `strategy-package-project-sync.md`'s counts and Configurable list**
-        - Five hand-maintained numbers move: the Framework count in prose and again in the summary table, the
-          Configurable count in a heading and the same table, and the installed-file total as the fifth.
-        - The enumerated Configurable list gains the new method.
+    - `[x]` **5.3.c `strategy-package-project-sync.md`'s counts and Configurable list**
+        - Framework 101 → 103, Configurable 43 → 44, installed total 148 → 151, each in both its prose and its
+          summary-table site; the enumerated Configurable list gains the extracted method. The counts were derived
+          from the generated manifest rather than incremented by hand.
 
-    - `[ ]` **5.3.d `resolve-plan-segmentation`'s consumer row names both workflows**
-        - Its blockquote `**Workflow:**` row still lists `generate-tasks.md` alone; `amend-design` declares and
-          fires it, and the success criterion covering the method's two consumers would otherwise catch the
-          omission only at terminal verification.
-        - The row sits above the override sections, so both copies carry the same edit.
+    - `[x]` **5.3.d `resolve-plan-segmentation`'s consumer row names both workflows**
+        - The blockquote `**Workflow:**` row now names `amend-design.md` beside `generate-tasks.md`, with the
+          reference definition added in both copies.
+
+- _Outcome:_ The three new files' copies had already landed with their registration, so this task reconciled
+  nothing and instead proved parity: the render is a no-op across the work unit's whole Framework footprint. The
+  hand-maintained inventory was the only surface still describing the pre-amendment corpus.
 
 ### `[ ]` **5.R Accept `X.R2` ids and artifact-prefixed filenames in the shipped meta-reference patterns**
 

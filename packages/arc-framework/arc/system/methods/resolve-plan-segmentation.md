@@ -6,7 +6,7 @@ override-active: false
 
 # Method: resolve-plan-segmentation
 
-> - **Workflow:** [generate-tasks.md][generate-tasks]
+> - **Workflow:** [generate-tasks.md][generate-tasks] · [amend-design.md][amend-design]
 > - **When:** A stage authors or revises a task plan's phase structure — task generation's scale-axis entry read,
 >   or a later at-scope authoring pass that introduces a new segment.
 >
@@ -43,5 +43,6 @@ place the first `slice` as early as its required substrate allows.
 ---
 
 [generate-tasks]: ../workflows/arc/generate-tasks.md
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
 [resolve-planning-depth]: resolve-planning-depth.md
 [classify-work-unit]: classify-work-unit.md
