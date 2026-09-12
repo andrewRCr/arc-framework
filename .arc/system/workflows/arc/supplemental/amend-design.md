@@ -330,15 +330,11 @@ coincide at the member site and diverge elsewhere.
 
 **Member-site closure.** The corrective parent's closing subtask records the delta — run
 [`validate-criteria`][validate-criteria] over the changed criteria and the amendment's span; that method defines
-the delta's shape. The member's closing task, left `[ ]` at the stop with its boundary report preserved, then
-closes on the **effective report**: a marker flip whose completion note cites the delta subtask. **A closing task
-that already carries a preserved boundary report does not re-walk** — it closes on the effective report. That rule
-reads a fact on the task being executed, never the log.
-
-The delta supplements the member's report and never replaces it: the changed criteria with their evidence, any
-criteria the amendment appended, the new span, and the summary; unchanged criteria are omitted. Each entry carries
-a per-criterion verdict saying why it is present or absent. The verdict never replaces the entry's state, and a
-criterion superseded by the amendment is `[~]` citing the row id and carries no verdict.
+the delta's shape, a supplement to the preserved report rather than a second one. The member's closing task, left
+`[ ]` at the stop with its boundary report preserved, then closes on the **effective report**: a marker flip whose
+completion note cites the delta subtask. **A closing task that already carries a preserved boundary report does
+not re-walk** — it closes on the effective report. That rule reads a fact on the task being executed, never the
+log.
 
 **Review-site closure.** On the spec-changing arms at review there is no corrective parent: the correction is the
 review-fix increment, `_Work:_` is `review-fix`, and `_Revalidated:_` is that increment's verification at the
