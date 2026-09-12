@@ -123,8 +123,11 @@ npm run typecheck:test
 ### Testing
 
 ```bash
-# Run full test suite
+# Run the routine local lane (unit + unit-mocks + integration)
 npm test
+
+# Run every Vitest project, including E2E
+npm run test:full
 
 # Run unit tests only
 npm run test:unit
@@ -152,7 +155,7 @@ The project's quality gates and the commands that run them. **Which** of them a 
 DEV-RULES.PROJECT § Quality Gates (relevance and unchanged-tree conditions), which also carries the standards each
 gate enforces; the tier model itself is the [Quality Gates Strategy][quality-gates].
 
-**Parity with CI.** The full-suite set below tracks the required workflow in `.github/workflows/ci.yml`. The
+**Parity with CI.** The gate set below tracks the required workflow in `.github/workflows/ci.yml`. The
 `lint:arc:*` contract checks are required there and are easy to omit locally — doing so produces a false green
 that CI then rejects. When CI gains or renames a required gate, update this section in the same change.
 
@@ -166,8 +169,8 @@ Zero violations or errors on each. Commands, config, and tooling:
   recommended-type-checked); `lint:sh`, which requires a system-installed `shellcheck` on developer machines.
 - **Type checking** — `typecheck` for source (`packages/arc-framework/tsconfig.json`, strict, excludes
   `__tests__`), `typecheck:test` for tests (`tsconfig.test.json`), or `typecheck:all` for both.
-- **Tests** — `npm test` for the full suite, `test:unit` for unit only. Vitest, config
-  `packages/arc-framework/vitest.config.ts`.
+- **Tests** — `npm test` for the routine unit + integration lane, `test:changed` for affected unit tests, and
+  `test:full` for an explicit whole-project run. Vitest, config `packages/arc-framework/vitest.config.ts`.
 - **Build** — `build`. Tooling is tsup, emitting ESM output, declarations, and an injected shebang.
 - **ARC contract checks** — `lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`. Corpus-wide by
   design and required in CI.
@@ -194,8 +197,9 @@ npm run -s lint:arc:section-refs
 # (invoke eslint directly; `npm run lint:ts -- <path>` appends to the full set rather than narrowing it)
 npx eslint packages/arc-framework/src/path/to/file.ts
 
-# Unit tests — filename filter covering the area you touched
-npm run -s test:unit -- <filename-fragment>
+# Affected unit tests — resolves committed and uncommitted changes against main...HEAD
+# Empty selection is a non-passing outcome
+npm run -s test:changed
 
 # Framework-contract tests — fast subset for two-copy sync / extension / review-gate changes
 npm run -s test:arc-contracts
@@ -224,14 +228,14 @@ npm run typecheck:test
 npm test
 ```
 
-### Full Suite — Tier 3 (per-phase / pre-PR)
+### Complete Gate — Tier 3 (per-phase / pre-PR)
 
-Tier 2 plus build verification and a change review. Run it whole — the strategy's no-partial-Tier-3 rule holds.
-In this repo Tier 3 exceeds Tier 2 by `build` alone, so the two tiers have nearly converged. That convergence is an
-input to the eventual tier-model rework rather than a license to substitute one for the other.
+Tier 2 plus build verification and a change review. Complete every command in the project-designated gate. In this
+repo Tier 3 exceeds Tier 2 by `build` alone, so the two tiers have nearly converged. That convergence is an input to
+the eventual tier-model rework rather than a license to substitute one for the other.
 
 ```bash
-# 1-9: the Tier 2 block above (which carries the full CI-required set), then:
+# 1-9: the Tier 2 block above (the complete project-designated local set), then:
 
 # 10. Build verification
 npm run build
@@ -241,9 +245,8 @@ git status
 git --no-pager diff --stat
 ```
 
-`npm test` runs every Vitest project (unit, unit-mocks, integration, e2e), so `test:arc-contracts`,
-`test:integration`, `test:e2e`, and `test:portability` are subsets of it — Tier 1 targeting handles, not
-additional full-suite gates.
+`npm test` runs the routine unit + integration lane. `npm run test:full` is the explicit local whole-project
+command; required CI remains authoritative for E2E and portability enforcement before merge.
 
 ---
 

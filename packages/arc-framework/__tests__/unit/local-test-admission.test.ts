@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  isLocalHeavyTestTier,
   LOCAL_TEST_CONCURRENCY_OVERRIDE,
   resolveProcessVisibilityScope,
   withLocalHeavyTestAdmission,
@@ -49,6 +50,13 @@ describe("resolveProcessVisibilityScope", () => {
   });
 });
 
+describe("isLocalHeavyTestTier", () => {
+  it("accepts the routine lane and rejects an unrecognized tier", () => {
+    expect(isLocalHeavyTestTier("lane")).toBe(true);
+    expect(isLocalHeavyTestTier("quick")).toBe(false);
+  });
+});
+
 describe("withLocalHeavyTestAdmission", () => {
   it("queues behind the shared holder with useful diagnostics, then releases after the run", async () => {
     const lines: string[] = [];
@@ -63,7 +71,7 @@ describe("withLocalHeavyTestAdmission", () => {
           metadata: {
             schemaVersion: 1,
             branch: "feat/other",
-            tier: "e2e",
+            tier: "lane",
             worktree: "/repo/worktree-b",
             startedAt: "2026-09-08T20:00:00.000Z",
           },
@@ -115,7 +123,7 @@ describe("withLocalHeavyTestAdmission", () => {
         processScope: "pid:[test]",
       }),
     );
-    expect(lines[0]).toContain("queued behind E2E tests");
+    expect(lines[0]).toContain("queued behind lane tests");
     expect(lines[0]).toContain("PID 41");
     expect(lines[0]).toContain("/repo/worktree-b");
     expect(lines[0]).toContain("This is normal; no action is needed.");

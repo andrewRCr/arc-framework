@@ -48,6 +48,15 @@ function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
   switch (tier) {
     case "full":
       return [];
+    case "lane":
+      return [
+        "--project",
+        "unit",
+        "--project",
+        "unit-mocks",
+        "--project",
+        "integration",
+      ];
     case "integration":
       return ["--project", "integration"];
     case "arc-contracts":

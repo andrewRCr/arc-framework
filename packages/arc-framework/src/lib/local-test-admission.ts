@@ -31,6 +31,7 @@ export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
 /** Local tiers whose subprocess load must be admitted through the shared slot. */
 export type LocalHeavyTestTier =
   | "full"
+  | "lane"
   | "integration"
   | "arc-contracts"
   | "e2e"
@@ -326,6 +327,7 @@ function parseHolderMetadata(value: unknown): LocalTestHolderMetadata | null {
 
 export function isLocalHeavyTestTier(value: unknown): value is LocalHeavyTestTier {
   return value === "full"
+    || value === "lane"
     || value === "integration"
     || value === "arc-contracts"
     || value === "e2e"

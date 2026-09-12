@@ -46,9 +46,9 @@ attention result, or an unbound member re-cut stops and returns to the delivery-
 [`process-task-loop.md`][process-task-loop]. Member-close evidence covers its completed span only; it never replaces
 the exact post-materialization recheck.
 
-Run the full quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
+Run the complete quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
-clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
+clean throughout implementation, completing every project-designated gate supplies the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 
