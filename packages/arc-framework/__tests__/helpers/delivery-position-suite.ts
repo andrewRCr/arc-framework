@@ -121,6 +121,8 @@ let initializedTemplate: PreparedRepositoryTemplate | undefined;
 export type DeliveryPositionSuiteMode = "integration" | "e2e";
 
 const E2E_CASES = new Set([
+  "re-enters and acknowledges a settled review-fix verification after response loss",
+  "returns settled review to the highest landed teardown after terminal rebind",
   "drives a registered review correction through superseded verification to hosted review",
 ]);
 

@@ -199,10 +199,11 @@ was made, so no mutation-testing decision was needed.
    every arrival below the per-file floor but repeated the large fixture enough to raise the complete integration
    tier to 52.83 s, so it was rejected. The corrected single arrival stays below the 38.35 s floor while the
    retained file continues to protect parsing, dispatch, and public review choreography.
-2. `delivery-position.e2e.test.ts` — **convert** 22 semantic cases to `delivery-position.test.ts`; retain the
-   registered-correction case as the real-CLI orchestration smoke because its handler intentionally launches
-   nested public commands. Other verb protectors remain in the E2E files named above plus
-   `delivery-terminal-recovery.e2e.test.ts`. The integration arrival's test window was 28.78 s.
+2. `delivery-position.e2e.test.ts` — **convert** 20 semantic cases to `delivery-position.test.ts`; retain the three
+   long correction/rebind cases as real-CLI orchestration smokes because their handlers intentionally launch nested
+   public commands. Other verb protectors remain in the E2E files named above plus
+   `delivery-terminal-recovery.e2e.test.ts`. The first 22-case arrival exceeded the tier floor under the complete
+   integration load; retaining the two nested-effect cases returned the arrival below it.
 3. `command-input-no-input.e2e.test.ts` — **retain**: non-TTY, CI, `--no-input`, stdin, parsing, and dispatch are
    entry behavior.
 4. `errand.e2e.test.ts` — **retain**: close, abandon, promote, checkout, and branch teardown are destructive.

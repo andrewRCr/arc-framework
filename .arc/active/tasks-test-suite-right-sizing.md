@@ -758,7 +758,7 @@ observations exist with their capture or are recorded as not created.
   of their tier's summed time.
 
 - _Outcome:_ The fixed audit reached both three-file stop rules with every disposition recorded in
-  `analysis-test-suite-cost-baseline.md`. Five Candidate-lineage cases and 22 of 23 delivery-position cases moved
+  `analysis-test-suite-cost-baseline.md`. Five Candidate-lineage cases and 20 of 23 delivery-position cases moved
   through the shared handler runner into floor-safe integration arrivals; the remaining public-command, entry, and
   destructive behavior stayed E2E. No assertions or tests were deleted.
 
