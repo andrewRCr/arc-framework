@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "enforce-actions-sha-pinning",
+  "claimId": "b1b7a87158950a1ae36b717ba6ffe609",
+  "createdAt": "2026-09-12T00:11:23.626Z",
+  "updatedAt": "2026-09-12T00:11:23.626Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "enforce-actions-sha-pinning",
+  "branch": "chore/enforce-actions-sha-pinning",
+  "origin": "inbox",
+  "originEntry": "Enable SHA-pinning enforcement for Actions",
+  "originEntrySourceDigest": "sha256:4823978679d8d3583509c4579ceb249c3b088b1c95b3556a6da60e343fc4b344",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
