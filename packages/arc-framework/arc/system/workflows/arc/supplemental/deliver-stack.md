@@ -291,8 +291,9 @@ arc review status --target '{targetRef}' --json
 
 No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
 A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
-attention disposition while retaining `consider-chunks`. Require the returned review action to carry that exact-target
-scope selection; a missing or stale selection returns to the owning route rather than editing the action or invoking a
+attention disposition while retaining `consider-chunks`. Require the returned review action to carry either the
+exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
+by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
 carrier.
 
 The default action requests complete coverage. When the exact corrective delta warrants only a focused supplemental

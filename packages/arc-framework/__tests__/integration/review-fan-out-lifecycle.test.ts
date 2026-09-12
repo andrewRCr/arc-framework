@@ -2952,6 +2952,40 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
+  it("preserves an explicit hosted source as whole-target review for an oversized member", async () => {
+    const harness = await createHarness(["coderabbit-pr", "codex-pr", "delegated-agent"]);
+    await writeFile(
+      join(harness.root, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nchangeset.advisory_threshold_lines: 1\n"
+        + "changeset.advisory_threshold_files: 0\n",
+      "utf8",
+    );
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
+
+    await expect(readRoutedObligation(
+      harness.root,
+      harness.exec,
+      statusTarget,
+      42,
+      memberLookup,
+      harness.baseHead,
+      { sourceId: "codex-pr" },
+      deliveryHost(harness),
+    )).resolves.toMatchObject({
+      state: "review-required",
+      action: {
+        provider: "codex-pr",
+        target: { headSha: harness.oldFirst },
+        invocation: { mode: "force", sourceId: "codex-pr" },
+      },
+    });
+  });
+
   it("drives production composition through fallback, carry, selection, settlement, and conjunction", async () => {
     const harness = await createHarness();
     const first = member(harness.plan, 0, harness.oldFirst);

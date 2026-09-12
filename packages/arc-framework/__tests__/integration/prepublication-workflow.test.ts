@@ -133,9 +133,13 @@ describe("prepublication workflow boundary", () => {
         const hostedCarrier = workflow.indexOf(carrierCommand, scopeGuard);
         expect(scopeGuard).toBeGreaterThan(-1);
         expect(hostedCarrier).toBeGreaterThan(scopeGuard);
-        expect(workflow.slice(scopeGuard, hostedCarrier)).toMatch(/exact-target\s+scope\s+selection/u);
+        expect(workflow.slice(scopeGuard, hostedCarrier))
+          .toMatch(/exact-target(?:\s+chunked)?\s+scope\s+selection/u);
         expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("unresolved");
         expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("capable whole-target choice");
+      }
+      for (const workflow of [delivery, integration]) {
+        expect(workflow).toContain("exact-target forced hosted invocation");
       }
     }
   });
