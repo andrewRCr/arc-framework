@@ -231,8 +231,9 @@ npm test
 ### Complete Gate — Tier 3 (per-phase / pre-PR)
 
 Tier 2 plus build verification and a change review. Complete every command in the project-designated gate. In this
-repo Tier 3 exceeds Tier 2 by `build` alone, so the two tiers have nearly converged. That convergence is an input to
-the eventual tier-model rework rather than a license to substitute one for the other.
+repo `build` is the only added build/test command; change review remains a separate mandatory Tier 3 activity. The
+command sets have nearly converged. That convergence is an input to the eventual tier-model rework rather than a
+license to substitute one tier for the other.
 
 ```bash
 # 1-9: the Tier 2 block above (the complete project-designated local set), then:
