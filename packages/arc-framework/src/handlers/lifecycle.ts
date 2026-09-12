@@ -119,6 +119,11 @@ import {
 import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
 import { isGitTransitionOriginOccupied } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
+  DECOMPOSE_MODE_KEYS,
+  decomposeOptionSelected,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
+import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
 } from "../lib/work-unit/transition-record-store.js";
@@ -190,6 +195,12 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+
+export {
+  DECOMPOSE_MACHINE_READABLE_KEYS,
+  DECOMPOSE_MODE_KEYS,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
 
 // ---------------------------------------------------------------------------
 // Shared dispatch shape — target resolution + candidate surfacing
@@ -516,35 +527,6 @@ export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
 
 /** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
-export const DECOMPOSE_MODE_KEYS = [
-  "preflight",
-  "execute",
-  "extract",
-  "finish",
-  "advanceBase",
-] as const;
-
-/** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
-export const DECOMPOSE_MACHINE_READABLE_KEYS = [
-  ...DECOMPOSE_MODE_KEYS,
-  "apply",
-] as const;
-
-type DecomposeRoutingOptions = Partial<Record<
-  typeof DECOMPOSE_MACHINE_READABLE_KEYS[number],
-  string | boolean
->>;
-
-function decomposeOptionSelected(options: DecomposeRoutingOptions, key: keyof DecomposeRoutingOptions): boolean {
-  const value = options[key];
-  return typeof value === "boolean" ? value : value !== undefined;
-}
-
-/** Whether a decomposition invocation must keep output and parse failures on machine-readable streams. */
-export function isDecomposeMachineReadableInvocation(options: DecomposeRoutingOptions): boolean {
-  return DECOMPOSE_MACHINE_READABLE_KEYS.some((key) => decomposeOptionSelected(options, key));
-}
-
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
   preflight: z.literal(true).optional(),

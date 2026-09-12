@@ -5,8 +5,19 @@ import {
   scanCommanderSource,
   scanInteractionSource,
 } from "../../../src/lib/command-input/index.js";
+import { importedModuleSpecifiers } from "../../../src/lib/command-input/source-scanner.js";
 
 describe("command-input source scanner", () => {
+  it("discovers literal static and dynamic relative imports", () => {
+    expect(importedModuleSpecifiers(`
+      import "./static.js";
+      export { value } from "./exported.js";
+      await import("./lazy.js");
+      await import(packageName);
+      await import("external-package");
+    `, "src/cli.ts")).toEqual(["./static.js", "./exported.js", "./lazy.js"]);
+  });
+
   it("extracts equivalent canonical paths from chained and separately bound builders", () => {
     const result = scanCommanderSource({
       file: "src/cli.ts",
