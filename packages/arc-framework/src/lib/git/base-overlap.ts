@@ -7,6 +7,7 @@
 import type { GitExec } from "./exec.js";
 import {
   classifyPathTreatment,
+  PathTreatmentSchema,
   type PathTreatmentContext,
 } from "../evidence-applicability/index.js";
 import type { OverlapEvidence, PathTreatmentClassifier } from "./base-drift-types.js";
@@ -146,9 +147,19 @@ async function analyzeRevisionOverlapWithClassifier(options: {
   const regenerablePaths: string[] = [];
   try {
     for (const path of sharedPaths) {
-      const treatment = options.classify(path);
-      if (treatment === "regenerable") regenerablePaths.push(path);
-      if (treatment === "reviewable") substantivePaths.push(path);
+      const treatment = PathTreatmentSchema.parse(options.classify(path));
+      switch (treatment) {
+        case "reviewable":
+          substantivePaths.push(path);
+          break;
+        case "evidence-neutral":
+          break;
+        case "regenerable":
+          regenerablePaths.push(path);
+          break;
+        default:
+          assertNever(treatment);
+      }
     }
   } catch {
     return {
@@ -162,6 +173,10 @@ async function analyzeRevisionOverlapWithClassifier(options: {
     mergeBase,
     overlap: { status: "available", substantivePaths, regenerablePaths },
   };
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled path treatment: ${String(value)}`);
 }
 
 async function readChangedPaths(exec: GitExec, mergeBase: string, revision: string): Promise<string[] | null> {

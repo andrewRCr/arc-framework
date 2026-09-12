@@ -101,6 +101,19 @@ describe("base overlap evidence", () => {
     );
   });
 
+  it("fails closed when a classifier returns a value outside the current taxonomy", async () => {
+    const { exec } = overlapExec("shared.ts\0", "shared.ts\0");
+
+    await expect(analyzeBaseOverlap({
+      exec,
+      baseOid: BASE,
+      headOid: "c".repeat(40),
+      ahead: 1,
+      behind: 1,
+      classify: () => "substantive" as never,
+    })).resolves.toEqual({ status: "unavailable", reason: "classification-failed" });
+  });
+
   it("distinguishes a failed base-side diff from empty overlap", async () => {
     const exec: GitExec = async (_cmd, args) => {
       if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n` };
