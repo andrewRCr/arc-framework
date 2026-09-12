@@ -30,6 +30,14 @@ function occurrences(content: string, value: string): number {
   return content.split(value).length - 1;
 }
 
+function sectionBetween(content: string, start: string, end: string): string {
+  const startIndex = content.indexOf(start);
+  if (startIndex === -1) throw new Error(`missing section start: ${start}`);
+  const endIndex = content.indexOf(end, startIndex + start.length);
+  if (endIndex === -1) throw new Error(`missing section end after "${start}": ${end}`);
+  return content.slice(startIndex, endIndex);
+}
+
 describe("evidence applicability workflow fire-points", () => {
   it("renders scoped convergence only from the typed pre-publication action", async () => {
     const workflow = await readPair(prepareWorkflow);
@@ -78,7 +86,7 @@ describe("evidence applicability workflow fire-points", () => {
 
   it("delegates the approved Errand effect to one terminal verb without workflow merge mechanics", async () => {
     const workflow = await readPair(workflows.errand);
-    const terminal = workflow.slice(workflow.indexOf("5. **Settle the final head."), workflow.indexOf("### Complete"));
+    const terminal = sectionBetween(workflow, "5. **Settle the final head.", "### Complete");
 
     expect(occurrences(terminal, "arc errand merge <slug> - --json")).toBe(1);
     expect(terminal).not.toContain("gh pr merge");

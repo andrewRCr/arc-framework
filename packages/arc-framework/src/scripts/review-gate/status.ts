@@ -1000,6 +1000,7 @@ export interface ReviewStatusObservation {
   routedObligation: RoutedReviewObligation;
   currentBaseOid: string | null;
   baseContained: boolean;
+  workUnitId?: string;
   baseMovement?: BaseMovementObservation | null;
   baseMovementDetail?: string;
 }
@@ -1100,7 +1101,8 @@ export async function resolveReviewStatus(
     };
   }
   if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries) {
-    const workUnit = conjunction?.members[0]?.vehicle.workUnitId;
+    const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
+    const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);
     return {
       ...base,
       state: "base-moved",
