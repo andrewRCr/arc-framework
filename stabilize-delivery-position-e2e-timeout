@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "stabilize-delivery-position-e2e-timeout",
+  "claimId": "22d1290639976937adbb4fa834fe4bfa",
+  "createdAt": "2026-09-12T20:07:59.608Z",
+  "updatedAt": "2026-09-12T20:07:59.608Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Stabilize the recurring delivery-position E2E timeout under full-suite load without weakening assertions",
+  "branch": "chore/stabilize-delivery-position-e2e-timeout",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
