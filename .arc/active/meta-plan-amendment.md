@@ -13,13 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.R — the shipped closure section states the Candidate-applicability obligation (A3);
-  Phase 4 complete
-- **Next Task:** Task 5.1 — Register `arc-amend-design` as a canonical skill (line ~486)
+- **Last Completed:** Task 5.4 — the segment's install-and-reach scenario passed against two real installs;
+  Phase 5 complete
+- **Next Task:** Task 6.1 — Complete verification (line ~578)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — the skill exists in the package source only; its recipe entry, project copy,
-  and manifest entry all land in Phase 5.
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`. A2 and A4 both name it as the check
+  that closes their detour.
 
 - **PR URL:** [none]
 - **Completed:** [none]
