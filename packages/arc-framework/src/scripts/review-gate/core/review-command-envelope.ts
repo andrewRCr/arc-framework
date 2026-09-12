@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
+import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
   attestNewRootArgv,
   SpineRemedySchema,
@@ -30,6 +31,7 @@ import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
+  GitObjectIdSchema,
   ReviewRequestV2Schema,
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
@@ -38,6 +40,8 @@ import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
 import { HostedRequestResultSchema, HostedTargetSchema } from "../hosted/request.js";
 import { HostedAwaitResultSchema } from "../hosted/await.js";
 import { HostedSettleResultSchema } from "../hosted/settle.js";
+import { StandardReviewObligationProjectionSchema } from
+  "../policy/standard-review-projection-schema.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -49,6 +53,7 @@ export const ReviewCommandModeSchema = z.enum([
   "review-resolve",
   "review-frontline-resolve",
   "review-chunking-resolve",
+  "review-planning-grooming-resolve",
   "review-frontline-run",
   "review-local-prepare",
   "review-local-attest",
@@ -339,6 +344,124 @@ export const ReviewChunkingResolveEnvelopeSchema = z.union([
   ),
 ]);
 
+const PlanningGroomingRoutingPayloadShape = {
+  target: ReviewTargetSchema,
+  routing: ReviewRoutingProjectionSchema,
+  frontline: z.union([
+    z.strictObject({ state: z.literal("skipped"), nextAction: z.literal("none") }),
+    z.strictObject({
+      state: z.literal("continue-review"),
+      nextAction: z.literal("continue-review"),
+    }),
+  ]),
+  standard: z.union([
+    z.strictObject({
+      state: z.literal("exempt"),
+      nextAction: z.literal("none"),
+      obligation: StandardReviewObligationProjectionSchema.refine(
+        (projection) => projection.obligation === "exempt",
+        { message: "exempt lane state requires an exempt standard-review obligation" },
+      ),
+    }),
+    z.strictObject({
+      state: z.literal("continue-review"),
+      nextAction: z.literal("continue-review"),
+      obligation: StandardReviewObligationProjectionSchema.refine(
+        (projection) => projection.obligation !== "exempt",
+        { message: "continued lane state requires a non-exempt standard-review obligation" },
+      ),
+    }),
+  ]),
+};
+
+function refinePlanningGroomingRoutingPayload(
+  payload: z.infer<z.ZodObject<typeof PlanningGroomingRoutingPayloadShape>>,
+  context: z.RefinementCtx,
+): void {
+  const decision = payload.routing.decision;
+  const expectedFrontlineState = decision.frontlineAction === "skip"
+    ? "skipped"
+    : "continue-review";
+  if (payload.frontline.state !== expectedFrontlineState) {
+    context.addIssue({
+      code: "custom",
+      path: ["frontline", "state"],
+      message: "frontline lane state must match the routing decision",
+    });
+  }
+  const expectedStandardState = decision.standardReview === "exempt"
+    ? "exempt"
+    : "continue-review";
+  if (payload.standard.state !== expectedStandardState) {
+    context.addIssue({
+      code: "custom",
+      path: ["standard", "state"],
+      message: "standard lane state must match the routing decision",
+    });
+  }
+  const projection = payload.standard.obligation;
+  const reasonsMatch = projection.reasons.length === decision.reasons.length
+    && projection.reasons.every((reason, index) => reason === decision.reasons[index]);
+  if (projection.obligation !== decision.standardReview
+    || projection.retrigger !== decision.retrigger
+    || !reasonsMatch) {
+    context.addIssue({
+      code: "custom",
+      path: ["standard", "obligation"],
+      message: "standard lane obligation must be projected from the routing decision",
+    });
+  }
+}
+
+const PlanningGroomingExemptPayloadSchema = z.strictObject({
+  ...PlanningGroomingRoutingPayloadShape,
+  frontline: z.strictObject({ state: z.literal("skipped"), nextAction: z.literal("none") }),
+  standard: z.strictObject({
+    state: z.literal("exempt"),
+    nextAction: z.literal("none"),
+    obligation: StandardReviewObligationProjectionSchema.refine(
+      (projection) => projection.obligation === "exempt",
+      { message: "exempt lane state requires an exempt standard-review obligation" },
+    ),
+  }),
+}).superRefine(refinePlanningGroomingRoutingPayload);
+
+const PlanningGroomingReviewRequiredPayloadSchema = z.strictObject(
+  PlanningGroomingRoutingPayloadShape,
+).superRefine(refinePlanningGroomingRoutingPayload).refine(
+  (payload) => payload.frontline.state === "continue-review"
+    || payload.standard.state === "continue-review",
+  { message: "review-required state requires at least one continued lane" },
+);
+
+export const PlanningGroomingReviewEnvelopeSchema = z.union([
+  envelopeVariant(
+    "review-planning-grooming-resolve",
+    "exempt",
+    "none",
+    PlanningGroomingExemptPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-planning-grooming-resolve",
+    "review-required",
+    "continue-review",
+    PlanningGroomingReviewRequiredPayloadSchema,
+  ),
+  envelopeVariant(
+    "review-planning-grooming-resolve",
+    "not-eligible",
+    "continue-review",
+    z.strictObject({
+      target: ReviewTargetSchema,
+      reason: z.enum([
+        "unknown-change-set",
+        "non-planning-change",
+        "transient-vehicle-required",
+      ]),
+    }),
+  ),
+]);
+
 const FrontlineResolveBasePayload = {
   routing: ReviewRoutingProjectionSchema,
   frontlineReview: FrontlineSemanticRecordSchema,
@@ -532,6 +655,19 @@ const HostedSettlementPlanSchema = z.strictObject({
   afterFixFindingIds: z.array(IdentifierSchema),
 });
 
+/** Exact work-unit locus for authoring a Candidate-bound private-member fix. */
+export const CandidateBoundMemberFixAuthoringSchema = z.strictObject({
+  kind: z.literal("candidate"),
+  workUnit: SlugSchema,
+  head: GitObjectIdSchema,
+  ref: z.string().trim().min(1),
+  checkoutPath: z.string().trim().min(1),
+  deliverySuffixReconstruction: z.literal("after-candidate-advance"),
+});
+export type CandidateBoundMemberFixAuthoring = z.infer<
+  typeof CandidateBoundMemberFixAuthoringSchema
+>;
+
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
@@ -572,6 +708,7 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
       reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
+      authoring: CandidateBoundMemberFixAuthoringSchema.optional(),
     }),
   ),
   envelopeVariant(
@@ -839,6 +976,7 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-resolve-envelope", ReviewResolveEnvelopeSchema],
     ["review-frontline-resolve-envelope", FrontlineResolveEnvelopeSchema],
     ["review-chunking-resolve-envelope", ReviewChunkingResolveEnvelopeSchema],
+    ["review-planning-grooming-resolve-envelope", PlanningGroomingReviewEnvelopeSchema],
     ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],
     ["review-local-prepare-envelope", LocalPrepareEnvelopeSchema],
     ["review-local-attest-envelope", LocalAttestEnvelopeSchema],

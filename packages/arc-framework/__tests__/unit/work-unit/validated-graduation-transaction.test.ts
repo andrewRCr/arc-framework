@@ -7,6 +7,7 @@ import {
   type GraduationStoredArtifact,
   type PrepareGraduationTransactionInput,
 } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
+import { validatePlanningArtifactTuple } from "../../../src/lib/work-unit/planning-artifact-tuple.js";
 
 const ROOT = ".arc/backlog/planned/widget";
 const TARGET = ".arc/active";
@@ -22,6 +23,13 @@ function artifact(basename: string, content: string, mode: "100644" | "100755" =
     oid: "a".repeat(40),
     contentDigest: digestBytes(bytes),
     bytes,
+  };
+}
+
+function observedArtifact(value: GraduationStoredArtifact) {
+  return {
+    path: value.sourcePath,
+    state: { kind: "file" as const, mode: value.mode, contentDigest: value.contentDigest },
   };
 }
 
@@ -82,6 +90,42 @@ describe("prepareValidatedGraduationTransaction", () => {
     expect(draft?.mode).toBe("100644");
     expect(new TextDecoder().decode(draft?.bytes)).toBe("# Draft\n");
     expect(result.transaction.reconciliation.notice).toBeNull();
+  });
+
+  it("preserves exact-slug companion artifacts", () => {
+    const withCompanion = input();
+    const notes = artifact("notes-widget.md", "# Notes\n");
+    withCompanion.artifacts.push(notes);
+    withCompanion.destinations.push({ path: notes.targetPath, state: { kind: "absent" } });
+
+    const result = prepareValidatedGraduationTransaction(withCompanion);
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    const preserved = result.transaction.target.artifacts.find(({ basename }) => basename === "notes-widget.md");
+    expect(new TextDecoder().decode(preserved?.bytes)).toBe("# Notes\n");
+  });
+
+  it("refuses a companion from another artifact family", () => {
+    const candidate = input();
+    const metaContent = new TextDecoder().decode(candidate.artifacts[0]!.bytes);
+    const foreignCompanion = artifact("notes-other.md", "# Notes\n");
+
+    expect(validatePlanningArtifactTuple({
+      expectedSlug: "widget",
+      metaPath: `${ROOT}/meta-widget.md`,
+      metaContent,
+      meta: parseMetaRecord(metaContent),
+      artifacts: [
+        observedArtifact(candidate.artifacts[0]!),
+        observedArtifact(candidate.artifacts[1]!),
+        observedArtifact(foreignCompanion),
+      ],
+    })).toMatchObject({
+      status: "refused",
+      reason: "artifact-mismatch",
+      locus: "notes-other.md",
+    });
   });
 
   it("derives only an unset workflow and composes supplied Class into final meta bytes", () => {

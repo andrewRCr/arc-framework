@@ -40,8 +40,12 @@ import {
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
-import { composeDeliveryMemberTarget } from "../hosts/local/repository-target.js";
+import {
+  composeDeliveryMemberTarget,
+  deriveLocalReviewTargetFromCoordinates,
+} from "../hosts/local/repository-target.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { CandidateBoundMemberFixAuthoringSchema } from "../core/review-command-envelope.js";
 import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {
@@ -177,6 +181,31 @@ export function createRespondDependencies(input: {
         return null;
       }
     },
+    resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) => {
+      const owner = await candidateMutationOwner();
+      if (owner.status !== "owned" || owner.workUnit !== workUnit) return null;
+      let ref: string;
+      try {
+        ref = (await input.exec("git", ["symbolic-ref", "--quiet", "HEAD"], {
+          cwd: input.cwd,
+        })).stdout.trim();
+      } catch {
+        return null;
+      }
+      if (!ref.startsWith("refs/heads/") || ref === "refs/heads/") return null;
+      const head = (await input.exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+        cwd: input.cwd,
+      })).stdout.trim();
+      if (head !== expectedHead) return null;
+      return CandidateBoundMemberFixAuthoringSchema.parse({
+        kind: "candidate",
+        workUnit,
+        head,
+        ref,
+        checkoutPath: input.cwd,
+        deliverySuffixReconstruction: "after-candidate-advance",
+      });
+    },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {
       const owner = await candidateMutationOwner();
@@ -242,6 +271,17 @@ export function createRespondDependencies(input: {
           exec: input.exec,
         }),
       ]);
+      const candidateFixTarget = await deriveLocalReviewTargetFromCoordinates({
+        exec: input.exec,
+        cwd: input.cwd,
+        repositoryId: target.repositoryId,
+        coordinates: {
+          kind: target.kind,
+          baseRef: target.baseRef,
+          diffBaseSha: target.diffBaseSha,
+          headSha: current.revision,
+        },
+      });
       return {
         workUnit: selected.workUnit,
         record: selected.record,
@@ -249,6 +289,7 @@ export function createRespondDependencies(input: {
         reviewed: selected.reviewed,
         effective,
         current,
+        candidateFixTarget,
         unstagedReviewablePaths,
       };
     },

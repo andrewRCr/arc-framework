@@ -9,6 +9,29 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Bind amendment structure to shipped contracts**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: plan-amendment`), housekeep drain (2026-09-07); captured
+  during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ amendment structure can accidentally bind to unsettled planning segments instead of the shipped
+  contracts that govern the implementation being corrected.
+- _Fold-in:_ make the amended contract and its exact supersession edge explicit, while treating still-unsettled
+  design as ordinary planning input rather than an amendment target.
+
+### `[ ]` **Define when review correction re-enters design**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: plan-amendment`), housekeep drain (2026-09-07); captured
+  during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a review finding may expose a task miss, a spec-depth gap, or a design break, but the correction loop
+  lacks one boundary for reopening the WU's design instead of patching around it.
+- _Fold-in:_ use this draft's three-depth derivation test as the authoritative re-entry decision and define the
+  review-to-amendment handoff without making every finding a planning restart.
+
 ## Problem / Motivation
 
 Mid-implementation plan gaps happen. `plan-segmentation` exists to make them rarer; this WU makes the residue

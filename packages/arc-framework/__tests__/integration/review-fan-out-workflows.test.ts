@@ -55,7 +55,9 @@ function expectTypedProgression(section: string): void {
   expect(section).toContain("resolve-review-applicability");
   expect(section).toContain("arc candidate applicability resolve");
   expect(section).toContain("pass the returned action unchanged");
-  expect(section).toMatch(/pass the returned self-contained handle|re-invoke the same handle/iu);
+  expect(section).toMatch(
+    /requested \/ await[\s\S]*returned `action` unchanged[\s\S]*pending \/ await[\s\S]*newly returned `action` unchanged/iu,
+  );
   expect(section).toMatch(/returned settlement plan|payload\.hostedSettlementPlan/iu);
   expect(section).toContain("payload.hostedFixTarget");
   expect(section).toMatch(/delivery-member-advanced[\s\S]*delivery-member-current/iu);

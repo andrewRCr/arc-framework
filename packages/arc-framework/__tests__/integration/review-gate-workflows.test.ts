@@ -92,6 +92,41 @@ describe("trusted review-gate workflows", () => {
     expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
   });
 
+  it("runs four E2E shards with a denominator derived from the matrix", async () => {
+    const workflow = await read("ci.yml");
+    const e2e = jobValue(workflow, "e2e");
+    const anchors = [
+      "errand.e2e.test.ts",
+      "candidate-lineage.e2e.test.ts",
+      "command-input-no-input.e2e.test.ts",
+      "lifecycle-exit.e2e.test.ts",
+    ];
+
+    expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");
+    expect(e2e.strategy).toMatchObject({
+      "fail-fast": false,
+      matrix: {
+        shard: [1, 2, 3, 4],
+        include: anchors.map((anchor, index) => ({ shard: index + 1, anchor })),
+      },
+    });
+
+    const steps = e2e.steps;
+    expect(Array.isArray(steps)).toBe(true);
+    const anchorStep = (steps as Array<Record<string, unknown>>).find((step) => step.name === "Run E2E anchor");
+    expect(anchorStep?.run).toBe(
+      "npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false",
+    );
+
+    const remainderStep = (steps as Array<Record<string, unknown>>)
+      .find((step) => step.name === "Run E2E remainder shard");
+    expect(remainderStep?.run).toContain("--shard=${{ matrix.shard }}/${{ strategy.job-total }}");
+    for (const anchor of anchors) {
+      expect(remainderStep?.run).toContain(`--exclude='**/${anchor}'`);
+      await expect(readRepositoryFile(`packages/arc-framework/__tests__/e2e/${anchor}`)).resolves.toBeTruthy();
+    }
+  });
+
   it("provisions Node before the classifier hashes the code tree", async () => {
     const workflow = await read("ci.yml");
     const classifySteps = jobValue(workflow, "classify").steps;
@@ -192,7 +227,7 @@ describe("trusted review-gate workflows", () => {
       scripts: Record<string, string>;
     };
     expect(packageManifest.scripts["test:arc-contracts"]).toBe(
-      "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
+      "node --import tsx src/scripts/run-local-test-tier.ts arc-contracts",
     );
     expect(rootManifest.scripts["test:arc-contracts"]).toBe(
       "npm run test:arc-contracts -w packages/arc-framework",
@@ -375,18 +410,137 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("settles a verified Candidate fix before Candidate re-root", async () => {
+    const path = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile(`packages/arc-framework/arc/${path}`),
+      readRepositoryFile(`.arc/${path}`),
+    ]);
+    expect(project).toBe(packaged);
+
+    const responseSection = sectionBetween(
+      packaged,
+      "For every finding, run",
+      "Proceed only from `candidate-publish-ready`",
+    );
+    const compactResponse = responseSection.replace(/\s+/gu, " ");
+    const fixCommit = compactResponse.indexOf("commit atomically");
+    const verifiedResponse = compactResponse.indexOf("`verifiedFix`");
+    const responseCommit = compactResponse.indexOf("commit its staged Candidate response");
+    const candidateReroot = compactResponse.indexOf("rerun Step 1");
+
+    expect(fixCommit).toBeGreaterThanOrEqual(0);
+    expect(verifiedResponse).toBeGreaterThan(fixCommit);
+    expect(responseCommit).toBeGreaterThan(verifiedResponse);
+    expect(candidateReroot).toBeGreaterThan(responseCommit);
+    expect(responseSection).toMatch(
+      /candidate-advanced \/ continue-review[\s\S]*candidate-current \/ continue-review/iu,
+    );
+  });
+
   it("routes Errand review and re-entry through the public command protocol", async () => {
     const [packaged, project] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
       readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(project).toBe(packaged);
+    const prePrExemption = packaged.indexOf("arc review planning-grooming resolve -");
+    const openedPr = packaged.indexOf("4. **Enter the open PR.**");
+    const openedTargetExemption = packaged.indexOf("arc review planning-grooming resolve -", openedPr);
+    const finalHead = packaged.indexOf("5. **Settle the final head.**");
+    const integrationInterlock = packaged.indexOf("`integration-interlock`", finalHead);
+    expect(prePrExemption).toBeGreaterThanOrEqual(0);
+    expect(openedTargetExemption).toBeGreaterThan(openedPr);
+    expect(finalHead).toBeGreaterThan(openedTargetExemption);
+    expect(integrationInterlock).toBeGreaterThan(finalHead);
+    expect(packaged).toMatch(/`exempt \/ none`[\s\S]*both review lanes/iu);
+    expect(packaged).toMatch(/`review-required \/ continue-review`[\s\S]*ordinary review/iu);
+    expect(packaged).toMatch(/`not-eligible \/ continue-review`[\s\S]*ordinary review/iu);
+    expect(packaged).toMatch(/caller-owned[^.]*content kind[^.]*surface authority/iu);
+    expect(packaged).toMatch(/never infer[^.]*planning-lane/iu);
     expect(packaged).toMatch(/atomic determinacy[\s\S]*routing fact/iu);
     expect(packaged).toMatch(/arc review resolve -[\s\S]*review-response/iu);
     expect(packaged).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
     expect(packaged).not.toMatch(/vehicle-neutral response-state store|review-suspension|promoted watcher/u);
     expect(packaged).toMatch(/merge lane[\s\S]*downstream presentation/u);
     expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
+    expect(packaged).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
+    expect(packaged.slice(finalHead, integrationInterlock)).toMatch(
+      /adapter target[^.]*final[^.]*head/iu,
+    );
+  });
+
+  it("resolves routing-only grooming exemption before opening a housekeeping PR", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/drain-inbox.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/drain-inbox.md"),
+    ]);
+    expect(project).toBe(packaged);
+    const fullProtection = sectionBetween(packaged, "- **Fully protected**", "- **Partially protected**");
+    const exemption = fullProtection.indexOf("arc review planning-grooming resolve -");
+    const prCreation = fullProtection.indexOf("arc merge lock resolve -");
+    const openedTargetResolution = fullProtection.indexOf(
+      "arc review planning-grooming resolve -",
+      prCreation,
+    );
+    const integrationInterlock = fullProtection.indexOf("`integration-interlock`", openedTargetResolution);
+    expect(exemption).toBeGreaterThanOrEqual(0);
+    expect(prCreation).toBeGreaterThan(exemption);
+    expect(openedTargetResolution).toBeGreaterThan(prCreation);
+    expect(integrationInterlock).toBeGreaterThan(openedTargetResolution);
+    expect(fullProtection).toMatch(/`exempt \/ none`[\s\S]*skip[^.]*review/iu);
+    expect(fullProtection).toMatch(/continue-review[\s\S]*reviewed-lane/iu);
+    expect(fullProtection).toMatch(/never infer[^.]*planning-lane/iu);
+    expect(fullProtection).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
+    expect(fullProtection).toMatch(
+      /after approval[\s\S]*head differs[^.]*return[^.]*adapter[^.]*integration\s+interlock/iu,
+    );
+  });
+
+  it("surfaces exact-head CI failures while a hosted review remains pending", async () => {
+    const paths = [
+      "system/workflows/arc/supplemental/run-errand.md",
+      "system/workflows/arc/supplemental/deliver-stack.md",
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+    ];
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readRepositoryFile(`packages/arc-framework/arc/${path}`),
+        readRepositoryFile(`.arc/${path}`),
+      ]);
+      expect(project).toBe(packaged);
+      const hostedAwait = packaged.indexOf("arc review hosted await -");
+      const checksAwait = packaged.indexOf("arc review checks await", hostedAwait);
+      expect(hostedAwait).toBeGreaterThanOrEqual(0);
+      expect(checksAwait).toBeGreaterThan(hostedAwait);
+      const pendingInspection = packaged.slice(hostedAwait, checksAwait + 1_500);
+      expect(pendingInspection).toContain("--timeout-ms 10000");
+      expect(pendingInspection).toContain("--poll-interval-ms 10000");
+      expect(pendingInspection).toContain("diagnosticFailures");
+      expect(pendingInspection).toMatch(/read-only diagnos/iu);
+      expect(pendingInspection).toMatch(/inspect-or-extend[\s\S]{0,250}diagnostic below, then stop/iu);
+      expect(pendingInspection).toContain("continueAfterAttention: true");
+      expect(pendingInspection).toMatch(/same hosted[^.]*action/iu);
+      expect(pendingInspection).toMatch(/exact head[^.]*draft lock/iu);
+      expect(pendingInspection).toMatch(/does\s+not[^.]*review settlement/iu);
+    }
+  });
+
+  it("continues an Errand hosted await until its typed attention boundary", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+    ]);
+    expect(project).toBe(packaged);
+    const pendingAwait = sectionBetween(
+      packaged,
+      "- `pending / await`",
+      "- `pending / inspect-or-extend`",
+    );
+    expect(pendingAwait).toMatch(
+      /retain[^.]*action[^.]*diagnostic[^.]*pass it unchanged[^.]*arc review hosted await[^.]*one more bounded call/iu,
+    );
+    expect(pendingAwait).toMatch(/repeat[^.]*inspect-or-extend[^.]*terminal outcome/iu);
   });
 
   it("executes mixed hosted settlement phases in the command-projected order", async () => {

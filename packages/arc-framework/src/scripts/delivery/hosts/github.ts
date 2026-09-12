@@ -2,9 +2,11 @@
 
 import type {
   DeliveryHostChangeRequest,
+  DeliveryHostMergeResult,
   DeliveryHostMutationResult,
   DeliveryHostOpenRequest,
   DeliveryHostPort,
+  DeliveryHostProviderFailure,
   DeliveryHostRequestObservation,
   DeliveryTopRemedyHostPort,
 } from "../../../lib/delivery/host.js";
@@ -49,6 +51,17 @@ function requiresNativeStackMerge(error: unknown): boolean {
   const detail = `${error.message}\n${error.stderr}\n${error.stdout}`;
   return /\bstack(?:ed)?\b/iu.test(detail)
     && /(?:merge-async|asynchronous merge|stack merge)/iu.test(detail);
+}
+
+function deliveryHostProviderFailure(error: unknown): DeliveryHostProviderFailure {
+  if (error instanceof HostedProcessError) {
+    return error.httpStatus === null
+      ? { kind: "command-failed", exitCode: error.exitCode }
+      : { kind: "http", status: error.httpStatus, exitCode: error.exitCode };
+  }
+  if (error instanceof Error && error.name === "TimeoutError") return { kind: "timed-out" };
+  if (error instanceof Error && error.name === "AbortError") return { kind: "canceled" };
+  return { kind: "unexpected" };
 }
 
 function isDependentNativeRequest(
@@ -366,7 +379,7 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
     }
   }
 
-  async mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMutationResult> {
+  async mergeRequest(effect: DeliveryLandEffectV1): Promise<DeliveryHostMergeResult> {
     if (effect.providerId !== "github") return { status: "refused", reason: "malformed" };
     try {
       await this.runner.run([
@@ -375,10 +388,9 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
       ]);
       return { status: "submitted" };
     } catch (error) {
-      return {
-        status: "refused",
-        reason: requiresNativeStackMerge(error) ? "native-stack-required" : "unavailable",
-      };
+      return requiresNativeStackMerge(error)
+        ? { status: "refused", reason: "native-stack-required" }
+        : { status: "refused", reason: "unavailable", provider: deliveryHostProviderFailure(error) };
     }
   }
 

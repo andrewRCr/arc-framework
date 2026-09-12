@@ -49,7 +49,10 @@ import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lo
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
-import type { HostedReviewCoverage } from "./hosted/request.js";
+import {
+  HostedProviderIdSchema,
+  type HostedReviewCoverage,
+} from "./hosted/request.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import {
   projectHostedReservationPolicyProgress,
@@ -85,6 +88,7 @@ async function resolveDeliveryMemberScopeSelection(input: {
   readonly cwd: string;
   readonly settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   readonly planId: string;
+  readonly sourceId?: string;
   readonly target: {
     readonly repository: string;
     readonly pullRequest: number;
@@ -118,6 +122,7 @@ async function resolveDeliveryMemberScopeSelection(input: {
     },
   });
   if (resolution.disposition === "consider-chunks") {
+    if (HostedProviderIdSchema.safeParse(input.sourceId).success) return undefined;
     return {
       mode: "chunked",
       target: {
@@ -523,6 +528,7 @@ export async function readRoutedObligation(
           settings,
           planId: reservation.target.planId,
           target: firstTarget,
+          ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
         });
         const admission = resolveHostedReservationPolicy({
           reservation,
@@ -621,7 +627,7 @@ export function createReviewStatusPort(
   },
 ): ReviewStatusPort {
   return {
-    observe: async (target, ceilingOverride, coverage) => {
+    observe: async (target, ceilingOverride, coverage, sourceId) => {
       try {
         const remote = input.remote ?? "origin";
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd, remote);
@@ -679,11 +685,12 @@ export function createReviewStatusPort(
               resolution.candidate.number,
               memberLookup,
               base.currentBaseOid ?? undefined,
-              ceilingOverride === undefined && coverage === undefined
+              ceilingOverride === undefined && coverage === undefined && sourceId === undefined
                 ? undefined
                 : {
                     ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
                     ...(coverage === undefined ? {} : { coverage }),
+                    ...(sourceId === undefined ? {} : { sourceId }),
                   },
               undefined,
               {

@@ -51,8 +51,9 @@ import {
 } from "../../lib/work-unit/rename-user-workspace.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
-  listAnnotatedNoteCommits,
+  listNoteEntries,
   readNoteContentAtAnnotatedCommit,
+  readNoteContentsAtEntries,
   readRecentUserNotes,
   type RecentNote,
 } from "../../lib/user-sync/notes-ref.js";
@@ -489,13 +490,15 @@ export async function serializeSplitUserManifest(options: {
  * materialize, without writing files.
  *
  * @param options - Load options, including the already-resolved current WU
+ * @param precomputedSearch - Optional request-scoped nearest-note result to reuse.
  * @returns Snapshot of the selected note, logical manifest, and merge warnings
  */
 export async function buildUserLoadManifestSnapshot(
   options: UserLoadOptions,
+  precomputedSearch?: NearestNoteSearch,
 ): Promise<LoadManifestSnapshot> {
   const { io, identity } = options;
-  const search = await findNearestUserNote(options);
+  const search = precomputedSearch ?? await findNearestUserNote(options);
   const recentNotes = await readRecentUserNotes(io.exec, identity);
   const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
 
@@ -924,16 +927,20 @@ async function resolveNearestUserNote(
     headHash = "";
   }
 
-  const annotatedCommits = await listAnnotatedNoteCommits(io.exec, fullRef);
-  if (annotatedCommits.length === 0) {
+  const noteEntries = await listNoteEntries(io.exec, fullRef);
+  if (noteEntries.length === 0) {
     return { note: null };
   }
 
-  const reachableCommits = await filterCommitsReachableFromHead(io.exec, annotatedCommits);
+  const reachableCommits = await filterCommitsReachableFromHead(
+    io.exec,
+    noteEntries.map((entry) => entry.commit),
+  );
+  const reachableCommitSet = new Set(reachableCommits);
   const reachableCandidates = await buildReachableNoteCandidates({
     io,
     fullRef,
-    reachableCommits,
+    entries: noteEntries.filter((entry) => reachableCommitSet.has(entry.commit)),
     currentWuName,
   });
   const maximalCommits = await reduceCommitsToCausallyMaximal(
@@ -987,25 +994,22 @@ async function resolveNearestUserNote(
 async function buildReachableNoteCandidates(input: {
   io: UserIOContext;
   fullRef: string;
-  reachableCommits: string[];
+  entries: Array<{ blob: string; commit: string }>;
   currentWuName: string | undefined;
 }): Promise<ReachableNoteCandidate[]> {
-  const { io, fullRef, reachableCommits, currentWuName } = input;
+  const { io, fullRef, entries, currentWuName } = input;
   if (currentWuName === undefined) {
-    return reachableCommits.map((commit) => ({ commit }));
+    return entries.map(({ commit }) => ({ commit }));
   }
 
-  const reads = await Promise.all(
-    reachableCommits.map(async (commit) => ({
-      commit,
-      content: await readNoteContentAtAnnotatedCommit(io.exec, fullRef, commit),
-    })),
-  );
+  const contents = await readNoteContentsAtEntries(io.exec, io.execInput, fullRef, entries);
 
-  return reads.filter(
-    (read): read is { commit: string; content: string } =>
-      read.content !== null && noteManifestContainsWu(read.content, currentWuName),
-  );
+  return entries.flatMap(({ commit }) => {
+    const content = contents.get(commit);
+    return content !== undefined && noteManifestContainsWu(content, currentWuName)
+      ? [{ commit, content }]
+      : [];
+  });
 }
 
 async function readOffAncestryPointerFallback(input: {

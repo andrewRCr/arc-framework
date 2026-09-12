@@ -19,6 +19,7 @@ describe("staged Markdown gate", () => {
     ".markdownlint.yml",
     "packages/arc-framework/src/lib/markdown/selection.ts",
     "packages/arc-framework/src/lib/markdown/descriptor-spacing.ts",
+    "packages/arc-framework/src/lib/task-list/segmentation.ts",
     "packages/arc-framework/src/scripts/lint-markdown-staged.ts",
     "packages/arc-framework/arc/reference/templates/arc/work-unit/template-tasks.md",
     "package.json",
@@ -64,6 +65,18 @@ describe("staged Markdown gate", () => {
       triggered: true,
     });
     expect(certify).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs certification when only the segmentation scanner changes", async () => {
+    const certify = vi.fn(async () => undefined);
+    const path = "packages/arc-framework/src/lib/task-list/segmentation.ts";
+    const exec = vi.fn(async () => ({ stdout: `${path}\0`, stderr: "" }));
+
+    await expect(runStagedMarkdownGate({ root: "/repo", exec, certify })).resolves.toEqual({
+      triggered: true,
+      changedPaths: [path],
+    });
+    expect(certify).toHaveBeenCalledOnce();
   });
 });
 

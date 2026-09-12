@@ -399,7 +399,23 @@ describe("GhDeliveryHostPort", () => {
       throw new HostedProcessError("validation failed", "gh: Validation Failed (HTTP 422)", 1, 422);
     } };
     await expect(new GhDeliveryHostPort(genericValidation).mergeRequest(effect))
-      .resolves.toEqual({ status: "refused", reason: "unavailable" });
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "http", status: 422, exitCode: 1 },
+      });
+
+    const commandFailure: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError("merge failed", "credential-bearing provider output", 2);
+    } };
+    const refused = await new GhDeliveryHostPort(commandFailure).mergeRequest(effect);
+    expect(refused).toEqual({
+      status: "refused",
+      reason: "unavailable",
+      provider: { kind: "command-failed", exitCode: 2 },
+    });
+    expect(refused).not.toHaveProperty("stderr");
+    expect(refused).not.toHaveProperty("stdout");
   });
 
   it("reopens a closed terminal request before retargeting it through supported GitHub mutations", async () => {
@@ -526,6 +542,10 @@ describe("GhDeliveryHostPort", () => {
       targetRef: "refs/heads/main",
       strategy: "merge",
       mergePolicy,
-    })).resolves.toEqual({ status: "refused", reason: "unavailable" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "unavailable",
+      provider: { kind: "unexpected" },
+    });
   });
 });

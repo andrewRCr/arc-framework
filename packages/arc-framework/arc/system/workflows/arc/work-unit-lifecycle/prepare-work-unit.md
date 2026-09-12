@@ -86,7 +86,8 @@ means the checkout could not compose one; resolve the returned advisory before i
 Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
 selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` decision stays silent while
 evidence is semantically unchanged; invocation, elapsed time, and restatement are not material deltas. Otherwise
-invoke `arc review chunking resolve -` with the envelope's `target` and any exact-target `scopeSelection`, then
+invoke `arc review chunking resolve -` with the envelope's `target` projected to
+`{ kind, baseRef, diffBaseSha, headSha }` and any exact-target `scopeSelection` projected the same way, then
 dispatch only on its typed state/action pair:
 
 - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
@@ -99,6 +100,11 @@ dispatch only on its typed state/action pair:
 Select whole-target or chunked scope separately for frontline and standard review. Carry a selection by
 re-invoking the procedure with it in `--lanes`; never recompute thresholds in prose.
 
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+Re-invoke the procedure with the exact-target scope selection. A selected bounded-review route must return
+`scope-selected / continue-review`; an explicit capable whole-target choice closes the attention disposition while
+retaining `consider-chunks`. A stale or missing selection stops before the frontline or standard action.
+
 A null `policy` means no lane operation is open — follow the envelope's `nextAction.kind`, one of
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
@@ -107,7 +113,9 @@ state/action pair:
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
 - `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at
   `candidate-publish-ready`.
-- `ready / run-frontline` — invoke `arc review frontline resolve -`, then `arc review frontline run -`.
+- `ready / run-frontline` — invoke `arc review frontline resolve -`, then `arc review frontline run -` with the
+  ready resolution, the target's `{ kind, baseRef, diffBaseSha, headSha }` projection, and `responseBinding` when
+  the pre-publication envelope supplies it.
 - `ready / local-prepare` — invoke `arc review local prepare -`.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.
@@ -128,8 +136,17 @@ gates ([`quality-gate-commands`][arc-methods-qg]), commit
 atomically, and produce a new target. Disclose review applicability from the exact delta: `targeted` for confidently
 narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
 authority, contract, materially interacting, or uncertain changes. Clearance never carries.
+A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a Candidate-bound private-member fix.
+Author only in its exact `authoring.checkoutPath`, `authoring.ref`, and `authoring.head`; a missing or different
+locus stops before mutation. Never author this fix in the disposable member checkout.
+After the fix commit, re-invoke the same approved `arc review respond -` request with `verifiedFix` carrying the
+selected applicability and verification evidence. Require `candidate-advanced / continue-review` or idempotent
+`candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
+before any Candidate-currentness or delivery-preparation read.
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]
-§ Prepare private delivery candidates when directed before re-invoking pre-publication review.
+§ Prepare private delivery candidates when directed before re-invoking pre-publication review. For a response
+carrying `authoring`, its `deliverySuffixReconstruction: after-candidate-advance` value requires that reconstruction
+to wait until the Candidate response has advanced.
 
 Proceed only from `candidate-publish-ready`; its durable boundary carries any hosted-first reservation or exact
 Owner-accepted terminus into publication without classifying either as settled, no-op, or clean.

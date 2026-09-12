@@ -18,6 +18,7 @@ import {
 } from "../policy/frontline-outcome.js";
 import { HostedTargetSchema } from "../hosted/request.js";
 import { ApprovedDispositionSetSchema } from "./disposition-records.js";
+import { BoundFrontlineResponseBindingSchema } from "./frontline-response-binding.js";
 import {
   FixAuthorizationConsumptionSchema,
   FixAuthorizationSchema,
@@ -97,10 +98,16 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
 }).superRefine((record, context) => {
   const bindingCount = [record.candidate, record.errand, record.deliveryMember]
     .filter((binding) => binding !== null).length;
-  if (bindingCount > 1) {
+  const candidateOwnedPrivateMember = bindingCount === 2
+    && record.candidate !== null
+    && record.errand === null
+    && record.deliveryMember !== null
+    && record.source.kind === "frontline"
+    && record.candidate.workUnit === record.deliveryMember.workUnitId;
+  if (bindingCount > 1 && !candidateOwnedPrivateMember) {
     context.addIssue({
       code: "custom",
-      message: "a disposition record cannot bind more than one response owner",
+      message: "a disposition record cannot bind more than one response owner or reviewed private member",
       path: ["deliveryMember"],
     });
   }
@@ -111,6 +118,16 @@ export const ApprovedDispositionRecordSchema = z.strictObject({
       code: "custom",
       message: "fix authorization must bind the approved disposition set",
       path: ["fixAuthorization"],
+    });
+  }
+  if (candidateOwnedPrivateMember
+    && record.deliveryMember !== null
+    && record.fixAuthorization !== null
+    && record.deliveryMember.head !== record.fixAuthorization.oldHeadSha) {
+    context.addIssue({
+      code: "custom",
+      message: "a Candidate-owned private member must bind the exact fix authorization head",
+      path: ["deliveryMember", "head"],
     });
   }
   const response = record.errandFixResponse;
@@ -232,6 +249,7 @@ const FrontlineOutcomeRecordInputSchema = z.strictObject({
   sourceIdentity: ReviewIdentifierSchema,
   executableIdentity: FrontlineExecutableIdentitySchema.nullable(),
   outcome: FrontlineExecutionOutcomeSchema,
+  responseBinding: BoundFrontlineResponseBindingSchema.optional(),
 });
 
 const FrontlineOutcomeRecordObjectSchema = z.strictObject({

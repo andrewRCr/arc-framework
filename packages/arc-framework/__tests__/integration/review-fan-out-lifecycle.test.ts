@@ -649,6 +649,7 @@ async function statusThroughHandler(
   target: { repository: string; headRef: string; headSha: string },
   ceilingOverride?: ReviewCeilingOverride,
   coverage?: HostedReviewCoverage,
+  sourceId?: "coderabbit-pr" | "codex-pr",
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
@@ -656,11 +657,12 @@ async function statusThroughHandler(
     target: JSON.stringify(target),
     ...(ceilingOverride === undefined ? {} : { ceilingOverride: JSON.stringify(ceilingOverride) }),
     ...(coverage === undefined ? {} : { coverage }),
+    ...(sourceId === undefined ? {} : { source: sourceId }),
     json: true,
   }, undefined, {
     resolveRoot: () => harness.root,
     resolve: (root, input) => resolveReviewStatus(input, {
-      observe: async (statusTarget, admittedOverride, admittedCoverage) => ({
+      observe: async (statusTarget, admittedOverride, admittedCoverage, admittedSourceId) => ({
         actualHeadSha: statusTarget.headSha,
         requiredChecks: "green",
         routedObligation: await readRoutedObligation(
@@ -670,12 +672,13 @@ async function statusThroughHandler(
           42,
           new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
           harness.baseHead,
-          admittedOverride === undefined && admittedCoverage === undefined
+          admittedOverride === undefined && admittedCoverage === undefined && admittedSourceId === undefined
             ? undefined
             : {
                 ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
-              ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
-            },
+                ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
+                ...(admittedSourceId === undefined ? {} : { sourceId: admittedSourceId }),
+              },
           deliveryHost(harness),
         ),
         currentBaseOid: harness.baseHead,
@@ -1406,15 +1409,18 @@ describe("hosted review fan-out lifecycle", () => {
         },
       },
       terminusAction: {
-        target: { repository, pullRequest: 41, headSha: changedFirst },
-        vehicle: firstVehicle,
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          target: { repository, pullRequest: 41, headSha: changedFirst },
+          vehicle: firstVehicle,
+          completedPasses: 1,
+        },
       },
     });
     if (continuation.nextAction !== "resolve-review-applicability" || continuation.terminusAction === undefined) {
       throw new Error("expected exact Owner terminus offer beside moved-target applicability");
     }
-    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
+    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction.offer);
     const reviewOperationsBeforeAcceptance = await harness.store.readOperationSnapshot();
     const candidateBeforeAcceptance = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
     const output: string[] = [];
@@ -1433,7 +1439,7 @@ describe("hosted review fan-out lifecycle", () => {
           readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
           readCurrentOffer: async () => {
             const current = await workUnitStatusThroughHandler(harness, currentStatusTarget);
-            return "terminusAction" in current ? current.terminusAction ?? null : null;
+            return "terminusAction" in current ? current.terminusAction?.offer ?? null : null;
           },
           writeBoundary: async (boundary, expectedVersion) => ({
             status: "written",
@@ -1686,15 +1692,18 @@ describe("hosted review fan-out lifecycle", () => {
     const continuation = await workUnitStatusThroughHandler(harness, firstStatusTarget);
     expect(continuation).toMatchObject({
       terminusAction: {
-        target: { headSha: initialTerminalHead },
-        vehicle: member(harness.plan, 1, initialTerminalHead),
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          target: { headSha: initialTerminalHead },
+          vehicle: member(harness.plan, 1, initialTerminalHead),
+          completedPasses: 1,
+        },
       },
     });
     if (!("terminusAction" in continuation) || continuation.terminusAction === undefined) {
       throw new Error("expected final member terminus offer");
     }
-    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction);
+    const offer = DeliveryReviewTerminusOfferSchema.parse(continuation.terminusAction.offer);
     const accepted = await resolveDeliveryReviewTerminusAcceptance({
       schemaVersion: 1,
       offer,
@@ -1704,7 +1713,7 @@ describe("hosted review fan-out lifecycle", () => {
       readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
       readCurrentOffer: async () => {
         const current = await workUnitStatusThroughHandler(harness, firstStatusTarget);
-        return "terminusAction" in current ? current.terminusAction ?? null : null;
+        return "terminusAction" in current ? current.terminusAction?.offer ?? null : null;
       },
       writeBoundary: async (boundary, expectedVersion) => ({
         status: "written",
@@ -2942,6 +2951,36 @@ describe("hosted review fan-out lifecycle", () => {
         conjunction: {
           members: [{ state: "discharged" }, { state: "outstanding" }],
         },
+      },
+    });
+  });
+
+  it("preserves an explicit hosted source as whole-target review for an oversized member", async () => {
+    const harness = await createHarness(["coderabbit-pr", "codex-pr", "delegated-agent"]);
+    await writeFile(
+      join(harness.root, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nchangeset.advisory_threshold_lines: 1\n"
+        + "changeset.advisory_threshold_files: 0\n",
+      "utf8",
+    );
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    await expect(statusThroughHandler(
+      harness,
+      statusTarget,
+      undefined,
+      undefined,
+      "codex-pr",
+    )).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        provider: "codex-pr",
+        target: { headSha: harness.oldFirst },
+        invocation: { mode: "force", sourceId: "codex-pr" },
       },
     });
   });

@@ -3,7 +3,7 @@
 import { canonicalize } from "../kernel/index.js";
 import type { GitExec } from "../git/exec.js";
 import { observeDeliveryEligibilityRef } from "../delivery/git-eligibility.js";
-import type { DeliveryHostPort } from "../delivery/host.js";
+import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../delivery/host.js";
 import {
   reconcileDeliveryOperation,
   type DeliveryOperationReconciliationObservationV1,
@@ -80,6 +80,28 @@ async function retainedCommitIsAvailable(
     && observed.tree === coordinates.tree;
 }
 
+async function providerDeletedLandedMemberIsProven(
+  member: DeliveryOperationSnapshotV1["members"][number],
+  request: DeliveryHostChangeRequest,
+  acceptedBaseRefs: readonly string[],
+  dependencies: DeliveryPositionFactsDependencies,
+): Promise<boolean> {
+  if (member.coordinates === null || request.state !== "merged"
+    || request.mergeCommitSha === null || request.mergeCommitSha === undefined
+    || !acceptedBaseRefs.some((ref) => request.baseRef === ref.replace(/^refs\/heads\//u, ""))) return false;
+  const landed = await dependencies.observeLandedResult({
+    mergeCommitSha: request.mergeCommitSha,
+    strategy: "merge",
+    beforeMember: member.coordinates,
+  });
+  if (landed === null || landed.predecessor.head !== member.coordinates.base) return false;
+  const proof = await dependencies.proveContribution({
+    before: { predecessor: landed.predecessor, member: member.coordinates },
+    after: landed,
+  });
+  return proof.status === "accepted";
+}
+
 async function localCommitMatches(
   coordinates: NonNullable<DeliveryOperationSnapshotV1["members"][number]["coordinates"]>,
   dependencies: DeliveryPositionFactsDependencies,
@@ -119,6 +141,7 @@ async function observeTarget(
 
 async function observeMember(
   member: DeliveryOperationSnapshotV1["members"][number],
+  expectedBaseRef: string | null,
   dependencies: DeliveryPositionFactsDependencies,
   appendOnlyAuthoring?: DeliveryPositionObservationOptions["terminalAuthoringMovement"],
   allowExternalMovement = false,
@@ -133,6 +156,7 @@ async function observeMember(
   }
   let requestState: RequestState = null;
   let requestHead: string | null = null;
+  let request: DeliveryHostChangeRequest | null = null;
   if (member.changeRequest !== null) {
     const observed = await dependencies.host.readRequest(dependencies.repository, member.changeRequest);
     if (observed.status !== "observed"
@@ -142,6 +166,7 @@ async function observeMember(
       || (member.ref !== null && observed.request.headRef !== member.ref.replace(/^refs\/heads\//u, ""))) {
       return { exact: false, requestState: null };
     }
+    request = observed.request;
     requestState = observed.request.state;
     requestHead = observed.request.headSha;
   }
@@ -151,8 +176,11 @@ async function observeMember(
     const branch = member.ref.slice(prefix.length);
     const remoteHead = dependencies.remoteHeads[branch];
     if (requestState === "merged") {
-      if (requestHead !== member.coordinates.head
-        || !await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies)
+      const retained = await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies);
+      const deletedLandingProven = !retained && remoteHead === undefined && request !== null
+        && expectedBaseRef !== null
+        && await providerDeletedLandedMemberIsProven(member, request, [expectedBaseRef], dependencies);
+      if (requestHead !== member.coordinates.head || (!retained && !deletedLandingProven)
         || (remoteHead !== undefined && remoteHead !== member.coordinates.head)) {
         return { exact: false, requestState: null };
       }
@@ -239,7 +267,7 @@ async function snapshotIsCurrent(
 ): Promise<boolean> {
   if (await observeTarget(snapshot.target, dependencies) !== "exact") return false;
   const observed = await Promise.all(snapshot.members.map((member) => (
-    observeMember(member, dependencies)
+    observeMember(member, null, dependencies)
   )));
   return observed.every((member) => member.exact);
 }
@@ -359,7 +387,13 @@ async function observeOperation(
       if (remoteHead === member.coordinates.head) {
         observation = { outcome: "not-applied" };
       } else if (remoteHead === undefined
-        && await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies)) {
+        && (await retainedCommitIsAvailable(member.ref, member.coordinates, dependencies)
+          || await providerDeletedLandedMemberIsProven(
+            member,
+            request.request,
+            acceptedBaseRefs,
+            dependencies,
+          ))) {
         observation = { outcome: "applied", snapshot: operation.requested };
       } else {
         observation = { outcome: "ambiguous" };
@@ -390,6 +424,7 @@ async function observeFacts(
   const terminalIndex = state.members.length - 1;
   const members = await Promise.all(state.members.map((member, index) => observeMember(
     member,
+    index === 0 ? state.target?.ref ?? null : state.members[index - 1]?.ref ?? null,
     dependencies,
     index === terminalIndex ? options.terminalAuthoringMovement : undefined,
     index < terminalIndex && options.unlandedSuffixMovement === "allow-external",

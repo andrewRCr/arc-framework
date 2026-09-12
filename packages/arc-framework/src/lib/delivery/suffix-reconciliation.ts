@@ -12,6 +12,7 @@ import {
   DeliveryOperationSnapshotV1Schema,
   DeliveryStateV1Schema,
   type DeliveryOperationSnapshotV1,
+  type DeliveryPendingReviewFixVerificationV1,
   type DeliveryPlanV1,
   type DeliveryStateV1,
   type DeliveryTerminalAuthoringMovementV1,
@@ -578,6 +579,7 @@ export async function executeDeliverySuffixRewrite(input: {
   /** Selected review fixes are authorized content changes, not false equivalence claims. */
   readonly contributionMode?: "prove-equivalent" | "selected-change";
   readonly operationMode?: "review-fix" | "selected-change";
+  readonly supersedePendingReviewFixVerification?: DeliveryPendingReviewFixVerificationV1;
   readonly revalidateLifecycle: () => Promise<{ readonly status: "ok" | "refused" }>;
   readonly rewriteRef: (input: {
     readonly ref: string;
@@ -595,6 +597,7 @@ export async function executeDeliverySuffixRewrite(input: {
       readonly reason:
         | "position-mismatch"
         | "lifecycle-contribution"
+        | "pending-review-fix-verification"
         | "reservation-refused"
         | "state-conflict"
         | "precondition-mismatch"
@@ -630,8 +633,25 @@ export async function executeDeliverySuffixRewrite(input: {
     expectedStateRevision: input.current.revision,
     before,
     requested: input.requested,
+    ...(input.supersedePendingReviewFixVerification === undefined
+      ? {}
+      : {
+          supersedePendingReviewFixVerification: input.supersedePendingReviewFixVerification,
+          reviewFixSelectedDeliverableId:
+            input.supersedePendingReviewFixVerification.selectedDeliverableId,
+          reviewFixVerificationDeliverableIds:
+            input.supersedePendingReviewFixVerification.memberDeliverableIds,
+        }
+    ),
   });
-  if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
+  if (reserved.status !== "reserved") {
+    return {
+      status: "refused",
+      reason: reserved.reason === "pending-review-fix-verification"
+        ? reserved.reason
+        : "reservation-refused",
+    };
+  }
   const persistedReservation = await input.stateStore.publish(
     input.plan.planId, reserved.state, input.current.revision,
   );

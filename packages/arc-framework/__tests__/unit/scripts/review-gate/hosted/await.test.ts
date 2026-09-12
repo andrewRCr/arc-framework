@@ -85,6 +85,7 @@ describe("hosted review await", () => {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle,
+      action: { schemaVersion: 1, handle },
       state: "pending",
       nextAction: "inspect-or-extend",
       ageMs: ATTENTION_AFTER_MS,
@@ -108,6 +109,7 @@ describe("hosted review await", () => {
       state: "pending",
       nextAction: "await",
       handle,
+      action: { schemaVersion: 1, handle },
       elapsedMs: 2_000,
     });
   });
@@ -247,6 +249,7 @@ describe("hosted review await", () => {
       state: "pending",
       nextAction: "inspect-or-extend",
       handle,
+      action: { schemaVersion: 1, handle },
       ageMs: ATTENTION_AFTER_MS,
       attentionAfterMs: ATTENTION_AFTER_MS,
     });

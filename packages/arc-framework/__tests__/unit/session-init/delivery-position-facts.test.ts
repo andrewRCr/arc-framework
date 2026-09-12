@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
+import type { DeliveryContributionProofResult } from
+  "../../../src/lib/delivery/contribution-proof.js";
 import type {
   DeliveryOperationSnapshotV1,
   DeliveryStateV1,
@@ -58,7 +60,7 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
       predecessor: targetCoordinates,
       member: { head: mergeCommitSha, tree: trees.get(mergeCommitSha) ?? targetCoordinates.tree },
     })),
-    proveContribution: vi.fn(async () => ({
+    proveContribution: vi.fn(async (): Promise<DeliveryContributionProofResult> => ({
       status: "accepted" as const,
       proof: "mechanical-reapply" as const,
     })),
@@ -367,6 +369,74 @@ describe("session-init delivery position facts", () => {
         facts: { landedDeliverableIds: [retained.deliverableId] },
       });
     expect(dependencies.exec).toHaveBeenCalled();
+  });
+
+  it("adopts a provider-deleted merged member only from its exact landing proof", async () => {
+    const plan = deliveryStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const state = {
+      ...initial,
+      members: initial.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(401 + index) },
+      })),
+    };
+    const retained = state.members[0]!;
+    const dependencies = exactDependencies(state);
+    const retainedBranch = retained.ref!.replace(/^refs\/heads\//u, "");
+    const mergeCommitSha = "e".repeat(40);
+    const predecessor = { head: retained.coordinates!.base, tree: "a".repeat(40) };
+    await dependencies.materializeTarget(predecessor);
+    const landed = {
+      predecessor,
+      member: { head: mergeCommitSha, tree: retained.coordinates!.tree },
+    };
+    dependencies.remoteHeads = Object.fromEntries(
+      Object.entries(dependencies.remoteHeads).filter(([branch]) => branch !== retainedBranch),
+    );
+    dependencies.localCommits[retained.coordinates!.head] = false;
+    dependencies.observeLandedResult.mockResolvedValue(landed);
+    dependencies.host.readRequest.mockImplementation(async (_repository, binding) => {
+      const member = state.members.find((candidate) => (
+        candidate.changeRequest?.changeRequestId === binding.changeRequestId
+      ))!;
+      return {
+        status: "observed" as const,
+        request: {
+          binding,
+          repository: "owner/repository",
+          headRepository: "owner/repository",
+          headRef: member.ref!.replace(/^refs\/heads\//u, ""),
+          headSha: member.coordinates!.head,
+          baseRef: state.target!.ref.replace(/^refs\/heads\//u, ""),
+          state: binding.changeRequestId === "401" ? "merged" as const : "open" as const,
+          draft: true,
+          mergeCommitSha: binding.changeRequestId === "401" ? mergeCommitSha : null,
+        },
+      };
+    });
+
+    const observed = await observeRepositoryDeliveryPosition(plan, state, 3, dependencies);
+    expect(observed).toMatchObject({
+      status: "observed",
+      facts: { landedDeliverableIds: [retained.deliverableId] },
+    });
+    expect(dependencies.observeLandedResult).toHaveBeenCalledWith({
+      mergeCommitSha,
+      strategy: "merge",
+      beforeMember: retained.coordinates,
+    });
+    expect(dependencies.proveContribution).toHaveBeenCalledWith({
+      before: { predecessor: landed.predecessor, member: retained.coordinates },
+      after: landed,
+    });
+
+    dependencies.proveContribution.mockResolvedValue({
+      status: "refused",
+      reason: "contribution-endpoints-unverified",
+    });
+    await expect(observeRepositoryDeliveryPosition(plan, state, 3, dependencies))
+      .resolves.toEqual({ status: "refused" });
   });
 
   it("recognizes a fully torn-down nonterminal prefix while leaving the terminal unlanded", async () => {

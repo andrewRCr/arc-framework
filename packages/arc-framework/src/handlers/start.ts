@@ -73,6 +73,7 @@ import { runResume } from "../lib/work-unit/verbs/park-resume.js";
 import {
   isHandledError,
   requireArcProjectRoot,
+  runWithInteractionProgress,
   resolveCurrentBranchName,
   resolveUserIdentity,
 } from "./shared.js";
@@ -165,31 +166,6 @@ function skipConfirm(context: InteractionContext, courtesyAccepted = false): boo
 async function confirmStep(message: string): Promise<boolean> {
   const proceed = await p.confirm({ message, initialValue: true });
   return !p.isCancel(proceed) && proceed;
-}
-
-/**
- * Run a slow start leg under a clack spinner so long silent intervals (worktree
- * spawn, ROADMAP regen, ceremony commit/push) do not look hung. Stops with
- * `doneLabel` when `isOk` holds, otherwise `failedLabel`. Does not catch —
- * thrown errors stop the spinner as failed and rethrow.
- */
-async function withStartProgress<T>(
-  label: string,
-  doneLabel: string,
-  fn: () => Promise<T>,
-  isOk: (value: T) => boolean,
-  failedLabel = "Failed.",
-): Promise<T> {
-  const spinner = p.spinner();
-  spinner.start(label);
-  try {
-    const value = await fn();
-    spinner.stop(isOk(value) ? doneLabel : failedLabel);
-    return value;
-  } catch (err) {
-    spinner.stop(failedLabel);
-    throw err;
-  }
 }
 
 export async function handleStart(
@@ -465,7 +441,7 @@ async function createNew(
     }
   }
 
-  const outcome = await withStartProgress(
+  const outcome = await runWithInteractionProgress(ctx.interaction,
     "Spawning worktree...",
     "Worktree ready.",
     () => runCreateNew(
@@ -493,7 +469,7 @@ async function createNew(
   );
   p.log.info(renderStartBaseProvenance(provenance));
   if (r.postCreateNotice) p.log.info(r.postCreateNotice);
-  const roadmap = await withStartProgress(
+  const roadmap = await runWithInteractionProgress(ctx.interaction,
     "Refreshing ROADMAP...",
     "ROADMAP updated.",
     () => refreshRoadmapForStartCeremony(ctx, r.worktreePath, r.branch),
@@ -506,7 +482,7 @@ async function createNew(
     return;
   }
   reportProjectReadinessWarnings(roadmap.warnings);
-  const ceremony = await withStartProgress(
+  const ceremony = await runWithInteractionProgress(ctx.interaction,
     "Committing and pushing start ceremony...",
     "Ceremony committed and pushed.",
     () => commitAndPushStartCeremony(ctx, {
@@ -676,7 +652,7 @@ async function graduate(
         return;
       }
     }
-    const result = await withStartProgress(
+    const result = await runWithInteractionProgress(ctx.interaction,
       "Graduating onto plan branch...",
       "Graduation complete.",
       () => runGraduate(
@@ -746,7 +722,7 @@ async function graduate(
     }
   }
 
-  const result = await withStartProgress(
+  const result = await runWithInteractionProgress(ctx.interaction,
     "Spawning graduated worktree...",
     "Worktree ready.",
     () => runGraduate(
@@ -807,7 +783,7 @@ async function graduate(
   if (result.notice) p.log.info(result.notice);
   const graduatedWorktree = result.worktreePath;
   if (graduatedWorktree !== undefined) {
-    const roadmap = await withStartProgress(
+    const roadmap = await runWithInteractionProgress(ctx.interaction,
       "Refreshing ROADMAP...",
       "ROADMAP updated.",
       () => refreshRoadmapForStartCeremony(ctx, graduatedWorktree, result.branch),
@@ -820,7 +796,7 @@ async function graduate(
       return;
     }
     reportProjectReadinessWarnings(roadmap.warnings, reportedRoadmapWarnings);
-    const ceremony = await withStartProgress(
+    const ceremony = await runWithInteractionProgress(ctx.interaction,
       "Committing and pushing start ceremony...",
       "Ceremony committed and pushed.",
       () => commitAndPushStartCeremony(ctx, {
@@ -865,7 +841,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
         return;
       }
     }
-    const result = await withStartProgress(
+    const result = await runWithInteractionProgress(ctx.interaction,
       "Resuming parked work unit...",
       "Resume complete.",
       () => runResume(
@@ -916,7 +892,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
     }
   }
 
-  const result = await withStartProgress(
+  const result = await runWithInteractionProgress(ctx.interaction,
     "Spawning resume worktree...",
     "Worktree ready.",
     () => runResume(
@@ -992,7 +968,7 @@ async function coldStart(
     }
   }
 
-  const outcome = await withStartProgress(
+  const outcome = await runWithInteractionProgress(ctx.interaction,
     "Scaffolding planning meta...",
     "Cold-start scaffold complete.",
     () => runColdStart(

@@ -141,7 +141,8 @@ vi.mock("../../../src/lib/command-input/interaction-context.js", () => ({
   }),
 }));
 
-vi.mock("../../../src/handlers/shared.js", () => ({
+vi.mock("../../../src/handlers/shared.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/handlers/shared.js")>(),
   resolveUserIdentity: async () => "andrew",
   isHandledError: () => false,
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
@@ -254,10 +255,31 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
     expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });
     expect((mockNote.mock.calls[0]?.[0] as string)).toContain("plan/widget");
+    expect(mockSpinnerStart).not.toHaveBeenCalled();
+    expect(mockSpinnerStop).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockLog.info).toHaveBeenCalledWith("Worktree ready.");
+    expect(mockLog.info).toHaveBeenCalledWith("Refreshing ROADMAP...");
+    expect(mockLog.info).toHaveBeenCalledWith("ROADMAP updated.");
+    expect(mockLog.info).toHaveBeenCalledWith("Committing and pushing start ceremony...");
+    expect(mockLog.info).toHaveBeenCalledWith("Ceremony committed and pushed.");
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("preserves animated progress for an interactive start", async () => {
+    mockIsNonInteractive.mockReturnValue(false);
+    mockConfirm.mockResolvedValue(true);
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
+
+    await handleStart("widget", { new: true });
+
     expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
     expect(mockSpinnerStop).toHaveBeenCalledWith("Worktree ready.");
-    expect(mockSpinnerStart).toHaveBeenCalledWith("Refreshing ROADMAP...");
-    expect(mockSpinnerStart).toHaveBeenCalledWith("Committing and pushing start ceremony...");
+    expect(mockLog.info).not.toHaveBeenCalledWith("Spawning worktree...");
     expect(process.exitCode).toBeUndefined();
   });
 
@@ -304,8 +326,10 @@ describe("handleStart — dispatch orchestration", () => {
 
     await handleStart("widget", { new: true });
 
-    expect(mockSpinnerStart).toHaveBeenCalledWith("Spawning worktree...");
-    expect(mockSpinnerStop).toHaveBeenCalledWith("Spawn failed.");
+    expect(mockSpinnerStart).not.toHaveBeenCalled();
+    expect(mockSpinnerStop).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith("Spawning worktree...");
+    expect(mockLog.error).toHaveBeenCalledWith("Spawn failed.");
     expect(mockLog.error).toHaveBeenCalledWith("spawn refused");
     expect(process.exitCode).toBe(1);
   });

@@ -244,7 +244,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - run: npm run build
@@ -280,7 +280,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     # Documentation / ARC-doc linters - relevant to docs and code alike; always run.
@@ -333,7 +333,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - run: npm run test:unit
@@ -361,7 +361,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -373,7 +373,7 @@ jobs:
         ARC_E2E_SKIP_BUILD: '1'
 
   e2e:
-    name: E2E Tests
+    name: E2E Tests (${{ matrix.shard }})
     permissions:
       contents: read
       actions: read # download-artifact of shared dist
@@ -382,7 +382,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
+        # Keep one stable heavyweight on each leg, then let native sharding cover
+        # every remaining file (including newly added files) without a manifest.
+        include:
+        - shard: 1
+          anchor: errand.e2e.test.ts
+        - shard: 2
+          anchor: candidate-lineage.e2e.test.ts
+        - shard: 3
+          anchor: command-input-no-input.e2e.test.ts
+        - shard: 4
+          anchor: lifecycle-exit.e2e.test.ts
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -398,14 +409,25 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
-    - run: npm run test:e2e -w packages/arc-framework -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+    - name: Run E2E anchor
+      run: npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+    - name: Run E2E remainder shard
+      run: >-
+        npm run test:e2e -w packages/arc-framework --
+        --exclude='**/errand.e2e.test.ts'
+        --exclude='**/candidate-lineage.e2e.test.ts'
+        --exclude='**/command-input-no-input.e2e.test.ts'
+        --exclude='**/lifecycle-exit.e2e.test.ts'
+        --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         ARC_E2E_SKIP_BUILD: '1'
 
@@ -437,7 +459,7 @@ jobs:
         path: |
           node_modules
           packages/arc-framework/node_modules
-        key: ${{ runner.os }}-nm-${{ hashFiles('package-lock.json') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8

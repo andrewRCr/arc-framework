@@ -21,6 +21,16 @@
   Reconcile deferral from effective state and exact head, assess draft state versus review state as the trigger, and
   keep `ci-ok` red whenever required heavy work is deferred or uncertain.
 
+### `[ ]` **Schedule required CI for every exact stacked-member head**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ci-defer-heavy-reconciliation`), housekeep drain
+  (2026-09-07); captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a delivery stack can settle review member by member while CI remains oriented around pull-request
+  events, leaving no authoritative scheduler that proves each exact member head received its required jobs.
+- _Fold-in:_ compose exact-head member readiness with the effective-lane deferral policy, preserve `ci-ok` as the
+  fail-safe aggregate gate, and avoid replaying heavy jobs when the same exact head is already qualified. A
+  read-only exact-head readiness projection is extracted as an immediate Errand.
+
 ---
 
 ## Problem / Motivation

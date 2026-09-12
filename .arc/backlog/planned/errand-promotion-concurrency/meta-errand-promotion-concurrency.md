@@ -1,14 +1,14 @@
-# Metadata: ci-defer-heavy-reconciliation
+# Metadata: errand-promotion-concurrency
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-ci-defer-heavy-reconciliation.md`
+- **Design:** `draft-errand-promotion-concurrency.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 

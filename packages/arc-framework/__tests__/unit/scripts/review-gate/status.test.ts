@@ -582,12 +582,15 @@ describe("review status", () => {
     })).toMatchObject({
       nextAction: "obtain-ceiling-override",
       terminusAction: {
-        kind: "delivery-member-owner-terminus",
-        workUnitId: "example",
-        remote: "upstream",
-        target: hostedAction.target,
-        vehicle: memberVehicle,
-        completedPasses: 2,
+        schemaVersion: 1,
+        offer: {
+          kind: "delivery-member-owner-terminus",
+          workUnitId: "example",
+          remote: "upstream",
+          target: hostedAction.target,
+          vehicle: memberVehicle,
+          completedPasses: 2,
+        },
       },
     });
   });
@@ -627,11 +630,14 @@ describe("review status", () => {
       state: "base-moved",
       nextAction: "rerun-checkpoint",
       terminusAction: {
-        kind: "delivery-member-owner-terminus",
-        workUnitId: "example",
-        target: hostedAction.target,
-        vehicle: memberVehicle,
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          kind: "delivery-member-owner-terminus",
+          workUnitId: "example",
+          target: hostedAction.target,
+          vehicle: memberVehicle,
+          completedPasses: 1,
+        },
       },
     });
   });
@@ -668,11 +674,14 @@ describe("review status", () => {
       nextAction: "review-hosted-request",
       action: hostedAction,
       terminusAction: {
-        kind: "delivery-member-owner-terminus",
-        workUnitId: "example",
-        target: hostedAction.target,
-        vehicle: memberVehicle,
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          kind: "delivery-member-owner-terminus",
+          workUnitId: "example",
+          target: hostedAction.target,
+          vehicle: memberVehicle,
+          completedPasses: 1,
+        },
       },
     });
   });
@@ -730,10 +739,13 @@ describe("review status", () => {
         vehicle: memberVehicle,
       },
       terminusAction: {
-        kind: "delivery-member-owner-terminus",
-        target: hostedAction.target,
-        vehicle: memberVehicle,
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          kind: "delivery-member-owner-terminus",
+          target: hostedAction.target,
+          vehicle: memberVehicle,
+          completedPasses: 1,
+        },
       },
     });
   });
@@ -1572,10 +1584,13 @@ describe("review status", () => {
       nextAction: "resolve-review-applicability",
       selectionAction: obligation.selectionAction,
       terminusAction: {
-        kind: "delivery-member-owner-terminus",
-        target: hostedAction.target,
-        vehicle: memberVehicle,
-        completedPasses: 1,
+        schemaVersion: 1,
+        offer: {
+          kind: "delivery-member-owner-terminus",
+          target: hostedAction.target,
+          vehicle: memberVehicle,
+          completedPasses: 1,
+        },
       },
     });
   });

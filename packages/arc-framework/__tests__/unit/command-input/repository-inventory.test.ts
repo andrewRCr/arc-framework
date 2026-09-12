@@ -251,6 +251,7 @@ describe("repository command-input inventory", () => {
       "resume",
       "review change-request resolve",
       "review chunking resolve",
+      "review planning-grooming resolve",
       "review planning-lane",
       "review pre-publication",
       "review status",
@@ -262,6 +263,20 @@ describe("repository command-input inventory", () => {
       "teardown",
       "user reconcile-references",
       "wu reconcile",
+    ]);
+  });
+
+  it("assigns the post-action development build refresh to its head-moving command families", () => {
+    const refreshCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-dev-check.ts-subprocess-execfile-1")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(refreshCommands).toEqual([
+      "base merge",
+      "delivery review-fix continue",
+      "errand close",
+      "errand open",
     ]);
   });
 

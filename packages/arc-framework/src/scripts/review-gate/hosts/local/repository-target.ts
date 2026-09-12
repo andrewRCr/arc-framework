@@ -7,6 +7,10 @@ import {
   ReviewTargetSchema,
   type ReviewTarget,
 } from "../../core/gate-contract-v2-schema.js";
+import {
+  ReviewTargetCoordinatesSchema,
+  type ReviewTargetCoordinates,
+} from "../../core/review-target-coordinates.js";
 
 export type LocalTargetInvalidReason =
   | "dirty-worktree"
@@ -125,7 +129,7 @@ async function verifyMemberCommits(
 
 /** Resolve the two supplied commits and their trees, reading neither HEAD nor the working tree. */
 async function resolveMemberCoordinates(
-  input: LocalTargetDerivationInput,
+  input: GitBoundary,
   coordinates: DeliveryMemberCoordinates,
 ): Promise<DerivedCoordinates> {
   const { head, base } = await verifyMemberCommits(input, coordinates);
@@ -135,6 +139,27 @@ async function resolveMemberCoordinates(
     readGit(input, ["rev-parse", `${head}^{tree}`], "non-commit-head"),
   ]);
   return { diffBaseSha: base, diffBaseTree, headSha: head, headTree };
+}
+
+/** Derive a canonical target from exact caller-held commits and repository-local identity. */
+export async function deriveLocalReviewTargetFromCoordinates(input: {
+  exec: GitExec;
+  cwd: string;
+  repositoryId: string;
+  coordinates: ReviewTargetCoordinates;
+}): Promise<ReviewTarget> {
+  const coordinates = ReviewTargetCoordinatesSchema.parse(input.coordinates);
+  const baseRef = coordinates.baseRef.trim();
+  await readGit(input, ["check-ref-format", `refs/heads/${baseRef}`], "invalid-base");
+  const derived = await resolveMemberCoordinates(input, coordinates);
+  return createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: coordinates.kind,
+    repositoryId: input.repositoryId,
+    baseRef,
+    ...derived,
+  });
 }
 
 /**

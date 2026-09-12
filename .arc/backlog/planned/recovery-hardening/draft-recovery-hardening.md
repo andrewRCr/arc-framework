@@ -151,6 +151,15 @@
 
 - _Captured during:_ post-merge `arc-cleared` activation after `review-gate-right-sizing` teardown (2026-07-25).
 
+### `[ ]` **Model intentional unmerged-index state as a resumable recovery frame**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-09-07);
+  captured during `delivery-native-stack-composition` dogfooding.
+- _Concern:_ a typed diagnostic can distinguish intentional merge composition from generic dirtiness now, but
+  safe resumption needs durable evidence for the exact merge/index operation and its allowed continuation.
+- _Fold-in:_ define the narrow resumable frame and fail closed for unrelated or ambiguous unmerged entries; do not
+  weaken ordinary dirty-path or conflict detection.
+
 ## Problem / Motivation
 
 ARC's compaction-recovery mechanism emits a seed before compaction and, after it, tells the agent

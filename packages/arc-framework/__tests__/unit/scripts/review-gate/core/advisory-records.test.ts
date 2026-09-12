@@ -12,6 +12,8 @@ import {
   createDispositionSet,
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { createFixAuthorization } from
+  "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 
 const target = {
@@ -43,7 +45,7 @@ const approvedDisposition = approveDispositionState({
       sourceVerification: "verified",
       verificationRefs: ["review:finding-1"],
       severity: "major",
-      disposition: "defer",
+      disposition: "fix",
       gating: "blocking",
       rationale: "The source confirms the boundary issue.",
       recommendation: "Track the correction as follow-up work.",
@@ -135,6 +137,49 @@ describe("advisory review records", () => {
         claimId: "claim-1",
         branch: "chore/repair-review-state",
       },
+    }).success).toBe(false);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: "a".repeat(40),
+      },
+    }).success).toBe(source.kind === "frontline");
+  });
+
+  it("binds a Candidate-owned private member to the fix authorization head", () => {
+    const fixAuthorization = createFixAuthorization({
+      dispositionState: approvedDisposition,
+      oldTarget: target,
+    });
+    const record = {
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: target.repositoryId,
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: target.headSha,
+      },
+      source: { kind: "frontline", outcomeRef: "outcome:1" },
+      approvedDisposition,
+      fixAuthorization,
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+    } as const;
+
+    expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      deliveryMember: { ...record.deliveryMember, head: "e".repeat(40) },
     }).success).toBe(false);
   });
 

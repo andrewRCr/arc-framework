@@ -327,11 +327,12 @@ const PACKAGED_CONTENT_SENSITIVE_GLOBS = [
 ] as const;
 
 const PORTABILITY_SURFACE_GLOBS = [
+  "packages/arc-framework/src/lib/advisory-lock.ts",
   "packages/arc-framework/src/lib/git/ref-tree.ts",
   "packages/arc-framework/src/lib/errand/*",
   "packages/arc-framework/src/lib/user-sync/*",
   "packages/arc-framework/src/commands/user/shared.ts",
-  "packages/arc-framework/__tests__/unit/user-sync-notes-lock.test.ts",
+  "packages/arc-framework/__tests__/unit/advisory-lock.test.ts",
   "packages/arc-framework/__tests__/integration/ref-tree-cas*.test.ts",
   "packages/arc-framework/__tests__/integration/sync-state-ref*.test.ts",
   "packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts",
@@ -407,15 +408,22 @@ function isPlainPlanningContentChange(change: CanonicalChange): boolean {
   }
 }
 
-/** Reduce canonical exact-ref changes to the planning-clearance lane. */
-export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+function classifyPlanningPaths(
+  changeSet: ChangeSet,
+  pathEligible: (path: string) => boolean,
+): "planning" | "reviewed" {
   if (changeSet.changeSet === "unknown") return "reviewed";
   for (const change of changeSet.changes) {
     if (!isPlainPlanningContentChange(change)) return "reviewed";
     const endpoints = [change.path, ...(change.previousPath === undefined ? [] : [change.previousPath])];
-    if (!endpoints.every(isPlanningArtifactPath)) return "reviewed";
+    if (!endpoints.every(pathEligible)) return "reviewed";
   }
   return "planning";
+}
+
+/** Reduce canonical exact-ref changes to the planning-clearance lane. */
+export function classifyPlanningLane(changeSet: ChangeSet): "planning" | "reviewed" {
+  return classifyPlanningPaths(changeSet, isPlanningArtifactPath);
 }
 
 /** Reduce canonical changes to the CI-weight classification. */

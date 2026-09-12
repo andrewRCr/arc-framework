@@ -193,7 +193,7 @@ command again for a delivery, or use the exact `targetRef` command for an ordina
 judgment option before `--json`; never narrow a delivery-status action to an agent-reconstructed member target.
 
 `obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
-`terminusAction.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
+`terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
 one additional pass; on approval, re-enter the same status scope with the returned consequence serialized unchanged.
 For a delivery, use:
 
@@ -211,8 +211,14 @@ A `review-hosted-request` or `review-local-prepare` result may also carry `termi
 pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
 execute the returned review action unchanged.
 
-When the Owner accepts any returned delivery-member terminus, pass `terminusAction` unchanged as `offer` beside the
-explicit `judgment.mode: owner-accepted` to:
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
+attention disposition while retaining `consider-chunks`. Require the status action to carry either the exact-target
+chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected by the
+Owner. A missing or stale selection stops before either hosted or local invocation.
+
+When the Owner accepts any returned delivery-member terminus, add
+`judgment: { "mode": "owner-accepted" }` to `terminusAction` and pass the resulting envelope unchanged to:
 
 ```bash
 arc review terminus accept -
@@ -269,11 +275,17 @@ arc review respond -
 This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
 plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
 
-`delivery-correction-required / continue-delivery-correction` is the delivery-member fix route. Execute any
+`delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
 `authoring-required`, and edit only its exact `authoring.checkoutPath` and `authoring.ref` under the returned
 `authoringAuthorization`; resume only through `resumeAction`. A missing, stale, or different locus stops before
-authoring. `ready-to-fix / apply-fix` remains the ordinary singleton route and never substitutes for this one.
+authoring.
+
+A Candidate-bound private-member fix instead returns `ready-to-fix / apply-fix` with `payload.authoring`. Author
+only at that exact active work-unit checkout, ref, and head; follow the Candidate response path in
+[`prepare-work-unit.md`](prepare-work-unit.md), and reconstruct the delivery suffix only after Candidate advance as
+the returned `deliverySuffixReconstruction` directs. A `ready-to-fix` response without `authoring` remains the
+ordinary singleton route and never substitutes for the delivery-owned controller.
 
 The action already carries the selected source, exact opened target, requested coverage, and any delivery-member
 vehicle. Status uses complete coverage by default; only the explicit supplemental route below returns incremental
@@ -293,13 +305,31 @@ exact bytes before its machine-owned commit and push. `continue` retains the ear
 re-enters status and receives the ordinary hosted request action. Applicability reruns, base movement, and pending
 checks return to their typed checkpoint; `upgrade` and every `stop` remain stops.
 
-- `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing uses
-  the project's configured bounded-call defaults.
-- `pending / await` — re-invoke the same handle; do not build an agent polling loop.
-- `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
-  request intact. Re-invoking the same handle checks once; on explicit direction, pass
-  `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
-  provider outcome.
+- `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses the
+  project's configured bounded-call defaults.
+- `pending / await` — pass the newly returned `action` unchanged; do not build an agent polling loop.
+- `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Retain the request
+  for the diagnostic below, then stop. Submitting `action` unchanged checks once; on explicit direction, add
+  `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
+  records a provider outcome.
+
+For either pending outcome, run one short exact-head diagnostic observation before continuing or stopping:
+
+```bash
+arc review checks await \
+  --repository <action.handle.target.repository> \
+  --pull-request <action.handle.target.pullRequest> \
+  --head-sha <action.handle.target.headSha> \
+  --timeout-ms 10000 \
+  --poll-interval-ms 10000 \
+  --json
+```
+
+Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+`pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
+that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
+action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
+release the draft lock.
 
 Hosted delivery-member request and await operations persist their admitted pass in durable lane progress. Re-enter
 through status after each concluded result; do not reconstruct `completedPasses` or route the public member back
@@ -480,8 +510,9 @@ Repeat the Step 1 push extension contract before this push.
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
 After push, this is a provisional integration candidate, never merge readiness. Recompose its exact target, invoke
-`arc review chunking resolve -`, apply [`review-chunking`][review-chunking] when its typed action requests selection,
-and make Step 2's review applicability judgment. Only Step 10's exact-head integration authorization can release
+`arc review chunking resolve -` with `{ kind, baseRef, diffBaseSha, headSha }`, apply
+[`review-chunking`][review-chunking] when its typed action requests selection, and make Step 2's review applicability
+judgment. Only Step 10's exact-head integration authorization can release
 the merge.
 
 ### 10) Behind-base reconcile gate and merge
@@ -558,8 +589,21 @@ substituting a selection in prose.
 `candidate-publication-required / resume-pre-publication` renders `payload.recommendedActionText` verbatim and
 invokes `payload.attestArgv` unchanged. Invoke the returned `locus.nextAction.command` and follow that ordinary
 pre-publication procedure. At `candidate-publish-ready`, invoke `arc publish {name} --json`; require its idempotent
-Integrating result, then complete the already-open Step 2 review for any carried reservation. Run Tier 1 over the
-exact new head and staged boundary correction, then commit:
+Integrating result, then complete the already-open Step 2 review for any carried reservation. Continue at the shared
+publication-boundary commit below.
+
+`candidate-publication-required / refresh-shipped-delivery` renders `payload.recommendedActionText` verbatim and
+invokes `payload.attestArgv` unchanged. Require its unchanged `delivery-status-required` locus, then restart this
+step. This shipped continuation does not enter private pre-publication review or invoke `arc publish`.
+
+`terminal-rebind-required / reconcile-delivery-state` invokes `arc delivery reconcile - --json` with
+`payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
+This reuses ordinary delivery reconciliation and adds no new operation.
+
+`candidate-publication-commit-required / commit-boundary` renders `payload.recommendedActionText` verbatim and
+requires the staged path to equal `payload.boundaryPath`, then continues below.
+
+For either staged publication route, run Tier 1 over the exact new head and boundary correction, then commit:
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -577,10 +621,6 @@ Repeat the Step 1 push extension contract.
 
 Restart this step. Ordinary review and publication settlement remain authoritative; Candidate applicability
 supplies neither verdict.
-
-`terminal-rebind-required / reconcile-delivery-state` invokes `arc delivery reconcile - --json` with
-`payload.reconcileInput` unchanged. `rebound / rerun-checkpoint` restarts this step; every other typed result stops.
-This reuses ordinary delivery reconciliation and adds no new operation.
 
 `blocked / stop` stops on its typed reason. `ready / request-approval` continues at the ready checkpoint below.
 

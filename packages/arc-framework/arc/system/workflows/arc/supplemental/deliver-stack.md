@@ -8,6 +8,7 @@ arc:
     - implementation-audit
     - review-triage
     - review-response
+    - review-chunking
     - validate-criteria
   extensions:
     - pre-push-review
@@ -62,10 +63,10 @@ Resolve the complete plan's exact disposable authoring locators:
 arc delivery authoring locate - --json
 ```
 
-Record each authored cut at its returned private candidate ref and run project gates in the matching returned
-detached gate path. Do not leave ordinary local branches or branched worktrees for these cuts — ARC may interpret
-them as work-unit loci or cleanup residue. The private refs are identity-free locators only and grant no delivery
-authority.
+Record each authored cut at its returned private candidate ref and returned matching detached gate path. Do not leave
+ordinary local branches or branched worktrees for these cuts — ARC may interpret them as work-unit loci or cleanup
+residue. The private refs are identity-free locators only and grant no delivery authority. Gate execution waits for
+the materialized member scale recheck below.
 
 The write half of that locus is typed too, so a correction interrupted between authoring and its gate replay
 completes without hand-writing a ref in the ARC-owned namespace. `arc delivery authoring rematerialize - --json`
@@ -73,6 +74,29 @@ prepares the exact private ref and detached gate pair at the current public memb
 `arc delivery authoring rebind - --json` binds a clean detached authoring head to its candidate ref. Both take the
 exact inputs the correction continuation dispatches in-process and refuse with the executor's own typed reason on a
 dirty locus, a moved head or tree, a stale state revision, or an active operation.
+
+For every returned locator in plan order, compose the exact materialized member target from its private candidate
+head and plan-ordered predecessor boundary, then invoke:
+
+```bash
+arc review chunking resolve -
+```
+
+Supply the member's `{ kind, baseRef, diffBaseSha, headSha }` and any exact-target scope selection retained from
+member closeout. Dispatch only on the typed result:
+
+- `disabled / none`, `below-threshold / continue-review`, and `scope-selected / continue-review` continue.
+- `consider-chunks / select-review-scope` renders `recommendedActionText` and applies the
+  [`review-chunking` method][review-chunking]. For a selected bounded-review route, reinvoke the resolver and require
+  `scope-selected / continue-review`. An explicit capable whole-target choice closes the attention disposition while
+  retaining the unchanged `consider-chunks` result and exact-target selection. An honest coherent member re-cut that
+  has no bound selection stops for the Owner's decision.
+- `evidence-unavailable / continue-review`, `delivery-bound / continue-review`, and every malformed or unsupported
+  result stop before gate execution.
+
+No Tier 2 command starts until every exact member target has a closed result and disposition. Retain each exact-target
+selection for the calling pre-publication review. This recheck governs the current materialization only; later target
+movement requires another exact check.
 
 ```bash
 arc delivery eligibility prepare - --json
@@ -168,7 +192,9 @@ After approval, invoke the returned `submitAction` unchanged. A `retryable` resu
 - `retryable / preserved / delivery-publish` with `operationKind: publish` revalidates and retries
   `arc delivery publish` against the retained reservation.
 - `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
-  `arc delivery rematerialize`.
+  `arc delivery rematerialize`; when present, pass its `supersedePendingReviewFixVerification` unchanged as the
+  exact authority to supersede the restored verification marker. Its `reviewFixSelectedDeliverableId` and
+  `reviewFixVerificationDeliverableIds` retain the corresponding correction subject.
 - `retryable / cleared / delivery-review-fix-publish` with `operationKind: rewrite` and
   `mode: selected-change` reruns `arc delivery review-fix publish` from the returned selected-member subject.
 - `retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and
@@ -187,10 +213,12 @@ After approval, invoke the returned `submitAction` unchanged. A `retryable` resu
   `arc delivery top-remedy`.
 
 For every arm, use the returned selector's exact `planId`, `operationId`, `affectedDeliverableIds`, `operationKind`,
-and narrow `mode` when present as the authoritative reservation subject. Render `recommendedActionText` verbatim and
-let the named ordinary verb reobserve and prepare every other input; workflow prose infers neither a selector nor a
-recovery policy. Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous
-result, stops with its reason rendered.
+and narrow `mode`, `reviewFixSelectedDeliverableId`, `reviewFixVerificationDeliverableIds`, and
+`supersedePendingReviewFixVerification` when present as the authoritative reservation, correction subject, and
+supersession identity. Render `recommendedActionText` verbatim and let the named ordinary verb reobserve and
+prepare every other input; workflow prose infers neither a selector nor a recovery policy.
+Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous result, stops
+with its reason rendered.
 
 Only after every request ID exists, compose the exact non-terminal native-link request without `optIn` and invoke:
 
@@ -198,7 +226,9 @@ Only after every request ID exists, compose the exact non-terminal native-link r
 arc delivery native link - --json
 ```
 
-Only `decision-required` continues. Render both texts verbatim — `recommendedOptInText` and
+An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without
+an operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
+`recommendedOptInText` and
 `recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
 After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
 
@@ -206,10 +236,12 @@ After the choice, set `optIn` to its exact boolean value and resubmit the otherw
 arc delivery native link - --json
 ```
 
-The terminal is never registered. A one-member delivery has no registration set and skips both invocations. `linked`
-continues only after a fresh exact host observation. An opt-out `unlinked` result makes zero native host calls and
-enters the ordinary singleton path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the
-explicit unlink verb; `refused` stops. On the linked path, refresh presentation facts before every landing:
+The terminal is never registered. A one-member delivery has no registration set and skips both invocations. A
+two-member delivery has a singleton registration set below the provider floor, so its initial read returns
+`unlinked` without resubmission. `linked` continues only after a fresh exact host observation. An opt-out `unlinked`
+result makes zero native host calls and enters the ordinary singleton path. `downgrade-required` renders
+`recommendedActionText` verbatim and invokes the explicit unlink verb; `refused` stops. On the linked path, refresh
+presentation facts before every landing:
 
 ```bash
 arc delivery native observe - --json
@@ -256,6 +288,21 @@ review evidence exists. Resolve its exact open change request and pass the resol
 ```bash
 arc review status --target '{targetRef}' --json
 ```
+
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
+attention disposition while retaining `consider-chunks`. Require the returned review action to carry either the
+exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
+by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
+carrier.
+
+After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
+
+```bash
+arc review status --target '{targetRef}' --source <hosted-source-id> --json
+```
+
+The source-less form retains the automatic chunked route.
 
 The default action requests complete coverage. When the exact corrective delta warrants only a focused supplemental
 hosted pass, request it from the same first-outstanding member position instead of editing an action:
@@ -312,14 +359,36 @@ plan through the existing phase-ordered settlement path below, then re-enter thr
 After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
 `payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
 
-On `requested / await`, pass the returned self-contained handle to:
+On `requested / await`, pass the returned `action` unchanged to:
 
 ```bash
 arc review hosted await -
 ```
 
-`pending / await` reuses that handle for one more bounded call; `pending / inspect-or-extend` stops with the request
-intact. Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
+`pending / await` retains the newly returned `action` unchanged for one more bounded call;
+`pending / inspect-or-extend` retains the request for the diagnostic below, then stops. Submitting `action`
+unchanged checks once; on explicit direction, add
+`continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review or
+records a provider outcome. For either pending outcome, run one short exact-head diagnostic observation before
+continuing or stopping:
+
+```bash
+arc review checks await \
+  --repository <action.handle.target.repository> \
+  --pull-request <action.handle.target.pullRequest> \
+  --head-sha <action.handle.target.headSha> \
+  --timeout-ms 10000 \
+  --poll-interval-ms 10000 \
+  --json
+```
+
+Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+`pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
+that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
+action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
+release the draft lock.
+
+Feed `clean`, `findings`, and safe-unavailability results to the existing review driver. For approved hosted
 finding settlement, execute the returned settlement plan in phase order through:
 
 ```bash
@@ -623,6 +692,7 @@ delivery arm from the current Candidate and retained member bindings, and its ex
 terminal merge. Do not fire a delivery interlock here.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
+[review-chunking]: ../../../methods/review-chunking.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md

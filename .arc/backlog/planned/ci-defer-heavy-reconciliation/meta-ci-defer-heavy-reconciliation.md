@@ -1,4 +1,4 @@
-# Metadata: integration-lane
+# Metadata: ci-defer-heavy-reconciliation
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -8,8 +8,9 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-ci-defer-heavy-reconciliation.md`
 - **Task List:** [none]
+- **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
 - **Last Completed:** [none]

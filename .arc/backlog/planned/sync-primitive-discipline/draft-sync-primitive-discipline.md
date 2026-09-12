@@ -13,15 +13,6 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Bound session-init user-note resolution while Git notes remain the compatibility store**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).
-- _Concern:_ one user session-init duplicates an unbounded nearest-note scan, producing roughly 1,276 note-read
-  subprocesses with 638 annotations. Resolve the nearest WU note once per invocation and share it across freshness
-  and disk inspection; bound remaining reads without deepening the compatibility-store architecture.
-- _Boundary:_ preserve causal-maximal selection, off-ancestry fallback, malformed-note handling, and disk drift;
-  keep this separate from the broader session-init Git snapshot work.
-
 ### `[ ]` **Entry-aware union at push reconcile — resolve the same-commit notes wedge**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: sync-primitive-discipline`), housekeep drain (2026-07-18);

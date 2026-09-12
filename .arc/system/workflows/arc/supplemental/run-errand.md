@@ -165,6 +165,10 @@ remote base all name the same exact head. Any tracked change continues through t
 
 1. **Compose Errand review facts.** Atomic determinacy is a routing fact alongside the canonical change facts and
    `vehicle: errand`; it can scale the obligation only through registered policy. Do not select a merge lane yet.
+   When the change is confidently routine planning-grooming and self- or ownerless-owned, retain only the exact Git
+   coordinates plus the caller-owned content kind, risk, determinacy, ownership, and surface authority judgments for
+   the direct adapter below. The adapter derives the remaining routing facts; do not hand-author its change-set
+   state, assurance, method activity, repository identity, target trees, or standard-review projection.
 
 2. **Push** the errand branch upstream.
 
@@ -174,11 +178,44 @@ remote base all name the same exact head. Any tracked change continues through t
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
+   For the confidently recognized planning-grooming case, invoke `arc review planning-grooming resolve -` with the
+   exact committed target and the three caller-owned judgments:
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "target": { "baseRef": "<base-ref>", "diffBaseSha": "<diff-base-sha>", "headSha": "<head-sha>" },
+     "routingFacts": {
+       "contentKind": "documentation",
+       "reviewRisk": "routine",
+       "changeDeterminacy": "atomic",
+       "ownership": "self",
+       "surfaceAuthority": "planning-grooming"
+     }
+   }
+   ```
+
+   The command independently derives the immutable repository target, proves the exact diff contains only plain
+   planning artifacts, and supplies the transient vehicle's assurance and live method activity. Content kind and
+   surface authority remain caller-owned semantic judgments. Follow only its typed state:
+
+   - `exempt / none` — both review lanes are complete (`frontline: skipped`, `standard: exempt`); skip the remaining
+     review composition in this step and continue to Step 3.
+   - `review-required / continue-review` — reuse its exact target, routing, and obligation payload, preserve its
+     diagnostics, then enter ordinary review below; do not retype those projections.
+   - `not-eligible / continue-review` — surface the typed reason, then enter ordinary review below.
+   - A command error carries no action; stop.
+
+   Never infer this exemption from `arc review planning-lane`, absence of a work unit, file count, or prose. The
+   planning-lane classifier remains the later merge-lane input only.
+
    Compose the immutable policy target `{ repository, pullRequest: null, headSha }`, the routed `standardReview`
-   projection, and explicit review-routing facts. The future merge lane remains downstream presentation, not a
-   routing input. For each new target, invoke `arc review chunking resolve -` once, including an existing exact-target
-   `scopeSelection` when one exists. An Errand has no owning work unit, so ordinary tripped evidence resolves
-   authoritative-unbound. Dispatch the closed result without adding delivery judgment:
+   projection, and explicit review-routing facts for every target continuing through ordinary review. The future
+   merge lane remains downstream presentation, not a routing input. For each new target, invoke
+   `arc review chunking resolve -` once, projecting each supplied target
+   to caller-held Git coordinates `{ kind, baseRef, diffBaseSha, headSha }` and including an existing exact-target
+   `scopeSelection` through the same projection when one exists. An Errand has no owning work unit, so ordinary
+   tripped evidence resolves authoritative-unbound. Dispatch the closed result without adding delivery judgment:
 
    - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
      `evidence-unavailable / continue-review` — render no attention text and continue review.
@@ -196,7 +233,8 @@ remote base all name the same exact head. Any tracked change continues through t
 
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
    - `awaiting-change-request / open-change-request` — retain progress and continue to PR creation.
-   - `ready / run-frontline` — invoke `arc review frontline resolve -` and `arc review frontline run -`.
+   - `ready / run-frontline` — invoke `arc review frontline resolve -`, then invoke `arc review frontline run -`
+     with the ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
      `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
    - `findings / respond` — run [`review-triage`][review-triage] and [`review-response`][review-response], then
@@ -243,7 +281,9 @@ remote base all name the same exact head. Any tracked change continues through t
    pre-create validation requires the remote branch itself to carry the exact creation head, including after any
    hook action.
 
-   Then invoke `arc merge lock resolve -` with the exact tree root. Follow only its typed action:
+   Then invoke `arc merge lock resolve -` with
+   `{ "schemaVersion": 1, "treeRoot": "<absolute-checkout-path>" }`; `treeRoot` is the checkout path, not a Git
+   tree object ID. Follow only its typed action:
    `locked / open-locked` creates the PR locked; `none / open-plain` creates it plain; `blocked / stop` halts
    creation before any PR exists. The lane is still unresolved here — it settles in Step 4 — so both lanes open the
    same way, and no lane input reaches this call.
@@ -264,18 +304,52 @@ remote base all name the same exact head. Any tracked change continues through t
    target without a permission stop. A conflict, material interaction, or uncertain product decision stops. This
    advisory never replaces Step 5's authoritative final drift read.
 
+   For every confidently recognized planning-grooming entry at this checkpoint, re-invoke
+   `arc review planning-grooming resolve -` with the opened PR's exact current coordinates and freshly affirmed
+   caller-owned judgments. This opened-target result supersedes the pre-PR result and is the sole exemption
+   authority for this head. Follow its typed result:
+
+   - `exempt / none` — skip the remaining review composition in this step and continue to Step 5.
+   - `review-required / continue-review` — reuse its exact target, routing, and obligation payload below.
+   - `not-eligible / continue-review` — continue below through ordinary fact composition.
+   - A command error carries no action; stop.
+
+   Any head movement invalidates the exemption and returns here before the integration interlock, including after a
+   hook action, review fix, or base reconciliation. Continue only when `openedChangeRequest` and the adapter target
+   name the same exact head.
+
    Rerun `arc review chunking resolve -` for the opened target, follow the closed attention dispatch in Step 2, and
    invoke `arc review resolve -` for each incomplete lane. On `ready / hosted-request`, invoke
    `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
    `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
 
-   - `requested / await` — pass the returned self-contained handle to `arc review hosted await -`; omitted timing
-     uses the project's configured bounded-call defaults.
-   - `pending / await` — re-invoke the same handle; do not build an agent polling loop.
-   - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Stop with the
-     request intact. Re-invoking the same handle checks once; on explicit direction, pass
-     `continueAfterAttention: true` for one more bounded call. Neither path requests another review or records a
-     provider outcome.
+   - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
+     the project's configured bounded-call defaults.
+   - `pending / await` — retain the newly returned `action` through the diagnostic below, then pass it unchanged to
+     `arc review hosted await -` for one more bounded call. Repeat this typed continuation until
+     `pending / inspect-or-extend` or another terminal outcome; do not build an independent polling schedule.
+   - `pending / inspect-or-extend` — unattended waiting reached its configured attention threshold. Retain the
+     request for the diagnostic below, then stop. Submitting `action` unchanged checks once; on explicit direction,
+     add `continueAfterAttention: true` to that action for one more bounded call. Neither path requests another review
+     or records a provider outcome.
+
+   For either pending outcome, run one short exact-head diagnostic observation before continuing or stopping:
+
+   ```bash
+   arc review checks await \
+     --repository <action.handle.target.repository> \
+     --pull-request <action.handle.target.pullRequest> \
+     --head-sha <action.handle.target.headSha> \
+     --timeout-ms 10000 \
+     --poll-interval-ms 10000 \
+     --json
+   ```
+
+   Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+   `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
+   that action re-enters hosted await.
+   `failed / stop`, stale or mismatched targets, and blocked reads stop with the action intact. This observation does
+   not become review settlement, feed the review driver, move the exact head, or release the draft lock.
 
    Before feeding any `clean`, `findings`, or `settled-findings` attempt to the driver, set `completedPasses` to
    the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
@@ -336,6 +410,9 @@ remote base all name the same exact head. Any tracked change continues through t
    base, head, requirements, and review are settled.
 
    Compose the final `openedChangeRequest` and retain `openedChangeRequest.headSha` as `{approved-head-sha}`.
+   For a planning-grooming case, require the most recent opened-target adapter target to match this final settled
+   head. A missing or mismatched adapter target returns to Step 4 before the pre-merge extension or integration
+   interlock.
 
    **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled head and render
    their results under this label. Otherwise, skip — an inactive extension renders nothing. The extension fires
@@ -344,8 +421,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the current head is settled and before releasing the exact target and
-> executing its merge action. Surface the exact head, review applicability calls and targeted verification, proposed final
-> dispositions, PR checks, required approvals, base freshness, and the resolved lane. State
+> executing its merge action. Surface the exact head, applicable planning-grooming adapter target, review
+> applicability calls and targeted verification, proposed final dispositions, PR checks, required approvals, base
+> freshness, and the resolved lane. State
 > that approval applies final dispositions and channel settlement, ends review, invokes the exact-head release on
 > whichever lane resolves, and authorizes exact-head merge. A redirect may instead select release-only for
 > asynchronous host review or later manual merge.
@@ -406,6 +484,9 @@ action.
    base and exact approved head. Any other state, action, or candidate stops with the lock held.
 
    Then validate the method, release the exact target, and invoke the direct head-matched merge:
+
+   The release request combines `schemaVersion: 1`, the absolute checkout path as `treeRoot`, the exact approved
+   `{ repository, pullRequest, headSha }` target, and `{ kind: "errand", slug: <slug> }` as `vehicle`.
 
    ```bash
    arc review merge-method resolve --json
