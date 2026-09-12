@@ -701,6 +701,14 @@ inventing it; scale does not fire.
   a heuristic (row count, footprint union) may be recorded after the first accreting work unit, never a gate.
 - **Whether `evidence-applicability`'s tokens survive as a per-criterion label.** The borrow is vocabulary-only and
   disclaimed as such; if that work unit's shipped vocabulary shifts, the delta form renames without design change.
+- **Which parent a corrective row may name.** § Placement of revision work states one parent per amendment and a
+  new `X.R` parent in the affected phase; the live log departs twice — A2 and A4 share the open 5.R as one defect
+  in two patterns, and A1 names 2.6, an ordinary task. The rule's stated case is the _completed_ parent, which
+  neither is, and what sharing costs is only the reverse lookup from parent back to row. Resolved by use.
+- **Whether a bare `door` trigger names enough.** The `_Trigger:_` grammar prefixes the detecting task id where one
+  exists, and an ad-hoc door entry has none, so three of the four live rows read a bare `door` while A4 carries
+  `5.2 must-stop`. The grammar is working as written, but the bare form is now the common one and names no locus a
+  reader can return to. Resolved by use.
 
 ## Amendments
 
