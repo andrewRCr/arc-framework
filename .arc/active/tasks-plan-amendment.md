@@ -572,3 +572,5 @@ source and the project copy.
   Configurable files by `.default` diff — with the task loop and `generate-tasks` edited in their templates.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
+- `[ ]` `DEV-RULES.ARC` § Method and extension loading reads the method-declaration rule conditionally, matching
+  `strategy-workflow-authoring.md`, in both the package source and the project copy

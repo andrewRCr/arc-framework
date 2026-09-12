@@ -106,3 +106,23 @@ Principle-level results the spec summarizes in one paragraph; the residues worth
   test (inputs and an outcome) with five consumers, so it lifts as a public method-shaped fragment.
 - **Directive firing conditions.** The skill description names its trigger and the default it suppresses; audit
   route-onward lines carry the specificity rule.
+
+## A1 — the always-loaded footprint claim
+
+Superseded text, § Cross-cutting Considerations ¶Forward compatibility:
+
+> No new invariant is placed and no always-loaded content grows.
+
+The rule-coherence edit at `6b70c6d4f` rewrote `DEV-RULES.ARC` § Method and extension loading, replacing "callers
+never redeclare those dependencies" with "Declare what your own body fires, never what you would carry only on a
+declared method's behalf" — one net line of always-loaded content, which the claim above ruled out.
+
+**Amended rather than reverted.** The categorical form is what made the edit necessary: this work unit's own
+workflow declares `adversarial-review` directly as well as through `validate-criteria`, and against a categorical
+always-loaded rule that reads as a violation no matter what the strategy says. Reverting would leave the shipped
+surface self-contradicting on the first artifact the work unit produces. The footprint claim was the cheaper thing
+to give up, and giving it up is visible rather than silent.
+
+D11 ¶final is deliberately **not** superseded. Its claim is narrower — no brief vocabulary entry, and no growth in
+the always-loaded _set_ — and neither a new always-loaded document nor a new section was added. The propagation
+sweep recorded it as checked.

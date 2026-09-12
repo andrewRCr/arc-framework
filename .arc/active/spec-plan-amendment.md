@@ -520,6 +520,9 @@ Prose:
 - `generate-tasks` — the `— Dn` recommendation in the parent-task skeleton step, the segmentation section
   becoming a declared callsite of the extracted method, and one pre-save checklist clause excepting `_Amended in:_`
   from the no-amendment-provenance rule, which the checklist otherwise forbids in the task bodies D6 requires it in.
+- `DEV-RULES.ARC` § Method and extension loading — the same rule in its always-loaded form, restated
+  conditionally (A1). Leaving it categorical while the strategy read conditionally would make this work unit's own
+  direct `adversarial-review` declaration read as a violation against the surface an executing session has loaded.
 - `strategy-workflow-authoring.md` — the method-declaration rule restated conditionally. Its categorical form
   ("a workflow never redeclares those dependencies") does not disambiguate a method the declaring body fires
   directly, which `amend-design` is the first case of; loading is fire-point-gated and the resolved graph dedupes,
@@ -624,7 +627,9 @@ each load-bearing term have one definition site. Two accepted prose residues: th
 template, because nothing observes a segment-verifier failure today and there is no slot to precompose from; and the
 at-scope re-entry of `create-spec` and `generate-tasks` runs by reference until the procedure-library cut makes it
 structural. The resident loop core grows by the four directive lines the loop model requires to stay in the core.
-No new invariant is placed and no always-loaded content grows.
+No new invariant is placed, and the always-loaded rule set changes by one line: `DEV-RULES.ARC` § Method and
+extension loading restates the method-declaration rule conditionally, so the always-loaded surface and the strategy
+read alike (A1).
 
 **Coordination.** `plan-segmentation` and `delivery-native-stack-composition` (shipped) supply the contracts D6, D8,
 and D10 compose against — read at the source. `evidence-applicability` (active) is consumed by name for the verdict
@@ -678,6 +683,8 @@ inventing it; scale does not fire.
   Configurable files by `.default` diff — with the task loop and `generate-tasks` edited in their templates.
 - All quality gates pass (tests, linting, type checking).
 - Ready for integration.
+- `DEV-RULES.ARC` § Method and extension loading reads the method-declaration rule conditionally, matching
+  `strategy-workflow-authoring.md`, in both the package source and the project copy.
 
 ## Open Questions
 
@@ -688,3 +695,9 @@ inventing it; scale does not fire.
   a heuristic (row count, footprint union) may be recorded after the first accreting work unit, never a gate.
 - **Whether `evidence-applicability`'s tokens survive as a per-criterion label.** The borrow is vocabulary-only and
   disclaimed as such; if that work unit's shipped vocabulary shifts, the delta form renames without design change.
+
+## Amendments
+
+- **A1** — 2026-09-11 — design: the work unit does change always-loaded content, so the claim that it does not is
+  superseded. _Supersedes:_ § Cross-cutting Considerations ¶Forward compatibility. _Trigger:_ door. _Work:_ 2.6.
+  _Revalidated:_ verify-work-unit.
