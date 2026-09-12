@@ -3,11 +3,12 @@
 Instrument-produced baseline of the CLI package's test-suite cost, taken 2026-09-11 during
 `test-suite-right-sizing` execution. It grounds every later target in retained measurement rather than projection.
 
-**Status: authoritative first instrument baseline.** Local figures are medians of three complete retained runs
+**Status: authoritative first instrument baseline.** Tier-cost figures are medians of three complete retained runs
 captured at `3548ac2ca` with the repository-owned `benchmark:test-cost` entry after the member-boundary review
-corrections. Every schema-v3 record carries a successful outcome established from Vitest's completed module states
-and empty run-level unhandled-error set; raw runs remain regenerable and gitignored, while the normalized evidence
-below is the durable record.
+corrections. Fixture-build and CLI-startup figures below are standalone probes; CI figures come from workflow runs.
+Every schema-v3 record carries a successful outcome established from Vitest's completed module states and empty
+run-level unhandled-error set; raw runs remain regenerable and gitignored, while the normalized evidence below is
+the durable record.
 
 ## Contents
 
@@ -165,14 +166,20 @@ under the config's hermetic environment (`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GL
 | `initInTempRepo` + commit + `addBareRemote` | 14         | 137.6 ms   | `user` — 48 cases              |
 | `fs.cpSync` of a built `user` fixture       | 0          | 7.3 ms     | 3.5 MB, 187 files              |
 
+The listed `user` shape counts total 93 against 94 reported cases. They omit an unmeasured remote-before-init path
+(`createTempRepo` + `makeCommit` + `addBareRemote` + `runInit`), so the shape table is not exhaustive for that file.
+
 A single `git --version` costs 2.4 ms and `git init -q` 4.5 ms, so the nine spawns in the `runInit` path are
 ~24 ms of its ~106 ms; the remainder is the init command writing the `.arc/` tree. Spawn batching is therefore not
-a lever; a template copy is, bounded by the fixture share below.
+a lever; a template copy may be, but only a complete fixture share can bound its benefit.
 
-| File           | Instrument baseline | Cases | Probed saving | Share of new baseline |
-| -------------- | ------------------- | ----- | ------------- | --------------------- |
-| `user.test.ts` | 41.10 s             | 94    | 11.53 s       | 28.1%                 |
-| `init.test.ts` | 11.95 s             | 39    | 3.67 s        | 30.7%                 |
+| File           | Instrument baseline | Cases | Timed fixture cost | Share of new baseline |
+| -------------- | ------------------- | ----- | ------------------ | --------------------- |
+| `user.test.ts` | 41.10 s             | 94    | 11.53 s            | 28.1%                 |
+| `init.test.ts` | 11.95 s             | 39    | 3.67 s             | 30.7%                 |
+
+The `user` subtotal excludes the unmeasured shape and is not an upper bound on total fixture cost or template-copy
+savings.
 
 **Absolute-path audit.** A built `initInTempRepo` + `makeCommit` fixture contains no occurrence of its own
 absolute path anywhere, `.git/` included. The `addBareRemote` shape does: `.git/config` records the remote's
@@ -316,8 +323,9 @@ sum is 1,376 s because the median of each component need not equal the median of
 | Portability (linux)    | 22             |
 | ci-ok, merge-ok        | 6              |
 
-With two slots, wall time is roughly total job-seconds over two plus the serial head, so summed savings anywhere
-in the heavy lane translate to wall time; per-leg balance only trims the makespan's tail.
+With two slots, total job-seconds divided by two plus the serial head is only a lower-bound heuristic for wall
+time. Dispatch order and the critical path determine makespan: savings on schedule-sensitive work can reduce it,
+while savings elsewhere may leave it unchanged.
 
 ## Derived targets
 
@@ -327,20 +335,22 @@ moving work between heavy jobs does not reduce total job-seconds.
 
 ### Integration summed file time: reduce by at least 15 seconds
 
-The prepared-fixture probe saved 28.6% of the old 40.3 s `user` file and 31.6% of the old 11.6 s `init` file:
+The timed `user` fixture shapes account for 11.53 s, or 28.6% of the old 40.3 s file; the omitted
+remote-before-init shape is not included. The `init` fixtures account for 3.67 s, or 31.6% of the old 11.6 s file.
+Using only these measured costs yields the 15.19 s fixture-cost input to the target projection:
 
 ```text
 (40.3 s × 28.6%) + (11.6 s × 31.6%) = 15.19 s
 ```
 
-The instrument moved the file baselines to 41.10 s and 11.95 s, making those absolute savings 28.1% and 30.7% of
-the new readings. The target retains the directly probed absolute saving and rounds down to **15 s**, or 4.2% of
-the 361.01 s integration baseline.
+The instrument moved the file baselines to 41.10 s and 11.95 s, making those timed fixture costs 28.1% and 30.7%
+of the new readings. The target retains the projected reduction from measured shapes and rounds down to **15 s**,
+or 4.2% of the 361.01 s integration baseline. It is not an observed saving or a complete fixture-cost bound.
 
 ### Routine lane wall clock: at most 44 seconds at 12 workers
 
 The lane's 548.18 s summed baseline loses the two all-spawn files that re-tier to E2E (`config-validate`, 37.80 s;
-`review-cli-surfaces`, 15.70 s) and the 15.19 s fixture saving:
+`review-cli-surfaces`, 15.70 s) and the projected 15.19 s fixture reduction:
 
 ```text
 548.18 s - 37.80 s - 15.70 s - 15.19 s = 479.49 s
@@ -382,7 +392,7 @@ double counting and leaving those later measurements as upside rather than prere
 | CI anchor re-selection                     | ~25 s of critical path                  | Medium — from tier-isolated rank |
 | Code splitting, on top of lazy loading     | ~0.02 s per real-verb spawn             | High — direct measurement        |
 | Running the lane as one command            | 68.2 s → 55.5 s (**~15%**)              | High — same-session pair         |
-| Fixture template copy, `user` / `init`     | ≤26–30% of those files' time            | High — probe; share is the bound |
+| Fixture template copy, `user` / `init`     | `user` bound unknown; `init` ≤30.7%     | Incomplete user data             |
 | Skipping `build:fast` when `dist/` fresh   | 1.2 s                                   | High — effectively nil           |
 | Batching git spawns per fixture            | ~24 ms of ~106 ms per build             | High — effectively nil           |
 
