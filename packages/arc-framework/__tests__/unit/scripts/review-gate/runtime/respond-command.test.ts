@@ -36,6 +36,8 @@ import type {
   LocalReviewState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import { CandidateBoundMemberFixAuthoringSchema } from
+  "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { computeFrontlineSourceBindingId } from
   "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
@@ -296,6 +298,15 @@ function dependencies(records: ReturnType<typeof fixture>) {
     }),
     resolveActiveErrand: async () => null,
     resolveDeliveryMemberFixTarget: async () => null,
+    resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) =>
+      CandidateBoundMemberFixAuthoringSchema.parse({
+        kind: "candidate",
+        workUnit,
+        head: expectedHead,
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        deliverySuffixReconstruction: "after-candidate-advance",
+      }),
     now: () => "2026-07-23T21:00:00Z",
     readCandidateLineage: async () => {
       const record = candidateRecord();
