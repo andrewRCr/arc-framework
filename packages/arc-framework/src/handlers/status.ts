@@ -405,6 +405,19 @@ export function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: s
   return baseOid;
 }
 
+/**
+ * Resolve the work unit at the derived frame's canonical entering checkout.
+ *
+ * @param frame - Derived roster and canonical entering-checkout selection.
+ * @returns The retained work-unit identity, or `null` when the entering row owns none.
+ */
+export function sessionPathTreatmentWorkUnit(
+  frame: Pick<Awaited<ReturnType<typeof runDerivedLocusStateProbe>>, "roster" | "entering">,
+): { name: string } | null {
+  const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+  return row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
+}
+
 function parsePositiveInteger(raw: string, fallback: number): number {
   const parsed = Number.parseInt(raw, 10);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
@@ -731,14 +744,15 @@ export async function handleStatus(
       }
       return pending;
     };
-    const getOptionalDerivedRoster = async () => {
+    const getOptionalDerivedFrame = async () => {
       if (identity === null) return null;
       try {
-        return (await getDerivedLocusState(identity)).roster;
+        return await getDerivedLocusState(identity);
       } catch {
         return null;
       }
     };
+    const getOptionalDerivedRoster = async () => (await getOptionalDerivedFrame())?.roster ?? null;
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
@@ -971,8 +985,8 @@ export async function handleStatus(
           ...options,
           objectAccess: "local-only",
         });
-        const roster = await getOptionalDerivedRoster();
-        const workUnit = roster === null ? null : locusWorkUnitAtPath(roster, cwd);
+        const frame = await getOptionalDerivedFrame();
+        const workUnit = frame === null ? null : sessionPathTreatmentWorkUnit(frame);
         return analyzeBaseDistanceSnapshot({
           exec,
           baseBranch,
