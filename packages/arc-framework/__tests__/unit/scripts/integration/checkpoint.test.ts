@@ -15,6 +15,40 @@ const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 const PLAN_ID = "123e4567-e89b-42d3-a456-426614174000";
 
+function readyDelivery() {
+  const endpoints = {
+    before: {
+      predecessor: { head: oid("a"), tree: oid("b") },
+      member: { head: oid("c"), tree: oid("d") },
+    },
+    after: {
+      predecessor: { head: oid("a"), tree: oid("b") },
+      member: { head: oid("c"), tree: oid("d") },
+    },
+  };
+  return {
+    status: "ready" as const,
+    claim: {
+      status: "composed" as const,
+      candidateId: digest("c"),
+      endpoints,
+      proof: { status: "accepted" as const, proof: "tree-equality" as const },
+    },
+    checks: { status: "ready" as const, candidateId: digest("c"), targets: [] },
+    top: {
+      status: "ready" as const,
+      request: {
+        binding: { providerId: "github", changeRequestId: "42" },
+        repository: "owner/repo",
+        headRef: "feat/example",
+        headSha: oid("c"),
+        baseRef: "main",
+        state: "open" as const,
+      },
+    },
+  };
+}
+
 const CLEAN_DRIFT = {
   mode: "authoritative" as const,
   verdict: "clean" as const,
@@ -79,6 +113,7 @@ function dependencies(): IntegrationCheckpointDependencies {
     },
     readCandidatePublication: async () => ({ status: "current" as const }),
     composeDelivery: async () => ({ status: "not-applicable" }),
+    readShippedDeliveryPublicationCommit: async () => ({ status: "none" }),
     resolveMergeMethod: async (_repository, stackPosition) => ({
       schemaVersion: 1,
       mode: "review-merge-method-resolve",
@@ -441,7 +476,9 @@ describe("integration checkpoint", () => {
       ? readCandidate(workUnit, baseRevision)
       : null;
     deps.readCandidatePublication = async (_workUnit, baseRevision) => ({
-      status: baseRevision === oid("b") ? "current" as const : "refresh-required" as const,
+      ...(baseRevision === oid("b")
+        ? { status: "current" as const }
+        : { status: "refresh-required" as const, kind: "singleton" as const }),
     });
     deps.readDrift = async () => ({
       mode: "authoritative",
@@ -612,6 +649,7 @@ describe("integration checkpoint", () => {
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readCandidatePublication = async () => ({
       status: "refresh-required",
+      kind: "singleton",
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -620,6 +658,33 @@ describe("integration checkpoint", () => {
         nextAction: "resume-pre-publication",
         payload: {
           attestArgv: ["arc", "attest", "example", "--json"],
+        },
+      });
+  });
+
+  it("uses archived-record attestation for a stale shipped singleton boundary", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readLifecycle = async () => ({
+      workUnit: "example",
+      storageVersion: oid("c"),
+      archiveCadence: "with-integration",
+      state: "shipped",
+      position: { phase: "Shipped", location: "completed" },
+      artifactFacts: [],
+      complete: true,
+    });
+    deps.readCandidatePublication = async () => ({
+      status: "refresh-required",
+      kind: "singleton",
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "candidate-publication-required",
+        nextAction: "resume-pre-publication",
+        payload: {
+          attestArgv: ["arc", "attest", "example", "--new-root", "--json"],
         },
       });
   });
@@ -638,14 +703,97 @@ describe("integration checkpoint", () => {
     });
     deps.readCandidatePublication = async () => ({
       status: "refresh-required",
+      kind: "delivery",
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "candidate-publication-required",
-        nextAction: "resume-pre-publication",
+        nextAction: "refresh-shipped-delivery",
         payload: {
           attestArgv: ["arc", "attest", "example", "--new-root", "--json"],
+        },
+      });
+  });
+
+  it("returns the exact staged shipped delivery boundary for commit before ready composition", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readLifecycle = async () => ({
+      workUnit: "example",
+      storageVersion: oid("c"),
+      archiveCadence: "with-integration",
+      state: "shipped",
+      position: { phase: "Shipped", location: "completed" },
+      artifactFacts: [],
+      complete: true,
+    });
+    deps.composeDelivery = async () => readyDelivery();
+    deps.readShippedDeliveryPublicationCommit = async () => ({
+      status: "commit-required",
+      boundaryPath: ".arc/system/.internal/candidates/example.boundary.json",
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "candidate-publication-commit-required",
+        nextAction: "commit-boundary",
+        payload: {
+          boundaryPath: ".arc/system/.internal/candidates/example.boundary.json",
+        },
+      });
+  });
+
+  it("refreshes the staged shipped delivery boundary after terminal state movement", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readLifecycle = async () => ({
+      workUnit: "example",
+      storageVersion: oid("c"),
+      archiveCadence: "with-integration",
+      state: "shipped",
+      position: { phase: "Shipped", location: "completed" },
+      artifactFacts: [],
+      complete: true,
+    });
+    deps.composeDelivery = async () => readyDelivery();
+    deps.readShippedDeliveryPublicationCommit = async () => ({ status: "refresh-required" });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "candidate-publication-required",
+        nextAction: "refresh-shipped-delivery",
+        payload: {
+          attestArgv: ["arc", "attest", "example", "--new-root", "--json"],
+        },
+      });
+  });
+
+  it("refuses unrelated dirt while recognizing a shipped delivery publication boundary", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readLifecycle = async () => ({
+      workUnit: "example",
+      storageVersion: oid("c"),
+      archiveCadence: "with-integration",
+      state: "shipped",
+      position: { phase: "Shipped", location: "completed" },
+      artifactFacts: [],
+      complete: true,
+    });
+    deps.composeDelivery = async () => readyDelivery();
+    deps.readShippedDeliveryPublicationCommit = async () => ({
+      status: "blocked",
+      detail: "The worktree contains changes beyond the exact staged publication boundary.",
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "composition-unavailable",
+        payload: {
+          detail: "The worktree contains changes beyond the exact staged publication boundary.",
         },
       });
   });
@@ -674,37 +822,7 @@ describe("integration checkpoint", () => {
       settlementBases.push(baseRevision);
       return composeCanonicalSettlementPlan([]);
     };
-    const endpoints = {
-      before: {
-        predecessor: { head: oid("a"), tree: oid("b") },
-        member: { head: oid("c"), tree: oid("d") },
-      },
-      after: {
-        predecessor: { head: oid("a"), tree: oid("b") },
-        member: { head: oid("c"), tree: oid("d") },
-      },
-    };
-    deps.composeDelivery = async ({ baseRevision }) => baseRevision === CLEAN_DRIFT.baseOid ? ({
-      status: "ready",
-      claim: {
-        status: "composed",
-        candidateId: digest("c"),
-        endpoints,
-        proof: { status: "accepted", proof: "tree-equality" },
-      },
-      checks: { status: "ready", candidateId: digest("c"), targets: [] },
-      top: {
-        status: "ready",
-        request: {
-          binding: { providerId: "github", changeRequestId: "42" },
-          repository: "owner/repo",
-          headRef: "feat/example",
-          headSha: oid("c"),
-          baseRef: "main",
-          state: "open",
-        },
-      },
-    }) : ({
+    deps.composeDelivery = async ({ baseRevision }) => baseRevision === CLEAN_DRIFT.baseOid ? readyDelivery() : ({
       status: "blocked",
       nextAction: "retarget",
       reason: "top-target-mismatch",

@@ -34,6 +34,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | lifecycle-advancement-provenance    | P1       | andrew | —          | approval-flow-refinement   |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
+| candidate-reroot-recovery-frame     | P1       | andrew | —          | —                          |
 | ci-defer-heavy-reconciliation       | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-correction-convergence     | P1       | andrew | —          | —                          |
@@ -90,6 +91,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cohort-cut-coherence                | P3       | andrew | —          | —                          |
 | cold-start-init-polish              | P3       | andrew | —          | —                          |
 | contributor-path                    | P3       | andrew | —          | —                          |
+| errand-promotion-concurrency        | P3       | andrew | —          | —                          |
 | external-coord-probe                | P3       | andrew | —          | —                          |
 | external-pm-composition             | P3       | andrew | —          | —                          |
 | grok-compaction-recovery            | P3       | andrew | —          | —                          |

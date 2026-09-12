@@ -17,7 +17,11 @@ import {
   parseCandidateManagedRecord,
   reduceCandidateDurableBaseline,
 } from "../work-unit/candidate-attestation.js";
-import type { CandidateTargetProjector } from "../work-unit/candidate-effective-target.js";
+import {
+  projectCandidateReRootContinuation,
+  type CandidateEffectiveChangedProjection,
+  type CandidateTargetProjector,
+} from "../work-unit/candidate-effective-target.js";
 import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import {
   resolveLoadSetManifest,
@@ -69,7 +73,12 @@ export type DeliveryCorrectionProjection =
   | { readonly status: "refused"; readonly message: string };
 
 export type SubjectMetaProjection =
-  | { kind: "unresolved"; code: "subject-unresolved"; message: string; metaPath: string | null }
+  | {
+      kind: "unresolved";
+      code: "subject-unresolved" | "candidate-re-root-required";
+      message: string;
+      metaPath: string | null;
+    }
   | {
       kind: "resolved";
       metaPath: string;
@@ -151,12 +160,13 @@ export async function projectCheckoutSubjectMeta(options: {
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
   if (record.candidateId !== null && candidateAuthorityRequired) {
     try {
-      const candidateContent = await options.io.readFile(join(
-        options.cwd,
-        resolveCandidateRecordRelativePath(options.subjectKey),
-      ));
+      const candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
+      const candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
       const candidateRecord = parseCandidateManagedRecord(candidateContent);
-      if (candidateRecord === null || candidateRecord.attestation.candidateId !== record.candidateId) {
+      if (candidateRecord === null) {
+        throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`);
+      }
+      if (candidateRecord.attestation.candidateId !== record.candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");
       }
       const effective = await options.io.projectCandidateTarget({
@@ -179,6 +189,9 @@ export async function projectCheckoutSubjectMeta(options: {
           throw new Error(`Candidate review-fix authority is unavailable (${pending.reason}).`);
         }
         if (pending.status === "none") {
+          if (effective.state === "changed") {
+            return candidateReRootRequired(options.subjectKey, expectedPath, effective);
+          }
           throw new Error(`Candidate target requires ${effective.nextAction}.`);
         }
         candidateSubjectDigest = reduceCandidateDurableBaseline(candidateRecord).target.subject.subjectDigest;
@@ -326,6 +339,26 @@ export async function projectCheckoutSubjectMeta(options: {
       cohortDocPath,
     }),
     integrationBoundary,
+  };
+}
+
+function candidateReRootRequired(
+  subjectKey: string,
+  metaPath: string,
+  effective: CandidateEffectiveChangedProjection,
+): SubjectMetaProjection {
+  const continuation = projectCandidateReRootContinuation({
+    name: subjectKey,
+    candidateId: effective.candidateId,
+    subjectDigest: effective.currentTarget.subject.subjectDigest,
+  });
+  return {
+    kind: "unresolved",
+    code: "candidate-re-root-required",
+    message: "Candidate target requires deliberate replacement-root attestation. Resume the work unit outside "
+      + "recovery, complete full verification for the current target, then run "
+      + `\`${continuation.argv.join(" ")}\`; rerun recovery afterward.`,
+    metaPath,
   };
 }
 

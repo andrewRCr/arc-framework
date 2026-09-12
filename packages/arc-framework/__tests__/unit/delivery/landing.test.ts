@@ -301,7 +301,11 @@ describe("delivery landing", () => {
       readiness: deps.readiness,
       lock: deps.lock,
       observation: deps.observation,
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "authorization-revalidation", reason: "approved-operation-mismatch" },
+    });
     expect(deps.mergeRequest).not.toHaveBeenCalled();
   });
 
@@ -366,7 +370,7 @@ describe("delivery landing", () => {
         ...deps.observation,
         observeSelection: async () => ++observations < 3
           ? exact
-          : { status: "refused" as const },
+          : { status: "refused" as const, reason: "position-unavailable" as const },
       },
     })).resolves.toEqual({
       status: "blocked",
@@ -445,7 +449,11 @@ describe("delivery landing", () => {
       readiness: changedRequest.readiness,
       lock: changedRequest.lock,
       observation: changedRequest.observation,
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "merged-result-reconciliation", reason: "request-mismatch" },
+    });
 
     const missingResult = boundaries(state);
     await expect(applyDeliveryLanding({
@@ -457,7 +465,11 @@ describe("delivery landing", () => {
       readiness: missingResult.readiness,
       lock: missingResult.lock,
       observation: { ...missingResult.observation, observeLandedResult: async () => null },
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "merged-result-reconciliation", reason: "landing-observation-unavailable" },
+    });
 
     const refusedContribution = boundaries(state);
     await expect(applyDeliveryLanding({
@@ -520,7 +532,11 @@ describe("delivery landing", () => {
         ...policyMoved.observation,
         revalidateMergePolicy: async () => ({ status: "refused" as const }),
       },
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "merge-policy-revalidation", reason: "policy-unavailable" },
+    });
     expect(policyMoved.mergeRequest).not.toHaveBeenCalled();
 
     await expect(applyDeliveryLanding({
@@ -532,7 +548,11 @@ describe("delivery landing", () => {
       readiness: deps.readiness,
       lock: deps.lock,
       observation: deps.observation,
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "authorization-revalidation", reason: "approved-operation-mismatch" },
+    });
     expect(deps.mergeRequest).not.toHaveBeenCalled();
 
     await expect(applyDeliveryLanding({
@@ -541,11 +561,195 @@ describe("delivery landing", () => {
       approved: prepared.presentation,
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
       host: deps.host,
-      readiness: { assess: async () => ({ status: "refused" as const }) },
+      readiness: { assess: async () => ({ status: "refused" as const, reason: "review-unsettled" as const }) },
       lock: deps.lock,
       observation: deps.observation,
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "readiness-revalidation",
+        checkpoint: "before-lock-release",
+        reason: "review-readiness-refused",
+        portReason: "review-unsettled",
+      },
+    });
     expect(deps.mergeRequest).not.toHaveBeenCalled();
+  });
+
+  it("reports the exact pre-merge refusal stage without clearing the reservation", async () => {
+    type Fixture = Awaited<ReturnType<typeof preparedBoundLanding>>;
+    type LandingInput = Parameters<typeof applyDeliveryLanding>[0];
+    const applyRefusal = async (
+      override: (fixture: Fixture) => Partial<LandingInput> | Promise<Partial<LandingInput>>,
+    ) => {
+      const fixture = await preparedBoundLanding();
+      const result = await applyDeliveryLanding({
+        plan: fixture.plan,
+        current: fixture.current,
+        approved: fixture.prepared.presentation,
+        stateStore: { publish: async () => { throw new Error("must not persist"); } },
+        host: fixture.deps.host,
+        readiness: fixture.deps.readiness,
+        lock: fixture.deps.lock,
+        observation: fixture.deps.observation,
+        ...await override(fixture),
+      });
+      expect(fixture.current.value.activeOperation).not.toBeNull();
+      return result;
+    };
+
+    await expect(applyRefusal(({ prepared }) => ({
+      approved: { ...prepared.presentation, head: "f".repeat(40) },
+    }))).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "authorization-revalidation", reason: "approved-operation-mismatch" },
+    });
+
+    await expect(applyRefusal(({ deps }) => ({
+      observation: {
+        ...deps.observation,
+        observeSelection: async () => ({ status: "refused" as const, reason: "position-unavailable" as const }),
+      },
+    }))).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "readiness-revalidation",
+        checkpoint: "before-lock-release",
+        reason: "selection-unavailable",
+        portReason: "position-unavailable",
+      },
+    });
+
+    await expect(applyRefusal(async ({ deps }) => {
+      const exact = await deps.observation.observeSelection();
+      const observedMember = exact.status === "observed" ? exact.snapshot.members[0] : undefined;
+      const observedCoordinates = observedMember?.coordinates;
+      if (exact.status !== "observed" || observedMember === undefined
+        || observedCoordinates === null || observedCoordinates === undefined) throw new Error("fixture must observe");
+      return {
+        observation: {
+          ...deps.observation,
+          observeSelection: async () => ({
+            ...exact,
+            snapshot: {
+              ...exact.snapshot,
+              members: [{
+                ...observedMember,
+                coordinates: {
+                  base: observedCoordinates.base,
+                  head: "9".repeat(40),
+                  tree: observedCoordinates.tree,
+                },
+              }],
+            },
+          }),
+        },
+      };
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "readiness-revalidation",
+        checkpoint: "before-lock-release",
+        reason: "operation-precondition-changed",
+      },
+    });
+
+    await expect(applyRefusal(({ deps }) => ({
+      host: { ...deps.host, readRequest: async () => ({ status: "absent" as const }) },
+    }))).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "readiness-revalidation",
+        checkpoint: "before-lock-release",
+        reason: "change-request-not-exact",
+      },
+    });
+
+    await expect(applyRefusal(() => ({
+      readiness: {
+        assess: async () => ({ status: "refused" as const, reason: "review-unsettled" as const }),
+      },
+    }))).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "readiness-revalidation",
+        checkpoint: "before-lock-release",
+        reason: "review-readiness-refused",
+        portReason: "review-unsettled",
+      },
+    });
+
+    await expect(applyRefusal(({ prepared }) => ({
+      approved: { ...prepared.presentation, releaseMergeLock: true },
+      lock: { release: async () => ({ status: "refused" as const, reason: "readiness-failed" as const }) },
+    }))).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "merge-lock-release",
+        reason: "lock-release-refused",
+        portReason: "readiness-failed",
+      },
+    });
+
+    await expect(applyRefusal(async ({ deps, prepared }) => {
+      const exact = await deps.observation.observeSelection();
+      let observations = 0;
+      return {
+        approved: { ...prepared.presentation, releaseMergeLock: true },
+        observation: {
+          ...deps.observation,
+          observeSelection: async () => ++observations === 1
+            ? exact
+            : { status: "refused" as const, reason: "position-unavailable" as const },
+        },
+      };
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "readiness-revalidation",
+        checkpoint: "after-lock-release",
+        reason: "selection-unavailable",
+        portReason: "position-unavailable",
+      },
+    });
+
+    await expect(applyRefusal(({ deps }) => ({
+      observation: {
+        ...deps.observation,
+        revalidateMergePolicy: async () => ({ status: "refused" as const }),
+      },
+    }))).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "merge-policy-revalidation", reason: "policy-unavailable" },
+    });
+
+    await expect(applyRefusal(({ deps }) => ({
+      host: {
+        ...deps.host,
+        mergeRequest: async () => ({
+          status: "refused" as const,
+          reason: "unavailable" as const,
+          provider: { kind: "http" as const, status: 422, exitCode: 1 },
+        }),
+      },
+    }))).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "merge-submission",
+        reason: "unavailable",
+        provider: { kind: "http", status: 422, exitCode: 1 },
+      },
+    });
   });
 
   it("reobserves after lock release and never adopts target movement without the matching merge", async () => {
@@ -585,10 +789,19 @@ describe("delivery landing", () => {
           observations += 1;
           return observations === 1
             ? deps.observation.observeSelection()
-            : { status: "refused" as const };
+            : { status: "refused" as const, reason: "position-unavailable" as const };
         },
       },
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: {
+        stage: "readiness-revalidation",
+        checkpoint: "after-lock-release",
+        reason: "selection-unavailable",
+        portReason: "position-unavailable",
+      },
+    });
     expect(deps.lock.release).toHaveBeenCalledOnce();
     expect(deps.mergeRequest).not.toHaveBeenCalled();
 
@@ -602,7 +815,11 @@ describe("delivery landing", () => {
       readiness: noMergedRequest.readiness,
       lock: noMergedRequest.lock,
       observation: noMergedRequest.observation,
-    })).resolves.toEqual({ status: "refused", reason: "landing-refused" });
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "landing-refused",
+      cause: { stage: "merged-result-reconciliation", reason: "request-mismatch" },
+    });
   });
 
   it("clears a proven non-applied reservation and routes attended landing back through prepare", async () => {
@@ -875,6 +1092,67 @@ describe("delivery landing", () => {
       if (writes.length === 1) expect(writes[0]?.activeOperation).toBeNull();
       else expect(current.value.activeOperation).not.toBeNull();
     }
+  });
+
+  it("restores the selected rematerialization subject when a predecessor reservation is cleared", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const predecessor = state.members[0]!;
+    const selected = state.members[1]!;
+    const pendingReviewFixVerification = {
+      selectedDeliverableId: selected.deliverableId,
+      memberDeliverableIds: [selected.deliverableId],
+    };
+    const pending = { ...state, pendingReviewFixVerification };
+    const before = { target: state.target, members: [predecessor] };
+    const requested = {
+      ...before,
+      members: [{
+        ...predecessor,
+        coordinates: predecessor.coordinates === null
+          ? null
+          : { ...predecessor.coordinates, head: "e".repeat(40) },
+      }],
+    };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: pending }, plan, {
+      operationId: "operation-rematerialize-predecessor",
+      kind: "rewrite",
+      mode: "review-fix",
+      affectedDeliverableIds: [predecessor.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested,
+      supersedePendingReviewFixVerification: pendingReviewFixVerification,
+      reviewFixSelectedDeliverableId: selected.deliverableId,
+      reviewFixVerificationDeliverableIds: pendingReviewFixVerification.memberDeliverableIds,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve the predecessor rewrite");
+    const writes: DeliveryStateV1[] = [];
+
+    const result = await reconcileDeliveryExecution({
+      planId: plan.planId,
+      current: { revision: 8, value: reserved.state },
+      observation: { observe: async () => ({ status: "observed" as const, value: before }) },
+      stateStore: { publish: async (_planId, value) => {
+        writes.push(value);
+        return { status: "ok" as const, value: { revision: 9, value } };
+      } },
+    });
+
+    expect(DeliveryRecoveryRerunV1Schema.parse(result)).toMatchObject({
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-rematerialize",
+      selector: {
+        affectedDeliverableIds: [predecessor.deliverableId],
+        reviewFixSelectedDeliverableId: selected.deliverableId,
+        reviewFixVerificationDeliverableIds: pendingReviewFixVerification.memberDeliverableIds,
+      },
+    });
+    expect(writes).toEqual([expect.objectContaining({
+      activeOperation: null,
+      pendingReviewFixVerification,
+    })]);
   });
 
   it("leaves closeout-residue reservations to the closeout verb", async () => {

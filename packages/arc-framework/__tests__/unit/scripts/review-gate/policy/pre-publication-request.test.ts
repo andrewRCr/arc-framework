@@ -352,7 +352,7 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.frontline.target).not.toHaveProperty("targetId");
   });
 
-  it("selects the first outstanding delivery member without deriving an aggregate target", async () => {
+  it("selects the first outstanding delivery member while retaining the root Candidate", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -412,9 +412,50 @@ describe("composePrePublicationReviewRequest", () => {
       headSha: second.target.headSha,
     });
     expect(composition.request.standard.target).toEqual(composition.request.frontline.target);
-    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+    expect(composition.request.responseBinding).toEqual({
+      candidate: { workUnit: WORK_UNIT_ID, candidateId: CANDIDATE_ID, head: HEAD },
+      deliveryMember: second.vehicle,
+    });
+    expect(deriveImmutableTarget).toHaveBeenCalledOnce();
     expect(readLaneProgress).toHaveBeenCalledWith("frontline", first.target.headSha, [first.target.headSha]);
     expect(readLaneProgress).toHaveBeenCalledWith("frontline", second.target.headSha, [second.target.headSha]);
+  });
+
+  it("resumes a pending private-member fix whose reviewed head differs from the Candidate head", async () => {
+    const member = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const readDeliveryReviewTargets = vi.fn();
+    const deriveImmutableTarget = vi.fn();
+    const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> => ({
+      status: "recorded",
+      completedPasses: lane === "frontline" ? 1 : 2,
+      attempts: [],
+    }));
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        readCandidate: async () => ({ ...currentCandidate, pendingReviewTarget: member.target }),
+        readDeliveryReviewTargets,
+        deriveImmutableTarget,
+        readLaneProgress,
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(member.target);
+    expect(composition.request.frontline.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.standard.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.frontline.completedPasses).toBe(1);
+    expect(composition.request.standard.completedPasses).toBe(2);
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", member.target.headSha, [member.target.headSha]);
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", member.target.headSha, [member.target.headSha]);
+    expect(composition.request.responseBinding).toBeUndefined();
+    expect(readDeliveryReviewTargets).not.toHaveBeenCalled();
+    expect(deriveImmutableTarget).not.toHaveBeenCalled();
   });
 
   it("retains the terminal member after every delivery-member Frontline result settles", async () => {

@@ -7,7 +7,10 @@ import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
-import type { PreBindingDeliveryReviewTargets } from "./pre-publication-delivery-targets.js";
+import type {
+  PreBindingDeliveryReviewTarget,
+  PreBindingDeliveryReviewTargets,
+} from "./pre-publication-delivery-targets.js";
 import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
@@ -341,14 +344,22 @@ export async function composePrePublicationReviewRequest(
   if (reservationTarget.status === "refused") {
     return { status: "refused", reason: reservationTarget.reason };
   }
-  const deliveryTargets = await dependencies.readDeliveryReviewTargets(input.workUnit);
+  // A pending approved fix retains its exact reviewed target in durable response authority. Re-running
+  // private-plan eligibility after the fix lands would reject the expected temporary incompleteness
+  // before that response can advance Candidate lineage and release the existing suffix owner.
+  const pendingCandidateFix = candidate.pendingReviewTarget !== undefined;
+  const deliveryTargets = pendingCandidateFix
+    ? { status: "absent" as const }
+    : await dependencies.readDeliveryReviewTargets(input.workUnit);
   if (deliveryTargets.status === "refused") {
     return {
       status: "refused",
       reason: `The pre-publication delivery-member targets could not be composed (${deliveryTargets.reason}).`,
     };
   }
-  const reservationMatchesDelivery = deliveryTargets.status === "composed"
+  const reservationMatchesDelivery = pendingCandidateFix
+    ? true
+    : deliveryTargets.status === "composed"
     ? reservationTarget.target.kind === "delivery"
       && reservationTarget.target.planId === deliveryTargets.planId
       && reservationTarget.target.workUnitId === input.workUnit
@@ -359,15 +370,22 @@ export async function composePrePublicationReviewRequest(
       reason: "The pre-publication delivery targets do not match the selected reservation.",
     };
   }
-  const immutable = deliveryTargets.status === "absent"
-    ? candidate.pendingReviewTarget === undefined
-      ? await dependencies.deriveImmutableTarget()
-      : { status: "resolved" as const, target: candidate.pendingReviewTarget }
-    : null;
-  if (immutable?.status === "resolved" && immutable.target.headSha !== candidate.headSha) {
+  const immutable = deliveryTargets.status === "absent" && candidate.pendingReviewTarget !== undefined
+    ? { status: "resolved" as const, target: candidate.pendingReviewTarget }
+    : await dependencies.deriveImmutableTarget();
+  if (immutable.status === "resolved"
+    && immutable.target.kind === "change-set"
+    && immutable.target.headSha !== candidate.headSha) {
     return {
       status: "refused",
       reason: "The immutable review target does not identify the Candidate head.",
+    };
+  }
+  if (deliveryTargets.status === "composed"
+    && (immutable.status !== "resolved" || immutable.target.kind !== "change-set")) {
+    return {
+      status: "refused",
+      reason: "The root Candidate target could not be retained for private delivery-member review.",
     };
   }
 
@@ -394,7 +412,7 @@ export async function composePrePublicationReviewRequest(
 
   const advisories: string[] = [];
   if (routing.diagnostics.length > 0) advisories.push(rejectedRoutingAdvisory(routing.diagnostics));
-  if (immutable?.status === "unavailable") advisories.push(unavailableTargetAdvisory(immutable.reason));
+  if (immutable.status === "unavailable") advisories.push(unavailableTargetAdvisory(immutable.reason));
   const [frontlinePolicy, standardPolicy] = await Promise.all([
     dependencies.readLanePolicy("frontline"),
     dependencies.readLanePolicy("standard"),
@@ -469,11 +487,13 @@ export async function composePrePublicationReviewRequest(
   let policyTarget: ReviewPolicyTarget;
   let policyLineage: readonly string[];
   let frontline: Awaited<ReturnType<typeof composeLane>>;
+  let responseBinding: PrePublicationReviewRequest["responseBinding"] = undefined;
   if (deliveryTargets.status === "composed") {
     let selected: {
       exactTarget: ReviewTarget;
       policyTarget: ReviewPolicyTarget;
       frontline: Awaited<ReturnType<typeof composeLane>>;
+      vehicle: PreBindingDeliveryReviewTarget["vehicle"];
     } | null = null;
     for (const member of deliveryTargets.targets) {
       const memberPolicyTarget = {
@@ -490,6 +510,7 @@ export async function composePrePublicationReviewRequest(
         exactTarget: member.target,
         policyTarget: memberPolicyTarget,
         frontline: memberFrontline,
+        vehicle: member.vehicle,
       };
       const state = resolveReviewPolicy(memberFrontline).state;
       if (state !== "skipped" && state !== "pass-complete") break;
@@ -504,8 +525,34 @@ export async function composePrePublicationReviewRequest(
     policyTarget = selected.policyTarget;
     policyLineage = [selected.exactTarget.headSha];
     frontline = withCeilingOverride("frontline", policyTarget, selected.frontline);
+    if (immutable.status !== "resolved") {
+      throw new Error("private delivery-member review requires a resolved root Candidate target");
+    }
+    responseBinding = {
+      candidate: {
+        workUnit: selected.vehicle.workUnitId,
+        candidateId: candidate.candidateId,
+        head: immutable.target.headSha,
+      },
+      deliveryMember: selected.vehicle,
+    };
+  } else if (pendingCandidateFix
+    && immutable.status === "resolved"
+    && immutable.target.kind === "delivery-member") {
+    exactTarget = immutable.target;
+    policyTarget = {
+      repository: target.repository,
+      pullRequest: null,
+      headSha: immutable.target.headSha,
+    };
+    policyLineage = [immutable.target.headSha];
+    frontline = withCeilingOverride(
+      "frontline",
+      policyTarget,
+      await composeLane("frontline", policyTarget, policyLineage),
+    );
   } else {
-    exactTarget = immutable?.status === "resolved" ? immutable.target : null;
+    exactTarget = immutable.status === "resolved" ? immutable.target : null;
     policyTarget = target;
     policyLineage = candidate.lineageHeadShas;
     frontline = withCeilingOverride(
@@ -536,6 +583,7 @@ export async function composePrePublicationReviewRequest(
       implementationChanged: candidate.implementationChanged,
       convergenceVerification: candidate.convergenceVerification,
     },
+    ...(responseBinding === undefined ? {} : { responseBinding }),
   };
   // Durable progress and the live target are read independently, so they can disagree — a hosted
   // attempt recorded at this head while the change request is no longer open, for one. The request

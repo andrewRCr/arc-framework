@@ -98,6 +98,7 @@ import {
 } from "../lib/delivery/schema.js";
 import {
   applyDeliveryLanding,
+  DeliveryLandingRefusalSchema,
   DeliveryRecoveryResultV1Schema,
   prepareDeliveryLanding,
   reconcileDeliveryExecution,
@@ -174,6 +175,7 @@ import {
 import { validateDeliveryStateAgainstPlan } from "../lib/delivery/state.js";
 import {
   completeDeliverySuffixMutationTail,
+  DeliveryPendingVerificationSupersessionIdentitySchema,
   executeFreshDeliverySuffixRematerialization,
 } from "../lib/delivery/suffix-rematerialization.js";
 import {
@@ -212,6 +214,7 @@ import {
   GitCommonStateAccessError,
   RepositoryGitCommonStatePublisher,
 } from "../lib/git-common-state.js";
+import { isGitProcessError } from "../lib/git/process-error.js";
 import {
   canonicalDigest,
   canonicalize,
@@ -471,6 +474,7 @@ const RematerializeSchema = z.strictObject({
   protectedBaseRef: RefSchema,
   topRef: RefSchema,
   selectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+  supersedePendingReviewFixVerification: DeliveryPendingVerificationSupersessionIdentitySchema.optional(),
   repository: z.string().min(1),
   remote: z.string().min(1).default("origin"),
 });
@@ -1116,8 +1120,18 @@ const ReviewFixContinuationResultSchema = z.union([
 const REVIEW_FIX_ROUTING_REQUIRED_TEXT = "Select the delivery member that owns the approved correction, then run "
   + "`arc delivery review-fix plan` before authoring or publishing replacement content.";
 
+const GitProcessCauseSchema = z.enum([
+  "git.canceled",
+  "git.timed-out",
+  "git.output-limit",
+  "git.nonzero-exit",
+  "git.spawn-failure",
+  "git.unexpected",
+]);
+
 const ResultSchema = z.union([
   ReviewFixContinuationResultSchema,
+  DeliveryLandingRefusalSchema,
   DeliveryRecoveryResultV1Schema,
   NativePreparedRecoveryResultSchema,
   NativeMemberNotReadyResultSchema,
@@ -1396,6 +1410,12 @@ const ResultSchema = z.union([
   ReviewFixRoutingRequiredRefusalSchema,
   InvalidServiceResultRefusalSchema,
   z.strictObject({ status: z.literal("refused") }),
+  z.strictObject({
+    status: z.literal("refused"),
+    reason: z.literal("terminal-rebind-unavailable"),
+    cause: GitProcessCauseSchema,
+    detail: z.string().min(1).max(1_000),
+  }),
   z.strictObject({
     status: z.literal("refused"),
     reason: z.string().min(1),
@@ -5107,8 +5127,14 @@ async function executeDeliveryCommand(
           providerId: "github", changeRequestId: input.changeRequestId,
         });
         const pullRequest = Number(input.changeRequestId);
-        if (observed.status !== "observed" || !Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
-          return { status: "refused" as const };
+        if (observed.status !== "observed") {
+          return {
+            status: "refused" as const,
+            reason: observed.status === "absent" ? "request-absent" as const : `request-${observed.reason}` as const,
+          };
+        }
+        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+          return { status: "refused" as const, reason: "request-malformed" as const };
         }
         const checked = await evaluateReviewReadiness({
           schemaVersion: 1,
@@ -5128,7 +5154,9 @@ async function executeDeliveryCommand(
             workUnitSlug: input.workUnitId,
           },
         }, { deliveryMemberLookup: memberLookup });
-        if (checked.state !== "ready") return { status: "refused" as const };
+        if (checked.state !== "ready") {
+          return { status: "refused" as const, reason: "review-readiness-invalid" as const };
+        }
         const reviewed = await assessDeliveryLandingReviewReadiness({
           repository: input.repository,
           headRef: observed.request.headRef,
@@ -5136,7 +5164,7 @@ async function executeDeliveryCommand(
         }, reviewStatus);
         return reviewed.status === "ready"
           ? { status: "ready" as const, settledReviewState: "settled" }
-          : { status: "refused" as const };
+          : reviewed;
       },
     };
     if (command === "land-prepare") {
@@ -5169,7 +5197,9 @@ async function executeDeliveryCommand(
     const lock = {
       release: async (input: { repository: string; changeRequestId: string }) => {
         const pullRequest = Number(input.changeRequestId);
-        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) return { status: "refused" as const };
+        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+          return { status: "refused" as const, reason: "change-request-invalid" as const };
+        }
         const released = await releaseMergeLock({
           schemaVersion: 1,
           treeRoot,
@@ -5182,7 +5212,7 @@ async function executeDeliveryCommand(
           },
         }, defaultMergeLockPort(cwd));
         return released.state === "blocked"
-          ? { status: "refused" as const }
+          ? { status: "refused" as const, reason: released.payload.reason }
           : { status: released.state === "released" ? "released" as const : "not-configured" as const };
       },
     };
@@ -5206,7 +5236,10 @@ async function executeDeliveryCommand(
               target: observed.facts.target,
               members: [member],
             } }
-            : { status: "refused" as const };
+            : {
+                status: "refused" as const,
+                reason: observed.status === "observed" ? "member-unavailable" as const : "position-unavailable" as const,
+              };
         },
         observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
           observeGitDeliveryLandingResult({
@@ -5230,13 +5263,10 @@ async function executeDeliveryCommand(
     const currentState = state.value;
     if (currentState.value.activeOperation === null) {
       const terminal = currentState.value.members.at(-1);
-      const targetRef = currentState.value.target?.ref;
-      const baseBranch = targetRef?.startsWith("refs/heads/") === true
-        ? targetRef.slice("refs/heads/".length)
-        : null;
+      const baseBranch = (await readConfigSettings(cwd)).settings["branch.base"].trim();
       if (terminal?.ref === null || terminal?.ref === undefined
         || terminal.changeRequest === null || terminal.coordinates === null
-        || baseBranch === null || baseBranch === "") {
+        || baseBranch === "") {
         return { status: "refused", reason: "terminal-binding-missing" };
       }
       try {
@@ -5256,6 +5286,24 @@ async function executeDeliveryCommand(
               }),
             },
           });
+        }
+        const observedTop = await new GhDeliveryHostPort(hostedGhRunner).readRequest(
+          parsed.repository,
+          terminal.changeRequest,
+        );
+        if (observedTop.status !== "observed") {
+          return { status: "refused", reason: "top-request-unavailable" };
+        }
+        const predecessor = currentState.value.members.at(-2);
+        const predecessorBranch = predecessor?.ref?.startsWith("refs/heads/") === true
+          ? predecessor.ref.slice("refs/heads/".length)
+          : null;
+        const predecessorHead = predecessor?.coordinates?.head ?? null;
+        const requestedPredecessorBase = predecessorBranch !== null
+          && predecessorHead !== null
+          && observedTop.request.baseRef === predecessorBranch;
+        if (observedTop.request.baseRef !== baseBranch && !requestedPredecessorBase) {
+          return { status: "refused", reason: "top-request-mismatch" };
         }
         const baseRevision = await resolveGitCandidateBaseRevision({ cwd, baseBranch, exec });
         const effective = await projectGitCandidateEffectiveTarget({
@@ -5366,24 +5414,10 @@ async function executeDeliveryCommand(
           };
           candidateTargetRevision = currentTarget.revision;
         }
-        const [coordinates, observedTop] = await Promise.all([
-          observeDeliveryEligibilityRef(localExec, candidateTargetRevision),
-          new GhDeliveryHostPort(hostedGhRunner).readRequest(parsed.repository, terminal.changeRequest),
-        ]);
+        const coordinates = await observeDeliveryEligibilityRef(localExec, candidateTargetRevision);
         if (coordinates === null || coordinates.head !== candidateTargetRevision) {
           return { status: "refused", reason: "candidate-coordinate-unavailable" };
         }
-        if (observedTop.status !== "observed") {
-          return { status: "refused", reason: "top-request-unavailable" };
-        }
-        const predecessor = currentState.value.members.at(-2);
-        const predecessorBranch = predecessor?.ref?.startsWith("refs/heads/") === true
-          ? predecessor.ref.slice("refs/heads/".length)
-          : null;
-        const predecessorHead = predecessor?.coordinates?.head ?? null;
-        const requestedPredecessorBase = predecessorBranch !== null
-          && predecessorHead !== null
-          && observedTop.request.baseRef === predecessorBranch;
         const base = await resolveGitCandidateTargetBase({
           cwd,
           revision: candidateTargetRevision,
@@ -5403,6 +5437,7 @@ async function executeDeliveryCommand(
             candidateSubjectDigest: boundary.candidateSubjectDigest,
           },
           repository: parsed.repository,
+          protectedTargetRef: `refs/heads/${baseBranch}`,
           request: observedTop.request,
           coordinates: { base, head: coordinates.head, tree: coordinates.tree },
           ...(internalContext?.settledRecordEffectHead == null
@@ -5440,6 +5475,15 @@ async function executeDeliveryCommand(
         };
       } catch (error) {
         if (error instanceof GitCommonStateAccessError) throw error;
+        if (isGitProcessError(error)) {
+          return {
+            status: "refused",
+            reason: "terminal-rebind-unavailable",
+            cause: error.code,
+            detail: `Terminal rebind against protected base \`${baseBranch}\` failed: ${error.message}`
+              .slice(0, 1_000),
+          };
+        }
         return { status: "refused", reason: "terminal-rebind-unavailable" };
       }
     }
@@ -5738,6 +5782,9 @@ async function executeDeliveryCommand(
     const gitCommonDir = await resolveGitCommonDir(exec, cwd);
     const rematerialized = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: parsed.selectedDeliverableIds,
+      ...(parsed.supersedePendingReviewFixVerification === undefined
+        ? {}
+        : { supersedePendingReviewFixVerification: parsed.supersedePendingReviewFixVerification }),
     }, {
       reobserve: async () => {
         const [planRead, stateRead] = await Promise.all([
@@ -5830,7 +5877,7 @@ async function executeDeliveryCommand(
         exec: createRawGitExec(cwd),
         ...projectDeliveryContributionEndpoints(endpoints),
       }),
-      apply: async ({ plan, current, rewrite }) => {
+      apply: async ({ plan, current, rewrite, supersedePendingReviewFixVerification }) => {
         const member = current.value.members.find((entry) => entry.deliverableId === rewrite.deliverableId);
         const requested = rewrite.requested.members[0];
         const snapshot = latestSnapshot;
@@ -5853,6 +5900,7 @@ async function executeDeliveryCommand(
           deliverableId: rewrite.deliverableId,
           requested: rewrite.requested,
           contributionMode: rewrite.selectedChange ? "selected-change" : "prove-equivalent",
+          supersedePendingReviewFixVerification,
           revalidateLifecycle: async () => {
             const candidate = latestCandidates?.find((entry) => entry.deliverableId === rewrite.deliverableId);
             if (candidate === undefined) return { status: "refused" as const };
@@ -5880,7 +5928,11 @@ async function executeDeliveryCommand(
           }),
           stateStore,
         });
-        return result.status === "applied" ? result : { status: "refused" as const };
+        if (result.status === "applied") return result;
+        if (result.reason === "pending-review-fix-verification") {
+          return { status: "refused" as const, reason: result.reason };
+        }
+        return { status: "refused" as const };
       },
     });
     if (rematerialized.status !== "rematerialized") return rematerialized;

@@ -13,6 +13,7 @@ import {
   deliveryFourMemberStackPlanFixture,
   deliveryPlanFixture,
   deliveryStackPlanWithMemberTitlesFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -1140,5 +1141,70 @@ describe("delivery suffix reconciliation", () => {
     });
     expect(result.status).toBe("applied");
     expect(proveContribution).not.toHaveBeenCalled();
+  });
+
+  it("carries pending-verification identity through a rematerialization rewrite", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const fixtureState = deliveryStateFixture(plan);
+    const state = {
+      ...fixtureState,
+      members: fixtureState.members.map((candidate, index) => index === 1
+        ? { ...candidate, changeRequest: { providerId: "github", changeRequestId: "402" } }
+        : candidate),
+    };
+    const member = state.members[1]!;
+    const pending = {
+      ...state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId: member.deliverableId,
+        memberDeliverableIds: [member.deliverableId],
+      },
+    };
+    const requested = { target: pending.target, members: [{ ...member }] };
+    const writes: DeliveryStateV1[] = [];
+    const dependencies = {
+      revalidateLifecycle: async () => ({ status: "ok" as const }),
+      rewriteRef: async () => ({ status: "rewritten" as const }),
+      observeResult: async () => requested,
+      proveContribution: async () => ({ status: "accepted" as const, proof: "tree-equality" as const }),
+      stateStore: { publish: async (_id: string, value: DeliveryStateV1, revision: number) => {
+        writes.push(value);
+        return {
+          status: "ok" as const,
+          value: { revision: revision + 1, value },
+        };
+      } },
+    };
+
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: pending },
+      deliverableId: member.deliverableId,
+      requested,
+      ...dependencies,
+    })).resolves.toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: pending },
+      deliverableId: member.deliverableId,
+      requested,
+      contributionMode: "selected-change",
+      supersedePendingReviewFixVerification: pending.pendingReviewFixVerification,
+      ...dependencies,
+    })).resolves.toMatchObject({ status: "applied" });
+    expect(writes[0]).toMatchObject({
+      pendingReviewFixVerification: null,
+      activeOperation: {
+        kind: "rewrite",
+        mode: "review-fix",
+        reviewFixSelectedDeliverableId: member.deliverableId,
+        reviewFixVerificationDeliverableIds: [member.deliverableId],
+      },
+    });
+    expect(writes[1]).toMatchObject({
+      pendingReviewFixVerification: pending.pendingReviewFixVerification,
+      activeOperation: null,
+    });
   });
 });
