@@ -179,33 +179,35 @@ the corpus conventions it composes against, each load-bearing term with one defi
   `classify-work-unit`, and the assurance invariant fires `assess-design-proportionality` and `design-audit`.
   `validate-criteria` is the remaining one, and closure fires it.
 
-### `[ ]` **2.4 Author the amendment record, placement rules, and propagation sweep — D5, D6, D7**
+### `[x]` **2.4 Author the amendment record, placement rules, and propagation sweep — D5, D6, D7**
 
 - _Goal:_ One amendment has one identity across its three projections, revision work anchors to the task it
   corrects, and the sweep closes over everything the change reaches in both directions.
 
-    - `[ ]` **2.4.a The `## Amendments` log and its closed row grammar**
-        - Define the grammar once, here: id, date, arm token, summary, `_Supersedes:_`, `_Trigger:_`, `_Work:_`,
-          `_Revalidated:_`, each with its closed token set.
-        - Body revises in place; frozen surfaces cross-reference the row; the landed-element exception appends a
-          supersession line outside the digested extent.
+    - `[x]` **2.4.a The `## Amendments` log and its closed row grammar**
+        - The grammar is defined once, here — id, date, arm token, summary, `_Supersedes:_`, `_Trigger:_`,
+          `_Work:_`, `_Revalidated:_` — each with its closed token set, beside a two-row example.
+        - Body revision in place, the frozen surfaces' cross-reference, the appended-criterion group, and the
+          landed-element exception each state where the change lands.
 
-    - `[ ]` **2.4.b Notes and task-list projections**
-        - Reasoning lands in `notes-*` keyed by the id, only when it exceeds a few lines; the companion is created
-          on first need as `task-audit` already prescribes.
-        - The task list carries revision work citing the id in the parent's Goal — no forward-amendment paragraphs.
+    - `[x]` **2.4.b Notes and task-list projections**
+        - Reasoning is keyed to the row id in `notes-*` and only past a few lines; the task list cites the id in
+          the corrective parent's Goal and carries no forward-amendment paragraphs.
 
-    - `[ ]` **2.4.c Placement rules and the three worked cases**
-        - Cite the formatting strategy for the id series and placement mechanics; carry here only the calls the
-          amendment makes — which parent takes the work, when `X.Y.R` applies, what triggers `_Amended in:_`, and
-          that a corrected task's Goal is never edited.
-        - No revision phase by default; a genuinely new capability is a new segment authored through
-          `resolve-plan-segmentation`, fired at scope.
+    - `[x]` **2.4.c Placement rules and the three worked cases**
+        - The formatting strategy carries the id series and mechanics; the workflow carries only the calls the
+          amendment makes, plus the failed-verifier, cross-member, and reopened-design cases.
+        - A new capability is a new segment resolved through `resolve-plan-segmentation` rather than a revision
+          phase.
 
-    - `[ ]` **2.4.d The propagation sweep bounded by the footprint**
-        - Forward over remaining tasks and later criteria, backward over evidence already recorded.
-        - Three classifications: unaffected, fold into the same batch, or reopens another design question — the
-          detour never exits carrying a known unsettled thing.
+    - `[x]` **2.4.d The propagation sweep bounded by the footprint**
+        - Forward and backward passes with the three classifications, the backward case keyed to a passed segment
+          verifier taking `_Amended in:_` rather than a rewritten outcome.
+
+- _Outcome:_ The record, placement, and sweep sections complete the capture-and-revise half of the spine. Each
+  projection references its owner rather than restating it — the formatting strategy for placement mechanics,
+  `validate-criteria` for the delta, `deliver-stack` and `reopen-work-unit` for the two worked cases that leave
+  this procedure's surface.
 
 ### `[ ]` **2.5 Author closure, the capture commit, and the bound-delivery interaction — D8, D9, D10**
 

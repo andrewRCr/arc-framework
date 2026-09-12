@@ -181,6 +181,110 @@ Two consequences are accepted.
   be an unauthored design area, while the work unit's identity still holds, is the Owner's call between the design
   arm at `high` and re-entering the planning stage — this procedure never makes that call.
 
+## The amendment record
+
+One amendment has one identity in three projections: a log row in the design record, reasoning in the notes
+companion when it runs past a few lines, and revision work in the task list.
+
+### The log
+
+`## Amendments` is the last section of the design record — a trailing `**Amendments:**` label on the brief form —
+and the first amendment adds it when the record's template predates it. One row per amendment, and on every arm
+the row is the only mandatory write.
+
+```markdown
+- **A1** — 2026-09-12 — design: exact-head correction verification enters the existing transition sequence.
+  _Supersedes:_ § Non-Goals ¶3. _Trigger:_ 7.7 member. _Work:_ 7.R. _Revalidated:_ 7.R.c.
+- **A2** — 2026-09-14 — task: wire the import command to its production callsite. _Supersedes:_ none.
+  _Trigger:_ 2.3 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.5.
+```
+
+The grammar is closed and defined here only. A row runs two lines at most, in this order:
+
+- **id** — `A{n}`, sequential within the record.
+- **date** — ISO.
+- **arm token** — `task` | `spec-depth` | `design`.
+- **summary** — one sentence.
+- `_Supersedes:_` — a section-and-paragraph locus, or `none`.
+- `_Trigger:_` — a site token, `segment` | `member` | `terminal` | `must-stop` | `review` | `door`, preceded by
+  the detecting task id where one exists, or by the finding id at `review`.
+- `_Work:_` — the corrective parent's id, or `review-fix` when the correction is a review-fix increment.
+- `_Revalidated:_` — the closing check: a task id, `verify-work-unit`, `review-fix`, or `pending → X.Z` while the
+  detour is open.
+
+### Where the change lands in the record
+
+- **The body revises in place**, so the record always reads as the current design, with the row's id marked in
+  parentheses at the edited locus.
+- **Frozen surfaces keep their own rules and cross-reference the row.** A Non-Goals change appends its `Amended`
+  line carrying the id. A criterion is never edited: a new one appends at the end of its group, and a superseded
+  one is dispositioned `[~]` at verification.
+- **An appended criterion joins the group whose validator can see its evidence** — under a bound plan, the group
+  of the member carrying the corrective parent, or the seam group when the correction lands at the terminal. A
+  criterion appended to a closed member's group never resolves.
+- **Landed-element exception.** A design element covered by a landed delivery member is bound by digest and is not
+  revised in place. Append its supersession line carrying the row id **outside the digested extent**, and author
+  the replacing design as a new element in an unlanded member or the terminal.
+
+### Notes and task-list projections
+
+Reasoning lands in the `notes-{name}.md` companion, in a section keyed by the row id and only when it runs past a
+few lines; on the design arm, quote the superseded text there. Create the companion on first need, as
+[`task-audit`][task-audit] already prescribes.
+
+The task list carries the revision work, citing the row id in the corrective parent's `_Goal:_`. No
+forward-amendment paragraphs and no provenance in task bodies — the list stays a coherent forward artifact.
+
+## Placement of revision work
+
+The id series, the R scheme's placement mechanics, and the retirement of parent reopening live in
+[the task-list formatting strategy][task-list-formatting]. What the amendment decides:
+
+- **Which parent takes the work.** A new `X.R` parent in the affected phase, ahead of that phase's verifiers.
+  `X.Y.R` applies only while `X.Y` is still open — the gap surfaced inside the increment in flight. Revision work
+  is never nested under a verifier.
+- **One parent per amendment.** A completed corrective parent never absorbs the next amendment; that one gets its
+  own.
+- **A corrected task's `_Goal:_` is never edited.** A bound plan digests parent Goal text, so a rewrite is refused
+  at the next revision for a landed member and forces a replacement for an unlanded one.
+- **A corrected task points forward.** Where an amendment changes the behavior a completed task recorded, append
+  `_Amended in:_ X.R (An)` beneath it as a Goal-child detail bullet — one additive line, preserved verbatim after
+  completion and outside the digested extent — so the record stays honest without reversing a marker. A passed
+  segment verifier whose recorded outcome the amendment changes takes the same line.
+- **No revision phase by default.** A phase would need its own mode and exit criterion, which makes it a new
+  segment. An amendment adding a genuinely new capability is ordinary planning at scope: a new segment resolved
+  through [`resolve-plan-segmentation`][resolve-plan-segmentation].
+
+**Three worked cases.**
+
+- **A failed segment verifier** branches on whether the task it corrects is still open: `X.Y.R` beneath an open
+  `X.Y`, otherwise an `X.R` parent with the corrected task taking the `_Amended in:_` line. It closes by re-running
+  the scenario.
+- **A cross-member correction under a bound plan** keeps the landed range immutable, lands the work in an unlanded
+  member or the terminal, passes the plan revision through the classifier, and re-verifies a review-driven fix
+  through [`deliver-stack`][deliver-stack]'s review-fix continuation. This procedure supplies the design-record
+  side only.
+- **A review finding that reopens design** takes the design arm. Where the work unit was withdrawn, it returns to
+  execution through [`reopen-work-unit`][reopen-work-unit], anchored on the cursor leaf rather than the parent;
+  that path refuses a coherently bound delivery, so a bound stack's correction runs through the review-fix
+  continuation instead. Author and commit the corrective parent before the reopen runs.
+
+## The propagation sweep
+
+The amendment produces a diff of settled things. Sweep what references or depends on the changed elements, bounded
+by the footprint, in both directions:
+
+- **Forward** — remaining tasks, later phases' exit criteria, other record sections, and criteria rows.
+- **Backward** — evidence already recorded for the amended behavior. The case that matters is a segment verifier
+  that already passed: its recorded scenario outcome feeds downstream criteria, so it takes the additive
+  `_Amended in:_` line rather than a rewritten outcome.
+
+Classify each hit as **unaffected** (recorded as checked), **fold into the same revision batch** (one corrective
+loop, not many), or **reopens another design question** (stay in the loop). The detour never exits carrying a
+known unsettled thing.
+
+The hit list is greppable wherever parent titles cite the design element they realize.
+
 ---
 
 [validate-criteria]: ../../../methods/validate-criteria.md
@@ -194,3 +298,6 @@ Two consequences are accepted.
 [design-audit]: ../../../methods/design-audit.md
 [draft-design]: ../draft-design.md
 [decompose]: ../work-unit-lifecycle/decompose-work-unit.md
+[reopen-work-unit]: ../work-unit-lifecycle/reopen-work-unit.md
+[deliver-stack]: deliver-stack.md
+[task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
