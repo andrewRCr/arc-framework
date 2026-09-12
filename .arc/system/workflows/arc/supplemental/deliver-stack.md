@@ -87,15 +87,16 @@ member closeout. Dispatch only on the typed result:
 
 - `disabled / none`, `below-threshold / continue-review`, and `scope-selected / continue-review` continue.
 - `consider-chunks / select-review-scope` renders `recommendedActionText` and applies the
-  [`review-chunking` method][review-chunking]. Reinvoke the resolver with the selected bounded-review route or an
-  explicit capable whole-target choice and require `scope-selected / continue-review`. An honest coherent member
-  re-cut that has no bound selection stops for the Owner's decision.
+  [`review-chunking` method][review-chunking]. For a selected bounded-review route, reinvoke the resolver and require
+  `scope-selected / continue-review`. An explicit capable whole-target choice closes the attention disposition while
+  retaining the unchanged `consider-chunks` result and exact-target selection. An honest coherent member re-cut that
+  has no bound selection stops for the Owner's decision.
 - `evidence-unavailable / continue-review`, `delivery-bound / continue-review`, and every malformed or unsupported
   result stop before gate execution.
 
-No Tier 2 command starts until every exact member target has a closed result. Retain each exact-target selection for
-the calling pre-publication review. This recheck governs the current materialization only; later target movement
-requires another exact check.
+No Tier 2 command starts until every exact member target has a closed result and disposition. Retain each exact-target
+selection for the calling pre-publication review. This recheck governs the current materialization only; later target
+movement requires another exact check.
 
 ```bash
 arc delivery eligibility prepare - --json
@@ -288,10 +289,11 @@ review evidence exists. Resolve its exact open change request and pass the resol
 arc review status --target '{targetRef}' --json
 ```
 
-No review carrier may run while the latest exact-target chunking result is
-`consider-chunks / select-review-scope`. Require the returned review action to carry the exact-target scope selection
-settled during private preparation; a missing or stale selection returns to that owning scope-selection route rather
-than editing the action or invoking a carrier.
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
+attention disposition while retaining `consider-chunks`. Require the returned review action to carry that exact-target
+scope selection; a missing or stale selection returns to the owning route rather than editing the action or invoking a
+carrier.
 
 The default action requests complete coverage. When the exact corrective delta warrants only a focused supplemental
 hosted pass, request it from the same first-outstanding member position instead of editing an action:

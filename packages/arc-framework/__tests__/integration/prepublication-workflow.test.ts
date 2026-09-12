@@ -102,12 +102,17 @@ describe("prepublication workflow boundary", () => {
       expect(taskLoop.slice(memberBoundary, reportAndStop)).toMatch(/explicit capable\s+whole-target choice/u);
       expect(taskLoop.slice(memberBoundary, reportAndStop))
         .toContain("unbound coherent member re-cut remains an Owner decision");
+      expect(taskLoop.slice(memberBoundary, reportAndStop)).toContain("metrics when the resolver supplies them");
+      expect(taskLoop.slice(memberBoundary, reportAndStop))
+        .toContain("approval does not authorize delivery-member advancement");
 
       const recordedAttention = verification.indexOf("member-close scale-attention result");
       const tierThree = verification.indexOf("Run the full quality gate suite");
       expect(recordedAttention).toBeGreaterThan(-1);
       expect(recordedAttention).toBeLessThan(tierThree);
       expect(verification).toContain("    - review-chunking");
+      expect(verification.slice(recordedAttention, tierThree))
+        .toMatch(/metrics when the resolver\s+supplies them/u);
 
       const locate = delivery.indexOf("arc delivery authoring locate - --json");
       const materializedScale = delivery.indexOf("arc review chunking resolve -", locate);
@@ -117,6 +122,7 @@ describe("prepublication workflow boundary", () => {
       expect(delivery).toContain("    - review-chunking");
       expect(delivery.slice(locate, tierTwo)).toContain("materialized member scale recheck");
       expect(delivery.slice(locate, tierTwo)).toContain("No Tier 2 command starts");
+      expect(delivery.slice(locate, tierTwo)).toContain("whole-target choice closes the attention disposition");
 
       for (const [workflow, carrierCommand] of [
         [delivery, "arc review hosted request -"],
@@ -127,7 +133,9 @@ describe("prepublication workflow boundary", () => {
         const hostedCarrier = workflow.indexOf(carrierCommand, scopeGuard);
         expect(scopeGuard).toBeGreaterThan(-1);
         expect(hostedCarrier).toBeGreaterThan(scopeGuard);
-        expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("exact-target scope selection");
+        expect(workflow.slice(scopeGuard, hostedCarrier)).toMatch(/exact-target\s+scope\s+selection/u);
+        expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("unresolved");
+        expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("capable whole-target choice");
       }
     }
   });

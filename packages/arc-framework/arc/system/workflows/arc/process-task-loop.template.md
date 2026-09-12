@@ -200,12 +200,16 @@ execution-entry contract violation.
      ```
 
      Before advancing beyond the member, close its scale-attention result against the exact committed member span.
-     When the closing task's changes do not yet have their approved commit head, complete item 4 and item 5, then
-     return here before starting the next task. Invoke `arc review chunking resolve -` with the member's bounded
-     `{ kind, baseRef, diffBaseSha, headSha }` target and any existing exact-target scope selection.
+     When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4
+     and obtain the commit in item 5, then return here before starting the next task. Under
+     `arc.commitInterlock: manual`, approval does not authorize delivery-member advancement or the missing commit;
+     item 5 stops for the developer's explicit commit invocation. Invoke `arc review chunking resolve -` with the
+     member's bounded `{ kind, baseRef, diffBaseSha, headSha }` target and any existing exact-target scope selection.
 
-     - `disabled / none`, `below-threshold / continue-review`, and `scope-selected / continue-review` record the
-       returned exact target, state, and metrics as the member-close scale-attention result, then continue.
+     - `disabled / none` records the returned exact target, state, and disposition; its typed envelope carries no
+       metrics.
+     - `below-threshold / continue-review` and `scope-selected / continue-review` record the returned exact target,
+       state, metrics, and disposition. Require metrics when the resolver supplies them.
      - `consider-chunks / select-review-scope` renders `recommendedActionText`, then applies the
        [`review-chunking` method][review-chunking]. Record the selected bounded-review route or explicit capable
        whole-target choice before continuing. An unbound coherent member re-cut remains an Owner decision.
@@ -259,8 +263,10 @@ execution-entry contract violation.
        - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
            - **Prefix:** `Proceed` (default — `arc.commitInterlock: manual`) or
              `Commit and proceed` (when `arc.commitInterlock ∈ {on-task-approval, on-workflow}`).
-           - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
-             task ends the phase) · `to prepare-work-unit` (verification complete — execution end).
+           - **Target:** `to the required delivery-member commit` when item 3 awaits an exact commit; otherwise
+             `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current task ends the phase) ·
+             `to prepare-work-unit` (verification complete — execution end). Do not name later work while the member
+             scale closeout remains deferred.
        - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
          Under `Commit and proceed`, the affirmative covers both halves; `y; <redirect>` keeps
          the commit and replaces only the advancement target (handoff, deferred range, and
@@ -286,9 +292,11 @@ execution-entry contract violation.
      the commit-interlock releases on task approval per
      [Configurability Architecture Strategy][config-arch] § Session interlocks; on
      approval signal, invoke the [arc-commit skill][arc-commit-skill] — it owns the
-     simple-vs-complex path decision and loads the format methods. After the commit lands, complete any deferred
-     delivery-member scale closeout in item 3, then start the bundle's named target without re-prompting. Complexity
-     criteria still bump to manual-with-prompt rather than invoking prepare-commits silently.
+     simple-vs-complex path decision and loads the format methods. A deferred delivery-member scale closeout is the
+     bounded exception to ordinary advancement: in manual mode, stop for the explicit commit invocation; in an
+     auto-fire mode, commit on approval. After that commit lands, return to item 3, record and close the scale result,
+     then start the bundle's named target without re-prompting. Complexity criteria still bump to manual-with-prompt
+     rather than invoking prepare-commits silently.
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
      doubt, split and ask. See [Commit Discipline][dev-rules-arc].

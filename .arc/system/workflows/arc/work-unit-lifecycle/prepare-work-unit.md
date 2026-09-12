@@ -100,10 +100,10 @@ dispatch only on its typed state/action pair:
 Select whole-target or chunked scope separately for frontline and standard review. Carry a selection by
 re-invoking the procedure with it in `--lanes`; never recompute thresholds in prose.
 
-No review carrier may run while the latest exact-target chunking result is
-`consider-chunks / select-review-scope`. Re-invoke the procedure with the exact-target scope selection and continue
-only when the resolver returns `scope-selected / continue-review`; a stale or missing selection stops before the
-frontline or standard action.
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+Re-invoke the procedure with the exact-target scope selection. A selected bounded-review route must return
+`scope-selected / continue-review`; an explicit capable whole-target choice closes the attention disposition while
+retaining `consider-chunks`. A stale or missing selection stops before the frontline or standard action.
 
 A null `policy` means no lane operation is open — follow the envelope's `nextAction.kind`, one of
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`

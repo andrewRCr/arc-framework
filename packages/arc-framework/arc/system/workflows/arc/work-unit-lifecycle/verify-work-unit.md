@@ -38,7 +38,8 @@ the base branch. Classify findings per [`review-triage`][review-triage], obtain 
 set, and commit approved fixes per [`commit-footer`][commit-footer] before continuing.
 
 When the task list carries a Delivery Plan, inspect every member-close scale-attention result before terminal Tier 3.
-Each completed member must record the resolver's exact target, state, metrics, and disposition. A
+Each completed member must record the resolver's exact target, state, and disposition, plus metrics when the resolver
+supplies them. A `disabled / none` result is complete without metrics because its typed envelope carries none. A
 `consider-chunks / select-review-scope` result is resolved only by a selected bounded-review route or an explicit
 capable whole-target choice under the [`review-chunking` method][review-chunking]. Missing evidence, an unresolved
 attention result, or an unbound member re-cut stops and returns to the delivery-member boundary in
