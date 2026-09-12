@@ -182,16 +182,21 @@ export function createRespondDependencies(input: {
       }
     },
     resolveCandidateFixAuthoring: async (workUnit) => {
-      const live = await readLocalReviewLiveContext(input);
-      if (live.context.workUnit?.identity !== workUnit) return null;
-      const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-        cwd: input.cwd,
-      })).stdout.trim();
-      if (branch === "" || branch === "HEAD") return null;
+      const owner = await candidateMutationOwner();
+      if (owner.status !== "owned" || owner.workUnit !== workUnit) return null;
+      let ref: string;
+      try {
+        ref = (await input.exec("git", ["symbolic-ref", "--quiet", "HEAD"], {
+          cwd: input.cwd,
+        })).stdout.trim();
+      } catch {
+        return null;
+      }
+      if (!ref.startsWith("refs/heads/") || ref === "refs/heads/") return null;
       return CandidateBoundMemberFixAuthoringSchema.parse({
         kind: "candidate",
         workUnit,
-        ref: `refs/heads/${branch}`,
+        ref,
         checkoutPath: input.cwd,
         deliverySuffixReconstruction: "after-candidate-advance",
       });

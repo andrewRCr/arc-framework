@@ -703,6 +703,7 @@ describe("review-fix Candidate lineage", () => {
       responseSource: { kind: "frontline"; outcomeRef: string };
     }).responseSource;
     const dispositions = await approvedSet(root, source, "fix", provider.findingId);
+    await git(root, ["tag", "feat/example"]);
     await expect(invoke(root, ["review", "respond", "-"], {
       schemaVersion: 1,
       source,
