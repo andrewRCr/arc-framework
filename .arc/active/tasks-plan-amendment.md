@@ -120,55 +120,38 @@ the corpus conventions it composes against, each load-bearing term with one defi
   and inventory entries. The segmentation contract test's mode-table and ordering assertions now read the method in
   both copies; the workflow keeps the signature, the fire-point link, and the declaration.
 
-### `[ ]` **2.2 Author the `amend-design` spine, vocabulary, and entry gate — D1, D2, D11**
+### `[x]` **2.2 Author the `amend-design` spine, vocabulary, and entry gate — D1, D2, D11**
 
 - _Goal:_ A session holding a finding can run the gate top-down at the stop it is already at and learn which arm
   the evidence selects, or that the design holds.
 
-- _Shape:_ Signature-led supplemental workflow — one-line signature in a leading blockquote, a bounded spine, the
-  arms as one-line gates with their sections beneath, and its interlock carried inside as a constraint.
+    - `[x]` **2.2.a Frontmatter, signature, and the load-bearing-anchor note**
+        - The nine methods the arms may fire are declared; their fire-points land across 2.3 through 2.5, and all
+          nine are re-verified by hand when this phase's last task closes.
+        - The workflow carries one line on why `adversarial-review` is declared directly as well as through
+          `validate-criteria`, so a later reader does not tidy the direct declaration away.
 
-- _Note:_ Section headings here are cited by five external sites, which makes them load-bearing; say so in the
-  workflow so a later editor does not rename one silently.
+    - `[x]` **2.2.b The five-step decision tree, keyed to outcomes**
+        - Top-down, first match wins, each match citing the statement or criterion that decided it; the
+          coarse-coverage rule routes an undecidable pair to the spec-depth arm.
 
-- _Context:_ `audience: collaborative (human and agent)` — the gate carries Owner-authorized stops, matching the
-  planning workflows it composes with.
-
-- _Shape:_ Authored in the package source; the `.arc/` counterpart lands with its recipe entry in Phase 5. The
-  detection-site directives Phase 4 adds therefore point at a project-side file that does not exist yet — accepted,
-  and gated by nothing.
-
-- **Additional Context:** `strategy-workflow-authoring.md` — required before authoring any workflow file.
-
-    - `[ ]` **2.2.a Frontmatter, signature, and the load-bearing-anchor note**
-        - Declare the nine methods the arms may fire: `resolve-planning-depth`, `classify-work-unit`, `task-audit`,
-          `spec-review`, `adversarial-review`, `assess-design-proportionality`, `design-audit`,
-          `validate-criteria`, and `resolve-plan-segmentation`.
-        - Mark a fire-point for each one. `adversarial-review` stays declared in its own right — the depth ladder
-          fires it directly, independently of `validate-criteria` owning it as a dependency.
-        - Carry one line in the workflow saying why both are declared, so a later reader does not tidy the
-          direct declaration away. The rule it rests on is the one 2.6 refines.
-        - The `resolve-plan-segmentation` declaration presumes 2.1 has landed; declared earlier it resolves to a
-          missing method.
-        - The marks themselves land across 2.3 through 2.5. Re-verify all nine by hand when the phase's last task
-          closes — the corpus audit checks declaration only and cannot tell a marked fire-point from a missing one.
-
-    - `[ ]` **2.2.b The five-step decision tree, keyed to outcomes**
-        - Steps run top-down, first match wins, citing the statement or criterion that decided it.
-        - Carry the coarse-coverage rule: criteria too coarse to decide route to the spec-depth arm.
-
-    - `[ ]` **2.2.c Authority by arm**
-        - Task arm proceeds within the increment; spec-depth and design arms are Owner-authorized at an existing
-          stop; escalation is always the Owner's.
-        - The member site's three shipped answers map onto arms, and none lands work inside the verifier's own
+    - `[x]` **2.2.c Authority by arm**
+        - Task arm proceeds within the increment; the spec-depth and design arms are Owner-authorized at an
+          existing stop, marked with a `task-interlock` constraint rather than a new prompt shape; escalation is
+          always the Owner's.
+        - The member site's three shipped answers map onto arms, none landing work inside the verifier's own
           increment.
 
-    - `[ ]` **2.2.d Load-bearing vocabulary, defined once before use**
-        - Amendment, arm, footprint, detour. Effective report and delta are defined in `validate-criteria` and
-          referenced, not redefined.
-        - Scope the definition of "amendment": the ADR methodology already defines an append-only Amendments tier
-          with its own grammar, and the delivery surface uses the word for a plan revision. Say which sense this
-          procedure means rather than shadowing either.
+    - `[x]` **2.2.d Load-bearing vocabulary, defined once before use**
+        - Amendment, arm, footprint, and detour are defined before first use; the amendment entry scopes itself
+          against the ADR tier and a delivery plan revision. Effective report and delta are referenced to
+          `validate-criteria`.
+
+- _Outcome:_ `amend-design.md` is authored in the package source with the signature blockquote, the six-step spine,
+  the vocabulary, the entry gate, and authority by arm. Section headings are declared load-bearing in the workflow
+  itself, so the detection sites Phase 4 adds have stable anchors to enter by. The spine's steps 2 through 6 name
+  sections 2.3 through 2.5 author; they are plain section references rather than links, so the file stays
+  self-consistent as those sections land.
 
 ### `[ ]` **2.3 Author the depth ladder, assurance invariant, and ceiling — D3, D4**
 
