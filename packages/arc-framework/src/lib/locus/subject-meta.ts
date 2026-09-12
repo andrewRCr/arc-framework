@@ -160,12 +160,13 @@ export async function projectCheckoutSubjectMeta(options: {
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
   if (record.candidateId !== null && candidateAuthorityRequired) {
     try {
-      const candidateContent = await options.io.readFile(join(
-        options.cwd,
-        resolveCandidateRecordRelativePath(options.subjectKey),
-      ));
+      const candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
+      const candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
       const candidateRecord = parseCandidateManagedRecord(candidateContent);
-      if (candidateRecord === null || candidateRecord.attestation.candidateId !== record.candidateId) {
+      if (candidateRecord === null) {
+        throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`);
+      }
+      if (candidateRecord.attestation.candidateId !== record.candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");
       }
       const effective = await options.io.projectCandidateTarget({
