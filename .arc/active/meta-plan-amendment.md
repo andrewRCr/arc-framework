@@ -13,13 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.4 — design-element citation recommended in the formatting strategy and
-  `generate-tasks`; Phase 3 complete
-- **Next Task:** Task 4.1 — Author the `arc-amend-design` skill door (line ~361)
+- **Last Completed:** Task 2.R — the shipped closure section states the Candidate-applicability obligation (A3);
+  Phase 4 complete
+- **Next Task:** Task 5.1 — Register `arc-amend-design` as a canonical skill (line ~486)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — the workflow's project copy already exists, so 4.x's anchored links resolve.
-  First correct 5.2's one-commit clause and 5.3.a's "arrived with their recipe entries", both falsified by it.
+- **Next Action:** Begin Task 5.1 — the skill exists in the package source only; its recipe entry, project copy,
+  and manifest entry all land in Phase 5.
 
 - **PR URL:** [none]
 - **Completed:** [none]
