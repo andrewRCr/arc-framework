@@ -4,7 +4,8 @@ Hand-measured baseline of the CLI package's test-suite cost, taken 2026-09-10 du
 `test-suite-right-sizing` planning. It exists to ground design decisions in measurement rather than projection,
 and to survive the session that produced it.
 
-**Status: pre-instrument.** Every figure here came from `vitest --reporter=json` runs driven by hand. The cost
+**Status: pre-instrument.** Tier baselines came from hand-driven `vitest --reporter=json` runs. Fixture-build
+timings came from a git-shim probe, CLI startup from direct warm probes, and CI timings from workflow runs. The cost
 instrument that `test-suite-right-sizing` specifies will supersede this document with richer, repeatable data —
 per-test durations, effective CI shard membership, timeout headroom, and heavy-slot wait time. Treat these numbers
 as a starting point, not an authority.
@@ -73,10 +74,12 @@ above. What is preserved here is the derived per-file ranking and the method.
 | `unit` + `unit-mocks` | 25.3 s          | 74 s             | 685   | 9,854  |
 | `integration`         | 47.4 s          | 342 s            | 137   | 1,248  |
 | `e2e`                 | 280.3 s         | 1,784 s          | 53    | 528    |
-| **Full local run**    | **~353 s**      | 2,200 s          | 875   | 11,630 |
+| **Isolated-tier sum** | **~353 s**      | 2,200 s          | 875   | 11,630 |
 | Routine lane (no E2E) | 55.5 s / 58.3 s | 408 s / 429 s    | 822   | 11,102 |
 
-The full local run is sequential across tiers, as the tier runner drives it. E2E is 79% of it.
+The ~353 s row adds three separately measured tier-isolated runs; E2E is 79% of that arithmetic sum. It is not the
+wall clock of `test:full`, which starts one unfiltered Vitest controller and was not measured here. The shipped
+`test:e2e` command also incurs admission setup beyond the direct E2E probe.
 
 The routine lane row is two measured runs of `vitest run --project unit --project unit-mocks --project integration`
 as one command, not the two tiers summed (which would read ~72.7 s). The projects interleave in one worker pool:
@@ -153,14 +156,20 @@ under the config's hermetic environment (`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GL
 | `initInTempRepo` + commit + `addBareRemote` | 14         | 137.6 ms   | `user` — 48 cases              |
 | `fs.cpSync` of a built `user` fixture       | 0          | 7.3 ms     | 3.5 MB, 187 files              |
 
+The listed `user` shape counts total 93 against 94 reported cases. They omit an unmeasured remote-before-init path
+(`createTempRepo` + `makeCommit` + `addBareRemote` + `runInit`), so the shape table is not exhaustive for that file.
+
 A single `git --version` costs 2.4 ms and `git init -q` 4.5 ms, so the nine spawns in the `runInit` path are
 ~24 ms of its ~106 ms; the remainder is the init command writing the `.arc/` tree. Spawn batching is therefore not
-a lever; a template copy is, bounded by the fixture share below.
+a lever; a template copy may be, but only a complete fixture share can bound its benefit.
 
 | File                     | Duration (tier-isolated) | Cases | Fixture share (weighted by shape) |
 | ------------------------ | ------------------------ | ----- | --------------------------------- |
-| `user.test.ts`           | 40.3 s                   | 94    | 28.6% (25.8% uniform)             |
+| `user.test.ts`           | 40.3 s                   | 94    | 28.6% timed-shape subtotal only   |
 | `init.test.ts`           | 11.6 s                   | 39    | 31.6% (35.8% uniform)             |
+
+The `user` subtotal excludes the unmeasured shape and is not an upper bound on total fixture cost or template-copy
+savings.
 
 **Absolute-path audit.** A built `initInTempRepo` + `makeCommit` fixture contains no occurrence of its own
 absolute path anywhere, `.git/` included. The `addBareRemote` shape does: `.git/config` records the remote's
@@ -247,15 +256,16 @@ heavy-lane run of 2026-09-10 15:55Z (workflow run `34498802526`, routed to `arc-
 | **Total job-seconds**  | **1,364** |
 
 The capacity work unit's own routed dispatch recorded 1,054 job-seconds for the whole workflow, with E2E legs at
-156–172 s; the run above carries a 347 s leg, so the leg spread is not stable across runs. With two slots, wall
-time is roughly total job-seconds over two plus the serial head, so summed savings anywhere in the heavy lane
-translate to wall time; per-leg balance only trims the makespan's tail.
+156–172 s; the run above carries a 347 s leg, so the leg spread is not stable across runs. With two slots, total
+job-seconds over two plus the serial head is a lower-bound heuristic, not measured wall time. Dispatch order and
+the critical path determine makespan: savings on schedule-sensitive work can reduce it, while savings elsewhere
+may leave it unchanged.
 
 ## Levers measured
 
 | Lever                                      | Effect                              | Confidence                       |
 | ------------------------------------------ | ----------------------------------- | -------------------------------- |
-| Taking E2E off the routine local path      | ~353 s → 55.5–58.3 s (**83–84%**)   | High — arithmetic over baselines |
+| Keeping E2E out of the routine local path  | ~353 s sum vs ~56 s lane (~84%)     | Illustrative — different modes   |
 | Lazy-loading CLI handler modules           | per-spawn 0.36 s → 0.21 s (**42%**) | High — probe on real handlers    |
 | `tsx` → built bundle for `config-validate` | ~1.0 s per spawn on ~21 spawns      | High — direct measurement        |
 | tmpfs fixture root, `integration`          | 47.4 s → 43.1 s (~9%)               | **Low — within noise band**      |
@@ -264,7 +274,7 @@ translate to wall time; per-leg balance only trims the makespan's tail.
 | CI anchor re-selection                     | ~25 s of critical path              | Medium — from tier-isolated rank |
 | Code splitting, on top of lazy loading     | ~0.02 s per real-verb spawn         | High — direct measurement        |
 | Running the lane as one command            | 68.2 s → 55.5 s (**~15%**)          | High — same-session pair         |
-| Fixture template copy, `user` / `init`     | ≤26–36% of those files' time        | High — probe; share is the bound |
+| Fixture template copy, `user` / `init`     | `user` bound unknown; `init` ≤31.6% | Incomplete user data             |
 | Skipping `build:fast` when `dist/` fresh   | 1.2 s                               | High — effectively nil           |
 | Batching git spawns per fixture            | ~24 ms of ~106 ms per build         | High — effectively nil           |
 

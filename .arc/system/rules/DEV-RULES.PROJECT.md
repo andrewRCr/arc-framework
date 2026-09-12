@@ -41,8 +41,9 @@ provably cannot affect; never spend thought on the cheap ones.
 | No Markdown touched            | The code checks                         | nothing — the Markdown side costs ~7.6s  |
 | Mixed, config, or unrecognized | Everything                              | nothing — fail closed                    |
 
-**Test-lane selection — derive it from changed paths.** Changes confined to one test project's directory run only
-that project; source or tooling changes reach every tier through the routine local lane plus required CI.
+**Test-lane selection — derive it from changed paths.** Changes confined to one test lane run that lane's command:
+`test:changed` selects both `unit` and `unit-mocks`, while integration and E2E have separate commands. Source or
+tooling changes reach every tier through the routine local lane plus required CI.
 
 | Changed paths                                     | Local test command            | Required remainder                 |
 | ------------------------------------------------- | ----------------------------- | ---------------------------------- |
