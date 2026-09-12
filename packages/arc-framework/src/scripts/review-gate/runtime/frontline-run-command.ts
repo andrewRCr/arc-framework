@@ -190,6 +190,7 @@ export async function runFrontlineReviewCommand(
   }, {
     target,
     source,
+    ...(request.responseBinding === undefined ? {} : { responseBinding: request.responseBinding }),
     generation: 0,
     pass: readyPayload.pass,
     maxPasses: readyPayload.maxPasses,

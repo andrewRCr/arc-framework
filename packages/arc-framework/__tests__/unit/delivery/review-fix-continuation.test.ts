@@ -148,7 +148,10 @@ function deliveryDispositionRecord(input: {
 
 const openTaskDerivation = { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" } as const;
 
-function correctionEntry(): DeliveryEntryInspectionResult {
+function correctionEntry(): Extract<
+  DeliveryEntryInspectionResult,
+  { readonly status: "correction-routing-required" }
+> {
   return {
     status: "correction-routing-required",
     nextAction: "plan-review-fix",
@@ -686,7 +689,95 @@ describe("delivery review-fix continuation projection", () => {
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+    if (actionKind === "delivery-rematerialize") {
+      expect(result).not.toHaveProperty("action.input.supersedePendingReviewFixVerification");
+    }
     if (status === "authoring-required") expect(result).toMatchObject({ derivedFrom: openTaskDerivation });
+  });
+
+  it("carries pending-verification supersession into rematerialization as a selected change", () => {
+    const pendingReviewFixVerification = {
+      selectedDeliverableId,
+      memberDeliverableIds: [selectedDeliverableId],
+    };
+    const pendingState = {
+      ...currentChainState(),
+      pendingReviewFixVerification,
+    };
+    const result = projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        ...correctionEntry(),
+        derivedFrom: {
+          kind: "pending-verification",
+          continuationDigest: canonicalDigest(pendingState),
+        },
+      },
+      route: route("rematerialize"),
+      state: { revision: 3, value: pendingState },
+      activeBranch: "feat/example",
+      authoring: {
+        status: "ready",
+        kind: "top",
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        head: "a".repeat(40),
+        tree: "b".repeat(40),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-rematerialize",
+        input: {
+          supersedePendingReviewFixVerification: {
+            pendingVerification: pendingReviewFixVerification,
+            expectedStateRevision: 3,
+            continuationDigest: canonicalDigest(pendingState),
+          },
+        },
+      },
+    });
+  });
+
+  it("refuses rematerialization when the pending-verification derivation has moved", () => {
+    const pendingReviewFixVerification = {
+      selectedDeliverableId,
+      memberDeliverableIds: [selectedDeliverableId],
+    };
+    const pendingState = {
+      ...currentChainState(),
+      pendingReviewFixVerification,
+    };
+    const movedState = {
+      ...pendingState,
+      pendingReviewFixVerification: {
+        ...pendingReviewFixVerification,
+        memberDeliverableIds: [selectedDeliverableId, plan.members[1]!.deliverableId],
+      },
+    };
+
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        ...correctionEntry(),
+        derivedFrom: {
+          kind: "pending-verification",
+          continuationDigest: canonicalDigest(pendingState),
+        },
+      },
+      route: route("rematerialize"),
+      state: { revision: 4, value: movedState },
+      activeBranch: "feat/example",
+      authoring: {
+        status: "ready",
+        kind: "top",
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        head: "a".repeat(40),
+        tree: "b".repeat(40),
+      },
+    })).toEqual({ status: "refused", reason: "review-fix-rematerialization-unavailable" });
   });
 
   it("refuses terminal authoring until the exact top locus is observed", () => {

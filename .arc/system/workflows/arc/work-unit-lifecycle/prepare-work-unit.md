@@ -109,7 +109,8 @@ state/action pair:
 - `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at
   `candidate-publish-ready`.
 - `ready / run-frontline` — invoke `arc review frontline resolve -`, then `arc review frontline run -` with the
-  ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
+  ready resolution, the target's `{ kind, baseRef, diffBaseSha, headSha }` projection, and `responseBinding` when
+  the pre-publication envelope supplies it.
 - `ready / local-prepare` — invoke `arc review local prepare -`.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.

@@ -11,6 +11,7 @@ import {
 } from "../core/advisory-records.js";
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { BoundFrontlineResponseBinding } from "../core/frontline-response-binding.js";
 import {
   FrontlineRunStateSchema,
   type FrontlineRunState,
@@ -40,6 +41,7 @@ const TimestampSchema = z.iso.datetime({ offset: true });
 export interface FrontlineRunBindingInput {
   target: ReviewTarget;
   source: FrontlineSourceDescriptor;
+  responseBinding?: BoundFrontlineResponseBinding;
   generation: number;
   policyVersion: string;
 }
@@ -47,10 +49,35 @@ export interface FrontlineRunBindingInput {
 interface FrontlineRunBinding {
   target: ReviewTarget;
   source: FrontlineSourceDescriptor;
+  responseBinding?: BoundFrontlineResponseBinding;
   generation: number;
   policyVersion: string;
   operationId: string;
   sourceBindingId: string;
+}
+
+/**
+ * Bind the executable source and optional Candidate/member response authority as one identity.
+ *
+ * @param sourceInput - The normalized frontline source selected for the run.
+ * @param responseBinding - Candidate/member authority retained by pre-publication, when present.
+ * @returns The canonical source-binding digest used by operation state and response validation.
+ */
+export function computeFrontlineSourceBindingId(
+  sourceInput: FrontlineSourceDescriptor,
+  responseBinding?: BoundFrontlineResponseBinding,
+): string {
+  const source = FrontlineSourceDescriptorSchema.parse(sourceInput);
+  return canonicalDigest(responseBinding === undefined
+    ? {
+        domain: "arc.review-gate.frontline-source-binding/v1",
+        source,
+      }
+    : {
+        domain: "arc.review-gate.frontline-source-binding/v1",
+        source,
+        responseBinding,
+      });
 }
 
 export type FrontlineRunResolution =
@@ -83,11 +110,16 @@ function bindFrontlineRun(input: FrontlineRunBindingInput): FrontlineRunBinding 
     sourceIdentity: source.sourceId,
     generation,
   });
-  const sourceBindingId = canonicalDigest({
-    domain: "arc.review-gate.frontline-source-binding/v1",
+  const sourceBindingId = computeFrontlineSourceBindingId(source, input.responseBinding);
+  return {
+    target,
     source,
-  });
-  return { target, source, generation, policyVersion, operationId, sourceBindingId };
+    ...(input.responseBinding === undefined ? {} : { responseBinding: input.responseBinding }),
+    generation,
+    policyVersion,
+    operationId,
+    sourceBindingId,
+  };
 }
 
 /** Resolve whether an exact frontline run may reuse durable operational state. */
@@ -146,6 +178,7 @@ function createFrontlineRunState(
     passCount,
     policyVersion: binding.policyVersion,
     sourceBindingId: binding.sourceBindingId,
+    ...(binding.responseBinding === undefined ? {} : { responseBinding: binding.responseBinding }),
   });
 }
 
@@ -274,6 +307,7 @@ async function readBoundOutcome(
     || canonicalize(record.outcome.source) !== canonicalize(input.source)
     || record.outcome.pass !== input.pass
     || record.outcome.maxPasses !== input.maxPasses
+    || canonicalize(record.responseBinding ?? null) !== canonicalize(input.responseBinding ?? null)
   ) {
     throw new FrontlineOperationCorruptStateError(
       `frontline outcome '${operationId}' does not match its operation binding`,
@@ -335,6 +369,7 @@ async function executeAndPersistFrontlineRun(
     sourceIdentity: input.source.sourceId,
     executableIdentity: executed.executableIdentity,
     outcome,
+    ...(input.responseBinding === undefined ? {} : { responseBinding: input.responseBinding }),
   });
   const currentOutcome = await dependencies.outcomeStore.readOutcome(operationId);
   const appended = await dependencies.outcomeStore.appendOutcome(record, currentOutcome.version);

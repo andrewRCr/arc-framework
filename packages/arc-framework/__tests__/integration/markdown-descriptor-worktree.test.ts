@@ -133,6 +133,28 @@ describe("worktree task descriptor lint", () => {
     expect(await lintTaskDescriptors(root)).toBe(1);
   });
 
+  it("returns a failing worktree result for an anonymous task-body checkbox", async () => {
+    await write(".arc/active/tasks-b.md", [
+      "### `[ ]` **1.1 Active parent**",
+      "",
+      "- `[ ]` Unnumbered follow-up",
+    ].join("\n"));
+    await write("planning/tasks-a.md", validTask("1.2"));
+
+    const result = await runWorktreeTaskDescriptorLint({
+      root,
+      exec: makeGitExec(root),
+      readText: (path) => readFile(path, "utf8"),
+    });
+
+    expect(result.diagnostics).toEqual([{
+      path: ".arc/active/tasks-b.md",
+      line: 3,
+      message: ".arc/active/tasks-b.md:3: Task-list structure is malformed: anonymous checkbox at line 3 appears inside parent task 1.1 at line 1",
+    }]);
+    expect(await lintTaskDescriptors(root)).toBe(1);
+  });
+
   it("adds no segmentation finding for a valid unsegmented task list", async () => {
     await write(".arc/active/tasks-b.md", validTask("1.1"));
     await write("planning/tasks-a.md", validTask("1.2"));

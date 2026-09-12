@@ -11,6 +11,7 @@ import {
   type CandidateLineageTarget,
 } from "../candidate-attestation.js";
 import {
+  projectCandidateReRootContinuation,
   projectStagedCandidateCurrentness,
   type CandidateEffectiveTargetProjection,
 } from "../candidate-effective-target.js";
@@ -153,19 +154,11 @@ export async function runAttest(
           delta: currentness.delta,
           nextAction: "establish-new-root",
           recommendedActionText: "Run full work-unit verification, then establish a new Candidate lineage root.",
-          continuation: {
-            argv: [
-              "arc",
-              "attest",
-              name,
-              "--new-root",
-              "--expected-candidate",
-              currentness.candidateId,
-              "--expected-subject",
-              current.subject.subjectDigest,
-              "--json",
-            ],
-          },
+          continuation: projectCandidateReRootContinuation({
+            name,
+            candidateId: currentness.candidateId,
+            subjectDigest: current.subject.subjectDigest,
+          }),
         };
       }
       if (expectedBlocked !== undefined && expectedBlocked.candidateId !== currentness.candidateId) {

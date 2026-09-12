@@ -69,6 +69,7 @@ import {
 } from "../scripts/review-gate/core/planning-grooming-command-schema.js";
 import {
   REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
+  FrontlineRunCommandRequestSchema,
   FrontlineRunRequestSchema,
   type FrontlineRunCommandRequest,
   type FrontlineRunRequest,
@@ -236,6 +237,7 @@ import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
 import { resolveActiveHostedReviewErrand } from "../scripts/review-gate/hosted/errand-authority.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
+  FrontlineRunCommandError,
   runFrontlineReviewCommand,
 } from "../scripts/review-gate/runtime/frontline-run-command.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
@@ -2190,15 +2192,52 @@ function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFro
     deriveRequest: async (request, root) => {
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const repositoryId = await resolveRepositoryIdentity(publisher);
-      return {
+      const target = await deriveLocalReviewTargetFromCoordinates({
+        exec,
+        cwd: root,
+        repositoryId,
+        coordinates: request.target,
+      });
+      if (request.responseBinding === undefined) {
+        return FrontlineRunCommandRequestSchema.parse({ ...request, target });
+      }
+      const composition = createPrePublicationCompositionDependencies({ cwd: root, exec });
+      const [candidate, delivery, candidateTarget] = await Promise.all([
+        composition.readCandidate(request.responseBinding.candidate.workUnit),
+        composition.readDeliveryReviewTargets(request.responseBinding.candidate.workUnit),
+        composition.deriveImmutableTarget(),
+      ]);
+      const matchingMember = delivery.status === "composed"
+        ? delivery.targets.filter((member) => (
+            canonicalize(member.target) === canonicalize(target)
+            && sameDeliveryReviewMemberVehicle(member.vehicle, request.responseBinding?.deliveryMember)
+          ))
+        : [];
+      if (candidate.status !== "current"
+        || candidate.candidateId !== request.responseBinding.candidate.candidateId
+        || candidate.headSha !== request.responseBinding.candidate.head
+        || candidateTarget.status !== "resolved"
+        || candidateTarget.target.kind !== "change-set"
+        || candidateTarget.target.headSha !== candidate.headSha
+        || matchingMember.length !== 1) {
+        throw new FrontlineRunCommandError(
+          "Frontline response binding does not match the current Candidate and private delivery plan.",
+        );
+      }
+      const member = matchingMember[0];
+      if (member === undefined) throw new FrontlineRunCommandError("Frontline response binding is ambiguous.");
+      return FrontlineRunCommandRequestSchema.parse({
         ...request,
-        target: await deriveLocalReviewTargetFromCoordinates({
-          exec,
-          cwd: root,
-          repositoryId,
-          coordinates: request.target,
-        }),
-      };
+        target,
+        responseBinding: {
+          candidate: {
+            workUnit: request.responseBinding.candidate.workUnit,
+            candidateId: candidate.candidateId,
+            target: candidateTarget.target,
+          },
+          deliveryMember: member.vehicle,
+        },
+      });
     },
     run: (request, root) => runFrontlineReviewCommand(
       request,

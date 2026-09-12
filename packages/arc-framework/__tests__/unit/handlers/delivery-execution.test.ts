@@ -31,6 +31,49 @@ function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
 }
 
 describe("delivery execution handler", () => {
+  it("preserves a typed landing refusal and bounded provider cause through the public envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const deliverableId = plan.members[0]!.deliverableId;
+    const result = {
+      status: "refused" as const,
+      reason: "landing-refused" as const,
+      cause: {
+        stage: "merge-submission" as const,
+        reason: "unavailable" as const,
+        provider: { kind: "http" as const, status: 422, exitCode: 1 },
+      },
+    };
+    const write = vi.fn();
+    await handleDeliveryExecution("land-apply", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        approved: {
+          operationId: "operation-landing",
+          planId: plan.planId,
+          deliverableId,
+          head: "a".repeat(40),
+          repository: "owner/repo",
+          changeRequestId: "401",
+          mergeStrategy: "merge",
+          settledReviewState: "settled",
+          consequence: "Merge one exact delivery member.",
+          releaseMergeLock: true,
+        },
+        remote: "origin",
+        treeRoot: ".",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery land apply",
+      ...result,
+    });
+  });
+
   it("preserves explicit delivery-closeout identity and continuation text", async () => {
     const write = vi.fn();
     const recommendedActionText =
