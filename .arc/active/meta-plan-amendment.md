@@ -13,11 +13,13 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.3 — amendment placement conventions validated at segment scope; Phase 1 complete
-- **Next Task:** Task 2.1 — Extract `resolve-plan-segmentation` into a method (line ~99)
+- **Last Completed:** Task 2.6 — method-declaration rule refined to its conditional form; Phase 2 complete
+- **Next Task:** Task 3.1 — State effective-report composition and the delta form in `validate-criteria`
+  (line ~270)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1.a — create the method from `generate-tasks` § Resolve plan segmentation
+- **Next Action:** Begin Task 3.1 — check whether `review-signal-convergence` has landed before grounding the
+  `validate-criteria` edit; both copies are held byte-identical by the sync test.
 
 - **PR URL:** [none]
 - **Completed:** [none]
