@@ -1277,6 +1277,13 @@ export async function respondToReviewCommand(
         "Candidate-bound delivery-member fix authoring resolved inconsistent current Candidate heads.",
       );
     }
+    if (lineage.unstagedReviewablePaths.length > 0) {
+      throw new RespondCommandError(
+        "invalid-input",
+        "Candidate-bound delivery-member fix authoring requires no unstaged reviewable paths; found: "
+          + lineage.unstagedReviewablePaths.join(", "),
+      );
+    }
     candidateMemberAuthoring = await dependencies.resolveCandidateFixAuthoring({
       workUnit: lineage.workUnit,
       expectedHead: currentness.recognizedRevision,

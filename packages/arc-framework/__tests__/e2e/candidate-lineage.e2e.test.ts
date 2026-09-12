@@ -705,6 +705,20 @@ describe("review-fix Candidate lineage", () => {
     const dispositions = await approvedSet(root, source, "fix", provider.findingId);
     await git(root, ["tag", "feat/example"]);
     await writeFile(join(root, "unreviewed.txt"), "unreviewed Candidate change\n", "utf8");
+    const dirtyAuthoring = await runArcWithStdin(
+      ["review", "respond", "-"],
+      root,
+      `${JSON.stringify({ schemaVersion: 1, source, dispositions })}\n`,
+    );
+    expect(dirtyAuthoring.exitCode).not.toBe(0);
+    expect(JSON.parse(dirtyAuthoring.stdout)).toMatchObject({
+      error: {
+        code: "invalid-input",
+        message: expect.stringContaining("unreviewed.txt"),
+      },
+    });
+    await rm(join(root, "unreviewed.txt"));
+    await writeFile(join(root, "unreviewed.txt"), "unreviewed Candidate change\n", "utf8");
     await git(root, ["add", "unreviewed.txt"]);
     await git(root, ["commit", "-m", "unreviewed Candidate change"]);
     const changedCandidateHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
