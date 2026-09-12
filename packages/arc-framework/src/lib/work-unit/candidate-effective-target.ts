@@ -4,6 +4,7 @@ import type {
   CandidateApplicabilityRequest,
   CandidateApplicabilityResult,
 } from "./candidate-applicability.js";
+import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 import {
   CandidateLineageTargetSchema,
   CandidateConvergenceProjectionSchema,
@@ -17,6 +18,48 @@ import {
 } from "./candidate-attestation.js";
 
 export type NonApplicableProjection = Exclude<CandidateApplicabilityResult, { state: "applicable" }>;
+
+/** Exact bound command that deliberately replaces one invalidated Candidate root. */
+export interface CandidateReRootContinuation {
+  readonly argv: [
+    "arc",
+    "attest",
+    Slug,
+    "--new-root",
+    "--expected-candidate",
+    string,
+    "--expected-subject",
+    string,
+    "--json",
+  ];
+}
+
+/**
+ * Project the guarded re-root command shared by attestation and recovery diagnostics.
+ *
+ * @param input - Work-unit slug plus the exact invalidated Candidate and replacement subject digests.
+ * @returns The exact argv required to establish the replacement lineage root.
+ */
+export function projectCandidateReRootContinuation(input: {
+  readonly name: string;
+  readonly candidateId: string;
+  readonly subjectDigest: string;
+}): CandidateReRootContinuation {
+  const name = SlugSchema.parse(input.name);
+  return {
+    argv: [
+      "arc",
+      "attest",
+      name,
+      "--new-root",
+      "--expected-candidate",
+      input.candidateId,
+      "--expected-subject",
+      input.subjectDigest,
+      "--json",
+    ],
+  };
+}
 
 export type CandidateEffectiveCurrentProjection = {
   readonly schemaVersion: 1;

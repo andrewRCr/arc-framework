@@ -16,6 +16,7 @@ import {
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
+import { BoundFrontlineResponseBindingSchema } from "./frontline-response-binding.js";
 import { HostedFindingSchema } from "../hosted/await.js";
 import {
   HostedProviderIdSchema,
@@ -59,6 +60,7 @@ export const FrontlineRunStateSchema = z.strictObject({
   passCount: z.number().int().nonnegative(),
   policyVersion: CanonicalDigestSchema,
   sourceBindingId: CanonicalDigestSchema,
+  responseBinding: BoundFrontlineResponseBindingSchema.optional(),
 });
 export type FrontlineRunState = z.infer<typeof FrontlineRunStateSchema>;
 

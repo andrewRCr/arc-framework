@@ -78,6 +78,7 @@ describe("packaged review CLI surfaces", () => {
         "review-method-activity",
         "review-routing-decision",
         "review-routing-facts",
+        "slug",
       ],
     ],
   ] as const)("emits a dependency-complete public request schema at %s", async (

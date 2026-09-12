@@ -174,28 +174,47 @@ async function invoke(root: string, command: string[], request: unknown): Promis
 }
 
 /** Install ARC on a work-unit branch carrying one reviewable file, verified and ready to propose. */
-async function fixture(): Promise<string> {
+async function fixture(options: {
+  activeArtifactsOnBase?: boolean;
+  frontlineReviewActive?: boolean;
+} = {}): Promise<string> {
   const root = await createTempRepo("arc-candidate-lineage-");
   roots.push(root);
   const initialized = await runArc(["init", "--yes", "--name", "example"], root);
   expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
+  if (options.frontlineReviewActive === true) {
+    const frontlineMethod = join(root, ".arc", "system", "methods", "frontline-review.md");
+    await writeFile(
+      frontlineMethod,
+      (await readFile(frontlineMethod, "utf8")).replace("active: false", "active: true"),
+      "utf8",
+    );
+  }
   await git(root, ["add", ".arc", ".gitignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
+  const writeActiveArtifacts = async () => {
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", "meta-example.md"), META, "utf8");
+    await writeFile(
+      join(root, ".arc", "active", "tasks-example.md"),
+      "# Task List: Example\n\n- [x] Verification complete\n",
+      "utf8",
+    );
+  };
+  if (options.activeArtifactsOnBase === true) {
+    await writeActiveArtifacts();
+    await git(root, ["add", ".arc/active"]);
+    await git(root, ["commit", "-m", "prepare work unit"]);
+  }
   await git(root, ["switch", "-c", "feat/example"]);
-  await mkdir(join(root, ".arc", "active"), { recursive: true });
-  await writeFile(join(root, ".arc", "active", "meta-example.md"), META, "utf8");
-  await writeFile(
-    join(root, ".arc", "active", "tasks-example.md"),
-    "# Task List: Example\n\n- [x] Verification complete\n",
-    "utf8",
-  );
+  if (options.activeArtifactsOnBase !== true) await writeActiveArtifacts();
   await writeFile(join(root, "reviewed.txt"), "reviewed change\n", "utf8");
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "implementation"]);
   return root;
 }
 
-async function installThreeMemberDelivery(root: string) {
+async function installThreeMemberDelivery(root: string, deliveryState: "bound" | "planned" = "bound") {
   const targetHead = await git(root, ["rev-parse", "main^{commit}"]);
   const targetTree = await git(root, ["rev-parse", `${targetHead}^{tree}`]);
   const operationGateHead = await git(root, [
@@ -210,6 +229,7 @@ async function installThreeMemberDelivery(root: string) {
   const secondTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
 
   const plan = deliveryThreeMemberStackPlanForWorkUnitFixture("example");
+  const taskMarker = deliveryState === "planned" ? "x" : " ";
   const taskList = [
     "# Task List: Example",
     "",
@@ -220,19 +240,29 @@ async function installThreeMemberDelivery(root: string) {
     renderDeliveryPlanSection(plan),
     "## **Phase 1:** Correct delivery member",
     "",
-    "### `[ ]` **1.1 Apply the selected correction**",
+    `### \`[${taskMarker}]\` **1.1 Apply the selected correction**`,
     "",
     "## **Phase 2:** Verification",
     "",
-    "### `[ ]` **2.1 Verify the work unit**",
+    `### \`[${taskMarker}]\` **2.1 Verify the work unit**`,
     "",
   ].join("\n");
-  await writeFile(join(root, ".arc", "active", "tasks-example.md"), taskList, "utf8");
   await writeFile(join(root, "member-three.txt"), "member three\n", "utf8");
-  await git(root, ["add", ".arc/active/tasks-example.md", "member-three.txt"]);
-  await git(root, ["commit", "-m", "member three and delivery plan"]);
+  if (deliveryState === "planned") {
+    await git(root, ["add", "member-three.txt"]);
+    await git(root, ["commit", "-m", "member three"]);
+  } else {
+    await writeFile(join(root, ".arc", "active", "tasks-example.md"), taskList, "utf8");
+    await git(root, ["add", ".arc/active/tasks-example.md", "member-three.txt"]);
+    await git(root, ["commit", "-m", "member three and delivery plan"]);
+  }
   const thirdHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
   const thirdTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+  if (deliveryState === "planned") {
+    await writeFile(join(root, ".arc", "active", "tasks-example.md"), taskList, "utf8");
+    await git(root, ["add", ".arc/active/tasks-example.md"]);
+    await git(root, ["commit", "-m", "record delivery plan"]);
+  }
   await git(root, ["update-ref", "refs/heads/delivery/member-one", firstHead]);
   await git(root, ["update-ref", "refs/heads/delivery/member-two", secondHead]);
 
@@ -270,8 +300,24 @@ async function installThreeMemberDelivery(root: string) {
   const plans = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const states = new RepositoryDeliveryStateStore(publisher);
   expect(await plans.publishCurrent(plan.planId, plan, null)).toMatchObject({ status: "ok" });
-  expect(await states.publish(plan.planId, state, 0)).toMatchObject({ status: "ok" });
-  return { plan, operationMemberHead: targetHead, operationGateHead };
+  if (deliveryState === "bound") {
+    expect(await states.publish(plan.planId, state, 0)).toMatchObject({ status: "ok" });
+  } else {
+    const commonDir = await git(root, ["rev-parse", "--git-common-dir"]);
+    for (const [index, member] of plan.members.entries()) {
+      const candidateHead = [firstHead, secondHead, thirdHead][index];
+      if (candidateHead === undefined) throw new Error("missing delivery Candidate head");
+      await git(root, [
+        "update-ref",
+        `refs/arc/delivery-candidates/${plan.planId}/${member.chunkKey}`,
+        candidateHead,
+      ]);
+      const gatePath = join(root, commonDir, "arc", "delivery-gates", plan.planId, member.chunkKey);
+      await mkdir(join(gatePath, ".."), { recursive: true });
+      await git(root, ["worktree", "add", "--detach", gatePath, candidateHead]);
+    }
+  }
+  return { plan, firstMemberHead: firstHead, operationMemberHead: targetHead, operationGateHead };
 }
 
 async function expectStationaryWorkUnitLocus(
@@ -351,6 +397,42 @@ async function reviewToFindings(root: string): Promise<{ kind: "attested-local";
     .responseSource;
 }
 
+async function installFrontlineFindingProvider(root: string) {
+  const bin = join(root, ".git", "provider-bin");
+  const executable = join(bin, "coderabbit");
+  const findingEvent = {
+    type: "finding",
+    severity: "major",
+    fileName: "reviewed.txt",
+    codegenInstructions: "Apply the supported fix.",
+    suggestions: [],
+  };
+  await mkdir(bin);
+  await writeFile(executable, [
+    "#!/bin/sh",
+    "if [ \"${1:-}\" = \"--version\" ]; then",
+    "  printf 'coderabbit 0.6.5\\n'",
+    "  exit 0",
+    "fi",
+    `printf '%s\\n' '${JSON.stringify(findingEvent)}'`,
+    "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":1,"
+      + "\"reviewedFiles\":[\"reviewed.txt\"]}'",
+    "",
+  ].join("\n"), "utf8");
+  await chmod(executable, 0o755);
+  return {
+    bin,
+    findingEvent,
+    findingId: canonicalDigest({
+      schemaVersion: 1,
+      provider: "coderabbit-cli",
+      contract: "coderabbit-agent-ndjson/v1",
+      mode: "agent",
+      finding: findingEvent,
+    }),
+  };
+}
+
 /** Run Frontline review against a pinned member-shaped target without binding a delivery vehicle. */
 async function frontlineMemberReviewToFindings(
   root: string,
@@ -391,29 +473,7 @@ async function frontlineMemberReviewToFindings(
     maxPasses: 2,
   });
   expect(resolution).toMatchObject({ state: "ready", nextAction: "run-frontline" });
-
-  const bin = join(root, ".git", "provider-bin");
-  const executable = join(bin, "coderabbit");
-  const findingEvent = {
-    type: "finding",
-    severity: "major",
-    fileName: "reviewed.txt",
-    codegenInstructions: "Apply the supported fix.",
-    suggestions: [],
-  };
-  await mkdir(bin);
-  await writeFile(executable, [
-    "#!/bin/sh",
-    "if [ \"${1:-}\" = \"--version\" ]; then",
-    "  printf 'coderabbit 0.6.5\\n'",
-    "  exit 0",
-    "fi",
-    `printf '%s\\n' '${JSON.stringify(findingEvent)}'`,
-    "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":1,"
-      + "\"reviewedFiles\":[\"reviewed.txt\"]}'",
-    "",
-  ].join("\n"), "utf8");
-  await chmod(executable, 0o755);
+  const provider = await installFrontlineFindingProvider(root);
 
   const run = envelope(await runArcWithStdin(
     ["review", "frontline", "run", "-"],
@@ -429,7 +489,7 @@ async function frontlineMemberReviewToFindings(
       resolution,
       timeoutMs: 5_000,
     })}\n`,
-    { env: { PATH: `${bin}${delimiter}${process.env.PATH ?? ""}` } },
+    { env: { PATH: `${provider.bin}${delimiter}${process.env.PATH ?? ""}` } },
   ));
   expect(run).toMatchObject({ state: "findings", nextAction: "respond" });
   const reduced = await invoke(root, ["review", "reduce", "-"], {
@@ -440,13 +500,7 @@ async function frontlineMemberReviewToFindings(
   return {
     source: (reduced.payload as { responseSource: { kind: "frontline"; outcomeRef: string } })
       .responseSource,
-    findingId: canonicalDigest({
-      schemaVersion: 1,
-      provider: "coderabbit-cli",
-      contract: "coderabbit-agent-ndjson/v1",
-      mode: "agent",
-      finding: findingEvent,
-    }),
+    findingId: provider.findingId,
   };
 }
 
@@ -570,6 +624,175 @@ async function archiveArtifacts(root: string, companions: readonly string[] = []
 }
 
 describe("review-fix Candidate lineage", () => {
+  it("advances the root Candidate after a private delivery-member frontline fix", async () => {
+    const root = await fixture({ activeArtifactsOnBase: true, frontlineReviewActive: true });
+    await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    const delivery = await installThreeMemberDelivery(root, "planned");
+    const attested = await runArc(["attest", "example", "--json"], root);
+    expect(attested.exitCode, attested.stderr || attested.stdout).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+
+    const candidate = await readCandidateRecord(root, "example");
+    if (candidate === null) throw new Error("missing Candidate record");
+    const candidateHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
+    await git(root, ["config", "--add", "arc.frontlineSources", "coderabbit-cli"]);
+    const prePublication = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      root,
+    );
+    expect(prePublication.exitCode, prePublication.stderr || prePublication.stdout).toBe(0);
+    const routed = JSON.parse(prePublication.stdout) as {
+      target: { kind: string; baseRef: string; diffBaseSha: string; headSha: string };
+      policy: Record<string, unknown>;
+      responseBinding?: Record<string, unknown>;
+    };
+    expect(routed).toMatchObject({
+      locus: "candidate-review-pending",
+      target: { kind: "delivery-member", headSha: delivery.firstMemberHead },
+      policy: { state: "ready", nextAction: "run-frontline" },
+      responseBinding: {
+        candidate: {
+          workUnit: "example",
+          candidateId: candidate.attestation.candidateId,
+          head: candidateHead,
+        },
+        deliveryMember: {
+          kind: "delivery-member",
+          planId: delivery.plan.planId,
+          deliverableId: delivery.plan.members[0]!.deliverableId,
+          workUnitId: "example",
+          head: delivery.firstMemberHead,
+        },
+      },
+    });
+
+    const provider = await installFrontlineFindingProvider(root);
+
+    const resolution = await invoke(root, ["review", "frontline", "resolve", "-"], {
+      schemaVersion: 1,
+      changeSet: {
+        schemaVersion: 1,
+        changeSetState: "known",
+        contentKind: "code-bearing",
+        reviewRisk: "routine",
+        changeDeterminacy: "ordinary",
+        ownership: "self",
+        surfaceAuthority: "ordinary",
+        assurance: { workContext: "work-unit", workClass: "Light" },
+        activity: { selfReview: true, frontlineReview: true },
+      },
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+      maxPasses: 2,
+    });
+    expect(resolution).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+
+    const frontlineRequest = {
+      schemaVersion: 1 as const,
+      target: {
+        kind: routed.target.kind,
+        baseRef: routed.target.baseRef,
+        diffBaseSha: routed.target.diffBaseSha,
+        headSha: routed.target.headSha,
+      },
+      resolution,
+      responseBinding: routed.responseBinding,
+      timeoutMs: 5_000,
+    };
+    const forged = await runArcWithStdin(
+      ["review", "frontline", "run", "-"],
+      root,
+      `${JSON.stringify({
+        ...frontlineRequest,
+        responseBinding: {
+          ...routed.responseBinding,
+          candidate: {
+            ...(routed.responseBinding?.candidate as Record<string, unknown>),
+            candidateId: `sha256:${"0".repeat(64)}`,
+          },
+        },
+      })}\n`,
+      { env: { PATH: `${provider.bin}${delimiter}${process.env.PATH ?? ""}` } },
+    );
+    expect(forged.exitCode).not.toBe(0);
+    expect(JSON.parse(forged.stdout)).toMatchObject({ error: { code: "invalid-input" } });
+
+    const run = envelope(await runArcWithStdin(
+      ["review", "frontline", "run", "-"],
+      root,
+      `${JSON.stringify(frontlineRequest)}\n`,
+      { env: { PATH: `${provider.bin}${delimiter}${process.env.PATH ?? ""}` } },
+    ));
+    expect(run).toMatchObject({ state: "findings", nextAction: "respond" });
+    const reduced = await invoke(root, ["review", "reduce", "-"], {
+      schemaVersion: 1,
+      operationId: (run.payload as { operationId: string }).operationId,
+    });
+    const source = (reduced.payload as {
+      responseSource: { kind: "frontline"; outcomeRef: string };
+    }).responseSource;
+    const dispositions = await approvedSet(root, source, "fix", provider.findingId);
+    await expect(invoke(root, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+
+    const records = await new LocalApprovedDispositionRecordStore(
+      new RepositoryGitCommonStatePublisher(gitExec, root),
+    ).listDispositionRecords();
+    expect(records).toContainEqual(expect.objectContaining({
+      candidate: { workUnit: "example", candidateId: candidate.attestation.candidateId },
+      deliveryMember: expect.objectContaining({
+        planId: delivery.plan.planId,
+        deliverableId: delivery.plan.members[0]!.deliverableId,
+        head: delivery.firstMemberHead,
+      }),
+    }));
+
+    const verifiedFix = {
+      schemaVersion: 1,
+      source,
+      dispositions,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-private-member-fix"],
+      },
+    } as const;
+    const unchanged = await runArcWithStdin(
+      ["review", "respond", "-"],
+      root,
+      `${JSON.stringify(verifiedFix)}\n`,
+    );
+    expect(unchanged.exitCode).not.toBe(0);
+    expect(JSON.parse(unchanged.stdout)).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("changed exact target") },
+    });
+
+    await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "apply approved fix"]);
+
+    const resumed = await runArc(
+      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      root,
+    );
+    expect(resumed.exitCode, resumed.stderr || resumed.stdout).toBe(0);
+    expect(JSON.parse(resumed.stdout)).toMatchObject({
+      locus: "candidate-fix-pending",
+      target: { kind: "delivery-member", headSha: delivery.firstMemberHead },
+    });
+    await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
+      .resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
+      .resolves.toMatchObject({ state: "candidate-current", nextAction: "continue-review" });
+    const advanced = await readCandidateRecord(root, "example");
+    expect(candidateReviewResponses(advanced ?? { transitions: [] })).toMatchObject([{
+      oldTarget: { revision: candidateHead },
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://focused-private-member-fix"],
+    }]);
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
   it("resumes a Candidate-bound member-shaped fix before requiring a new root", async () => {
     const root = await fixture();
     await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);

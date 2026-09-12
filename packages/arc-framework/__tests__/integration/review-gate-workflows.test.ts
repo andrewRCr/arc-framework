@@ -529,6 +529,23 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("continues an Errand hosted await until its typed attention boundary", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+    ]);
+    expect(project).toBe(packaged);
+    const pendingAwait = sectionBetween(
+      packaged,
+      "- `pending / await`",
+      "- `pending / inspect-or-extend`",
+    );
+    expect(pendingAwait).toMatch(
+      /retain[^.]*action[^.]*diagnostic[^.]*pass it unchanged[^.]*arc review hosted await[^.]*one more bounded call/iu,
+    );
+    expect(pendingAwait).toMatch(/repeat[^.]*inspect-or-extend[^.]*terminal outcome/iu);
+  });
+
   it("executes mixed hosted settlement phases in the command-projected order", async () => {
     const paths = [
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",

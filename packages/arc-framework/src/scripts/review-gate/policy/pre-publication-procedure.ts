@@ -21,6 +21,7 @@ import {
   ReviewResolveEnvelopeSchema,
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
+import { FrontlineResponseBindingSchema } from "../core/frontline-response-binding.js";
 import {
   CandidateConvergenceBoundarySchema,
   CandidateFixBoundarySchema,
@@ -70,6 +71,8 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
    * checkout cannot currently produce one rather than refusing a procedure that has other work to do.
    */
   target: ReviewTargetSchema.nullable().default(null),
+  /** Candidate authority carried only while frontline reviews a private delivery member. */
+  responseBinding: FrontlineResponseBindingSchema.optional(),
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
@@ -96,6 +99,17 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
       message: "must match the standard review target repository",
     });
   }
+  if (request.responseBinding !== undefined
+    && (request.target?.kind !== "delivery-member"
+      || request.responseBinding.candidate.workUnit !== request.workUnit
+      || request.responseBinding.candidate.candidateId !== request.candidateId
+      || request.target.headSha !== request.responseBinding.deliveryMember.head)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseBinding"],
+      message: "must bind this Candidate and exact private delivery-member target",
+    });
+  }
 });
 export type PrePublicationReviewRequest = z.infer<typeof PrePublicationReviewRequestSchema>;
 
@@ -113,6 +127,7 @@ const PrePublicationEnvelopeFields = {
   candidateSubjectDigest: CandidateSubjectDigestSchema,
   /** The immutable target the exact-target operations this envelope routes to require. */
   target: ReviewTargetSchema.nullable(),
+  responseBinding: FrontlineResponseBindingSchema.optional(),
 };
 export const PrePublicationReviewEnvelopeSchema = z.union([
   CandidateSelfReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
@@ -134,6 +149,7 @@ export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEn
 export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): IntegrationBoundaryLocus {
   const boundary: Record<string, unknown> = { ...envelope };
   delete boundary.target;
+  delete boundary.responseBinding;
   return parseIntegrationBoundaryLocus(boundary);
 }
 
@@ -294,6 +310,7 @@ function envelope(
     candidateId: request.candidateId,
     candidateSubjectDigest: request.candidate.subjectDigest,
     target: request.target,
+    ...(request.responseBinding === undefined ? {} : { responseBinding: request.responseBinding }),
     policy: null,
     reservation: null,
     terminus: null,

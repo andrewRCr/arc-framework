@@ -37,6 +37,8 @@ import type {
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { bindReviewSourceReference } from "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { computeFrontlineSourceBindingId } from
+  "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import {
   respondToReviewCommand,
   type RespondCommandDependencies,
@@ -1170,7 +1172,7 @@ describe("review response command", () => {
       outcome: "findings",
       passCount: 1,
       policyVersion: digest("frontline-policy"),
-      sourceBindingId: digest("frontline-source-binding"),
+      sourceBindingId: computeFrontlineSourceBindingId(source),
     };
     deps.operationStore.readOperation = async () => ({ version: 1, state: operation });
     deps.readCandidateLineage = async () => null;
@@ -1232,7 +1234,7 @@ describe("review response command", () => {
       schemaVersion: 1,
       source: { kind: "frontline", outcomeRef },
       dispositions,
-    }, deps)).rejects.toThrow("approved dispositions do not match the selected review source");
+    }, deps)).rejects.toThrow("frontline response source snapshot mismatch");
 
     const clean = createFrontlineOutcomeRecord({
       schemaVersion: 1,

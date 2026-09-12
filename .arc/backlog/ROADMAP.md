@@ -17,13 +17,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------------------- |
 | `Active`   | decompose-conservation-coverage | P1       | andrew | —                               | decompose-core-hardening  |
 | `Active`   | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                               | —                         |
 | `Planning` | decomposition-doctrine          | P1       | andrew | decompose-conservation-coverage | —                         |
 | `Active`   | evidence-applicability          | P1       | andrew | —                               | —                         |
 | `Active`   | local-ci-capacity-qualification | P1       | andrew | —                               | —                         |
-| `Planning` | plan-amendment                  | P1       | andrew | —                               | —                         |
+| `Active`   | plan-amendment                  | P1       | andrew | —                               | —                         |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —                         |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                               | —                         |
-| `Planning` | test-suite-right-sizing         | P2       | andrew | —                               | —                         |
+| `Active`   | test-suite-right-sizing         | P2       | andrew | —                               | —                         |
 
 ## Ready
 
@@ -89,6 +90,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cohort-cut-coherence                | P3       | andrew | —          | —                          |
 | cold-start-init-polish              | P3       | andrew | —          | —                          |
 | contributor-path                    | P3       | andrew | —          | —                          |
+| errand-promotion-concurrency        | P3       | andrew | —          | —                          |
 | external-coord-probe                | P3       | andrew | —          | —                          |
 | external-pm-composition             | P3       | andrew | —          | —                          |
 | grok-compaction-recovery            | P3       | andrew | —          | —                          |

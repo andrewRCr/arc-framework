@@ -50,6 +50,10 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
+import {
+  frontlineResponseBindingMatchesTarget,
+  type BoundFrontlineResponseBinding,
+} from "../core/frontline-response-binding.js";
 import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
@@ -67,6 +71,9 @@ import {
   projectCandidateDeltaVerification,
   recordCandidateVerifiedResponse,
 } from "../policy/pre-publication-procedure.js";
+import {
+  computeFrontlineSourceBindingId,
+} from "../policy/frontline-operation.js";
 import {
   projectFrontlineResponse,
 } from "../policy/frontline-response.js";
@@ -225,6 +232,7 @@ interface ResolvedResponseSource {
   dispositionContext: DispositionSourceContext;
   actors: ResponseActors;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
+  responseBinding?: BoundFrontlineResponseBinding;
   frontlineOutcome?: FrontlineExecutionOutcome;
   hostedAttempt?: {
     operationId: string;
@@ -454,8 +462,18 @@ async function resolveFrontlineSource(
   if (state.targetId !== record.outcome.target.targetId
     || state.sourceIdentity !== record.sourceIdentity
     || state.outcome !== record.outcome.outcome
-    || state.passCount !== record.outcome.pass) {
+    || state.passCount !== record.outcome.pass
+    || state.sourceBindingId !== computeFrontlineSourceBindingId(
+      record.outcome.source,
+      record.responseBinding,
+    )
+    || canonicalize(state.responseBinding ?? null) !== canonicalize(record.responseBinding ?? null)) {
     throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
+  }
+  const responseBinding = record.responseBinding;
+  if (responseBinding !== undefined
+    && !frontlineResponseBindingMatchesTarget(record.outcome.target, responseBinding)) {
+    throw new RespondCommandError("corrupt-state", "Frontline response binding does not match its exact targets");
   }
   if (record.outcome.outcome !== "findings") {
     throw new RespondCommandError("invalid-input", "frontline response requires a findings outcome");
@@ -478,6 +496,7 @@ async function resolveFrontlineSource(
     },
     actors: await dependencies.resolveFrontlineActors(),
     frontlineOutcome: record.outcome,
+    ...(responseBinding === undefined ? {} : { responseBinding }),
   };
 }
 
@@ -621,7 +640,8 @@ async function persistCandidateResponse(
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
-  const lineage = await dependencies.readCandidateLineage(source.target);
+  const candidateTarget = source.responseBinding?.candidate.target ?? source.target;
+  const lineage = await dependencies.readCandidateLineage(candidateTarget);
   if (lineage === null) {
     throw new RespondCommandError(
       "invalid-input",
@@ -630,6 +650,11 @@ async function persistCandidateResponse(
   }
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   const candidateBinding = existing?.candidate;
+  const privateMemberBindingMatches = source.responseBinding === undefined
+    ? existing?.deliveryMember === null
+    : existing?.deliveryMember !== null
+      && existing?.deliveryMember !== undefined
+      && canonicalize(existing.deliveryMember) === canonicalize(source.responseBinding.deliveryMember);
   let expectedAuthorization;
   try {
     expectedAuthorization = createFixAuthorization({
@@ -645,7 +670,7 @@ async function persistCandidateResponse(
     || candidateBinding.workUnit !== lineage.workUnit
     || candidateBinding.candidateId !== lineage.record.attestation.candidateId
     || existing.errand !== null
-    || existing.deliveryMember !== null
+    || !privateMemberBindingMatches
     || canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)
     || canonicalize(existing.source) !== canonicalize(source.source)
     || expectedAuthorization === null
@@ -678,7 +703,7 @@ async function persistCandidateResponse(
     const matching = matchingResponses[0];
     if (matching === undefined
       || matching.candidateId !== lineage.record.attestation.candidateId
-      || matching.oldTarget.revision !== source.target.headSha
+      || matching.oldTarget.revision !== candidateTarget.headSha
       || matching.newTarget.revision !== recordedResponses.at(-1)?.newTarget.revision
       || matching.approvedBy !== dispositions.approval.approvedBy
       || matching.appliedBy !== dispositions.dispositionSet.proposedBy
@@ -700,7 +725,7 @@ async function persistCandidateResponse(
       },
     });
   }
-  if (lineage.reviewed.recognizedTarget.revision !== source.target.headSha) {
+  if (lineage.reviewed.recognizedTarget.revision !== candidateTarget.headSha) {
     throw new RespondCommandError("invalid-input", "Candidate review authority belongs to a different exact target");
   }
   const projection = projectCandidateDeltaVerification({
@@ -714,7 +739,7 @@ async function persistCandidateResponse(
       // The prior Candidate subject may have survived ceremony commits after its attestation.
       // Preserve the exact reviewed revision so lineage-wide review authority can find the pass
       // record that belongs to the approved response.
-      oldTarget: { ...projection.oldTarget, revision: source.target.headSha },
+      oldTarget: { ...projection.oldTarget, revision: candidateTarget.headSha },
     },
     dispositionId: dispositions.dispositionSet.dispositionSetId,
     approvedBy: dispositions.approval.approvedBy,
@@ -1090,10 +1115,11 @@ export async function respondToReviewCommand(
     && recordedFix?.candidate !== undefined
     && source.hostedAttempt?.vehicle === undefined
     && source.deliveryAdmission?.vehicle === undefined
-    ? await dependencies.readCandidateLineage(source.target)
+    ? await dependencies.readCandidateLineage(source.responseBinding?.candidate.target ?? source.target)
     : null;
   if (candidateBoundFix !== null) {
-    changedTarget = candidateBoundFix.candidateFixTarget.targetId === source.target.targetId
+    const reviewedCandidateTarget = source.responseBinding?.candidate.target ?? source.target;
+    changedTarget = candidateBoundFix.candidateFixTarget.targetId === reviewedCandidateTarget.targetId
       ? null
       : candidateBoundFix.candidateFixTarget;
   }
@@ -1109,7 +1135,9 @@ export async function respondToReviewCommand(
     return staleTargetEnvelope(source.operationId, settledFixTarget, currentTarget);
   }
   if (confirmation.state === "stale-target" && verifiedFix === undefined && settledFixTarget === undefined) {
-    const lineage = await dependencies.readCandidateLineage(source.target);
+    const lineage = await dependencies.readCandidateLineage(
+      source.responseBinding?.candidate.target ?? source.target,
+    );
     const currentness = lineage === null
       ? null
       : projectEffectiveCandidateCurrentness(lineage.effective);
@@ -1199,10 +1227,15 @@ export async function respondToReviewCommand(
         outcome: source.frontlineOutcome,
         dispositionState: dispositions,
       });
-  const deliveryMember = source.hostedAttempt?.vehicle ?? source.deliveryAdmission?.vehicle ?? null;
-  const lineage = deliveryMember === null
-    ? unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target)
-    : null;
+  const deliveryMember = source.responseBinding?.deliveryMember
+    ?? source.hostedAttempt?.vehicle
+    ?? source.deliveryAdmission?.vehicle
+    ?? null;
+  const lineage = source.responseBinding === undefined && deliveryMember !== null
+    ? null
+    : unchangedCandidateLineage ?? await dependencies.readCandidateLineage(
+        source.responseBinding?.candidate.target ?? source.target,
+      );
   const errand = lineage === null && deliveryMember === null
     ? await dependencies.resolveActiveErrand()
     : null;
@@ -1247,7 +1280,7 @@ export async function respondToReviewCommand(
   }
   const alreadySettled = existing !== null;
   const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
-  if (plan.state === "ready-to-fix" && deliveryMember !== null) {
+  if (plan.state === "ready-to-fix" && deliveryMember !== null && lineage === null) {
     const repository = source.hostedAttempt?.target.repository ?? source.deliveryAdmission?.target.repository;
     if (repository === undefined || plan.fixAuthorization === null) {
       throw new RespondCommandError(

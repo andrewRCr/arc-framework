@@ -56,6 +56,8 @@ import {
 import {
   runFrontlineReviewCommand,
 } from "../../../src/scripts/review-gate/runtime/frontline-run-command.js";
+import { FrontlineRunCommandRequestSchema } from
+  "../../../src/scripts/review-gate/core/frontline-run-command-schema.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
 import {
   LocalPrepareCommandError,
@@ -1563,7 +1565,7 @@ describe("handleReviewFrontlineRun", () => {
     await handleReviewFrontlineRun("-", {
       resolveRoot: () => "/repo",
       readText: async () => JSON.stringify(frontlineRunRequest),
-      deriveRequest: async (request) => ({ ...request, target }),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target }),
       run,
       write,
       setExitCode: vi.fn(),
@@ -1625,7 +1627,7 @@ describe("handleReviewFrontlineRun", () => {
         ...frontlineRunRequest,
         resolution,
       }),
-      deriveRequest: async (request) => ({ ...request, target }),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target }),
       run: (request) => runFrontlineReviewCommand(request, {
         confirmSource,
         prepareExecutionTarget,
