@@ -311,6 +311,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "self-review.md",
       "issue-triage.md",
       "quality-gate-commands.md",
+      "resolve-plan-segmentation.md",
       "resolve-planning-depth.md",
       "review-response.md",
       "review-triage.md",
@@ -354,6 +355,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
+  it("installs the amend-design supplemental workflow as core Framework", async () => {
+    const workflowPath = "system/workflows/arc/supplemental/amend-design.md";
+    expect((await stat(join(arcDir, workflowPath))).isFile()).toBe(true);
+
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files[workflowPath]?.classification).toBe("Framework");
+    expect(manifest.files[workflowPath]?.layer).toBe("core");
+  });
+
   it(
     "registers all per-file methods/extensions in the manifest",
     async () => {
@@ -363,7 +373,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
-        "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
+        "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
+        "review-response", "review-triage",
         "session-state", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];
