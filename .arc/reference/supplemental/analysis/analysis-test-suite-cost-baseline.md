@@ -169,6 +169,58 @@ The top four E2E files remain `candidate-lineage`, `delivery-position`, `command
 `lifecycle-exit` is fifth by 0.44 s, so the measured anchor correction remains the one identified by the first
 baseline.
 
+### Ranked audit dispositions
+
+The audit applied the per-test rubric in the fixed order above. Integration reached its stop after ranks 13–15;
+each file's whole baseline share was already below 2%, so no later integration file could yield the threshold.
+
+1. `decompose-v3-repository-plan.test.ts` — **retain**: real Git transition, race, and rollback behavior.
+2. `review-fan-out-lifecycle.test.ts` — **retain**: already uses handler seams over real durable review stores.
+3. `user.test.ts` — **retain**: concurrency-sensitive notes mutation; prepared repositories already share setup.
+4. `classify-change.test.ts` — **retain**: the shell classifier and verified Git history are the boundary.
+5. `harness-hooks/codex-cli.test.ts` — **retain**: generated hooks, process environment, and shell output are real.
+6. `delivery-field-runs.test.ts` — **retain**: historical plans and refusal conservation need repository state.
+7. `init.test.ts` — **retain**: recipe rendering, pristine copies, and manifest integrity use real files and Git.
+8. `github-provider-refresh.test.ts` — **retain**: fork recovery and conflict continuation operate on real Git.
+9. `user-notes-compaction.test.ts` — **retain**: lock, notes-tree, and cumulative-prune behavior is mutation proof.
+10. `teardown.test.ts` — **retain**: branch and worktree deletion is a destructive real-repository boundary.
+11. `notes-export-state-coherence.test.ts` — **retain**: divergence classification spans actual refs and notes.
+12. `one-shot-script-entrypoints.test.ts` — **retain**: loader output and exit status are the package-script seam.
+13. `command-surface-documentation.test.ts` — **retain; stop 1/3**: derived docs/source/Commander agreement.
+14. `delivery-member-six-lifecycle.test.ts` — **retain; stop 2/3**: handler seam already drives real state stores.
+15. `start-dispatch.test.ts` — **retain; stop 3/3**: real worktree mutation; output capture now uses the shared
+    handler runner.
+
+E2E reached its stop after ranks 12–14. The two conversions preserve their complete assertion sets; no deletion
+was made, so no mutation-testing decision was needed.
+
+1. `candidate-lineage.e2e.test.ts` — **convert** all 33 semantic cases to nine balanced integration files through
+   CLI-validated handler inputs. Real-spawn protectors remain in `attest.e2e.test.ts`,
+   `review-protocol.e2e.test.ts`, `publication-spine.e2e.test.ts`, `delivery-plan.e2e.test.ts`, and
+   `candidate-applicability.e2e.test.ts`. A concurrent probe kept every arrival below the 38.35 s floor; the
+   largest summed test window was 27.27 s.
+2. `delivery-position.e2e.test.ts` — **convert** 22 semantic cases to `delivery-position.test.ts`; retain the
+   registered-correction case as the real-CLI orchestration smoke because its handler intentionally launches
+   nested public commands. Other verb protectors remain in the E2E files named above plus
+   `delivery-terminal-recovery.e2e.test.ts`. The integration arrival's test window was 28.78 s.
+3. `command-input-no-input.e2e.test.ts` — **retain**: non-TTY, CI, `--no-input`, stdin, parsing, and dispatch are
+   entry behavior.
+4. `errand.e2e.test.ts` — **retain**: close, abandon, promote, checkout, and branch teardown are destructive.
+5. `lifecycle-exit.e2e.test.ts` — **retain**: park, abandon, teardown, and remote-ref deletion are destructive.
+6. `delivery-plan.e2e.test.ts` — **retain**: documented parsing, public choreography, and destructive closeout.
+7. `session-init.e2e.test.ts` — **retain**: entry composition, environment, output, and recovery dispatch.
+8. `review-protocol.e2e.test.ts` — **retain**: public-verb replay and concurrent serialization are the subject.
+9. `delivery-terminal-recovery.e2e.test.ts` — **retain**: effect-driver recovery spans nested public commands.
+10. `publication-spine.e2e.test.ts` — **retain**: cross-command publication entry choreography is the subject.
+11. `rename.e2e.test.ts` — **retain**: branch, worktree, identity, and remote rename mutation is destructive.
+12. `delivery-authoring.e2e.test.ts` — **retain; stop 1/3**: authoring write verbs mutate Candidate refs.
+13. `user.e2e.test.ts` — **retain; stop 2/3**: save/push/clone/pull portability needs process isolation.
+14. `locus-errand-roundtrip.e2e.test.ts` — **retain; stop 3/3**: promotion and capture settlement are destructive.
+
+The audit stopped before `decompose-command-modes.e2e.test.ts`, as required: three consecutive sub-2% files had
+already yielded less than the threshold. Prepared initialized repositories consolidate repeated setup for both
+converted suites, and `handler.ts` is the single stdout, stderr, exit-code, cwd, and environment capture path.
+
 ### Worker sizing sweep
 
 The lane was measured in three-run alternating samples at 50%, 75%, and native sizing. On this 24-logical-CPU

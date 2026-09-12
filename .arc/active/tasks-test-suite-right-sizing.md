@@ -752,41 +752,15 @@ observations exist with their capture or are recorded as not created.
   order: 15 descending integration candidates and 15 descending E2E candidates. Each list continues through the
   first three consecutive files whose entire tier share is below 2%, while the unit tier remains out of scope.
 
-### `[ ]` **7.2 Work the cost-ranked files to the stop rule under the per-test rubric**
+### `[x]` **7.2 Work the cost-ranked files to the stop rule under the per-test rubric**
 
 - _Goal:_ The top of each ranking is worked file by file until three consecutive ranked files each yield under 2%
   of their tier's summed time.
 
-- **Additional Context:** `notes-test-suite-right-sizing.md` § Per-test rubric provenance and
-  § Spine conversion and the successor's remainder
-
-    - Apply the rubric only to cost-ranked candidates, never as a sweep: what behavior does the test protect; is
-      it already proven at a cheaper tier; can the scenario be driven through the handler seam instead of the real
-      CLI; can several cases share one expensive setup or spawn; does it still fail when the logic breaks; and
-      which retained test now carries the behavior.
-    - **Seam conversion is the lifecycle spines' lever.** Where a case needs only handler-seam outcomes, convert it
-      to integration driving the verb core through CLI-generated inputs — the seam `testing-standards` sanctions —
-      and keep one real-spawn smoke per verb. Leave at E2E anything whose subject is the entry's own behavior:
-      argument parsing, command dispatch, output formatting. Those are the successor's population, and converting
-      them here would foreclose it.
-    - A conversion carries its assertion set across. One that sheds assertions is a deletion and takes the deletion
-      rules below.
-    - **Converted cases land under the integration tier floor**, the same discipline 4.3 applies to splitting.
-      Conversion moves cost into that tier, and the lane's wall clock is floored by its longest integration file,
-      so a spine arriving whole would undo in Phase 7 what Phase 4 established. Choose the landing files to keep
-      each under the floor.
-    - Settle one shared way to drive a handler and capture its stdout and exit code, rather than letting each
-      converted file invent its own. Handlers set `process.exitCode` rather than exiting, and the top three spines
-      carry dozens of exit-code assertions between them; at this volume an ad-hoc helper per file is how the tier
-      grows a second fixture vocabulary.
-    - Prefer consolidation over deletion. A consolidated test keeps at least 3× headroom against its timeout
-      ceiling or carries an explicit per-test timeout, and every stderr and exit-code assertion it replaces
-      survives.
-    - Destructive verbs stay at the full-invocation tier.
-    - Coverage overlap alone never justifies deletion — coverage-minimized suites lose roughly half their fault
-      detection for an ~80% size reduction, so deletion needs behavioral intent plus a named protector.
-    - Never thin coverage of the notes mutators to save time: that substrate's tests are real proofs of a
-      concurrency-sensitive surface, and cheap fixture sharing is the preferred lever there.
+- _Outcome:_ The fixed audit reached both three-file stop rules with every disposition recorded in
+  `analysis-test-suite-cost-baseline.md`. All 33 Candidate-lineage cases and 22 of 23 delivery-position cases moved
+  through the shared handler runner into floor-safe integration arrivals; the nested public-command correction
+  smoke and all entry/destructive behavior stayed E2E. No assertions or tests were deleted.
 
 ### `[ ]` **7.3 Install and remove mutation testing on the pair that needs it**
 

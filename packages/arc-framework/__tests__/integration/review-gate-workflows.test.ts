@@ -121,9 +121,9 @@ describe("trusted review-gate workflows", () => {
     const e2e = jobValue(workflow, "e2e");
     const anchors = [
       "errand.e2e.test.ts",
-      "candidate-lineage.e2e.test.ts",
+      "lifecycle-exit.e2e.test.ts",
       "command-input-no-input.e2e.test.ts",
-      "delivery-position.e2e.test.ts",
+      "delivery-plan.e2e.test.ts",
     ];
 
     expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");
