@@ -7,9 +7,10 @@
 <!-- arc:delivery-plan:start -->
 ## Delivery Plan
 
-- **Plan Revision:** `1`
-- **Plan Digest:** `sha256:af3901b958bdb423c2219ded539208cea2ce1713e187cc379bb6bfb36d7685aa`
-- **Projection:** `wu-integration-target`
+- **Plan Revision:** `2`
+- **Plan Digest:** `sha256:f1783f47c828efd38ec783b4e334d24a13319b60c744d8ac715f0f2d67eb9af7`
+- **Projection:** `stack-to-main`
+- **Landability:** All members are `independently-landable`.
 
 ### Members
 
@@ -706,10 +707,15 @@ prose follows the executable contract.
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The complete work unit satisfies its design, composes all three delivery members without seam gaps, and
   is ready for integration under the repository's full quality and review gates.
+
+- _Quality gates:_ Markdown lint, ARC contract audits, TypeScript and shell lint, source and test typechecks,
+  11,780 tests, and the production build passed; one test remained intentionally skipped.
+
+- _Success criteria:_ 29 criteria: 29 met, zero superseded, zero unresolved.
 
 ---
 
@@ -717,78 +723,78 @@ prose follows the executable contract.
 
 ### Member 1 — `refusal-contract-and-floor`
 
-- `[ ]` A nonempty retiring companion outside the scanned set refuses both execute and base advancement before any
+- `[x]` A nonempty retiring companion outside the scanned set refuses both execute and base advancement before any
   repository mutation is planned, naming the path and the corrective preflight command.
-- `[ ]` Every known refusal code resolves to a specific `SpineRemedy`; only normalized unexpected runtime failures
+- `[x]` Every known refusal code resolves to a specific `SpineRemedy`; only normalized unexpected runtime failures
   use the named retry fallback, no runtime detail escapes as a reason, and no decompose command result carries a
   string remedy.
-- `[ ]` Preflight, execute, extract, finish preview, finish apply, and base advancement emit one strict refusal
+- `[x]` Preflight, execute, extract, finish preview, finish apply, and base advancement emit one strict refusal
   envelope on stdout, the reason and verbatim remedy text on stderr, and a nonzero exit status; report-bearing
   operation refusals preserve their typed report, while handler-caught `unexpected-error` uses the core-only arm
   without invented stage, recovery, or report fields.
-- `[ ]` Every admitted state comparison carries typed `expected` and `actual` evidence through the outer command
+- `[x]` Every admitted state comparison carries typed `expected` and `actual` evidence through the outer command
   result, while one-sided consistency failures and transient `source-preimage-raced` carry no evidence field.
-- `[ ]` Scanned invalid UTF-8 Markdown refuses during preflight as path-bearing `source-scan`; an unscanned Active
+- `[x]` Scanned invalid UTF-8 Markdown refuses during preflight as path-bearing `source-scan`; an unscanned Active
   task/notes scaffold source refuses `scaffold-source-invalid-encoding`; other cause-specific scaffold and projection
   failures retain the exact member/path locus that exists when they run.
-- `[ ]` Both workflow copies publish the all-mode stdout envelope and surface status, remedy, evidence, and any
+- `[x]` Both workflow copies publish the all-mode stdout envelope and surface status, remedy, evidence, and any
   optional report before the member closes.
 
 ### Member 2 — `companion-conservation`
 
-- `[ ]` Source and predecessor discovery admit every valid artifact-group Markdown companion and paired spec while
+- `[x]` Source and predecessor discovery admit every valid artifact-group Markdown companion and paired spec while
   leaving unrelated supplemental files under the existing rider guard.
-- `[ ]` Started-Planning and backlog retirement maps enumerate every companion unit; task lists allocate at preamble
+- `[x]` Started-Planning and backlog retirement maps enumerate every companion unit; task lists allocate at preamble
   and H2-phase granularity through preflight, map revalidation, execute, and base advancement.
-- `[ ]` A targeted notes unit reaches a `provisional-notes` scaffold, conservation, the immutable plan, and the
+- `[x]` A targeted notes unit reaches a `provisional-notes` scaffold, conservation, the immutable plan, and the
   result report through production composition paths.
-- `[ ]` Active origins expose no companion source units, and started-Planning extraction accepts only
+- `[x]` Active origins expose no companion source units, and started-Planning extraction accepts only
   `retained-origin` for companions so finish leaves their bytes unchanged.
-- `[ ]` Extraction finish accepts exact partial prior thinning while every added, removed, moved, renamed, or changed
+- `[x]` Extraction finish accepts exact partial prior thinning while every added, removed, moved, renamed, or changed
   companion path, object, mode, or byte state returns the `source:source-units` reauthoring refusal before either
   refreshed or fallback authority is accepted.
-- `[ ]` Missing notes sources and valid UTF-8 sources without a title refuse with distinct scaffold codes and
+- `[x]` Missing notes sources and valid UTF-8 sources without a title refuse with distinct scaffold codes and
   actionable loci, an invalid-encoding Active notes scaffold uses its distinct code, and allocations into a member
   meta refuse before projection.
-- `[ ]` Companion coverage leaves the preflight pathspec, branch-spawn count, and closed `preflightId` preimage
+- `[x]` Companion coverage leaves the preflight pathspec, branch-spawn count, and closed `preflightId` preimage
   unchanged apart from the widened source-unit values.
-- `[ ]` A copy-based rehearsal of a real origin with a notes companion conserves its complete artifact-group content
+- `[x]` A copy-based rehearsal of a real origin with a notes companion conserves its complete artifact-group content
   without post-transition repair.
-- `[ ]` Both workflow copies explain companion allocation, retained-only extraction, provisional task/notes
+- `[x]` Both workflow copies explain companion allocation, retained-only extraction, provisional task/notes
   scaffolds, and manual transfer before the member closes, while preserving Member 1 refusal guidance.
 
 ### Member 3 — `external-dependency-authoring`
 
-- `[ ]` A canonical completed map can add an external prerequisite from a new member or existing home, while
+- `[x]` A canonical completed map can add an external prerequisite from a new member or existing home, while
   duplicate, self-contained, retirement-origin, and unknown targets refuse deterministically; an external self-edge
   is classified as `redundant-external-edge`, and internal edges accept both new-member and live existing-home
   work-unit endpoints already admitted by the decoder.
-- `[ ]` External-target eligibility follows the pinned result-base live and completed sets, admits the authenticated
+- `[x]` External-target eligibility follows the pinned result-base live and completed sets, admits the authenticated
   surviving origin for extraction, and remains valid through recomposition when a target ships before base
   advancement.
-- `[ ]` An external edge to the surviving extraction origin lands and survives finish preview, apply, and repeat; its
+- `[x]` An external edge to the surviving extraction origin lands and survives finish preview, apply, and repeat; its
   completed-target eligibility adds no completed-specific Git query or per-target object read. A recipient carrying
   both incoming and external contributions passes the same lifecycle through its complete composed mutation.
-- `[ ]` Accepted external edges update the recipient through the existing meta mutator and appear in the staged
+- `[x]` Accepted external edges update the recipient through the existing meta mutator and appear in the staged
   ROADMAP through the existing unsatisfied-dependency projection; each edit rebases its exact delta onto the pinned
   result-base target sequence without overwriting unrelated dependency changes.
-- `[ ]` Completed-target eligibility delegates semantic path recognition to the layout authority while retaining the
+- `[x]` Completed-target eligibility delegates semantic path recognition to the layout authority while retaining the
   existing loose archive readers as separate compatibility behavior.
-- `[ ]` Base advancement accepts target lifecycle changes but refuses a dependency-bearing recipient changed after
+- `[x]` Base advancement accepts target lifecycle changes but refuses a dependency-bearing recipient changed after
   candidate creation as `dependency-recipient-drift`, with evidence and no mutation or historical plan replay.
-- `[ ]` Both shipped and project-instance decompose workflows add external-edge authoring and retain cumulative
+- `[x]` Both shipped and project-instance decompose workflows add external-edge authoring and retain cumulative
   companion, scaffold, manual-transfer, and status/remedy/evidence/optional-report handling.
 
 ### Cross-member seams
 
-- `[ ]` The uncovered-content floor remains an invariant assertion after full companion inventory lands.
-- `[ ]` Machine-envelope identity, exact transform-delta validation, and core topology/conservation contracts remain
+- `[x]` The uncovered-content floor remains an invariant assertion after full companion inventory lands.
+- `[x]` Machine-envelope identity, exact transform-delta validation, and core topology/conservation contracts remain
   closed across all three members.
-- `[ ]` The transition-record schema and completed predecessor specs remain unchanged; their accepted forward
+- `[x]` The transition-record schema and completed predecessor specs remain unchanged; their accepted forward
   amendments live only in this work unit's design authority.
-- `[ ]` Each member's package-source methodology edit is synchronized to the project instance before its boundary
+- `[x]` Each member's package-source methodology edit is synchronized to the project instance before its boundary
   without overwriting project-only content, and the final pair is cumulative.
-- `[ ]` Each member's acceptance task exercises its production callsites before member-scope validation; primitive
+- `[x]` Each member's acceptance task exercises its production callsites before member-scope validation; primitive
   or schema coverage alone does not close a mandatory lifecycle path.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

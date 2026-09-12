@@ -11,13 +11,14 @@
 - **Design:** `spec-decompose-conservation-coverage.md`
 - **Task List:** `tasks-decompose-conservation-coverage.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:692bbdb80e0d7a4d419225d30c8934104b3539a3a6aea59f3bf051173a02ffe4`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task generation finalized and work unit activated; implementation has not begun
-- **Next Task:** Task 1.1.a — Define the shared refusal envelope and first remedy mapping (line ~74)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 4.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — Define the shared refusal envelope and first remedy mapping
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
