@@ -51,12 +51,18 @@ Then choose how the PR is withdrawn:
 - **draft** (`--keep-pr`) — convert the PR back to a draft, leaving it open but out of active review. Use when the same
   PR will resume shortly and its thread / URL are worth preserving.
 
+A withdrawal driven by a finding that changes the design record enters through [`amend-design`][amend-design]
+first: its [entry gate][amend-design-gate] settles what changes, and the corrective parent is authored and
+committed before the reopen runs, so `--task` has an executable leaf to anchor on. A coherently bound delivery
+refuses here (Step 2) — that correction runs through [`deliver-stack`][deliver-stack]'s review-fix continuation
+instead.
+
 ### 2) Run the `reopen` transition
 
 ```bash
 arc reopen {name}            # close the PR (default)
 arc reopen {name} --keep-pr  # convert the PR to a draft instead
-arc reopen {name} --keep-pr --task "Task X.Y.R — ..."  # return to reopened task execution
+arc reopen {name} --keep-pr --task "Task X.R.a — ..."  # resume at the corrective parent's executable leaf
 ```
 
 The verb first establishes exact delivery composition through its typed read-only projection. Determinate delivery
@@ -144,4 +150,7 @@ back to [`integrate-work-unit.md`][integrate].
 [commit-footer]: ../../../methods/commit-footer.md
 [integrate]: integrate-work-unit.md
 [prepare]: prepare-work-unit.md
+[deliver-stack]: ../supplemental/deliver-stack.md
+[amend-design]: ../supplemental/amend-design.md
+[amend-design-gate]: ../supplemental/amend-design.md#entry-gate
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

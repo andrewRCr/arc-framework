@@ -432,17 +432,18 @@ only inside it.
         - This one is a Configurable method: the directive lands in its `.default` section, not the Framework
           workflow edit flow 4.3.a uses. The sync test holds the whole file equal, so both copies still move.
 
-### `[ ]` **4.4 Correct `reopen-work-unit`'s entry directive and task anchor — D6**
+### `[x]` **4.4 Correct `reopen-work-unit`'s entry directive and task anchor — D6**
 
 - _Goal:_ A reopen after a design-arm amendment anchors on something the CLI accepts.
 
-    - `[ ]` **4.4.a Replace the `X.Y.R` example with a cursor-leaf anchor**
-        - `--task` must equal the current executable leaf, so the example anchors `Task X.R.a — …`, never the
-          parent and never `X.Y.R`.
+    - `[x]` **4.4.a Replace the `X.Y.R` example with a cursor-leaf anchor**
+        - The `--task` example now reads `Task X.R.a — …` and its comment names the corrective parent's executable
+          leaf, so the sample stops contradicting the cursor rule stated two paragraphs below it.
 
-    - `[ ]` **4.4.b The entry directive names the bound-delivery refusal**
-        - `arc reopen` refuses a coherently bound delivery; a bound stack's correction runs through the review-fix
-          continuation.
+    - `[x]` **4.4.b The entry directive names the bound-delivery refusal**
+        - The directive sits in the withdraw-vs-stay judgment, where the caller arrives: the gate settles what
+          changes, the corrective parent is authored and committed first so `--task` has a leaf to anchor on, and
+          a coherently bound delivery refuses here and routes to `deliver-stack`'s review-fix continuation instead.
 
 ### `[ ]` **4.5 Route the audit doors onward — D1**
 
