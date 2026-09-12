@@ -119,6 +119,13 @@ describe("post-completion amendment bullet", () => {
     expect(after.inventory.inventoryDigest).toBe(before.inventory.inventoryDigest);
   });
 
+  it("draws no segmentation diagnostic", () => {
+    expect(scanTaskListSegmentation({
+      path: amendmentPlacementTaskListPath,
+      content: amended,
+    }).diagnostics).toEqual([]);
+  });
+
   it("draws no descriptor-spacing diagnostic", () => {
     expect(validateTaskDescriptorSpacing({
       path: amendmentPlacementTaskListPath,

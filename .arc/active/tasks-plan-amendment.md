@@ -74,10 +74,17 @@ inventory, with the parent's Goal digest unchanged by the appended bullet.
   protection depends on, and no longer contradicted by the checklist shipping beside it. The fixture proves the
   depth; the template's copy sits behind a fence where nothing can, which is why the two were authored together.
 
-### `[ ]` **1.3 Amendment placement conventions — D6** — validate exit criterion at segment scope
+### `[x]` **1.3 Amendment placement conventions — D6** — validate exit criterion at segment scope
 
 - _Goal:_ The fixture list carrying all four forms is exercised once against the four shipped consumers together,
   and the result is the segment's recorded evidence.
+
+- _Outcome:_ Exercised once: a list declaring two `slice` segments and carrying `1.R` ahead of Phase 1's verifier,
+  `1.R2`, `2.1.R`, and `_Amended in:_ 1.R (A1)` under the `[x]` parent. All four consumers accept it — no
+  structural, segmentation, or descriptor diagnostic; cursor at `1.R` / `1.R.a`; inventory `ok` with both
+  corrective parents implementation-scoped; Goal and inventory digests byte-identical across the appended bullet.
+  The walk found the amended variant had never been put through the segmentation scan and added that case, so the
+  criterion is now met by one list rather than by two partial ones.
 
 ## **Phase 2:** The `amend-design` procedure
 
