@@ -770,18 +770,13 @@ observations exist with their capture or are recorded as not created.
 - _Outcome:_ Not triggered. The ranked audit made no deletions and therefore raised no coverage-overlap pair that
   inspection could not settle; neither Stryker package was installed and the dependency tree stayed unchanged.
 
-### `[ ]` **7.4 Land or decline the incidental hygiene observations**
+### `[~]` **7.4 Land or decline the incidental hygiene observations**
 
 - _Goal:_ Whatever standards-noncompliance was noticed while working files for cost has a durable home and a
   capture naming it as input to the hygiene work, or the record says explicitly that nothing was noticed.
 
-- _Rationale:_ Noticed in passing, never sought — an empty observations file is worse than none.
-
-    - When observations exist, they land in the hygiene observations analysis plus its capture; when none do,
-      neither is created and the completion record says so.
-    - The analysis directory is the right home by its own stated criteria — reference material a later work unit
-      will consult — and the filename follows its naming convention. The paired capture is untracked, which is
-      what makes it the coordination surface rather than a tracked buffer.
+- _Outcome:_ No standards noncompliance was noticed incidentally while applying the cost rubric. No hygiene
+  observations analysis or coordination capture was created.
 
 ### `[ ]` **7.5 Exercise the worked rankings end to end** — validate exit criterion at segment scope
 
