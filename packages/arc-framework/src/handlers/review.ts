@@ -429,13 +429,6 @@ export const ReviewStatusCliInputSchema = z.strictObject({
       message: "exactly one of --target or --work-unit is required",
     });
   }
-  if (input.source !== undefined && input.workUnit === undefined) {
-    context.addIssue({
-      code: "custom",
-      path: ["source"],
-      message: "--source requires --work-unit",
-    });
-  }
 });
 
 /** Syntax-owned input for the pre-publication review procedure. */
@@ -766,6 +759,7 @@ export async function handleReviewStatus(
         target: decoded,
         ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
         ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+        ...(options.source === undefined ? {} : { sourceId: options.source }),
       })
     : ReviewStatusWorkUnitInputSchema.safeParse({
         workUnitId: options.workUnit,
