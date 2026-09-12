@@ -381,38 +381,39 @@ only inside it.
   assertion over the skills source is positive-only and none enumerates the directory, so an unregistered skill
   reads green rather than red in the meantime.
 
-### `[ ]` **4.2 Carry the four task-loop directives — D1, D8**
+### `[x]` **4.2 Carry the four task-loop directives — D1, D8**
 
 - _Goal:_ Every gap the loop itself detects reaches the procedure from the stop the agent is already at.
-
-- _Note:_ The segment-site stop line is a prose template by necessity — nothing observes a segment-verifier failure
-  today, so there is no slot to precompose from. Record that as a disclosed residue so it does not grow into a
-  family of prose templates.
-
-- _Context:_ Edits land in the package template and render to the project copy; the task loop has no hand-edited
-  project-side original.
 
 - **Additional Context:** `notes-plan-amendment.md` § Forward-compat check detail — why the no-re-walk rule is
   keyed to the closing task's preserved report rather than to an open log row.
 
-    - `[ ]` **4.2.a The segment-site stop**
-        - The loop has no segment-verifier awareness today, so this authors its first mention — enough context for
-          the directive to mean something, not a line dropped onto an existing stop.
-        - A segment verifier is an ordinary parent, so a failed scenario is a failed completion: the stop belongs in
-          the completion protocol, keyed on the task carrying the segment-verifier role suffix with a scenario that
-          did not pass. That reads the task being executed, never list-wide state.
-        - A failed scenario is not a completion: stop and enter, do not patch inline, do not nest revision work
-          under the verifier.
+    - `[x]` **4.2.a The segment-site stop**
+        - The loop now names the segment-verifier role suffix and what a task carrying it closes on — its first
+          mention of either — then stops on a scenario that did not pass, keyed on the task in hand rather than on
+          list-wide state. It sits in the completion protocol between the task's own verification step and the
+          deferred-review policy.
+        - The line refuses both the inline patch and corrective work hung under the verifier, and names the
+          verifier's own re-run as what closes the failure.
 
-    - `[ ]` **4.2.b The member-report prompt's three answers routed into the gate**
-        - All three shipped answers enter the gate; none lands work inside the verifier's own increment.
+    - `[x]` **4.2.b The member-report prompt's three answers routed into the gate**
+        - `Fix now`, `amend`, and `defer` all enter the workflow by its entry-gate anchor; the line states that
+          none of them lands work inside the verifier's own increment, and that the closing task settles later on
+          the effective report.
 
-    - `[ ]` **4.2.c The no-re-walk rule in the member-boundary step**
-        - A closing task that already carries a preserved boundary report closes on the effective report rather
-          than re-walking.
+    - `[x]` **4.2.c The no-re-walk rule in the member-boundary step**
+        - A closing task already carrying a preserved boundary report closes on the effective report, cites the
+          subtask that recorded the delta, and dispatches to the resolved completion branch instead of walking a
+          second time.
 
-    - `[ ]` **4.2.d The must-stop directive**
-        - An unanticipated design decision enters the gate rather than being resolved in the increment.
+    - `[x]` **4.2.d The must-stop directive**
+        - An unanticipated design decision enters the gate at the stop the loop already fires, rather than being
+          settled inside the increment.
+
+- _Outcome:_ Four directives plus one tail definition pair, edited identically in the package template and the
+  project copy. Disclosed residue: the segment-site stop is prose because nothing observes a segment-verifier
+  failure today and there is no slot to precompose from. It becomes a rendered line once an observer exists, and
+  its precedent is not a licence for a second prose template.
 
 ### `[ ]` **4.3 Direct terminal verification and review response into the procedure — D1, D2**
 

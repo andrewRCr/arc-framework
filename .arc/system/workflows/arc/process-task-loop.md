@@ -129,6 +129,13 @@ execution-entry contract violation.
          § Meta-file timing.
      - **Third**: Verify the task work before the boundary checks below.
 
+     **Segment-verifier scenario (conditional).** A task carrying the `— validate exit criterion at segment scope`
+     role suffix closes its segment by running that segment's exit-criterion scenario and recording the outcome as
+     its ordinary completion note. A scenario that did not pass is not a completion: leave the task `[ ]`, stop,
+     and enter [`amend-design`][amend-design] over the failure — its [entry gate][amend-design-gate] decides what
+     the failure changes. Never patch it inline, and never hang the corrective work under the verifier, which
+     re-runs its scenario to close. The key is the task in hand, never list-wide state.
+
      **Deferred-review policy for item 4:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
@@ -170,6 +177,10 @@ execution-entry contract violation.
      Stop conditions are not suspended by deferred review — a non-auto-fixable gate failure
      ends the deferred scope early and surfaces the issue to the user.
 
+     An unanticipated design decision enters [`amend-design`][amend-design] at that stop rather than being settled
+     inside the increment; its [entry gate][amend-design-gate] returns that the design holds where only the
+     derivation was incomplete.
+
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
      the last incomplete subtask under a parent, a standalone task that modifies
      cross-cutting code (shared services, middleware, configuration, API contracts), or
@@ -189,6 +200,11 @@ execution-entry contract violation.
      for terminal verification. If the report contains an unresolved `[ ]`, dispatch to item 4's unresolved branch;
      otherwise dispatch to its resolved completion branch.
 
+     **A closing task that already carries a preserved boundary report does not re-walk.** It closes on the
+     effective report — that preserved report plus the deltas recorded since, composed per `validate-criteria` —
+     with a completion note citing the subtask that recorded the delta, and dispatches to item 4's resolved
+     completion branch. The key is a fact on the task being executed, never list-wide state.
+
      ```yaml
      validate-criteria:
        scope:
@@ -207,6 +223,11 @@ execution-entry contract violation.
      or apply the completion-only checklist. Report the unresolved criteria, evidence span, and verification status,
      then end with `Member criteria unresolved: <details>. Fix now or amend/defer?`. Do not execute the resolved
      completion branch.
+
+     Every answer — `Fix now`, `amend`, and `defer` alike — enters [`amend-design`][amend-design]; its
+     [entry gate][amend-design-gate] decides what the chosen answer changes. None of them lands work inside the
+     verifier's own increment: the correction takes a revision parent of its own, and this task closes later on
+     the effective report.
 
      **Resolved completion branch:** Finalize the task completion and report it through the ordinary task interlock.
 
@@ -353,3 +374,5 @@ updates**. Always update the task list file before reporting completion.
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
 [strat-tlf]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
+[amend-design]: supplemental/amend-design.md
+[amend-design-gate]: supplemental/amend-design.md#entry-gate
