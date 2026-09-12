@@ -358,20 +358,28 @@ so the later relocation of `amend-design` edits one definition per file rather t
 lines name the workflow and its anchor, never the internal terms `arm`, `footprint`, or `detour`, which are defined
 only inside it.
 
-### `[ ]` **4.1 Author the `arc-amend-design` skill door — D1, D12**
+### `[x]` **4.1 Author the `arc-amend-design` skill door — D1, D12**
 
 - _Goal:_ A developer who can point at a wrong task or a falsified decision mid-session has a door that runs the
   gate rather than patching inline.
 
-    - `[ ]` **4.1.a The skill body dispatches into the workflow**
+    - `[x]` **4.1.a The skill body dispatches into the workflow**
+        - The skill names the three shapes the door takes, states which door a caller wants, and dispatches into
+          `amend-design` at the stop already in hand — reaching it through one reference-style definition at the
+          tail plus an anchored one for the entry gate.
         - Authored in the package source; the `.arc/` counterpart lands with its recipe entry in Phase 5.
 
-    - `[ ]` **4.1.b A directive description naming the trigger and the default it suppresses**
-        - A specific finding or suspected gap enters the gate, which decides whether it is an amendment; do not
+    - `[x]` **4.1.b A directive description naming the trigger and the default it suppresses**
+        - The description names the trigger with its three concrete forms, then the default it suppresses: do not
           patch inline or nest revision work under a verifier.
-        - Carry the door rule: specificity picks the door, never confidence. It is restated on all three skill
-          surfaces on purpose — a description must be self-contained to fire — so it is not a one-definition-site
-          violation to collapse later.
+        - The door rule closes the description and is stated again in the body, so the description fires
+          self-contained. It is restated on all three skill surfaces on purpose, so it is not a
+          one-definition-site violation to collapse later.
+
+- _Outcome:_ The door exists in the package source alone and nothing resolves it yet — `CANONICAL_SKILLS`, the
+  install recipe, and the project copy all belong to 5.1, so the file is inert until then. Every inventory
+  assertion over the skills source is positive-only and none enumerates the directory, so an unregistered skill
+  reads green rather than red in the meantime.
 
 ### `[ ]` **4.2 Carry the four task-loop directives — D1, D8**
 
