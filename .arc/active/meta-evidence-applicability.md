@@ -11,7 +11,7 @@
 - **Design:** `spec-evidence-applicability.md`
 - **Task List:** `tasks-evidence-applicability.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:571df3d2cd25c5c40a6a8b16b3c93f54ee20bc88487123e30c6cb6bb9274ad23`
+- **Candidate:** `sha256:35d1ea7ac72b462ba354d6707f25fd175b804214d69707c39d54970c5685ba33`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 6.1 — Complete verification

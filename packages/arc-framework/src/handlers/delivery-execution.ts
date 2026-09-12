@@ -522,6 +522,7 @@ const RewriteSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   deliverableId: DeliveryCanonicalDigestSchema,
   requested: DeliveryOperationSnapshotV1Schema,
+  remote: z.string().min(1).default("origin"),
 });
 const RematerializeSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -6297,9 +6298,9 @@ async function executeDeliveryCommand(
         const checked = await revalidateDeliveryLifecycleContribution({ exec, ...lifecycleInput });
         return checked;
       },
-      rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: "origin", ...input }),
+      rewriteRef: (input) => rewriteDeliveryMemberRef({ exec, remote: parsed.remote, ...input }),
       observeResult: async () => {
-        const observed = await observeDeliveryRemoteRef(exec, "origin", currentRef);
+        const observed = await observeDeliveryRemoteRef(exec, parsed.remote, currentRef);
         return observed.status === "observed" && observed.head === requestedCoordinates.head
           ? parsed.requested
           : { target: null, members: [] };
