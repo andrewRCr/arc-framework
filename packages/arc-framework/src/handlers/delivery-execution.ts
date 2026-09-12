@@ -98,6 +98,7 @@ import {
 } from "../lib/delivery/schema.js";
 import {
   applyDeliveryLanding,
+  DeliveryLandingRefusalSchema,
   DeliveryRecoveryResultV1Schema,
   prepareDeliveryLanding,
   reconcileDeliveryExecution,
@@ -1130,6 +1131,7 @@ const GitProcessCauseSchema = z.enum([
 
 const ResultSchema = z.union([
   ReviewFixContinuationResultSchema,
+  DeliveryLandingRefusalSchema,
   DeliveryRecoveryResultV1Schema,
   NativePreparedRecoveryResultSchema,
   NativeMemberNotReadyResultSchema,
@@ -5125,8 +5127,14 @@ async function executeDeliveryCommand(
           providerId: "github", changeRequestId: input.changeRequestId,
         });
         const pullRequest = Number(input.changeRequestId);
-        if (observed.status !== "observed" || !Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
-          return { status: "refused" as const };
+        if (observed.status !== "observed") {
+          return {
+            status: "refused" as const,
+            reason: observed.status === "absent" ? "request-absent" as const : `request-${observed.reason}` as const,
+          };
+        }
+        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+          return { status: "refused" as const, reason: "request-malformed" as const };
         }
         const checked = await evaluateReviewReadiness({
           schemaVersion: 1,
@@ -5146,7 +5154,9 @@ async function executeDeliveryCommand(
             workUnitSlug: input.workUnitId,
           },
         }, { deliveryMemberLookup: memberLookup });
-        if (checked.state !== "ready") return { status: "refused" as const };
+        if (checked.state !== "ready") {
+          return { status: "refused" as const, reason: "review-readiness-invalid" as const };
+        }
         const reviewed = await assessDeliveryLandingReviewReadiness({
           repository: input.repository,
           headRef: observed.request.headRef,
@@ -5154,7 +5164,7 @@ async function executeDeliveryCommand(
         }, reviewStatus);
         return reviewed.status === "ready"
           ? { status: "ready" as const, settledReviewState: "settled" }
-          : { status: "refused" as const };
+          : reviewed;
       },
     };
     if (command === "land-prepare") {
@@ -5187,7 +5197,9 @@ async function executeDeliveryCommand(
     const lock = {
       release: async (input: { repository: string; changeRequestId: string }) => {
         const pullRequest = Number(input.changeRequestId);
-        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) return { status: "refused" as const };
+        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+          return { status: "refused" as const, reason: "change-request-invalid" as const };
+        }
         const released = await releaseMergeLock({
           schemaVersion: 1,
           treeRoot,
@@ -5200,7 +5212,7 @@ async function executeDeliveryCommand(
           },
         }, defaultMergeLockPort(cwd));
         return released.state === "blocked"
-          ? { status: "refused" as const }
+          ? { status: "refused" as const, reason: released.payload.reason }
           : { status: released.state === "released" ? "released" as const : "not-configured" as const };
       },
     };
@@ -5224,7 +5236,10 @@ async function executeDeliveryCommand(
               target: observed.facts.target,
               members: [member],
             } }
-            : { status: "refused" as const };
+            : {
+                status: "refused" as const,
+                reason: observed.status === "observed" ? "member-unavailable" as const : "position-unavailable" as const,
+              };
         },
         observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
           observeGitDeliveryLandingResult({
