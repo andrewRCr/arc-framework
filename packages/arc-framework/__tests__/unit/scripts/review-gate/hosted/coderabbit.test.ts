@@ -144,6 +144,27 @@ function requestComment(
   };
 }
 
+function earlierRequestComment(): HostedGitHubIssueComment {
+  return requestComment("incremental", {
+    id: "IC_EARLIER_REQUEST",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-earlier-request",
+    createdAt: "2026-07-23T11:59:00.000Z",
+    updatedAt: "2026-07-23T11:59:00.000Z",
+  });
+}
+
+function earlierCommandReply(
+  overrides: Partial<HostedGitHubIssueComment> = {},
+): HostedGitHubIssueComment {
+  return commandReply({
+    id: "IC_EARLIER_REPLY",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-earlier-reply",
+    createdAt: "2026-07-23T11:59:30.000Z",
+    updatedAt: "2026-07-23T11:59:30.000Z",
+    ...overrides,
+  });
+}
+
 function refusalReply(overrides: Partial<HostedGitHubIssueComment> = {}): HostedGitHubIssueComment {
   return {
     id: "IC_REFUSAL",
@@ -237,6 +258,21 @@ describe("CodeRabbit hosted adapter", () => {
     await expect(adapter.observe(requestHandle())).resolves.toMatchObject({ kind: "clean" });
   });
 
+  it("retains clean completion when the reply carries multiple invocation markers", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
+        body: `<!-- CodeRabbit review command invocation: invocation-id -->
+<!-- CodeRabbit review command invocation: duplicate-marker -->
+<summary>✅ Action performed</summary>
+
+Review finished.`,
+      })]),
+      readCommitStatuses: () => Promise.resolve([completionStatus()]),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({ kind: "clean" });
+  });
+
   it("recognizes an authenticated refusal correlated to the exact request comment", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve([requestComment(), refusalReply()]),
@@ -246,6 +282,66 @@ describe("CodeRabbit hosted adapter", () => {
       kind: "terminal-failure",
       reason: "provider-request-refused: Review skipped: 200 files exceed the limit of 150.",
     });
+  });
+
+  it("recognizes a refusal created in the request timestamp second", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        requestComment(),
+        refusalReply({ createdAt: REQUESTED_AT, updatedAt: REQUESTED_AT }),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-refused: Review skipped: 200 files exceed the limit of 150.",
+    });
+  });
+
+  it("keeps a delayed refusal for an unresolved earlier request uncorrelated", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        earlierRequestComment(),
+        requestComment(),
+        refusalReply(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+  });
+
+  it("recognizes the current refusal after an earlier request received an authenticated reply", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        earlierRequestComment(),
+        earlierCommandReply(),
+        requestComment(),
+        refusalReply(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-refused: Review skipped: 200 files exceed the limit of 150.",
+    });
+  });
+
+  it.each([
+    { name: "untrusted actor", overrides: { actorIdentity: "999" } },
+    { name: "untrusted app", overrides: { appId: "999" } },
+  ])("keeps an earlier request unresolved after an invocation reply from an $name", async ({ overrides }: {
+    overrides: Partial<HostedGitHubIssueComment>;
+  }) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        earlierRequestComment(),
+        earlierCommandReply(overrides),
+        requestComment(),
+        refusalReply(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
   });
 
   it.each([

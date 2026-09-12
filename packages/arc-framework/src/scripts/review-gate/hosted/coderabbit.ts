@@ -30,6 +30,7 @@ const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
 const COMPLETE_REPLY = /^[ \t]*Full review finished\.[ \t]*$/imu;
 const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
+const COMMAND_INVOCATION_MARKER = /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu;
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
@@ -73,20 +74,25 @@ function commandReplyCompleted(
       ? INCREMENTAL_REPLY.test(comment.body)
       : COMPLETE_REPLY.test(comment.body) || INCREMENTAL_REPLY.test(comment.body);
   return comment.createdAt >= requestedAt
-    && /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/iu.test(comment.body)
+    && commandInvocationMarkerCount(comment.body) > 0
     && /<summary>\s*✅\s*Action performed\s*<\/summary>/iu.test(comment.body)
     && completionMatches;
 }
 
+function commandInvocationMarkerCount(body: string): number {
+  return [...body.matchAll(COMMAND_INVOCATION_MARKER)].length;
+}
+
+function hasSingleCommandInvocationMarker(body: string): boolean {
+  return commandInvocationMarkerCount(body) === 1;
+}
+
 function refusalReason(body: string): string | null {
-  const invocationMarkers = [...body.matchAll(
-    /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu,
-  )];
   const refusalSummaries = [...body.matchAll(
     /<summary>\s*⚠️\s*Action not completed\s*<\/summary>/giu,
   )];
   const reasons = [...body.matchAll(/^[ \t]*(Review skipped:[^\r\n]+?)[ \t]*$/gimu)];
-  return invocationMarkers.length === 1 && refusalSummaries.length === 1 && reasons.length === 1
+  return hasSingleCommandInvocationMarker(body) && refusalSummaries.length === 1 && reasons.length === 1
     ? reasons[0]?.[1]?.trim() ?? null
     : null;
 }
@@ -94,6 +100,37 @@ function refusalReason(body: string): string | null {
 function isRequestCommand(comment: HostedGitHubIssueComment): boolean {
   const body = comment.body.trim();
   return body === COMMANDS.complete || body === COMMANDS.incremental;
+}
+
+function isAuthenticatedCommandReply(comment: HostedGitHubIssueComment): boolean {
+  return comment.actorIdentity === BOT_USER_ID
+    && comment.appId === APP_ID
+    && hasSingleCommandInvocationMarker(comment.body);
+}
+
+function earlierRequestGenerationsSettled(
+  comments: readonly HostedGitHubIssueComment[],
+  requestId: string,
+): boolean {
+  const requests = comments
+    .filter(isRequestCommand)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+  const requestIndex = requests.findIndex((comment) => comment.id === requestId);
+  if (requestIndex < 0) return false;
+  for (let index = 0; index < requestIndex; index += 1) {
+    const earlierRequest = requests[index];
+    const nextRequest = requests[index + 1];
+    if (earlierRequest === undefined || nextRequest === undefined
+      || earlierRequest.createdAt === nextRequest.createdAt) {
+      return false;
+    }
+    const settled = comments.some((comment) =>
+      isAuthenticatedCommandReply(comment)
+      && comment.createdAt >= earlierRequest.createdAt
+      && comment.createdAt < nextRequest.createdAt);
+    if (!settled) return false;
+  }
+  return true;
 }
 
 function correlatedRefusalReason(
@@ -116,7 +153,7 @@ function correlatedRefusalReason(
     comment.id !== request.id
     && isRequestCommand(comment)
     && comment.createdAt === request.createdAt);
-  if (competingRequest) return null;
+  if (competingRequest || !earlierRequestGenerationsSettled(comments, request.id)) return null;
   const nextRequest = comments
     .filter((comment) =>
       comment.id !== request.id
@@ -127,7 +164,7 @@ function correlatedRefusalReason(
     .filter((comment) =>
       comment.actorIdentity === BOT_USER_ID
       && comment.appId === APP_ID
-      && comment.createdAt > request.createdAt
+      && comment.createdAt >= request.createdAt
       && (nextRequest === undefined || comment.createdAt < nextRequest.createdAt))
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
   for (const reply of providerReplies) {
