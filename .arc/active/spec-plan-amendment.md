@@ -532,6 +532,10 @@ Prose:
   grammar itself is defined once, in the workflow's record section (D5), never restated per template.
 - the formatting strategy's evidence-sink rule — gains the one forward pointer it lacks: where a failed exit
   criterion's correction lands (`amend-design`).
+- the shipped meta-reference hook patterns — both the strict bare-id alternation and the broad artifact-name one
+  require a non-identifier, non-dot character to their left, so a task id's numbered tail and a method filename
+  that embeds an artifact prefix stop reading as meta-project references (A4). The package `arc-config.yml`
+  defaults, their comment rationale, both hook copies, and this repository's override move together.
 - the package-project sync strategy's file inventory — its Framework and Configurable counts and its enumerated
   Configurable list are hand-maintained and move with the three added files.
 
@@ -685,6 +689,8 @@ inventing it; scale does not fire.
 - Ready for integration.
 - `DEV-RULES.ARC` § Method and extension loading reads the method-declaration rule conditionally, matching
   `strategy-workflow-authoring.md`, in both the package source and the project copy.
+- The shipped meta-reference patterns accept a bare `X.R2` task id and an artifact-prefixed method filename, in
+  the package defaults, both hook copies, and this repository's override.
 
 ## Open Questions
 
@@ -705,3 +711,5 @@ inventing it; scale does not fire.
   _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ pending → 6.1.
 - **A3** — 2026-09-12 — task: the shipped closure section carries the Candidate-applicability ownership D8 states
   and its derivation dropped. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ pending → 6.1.
+- **A4** — 2026-09-12 — spec-depth: the broad meta-reference pattern reads an artifact-prefixed method filename as a
+  work-unit artifact. _Supersedes:_ none. _Trigger:_ 5.2 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 6.1.

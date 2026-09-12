@@ -492,32 +492,17 @@ source and the project copy.
   assertion, now pinning its install and Framework/core classification. The render refuses to create a missing
   output, so the project copy was written and tracked before the recipe and manifest entries joined it here.
 
-### `[ ]` **5.2 Add the workflow and method to the install set — D12**
+### `[x]` **5.2 Add the workflow and method to the install set — D12**
 
 - _Goal:_ A fresh `arc init` carries the procedure and its extracted method, each classified correctly.
-
-- _Context:_ The new method is Configurable and the workflow is Framework. Classification is a hand-maintained
-  list, so a method omitted from it silently classifies as Framework and the manifest assertion fails.
 
 - **Additional Context:** `strategy-package-project-sync.md` § File Inventory and Dependency Map — the inventory
   this task keeps current; the task works directly in that strategy's domain.
 
-    - The method name joins four hand-maintained arrays across three files first — the integration init test holds
-      two (an installs list and a manifest list), plus the integration update list and the e2e init list. The unit
-      init test is a single-representative spot check and needs nothing. Every assertion in those arrays is
-      positive-only, so a missed array is silently green rather than red.
-
-    - `init-recipe.json` and `classification.ts` follow. Each artifact's recipe entry and manifest entry land in
-      one commit — the sync test's exact manifest/recipe equality makes a recipe entry on its own red. Both
-      project copies already landed with the artifacts themselves, so registration is all this task adds.
-
-    - The methods README is a coupling table for methods that have related methods, and states that unlisted
-      methods are independent. This one is independent, so it gains no row.
-
-    - Build `test-first` (one behavior at a time):
-        - A fresh install carries the supplemental workflow and the extracted method
-        - The method classifies as Configurable in the generated manifest
-        - Update over an installed project moves neither file through added, removed, or conflicted
+- _Outcome:_ The four method arrays are positive-only, so only the two init assertions went red — the update array
+  stayed green until the file actually installed. The workflow had no enumerating array at all, so its install and
+  Framework classification needed a dedicated assertion. Recipe and manifest entries landed together for both
+  artifacts; the methods README gains no row, the method being independent.
 
 ### `[ ]` **5.3 Hold both copies identical and the derived inventories current — D12**
 
@@ -549,10 +534,11 @@ source and the project copy.
           omission only at terminal verification.
         - The row sits above the override sections, so both copies carry the same edit.
 
-### `[ ]` **5.R Accept `X.R2` ids in the shipped meta-reference pattern**
+### `[ ]` **5.R Accept `X.R2` ids and artifact-prefixed filenames in the shipped meta-reference patterns**
 
 - _Goal:_ Per A2, supply what 5.2's registration scope missed: the shipped pattern that refuses `X.R2` accepts it,
-  so a project following the placement rules is not blocked by its own pre-commit hook.
+  so a project following the placement rules is not blocked by its own pre-commit hook. Per A4, the broad pattern
+  admits an artifact-prefixed method filename on the same left-boundary reading.
 
 - _Note:_ Nothing pins the pattern's content, so there is no test to go red first; 6.1 verifies by exercising a
   task id through the hook rather than by asserting the string.
@@ -567,6 +553,14 @@ source and the project copy.
         - The override narrowed only the project copy ahead of the default. Once the default carries the same
           reading, remove the override as redundant or state why it still differs — an override silently equal to
           its default is drift waiting to happen.
+
+    - `[ ]` **5.R.c Narrow the shipped `hooks.meta_ref_patterns` default**
+        - The artifact-name alternation matches mid-token, so `resolve-plan-segmentation.md` reads as a work-unit
+          `plan-*` artifact and the commit registering the method is refused. Require the same non-identifier,
+          non-dot character to its left that 5.R.a requires before a bare R/B id; real `tasks-*`, `plan-*`, and
+          `notes-*` references must still match.
+        - The package `arc-config.yml` default, its comment's rationale, and both hook copies move together, as
+          does this repository's override.
 
 ### `[ ]` **5.4 Reachable and installable procedure — D12** — validate exit criterion at segment scope
 
@@ -619,3 +613,5 @@ source and the project copy.
 - `[ ]` Ready for integration
 - `[ ]` `DEV-RULES.ARC` § Method and extension loading reads the method-declaration rule conditionally, matching
   `strategy-workflow-authoring.md`, in both the package source and the project copy
+- `[ ]` The shipped meta-reference patterns accept a bare `X.R2` task id and an artifact-prefixed method
+  filename, in the package defaults, both hook copies, and this repository's override
