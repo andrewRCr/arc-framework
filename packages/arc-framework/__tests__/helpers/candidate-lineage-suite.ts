@@ -1,5 +1,5 @@
 /**
- * Real-CLI coverage for the Candidate lineage a review fix advances.
+ * Handler-seam integration coverage for the Candidate lineage a review fix advances.
  *
  * `attest → local review → respond → attest` is driven through the public verbs, so the response
  * evidence under test is the one the commands actually wrote. The checkpoint's convergence guard then
@@ -7,12 +7,28 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
+import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { promisify } from "node:util";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it as vitestIt } from "vitest";
 
+import { handleDeliveryEntryInspect } from "../../src/handlers/delivery-entry.js";
+import { handleInit } from "../../src/handlers/init.js";
+import { handleAttest } from "../../src/handlers/lifecycle.js";
+import { handleLocus } from "../../src/handlers/locus.js";
+import {
+  handleReviewFrontlineResolve,
+  handleReviewFrontlineRun,
+  handleReviewLocalAttest,
+  handleReviewLocalPrepare,
+  handleReviewPrePublication,
+  handleReviewReduce,
+  handleReviewRespond,
+} from "../../src/handlers/review.js";
+import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import {
@@ -93,14 +109,108 @@ import {
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
 import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
+import { runHandlerAt, type HandlerRunResult } from "../helpers/handler.js";
 import {
   cleanupTempDir,
   createTempRepo,
-  git,
-  runArc,
-  runArcWithStdin,
-  type RunResult,
-} from "./helpers.js";
+} from "../helpers/integration.js";
+import {
+  copyPreparedRepository,
+  prepareRepositoryTemplate,
+  type PreparedRepositoryTemplate,
+} from "../helpers/prepared-repository.js";
+
+const execFileAsync = promisify(execFile);
+
+interface HandlerInvocationOptions {
+  timeout?: number;
+  env?: Record<string, string>;
+}
+
+function machineContext() {
+  return resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
+}
+
+async function git(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd });
+  return stdout.trim();
+}
+
+function optionValue(args: readonly string[], option: string): string | undefined {
+  const index = args.indexOf(option);
+  return index === -1 ? undefined : args[index + 1];
+}
+
+/** Drive CLI-produced option values through their public handler seam. */
+async function runArc(args: string[], cwd: string): Promise<HandlerRunResult> {
+  return runHandlerAt(cwd, async () => {
+    const command = args.join(" ");
+    if (command === "init --yes --name example") {
+      await handleInit({ yes: true, name: "example" });
+      return;
+    }
+    if (command === "locus --json") {
+      await handleLocus({ json: true });
+      return;
+    }
+    if (args[0] === "attest" && args[1] !== undefined) {
+      await handleAttest(args[1], {
+        json: args.includes("--json"),
+        newRoot: args.includes("--new-root"),
+        expectedCandidate: optionValue(args, "--expected-candidate"),
+        expectedSubject: optionValue(args, "--expected-subject"),
+      }, machineContext());
+      return;
+    }
+    if (args[0] === "review" && args[1] === "pre-publication" && args[2] !== undefined) {
+      await handleReviewPrePublication(args[2], { json: args.includes("--json") }, {}, machineContext());
+      return;
+    }
+    throw new Error(`Unsupported handler command: ${command}`);
+  });
+}
+
+/** Drive an explicit-stdin CLI request through the matching public handler seam. */
+async function runArcWithStdin(
+  args: string[],
+  cwd: string,
+  input: string,
+  options: HandlerInvocationOptions = {},
+): Promise<HandlerRunResult> {
+  return runHandlerAt(cwd, async () => {
+    const path = args.filter((arg) => arg !== "-" && arg !== "--json" && arg !== "--input").join(" ");
+    const readText = async () => input;
+    if (path === "delivery entry inspect") {
+      await handleDeliveryEntryInspect({ input: "-", json: true }, machineContext(), { readText });
+      return;
+    }
+    if (path === "review local prepare") {
+      await handleReviewLocalPrepare("-", { readText });
+      return;
+    }
+    if (path === "review local attest") {
+      await handleReviewLocalAttest("-", { readText });
+      return;
+    }
+    if (path === "review reduce") {
+      await handleReviewReduce("-", { readText });
+      return;
+    }
+    if (path === "review respond") {
+      await handleReviewRespond("-", { readText });
+      return;
+    }
+    if (path === "review frontline resolve") {
+      await handleReviewFrontlineResolve("-", { readText });
+      return;
+    }
+    if (path === "review frontline run") {
+      await handleReviewFrontlineRun("-", { readText }, machineContext());
+      return;
+    }
+    throw new Error(`Unsupported handler command: ${path}`);
+  }, { env: options.env });
+}
 
 interface Envelope {
   state: string;
@@ -159,12 +269,29 @@ const META = [
 ].join("\n");
 
 const roots: string[] = [];
+const initializedShape = { kind: "plain", key: "candidate-lineage-initialized-v1" } as const;
+let initializedTemplate: PreparedRepositoryTemplate | undefined;
+
+beforeAll(async () => {
+  initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
+    const root = await createTempRepo("arc-candidate-lineage-template-");
+    const initialized = await runArc(["init", "--yes", "--name", "example"], root);
+    expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
+    await git(root, ["add", ".arc", ".gitignore"]);
+    await git(root, ["commit", "-m", "install ARC"]);
+    return root;
+  });
+});
+
+afterAll(async () => {
+  if (initializedTemplate !== undefined) await cleanupTempDir(initializedTemplate.root);
+});
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => cleanupTempDir(root)));
 });
 
-function envelope(result: RunResult): Envelope {
+function envelope(result: HandlerRunResult): Envelope {
   expect(result.exitCode, result.stderr || result.stdout).toBe(0);
   return JSON.parse(result.stdout.trim()) as Envelope;
 }
@@ -175,12 +302,9 @@ async function invoke(root: string, command: string[], request: unknown): Promis
 
 /** Install ARC on a work-unit branch carrying one reviewable file, verified and ready to propose. */
 async function fixture(): Promise<string> {
-  const root = await createTempRepo("arc-candidate-lineage-");
+  if (initializedTemplate === undefined) throw new Error("candidate-lineage template is unavailable");
+  const root = await copyPreparedRepository(initializedTemplate, initializedShape);
   roots.push(root);
-  const initialized = await runArc(["init", "--yes", "--name", "example"], root);
-  expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
-  await git(root, ["add", ".arc", ".gitignore"]);
-  await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/example"]);
   await mkdir(join(root, ".arc", "active"), { recursive: true });
   await writeFile(join(root, ".arc", "active", "meta-example.md"), META, "utf8");
@@ -539,7 +663,8 @@ async function archiveArtifacts(root: string, companions: readonly string[] = []
   return destination;
 }
 
-describe("review-fix Candidate lineage", () => {
+function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
+  describe("review-fix Candidate lineage", () => {
   it("resumes a Candidate-bound member-shaped fix before requiring a new root", async () => {
     const root = await fixture();
     await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
@@ -1617,7 +1742,8 @@ describe("review-fix Candidate lineage", () => {
     await expect(invoke(root, ["review", "respond", "-"], request))
       .resolves.toMatchObject({ state: "candidate-current", nextAction: "continue-review" });
   });
-});
+  });
+}
 
 const MERGE_METHOD: Extract<MergeMethodResolveResult, { state: "validated" }> = {
   schemaVersion: 1,
@@ -1730,7 +1856,8 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
   }));
 }
 
-describe("review-bearing integration checkpoint and merge", () => {
+function registerReviewBearingIntegration(it: typeof vitestIt): void {
+  describe("review-bearing integration checkpoint and merge", () => {
   it("executes the persisted plan idempotently against the durable review records", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     const handle = await persistComposition(root, approvedHead);
@@ -1834,7 +1961,8 @@ describe("review-bearing integration checkpoint and merge", () => {
       },
     ))).resolves.toMatchObject({ state: "invalidated", reason: "checkpoint-missing" });
   });
-});
+  });
+}
 
 const OBLIGATION = {
   obligation: "required",
@@ -1871,7 +1999,8 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
   }), version);
 }
 
-describe("routed review obligation", () => {
+function registerRoutedReviewObligation(it: typeof vitestIt): void {
+  describe("routed review obligation", () => {
   it("keeps a settled-findings verdict outstanding until a complete clean pass", async () => {
     const { root, approvedHead } = await settledReviewLineage();
     await reserveHostedReview(root, approvedHead);
@@ -2060,4 +2189,25 @@ describe("routed review obligation", () => {
       headSha: approvedHead,
     }, 42)).resolves.toMatchObject({ state: "blocked" });
   });
-});
+  });
+}
+
+/** Candidate-lineage integration shard, balanced by the converted per-test baseline. */
+export type CandidateLineageShard = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+/** Register one disjoint third of the Candidate-lineage handler scenarios. */
+export function registerCandidateLineageSuite(shard: CandidateLineageShard): void {
+  let index = 0;
+  const it = ((
+    name: string,
+    handler: () => void | Promise<void>,
+    timeout?: number,
+  ) => {
+    const selected = index % 9 === shard - 1;
+    index += 1;
+    if (selected) vitestIt(name, handler, timeout);
+  }) as typeof vitestIt;
+  registerReviewFixCandidateLineage(it);
+  registerReviewBearingIntegration(it);
+  registerRoutedReviewObligation(it);
+}
