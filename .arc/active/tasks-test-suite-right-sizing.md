@@ -743,19 +743,14 @@ files each yield under 2% of their tier's summed time; every deletion names the 
 behavior and every conversion names its new tier and the real-spawn smoke still covering its verb; and the hygiene
 observations exist with their capture or are recorded as not created.
 
-### `[ ]` **7.1 Fix the audit's work order from the re-baselined rankings**
+### `[x]` **7.1 Fix the audit's work order from the re-baselined rankings**
 
 - _Goal:_ The integration and E2E rankings the audit works are taken from the post-work baseline, so file order is
   read from what the suite costs now rather than from the figures planning recorded.
 
-- _Rationale:_ Cost order moves as the mechanical levers land — D3 reshapes integration, and D4 scales every E2E
-  file with its spawn count — so the ranking that matters is the one after Phase 6.
-
-    - Take both rankings from 6.1 tier-isolated and record them: they are the audit's work order and the evidence
-      7.5 reports against.
-    - The unit tier is out of scope. Phase 4's moves drop it to a few seconds, which no per-test judgment improves
-      on.
-    - Work the top decile first, in descending cost order, stopping where 7.2's rule says to stop.
+- _Outcome:_ `analysis-test-suite-cost-baseline.md` fixes the retained Phase 6 tier-isolated rankings as the audit
+  order: 15 descending integration candidates and 15 descending E2E candidates. Each list continues through the
+  first three consecutive files whose entire tier share is below 2%, while the unit tier remains out of scope.
 
 ### `[ ]` **7.2 Work the cost-ranked files to the stop rule under the per-test rubric**
 

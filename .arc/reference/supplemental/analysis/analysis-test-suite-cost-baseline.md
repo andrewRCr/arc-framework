@@ -122,10 +122,12 @@ band and is not claimed as a separate lever. The routine lane is above the earli
 sizing is deliberately unsettled at this point, so the sizing sweep must resolve the scored bar before the member
 closes.
 
-### Post-cost concentration
+### Post-cost concentration and audit work order
 
-The integration top decile and the E2E head below are the cost-ranked audit input. Share is of the post-cost
-tier's normalized summed file time.
+The tables below are the cost-ranked audit's descending work order from the retained post-cost baseline. Each
+extends beyond the top decile through the first three consecutive files whose entire share is under 2% of the
+tier's normalized summed time. Even total removal of each such file would yield less than the stop threshold, so
+the recorded order is long enough to close the audit without reopening the baseline. The unit tier is out of scope.
 
 | Integration file                        | Seconds | Cases | Share |
 | --------------------------------------- | ------- | ----- | ----- |
