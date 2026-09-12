@@ -243,7 +243,8 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
   readonly workUnitId: string;
   readonly records: readonly ApprovedDispositionRecord[];
 }): PendingDeliveryReviewFixAuthority {
-  const pending = input.records.filter((record) => record.deliveryMember?.workUnitId === input.workUnitId
+  const pending = input.records.filter((record) => record.candidate === null
+    && record.deliveryMember?.workUnitId === input.workUnitId
     && record.fixAuthorization !== null
     && record.deliveryMemberFixResponse === null);
   if (pending.some((record) => !recordHasExactPendingDeliveryFixAuthority(record))) {
