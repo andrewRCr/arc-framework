@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — task list finalized at `226159027` after five adversarial passes with 37
-  findings folded; delivery plan revision 1 composed; work unit activated at `58f196a6a`
-- **Next Task:** Task 1.1 — Add the routine-lane tier variant (line 70 in tasks-test-suite-right-sizing.md)
+- **Last Completed:** Task 7.6 — Close the cost-ranked audit member
+- **Next Task:** Task 8.1 — Complete verification (line 815 in tasks-test-suite-right-sizing.md)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — load and follow `process-task-loop.md`
+- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md` for whole-work-unit verification
 
 - **PR URL:** [none]
 - **Completed:** [none]
