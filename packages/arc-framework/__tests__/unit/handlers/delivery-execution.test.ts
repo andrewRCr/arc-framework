@@ -6,6 +6,7 @@ import {
   deliveryFourMemberStackPlanFixture,
   deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -1074,7 +1075,7 @@ describe("delivery execution handler", () => {
     }
   });
 
-  it("surfaces native registration consequences before opt-in", async () => {
+  it("skips the native registration choice below the provider floor", async () => {
     const plan = deliveryStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
     const members = fixture.members.slice(0, -1).map((member, index) => ({
@@ -1085,6 +1086,11 @@ describe("delivery execution handler", () => {
       baseRef: index === 0 ? "main" : `member-${index}`,
       headRepository: "owner/repo",
     }));
+    const execute = vi.fn().mockResolvedValue({
+      status: "unlinked",
+      recommendedActionText:
+        "Native registration needs at least two non-terminal members; continue through the unlinked executor.",
+    });
     let output = "";
 
     await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
@@ -1094,10 +1100,61 @@ describe("delivery execution handler", () => {
         repository: "owner/repo",
         members,
       })),
+      execute,
       write: (text) => { output = text; },
       setExitCode: vi.fn(),
     });
 
+    expect(execute).toHaveBeenCalledOnce();
+    expect(JSON.parse(output)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native link",
+      status: "unlinked",
+      recommendedActionText:
+        "Native registration needs at least two non-terminal members; continue through the unlinked executor.",
+    });
+  });
+
+  it("surfaces native registration consequences before opt-in when the provider floor is met", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const members = fixture.members.slice(0, -1).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: String(41 + index),
+      headRef: `member-${index + 1}`,
+      headSha: member.coordinates?.head,
+      baseRef: index === 0 ? "main" : `member-${index}`,
+      headRepository: "owner/repo",
+    }));
+    const execute = vi.fn().mockResolvedValue({
+      status: "decision-required",
+      recommendedOptInText:
+        "Opt in for one attended atomic landing decision over the complete remaining non-terminal set and "
+        + "reviewer-facing stack UI for that set. Provider refreshes may rewrite registered heads, so review "
+        + "applicability must be re-evaluated before exact-head review can carry; the top remains outside that "
+        + "UI and native retarget machinery.",
+      recommendedOptOutText:
+        "Decline for zero native-registration host calls and the complete sequential unlinked executor. This "
+        + "avoids provider-initiated rewrites, but strict up-to-date protection may still require head-rewriting "
+        + "refreshes on either route.",
+      recommendedActionText:
+        "Choose native registration or unlinked delivery, then resubmit this exact request with optIn true or false.",
+    });
+    let output = "";
+
+    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        repository: "owner/repo",
+        members,
+      })),
+      execute,
+      write: (text) => { output = text; },
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledOnce();
     expect(JSON.parse(output)).toEqual({
       schemaVersion: 1,
       command: "delivery native link",
