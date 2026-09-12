@@ -51,7 +51,7 @@ describe("packaged delivery workflow", () => {
     expect(packaged).not.toContain("arc delivery review-fix plan");
     expect(packaged).toContain("arc delivery review-fix publish");
     expect(packaged).toContain("`review-fix-verification-required`");
-    expect(packaged).toContain("opt-out `unlinked` result makes zero native host calls");
+    expect(packaged).toMatch(/opt-out `unlinked`\s+result makes zero native host calls/u);
     const materializeSection = section(packaged, "Validate and publish");
     const nativeSection = section(packaged, "Select and execute the native landing arm");
     const reviewSection = section(packaged, "Review and land the current member");
@@ -90,6 +90,7 @@ describe("packaged delivery workflow", () => {
     expect(disclosure).toBeLessThan(optedRequest);
     expect(materializeSection).toContain("`recommendedOptInText`");
     expect(materializeSection).toContain("`recommendedOptOutText`");
+    expect(materializeSection).toMatch(/initial `unlinked`[\s\S]*ordinary singleton/iu);
     expect(materializeSection).toMatch(/render both texts verbatim[\s\S]*set `optIn`/iu);
     expect(materializeSection).not.toContain("review applicability must be re-evaluated");
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);

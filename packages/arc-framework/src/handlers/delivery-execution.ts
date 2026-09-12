@@ -101,6 +101,7 @@ import {
 } from "../lib/delivery/schema.js";
 import {
   applyDeliveryLanding,
+  DeliveryLandingRefusalSchema,
   DeliveryRecoveryResultV1Schema,
   prepareDeliveryLanding,
   reconcileDeliveryExecution,
@@ -196,7 +197,6 @@ import {
   type DeliveryTerminalCandidateRebindAuthority,
 } from "../lib/delivery/terminal-integration.js";
 import {
-  composeDeliveryNativeStackLinkDecision,
   degradePlannedDeliveryNativeStack,
   deriveDeliveryNativeTarget,
   linkPlannedDeliveryNativeStack,
@@ -1216,6 +1216,7 @@ const GitProcessCauseSchema = z.enum([
 const ResultSchema = z.union([
   OwnedDeliveryPublicFailureSchema,
   ReviewFixContinuationResultSchema,
+  DeliveryLandingRefusalSchema,
   DeliveryRecoveryResultV1Schema,
   NativePreparedRecoveryResultSchema,
   NativeMemberNotReadyResultSchema,
@@ -2055,11 +2056,6 @@ async function executeDeliveryCommand(
   interaction?: InteractionContext,
   internalContext?: { readonly settledRecordEffectHead: string | null },
 ): Promise<unknown> {
-  let nativeLinkRequest: z.infer<typeof NativeLinkSchema> | null = null;
-  if (command === "native-link") {
-    nativeLinkRequest = NativeLinkSchema.parse(request);
-    if (nativeLinkRequest.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
-  }
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
   const exec = createGitExec(interaction?.subprocess);
@@ -4859,8 +4855,7 @@ async function executeDeliveryCommand(
     }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-link") {
-    const parsed = nativeLinkRequest ?? NativeLinkSchema.parse(request);
-    if (parsed.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
+    const parsed = NativeLinkSchema.parse(request);
     const [planRead, stateRead] = await Promise.all([
       planStore.readCurrent(parsed.planId),
       stateStore.read(parsed.planId),
@@ -4879,7 +4874,7 @@ async function executeDeliveryCommand(
       repository: parsed.repository,
       baseRef: parsed.protectedBaseRef,
       members: parsed.members,
-      optIn: parsed.optIn,
+      ...(parsed.optIn === undefined ? {} : { optIn: parsed.optIn }),
     }, new GhDeliveryHostPort(hostedGhRunner));
   }
   if (command === "native-land-select") {
@@ -5416,8 +5411,14 @@ async function executeDeliveryCommand(
           providerId: "github", changeRequestId: input.changeRequestId,
         });
         const pullRequest = Number(input.changeRequestId);
-        if (observed.status !== "observed" || !Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
-          return { status: "refused" as const };
+        if (observed.status !== "observed") {
+          return {
+            status: "refused" as const,
+            reason: observed.status === "absent" ? "request-absent" as const : `request-${observed.reason}` as const,
+          };
+        }
+        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+          return { status: "refused" as const, reason: "request-malformed" as const };
         }
         const checked = await evaluateReviewReadiness({
           schemaVersion: 1,
@@ -5437,7 +5438,9 @@ async function executeDeliveryCommand(
             workUnitSlug: input.workUnitId,
           },
         }, { deliveryMemberLookup: memberLookup });
-        if (checked.state !== "ready") return { status: "refused" as const };
+        if (checked.state !== "ready") {
+          return { status: "refused" as const, reason: "review-readiness-invalid" as const };
+        }
         const reviewed = await assessDeliveryLandingReviewReadiness({
           repository: input.repository,
           headRef: observed.request.headRef,
@@ -5445,7 +5448,7 @@ async function executeDeliveryCommand(
         }, reviewStatus);
         return reviewed.status === "ready"
           ? { status: "ready" as const, settledReviewState: "settled" }
-          : { status: "refused" as const };
+          : reviewed;
       },
     };
     if (command === "land-prepare") {
@@ -5478,7 +5481,9 @@ async function executeDeliveryCommand(
     const lock = {
       release: async (input: { repository: string; changeRequestId: string }) => {
         const pullRequest = Number(input.changeRequestId);
-        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) return { status: "refused" as const };
+        if (!Number.isSafeInteger(pullRequest) || pullRequest <= 0) {
+          return { status: "refused" as const, reason: "change-request-invalid" as const };
+        }
         const released = await releaseMergeLock({
           schemaVersion: 1,
           treeRoot,
@@ -5491,7 +5496,7 @@ async function executeDeliveryCommand(
           },
         }, defaultMergeLockPort(cwd));
         return released.state === "blocked"
-          ? { status: "refused" as const }
+          ? { status: "refused" as const, reason: released.payload.reason }
           : { status: released.state === "released" ? "released" as const : "not-configured" as const };
       },
     };
@@ -5515,7 +5520,10 @@ async function executeDeliveryCommand(
               target: observed.facts.target,
               members: [member],
             } }
-            : { status: "refused" as const };
+            : {
+                status: "refused" as const,
+                reason: observed.status === "observed" ? "member-unavailable" as const : "position-unavailable" as const,
+              };
         },
         observeLandedResult: ({ mergeCommitSha, strategy, beforeMember }) => (
           observeGitDeliveryLandingResult({

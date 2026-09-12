@@ -424,4 +424,76 @@ describe("frontline run command", () => {
       signal: expect.any(AbortSignal),
     }));
   });
+
+  it("retains timeout diagnostics while projecting its retry as one source attempt", async () => {
+    const reviewTarget = target("c");
+    const stores = memoryStores();
+    const execute = vi.fn(async (input: { pass: number; maxPasses: number }) => {
+      const timedOut = execute.mock.calls.length === 1;
+      return {
+        outcome: normalizeFrontlineOutcome({
+          providerResult: timedOut ? { kind: "timed-out" } : { kind: "clean" },
+          source,
+          target: reviewTarget,
+          pass: input.pass,
+          maxPasses: input.maxPasses,
+        }),
+        executableIdentity: timedOut
+          ? null
+          : {
+              digest: canonicalDigest({ executable: "reviewer" }),
+              qualifiedVersion: "reviewer/1.0.0",
+            },
+      };
+    });
+    const dependencies = {
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => ({
+        target: reviewTarget,
+        reviewRoot: "/tmp/review",
+        release: vi.fn(),
+      }),
+      execute,
+      ...stores,
+      now: () => "2026-08-15T12:00:00Z",
+    };
+
+    const timedOut = await runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: reviewTarget,
+      resolution,
+    }, dependencies);
+    const retry = await runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: reviewTarget,
+      resolution,
+    }, dependencies);
+
+    expect(timedOut).toMatchObject({ state: "timed-out", nextAction: "retry" });
+    expect(retry).toMatchObject({ state: "clean", nextAction: "none" });
+    expect(retry.payload.operationId).not.toBe(timedOut.payload.operationId);
+    await expect(stores.operationStore.readOperation(laneProgressOperationId({
+      lane: "frontline",
+      repositoryId: reviewTarget.repositoryId,
+      headSha: reviewTarget.headSha,
+    }))).resolves.toMatchObject({
+      state: {
+        kind: "lane-progress",
+        completedPasses: 1,
+        attempts: [{
+          attemptId: retry.payload.operationId,
+          sourceId: source.sourceId,
+          outcome: "clean",
+        }],
+      },
+    });
+    await expect(stores.operationStore.readOperation(timedOut.payload.operationId))
+      .resolves.toMatchObject({ state: { kind: "frontline-run", outcome: "timed-out" } });
+    await expect(stores.operationStore.readOperation(retry.payload.operationId))
+      .resolves.toMatchObject({ state: { kind: "frontline-run", outcome: "clean" } });
+    await expect(stores.outcomeStore.readOutcome(timedOut.payload.operationId))
+      .resolves.toMatchObject({ record: { outcome: { outcome: "timed-out" } } });
+    await expect(stores.outcomeStore.readOutcome(retry.payload.operationId))
+      .resolves.toMatchObject({ record: { outcome: { outcome: "clean" } } });
+  });
 });
