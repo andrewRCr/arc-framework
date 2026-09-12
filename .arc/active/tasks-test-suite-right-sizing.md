@@ -762,22 +762,13 @@ observations exist with their capture or are recorded as not created.
   through the shared handler runner into floor-safe integration arrivals; the nested public-command correction
   smoke and all entry/destructive behavior stayed E2E. No assertions or tests were deleted.
 
-### `[ ]` **7.3 Install and remove mutation testing on the pair that needs it**
+### `[~]` **7.3 Install and remove mutation testing on the pair that needs it**
 
 - _Goal:_ A deletion resting on "another test covers it" that inspection cannot settle is decided by mutation
   testing on the affected pair, and the tooling leaves with the decision.
 
-- _Note:_ Conditional — the first such undecidable case is what authorizes the install; absent one, nothing is
-  installed.
-
-- **Additional Context:** `notes-test-suite-right-sizing.md` § Mutation testing
-
-    - The two packages install as a matched pair: the runner pins its core peer to an exact version, so taking
-      the latest core alongside it fails peer resolution. Its Vitest peer range is satisfied by the version in
-      use.
-    - Use it on the affected pair only; never across the corpus, never in CI.
-    - Uninstall at verification, retaining any config file written. A retained config for an uninstalled tool
-      reads as debris unless it says why it is there — record that in the file itself.
+- _Outcome:_ Not triggered. The ranked audit made no deletions and therefore raised no coverage-overlap pair that
+  inspection could not settle; neither Stryker package was installed and the dependency tree stayed unchanged.
 
 ### `[ ]` **7.4 Land or decline the incidental hygiene observations**
 
