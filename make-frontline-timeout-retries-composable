@@ -3,7 +3,7 @@
   "slug": "make-frontline-timeout-retries-composable",
   "claimId": "4e5e5853b75230f2e62c7607e4bd136d",
   "createdAt": "2026-09-12T15:22:13.468Z",
-  "updatedAt": "2026-09-12T15:22:13.468Z",
+  "updatedAt": "2026-09-12T15:54:02.687Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "make-frontline-timeout-retries-composable",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make Frontline timeout retries composable as one source attempt",
   "originEntrySourceDigest": "sha256:d507427298af5c62912054cd7b34d0ef5f6a8ee9df3cd2b03745e2084f806b8b",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/make-frontline-timeout-retries-composable",
+    "headSha": "ff11b260ee979c0ce3e8b592266ce10c66df0419"
+  }
 }
