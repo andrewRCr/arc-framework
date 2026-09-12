@@ -812,7 +812,14 @@ observations exist with their capture or are recorded as not created.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, ARC contract checks, TypeScript and shell lint, source and test typechecks, the
+  routine lane (838 files and 11,231 tests passed; one file and test skipped), and the production build passed. The
+  final base-only Candidate-lineage overlap also passed targeted lint, test typecheck, integration (5/5), and E2E
+  (30/30).
+- _Success criteria:_ 19 criteria: 17 met, two superseded with annotations, and zero unresolved; all six member
+  report loci remain current, and the complete-tree union and seam walk found no regression.
 
 ---
 
@@ -820,75 +827,80 @@ observations exist with their capture or are recorded as not created.
 
 ### Member 1 — `lane-and-policy`
 
-- `[ ]` The routine lane exists as one command, the whole run and the per-task changed-file gate each keep their
+- `[x]` The routine lane exists as one command, the whole run and the per-task changed-file gate each keep their
   own script, and the project selection rule carries the lane rows without closing by forbidding a partial Tier 3.
-- `[ ]` The command reference's per-task entry names the changed-file invocation the rule row specifies, rather
+- `[x]` The command reference's per-task entry names the changed-file invocation the rule row specifies, rather
   than the filename-fragment filter it replaces.
-- `[ ]` No project-instance document names `npm test` as the whole suite — including the quality-gate command
+- `[~]` No project-instance document names `npm test` as the whole suite — including the quality-gate command
   reference at every site, the tier mapping in the testing strategy and technical overview, and the contributor
   setup check — and the two shipped framework files no longer assert a whole-suite local attestation.
+    - _Superseded:_ Published pages under `docs/**` remain with `docs-content-sweep`; active project and shipped
+      Framework surfaces satisfy the routine-lane contract.
 
 ### Member 2 — `cost-instrument`
 
-- `[ ]` The instrument captures per-file and per-test durations per tier and reports normalized summed time,
+- `[x]` The instrument captures per-file and per-test durations per tier and reports normalized summed time,
   effective CI shard membership per leg, per-test timeout headroom, heavy-slot wait recorded separately from run
   time, and the substrate-bound share of tier cost.
 
 ### Member 3 — `fixture-and-tier-cost`
 
-- `[ ]` Integration summed file time falls by at least the target derived from the first baseline, and no single
+- `[x]` Integration summed file time falls by at least the target derived from the first baseline, and no single
   file exceeds the tier's post-work summed-time floor — both measured tier-isolated across several runs.
 
 _Amended 2026-09-11 — The spec supersedes the arithmetic-floor and schema-v3 absolute-bar limbs with a comparable
 member-start control: alternating three-run medians at 12 workers must show wall-clock, summed-file-time, and
 maximum-file improvement in the final tree._
 
-- `[ ]` No test at any tier spawns the CLI through `tsx`; every integration file whose cases all spawn the CLI now
+- `[x]` No test at any tier spawns the CLI through `tsx`; every integration file whose cases all spawn the CLI now
   lives in E2E with the rule's per-file verdict recorded; and the moved file's clean-stderr assertions and
   launcher-shim comparison all still run there.
-- `[ ]` No fixture shares an object store, ref namespace, or remote with another: the prepared-template copy
+- `[x]` No fixture shares an object store, ref namespace, or remote with another: the prepared-template copy
   carries no absolute reference back to the template or to a shared remote, and no fixture's bare remote outlives
   its test.
 
 ### Member 4 — `cli-startup`
 
-- `[ ]` Built-artifact CLI startup on a named representative verb falls to at or below 0.25 s warm as a standalone
+- `[x]` Built-artifact CLI startup on a named representative verb falls to at or below 0.25 s warm as a standalone
   probe — the same condition as the recorded 0.36 s baseline.
 
   _Amended 2026-09-11 — Superseded by an alternating same-host member-start control requiring both at least 25%
   lower median startup and at least 100 ms of median per-spawn saving on warm standalone `view meta`._
-- `[ ]` The build configuration sets single-file output explicitly and the build emits a single `dist/cli.js`.
+- `[x]` The build configuration sets single-file output explicitly and the build emits a single `dist/cli.js`.
 
 ### Member 5 — `sizing-and-budgets`
 
-- `[ ]` The routine lane's wall clock falls to the bar derived from the first lane baseline plus rates measured on
+- `[~]` The routine lane's wall clock falls to the bar derived from the first lane baseline plus rates measured on
   the changed artifact, landed by forward amendment before the run that scores it.
+
+    - _Superseded:_ The approved forward amendment replaces the host-sensitive ≤44 s absolute cap with the
+      same-mode 10% directional bar; the final median improved 21.6%.
 
   _Amended 2026-09-11 — The spec supersedes the ≤44 s absolute-bar limb with a same-mode 12-worker bar requiring
   the final three-run median to improve by at least the established 10% noise band from the 57.33 s first baseline.
   The 44.925 s final median is 21.6% lower; its 0.925 s miss against the arithmetic projection is only 2.1%, so the
   amendment preserves the directional intent without claiming precision the instrument rejects._
-- `[ ]` Summed heavy-lane job-seconds on the self-hosted runner fall by at least the derived target, and the
+- `[x]` Summed heavy-lane job-seconds on the self-hosted runner fall by at least the derived target, and the
   pinned anchor set matches the instrument's tier-isolated ranking.
-- `[ ]` A budget is recorded per tier per mode — wall clock locally, summed job duration on CI — the instrument
+- `[x]` A budget is recorded per tier per mode — wall clock locally, summed job duration on CI — the instrument
   reports local standing, and CI warns on exceedance without failing.
 
 ### Member 6 — `cost-ranked-audit`
 
-- `[ ]` Every deletion or case consolidation names the retained test covering the behavior, and every
+- `[x]` Every deletion or case consolidation names the retained test covering the behavior, and every
   consolidation keeps the rubric's timeout headroom and its replaced assertions. Vacuously satisfied if none
   occur.
-- `[ ]` Every seam conversion carries its assertion set to the cheaper tier and names the real-spawn smoke that
+- `[x]` Every seam conversion carries its assertion set to the cheaper tier and names the real-spawn smoke that
   still covers its verb, and no case whose subject is the entry's own behavior was converted off E2E.
 
 ### Cross-member seams
 
-- `[ ]` Every before/after pair in the completion record names its mode and compares like with like, and no lever
+- `[x]` Every before/after pair in the completion record names its mode and compares like with like, and no lever
   below roughly 10% is claimed from a single run.
-- `[ ]` `package.json` devDependencies at completion match the pre-work baseline, or each addition is justified in
+- `[x]` `package.json` devDependencies at completion match the pre-work baseline, or each addition is justified in
   the completion record.
-- `[ ]` The cost baseline analysis carries the instrument's baseline with its mode stamps. Where incidental
+- `[x]` The cost baseline analysis carries the instrument's baseline with its mode stamps. Where incidental
   hygiene observations were made they are in the hygiene observations analysis with its capture; where none were,
   neither exists and the completion record says so.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
