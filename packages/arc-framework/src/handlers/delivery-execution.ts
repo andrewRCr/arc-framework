@@ -194,11 +194,11 @@ import {
   type DeliveryTerminalCandidateRebindAuthority,
 } from "../lib/delivery/terminal-integration.js";
 import {
-  composeDeliveryNativeStackLinkDecision,
   degradePlannedDeliveryNativeStack,
   deriveDeliveryNativeTarget,
   linkPlannedDeliveryNativeStack,
   observeDeliveryNativeStack,
+  resolveDeliveryNativeStackLinkDecision,
 } from "../lib/delivery/native-stack.js";
 import {
   deriveNativeDeliveryMemberChain,
@@ -1810,7 +1810,9 @@ async function executeDeliveryCommand(
   let nativeLinkRequest: z.infer<typeof NativeLinkSchema> | null = null;
   if (command === "native-link") {
     nativeLinkRequest = NativeLinkSchema.parse(request);
-    if (nativeLinkRequest.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
+    if (nativeLinkRequest.optIn === undefined) {
+      return resolveDeliveryNativeStackLinkDecision(nativeLinkRequest.members);
+    }
   }
   const cwd = requireArcProjectRoot();
   if (cwd === null) return { status: "refused", reason: "arc-project-root-unresolved" };
@@ -4570,7 +4572,7 @@ async function executeDeliveryCommand(
   }
   if (command === "native-link") {
     const parsed = nativeLinkRequest ?? NativeLinkSchema.parse(request);
-    if (parsed.optIn === undefined) return composeDeliveryNativeStackLinkDecision();
+    if (parsed.optIn === undefined) return resolveDeliveryNativeStackLinkDecision(parsed.members);
     const [planRead, stateRead] = await Promise.all([
       planStore.readCurrent(parsed.planId),
       stateStore.read(parsed.planId),

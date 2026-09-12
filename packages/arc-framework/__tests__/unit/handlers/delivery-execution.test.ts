@@ -6,6 +6,7 @@ import {
   deliveryFourMemberStackPlanFixture,
   deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -1074,8 +1075,41 @@ describe("delivery execution handler", () => {
     }
   });
 
-  it("surfaces native registration consequences before opt-in", async () => {
+  it("skips the native registration choice below the provider floor", async () => {
     const plan = deliveryStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const members = fixture.members.slice(0, -1).map((member, index) => ({
+      deliverableId: member.deliverableId,
+      changeRequestId: String(41 + index),
+      headRef: `member-${index + 1}`,
+      headSha: member.coordinates?.head,
+      baseRef: index === 0 ? "main" : `member-${index}`,
+      headRepository: "owner/repo",
+    }));
+    let output = "";
+
+    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        protectedBaseRef: "refs/heads/main",
+        repository: "owner/repo",
+        members,
+      })),
+      write: (text) => { output = text; },
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(output)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native link",
+      status: "unlinked",
+      recommendedActionText:
+        "Native registration needs at least two non-terminal members; continue through the unlinked executor.",
+    });
+  });
+
+  it("surfaces native registration consequences before opt-in when the provider floor is met", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
     const members = fixture.members.slice(0, -1).map((member, index) => ({
       deliverableId: member.deliverableId,
