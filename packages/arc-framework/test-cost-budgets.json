@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "allowanceFraction": 0.1,
+  "budgets": [
+    {
+      "tier": "unit",
+      "mode": { "condition": "tier-isolated", "projectSet": "unit", "workerSizing": "12" },
+      "metric": "wall-clock-ms",
+      "baselineMs": 11116,
+      "budgetMs": 12228
+    },
+    {
+      "tier": "integration",
+      "mode": { "condition": "tier-isolated", "projectSet": "integration", "workerSizing": "12" },
+      "metric": "wall-clock-ms",
+      "baselineMs": 40035,
+      "budgetMs": 44039
+    },
+    {
+      "tier": "lane",
+      "mode": { "condition": "tier-isolated", "projectSet": "lane", "workerSizing": "12" },
+      "metric": "wall-clock-ms",
+      "baselineMs": 44925,
+      "budgetMs": 49418
+    },
+    {
+      "tier": "e2e",
+      "mode": { "condition": "tier-isolated", "projectSet": "e2e", "workerSizing": "12" },
+      "metric": "wall-clock-ms",
+      "baselineMs": 215309,
+      "budgetMs": 236840
+    },
+    {
+      "tier": "unit",
+      "mode": { "condition": "ci-job", "projectSet": "unit", "workerSizing": "1" },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 40000,
+      "budgetMs": 44000,
+      "ciJob": "unit"
+    },
+    {
+      "tier": "integration",
+      "mode": { "condition": "ci-job", "projectSet": "integration", "workerSizing": "1" },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 186000,
+      "budgetMs": 204600,
+      "ciJob": "integration"
+    },
+    {
+      "tier": "e2e",
+      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "1" },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 145882,
+      "budgetMs": 160471,
+      "ciJob": "e2e-1"
+    },
+    {
+      "tier": "e2e",
+      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "1" },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 173512,
+      "budgetMs": 190864,
+      "ciJob": "e2e-2"
+    },
+    {
+      "tier": "e2e",
+      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "1" },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 127090,
+      "budgetMs": 139799,
+      "ciJob": "e2e-3"
+    },
+    {
+      "tier": "e2e",
+      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "1" },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 107591,
+      "budgetMs": 118351,
+      "ciJob": "e2e-4"
+    }
+  ]
+}

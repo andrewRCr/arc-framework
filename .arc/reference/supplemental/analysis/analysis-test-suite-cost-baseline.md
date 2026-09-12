@@ -16,6 +16,7 @@ the durable record.
 - [Schema-v4 metric correction](#schema-v4-metric-correction)
 - [Method and its limits](#method-and-its-limits)
 - [Tier baselines](#tier-baselines)
+- [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
 - [Effective E2E shard membership](#effective-e2e-shard-membership)
 - [Timeout, admission, and substrate signals](#timeout-admission-and-substrate-signals)
@@ -147,6 +148,171 @@ files shrink or split.
 
 `build:fast`, which the integration global setup runs on every invocation, costs 1.2 s warm.
 
+## Post-cost baseline
+
+The post-Phase 5 baseline was captured at `8f6d655c5` on the same WSL2 host and with the same local mode as the
+first instrument baseline. Each local row is the median of three successful retained schema-v3 runs; one E2E
+sample waited 9.85 s for admission, and that wait remains separate from its timed window.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases | Change from first baseline |
+| --------------------- | ---------- | ---------------- | ----- | -------------- | -------------------------- |
+| `unit` + `unit-mocks` | 11.12 s    | 112.50 s         | 696   | 9,766          | -52.6% wall / -20.2% sum   |
+| `integration`         | 40.04 s    | 338.72 s         | 138   | 1,379          | -6.1% wall / -6.2% sum     |
+| Routine lane (no E2E) | 44.93 s    | 457.99 s         | 834   | 11,145         | -21.6% wall / -16.5% sum   |
+| `e2e`                 | 215.31 s   | 1,248.16 s       | 55    | 563            | -16.4% wall / -23.1% sum   |
+
+The tier moves explain the changed file and case populations. Integration's movement is inside the 10% noise
+band and is not claimed as a separate lever. The routine lane is above the earlier 44 s bar by 0.93 s; worker
+sizing is deliberately unsettled at this point, so the sizing sweep must resolve the scored bar before the member
+closes.
+
+### Post-cost concentration
+
+The integration top decile and the E2E head below are the cost-ranked audit input. Share is of the post-cost
+tier's normalized summed file time.
+
+| Integration file                        | Seconds | Cases | Share |
+| --------------------------------------- | ------- | ----- | ----- |
+| `decompose-v3-repository-plan.test.ts`  | 38.35   | 53    | 11.3% |
+| `review-fan-out-lifecycle.test.ts`      | 35.34   | 15    | 10.4% |
+| `user.test.ts`                          | 34.81   | 94    | 10.3% |
+| `classify-change.test.ts`               | 27.43   | 122   | 8.1%  |
+| `harness-hooks/codex-cli.test.ts`       | 18.92   | 37    | 5.6%  |
+| `delivery-field-runs.test.ts`           | 11.21   | 9     | 3.3%  |
+| `init.test.ts`                          | 10.22   | 39    | 3.0%  |
+| `github-provider-refresh.test.ts`       | 8.27    | 5     | 2.4%  |
+| `user-notes-compaction.test.ts`         | 7.84    | 18    | 2.3%  |
+| `teardown.test.ts`                      | 7.10    | 22    | 2.1%  |
+| `notes-export-state-coherence.test.ts`  | 7.09    | 13    | 2.1%  |
+| `one-shot-script-entrypoints.test.ts`   | 6.86    | 3     | 2.0%  |
+| `command-surface-documentation.test.ts` | 4.95    | 8     | 1.5%  |
+| `delivery-member-six-lifecycle.test.ts` | 4.81    | 7     | 1.4%  |
+| `start-dispatch.test.ts`                | 4.78    | 17    | 1.4%  |
+
+| E2E file                                 | Seconds | Cases | Share |
+| ---------------------------------------- | ------- | ----- | ----- |
+| `candidate-lineage.e2e.test.ts`          | 204.77  | 33    | 16.4% |
+| `delivery-position.e2e.test.ts`          | 122.64  | 23    | 9.8%  |
+| `command-input-no-input.e2e.test.ts`     | 99.55   | 77    | 8.0%  |
+| `errand.e2e.test.ts`                     | 90.85   | 47    | 7.3%  |
+| `lifecycle-exit.e2e.test.ts`             | 90.41   | 24    | 7.2%  |
+| `delivery-plan.e2e.test.ts`              | 78.60   | 18    | 6.3%  |
+| `session-init.e2e.test.ts`               | 65.88   | 29    | 5.3%  |
+| `review-protocol.e2e.test.ts`            | 38.82   | 8     | 3.1%  |
+| `delivery-terminal-recovery.e2e.test.ts` | 35.67   | 18    | 2.9%  |
+| `publication-spine.e2e.test.ts`          | 26.22   | 7     | 2.1%  |
+| `rename.e2e.test.ts`                     | 25.52   | 8     | 2.0%  |
+| `delivery-authoring.e2e.test.ts`         | 22.07   | 4     | 1.8%  |
+| `user.e2e.test.ts`                       | 21.22   | 13    | 1.7%  |
+| `locus-errand-roundtrip.e2e.test.ts`     | 20.77   | 7     | 1.7%  |
+| `decompose-command-modes.e2e.test.ts`    | 19.49   | 4     | 1.6%  |
+
+The top four E2E files remain `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand`.
+`lifecycle-exit` is fifth by 0.44 s, so the measured anchor correction remains the one identified by the first
+baseline.
+
+### Worker sizing sweep
+
+The lane was measured in three-run alternating samples at 50%, 75%, and native sizing. On this 24-logical-CPU
+host, those modes resolved to 12, 18, and 23 workers respectively.
+
+| Requested sizing | Effective workers | Wall clock | Summed file time | Wall change from 50% |
+| ---------------- | ----------------- | ---------- | ---------------- | -------------------- |
+| 50%              | 12                | 44.93 s    | 457.99 s         | baseline             |
+| 75%              | 18                | 45.13 s    | 573.62 s         | +0.5%                |
+| native           | 23                | 46.12 s    | 701.69 s         | +2.7%                |
+
+Neither raised setting improves wall clock, and both increase the work performed as contention grows. Because no
+candidate cleared the 10% adoption band, the conditional sibling-session degradation probe did not fire. The
+local runner keeps the configuration's 50% default, no runner-only override is added, and the CI cap remains
+unchanged.
+
+### Post-cost CI run
+
+Workflow dispatch `34651274160` ran successfully on the two-slot `arc-ci-mini` at the same exact head. This is one
+CI-job sample rather than a median; the dispatch exercises every heavy job but skips the PR-only `ci-ok` and
+`merge-ok` rollups.
+
+This and the later pre-correction dispatch `34654605367` repeated each pinned E2E anchor in its remainder shard.
+Vitest's CLI normally normalizes `exclude` to `cliExclude` before calling `startVitest`; the programmatic local-tier
+adapter skipped that private normalization, so its parsed exclusions never reached config resolution. These runs
+remain useful historical timing and budget-reporter observations, but they do not evidence the final anchor topology
+or score the heavy-lane target.
+
+| Job                                | Seconds   |
+| ---------------------------------- | --------- |
+| Classify lane & weight             | 7         |
+| Shared setup                       | 18        |
+| Lint & Typecheck                   | 66        |
+| Unit Tests                         | 40        |
+| Integration Tests                  | 186       |
+| E2E Tests (1)                      | 151       |
+| E2E Tests (2)                      | 221       |
+| E2E Tests (3)                      | 268       |
+| E2E Tests (4)                      | 154       |
+| Portability (concurrency guards)   | 20        |
+| **Summed successful job duration** | **1,131** |
+
+Against the six-run 1,377 s first baseline, the observed reduction is 246 job-seconds (17.9%). The run therefore
+misses the derived 1,077 s bar by 54 s. That difference is recorded as measured rather than attributed to a lever
+from one CI sample; later member validation must resolve the criterion from the evidence then available.
+
+### Recorded budgets
+
+`test-cost-budgets.json` is the single tracked record for the instrument and CI. Each limit is the observed
+post-cost baseline plus the full 10% noise allowance, rounded upward to the next millisecond. Complete measurement
+modes keep local and CI observations disjoint; the E2E CI entries additionally name the shard job.
+
+| Tier        | Mode                              | Baseline  | Budget    |
+| ----------- | --------------------------------- | --------- | --------- |
+| Unit        | tier-isolated / unit / 12 workers | 11.116 s  | 12.228 s  |
+| Integration | tier-isolated / integration / 12  | 40.035 s  | 44.039 s  |
+| Lane        | tier-isolated / lane / 12         | 44.925 s  | 49.418 s  |
+| E2E         | tier-isolated / e2e / 12          | 215.309 s | 236.840 s |
+
+| CI job      | Mode                     | Baseline  | Budget    |
+| ----------- | ------------------------ | --------- | --------- |
+| Unit        | CI job / unit / 1 worker | 40 s      | 44.0 s    |
+| Integration | CI job / integration / 1 | 186 s     | 204.6 s   |
+| E2E 1       | CI job / e2e / 1         | 145.882 s | 160.471 s |
+| E2E 2       | CI job / e2e / 1         | 173.512 s | 190.864 s |
+| E2E 3       | CI job / e2e / 1         | 127.090 s | 139.799 s |
+| E2E 4       | CI job / e2e / 1         | 107.591 s | 118.351 s |
+
+The local rows and the unit/integration CI rows are the initial post-Phase 5 budgets. The E2E CI rows use the
+corrected-topology reporter windows from dispatch `34657372996`; the earlier observations repeated each anchor in
+its remainder shard and cannot serve as anti-regression baselines. The integration, lane, and affected E2E entries
+are refreshed after the cost-ranked conversions, so accepted Phase 7 movement does not present as regrowth.
+
+### Budget exercise
+
+A settled 12-worker lane run at `0668989f1` completed in 43.718 s with 443.569 s of summed file time. The
+instrument matched the tier-isolated lane record and reported `within`, with 5.700 s remaining against the
+49.418 s local budget.
+
+Workflow dispatch `34654605367` exercised the corrected epoch-seconds reporter, but its E2E jobs exposed the
+programmatic exclusion defect described above: each anchor ran in both the anchor and remainder steps. The reporter
+still matched every test job to its own one-worker CI-job record, but the run's 1,170 job-seconds are not a valid
+score for the intended anchor topology.
+
+After the local-tier adapter normalized forwarded exclusions, exact-head dispatch `34657372996` exercised the
+corrected path. Every test job completed within budget:
+
+| CI job      | Observed  | Budget    | Remaining |
+| ----------- | --------- | --------- | --------- |
+| Unit        | 37.114 s  | 44.0 s    | 6.886 s   |
+| Integration | 174.065 s | 204.6 s   | 30.535 s  |
+| E2E 1       | 145.882 s | 160.471 s | 14.589 s  |
+| E2E 2       | 173.512 s | 190.864 s | 17.352 s  |
+| E2E 3       | 127.090 s | 139.799 s | 12.709 s  |
+| E2E 4       | 107.591 s | 118.351 s | 10.760 s  |
+
+The raw E2E logs show one anchor file on each leg, a 13/13/13/12 split of the 51-file remainder, and no anchor
+result in any remainder step. The run's ten successful job durations sum to 913 s. Against the six-run 1,377 s
+first baseline, that is a 464 job-second reduction (33.7%), clearing the fixed 300 job-second target by 164 s. After
+the corrected E2E baselines were recorded, a synthetic E2E 4 overage reported 137.892 s against 118.351 s, wrote a
+19.541 s advisory warning, and exited successfully.
+
 ## Where the time concentrates
 
 Cumulative share is of that tier's summed file time.
@@ -253,26 +419,28 @@ those two sites across many runs, plus runs killed at a timeout before teardown.
 | `publication-spine.e2e.test.ts`          | 32.69   | 7     | 70%        |
 | `user.e2e.test.ts`                       | 31.75   | 13    | 72%        |
 
-**Anchor-set gap.** CI pins four anchor files per leg and shards the remainder by path hash. The pinned set is
-`candidate-lineage`, `errand`, `command-input-no-input`, and `lifecycle-exit`. Measured, the four largest are
-`candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand` — so `delivery-position` (2nd,
-151.29 s) is unpinned while `lifecycle-exit` (5th, 116.95 s) is pinned.
+**Anchor-set gap.** At the first baseline, CI pinned four anchor files per leg and sharded the remainder by path
+hash. The pinned set was `candidate-lineage`, `errand`, `command-input-no-input`, and `lifecycle-exit`. Measured,
+the four largest were `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand` — so
+`delivery-position` (2nd, 151.29 s) was unpinned while `lifecycle-exit` (5th, 116.95 s) was pinned.
 
 This ranking is mode-sensitive: an earlier under-load run put `command-input-no-input` 7th rather than 3rd. Anchor
 selection must be made from tier-isolated data.
 
 ## Effective E2E shard membership
 
-`benchmark:test-cost:shards` read the ordered anchor assignment and four live workflow exclusions, then asked
-Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 49-file remainder
-partitioned exactly once, 13/12/12/12; each complete leg below is its pinned anchor plus that remainder.
+`benchmark:test-cost:shards` reads the ordered anchor assignment and four live workflow exclusions, then asks
+Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 51-file remainder
+partitions exactly once, 13/13/13/12; each complete leg below is its pinned anchor plus that remainder. Because the
+instrument invokes Vitest's CLI while the test scripts use an in-process adapter, exact-head dispatch `34657372996`
+also proves the executed topology: its four remainder logs report 13/13/13/12 files and contain no anchor result.
 
-| Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                       |
-| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1/4 | `errand`                 | `delivery-authoring`, `log`, `publication-spine`, `reconfigure`, `rename`, `review-chunking`, `review-protocol`, `session-init-remote-boundary`, `smoke`, `sync-inbound`, `sync-state-producer`, `teardown`, `wu-reconcile`    |
-| 2/4 | `candidate-lineage`      | `anchored-sequence`, `attest`, `base-sync`, `commit-message-consumers`, `housekeep`, `plan`, `pre-push`, `schema-artifact`, `session-envelope-compat`, `session-init`, `status-lifecycle`, `sync-purity`                       |
-| 3/4 | `command-input-no-input` | `base-drift`, `delivery-plan`, `delivery-transfer`, `health-diff`, `lifecycle`, `locus-errand-roundtrip`, `markdown-formatting`, `precompact-locus-anchor`, `release-commit`, `state-ref-race`, `user-inbox-remove`, `user`    |
-| 4/4 | `lifecycle-exit`         | `base-merge`, `candidate-applicability`, `commit-msg`, `decompose-command-modes`, `delivery-position`, `delivery-terminal-recovery`, `init`, `run-cli`, `stale-build-guard`, `update`, `user-inbox-mark-execute-bound`, `view` |
+| Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                                               |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1/4 | `errand`                 | `delivery-authoring`, `lifecycle-exit`, `log`, `publication-spine`, `reconfigure`, `review-chunking`, `review-protocol`, `session-init-remote-boundary`, `smoke`, `sync-inbound`, `sync-state-producer`, `teardown`, `wu-reconcile`                    |
+| 2/4 | `candidate-lineage`      | `anchored-sequence`, `attest`, `base-sync`, `commit-message-consumers`, `housekeep`, `plan`, `pre-push`, `rename`, `schema-artifact`, `session-envelope-compat`, `session-init`, `status-lifecycle`, `sync-purity`                                     |
+| 3/4 | `command-input-no-input` | `base-drift`, `decompose-command-modes`, `delivery-plan`, `delivery-transfer`, `health-diff`, `lifecycle`, `locus-errand-roundtrip`, `markdown-formatting`, `precompact-locus-anchor`, `release-commit`, `state-ref-race`, `user-inbox-remove`, `user` |
+| 4/4 | `delivery-position`      | `base-merge`, `candidate-applicability`, `commit-msg`, `config-validate`, `delivery-terminal-recovery`, `init`, `review-cli-surfaces`, `run-cli`, `stale-build-guard`, `update`, `user-inbox-mark-execute-bound`, `view`                               |
 
 Names omit the common `.e2e.test.ts` suffix. The instrument refuses a different anchor count, duplicate or
 non-contiguous leg assignments, or any mismatch between the mapped anchors and the exclusion set.
