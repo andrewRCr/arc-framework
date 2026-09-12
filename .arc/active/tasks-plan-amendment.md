@@ -44,14 +44,10 @@ inventory, with the parent's Goal digest unchanged by the appended bullet.
   `hooks.strict_meta_ref_patterns` override is narrowed, so the id series is not yet expressible in an installed
   project.
 
-### `[ ]` **1.2 Protect `_Amended in:_` across completion — D6**
+### `[x]` **1.2 Protect `_Amended in:_` across completion — D6**
 
 - _Goal:_ A completed task whose behavior a later amendment changed records that fact without reversing its marker
   or disturbing the Goal text a bound delivery plan digests.
-
-- _Rationale:_ The descriptor extent ends at the first child bullet, so the protection holds only while
-  `_Amended in:_` is authored as a bullet at Goal-child depth — an indented continuation line would fold into the
-  Goal extent and move its digest.
 
     - `[x]` **1.2.a Fixture proving the bullet survives completion with the Goal digest intact**
         - The fixture gained an `amendedIn` option appending `_Amended in:_ 1.R (A1)` at Goal-child depth beneath
@@ -63,16 +59,20 @@ inventory, with the parent's Goal digest unchanged by the appended bullet.
         - The descriptor lint is asserted clean but is weak here by construction: a completed parent's cluster
           carries only `_Goal:_`, and the spacing rule needs two adjacent descriptors before it inspects anything.
 
-    - `[ ]` **1.2.b The formatting strategy and task-list template carry the bullet**
-        - Add `_Amended in:_` beside `_Retired in:_` in both completion paragraphs — the root-level
-          preserved-across-completion rule and the per-subtask description shift.
-        - Show it in `template-tasks.md` as a Goal-child detail bullet — the first protected detail bullet the
-          template carries, and the shape the digest protection depends on.
-        - That example sits inside a fenced block, so every scan and lint skips it. Nothing polices the depth
-          there; check it by eye against the fixture 1.2.a proves.
-        - `generate-tasks`' pre-save checklist forbids amendment provenance in task bodies; add the clause that
-          excepts this bullet, so the shipped checklist stops contradicting the convention shipping beside it.
-          That file is template-only in the package — edit the template, never the project copy.
+    - `[x]` **1.2.b The formatting strategy and task-list template carry the bullet**
+        - Both completion paragraphs in `strategy-task-list-formatting.md` now name `_Amended in:_ X.R (An)`
+          beside `_Retired in:_`, and the root-level one states the Goal-child depth as what keeps the bullet
+          outside the Goal's descriptor extent.
+        - `template-tasks.md` shows it under the parent-with-subtasks example, with a comment giving the depth
+          and the reason. The example is inside the template's fenced block, so no scan or lint reaches it —
+          the depth there was matched by eye against what the fixture proves.
+        - `generate-tasks`' pre-save checklist now excepts the bullet from its no-amendment-provenance clause.
+          The package carries that workflow only as a template, but the rendered `.arc/` copy is a Framework
+          file the sync test compares, so the same edit had to land in both.
+
+- _Outcome:_ `_Amended in:_` is now a stated protected post-completion bullet, shown at the depth the digest
+  protection depends on, and no longer contradicted by the checklist shipping beside it. The fixture proves the
+  depth; the template's copy sits behind a fence where nothing can, which is why the two were authored together.
 
 ### `[ ]` **1.3 Amendment placement conventions — D6** — validate exit criterion at segment scope
 

@@ -472,7 +472,8 @@ pre-save checklist and bundles the commit.
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task bodies read as a coherent forward artifact — no audit / correction / "pending" / amendment
       provenance (grounding-audit corrections folded into the design, per [DEV-RULES.ARC][dev-rules-arc] § Write
-      for the reader)
+      for the reader). A post-completion `_Amended in:_` bullet is the one exception — it records a correction
+      made after the task closed and is preserved verbatim, per [strategy-task-list-formatting][task-list-formatting]
 - [ ] Task instructions targeting shipped or published files are written in the shipped-content
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
       that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
