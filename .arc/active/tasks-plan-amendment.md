@@ -235,26 +235,26 @@ the corpus conventions it composes against, each load-bearing term with one defi
   fire-point — `validate-criteria` fires at member-site closure. The file's section order follows the spine, so
   the anchors the detection sites will cite are settled before Phase 4 writes them.
 
-### `[ ]` **2.6 Refine the method-declaration rule to its conditional form — D12**
+### `[x]` **2.6 Refine the method-declaration rule to its conditional form — D12**
 
 - _Goal:_ A workflow that declares a method its own body fires reads as correct rather than as a violation, and a
   declaration made only on another method's behalf still reads as one.
 
-- _Rationale:_ The rule is categorical today, but loading is fire-point-gated and the resolved graph dedupes, so a
-  second declaration of an already-reachable method costs no context. What it protects is encapsulation — a
-  declaration carried on another method's behalf goes stale the moment that method's dependencies change.
+    - `[x]` **2.6.a The conditional rule and its test**
+        - The categorical sentence is replaced by the conditional pair, with the striking test stated inline:
+          strike the other method from your declarations, and if you still fire this one it is yours.
+        - Both copies of the strategy carry byte-identical text; the file is Framework-classified and has no
+          template.
 
-- **Additional Context:** `strategy-workflow-authoring.md` § Author-side Declaration Rule — the sentence this task
-  refines and the surrounding fire-point contract.
+    - `[x]` **2.6.b Confirm no existing declaration changes under it**
+        - The test was run mechanically across the corpus: `validate-criteria` is the only method carrying a
+          dependency, and `amend-design` is the only workflow declaring both it and `adversarial-review`. The
+          refinement reclassifies nothing that already shipped.
 
-    - `[ ]` **2.6.a The conditional rule and its test**
-        - Declare what your own body may fire; never add a declaration because a method you declare needs it. A
-          method your own body fires directly is your declaration even when a method you also declare depends on it.
-        - State the test: strike the other method from your declarations — if you still fire this one, it is yours.
-
-    - `[ ]` **2.6.b Confirm no existing declaration changes under it**
-        - Run the test across the corpus's declared methods. The shipped consumers of `validate-criteria` declare
-          it alone and their bodies do not fire `adversarial-review`, so the refinement reclassifies nothing.
+- _Outcome:_ The refinement lands with the first case rather than after it, so `amend-design`'s direct
+  `adversarial-review` declaration reads as licensed on arrival. Re-verifying the nine declarations at phase close
+  found the assurance invariant naming its rubric declaratively rather than firing it; that line now reads as an
+  invocation, so all nine fire-points are marked.
 
 ## **Phase 3:** Corpus conventions the amendment composes against
 

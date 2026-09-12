@@ -148,10 +148,11 @@ Skip their ceremony steps by reference.
 ### The assurance invariant
 
 An amendment's artifacts pass the gates the originals passed, over the amendment's footprint, at the amendment's
-depth. The adversarial rubric is [`assess-design-proportionality`][assess-design-proportionality] plus
-[`design-audit`][design-audit] plus [`spec-review`][spec-review]'s coherence slice — the finalization rubric the
-original cleared, minus nothing. Pass prior findings through `adversarial-review`'s `prior-findings` input so
-untouched elements are never re-attacked. Closure re-runs the detecting check (§ Closure).
+depth. Run the adversarial pass on the finalization rubric the original cleared, minus nothing —
+[`assess-design-proportionality`][assess-design-proportionality], [`design-audit`][design-audit], and
+[`spec-review`][spec-review]'s coherence slice — and pass prior findings through `adversarial-review`'s
+`prior-findings` input so untouched elements are never re-attacked. Closure re-runs the detecting check
+(§ Closure).
 
 ### The accretion guard
 
