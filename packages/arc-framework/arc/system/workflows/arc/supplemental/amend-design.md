@@ -235,6 +235,34 @@ few lines; on the design arm, quote the superseded text there. Create the compan
 The task list carries the revision work, citing the row id in the corrective parent's `_Goal:_`. No
 forward-amendment paragraphs and no provenance in task bodies — the list stays a coherent forward artifact.
 
+## The capture commit
+
+On the **spec-depth and design arms** the capture — log row, revision tasks, body edit, criterion, notes entry,
+and the `Class` ratchet where the depth read requires one — lands as **one commit before corrective work begins**,
+released at the stop where the Owner authorized it, so the point-in-time design is recoverable.
+
+Write the `Class` ratchet with `arc finalize create-spec --class <Class>` rather than editing the meta by hand:
+the capture is a planning ceremony and that verb performs the write with no lifecycle guard.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): amend design for {name} — A{n}
+
+Context: spec-{name}.md (planning)
+```
+
+On the **task arm** nothing in the record's body changes — the row is the one write, and a record rather than
+pre-commitment text — so the row and the revision tasks ride the increment's task commit and reach the ordinary
+completion report.
+
+At the **review site** there is no separate capture commit: on the spec-changing arms the row and the body edit
+ride the review-fix increment's single commit, approved with the disposition set.
+
+Under a bound delivery plan the capture and its plan revision land together, before corrective work, on every arm
+(§ Under a bound delivery plan).
+
 ## Placement of revision work
 
 The id series, the R scheme's placement mechanics, and the retirement of parent reopening live in
@@ -285,6 +313,78 @@ known unsettled thing.
 
 The hit list is greppable wherever parent titles cite the design element they realize.
 
+## Closure
+
+The detour is done when the check that opened it passes again. Two facts the row carries are distinct: the detour
+is **open** while its corrective parent is open, and `_Revalidated:_` names the check that closes the loop. They
+coincide at the member site and diverge elsewhere.
+
+| Site                   | `_Revalidated:_`                            | What the re-record contains                                 |
+| ---------------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| member verifier        | the delta subtask's id                      | a delta against the member's boundary report                |
+| segment verifier       | the re-run verifier's own id                | the scenario's outcome — the verifier's ordinary completion |
+| terminal verification  | the verification rerun                      | none — the walk reruns against the current subject          |
+| review finding         | the review-fix increment's verification     | none — the increment's own evidence at its scope            |
+| must-stop / skill door | `pending → X.Z`, the next covering verifier | the parent closes on its own evidence                       |
+
+**Member-site closure.** The corrective parent's closing subtask records the delta — run
+[`validate-criteria`][validate-criteria] over the changed criteria and the amendment's span; that method defines
+the delta's shape. The member's closing task, left `[ ]` at the stop with its boundary report preserved, then
+closes on the **effective report**: a marker flip whose completion note cites the delta subtask. **A closing task
+that already carries a preserved boundary report does not re-walk** — it closes on the effective report. That rule
+reads a fact on the task being executed, never the log.
+
+The delta supplements the member's report and never replaces it: the changed criteria with their evidence, any
+criteria the amendment appended, the new span, and the summary; unchanged criteria are omitted. Each entry carries
+a per-criterion verdict saying why it is present or absent. The verdict never replaces the entry's state, and a
+criterion superseded by the amendment is `[~]` citing the row id and carries no verdict.
+
+**Review-site closure.** On the spec-changing arms at review there is no corrective parent: the correction is the
+review-fix increment, `_Work:_` is `review-fix`, and `_Revalidated:_` is that increment's verification at the
+scope the fix disclosed. Where the finding warrants withdrawal, the work unit reopens and the ordinary rules
+apply.
+
+**Terminal closure is unchanged** — [`verify-work-unit`][verify-work-unit] reruns its walk against the current
+work-unit subject as it already prescribes; the delta form is for member re-records.
+
+Which gates re-run is the project's own selection rule; this procedure names no tiers.
+
+## Under a bound delivery plan
+
+This procedure authors no delivery mechanics. Whether a delivery plan is bound is a typed result, not a prose
+comparison: take it from the execution-mode `arc delivery entry inspect` the task loop already runs and dispatch
+on that result; never re-derive plan state by reading the plan.
+
+An amendment perturbs plan state on five axes.
+
+- **Task ids and contiguity.** A corrective parent is an assignable task, so a bound plan must cover it. Leaving
+  it unassigned refuses as an uncovered assignable task; assigning it to a landed member refuses as a
+  landed-member change; assigning it to a later member while it sits inside an earlier member's range breaks
+  contiguity. Placement therefore yields to member immutability, and every corrective parent under a bound plan
+  costs a plan revision.
+- **Design-element digests.** The plan binds each design element by an author-supplied digest, so revising a
+  landed member's element in place breaks that binding silently — nothing revalidates recorded digests against the
+  live record. The landed-element exception exists for this. Parent task Goals are frozen the same way but bound
+  differently: their digests are derived from the `_Goal:_` extent, so a rewrite surfaces at the next revision,
+  refused for a landed member and replacement-forcing for an unlanded one.
+- **Seams.** A seam's acceptance and design coverage are guarded as a member's are, and a change touching a landed
+  incident refuses. An amendment reaching a seam takes the same landed/unlanded split, and its criteria compose
+  through the same effective report.
+- **Authoring snapshots.** A delivery-authoring pass pins the parent-task inventory, and inserting a corrective
+  parent invalidates that pin. An amendment does not land while an authoring pass is open — finish or discard the
+  pass first.
+- **Revision before execution.** The plan revision lands **before the corrective parent executes**. An unassigned
+  parent would otherwise run outside member coverage and never reach the member whose request and verifier should
+  carry it.
+
+Two consequences. An amendment under a bound plan never costs only a row plus revision work: a plan revision rides
+along, and a revision the classifier answers with a replacement reaches every deliverable at or above the affected
+one on a stack. And where no unlanded member or the terminal can carry a landed element's replacement, the ceiling
+applies (§ The ceiling).
+
+**Digest extent convention.** A design element's digest covers the element's settled statement text, excluding
+appended supersession lines — the same extent rule parent Goals follow. Stated, not enforced.
+
 ---
 
 [validate-criteria]: ../../../methods/validate-criteria.md
@@ -301,3 +401,4 @@ The hit list is greppable wherever parent titles cite the design element they re
 [reopen-work-unit]: ../work-unit-lifecycle/reopen-work-unit.md
 [deliver-stack]: deliver-stack.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[verify-work-unit]: ../work-unit-lifecycle/verify-work-unit.md

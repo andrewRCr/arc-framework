@@ -209,31 +209,31 @@ the corpus conventions it composes against, each load-bearing term with one defi
   `validate-criteria` for the delta, `deliver-stack` and `reopen-work-unit` for the two worked cases that leave
   this procedure's surface.
 
-### `[ ]` **2.5 Author closure, the capture commit, and the bound-delivery interaction — D8, D9, D10**
+### `[x]` **2.5 Author closure, the capture commit, and the bound-delivery interaction — D8, D9, D10**
 
 - _Goal:_ The detour closes when the check that opened it passes again, the point-in-time design is recoverable
   from git, and an amendment under a bound plan composes with the shipped classifier instead of surprising it.
 
-- _Note:_ The bound/unbound branch dispatches on what `arc delivery entry inspect` returns; do not write the
-  comparison out as prose that evaluates plan state.
-
-    - `[ ]` **2.5.a Per-site closure and the delta**
-        - The five-row closure table; the distinction between the detour being open and `_Revalidated:_` naming the
+    - `[x]` **2.5.a Per-site closure and the delta**
+        - The five-row closure table, with the detour being open kept distinct from `_Revalidated:_` naming the
           closing check.
-        - Member-site closure: the closing task carrying a preserved boundary report does not re-walk — a rule keyed
-          to a fact on the task being executed, never to the log.
-        - Name the delta and cite `validate-criteria` for its shape; the effective report and the delta are that
-          method's to define.
+        - Member-site closure keys the no-re-walk rule to the preserved boundary report on the task being
+          executed, never to the log; the delta cites `validate-criteria` for its shape.
 
-    - `[ ]` **2.5.b The capture commit per arm**
-        - Spec-depth and design arms: one commit before corrective work, routed as `workflowCommit`, with the
-          `Class` ratchet written through `arc finalize create-spec --class` rather than a hand edit.
-        - Task arm rides the increment's task commit; the review site rides the review-fix increment's commit.
+    - `[x]` **2.5.b The capture commit per arm**
+        - One `workflowCommit` before corrective work on the spec-changing arms, with the `Class` ratchet written
+          through `arc finalize create-spec --class`; the task arm rides the increment's commit and the review
+          site the review-fix increment's.
 
-    - `[ ]` **2.5.c The five perturbation axes under a bound plan**
-        - Task ids and contiguity, design-element digests, seams, authoring snapshots, and revision-before-execution.
-        - State the digest-extent convention: the element's settled statement text, excluding appended supersession
-          lines.
+    - `[x]` **2.5.c The five perturbation axes under a bound plan**
+        - Task ids and contiguity, design-element digests, seams, authoring snapshots, and revision before
+          execution, with the digest-extent convention stated and not enforced.
+        - The bound/unbound branch takes the typed result of the execution-mode delivery entry inspection the task
+          loop already runs, rather than prose that evaluates plan state.
+
+- _Outcome:_ The workflow is complete end to end and every one of the nine declared methods now has a marked
+  fire-point — `validate-criteria` fires at member-site closure. The file's section order follows the spine, so
+  the anchors the detection sites will cite are settled before Phase 4 writes them.
 
 ### `[ ]` **2.6 Refine the method-declaration rule to its conditional form — D12**
 
