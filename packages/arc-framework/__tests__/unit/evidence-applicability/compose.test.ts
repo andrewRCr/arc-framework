@@ -6,6 +6,7 @@ import {
   EvidenceDeltaProducerSchema,
   EvidenceDeltaSchema,
   HostMergeAdmissionSchema,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
   composeEvidenceDelta,
 } from "../../../src/lib/evidence-applicability/index.js";
 
@@ -271,6 +272,27 @@ describe("evidence delta composition", () => {
       overlap: { kind: "overlapping", substantivePaths: paths },
       residual: null,
     });
+  });
+
+  it("retains the complete residual at the exact path-count bound", () => {
+    const paths = Array.from(
+      { length: MAX_EVIDENCE_APPLICABILITY_PATHS },
+      (_, index) => `path-${String(index).padStart(3, "0")}.ts`,
+    );
+    const normalized = composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: paths, regenerablePaths: [] },
+      },
+    });
+
+    expect(normalized.overlap).toEqual({
+      kind: "overlapping",
+      substantivePaths: paths,
+      regenerablePaths: [],
+    });
+    expect(normalized.residual).toEqual(paths);
   });
 
   it("rejects normalized base movement with an incomplete overlap residual", () => {
