@@ -3,7 +3,7 @@
   "slug": "make-candidate-bound-private-member-frontline-fix-authoring-explicit",
   "claimId": "03af567a8971450f75bb345c9e1d37fc",
   "createdAt": "2026-09-12T15:54:14.365Z",
-  "updatedAt": "2026-09-12T15:54:14.365Z",
+  "updatedAt": "2026-09-12T17:18:24.053Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "make-candidate-bound-private-member-frontline-fix-authoring-explicit",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make Candidate-bound private-member Frontline fix authoring explicit",
   "originEntrySourceDigest": "sha256:2856890bd0520f96ac9efae130268b26c63983a297b9ab4fa09bc9fffe3843c8",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/make-candidate-bound-private-member-frontline-fix-authoring-explicit",
+    "headSha": "96e618aaa1f33470e3165d1831acc325cfc937cf"
+  }
 }
