@@ -98,14 +98,26 @@ function refusalReason(body: string): string | null {
 }
 
 function isRequestCommand(comment: HostedGitHubIssueComment): boolean {
-  const body = comment.body.trim();
-  return body === COMMANDS.complete || body === COMMANDS.incremental;
+  return requestCommandCoverage(comment) !== null;
 }
 
-function isAuthenticatedCommandReply(comment: HostedGitHubIssueComment): boolean {
-  return comment.actorIdentity === BOT_USER_ID
+function requestCommandCoverage(comment: HostedGitHubIssueComment): HostedReviewCoverage | null {
+  const body = comment.body.trim();
+  if (body === COMMANDS.complete) return "complete";
+  if (body === COMMANDS.incremental) return "incremental";
+  return null;
+}
+
+function authenticatedReplySettlesRequest(
+  comment: HostedGitHubIssueComment,
+  request: HostedGitHubIssueComment,
+): boolean {
+  const coverage = requestCommandCoverage(request);
+  return coverage !== null
+    && comment.actorIdentity === BOT_USER_ID
     && comment.appId === APP_ID
-    && hasSingleCommandInvocationMarker(comment.body);
+    && (commandReplyCompleted(comment, request.createdAt, coverage)
+      || (comment.createdAt >= request.createdAt && refusalReason(comment.body) !== null));
 }
 
 function earlierRequestGenerationsSettled(
@@ -125,8 +137,7 @@ function earlierRequestGenerationsSettled(
       return false;
     }
     const settled = comments.some((comment) =>
-      isAuthenticatedCommandReply(comment)
-      && comment.createdAt >= earlierRequest.createdAt
+      authenticatedReplySettlesRequest(comment, earlierRequest)
       && comment.createdAt < nextRequest.createdAt);
     if (!settled) return false;
   }

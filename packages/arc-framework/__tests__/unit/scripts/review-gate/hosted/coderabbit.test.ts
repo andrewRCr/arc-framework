@@ -326,6 +326,28 @@ Review finished.`,
     });
   });
 
+  it("recognizes the current refusal after an earlier multi-marker completion reply", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        earlierRequestComment(),
+        earlierCommandReply({
+          body: `<!-- CodeRabbit review command invocation: invocation-id -->
+<!-- CodeRabbit review command invocation: duplicate-marker -->
+<summary>✅ Action performed</summary>
+
+Review finished.`,
+        }),
+        requestComment(),
+        refusalReply(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-refused: Review skipped: 200 files exceed the limit of 150.",
+    });
+  });
+
   it.each([
     { name: "untrusted actor", overrides: { actorIdentity: "999" } },
     { name: "untrusted app", overrides: { appId: "999" } },
