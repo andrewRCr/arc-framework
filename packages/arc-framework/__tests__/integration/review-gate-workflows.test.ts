@@ -92,6 +92,30 @@ describe("trusted review-gate workflows", () => {
     expect(parsed.jobs?.["portability-cross-platform"]?.env?.VITEST_MAX_WORKERS).toBe("");
   });
 
+  it("times each CI test job and reports its advisory budget after the tests", async () => {
+    const workflow = await read("ci.yml");
+    const jobs = [
+      ["unit", "unit", "unit", "unit"],
+      ["integration", "integration", "integration", "integration"],
+      ["e2e", "e2e", "e2e", "e2e-${{ matrix.shard }}"],
+    ] as const;
+
+    for (const [jobName, tier, projectSet, ciJob] of jobs) {
+      const steps = jobValue(workflow, jobName).steps;
+      expect(Array.isArray(steps)).toBe(true);
+      const ordered = steps as Array<Record<string, unknown>>;
+      expect(ordered.at(0)?.name, jobName).toBe("Start test budget clock");
+      expect(ordered.at(0)?.run, jobName).toContain("$(date +%s)");
+      expect(ordered.at(0)?.run, jobName).not.toContain("%N");
+      const report = ordered.at(-1);
+      expect(report?.name, jobName).toBe("Report test budget");
+      expect(report?.run, jobName).toContain(`--tier ${tier}`);
+      expect(report?.run, jobName).toContain(`--project-set ${projectSet}`);
+      expect(report?.run, jobName).toContain(`--ci-job "${ciJob}"`);
+      expect(report?.run, jobName).toContain("--started-at-seconds");
+    }
+  });
+
   it("runs four E2E shards with a denominator derived from the matrix", async () => {
     const workflow = await read("ci.yml");
     const e2e = jobValue(workflow, "e2e");
@@ -99,7 +123,7 @@ describe("trusted review-gate workflows", () => {
       "errand.e2e.test.ts",
       "candidate-lineage.e2e.test.ts",
       "command-input-no-input.e2e.test.ts",
-      "lifecycle-exit.e2e.test.ts",
+      "delivery-position.e2e.test.ts",
     ];
 
     expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");

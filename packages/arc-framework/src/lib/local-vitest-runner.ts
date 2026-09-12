@@ -40,8 +40,14 @@ export async function runLocalVitestTier(
     ...localVitestTierArguments(tier),
     ...forwardedArguments,
   ]);
-  const context = await dependencies.start("test", filter, options);
+  const context = await dependencies.start("test", filter, normalizeCliOptions(options));
   if (!context.shouldKeepServer()) await context.exit();
+}
+
+function normalizeCliOptions(options: ParsedVitestOptions): ParsedVitestOptions {
+  if (options.exclude === undefined) return options;
+  const { exclude, ...normalized } = options;
+  return { ...normalized, cliExclude: exclude };
 }
 
 function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
