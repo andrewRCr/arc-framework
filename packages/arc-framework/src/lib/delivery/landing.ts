@@ -301,14 +301,41 @@ export interface DeliveryLandingReadinessPort {
     readonly head: string;
   }): Promise<
     | { readonly status: "ready"; readonly settledReviewState: string }
-    | { readonly status: "refused" }
+    | {
+        readonly status: "refused";
+        readonly reason:
+          | "request-absent"
+          | "request-multiple"
+          | "request-foreign"
+          | "request-queued"
+          | "request-malformed"
+          | "request-unavailable"
+          | "review-readiness-invalid"
+          | "checks-not-green"
+          | "review-unsettled"
+          | "stale-target"
+          | "status-unavailable";
+      }
   >;
 }
 
 /** Merge-lock transition kept separate from unconditional readiness admission. */
 export interface DeliveryLandingLockPort {
   release(input: { readonly repository: string; readonly changeRequestId: string }): Promise<
-    { readonly status: "released" | "not-configured" } | { readonly status: "refused" }
+    { readonly status: "released" | "not-configured" } | {
+      readonly status: "refused";
+      readonly reason:
+        | "change-request-invalid"
+        | "config-unresolved"
+        | "repository-unavailable"
+        | "repository-mismatch"
+        | "pull-request-unavailable"
+        | "pull-request-mismatch"
+        | "pull-request-closed"
+        | "stale-head"
+        | "readiness-failed"
+        | "transition-failed";
+    }
   >;
 }
 
@@ -323,7 +350,7 @@ export interface DeliveryLandingObservationPort {
         readonly facts: DeliveryPositionFactsV1;
         readonly snapshot: DeliveryOperationSnapshotV1;
       }
-    | { readonly status: "refused" }
+    | { readonly status: "refused"; readonly reason: "position-unavailable" | "member-unavailable" }
   >;
   observeLandedResult(input: {
     readonly mergeCommitSha: string;
@@ -336,12 +363,97 @@ export interface DeliveryLandingObservationPort {
   proveLandedContribution(input: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
 }
 
-type DeliveryLandingRefusal =
-  | DeliveryContributionRefusal
-  | { readonly status: "refused"; readonly reason: "landing-refused" };
+const DeliveryHostProviderFailureSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("http"),
+    status: z.number().int().min(100).max(599),
+    exitCode: z.number().int().nullable(),
+  }),
+  z.strictObject({ kind: z.literal("command-failed"), exitCode: z.number().int().nullable() }),
+  z.strictObject({ kind: z.enum(["timed-out", "canceled", "unexpected"]) }),
+]);
 
-function landingRefused(): DeliveryLandingRefusal {
-  return { status: "refused", reason: "landing-refused" };
+/** Closed, stage-specific cause for an ordinary landing refusal. */
+export const DeliveryLandingRefusalCauseSchema = z.discriminatedUnion("stage", [
+  z.strictObject({
+    stage: z.literal("authorization-revalidation"),
+    reason: z.enum(["approved-operation-mismatch", "member-state-unavailable"]),
+  }),
+  z.strictObject({
+    stage: z.literal("readiness-revalidation"),
+    checkpoint: z.enum(["before-lock-release", "after-lock-release"]),
+    reason: z.enum([
+      "selection-unavailable",
+      "member-not-ready",
+      "operation-precondition-changed",
+      "change-request-not-exact",
+      "review-readiness-refused",
+    ]),
+    portReason: z.enum([
+      "position-unavailable",
+      "member-unavailable",
+      "request-absent",
+      "request-multiple",
+      "request-foreign",
+      "request-queued",
+      "request-malformed",
+      "request-unavailable",
+      "review-readiness-invalid",
+      "checks-not-green",
+      "review-unsettled",
+      "stale-target",
+      "status-unavailable",
+    ]).optional(),
+  }),
+  z.strictObject({
+    stage: z.literal("merge-lock-release"),
+    reason: z.literal("lock-release-refused"),
+    portReason: z.enum([
+      "change-request-invalid",
+      "config-unresolved",
+      "repository-unavailable",
+      "repository-mismatch",
+      "pull-request-unavailable",
+      "pull-request-mismatch",
+      "pull-request-closed",
+      "stale-head",
+      "readiness-failed",
+      "transition-failed",
+    ]).optional(),
+  }),
+  z.strictObject({ stage: z.literal("merge-policy-revalidation"), reason: z.literal("policy-unavailable") }),
+  z.strictObject({
+    stage: z.literal("merge-submission"),
+    reason: z.enum(["queued", "malformed", "unavailable"]),
+    provider: DeliveryHostProviderFailureSchema.optional(),
+  }),
+  z.strictObject({
+    stage: z.literal("merged-result-reconciliation"),
+    reason: z.enum([
+      "request-unavailable",
+      "request-mismatch",
+      "merge-commit-unavailable",
+      "landing-observation-unavailable",
+    ]),
+  }),
+  z.strictObject({
+    stage: z.literal("result-acceptance"),
+    reason: z.enum(["operation-result-refused", "state-persistence-refused"]),
+  }),
+]);
+export type DeliveryLandingRefusalCause = z.infer<typeof DeliveryLandingRefusalCauseSchema>;
+
+/** Public ordinary landing refusal retaining its exact safe cause. */
+export const DeliveryLandingRefusalSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("landing-refused"),
+  cause: DeliveryLandingRefusalCauseSchema,
+});
+
+type DeliveryLandingRefusal = z.infer<typeof DeliveryLandingRefusalSchema>;
+
+function landingRefused(cause: DeliveryLandingRefusalCause): DeliveryLandingRefusal {
+  return { status: "refused", reason: "landing-refused", cause };
 }
 
 /** Fresh operation observation selected from the persisted operation kind. */
@@ -506,6 +618,7 @@ export async function applyDeliveryLanding(input: {
 }): Promise<{ readonly status: "landed"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> } | {
   readonly status: "refused";
   readonly reason: "landing-refused";
+  readonly cause: DeliveryLandingRefusalCause;
 } | DeliveryContributionRefusal | DeliveryRecoveryResultV1> {
   const operation = input.current.value.activeOperation;
   if (operation?.kind !== "land" || operation.mode !== "sequential"
@@ -514,32 +627,70 @@ export async function applyDeliveryLanding(input: {
     || operation.effect.headSha !== input.approved.head
     || operation.effect.repository !== input.approved.repository
     || operation.effect.changeRequestId !== input.approved.changeRequestId
-    || operation.effect.strategy !== input.approved.mergeStrategy) return landingRefused();
+    || operation.effect.strategy !== input.approved.mergeStrategy) {
+    return landingRefused({
+      stage: "authorization-revalidation",
+      reason: "approved-operation-mismatch",
+    });
+  }
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.approved.deliverableId);
-  if (member === undefined || member.coordinates === null) return landingRefused();
+  if (member === undefined || member.coordinates === null) {
+    return landingRefused({ stage: "authorization-revalidation", reason: "member-state-unavailable" });
+  }
   const memberHead = member.coordinates.head;
   const stateWithoutReservation = { ...input.current.value, activeOperation: null };
-  const observeReady = async (): Promise<boolean> => {
+  const observeReady = async (
+    checkpoint: "before-lock-release" | "after-lock-release",
+  ): Promise<{ readonly status: "ready" } | z.infer<typeof DeliveryLandingRefusalSchema>> => {
     const fresh = await input.observation.observeSelection();
-    return fresh.status === "observed"
-      && assessDeliveryMemberReadiness(
-        input.plan, stateWithoutReservation, fresh.facts, member.deliverableId,
-      ).status === "ready"
-      && checkDeliveryOperationPrecondition(input.current, fresh.snapshot).status === "ready"
-      && (await exactOpenRequest({
-        host: input.host,
-        repository: input.approved.repository,
-        member,
-        baseRef: `refs/heads/${operation.effect.baseRef}`,
-      })).status === "exact"
-      && (await input.readiness.assess({
-        planId: input.plan.planId,
-        deliverableId: member.deliverableId,
-        workUnitId: input.plan.workUnitId,
-        repository: input.approved.repository,
-        changeRequestId: input.approved.changeRequestId,
-        head: memberHead,
-      })).status === "ready";
+    if (fresh.status !== "observed") {
+      return landingRefused({
+        stage: "readiness-revalidation",
+        checkpoint,
+        reason: "selection-unavailable",
+        portReason: fresh.reason,
+      });
+    }
+    if (assessDeliveryMemberReadiness(
+      input.plan, stateWithoutReservation, fresh.facts, member.deliverableId,
+    ).status !== "ready") {
+      return landingRefused({ stage: "readiness-revalidation", checkpoint, reason: "member-not-ready" });
+    }
+    if (checkDeliveryOperationPrecondition(input.current, fresh.snapshot).status !== "ready") {
+      return landingRefused({
+        stage: "readiness-revalidation",
+        checkpoint,
+        reason: "operation-precondition-changed",
+      });
+    }
+    if ((await exactOpenRequest({
+      host: input.host,
+      repository: input.approved.repository,
+      member,
+      baseRef: `refs/heads/${operation.effect.baseRef}`,
+    })).status !== "exact") {
+      return landingRefused({
+        stage: "readiness-revalidation",
+        checkpoint,
+        reason: "change-request-not-exact",
+      });
+    }
+    const readiness = await input.readiness.assess({
+      planId: input.plan.planId,
+      deliverableId: member.deliverableId,
+      workUnitId: input.plan.workUnitId,
+      repository: input.approved.repository,
+      changeRequestId: input.approved.changeRequestId,
+      head: memberHead,
+    });
+    return readiness.status === "ready"
+      ? { status: "ready" }
+      : landingRefused({
+          stage: "readiness-revalidation",
+          checkpoint,
+          reason: "review-readiness-refused",
+          portReason: readiness.reason,
+        });
   };
   const proveNotApplied = async (): Promise<boolean> => {
     const fresh = await input.observation.observeSelection();
@@ -552,19 +703,35 @@ export async function applyDeliveryLanding(input: {
         baseRef: `refs/heads/${operation.effect.baseRef}`,
       })).status === "exact";
   };
-  if (!(await observeReady())) return landingRefused();
-  if (input.approved.releaseMergeLock
-    && (await input.lock.release({
+  const beforeLock = await observeReady("before-lock-release");
+  if (beforeLock.status !== "ready") return beforeLock;
+  if (input.approved.releaseMergeLock) {
+    const released = await input.lock.release({
       repository: input.approved.repository,
       changeRequestId: input.approved.changeRequestId,
-    })).status === "refused") return landingRefused();
-  if (!(await observeReady())) return landingRefused();
+    });
+    if (released.status === "refused") {
+      return landingRefused({
+        stage: "merge-lock-release",
+        reason: "lock-release-refused",
+        portReason: released.reason,
+      });
+    }
+  }
+  const afterLock = await observeReady("after-lock-release");
+  if (afterLock.status !== "ready") return afterLock;
   if ((await input.observation.revalidateMergePolicy(operation.effect.mergePolicy)).status !== "exact") {
-    return landingRefused();
+    return landingRefused({ stage: "merge-policy-revalidation", reason: "policy-unavailable" });
   }
   const submitted = await input.host.mergeRequest(operation.effect);
   if (submitted.status !== "submitted") {
-    if (submitted.reason !== "native-stack-required") return landingRefused();
+    if (submitted.reason !== "native-stack-required") {
+      return landingRefused({
+        stage: "merge-submission",
+        reason: submitted.reason,
+        ...(submitted.provider === undefined ? {} : { provider: submitted.provider }),
+      });
+    }
     if (!(await proveNotApplied())) {
       return {
         status: "blocked",
@@ -603,24 +770,32 @@ export async function applyDeliveryLanding(input: {
   const merged = member.changeRequest === null
     ? { status: "refused" as const }
     : await input.host.readRequest(input.approved.repository, member.changeRequest);
-  if (merged.status !== "observed" || merged.request.state !== "merged"
-    || merged.request.repository !== operation.effect.repository
+  if (merged.status !== "observed") {
+    return landingRefused({ stage: "merged-result-reconciliation", reason: "request-unavailable" });
+  }
+  if (merged.request.state !== "merged" || merged.request.repository !== operation.effect.repository
     || merged.request.headRepository !== operation.effect.repository
     || merged.request.binding.changeRequestId !== operation.effect.changeRequestId
     || member.ref === null || merged.request.headRef !== member.ref.replace(/^refs\/heads\//u, "")
     || merged.request.headSha !== operation.effect.headSha
-    || merged.request.baseRef !== operation.effect.baseRef) return landingRefused();
+    || merged.request.baseRef !== operation.effect.baseRef) {
+    return landingRefused({ stage: "merged-result-reconciliation", reason: "request-mismatch" });
+  }
   const memberCoordinates = member.coordinates;
   const beforeTarget = operation.before.target?.coordinates;
   const mergeCommitSha = merged.request.mergeCommitSha;
   if (beforeTarget === null || beforeTarget === undefined || mergeCommitSha === null
-    || mergeCommitSha === undefined) return landingRefused();
+    || mergeCommitSha === undefined) {
+    return landingRefused({ stage: "merged-result-reconciliation", reason: "merge-commit-unavailable" });
+  }
   const landed = await input.observation.observeLandedResult({
     mergeCommitSha,
     strategy: operation.effect.strategy,
     beforeMember: memberCoordinates,
   });
-  if (landed === null) return landingRefused();
+  if (landed === null) {
+    return landingRefused({ stage: "merged-result-reconciliation", reason: "landing-observation-unavailable" });
+  }
   const proof = await input.observation.proveLandedContribution({
     before: { predecessor: beforeTarget, member: memberCoordinates },
     after: landed,
@@ -636,9 +811,13 @@ export async function applyDeliveryLanding(input: {
     outcome: "applied",
     snapshot: observed,
   });
-  if (accepted.status !== "applied") return landingRefused();
+  if (accepted.status !== "applied") {
+    return landingRefused({ stage: "result-acceptance", reason: "operation-result-refused" });
+  }
   const persisted = await input.stateStore.publish(input.plan.planId, accepted.state, input.current.revision);
-  return persisted.status === "ok" ? { status: "landed", state: persisted.value } : landingRefused();
+  return persisted.status === "ok"
+    ? { status: "landed", state: persisted.value }
+    : landingRefused({ stage: "result-acceptance", reason: "state-persistence-refused" });
 }
 
 function recoveryRerun(
