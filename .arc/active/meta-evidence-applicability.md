@@ -1,8 +1,8 @@
 # Metadata: evidence-applicability
 
-| **State** | **Owner** | **Branch**                    | **Class** | **Priority** |
-| --------- | --------- | ----------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/evidence-applicability` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                    | **Class** | **Priority** |
+| ------------- | --------- | ----------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/evidence-applicability` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:5aa9b5a144c365747437e5d7ce7c49c613d2df1673c0ab4259a12ffd7db668ba`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 6.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — run pre-publication review
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
