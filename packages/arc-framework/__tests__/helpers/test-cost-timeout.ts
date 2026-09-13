@@ -17,9 +17,10 @@ export function recordCliTimeoutForCurrentTest(
   timeoutMs: number,
   current: () => AnnotatableTest | undefined = TestRunner.getCurrentTest,
 ): void {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new Error("runCli timeout must be finite and positive");
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
+    throw new Error("runCli timeout must be finite and non-negative");
   }
+  if (timeoutMs === 0) return;
   const test = current();
   if (test === undefined) return;
   const previous = test.meta[TEST_COST_CLI_TIMEOUT_META];

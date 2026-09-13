@@ -48,6 +48,14 @@ describe("measurement mode", () => {
     });
   });
 
+  it("refuses a mismatched mode before evaluating a zero baseline percentage", () => {
+    expect(compareLever(cost(0), cost(80, { ...MODE, workerSizing: "6" }))).toEqual({
+      kind: "refused",
+      mismatches: ["workerSizing"],
+    });
+    expect(() => compareLever(cost(0), cost(80))).toThrow(/zero before value/u);
+  });
+
   it("treats deliberate worker variation as a sizing sweep, not a lever claim", () => {
     expect(createSizingSweep([
       cost(100, { ...MODE, workerSizing: "6" }),
