@@ -107,7 +107,7 @@ describe("prepublication workflow boundary", () => {
         .toContain("approval does not authorize delivery-member advancement");
 
       const recordedAttention = verification.indexOf("member-close scale-attention result");
-      const tierThree = verification.indexOf("Run the full quality gate suite");
+      const tierThree = verification.indexOf("Run the complete quality gate suite");
       expect(recordedAttention).toBeGreaterThan(-1);
       expect(recordedAttention).toBeLessThan(tierThree);
       expect(verification).toContain("    - review-chunking");
@@ -287,7 +287,7 @@ describe("prepublication workflow boundary", () => {
 
       const cleanup = verification.indexOf("Before the Candidate exists, clean the WU content");
       const selfReview = verification.indexOf("execute it against the local aggregate diff");
-      const tierThree = verification.indexOf("Run the full quality gate suite");
+      const tierThree = verification.indexOf("[quality-gate-commands method][arc-methods-qg]");
       const attest = verification.indexOf("arc attest {name} --json");
       const reRoot = verification.indexOf("`blocked / establish-new-root`");
       expect(cleanup).toBeGreaterThan(-1);

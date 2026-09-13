@@ -41,7 +41,7 @@ permissions:
 # GitHub-hosted Linux runner uses native sizing; selecting a custom Linux runner
 # defaults to one worker so multiple jobs and their CLI/Git subprocesses fit a
 # constrained host. The repository variable can retune that fleet without a code
-# change.
+# change. An unbudgeted sizing mode receives an advisory warning, not a comparison.
 env:
   VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}
 
@@ -320,6 +320,8 @@ jobs:
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
+    - name: Start test budget clock
+      run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         persist-credentials: false
@@ -337,6 +339,11 @@ jobs:
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
     - run: npm run test:unit
+    - name: Report test budget
+      run: >-
+        npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
+        --tier unit --project-set unit --workers "${VITEST_MAX_WORKERS:-native}"
+        --ci-job "unit" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   integration:
     name: Integration Tests
@@ -347,6 +354,8 @@ jobs:
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
+    - name: Start test budget clock
+      run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
@@ -371,6 +380,11 @@ jobs:
     - run: npm run test:integration
       env:
         ARC_E2E_SKIP_BUILD: '1'
+    - name: Report test budget
+      run: >-
+        npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
+        --tier integration --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
+        --ci-job "integration" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   e2e:
     name: E2E Tests (${{ matrix.shard }})
@@ -393,9 +407,11 @@ jobs:
         - shard: 3
           anchor: command-input-no-input.e2e.test.ts
         - shard: 4
-          anchor: lifecycle-exit.e2e.test.ts
+          anchor: delivery-position.e2e.test.ts
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
+    - name: Start test budget clock
+      run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         persist-credentials: false
@@ -426,10 +442,15 @@ jobs:
         --exclude='**/errand.e2e.test.ts'
         --exclude='**/candidate-lineage.e2e.test.ts'
         --exclude='**/command-input-no-input.e2e.test.ts'
-        --exclude='**/lifecycle-exit.e2e.test.ts'
+        --exclude='**/delivery-position.e2e.test.ts'
         --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         ARC_E2E_SKIP_BUILD: '1'
+    - name: Report test budget
+      run: >-
+        npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
+        --tier e2e --project-set e2e --workers "${VITEST_MAX_WORKERS:-native}"
+        --ci-job "e2e-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   # Linux confirmation for the same-machine write-safety guards. The
   # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`
