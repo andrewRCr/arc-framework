@@ -3,7 +3,7 @@
   "slug": "validate-delivery-lifecycle-paths-before-eligibility-gates",
   "claimId": "9c00a2abb5967270f6ccdcfec530b5ef",
   "createdAt": "2026-09-12T19:13:59.403Z",
-  "updatedAt": "2026-09-12T20:06:16.641Z",
+  "updatedAt": "2026-09-13T18:17:12.984Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "validate-delivery-lifecycle-paths-before-eligibility-gates",
@@ -11,7 +11,7 @@
   "origin": "inbox",
   "originEntry": "Validate delivery lifecycle paths before eligibility gates",
   "originEntrySourceDigest": "sha256:6f66c591305ccfdfb06f883189f1cde2875a93150cc09e6d03bf1f88105e67c4",
-  "state": "paused",
-  "savedHead": "aa481daebf0afc9792765500c41c5f34e7f3e9e4",
+  "state": "open",
+  "savedHead": null,
   "changeRequest": null
 }
