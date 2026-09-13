@@ -32,6 +32,7 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
   deliveryAdmissionDigest: ReviewCanonicalDigestSchema.nullable(),
+  errandClaimId: ReviewIdentifierSchema.optional(),
 });
 
 export interface LocalReviewAdmissionInput {
@@ -119,6 +120,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
       ? null
       : canonicalDigest(input.deliveryAdmission),
+    ...(input.authority.vehicle.kind === "errand"
+      ? { errandClaimId: input.authority.vehicle.claimId }
+      : {}),
   });
   const operationId = `local-${canonicalDigest(preimage).slice("sha256:".length)}`;
   return {

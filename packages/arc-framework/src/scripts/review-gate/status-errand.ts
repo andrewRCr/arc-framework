@@ -131,6 +131,7 @@ export async function readErrandRoutedObligation(input: {
       } else if (attempt.local !== undefined) {
         if (attempt.local.vehicle.kind !== "errand"
           || attempt.local.vehicle.identity !== selected.record.slug
+          || attempt.local.vehicle.claimId !== selected.record.claimId
           || attempt.local.target.headSha !== input.target.headSha) {
           return blocked("Recorded local review does not match the exact Errand target.");
         }

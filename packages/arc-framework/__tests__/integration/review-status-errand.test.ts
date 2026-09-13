@@ -194,5 +194,96 @@ describe("Errand review status", () => {
       state: "blocked",
       detail: "Recorded review progress does not match the exact Errand identity and change request.",
     });
+
+    await writeFile(join(root, "local-change.txt"), "locally reviewed change\n", "utf8");
+    await git(root, ["add", "local-change.txt"]);
+    await git(root, ["commit", "-m", "locally reviewed change"]);
+    const localHeadSha = await git(root, ["rev-parse", "HEAD"]);
+    const localHeadTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId,
+      baseRef: "main",
+      diffBaseSha: base,
+      diffBaseTree: baseTree,
+      headSha: localHeadSha,
+      headTree: localHeadTree,
+    });
+    await recordLaneAttempt(store, {
+      lane: "standard",
+      repositoryId,
+      changeRequestId: null,
+      headSha: localHeadSha,
+      attemptId: "local/review-1",
+      sourceId: "delegated-agent",
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      local: {
+        vehicle: { kind: "errand", identity: slug, claimId: nextRecord.claimId },
+        target: localTarget,
+      },
+      now: "2026-09-13T00:04:00Z",
+    });
+    const localStatusTarget = { ...target, headSha: localHeadSha };
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
+      state: "settled",
+    });
+
+    await git(root, ["switch", "main"]);
+    const finalRecord = TransientIdentityRecordV3Schema.parse({
+      ...nextRecord,
+      claimId: "00112233445566778899aabbccddeeff",
+    });
+    await writeFile(join(root, slug), serializeTransientIdentityRecord(finalRecord), "utf8");
+    await git(root, ["add", slug]);
+    await git(root, ["commit", "-m", "third identity claim"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    await git(root, ["switch", branch]);
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
+      state: "blocked",
+      detail: "Recorded local review does not match the exact Errand target.",
+    });
+
+    await writeFile(join(root, "legacy-local-change.txt"), "legacy review\n", "utf8");
+    await git(root, ["add", "legacy-local-change.txt"]);
+    await git(root, ["commit", "-m", "legacy local review"]);
+    const legacyHeadSha = await git(root, ["rev-parse", "HEAD"]);
+    const legacyHeadTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+    await recordLaneAttempt(store, {
+      lane: "standard",
+      repositoryId,
+      changeRequestId: null,
+      headSha: legacyHeadSha,
+      attemptId: "local/legacy-review",
+      sourceId: "delegated-agent",
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      local: {
+        vehicle: { kind: "errand", identity: slug },
+        target: createReviewTarget({
+          schemaVersion: 2,
+          semanticsVersion: "review-gate/v2",
+          kind: "change-set",
+          repositoryId,
+          baseRef: "main",
+          diffBaseSha: base,
+          diffBaseTree: baseTree,
+          headSha: legacyHeadSha,
+          headTree: legacyHeadTree,
+        }),
+      },
+      now: "2026-09-13T00:05:00Z",
+    });
+    await expect(readRoutedObligation(root, exec, {
+      ...target,
+      headSha: legacyHeadSha,
+    }, 42)).resolves.toMatchObject({
+      state: "blocked",
+      detail: "Recorded local review does not match the exact Errand target.",
+    });
   });
 });

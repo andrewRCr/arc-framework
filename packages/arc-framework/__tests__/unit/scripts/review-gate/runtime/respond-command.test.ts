@@ -30,6 +30,8 @@ import {
 import { createFixAuthorization } from
   "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
+import type { LocalReviewAuthority } from
+  "../../../../../src/scripts/review-gate/core/local-review-authority.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import type {
   FrontlineRunState,
@@ -53,7 +55,7 @@ const objectId = (character: string): string => character.repeat(40);
 const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
 const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
 const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
-const errandVehicle = { kind: "errand", identity: "repair-review-state" } as const;
+const errandVehicle = { kind: "errand", identity: "repair-review-state", claimId: "claim-1" } as const;
 
 function activeErrandBinding(claimId = "claim-1") {
   return ErrandReviewBindingSchema.parse({
@@ -63,7 +65,7 @@ function activeErrandBinding(claimId = "claim-1") {
   });
 }
 
-function fixture(vehicle: LocalReviewState["vehicle"] = workUnitVehicle) {
+function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -515,7 +517,7 @@ function localRequest(
 
 function hostedResponseFixture(
   origin: "review-thread" | "review-body",
-  vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
+  vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle,
 ) {
   const records = fixture(vehicle);
   const attemptId = "hosted/attempt-1";

@@ -62,6 +62,19 @@ describe("local review operation identity", () => {
     expect(createLocalReviewAdmission(input)).toEqual(createLocalReviewAdmission(input));
   });
 
+  it("uses a new operation identity when an Errand claim changes at the same head", () => {
+    const input = fixture();
+    const errand = (claimId: string) => createLocalReviewAdmission({
+      ...input,
+      authority: {
+        ...input.authority,
+        vehicle: { kind: "errand", identity: "review-surface-binding", claimId },
+      },
+    });
+
+    expect(errand("claim-1").operationId).not.toBe(errand("claim-2").operationId);
+  });
+
   it("returns an identical existing operation and re-verifies it without rebuilding", async () => {
     const admission = createLocalReviewAdmission(fixture());
     const state = {

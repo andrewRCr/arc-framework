@@ -37,7 +37,8 @@ const OperationEnvelopeShape = {
 };
 const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
-  z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema }),
+  // Older local attempts have no claim binding; readers must not let them settle a new Errand claim.
+  z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema, claimId: IdentifierSchema.optional() }),
   z.strictObject({ kind: z.literal("delivery-member"), identity: IdentifierSchema }),
 ]);
 
