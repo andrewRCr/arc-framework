@@ -28,7 +28,13 @@ function moduleFixture(
     project: { name: projectName },
     state: () => "passed",
     ok: () => true,
-    diagnostic: () => ({ collectDuration, setupDuration, duration: executionDuration }),
+    diagnostic: () => ({
+      environmentSetupDuration: 4,
+      prepareDuration: 6,
+      collectDuration,
+      setupDuration,
+      duration: executionDuration,
+    }),
     children: {
       allTests: function* () {
         for (const test of tests) {
@@ -57,10 +63,10 @@ describe("captureTestCost", () => {
     ]);
 
     expect(result.files.map((file) => [file.path, file.durationMs])).toEqual([
-      ["a.test.ts", 10],
-      ["b.test.ts", 31],
+      ["a.test.ts", 20],
+      ["b.test.ts", 41],
     ]);
-    expect(result.summedFileTimeMs).toBe(41);
+    expect(result.summedFileTimeMs).toBe(61);
   });
 
   it("adds complete module execution cost without double-counting test time", () => {
@@ -72,10 +78,12 @@ describe("captureTestCost", () => {
     ]).files;
 
     expect(file).toMatchObject({
-      fixedCostMs: 36,
+      environmentSetupDurationMs: 4,
+      prepareDurationMs: 6,
+      fixedCostMs: 46,
       testTimeMs: 5,
       executionDurationMs: 11,
-      durationMs: 47,
+      durationMs: 57,
     });
   });
 
@@ -132,7 +140,7 @@ describe("captureTestCost", () => {
       ]),
     ]).files;
 
-    expect(file).toMatchObject({ durationMs: 18, testTimeMs: 0, tests: [] });
+    expect(file).toMatchObject({ durationMs: 28, testTimeMs: 0, tests: [] });
   });
 
   it("keeps per-invocation CLI limits separate from whole-test headroom", () => {
@@ -156,4 +164,15 @@ describe("captureTestCost", () => {
       headroomFraction: 0.6,
     });
   });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects invalid CLI timeout metadata %s",
+    (cliTimeout) => {
+      expect(() => captureTestCost([
+        moduleFixture("invalid-cli.test.ts", "unit", 1, 1, [
+          { id: "invalid", name: "invalid", duration: 1, cliTimeout },
+        ]),
+      ])).toThrow(/Invalid CLI timeout metadata/u);
+    },
+  );
 });

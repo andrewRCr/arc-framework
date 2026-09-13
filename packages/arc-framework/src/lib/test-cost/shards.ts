@@ -32,11 +32,13 @@ export function parseWorkflowE2EExclusions(workflow: string): string[] {
 }
 
 export function validateE2EShardMembership(
+  discoveredTier: readonly string[],
   wholeTier: readonly string[],
   excludedAnchors: readonly string[],
   legs: readonly (readonly string[])[],
   anchorsByLeg: readonly string[],
 ): E2EShardMembership {
+  const discovered = uniqueSorted(discoveredTier);
   const whole = uniqueSorted(wholeTier);
   if (whole.length === 0) throw new Error("Filtered E2E tier is empty");
   if (legs.length < 2) throw new Error("E2E membership requires at least two shard legs");
@@ -56,6 +58,14 @@ export function validateE2EShardMembership(
   const excludedNames = excludedAnchors.map((glob) => glob.replace(/^\*\*\//u, ""));
   if (!sameMembers([...anchorsByLeg].sort(), [...excludedNames].sort())) {
     throw new Error("E2E anchor assignments must match the remainder exclusions");
+  }
+  const anchorFiles = anchorsByLeg.map((anchor) => {
+    const matches = discovered.filter((file) => file.split("/").at(-1) === anchor);
+    if (matches.length !== 1) throw new Error(`E2E anchor ${anchor} not found exactly once in the discovered tier`);
+    return matches[0] as string;
+  });
+  if (!sameMembers(discovered.filter((file) => !anchorFiles.includes(file)), whole)) {
+    throw new Error("E2E remainder exclusions do not match the discovered tier and anchors");
   }
   if (normalizedLegs.flat().some((file) => excludedNames.some((name) => file.endsWith(name)))) {
     throw new Error("An excluded anchor appeared in E2E remainder membership");

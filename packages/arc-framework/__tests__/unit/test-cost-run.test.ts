@@ -21,7 +21,13 @@ describe("runTestCostMeasurement", () => {
             project: { name: "unit" },
             state: () => "passed",
             ok: () => true,
-            diagnostic: () => ({ collectDuration: 10, setupDuration: 20, duration: 30 }),
+            diagnostic: () => ({
+              environmentSetupDuration: 4,
+              prepareDuration: 6,
+              collectDuration: 10,
+              setupDuration: 20,
+              duration: 30,
+            }),
             children: {
               allTests: function* () {
                 yield {
@@ -57,11 +63,11 @@ describe("runTestCostMeasurement", () => {
       expect.any(Function),
     );
     expect(result).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       outcome: "passed",
       unhandledErrorCount: 0,
       wallClockMs: 250,
-      summedFileTimeMs: 60,
+      summedFileTimeMs: 70,
       admissionWaitMs: 45,
       fileCount: 1,
       testCount: 1,
@@ -85,7 +91,13 @@ describe("runTestCostMeasurement", () => {
           project: { name: "unit" },
           state: () => "failed",
           ok: () => false,
-          diagnostic: () => ({ collectDuration: 1, setupDuration: 1, duration: 1 }),
+          diagnostic: () => ({
+            environmentSetupDuration: 0,
+            prepareDuration: 0,
+            collectDuration: 1,
+            setupDuration: 1,
+            duration: 1,
+          }),
           children: {
             allTests: function* () {
               yield {
@@ -132,7 +144,13 @@ describe("runTestCostMeasurement", () => {
           project: { name: "unit" },
           state: () => "passed",
           ok: () => true,
-          diagnostic: () => ({ collectDuration: 1, setupDuration: 1, duration: 1 }),
+          diagnostic: () => ({
+            environmentSetupDuration: 0,
+            prepareDuration: 0,
+            collectDuration: 1,
+            setupDuration: 1,
+            duration: 1,
+          }),
           children: {
             allTests: function* () {
               yield {
@@ -178,7 +196,13 @@ describe("runTestCostMeasurement", () => {
           project: { name: "unit" },
           state: () => "passed",
           ok: () => true,
-          diagnostic: () => ({ collectDuration: 1, setupDuration: 1, duration: 1 }),
+          diagnostic: () => ({
+            environmentSetupDuration: 0,
+            prepareDuration: 0,
+            collectDuration: 1,
+            setupDuration: 1,
+            duration: 1,
+          }),
           children: {
             allTests: function* () {
               yield {
