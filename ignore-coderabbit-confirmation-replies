@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "ignore-coderabbit-confirmation-replies",
+  "claimId": "d47b5b1fb37a4522216e1bbd190e474b",
+  "createdAt": "2026-09-13T19:33:04.463Z",
+  "updatedAt": "2026-09-13T19:33:04.463Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "ignore-coderabbit-confirmation-replies",
+  "branch": "chore/ignore-coderabbit-confirmation-replies",
+  "origin": "inbox",
+  "originEntry": "Ignore CodeRabbit confirmation replies when reading a fresh hosted review",
+  "originEntrySourceDigest": "sha256:d4a70acc82c1a7daa598e011724ccbf2397a8154d72900dc12abf6eff0b62071",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
