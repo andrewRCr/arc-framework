@@ -3,7 +3,7 @@
   "slug": "ignore-coderabbit-confirmation-replies",
   "claimId": "d47b5b1fb37a4522216e1bbd190e474b",
   "createdAt": "2026-09-13T19:33:04.463Z",
-  "updatedAt": "2026-09-13T19:33:04.463Z",
+  "updatedAt": "2026-09-13T20:02:34.711Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "ignore-coderabbit-confirmation-replies",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Ignore CodeRabbit confirmation replies when reading a fresh hosted review",
   "originEntrySourceDigest": "sha256:d4a70acc82c1a7daa598e011724ccbf2397a8154d72900dc12abf6eff0b62071",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/ignore-coderabbit-confirmation-replies",
+    "headSha": "d8608592ed75789093df1c94940bf59751d9f306"
+  }
 }
