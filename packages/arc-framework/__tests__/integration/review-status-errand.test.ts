@@ -26,6 +26,7 @@ import {
   recordHostedPendingRequest,
   recordLaneAttempt,
 } from "../../src/scripts/review-gate/lane-progress.js";
+import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from
   "../../src/scripts/review-gate/policy/standard-review.js";
@@ -44,6 +45,78 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
 }
 
 describe("Errand review status", () => {
+  it("binds an awaiting-merge identity to the live PR base and both host coordinates", async () => {
+    const root = await createTempRepoCore({ prefix: "arc-review-status-awaiting-", identity: "andrew" });
+    roots.push(root);
+    await git(root, ["commit", "--allow-empty", "-m", "base"]);
+    const slug = "awaiting-errand";
+    const branch = `chore/${slug}`;
+    await git(root, ["switch", "-c", branch]);
+    await git(root, ["commit", "--allow-empty", "-m", "reviewed change"]);
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    await git(root, ["switch", "main"]);
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      kind: "errand",
+      slug,
+      claimId: "0123456789abcdef0123456789abcdef",
+      purpose: "errand",
+      origin: "description",
+      originEntry: null,
+      intent: "Review an awaiting Errand",
+      branch,
+      state: "awaiting-merge",
+      savedHead: null,
+      changeRequest: {
+        repositoryRef: "owner/repo",
+        hostRef: "github.com",
+        baseRef: "main",
+        headRef: branch,
+        headSha,
+      },
+      createdAt: "2026-09-13T00:00:00.000Z",
+      updatedAt: "2026-09-13T00:00:00.000Z",
+    });
+    await writeFile(join(root, slug), serializeTransientIdentityRecord(record), "utf8");
+    await git(root, ["add", slug]);
+    await git(root, ["commit", "-m", "identity snapshot"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    const exec = makeGitExec(root);
+    const target = { repository: "owner/repo", headRef: branch, headSha };
+    const candidate = { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" };
+    const obligation = (changeRequestCandidate?: typeof candidate, remote?: string) => readErrandRoutedObligation({
+      cwd: root,
+      exec,
+      target,
+      pullRequest: 42,
+      ...(remote === undefined ? {} : { remote }),
+      ...(changeRequestCandidate === undefined ? {} : { changeRequestCandidate }),
+    });
+
+    await expect(obligation(candidate)).resolves.toEqual({
+      state: "review-required",
+      detail: "No standard review is recorded for this Errand head.",
+    });
+    await expect(obligation({ ...candidate, baseRefName: "feature" })).resolves.toMatchObject({
+      state: "blocked",
+      detail: "The Errand identity's change request does not match the exact target.",
+    });
+    await expect(obligation({ ...candidate, url: "https://other.example/owner/repo/pull/42" }))
+      .resolves.toMatchObject({
+        state: "blocked",
+        detail: "The Errand identity's change request does not match the exact target.",
+      });
+    await git(root, ["remote", "set-url", "origin", "https://other.example/owner/repo.git"]);
+    await expect(obligation(candidate)).resolves.toMatchObject({
+      state: "blocked",
+      detail: "The Errand identity's change request does not match the exact target.",
+    });
+    await git(root, ["remote", "add", "upstream", "https://github.com/owner/repo.git"]);
+    await expect(obligation(candidate, "upstream")).resolves.toMatchObject({ state: "review-required" });
+    await expect(obligation()).resolves.toMatchObject({ state: "blocked" });
+  });
+
   it("accepts the exact live remote head without a local Errand branch ref", async () => {
     const root = await createTempRepoCore({ prefix: "arc-review-status-remote-", identity: "andrew" });
     const remote = await mkdtemp(join(tmpdir(), "arc-review-status-bare-"));

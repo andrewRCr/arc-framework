@@ -40,6 +40,7 @@ import {
 } from "./policy/hosted-reservation-discharge.js";
 import {
   resolveChangeRequest,
+  type ChangeRequestCandidate,
   type ChangeRequestTargetRef,
 } from "./change-request.js";
 import { createGhChangeRequestResolutionPort } from "./hosts/github/change-request.js";
@@ -225,6 +226,7 @@ export async function readRoutedObligation(
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
     readonly remote?: string;
+    readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
     readonly preparedNativeLanding?: {
       readonly planId: string;
       readonly operationId: string;
@@ -240,6 +242,9 @@ export async function readRoutedObligation(
     target,
     pullRequest,
     ...(options.remote === undefined ? {} : { remote: options.remote }),
+    ...(options.changeRequestCandidate === undefined
+      ? {}
+      : { changeRequestCandidate: options.changeRequestCandidate }),
   });
   if (errand !== null) return errand;
   const subject = await resolveReviewSubject({
@@ -704,6 +709,7 @@ export function createReviewStatusPort(
               undefined,
               {
                 remote,
+                changeRequestCandidate: resolution.candidate,
                 ...(input.preparedNativeLanding === undefined
                   ? {}
                   : { preparedNativeLanding: input.preparedNativeLanding }),

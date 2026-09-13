@@ -82,14 +82,22 @@ export function evaluateChangeRequestReentry(
   return { kind: "refused", reason: `Host truth is ${lifecycle.kind}, not an open change request.` };
 }
 
-/** Resolve the configured origin repository and base for an exact host read. */
+/**
+ * Resolve the configured remote repository and base for an exact host read.
+ *
+ * @param exec - Git read boundary.
+ * @param baseRef - Change-request integration base.
+ * @param remote - Configured Git remote name.
+ * @returns Parsed host, repository, and base coordinates, or null when unavailable.
+ */
 export async function resolveChangeRequestLifecycleConfiguration(
   exec: GitExec,
   baseRef: string,
+  remote = "origin",
 ): Promise<ChangeRequestLifecycleConfiguration | null> {
   let url: string;
   try {
-    url = (await exec("git", ["config", "--get", "remote.origin.url"])).stdout.trim();
+    url = (await exec("git", ["config", "--get", `remote.${remote}.url`])).stdout.trim();
   } catch {
     return null;
   }

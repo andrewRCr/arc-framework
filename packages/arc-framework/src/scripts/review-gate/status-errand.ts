@@ -1,6 +1,7 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
 import { readTransientIdentitySnapshot } from "../../lib/errand/identity-snapshot.js";
+import { resolveChangeRequestLifecycleConfiguration } from "../../lib/errand/change-request-lifecycle.js";
 import type { TransientIdentityRecord } from "../../lib/errand/identity-record.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
@@ -9,6 +10,7 @@ import { resolveIdentity } from "../../lib/git/index.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { readLaneProgress } from "./lane-progress.js";
+import type { ChangeRequestCandidate } from "./change-request.js";
 import type { RoutedReviewObligation } from "./status.js";
 
 interface ExactErrandStatusTarget {
@@ -79,6 +81,7 @@ export async function readErrandRoutedObligation(input: {
   readonly target: ExactErrandStatusTarget;
   readonly pullRequest: number;
   readonly remote?: string;
+  readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
 }): Promise<RoutedReviewObligation | null> {
   // The branch vocabulary only avoids an impossible identity read; the record still grants authority.
   if (!isErrandBranchType(input.target.headRef.split("/", 1)[0] ?? "")) return null;
@@ -94,6 +97,22 @@ export async function readErrandRoutedObligation(input: {
     const selected = matchingOrdinaryErrand([...snapshot.records.values()], input.target);
     if (selected.kind === "none") return null;
     if (selected.kind === "blocked") return blocked(selected.detail);
+    if (selected.record.state === "awaiting-merge") {
+      const candidate = input.changeRequestCandidate;
+      const configured = candidate === undefined ? null : await resolveChangeRequestLifecycleConfiguration(
+        exec,
+        candidate.baseRefName,
+        input.remote ?? "origin",
+      );
+      const retained = selected.record.changeRequest;
+      if (candidate === undefined || configured === null
+        || retained.baseRef !== candidate.baseRefName
+        || retained.hostRef.toLowerCase() !== configured.hostRef.toLowerCase()
+        || retained.hostRef.toLowerCase() !== new URL(candidate.url).hostname.toLowerCase()
+        || retained.repositoryRef.toLowerCase() !== configured.repositoryRef.toLowerCase()) {
+        return blocked("The Errand identity's change request does not match the exact target.");
+      }
+    }
     if (!await branchAtHead(exec, input.target.headRef, input.remote ?? "origin", input.target.headSha)) {
       return blocked("The Errand identity's branch does not match the exact review head.");
     }
