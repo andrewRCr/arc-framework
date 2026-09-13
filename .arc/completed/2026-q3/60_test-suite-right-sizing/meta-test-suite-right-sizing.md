@@ -28,9 +28,14 @@
 Routine local tests now run the unit and integration projects; the full suite remains available through
 `test:full`, and CI continues to enforce E2E before merge.
 
-- **Added:** Test-cost measurement and per-tier, per-mode budgets with advisory CI overage reporting.
-- **Changed:** Shared integration fixtures, built-CLI test placement, lazy CLI handler loading, and worker and CI
-  anchor selection reduce verification cost while retaining behavioral coverage.
+### Added
+
+- Test-cost measurement and per-tier, per-mode budgets with advisory CI overage reporting.
+
+### Changed
+
+- Shared integration fixtures, built-CLI test placement, lazy CLI handler loading, and worker and CI anchor
+  selection reduce verification cost while retaining behavioral coverage.
 
 ## Completion Notes
 
