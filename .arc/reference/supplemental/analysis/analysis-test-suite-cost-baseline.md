@@ -3,7 +3,8 @@
 Instrument-produced baseline of the CLI package's test-suite cost, taken 2026-09-11 during
 `test-suite-right-sizing` execution. It grounds every later target in retained measurement rather than projection.
 
-**Status: authoritative first instrument baseline.** Tier-cost figures are medians of three complete retained runs
+**Status: schema-v4 corrected baseline; schema-v3 first baseline retained historically.** The figures below the correction
+notice are medians of three complete retained runs
 captured at `3548ac2ca` with the repository-owned `benchmark:test-cost` entry after the member-boundary review
 corrections. Fixture-build and CLI-startup figures below are standalone probes; CI figures come from workflow runs.
 Every schema-v3 record carries a successful outcome established from Vitest's completed module states and empty
@@ -12,6 +13,7 @@ the durable record.
 
 ## Contents
 
+- [Schema-v4 metric correction](#schema-v4-metric-correction)
 - [Method and its limits](#method-and-its-limits)
 - [Tier baselines](#tier-baselines)
 - [Where the time concentrates](#where-the-time-concentrates)
@@ -25,7 +27,48 @@ the durable record.
 
 ---
 
+## Schema-v4 metric correction
+
+_Amended 2026-09-13 after member-boundary review._ Vitest reports `environmentSetupDuration` and
+`prepareDuration` separately from collection, setup, and module duration. Schema v4 includes both exactly once:
+per-file cost is `environmentSetupDuration + prepareDuration + collectDuration + setupDuration + module duration`.
+The module duration includes tests and hooks; neither individual test durations nor `importDurations` are added.
+Schema-v3 raw runs remain historical observations under their old arithmetic. The normalizer now refuses them,
+so they cannot be combined with schema-v4 runs or used as the before side of a new summed-cost comparison.
+
+Three successful schema-v4 runs at the same tier-isolated / 12-worker mode establish the corrected local baselines
+available so far. Runs were taken serially on the member-2 review-fix tree on 2026-09-13; the table is a median
+of complete retained records, not an arithmetic update to old measurements.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases |
+| --------------------- | ---------- | ---------------- | ----- | -------------- |
+| `unit` + `unit-mocks` | 23.984 s   | 142.375 s        | 698   | 9,998          |
+| `integration`         | 44.151 s   | 383.972 s        | 137   | 1,254          |
+| Routine lane (no E2E) | 57.063 s   | 544.918 s        | 835   | 11,252         |
+| `e2e`                 | 279.810 s  | 1,706.160 s      | 54    | 537            |
+
+The added environment/preparation terms have median tier totals of 0.293 s, 0.661 s, 1.017 s, and 0.285 s
+respectively.
+Those are within-run term totals, **not** differences from schema v3: code and host conditions also changed. The
+new integration ranking starts with `decompose-v3-repository-plan.test.ts` (42.572 s), `user.test.ts` (42.264 s),
+`config-validate.test.ts` (41.455 s), and `review-fan-out-lifecycle.test.ts` (38.462 s). Later target scoring that
+uses summed or maximum-file cost needs both sides captured under schema v4 in the same mode.
+
+Two earlier E2E attempts failed and produced no eligible retained run. The fully captured second attempt timed
+out one `delivery-position.e2e.test.ts` case at Vitest's 30-second default; the first attempt's detailed
+diagnostic was not retained. Giving that case a 60-second limit allowed three complete successful samples. The
+new E2E ranking starts with `candidate-lineage.e2e.test.ts` (269.163 s),
+`delivery-position.e2e.test.ts` (164.487 s), `command-input-no-input.e2e.test.ts` (144.544 s), and
+`errand.e2e.test.ts` (127.953 s). Its schema-v3 ranking, substrate share, and summed-time figures below remain
+historical and cannot be promoted to schema-v4 evidence. Wall-clock and CI-job observations are not
+arithmetically changed by this metric correction.
+
+---
+
 ## Method and its limits
+
+The following method and rankings describe the historical schema-v3 baseline. The corrected metric and its
+current evidence boundary are recorded above.
 
 Environment: WSL2 on Linux 5.15, Node 26.3.0, ext4 on a virtual disk, `/tmp` on that same ext4 filesystem,
 `/dev/shm` a tmpfs with ~7.8 GB free. Warm caches throughout.

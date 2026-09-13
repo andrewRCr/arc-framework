@@ -42,26 +42,33 @@ export async function deriveEffectiveE2EShards(
   if (anchorsByLeg.length !== shardCount) {
     throw new Error(`CI workflow declares ${anchorsByLeg.length} E2E anchors for ${shardCount} shard legs`);
   }
-  const commonArgs = [
+  const tierArgs = [
     "list",
     "--project",
     "e2e",
+  ];
+  const commonArgs = [
+    ...tierArgs,
     ...exclusions.flatMap((exclusion) => ["--exclude", exclusion]),
   ];
   const env = { ...input.env, ARC_E2E_SKIP_BUILD: "1" };
-  const readMembership = async (shard?: string): Promise<string[]> => {
+  const readMembership = async (args: readonly string[]): Promise<string[]> => {
     const result = await dependencies.execute(
       process.platform === "win32" ? "npx.cmd" : "npx",
-      ["vitest", ...commonArgs, ...(shard === undefined ? [] : [`--shard=${shard}`]), "--json"],
+      ["vitest", ...args, "--json"],
       { cwd: input.packageRoot, env },
     );
     return parseListedFiles(result.stdout, input.packageRoot);
   };
-  const wholeTier = await readMembership();
+  const discoveredTier = await readMembership(tierArgs);
+  const wholeTier = await readMembership(commonArgs);
   const legs = await Promise.all(
-    Array.from({ length: shardCount }, async (_, index) => await readMembership(`${index + 1}/${shardCount}`)),
+    Array.from({ length: shardCount }, async (_, index) => await readMembership([
+      ...commonArgs,
+      `--shard=${index + 1}/${shardCount}`,
+    ])),
   );
-  return validateE2EShardMembership(wholeTier, exclusions, legs, anchorsByLeg);
+  return validateE2EShardMembership(discoveredTier, wholeTier, exclusions, legs, anchorsByLeg);
 }
 
 const DEFAULT_DEPENDENCIES: E2EShardRunDependencies = {

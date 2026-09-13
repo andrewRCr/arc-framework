@@ -12,6 +12,8 @@ function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
   const file = {
     path: "a.test.ts",
     tier: "unit",
+    environmentSetupDurationMs: 0,
+    prepareDurationMs: 0,
     collectDurationMs: 10,
     setupDurationMs: 10,
     fixedCostMs: 20,
@@ -29,7 +31,7 @@ function run(durationMs: number, waitMs?: number): RetainedTestCostRun {
     }],
   };
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     outcome: "passed",
     unhandledErrorCount: 0,
     requestedWorkerSizing: "12",
@@ -68,6 +70,40 @@ describe("normalizeRetainedTestCostRuns", () => {
     const ineligible = { ...run(100), outcome: "failed" };
 
     expect(() => assertRetainedTestCostRun(ineligible, "ineligible.json"))
+      .toThrow(/successful outcome/u);
+  });
+
+  it("refuses malformed nested data and inconsistent derived totals", () => {
+    const valid = run(100);
+    const file = valid.files[0]!;
+    for (const malformed of [
+      { ...valid, mode: { ...valid.mode, condition: "invented" } },
+      { ...valid, mode: undefined },
+      { ...valid, capturedAt: "not-a-date" },
+      { ...valid, wallClockMs: Number.POSITIVE_INFINITY },
+      { ...valid, summedFileTimeMs: 1 },
+      { ...valid, fileCount: 2 },
+      { ...valid, substrate: undefined },
+      { ...valid, substrate: { durationMs: 1, shareFraction: 1, files: ["ghost.test.ts"] } },
+      { ...valid, files: [{ ...file, fixedCostMs: 1 }] },
+      { ...valid, files: [{ ...file, tests: [{ ...file.tests[0]!, headroomMs: 0 }] }] },
+    ]) {
+      expect(() => assertRetainedTestCostRun(malformed, "malformed.json")).toThrow(/Invalid retained/u);
+    }
+  });
+
+  it("refuses divergent substrate membership across otherwise comparable runs", () => {
+    const valid = run(100);
+    const divergent = {
+      ...valid,
+      substrate: { ...valid.substrate, files: ["ghost.test.ts"] },
+    } as RetainedTestCostRun;
+    expect(() => normalizeRetainedTestCostRuns([valid, divergent]))
+      .toThrow(/substrate/u);
+  });
+
+  it("refuses legacy cost arithmetic under the new schema", () => {
+    expect(() => assertRetainedTestCostRun({ ...run(100), schemaVersion: 3 }, "legacy.json"))
       .toThrow(/successful outcome/u);
   });
 });

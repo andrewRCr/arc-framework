@@ -12,7 +12,7 @@ export function parseTestCostCli(argv: readonly string[]): TestCostCliInput {
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index];
     const value = argv[index + 1];
-    if (key === undefined || value === undefined || !key.startsWith("--")) {
+    if (key === undefined || value === undefined || !key.startsWith("--") || value.startsWith("--")) {
       throw new Error("Test-cost arguments must be complete --name value pairs");
     }
     if (values.has(key)) throw new Error(`Duplicate test-cost argument: ${key}`);
