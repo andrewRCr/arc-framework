@@ -8,6 +8,7 @@ arc:
     - review-triage
     - commit-footer
     - quality-gate-commands
+    - review-chunking
 ---
 
 # Workflow: Verify Completion
@@ -36,9 +37,18 @@ If the [`self-review` method][self-review] is effectively active, execute it aga
 the base branch. Classify findings per [`review-triage`][review-triage], obtain approval for the complete disposition
 set, and commit approved fixes per [`commit-footer`][commit-footer] before continuing.
 
-Run the full quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
+When the task list carries a Delivery Plan, inspect every member-close scale-attention result before terminal Tier 3.
+Each completed member must record the resolver's exact target, state, and disposition, plus metrics when the resolver
+supplies them. A `disabled / none` result is complete without metrics because its typed envelope carries none. A
+`consider-chunks / select-review-scope` result is resolved only by a selected bounded-review route or an explicit
+capable whole-target choice under the [`review-chunking` method][review-chunking]. Missing evidence, an unresolved
+attention result, or an unbound member re-cut stops and returns to the delivery-member boundary in
+[`process-task-loop.md`][process-task-loop]. Member-close evidence covers its completed span only; it never replaces
+the exact post-materialization recheck.
+
+Run the complete quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
-clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
+clean throughout implementation, completing every project-designated gate supplies the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 
@@ -140,5 +150,7 @@ verification-task exception). Cover both:
 [self-review]: ../../../methods/self-review.md
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
+[review-chunking]: ../../../methods/review-chunking.md
 [prepare-work-unit]: prepare-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
+[process-task-loop]: ../process-task-loop.md

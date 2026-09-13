@@ -1003,6 +1003,58 @@ describe("handleReviewStatus", () => {
     });
   });
 
+  it("passes an invocation-scoped hosted source into exact-target status composition", async () => {
+    const statusTarget = {
+      repository: "owner/repo",
+      headRef: "delivery/example/member-1",
+      headSha: "c".repeat(40),
+    };
+    const output: string[] = [];
+    const resolve = vi.fn(async (_root, request) => ({
+      schemaVersion: 1 as const,
+      mode: "review-status" as const,
+      target: request.target,
+      requiredChecks: "green" as const,
+      routedObligation: {
+        state: "review-required" as const,
+        detail: `Selected ${request.sourceId ?? "default"}.`,
+      },
+      currentBaseOid: "b".repeat(40),
+      movement: "disjoint" as const,
+      baseMovement: {
+        coordinates: {
+          repository: statusTarget.repository,
+          changeRequest: 42,
+          base: "b".repeat(40),
+          head: statusTarget.headSha,
+        },
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
+      state: "review-required" as const,
+      nextAction: "run-review" as const,
+    }));
+
+    await handleReviewStatus({
+      target: JSON.stringify(statusTarget),
+      source: "codex-pr",
+      json: true,
+    }, undefined, {
+      resolveRoot: () => "/repo",
+      resolve,
+      resolveWorkUnit: vi.fn(),
+      write: (text) => output.push(text),
+      setExitCode: () => undefined,
+    });
+
+    expect(resolve).toHaveBeenCalledWith("/repo", {
+      target: statusTarget,
+      sourceId: "codex-pr",
+    });
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      routedObligation: { detail: "Selected codex-pr." },
+    });
+  });
+
   it("passes an exact ceiling override into status composition", async () => {
     const statusTarget = {
       repository: "owner/repo",

@@ -10,7 +10,7 @@
  * called directly so the assertions read the on-disk result.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFile } from "node:child_process";
 import { lstat, mkdir, writeFile, stat, readFile, readdir, symlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
@@ -31,29 +31,11 @@ import {
 } from "../../src/lib/work-unit/git-graduation-transaction.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
+import { runHandlerAt } from "../helpers/handler.js";
 
 const execFileAsync = promisify(execFile);
 
 const IDENTITY = "test-user";
-
-async function captureProcessOutput(fn: () => Promise<void>): Promise<string> {
-  const chunks: string[] = [];
-  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    stdoutSpy.mockRestore();
-    stderrSpy.mockRestore();
-  }
-  return chunks.join("");
-}
 
 /** A minimal managed meta for a stub at a given State. */
 function metaFor(slug: string, state: string, branch: string, cls = "Light"): string {
@@ -244,21 +226,12 @@ describe("arc start dispatch — against real worktrees", () => {
     });
     h.spawned.push(wt);
 
-    const originalCwd = process.cwd();
-    const savedExitCode = process.exitCode;
-    process.exitCode = undefined;
-    let observedExitCode: typeof process.exitCode;
-    let output: string;
-    try {
-      process.chdir(h.repo);
-      output = await captureProcessOutput(() => handleStart("shell-alpha", { new: true, yes: true }));
-      observedExitCode = process.exitCode;
-    } finally {
-      process.chdir(originalCwd);
-      process.exitCode = savedExitCode;
-    }
-
-    if (observedExitCode !== undefined) throw new Error(output);
+    const result = await runHandlerAt(
+      h.repo,
+      () => handleStart("shell-alpha", { new: true, yes: true }),
+    );
+    if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout);
+    const output = result.stdout + result.stderr;
 
     const { stdout: subject } = await execFileAsync("git", ["log", "-1", "--format=%s"], { cwd: wt });
     const { stdout: body } = await execFileAsync("git", ["log", "-1", "--format=%b"], { cwd: wt });
@@ -327,21 +300,9 @@ describe("arc start dispatch — against real worktrees", () => {
     });
     h.spawned.push(wt);
 
-    const originalCwd = process.cwd();
-    const savedExitCode = process.exitCode;
-    process.exitCode = undefined;
-    let observedExitCode: typeof process.exitCode;
-    let output: string;
-    try {
-      process.chdir(h.repo);
-      output = await captureProcessOutput(() => handleStart("shell-widget", { yes: true }));
-      observedExitCode = process.exitCode;
-    } finally {
-      process.chdir(originalCwd);
-      process.exitCode = savedExitCode;
-    }
-
-    expect(observedExitCode).toBeUndefined();
+    const result = await runHandlerAt(h.repo, () => handleStart("shell-widget", { yes: true }));
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout + result.stderr;
     expect(await pathExists(join(wt, ".arc", "active", "meta-shell-widget.md"))).toBe(true);
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", "shell-widget", "meta-shell-widget.md"))).toBe(false);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "shell-widget", "meta-shell-widget.md"))).toBe(true);
@@ -388,25 +349,13 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
 
-    const originalCwd = process.cwd();
-    const savedExitCode = process.exitCode;
-    process.exitCode = undefined;
-    let observedExitCode: typeof process.exitCode;
-    let output: string;
-    try {
-      process.chdir(h.repo);
-      output = await captureProcessOutput(() => handleStart(slug, { yes: true }));
-      observedExitCode = process.exitCode;
-    } finally {
-      process.chdir(originalCwd);
-      process.exitCode = savedExitCode;
-    }
-
-    if (observedExitCode !== undefined) throw new Error(output);
+    const result = await runHandlerAt(h.repo, () => handleStart(slug, { yes: true }));
+    if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout);
     expect(await pathExists(join(wt, ".arc", "active", `meta-${slug}.md`))).toBe(true);
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
     const record = parseMetaProjectionRecord(await readFile(join(wt, ".arc", "active", `meta-${slug}.md`), "utf8"));
     expect(record.Class).toBe("Light");
+    const output = result.stdout + result.stderr;
     expect(output.match(/Branch `feat\/stale-launcher`[^\n]+cleanup may be required\./gu)).toHaveLength(1);
   });
 

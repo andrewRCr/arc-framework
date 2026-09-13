@@ -412,6 +412,28 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("ignores Candidate-owned private Frontline fixes when selecting a public member response", () => {
+    const privateReview = deliveryDispositionRecord({ operationId: "private-member-review" });
+    const privateCandidate = ApprovedDispositionRecordSchema.parse({
+      ...privateReview,
+      candidate: {
+        workUnit: plan.workUnitId,
+        candidateId: canonicalDigest({ candidate: "private-member-review" }),
+      },
+      source: { kind: "frontline", outcomeRef: "frontline-outcome/private-member-review" },
+    });
+    const publicPending = deliveryDispositionRecord({ operationId: "public-member-review" });
+
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [privateCandidate],
+    })).toEqual({ status: "none" });
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [privateCandidate, publicPending],
+    })).toMatchObject({ status: "selected", operationId: publicPending.operationId });
+  });
+
   it("refuses ambiguous or internally inexact pending hosted member authority", () => {
     const first = deliveryDispositionRecord({ operationId: "operation-first" });
     const second = deliveryDispositionRecord({ operationId: "operation-second" });

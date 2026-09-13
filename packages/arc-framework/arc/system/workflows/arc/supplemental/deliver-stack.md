@@ -9,6 +9,7 @@ arc:
     - implementation-audit
     - review-triage
     - review-response
+    - review-chunking
     - validate-criteria
   extensions:
     - pre-push-review
@@ -63,10 +64,10 @@ Resolve the complete plan's exact disposable authoring locators:
 arc delivery authoring locate - --json
 ```
 
-Record each authored cut at its returned private candidate ref and run project gates in the matching returned
-detached gate path. Do not leave ordinary local branches or branched worktrees for these cuts — ARC may interpret
-them as work-unit loci or cleanup residue. The private refs are identity-free locators only and grant no delivery
-authority.
+Record each authored cut at its returned private candidate ref and returned matching detached gate path. Do not leave
+ordinary local branches or branched worktrees for these cuts — ARC may interpret them as work-unit loci or cleanup
+residue. The private refs are identity-free locators only and grant no delivery authority. Gate execution waits for
+the materialized member scale recheck below.
 
 The write half of that locus is typed too, so a correction interrupted between authoring and its gate replay
 completes without hand-writing a ref in the ARC-owned namespace. `arc delivery authoring rematerialize - --json`
@@ -74,6 +75,29 @@ prepares the exact private ref and detached gate pair at the current public memb
 `arc delivery authoring rebind - --json` binds a clean detached authoring head to its candidate ref. Both take the
 exact inputs the correction continuation dispatches in-process and refuse with the executor's own typed reason on a
 dirty locus, a moved head or tree, a stale state revision, or an active operation.
+
+For every returned locator in plan order, compose the exact materialized member target from its private candidate
+head and plan-ordered predecessor boundary, then invoke:
+
+```bash
+arc review chunking resolve -
+```
+
+Supply the member's `{ kind, baseRef, diffBaseSha, headSha }` and any exact-target scope selection retained from
+member closeout. Dispatch only on the typed result:
+
+- `disabled / none`, `below-threshold / continue-review`, and `scope-selected / continue-review` continue.
+- `consider-chunks / select-review-scope` renders `recommendedActionText` and applies the
+  [`review-chunking` method][review-chunking]. For a selected bounded-review route, reinvoke the resolver and require
+  `scope-selected / continue-review`. An explicit capable whole-target choice closes the attention disposition while
+  retaining the unchanged `consider-chunks` result and exact-target selection. An honest coherent member re-cut that
+  has no bound selection stops for the Owner's decision.
+- `evidence-unavailable / continue-review`, `delivery-bound / continue-review`, and every malformed or unsupported
+  result stop before gate execution.
+
+No Tier 2 command starts until every exact member target has a closed result and disposition. Retain each exact-target
+selection for the calling pre-publication review. This recheck governs the current materialization only; later target
+movement requires another exact check.
 
 ```bash
 arc delivery eligibility prepare - --json
@@ -271,6 +295,21 @@ review evidence exists. Resolve its exact open change request and pass the resol
 ```bash
 arc review status --target '{targetRef}' --json
 ```
+
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
+attention disposition while retaining `consider-chunks`. Require the returned review action to carry either the
+exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
+by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
+carrier.
+
+After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
+
+```bash
+arc review status --target '{targetRef}' --source <hosted-source-id> --json
+```
+
+The source-less form retains the automatic chunked route.
 
 The default action requests complete coverage. When a typed applicability recommendation requires a focused
 supplemental hosted pass, request it from the same first-outstanding member position instead of editing an action:
@@ -672,6 +711,7 @@ terminal merge. Do not fire a delivery interlock here.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
 [assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
+[review-chunking]: ../../../methods/review-chunking.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md

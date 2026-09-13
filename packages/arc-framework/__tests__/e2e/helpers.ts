@@ -12,6 +12,7 @@ import { promisify } from "node:util";
 
 import { CLI_PATH, assertCliBuilt } from "../helpers/cli-spawn.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { recordCliInvocationForCurrentTest } from "../helpers/test-cost-timeout.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -157,6 +158,7 @@ export async function runArc(
     return runArcNoTty(args, cwd, options);
   }
   const timeout = options?.timeout ?? 30_000;
+  recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
     const { stdout, stderr } = process.platform === "linux"
@@ -198,6 +200,7 @@ export async function runArcAnchored(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
+  recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment({ PS1: "", ...options?.env });
   const command = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
   const interactiveCommand = `${command}; command_status=$?; exit $command_status`;
@@ -225,6 +228,9 @@ export async function runArcAnchoredSequence(
 ): Promise<AnchoredSequenceResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
+  for (const entry of argsList) {
+    if (!("command" in entry)) recordCliInvocationForCurrentTest(timeout);
+  }
   const env = builtCliEnvironment({ PS1: "", ...options?.env });
   const anchorShell = options?.anchorShellPath ?? "bash";
   const commands = argsList.map((entry) => {
@@ -292,6 +298,7 @@ export async function runArcNoTty(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
+  recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, [CLI_PATH, ...args], { cwd, timeout, env });
@@ -323,6 +330,7 @@ export async function runArcWithStdoutPipe(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
+  recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
   try {
     const pipeline = `${buildScriptCommand(args, false)} | cat`;
@@ -360,6 +368,7 @@ export function runArcWithStdin(
 ): Promise<RunResult> {
   assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
+  recordCliInvocationForCurrentTest(timeout);
   const env = builtCliEnvironment(options?.env);
 
   return new Promise<RunResult>((resolveResult, rejectResult) => {

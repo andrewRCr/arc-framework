@@ -5200,7 +5200,19 @@ async function executeDeliveryCommand(
   }
 
   if (command === "eligibility-prepare") {
-    return prepareDeliveryEligibility(PrepareSchema.parse(request), eligibilityDeps);
+    const parsed = PrepareSchema.parse(request);
+    const lifecyclePaths = await resolveCurrentLifecyclePaths(
+      parsed.plan,
+      parsed.protectedBaseRef,
+      parsed.topRef,
+    );
+    if (lifecyclePaths === null) return { status: "refused", reason: "evidence-unavailable" };
+    const requestedPaths = sortByCanonicalBytes([...new Set(parsed.lifecyclePaths)]);
+    const currentPaths = sortByCanonicalBytes([...new Set(lifecyclePaths)]);
+    if (canonicalize(requestedPaths) !== canonicalize(currentPaths)) {
+      return { status: "refused", reason: "lifecycle-paths-moved" };
+    }
+    return prepareDeliveryEligibility({ ...parsed, lifecyclePaths: currentPaths }, eligibilityDeps);
   }
   if (command === "eligibility-close") {
     const parsed = CloseSchema.parse(request);

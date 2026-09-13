@@ -80,16 +80,100 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
+  it("guards delivery-member scale before expensive verification and review", async () => {
+    for (const root of ROOTS) {
+      const [taskLoop, verification, delivery, preparation, integration] = await Promise.all([
+        readFile(resolve(root, root === ROOTS[0]
+          ? "system/workflows/arc/process-task-loop.template.md"
+          : "system/workflows/arc/process-task-loop.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
+        readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
+      ]);
+
+      expect(taskLoop).toContain("    - review-chunking");
+      const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
+      const memberScale = taskLoop.indexOf("arc review chunking resolve -", memberBoundary);
+      const reportAndStop = taskLoop.indexOf("4. **Report and stop:**", memberBoundary);
+      expect(memberScale).toBeGreaterThan(memberBoundary);
+      expect(memberScale).toBeLessThan(reportAndStop);
+      expect(taskLoop.slice(memberBoundary, reportAndStop)).toContain("exact committed member span");
+      expect(taskLoop.slice(memberBoundary, reportAndStop)).toMatch(/explicit capable\s+whole-target choice/u);
+      expect(taskLoop.slice(memberBoundary, reportAndStop))
+        .toContain("unbound coherent member re-cut remains an Owner decision");
+      expect(taskLoop.slice(memberBoundary, reportAndStop)).toContain("metrics when the resolver supplies them");
+      expect(taskLoop.slice(memberBoundary, reportAndStop))
+        .toContain("approval does not authorize delivery-member advancement");
+
+      const recordedAttention = verification.indexOf("member-close scale-attention result");
+      const tierThree = verification.indexOf("Run the complete quality gate suite");
+      expect(recordedAttention).toBeGreaterThan(-1);
+      expect(recordedAttention).toBeLessThan(tierThree);
+      expect(verification).toContain("    - review-chunking");
+      expect(verification.slice(recordedAttention, tierThree))
+        .toMatch(/metrics when the resolver\s+supplies them/u);
+
+      const locate = delivery.indexOf("arc delivery authoring locate - --json");
+      const materializedScale = delivery.indexOf("arc review chunking resolve -", locate);
+      const tierTwo = delivery.indexOf("complete Tier 2 command set", locate);
+      expect(materializedScale).toBeGreaterThan(locate);
+      expect(materializedScale).toBeLessThan(tierTwo);
+      expect(delivery).toContain("    - review-chunking");
+      expect(delivery.slice(locate, tierTwo)).toContain("materialized member scale recheck");
+      expect(delivery.slice(locate, tierTwo)).toContain("No Tier 2 command starts");
+      expect(delivery.slice(locate, tierTwo)).toContain("whole-target choice closes the attention disposition");
+
+      for (const [workflow, carrierCommand] of [
+        [delivery, "arc review hosted request -"],
+        [preparation, "arc review frontline run -"],
+        [integration, "arc review hosted request -"],
+      ] as const) {
+        const scopeGuard = workflow.indexOf("No review carrier may run while");
+        const hostedCarrier = workflow.indexOf(carrierCommand, scopeGuard);
+        expect(scopeGuard).toBeGreaterThan(-1);
+        expect(hostedCarrier).toBeGreaterThan(scopeGuard);
+        expect(workflow.slice(scopeGuard, hostedCarrier))
+          .toMatch(/exact-target(?:\s+chunked)?\s+scope\s+selection/u);
+        expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("unresolved");
+        expect(workflow.slice(scopeGuard, hostedCarrier)).toContain("capable whole-target choice");
+      }
+      for (const workflow of [delivery, integration]) {
+        expect(workflow).toContain("exact-target forced hosted invocation");
+      }
+    }
+  });
+
   it("keeps packaged and project workflow copies identical", async () => {
-    const [packagedPrepare, projectPrepare, packagedIntegrate, projectIntegrate] = await Promise.all([
+    const [
+      packagedPrepare,
+      projectPrepare,
+      packagedIntegrate,
+      projectIntegrate,
+      packagedTaskLoop,
+      projectTaskLoop,
+      packagedVerification,
+      projectVerification,
+      packagedDelivery,
+      projectDelivery,
+    ] = await Promise.all([
       readFile(resolve(ROOTS[0]!, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
       readFile(resolve(ROOTS[1]!, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
       readFile(resolve(ROOTS[0]!, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
       readFile(resolve(ROOTS[1]!, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
+      readFile(resolve(ROOTS[0]!, "system/workflows/arc/process-task-loop.template.md"), "utf8"),
+      readFile(resolve(ROOTS[1]!, "system/workflows/arc/process-task-loop.md"), "utf8"),
+      readFile(resolve(ROOTS[0]!, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
+      readFile(resolve(ROOTS[1]!, "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md"), "utf8"),
+      readFile(resolve(ROOTS[0]!, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
+      readFile(resolve(ROOTS[1]!, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
     ]);
 
     expect(projectPrepare).toBe(packagedPrepare);
     expect(projectIntegrate).toBe(packagedIntegrate);
+    expect(projectTaskLoop).toBe(packagedTaskLoop);
+    expect(projectVerification).toBe(packagedVerification);
+    expect(projectDelivery).toBe(packagedDelivery);
   });
 
   it("ships the preparation workflow through the installation recipe", async () => {
@@ -203,7 +287,7 @@ describe("prepublication workflow boundary", () => {
 
       const cleanup = verification.indexOf("Before the Candidate exists, clean the WU content");
       const selfReview = verification.indexOf("execute it against the local aggregate diff");
-      const tierThree = verification.indexOf("Run the full quality gate suite");
+      const tierThree = verification.indexOf("[quality-gate-commands method][arc-methods-qg]");
       const attest = verification.indexOf("arc attest {name} --json");
       const reRoot = verification.indexOf("`blocked / establish-new-root`");
       expect(cleanup).toBeGreaterThan(-1);

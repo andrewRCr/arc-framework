@@ -27,7 +27,10 @@ import {
   adjacentFieldSeams,
   type DeliveryFieldRun,
 } from "../fixtures/delivery-field-runs.js";
-import { deliveryFourMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
+import {
+  deliveryFourMemberStackPlanFixture,
+  deliverySingleMemberStackPlanFixture,
+} from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 
 const DIGEST = `sha256:${"1".repeat(64)}`;
@@ -227,6 +230,57 @@ describe("arc delivery", () => {
     ], repository, { env });
     expect(replay.exitCode, replay.stderr).toBe(0);
     expect(JSON.parse(replay.stdout)).toMatchObject({ status: "closed-out", planIds: [] });
+  });
+
+  it("refuses incomplete lifecycle paths before returning a gate-bearing snapshot", async () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    const branch = await git(repository, ["branch", "--show-current"]);
+    const metaPath = `.arc/active/meta-${plan.workUnitId}.md`;
+    await mkdir(join(repository, ".arc", "active"), { recursive: true });
+    await writeFile(join(repository, metaPath), [
+      `# Metadata: ${plan.workUnitId}`,
+      "",
+      "- **State:** Active",
+      `- **Branch:** ${branch}`,
+      "",
+    ].join("\n"));
+    await git(repository, ["add", metaPath]);
+    await git(repository, ["commit", "-m", "add delivery work unit"]);
+
+    const ref = `refs/heads/${branch}`;
+    const canonicalPaths = [
+      metaPath,
+      ".arc/backlog/ROADMAP.md",
+      `.arc/system/.internal/candidates/${plan.workUnitId}.boundary.json`,
+      `.arc/system/.internal/candidates/${plan.workUnitId}.json`,
+    ].sort();
+    const request = {
+      plan,
+      protectedBaseRef: ref,
+      topRef: ref,
+      candidates: [{ deliverableId: plan.members[0]!.deliverableId, ref }],
+      lifecyclePaths: canonicalPaths.filter((path) => path !== ".arc/backlog/ROADMAP.md"),
+    };
+
+    const incomplete = await runArcWithStdin([
+      "delivery", "eligibility", "prepare", "-", "--json",
+    ], repository, `${JSON.stringify(request)}\n`);
+    expect(incomplete.exitCode, incomplete.stderr).toBe(1);
+    expect(JSON.parse(incomplete.stdout)).toMatchObject({
+      command: "delivery eligibility prepare",
+      status: "refused",
+      reason: "lifecycle-paths-moved",
+    });
+
+    const canonical = await runArcWithStdin([
+      "delivery", "eligibility", "prepare", "-", "--json",
+    ], repository, `${JSON.stringify({ ...request, lifecyclePaths: canonicalPaths })}\n`);
+    expect(canonical.exitCode, canonical.stderr).toBe(0);
+    expect(JSON.parse(canonical.stdout)).toMatchObject({
+      command: "delivery eligibility prepare",
+      status: "prepared",
+      snapshot: { lifecyclePaths: canonicalPaths },
+    });
   });
 
   it.skipIf(process.platform === "win32")(

@@ -49,6 +49,7 @@ import { holdMergeLock, releaseMergeLock } from "../review-gate/merge-lock.js";
 import { MergeMethodSchema, resolveMergeMethod } from "../review-gate/merge-method.js";
 import { createRespondDependencies } from "../review-gate/runtime/respond-composition.js";
 import { respondToReviewCommand } from "../review-gate/runtime/respond-command.js";
+import { confirmCandidateResponseAction } from "./candidate-response-confirmation.js";
 import { readIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { composeCheckpointMovementPlan, CheckpointMovementObservationSchema } from "./checkpoint.js";
 import {
@@ -271,6 +272,13 @@ export function createIntegrationMergeDependencies(input: {
         fixTarget === null ? request : { ...request, settledFixTarget: fixTarget },
         respondDependencies,
       ),
+      confirmCandidateResponse: (action) => confirmCandidateResponseAction({
+        cwd: input.cwd,
+        exec: input.exec,
+        workUnit: record.workUnit,
+        approvedHead: record.approvedHead,
+        action,
+      }),
     }),
     readStatus: async (workUnit) => {
       const [target, cadence, actualHead] = await Promise.all([
