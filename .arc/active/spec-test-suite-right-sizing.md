@@ -218,6 +218,12 @@ the Vitest-derived remainder shard. Whole-test headroom uses the Vitest task tim
 retained separately because it bounds one subprocess invocation, not the whole test. Admission wait ends at lock
 acquisition, before the action begins._
 
+_Amended 2026-09-13 — The current schema-v4 instrument also counts `environmentSetupDuration` and
+`prepareDuration` exactly once in complete per-file cost. Earlier schema-v3 before/after measurements and ranked
+audit dispositions remain historical, same-schema evidence of directional improvement, not a schema-v4 summed-cost
+or per-file-floor claim for the final tree. Wall-clock and CI-job measurements are unaffected by that arithmetic
+correction._
+
 _Amended 2026-09-11 — Retained-run schema v2 records an explicit successful outcome only after every Vitest module
 is terminal (`passed` or `skipped`) and `ok()`; capture refuses other states before persistence, and normalization
 refuses legacy or unstamped input. The substrate classifier includes the complete user-sync family._

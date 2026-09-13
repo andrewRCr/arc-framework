@@ -789,6 +789,10 @@ observations exist with their capture or are recorded as not created.
   anchors; exact-head dispatch `34666114866` passed every heavy job at 887 summed job-seconds. Local and affected CI
   budgets now use the final measurements; the audit made no deletion, mutation dependency, or hygiene capture.
 
+  _Evidence note, 2026-09-13:_ The summed-cost floor and rankings above use comparable schema-v3 runs on both
+  sides. They record the historical audit decision, not a schema-v4 summed-cost or per-file-floor measurement of
+  the final tree. The wall-clock and CI-job outcomes do not depend on the schema-v4 arithmetic correction.
+
 ### `[x]` **7.6 Close the cost-ranked audit member** — validate criteria at member scope
 
 - _Goal:_ Member 6's criteria are walked through `validate-criteria` and their boundary evidence recorded.
@@ -825,6 +829,10 @@ observations exist with their capture or are recorded as not created.
 ---
 
 ## Success Criteria
+
+_Evidence note, 2026-09-13:_ The completed summed-cost, maximum-file, and ranked-stop checks below use retained
+schema-v3 comparisons. A later instrument correction added two per-file timing terms in schema v4; those historical
+comparisons are not a current schema-v4 measurement. The wall-clock and CI-job checks are unaffected.
 
 ### Member 1 — `lane-and-policy`
 

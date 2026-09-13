@@ -18,7 +18,7 @@ the durable record.
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
-- [Effective E2E shard membership](#effective-e2e-shard-membership)
+- [Historical E2E shard membership](#historical-e2e-shard-membership)
 - [Timeout, admission, and substrate signals](#timeout-admission-and-substrate-signals)
 - [CLI startup cost](#cli-startup-cost)
 - [CI on the mini](#ci-on-the-mini)
@@ -270,7 +270,9 @@ worked suites, and `handler.ts` is the single stdout, stderr, exit-code, cwd, an
 
 The final Phase 7 tree was re-measured in the same tier-isolated mode at 12 workers. Every row is the median of
 three successful retained schema-v3 runs; one E2E sample waited 433.96 s for local admission, outside its timed
-window.
+window. These are historical, same-schema measurements of directional improvement. The later schema-v4 correction
+does not change their wall-clock observations, but these summed costs, per-file floors, and rankings do not certify
+the final tree under the current schema-v4 metric; no schema-v4 post-audit comparison was recorded.
 
 | Project set           | Wall clock | Summed file time | Files | Executed cases | CLI spawns |
 | --------------------- | ---------- | ---------------- | ----- | -------------- | ---------- |
@@ -284,8 +286,9 @@ faster than the 57.33 s first baseline, clearing the directional bar's 10% reduc
 handler-seam coverage. E2E is 12.1% faster than its 215.31 s post-cost baseline.
 
 The final E2E top four are `candidate-lineage` (175.97 s), `command-input-no-input` (101.36 s), `errand`
-(93.68 s), and `lifecycle-exit` (93.09 s). The pinned CI anchor set already contains exactly those four files, so
-no re-selection is needed; `delivery-plan` (80.85 s) and the three-case `delivery-position` smoke (76.06 s) follow.
+(93.68 s), and `lifecycle-exit` (93.09 s). The final CI workflow pins `errand`, `candidate-lineage`,
+`command-input-no-input`, and `lifecycle-exit` on legs 1–4 respectively; `delivery-plan` (80.85 s) and the
+three-case `delivery-position` smoke (76.06 s) follow in the historical ranking.
 
 ### Worker sizing sweep
 
@@ -516,13 +519,15 @@ the four largest were `candidate-lineage`, `delivery-position`, `command-input-n
 This ranking is mode-sensitive: an earlier under-load run put `command-input-no-input` 7th rather than 3rd. Anchor
 selection must be made from tier-isolated data.
 
-## Effective E2E shard membership
+## Historical E2E shard membership
 
-`benchmark:test-cost:shards` reads the ordered anchor assignment and four live workflow exclusions, then asks
-Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 51-file remainder
-partitions exactly once, 13/13/13/12; each complete leg below is its pinned anchor plus that remainder. Because the
-instrument invokes Vitest's CLI while the test scripts use an in-process adapter, exact-head dispatch `34657372996`
-also proves the executed topology: its four remainder logs report 13/13/13/12 files and contain no anchor result.
+At exact-head dispatch `34657372996`, `benchmark:test-cost:shards` read the then-current ordered anchor assignment
+and four workflow exclusions, then asked Vitest's collecting `list --json` form for the filtered tier and each
+`--shard` leg. The 51-file remainder partitions exactly once, 13/13/13/12; each complete leg below is its pinned
+anchor plus that remainder. The instrument used Vitest's CLI while the test scripts used an in-process adapter.
+The dispatch's four remainder logs nevertheless report 13/13/13/12 files and no anchor result, confirming the
+historical executed topology. This table is not the final workflow's shard membership map; its fourth anchor
+changed to `lifecycle-exit`.
 
 | Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                                               |
 | --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
