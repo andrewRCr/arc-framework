@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "honor-selected-delivery-review-source",
+  "claimId": "dfb00bd38ec4fbb3b64b9ff87b74e30a",
+  "createdAt": "2026-09-13T18:46:10.874Z",
+  "updatedAt": "2026-09-13T18:46:10.874Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "honor-selected-delivery-review-source",
+  "branch": "chore/honor-selected-delivery-review-source",
+  "origin": "inbox",
+  "originEntry": "Honor Owner-selected standard-review sources in delivery discharge",
+  "originEntrySourceDigest": "sha256:200b0d7f5ce270839d6ce8ece0e262b07e3212f0eda55cbd8b8370cff2ba8238",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
