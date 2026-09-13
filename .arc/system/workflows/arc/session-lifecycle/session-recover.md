@@ -54,9 +54,11 @@ failure, also render the matching `report.recover.locusGuidance` text verbatim. 
 the graph in workflow prose.
 
 A stop does not decide the project or work-unit Owner's next action. Preserve the pending marker; do not claim a
-ready audit, load a guessed context, or clear the marker. Subject to higher-priority harness instructions, follow
-an explicit Owner direction for a bounded repair and audit retry, a fresh-session re-entry, or another named
-continuation with the failed audit disclosed. Without such direction, report the stop and ask.
+ready audit, load a guessed context, or clear the marker. Bounded diagnosis or repair and a retry of the exact audit
+may proceed within existing authority. A task instruction given before the stop is not authorization to resume
+project work with unresolved recovery. Subject to higher-priority harness instructions, only a fresh Owner
+acknowledgement of the disclosed stop may authorize a fresh-session re-entry or another named continuation; disclose
+that recovery remains unverified. Otherwise ask for direction.
 
 A `seed-locus-unresolved` stop means the selected seed path and registered checkout topology did not select one exact
 recovery checkout. Surface its typed message; do not retry from another directory or degrade it to `seed-missing`.
