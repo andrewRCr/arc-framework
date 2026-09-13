@@ -4218,11 +4218,17 @@ async function executeDeliveryCommand(
         : {}),
     });
     if (observed.status !== "observed") return observed;
+    const retryingInitialTarget = operation?.kind === "materialize"
+      && operation.before.target === null
+      && observed.projectedState.target === null
+      && observed.operationObservation !== null
+      && canonicalize(observed.operationObservation) === canonicalize(operation.before);
     for (const deliverableId of operation?.affectedDeliverableIds ?? []) {
       const index = observed.facts.members.findIndex((member) => member.deliverableId === deliverableId);
       const member = observed.facts.members[index];
       if (member === undefined || member.coordinates === null) continue;
       const predecessor = resolveDeliveryPredecessorHead(observed.facts, index);
+      if (retryingInitialTarget && index === 0 && predecessor === null) continue;
       if (predecessor === null || member.coordinates.base !== predecessor) return { status: "refused" as const };
     }
     return observed;

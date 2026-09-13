@@ -36,6 +36,7 @@ export interface DeliveryMaterializationMember {
 export interface DeliveryMaterializationPlan {
   readonly planId: string;
   readonly workUnitId: string;
+  readonly observedTarget: DeliveryEligibilitySnapshot["protectedBase"];
   readonly target: DeliveryEligibilitySnapshot["protectedBase"];
   readonly members: readonly DeliveryMaterializationMember[];
 }
@@ -130,6 +131,7 @@ export function deriveDeliveryMaterialization(
     value: {
       planId: plan.planId,
       workUnitId: plan.workUnitId,
+      observedTarget: snapshot.protectedBase,
       target: { ref: snapshot.protectedBase.ref, ...snapshot.chainBase },
       members: plan.members.map((member, index) => {
         const terminal = index === plan.members.length - 1;
@@ -397,6 +399,9 @@ export async function materializeBoundDeliveryChain(input: {
   const anchor = input.materialization.members[0];
   if (anchor === undefined) return { status: "refused" };
   if (current.value.target === null) {
+    if (input.materialization.observedTarget.ref !== input.materialization.target.ref) {
+      return { status: "refused" };
+    }
     const before = snapshot(current.value, anchor.deliverableId);
     if (before === null) return { status: "refused" };
     const targetStep = await persistDeterministicStep({
@@ -409,16 +414,16 @@ export async function materializeBoundDeliveryChain(input: {
         coordinates: { head: input.materialization.target.head, tree: input.materialization.target.tree },
       } },
       observeBefore: async () => {
-        const observed = await input.refs.observe(input.materialization.target.ref);
-        return observed.status === "observed" && observed.head === input.materialization.target.head;
+        const observed = await input.refs.observe(input.materialization.observedTarget.ref);
+        return observed.status === "observed" && observed.head === input.materialization.observedTarget.head;
       },
       mutate: () => Promise.resolve({ status: "applied" }),
       observeAfter: async () => {
-        const observed = await input.refs.observe(input.materialization.target.ref);
-        return observed.status === "observed" && observed.head === input.materialization.target.head
+        const observed = await input.refs.observe(input.materialization.observedTarget.ref);
+        return observed.status === "observed" && observed.head === input.materialization.observedTarget.head
           ? { ...before, target: {
             ref: input.materialization.target.ref,
-            coordinates: { head: observed.head, tree: input.materialization.target.tree },
+            coordinates: { head: input.materialization.target.head, tree: input.materialization.target.tree },
           } }
           : null;
       },
