@@ -62,6 +62,7 @@ import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
 import { consumeFixAuthorization, createFixAuthorization } from "../core/fix-authorization.js";
+import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import { projectReviewResponse } from "../core/response-plan.js";
 import {
   ReviewResponseSettlementRequestSchema,
@@ -408,6 +409,7 @@ async function resolveLocalSource(
     throw new RespondCommandError("corrupt-state", "local response operation is unavailable");
   }
   const state = persisted.state;
+  assertLocalReviewClaimBinding(state);
   const [receipt, localSource, actors] = await Promise.all([
     dependencies.readReceipt(reference.durableRef),
     dependencies.sourceStore.readSource(state.sourceRef),
