@@ -10,6 +10,7 @@ import {
 import { classifyNoise, type NoiseClassification } from "./normalize.js";
 import {
   normalizeRetainedTestCostRuns,
+  retainedSuiteMembership,
   type NormalizedRetainedCost,
 } from "./retained.js";
 import type { RetainedTestCostRun } from "./run.js";
@@ -103,7 +104,19 @@ export function analyzeRetainedTestCost(
     };
   }
 
-  const groups = input.groups.map((runs) => normalizeRetainedTestCostRuns(runs).summary);
+  const normalizedGroups = input.groups.map((runs) => {
+    const cost = normalizeRetainedTestCostRuns(runs);
+    const firstRun = runs[0];
+    if (firstRun === undefined) throw new Error("Sizing sweep requires a retained run in every group");
+    return { cost, membership: retainedSuiteMembership(firstRun) };
+  });
+  const [firstGroup] = normalizedGroups;
+  if (firstGroup !== undefined && normalizedGroups.slice(1).some(({ membership }) =>
+    membership.length !== firstGroup.membership.length
+    || membership.some((entry, index) => entry !== firstGroup.membership[index]))) {
+    throw new Error("Sizing sweep requires matching suite membership");
+  }
+  const groups = normalizedGroups.map(({ cost }) => cost.summary);
   const wallClock = createSizingSweep(groups.map((group) => comparable(group.mode, group.wallClockMs)));
   const summedFileTime = createSizingSweep(
     groups.map((group) => comparable(group.mode, group.summedFileTimeMs)),

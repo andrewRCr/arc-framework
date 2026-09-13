@@ -66,6 +66,17 @@ describe("normalizeRetainedTestCostRuns", () => {
       .toThrow(/file membership/u);
   });
 
+  it("refuses repeated runs with different test IDs despite matching test counts", () => {
+    const first = run(100);
+    const file = first.files[0]!;
+    const different = {
+      ...first,
+      files: [{ ...file, tests: [{ ...file.tests[0]!, id: "other", name: "other" }] }],
+    };
+    expect(() => normalizeRetainedTestCostRuns([first, different]))
+      .toThrow(/test membership/u);
+  });
+
   it("refuses a retained run without a successful outcome", () => {
     const ineligible = { ...run(100), outcome: "failed" };
 
