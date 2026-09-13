@@ -32,9 +32,10 @@ describe("validateE2EShardMembership", () => {
   const whole = ["a.test.ts", "b.test.ts", "c.test.ts", "d.test.ts"];
   const anchors = ["anchor-a.test.ts", "anchor-b.test.ts", "anchor-c.test.ts", "anchor-d.test.ts"];
   const exclusions = anchors.map((anchor) => `**/${anchor}`);
+  const discovered = [...whole, ...anchors];
 
   it("accepts differing proper-subset legs that exactly partition the filtered tier", () => {
-    expect(validateE2EShardMembership(whole, exclusions, [
+    expect(validateE2EShardMembership(discovered, whole, exclusions, [
       ["a.test.ts"],
       ["b.test.ts"],
       ["c.test.ts"],
@@ -51,24 +52,31 @@ describe("validateE2EShardMembership", () => {
   });
 
   it("refuses overlap, gaps, and excluded anchors", () => {
-    expect(() => validateE2EShardMembership(whole, exclusions, [
+    expect(() => validateE2EShardMembership(discovered, whole, exclusions, [
       ["a.test.ts"], ["a.test.ts"], ["c.test.ts"], ["d.test.ts"],
     ], anchors)).toThrow(/exactly one/u);
-    expect(() => validateE2EShardMembership(whole, exclusions, [
+    expect(() => validateE2EShardMembership(discovered, whole, exclusions, [
       ["a.test.ts"], ["b.test.ts"], ["c.test.ts"], [],
     ], anchors)).toThrow(/partition/u);
-    expect(() => validateE2EShardMembership(whole, exclusions, [
+    expect(() => validateE2EShardMembership(discovered, whole, exclusions, [
       ["a.test.ts", "anchor-a.test.ts"], ["b.test.ts"], ["c.test.ts"], ["d.test.ts"],
     ], anchors)).toThrow(/excluded anchor/u);
   });
 
   it("fails loudly when filesOnly-like output repeats the whole tier on every leg", () => {
     expect(() => validateE2EShardMembership(
+      discovered,
       whole,
       exclusions,
       [whole, whole, whole, whole],
       anchors,
     ))
       .toThrow(/whole filtered tier/u);
+  });
+
+  it("refuses a stale anchor even when its exclusion name matches", () => {
+    expect(() => validateE2EShardMembership(whole, whole, exclusions, [
+      ["a.test.ts"], ["b.test.ts"], ["c.test.ts"], ["d.test.ts"],
+    ], anchors)).toThrow(/anchor.*not found/u);
   });
 });

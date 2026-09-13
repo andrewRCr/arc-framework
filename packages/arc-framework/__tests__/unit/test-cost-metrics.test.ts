@@ -42,6 +42,8 @@ describe("substrate-bound share", () => {
     const file = (path: string, durationMs: number): TestCostFile => ({
       path,
       tier: "integration",
+      environmentSetupDurationMs: 0,
+      prepareDurationMs: 0,
       collectDurationMs: 0,
       setupDurationMs: 0,
       fixedCostMs: 0,
