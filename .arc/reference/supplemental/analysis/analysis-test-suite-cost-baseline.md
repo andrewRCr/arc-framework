@@ -18,7 +18,7 @@ the durable record.
 - [Tier baselines](#tier-baselines)
 - [Post-cost baseline](#post-cost-baseline)
 - [Where the time concentrates](#where-the-time-concentrates)
-- [Effective E2E shard membership](#effective-e2e-shard-membership)
+- [Historical E2E shard membership](#historical-e2e-shard-membership)
 - [Timeout, admission, and substrate signals](#timeout-admission-and-substrate-signals)
 - [CLI startup cost](#cli-startup-cost)
 - [CI on the mini](#ci-on-the-mini)
@@ -166,10 +166,12 @@ band and is not claimed as a separate lever. The routine lane is above the earli
 sizing is deliberately unsettled at this point, so the sizing sweep must resolve the scored bar before the member
 closes.
 
-### Post-cost concentration
+### Post-cost concentration and audit work order
 
-The integration top decile and the E2E head below are the cost-ranked audit input. Share is of the post-cost
-tier's normalized summed file time.
+The tables below are the cost-ranked audit's descending work order from the retained post-cost baseline. Each
+extends beyond the top decile through the first three consecutive files whose entire share is under 2% of the
+tier's normalized summed time. Even total removal of each such file would yield less than the stop threshold, so
+the recorded order is long enough to close the audit without reopening the baseline. The unit tier is out of scope.
 
 | Integration file                        | Seconds | Cases | Share |
 | --------------------------------------- | ------- | ----- | ----- |
@@ -210,6 +212,83 @@ tier's normalized summed file time.
 The top four E2E files remain `candidate-lineage`, `delivery-position`, `command-input-no-input`, and `errand`.
 `lifecycle-exit` is fifth by 0.44 s, so the measured anchor correction remains the one identified by the first
 baseline.
+
+### Ranked audit dispositions
+
+The audit applied the per-test rubric in the fixed order above. Integration reached its stop after ranks 13–15;
+each file's whole baseline share was already below 2%, so no later integration file could yield the threshold.
+
+1. `decompose-v3-repository-plan.test.ts` — **retain**: real Git transition, race, and rollback behavior.
+2. `review-fan-out-lifecycle.test.ts` — **retain**: already uses handler seams over real durable review stores.
+3. `user.test.ts` — **retain**: concurrency-sensitive notes mutation; prepared repositories already share setup.
+4. `classify-change.test.ts` — **retain**: the shell classifier and verified Git history are the boundary.
+5. `harness-hooks/codex-cli.test.ts` — **retain**: generated hooks, process environment, and shell output are real.
+6. `delivery-field-runs.test.ts` — **retain**: historical plans and refusal conservation need repository state.
+7. `init.test.ts` — **retain**: recipe rendering, pristine copies, and manifest integrity use real files and Git.
+8. `github-provider-refresh.test.ts` — **retain**: fork recovery and conflict continuation operate on real Git.
+9. `user-notes-compaction.test.ts` — **retain**: lock, notes-tree, and cumulative-prune behavior is mutation proof.
+10. `teardown.test.ts` — **retain**: branch and worktree deletion is a destructive real-repository boundary.
+11. `notes-export-state-coherence.test.ts` — **retain**: divergence classification spans actual refs and notes.
+12. `one-shot-script-entrypoints.test.ts` — **retain**: loader output and exit status are the package-script seam.
+13. `command-surface-documentation.test.ts` — **retain; stop 1/3**: derived docs/source/Commander agreement.
+14. `delivery-member-six-lifecycle.test.ts` — **retain; stop 2/3**: handler seam already drives real state stores.
+15. `start-dispatch.test.ts` — **retain; stop 3/3**: real worktree mutation; output capture now uses the shared
+    handler runner.
+
+E2E reached its stop after ranks 12–14. The two conversions preserve their complete assertion sets; no deletion
+was made, so no mutation-testing decision was needed.
+
+1. `candidate-lineage.e2e.test.ts` — **convert** the five highest-yield semantic cases to one integration file
+   through CLI-validated handler inputs; retain the other 28 cases at the real CLI. The first nine-file split kept
+   every arrival below the per-file floor but repeated the large fixture enough to raise the complete integration
+   tier to 52.83 s, so it was rejected. The corrected single arrival stays below the 38.35 s floor while the
+   retained file continues to protect parsing, dispatch, and public review choreography.
+2. `delivery-position.e2e.test.ts` — **convert** 20 semantic cases to `delivery-position.test.ts`; retain the three
+   long correction/rebind cases as real-CLI orchestration smokes because their handlers intentionally launch nested
+   public commands. Other verb protectors remain in the E2E files named above plus
+   `delivery-terminal-recovery.e2e.test.ts`. The first 22-case arrival exceeded the tier floor under the complete
+   integration load; retaining the two nested-effect cases returned the arrival below it.
+3. `command-input-no-input.e2e.test.ts` — **retain**: non-TTY, CI, `--no-input`, stdin, parsing, and dispatch are
+   entry behavior.
+4. `errand.e2e.test.ts` — **retain**: close, abandon, promote, checkout, and branch teardown are destructive.
+5. `lifecycle-exit.e2e.test.ts` — **retain**: park, abandon, teardown, and remote-ref deletion are destructive.
+6. `delivery-plan.e2e.test.ts` — **retain**: documented parsing, public choreography, and destructive closeout.
+7. `session-init.e2e.test.ts` — **retain**: entry composition, environment, output, and recovery dispatch.
+8. `review-protocol.e2e.test.ts` — **retain**: public-verb replay and concurrent serialization are the subject.
+9. `delivery-terminal-recovery.e2e.test.ts` — **retain**: effect-driver recovery spans nested public commands.
+10. `publication-spine.e2e.test.ts` — **retain**: cross-command publication entry choreography is the subject.
+11. `rename.e2e.test.ts` — **retain**: branch, worktree, identity, and remote rename mutation is destructive.
+12. `delivery-authoring.e2e.test.ts` — **retain; stop 1/3**: authoring write verbs mutate Candidate refs.
+13. `user.e2e.test.ts` — **retain; stop 2/3**: save/push/clone/pull portability needs process isolation.
+14. `locus-errand-roundtrip.e2e.test.ts` — **retain; stop 3/3**: promotion and capture settlement are destructive.
+
+The audit stopped before `decompose-command-modes.e2e.test.ts`, as required: three consecutive sub-2% files had
+already yielded less than the threshold. Prepared initialized repositories consolidate repeated setup for both
+worked suites, and `handler.ts` is the single stdout, stderr, exit-code, cwd, and environment capture path.
+
+### Post-audit baseline
+
+The final Phase 7 tree was re-measured in the same tier-isolated mode at 12 workers. Every row is the median of
+three successful retained schema-v3 runs; one E2E sample waited 433.96 s for local admission, outside its timed
+window. These are historical, same-schema measurements of directional improvement. The later schema-v4 correction
+does not change their wall-clock observations, but these summed costs, per-file floors, and rankings do not certify
+the final tree under the current schema-v4 metric; no schema-v4 post-audit comparison was recorded.
+
+| Project set           | Wall clock | Summed file time | Files | Executed cases | CLI spawns |
+| --------------------- | ---------- | ---------------- | ----- | -------------- | ---------- |
+| `integration`         | 44.84 s    | 415.50 s         | 140   | 1,405          | 2          |
+| Routine lane (no E2E) | 48.79 s    | 529.55 s         | 838   | 11,178         | 2          |
+| `e2e`                 | 189.25 s   | 1,211.11 s       | 55    | 538            | 1,665      |
+
+The integration summed-time floor is 34.62 s at 12 workers. The two arrivals remain under it:
+`candidate-lineage.test.ts` is 31.60 s and `delivery-position.test.ts` is 25.75 s. The routine lane is 14.9%
+faster than the 57.33 s first baseline, clearing the directional bar's 10% reduction while absorbing the cheaper
+handler-seam coverage. E2E is 12.1% faster than its 215.31 s post-cost baseline.
+
+The final E2E top four are `candidate-lineage` (175.97 s), `command-input-no-input` (101.36 s), `errand`
+(93.68 s), and `lifecycle-exit` (93.09 s). The final CI workflow pins `errand`, `candidate-lineage`,
+`command-input-no-input`, and `lifecycle-exit` on legs 1–4 respectively; `delivery-plan` (80.85 s) and the
+three-case `delivery-position` smoke (76.06 s) follow in the historical ranking.
 
 ### Worker sizing sweep
 
@@ -266,23 +345,23 @@ modes keep local and CI observations disjoint; the E2E CI entries additionally n
 | Tier        | Mode                              | Baseline  | Budget    |
 | ----------- | --------------------------------- | --------- | --------- |
 | Unit        | tier-isolated / unit / 12 workers | 11.116 s  | 12.228 s  |
-| Integration | tier-isolated / integration / 12  | 40.035 s  | 44.039 s  |
-| Lane        | tier-isolated / lane / 12         | 44.925 s  | 49.418 s  |
-| E2E         | tier-isolated / e2e / 12          | 215.309 s | 236.840 s |
+| Integration | tier-isolated / integration / 12  | 44.836 s  | 49.320 s  |
+| Lane        | tier-isolated / lane / 12         | 48.793 s  | 53.673 s  |
+| E2E         | tier-isolated / e2e / 12          | 189.246 s | 208.171 s |
 
 | CI job      | Mode                     | Baseline  | Budget    |
 | ----------- | ------------------------ | --------- | --------- |
 | Unit        | CI job / unit / 1 worker | 40 s      | 44.0 s    |
-| Integration | CI job / integration / 1 | 186 s     | 204.6 s   |
-| E2E 1       | CI job / e2e / 1         | 145.882 s | 160.471 s |
-| E2E 2       | CI job / e2e / 1         | 173.512 s | 190.864 s |
-| E2E 3       | CI job / e2e / 1         | 127.090 s | 139.799 s |
-| E2E 4       | CI job / e2e / 1         | 107.591 s | 118.351 s |
+| Integration | CI job / integration / 1 | 194.067 s | 213.474 s |
+| E2E 1       | CI job / e2e / 1         | 125.854 s | 138.440 s |
+| E2E 2       | CI job / e2e / 1         | 147.918 s | 162.710 s |
+| E2E 3       | CI job / e2e / 1         | 140.095 s | 154.105 s |
+| E2E 4       | CI job / e2e / 1         | 100.962 s | 111.059 s |
 
-The local rows and the unit/integration CI rows are the initial post-Phase 5 budgets. The E2E CI rows use the
-corrected-topology reporter windows from dispatch `34657372996`; the earlier observations repeated each anchor in
-its remainder shard and cannot serve as anti-regression baselines. The integration, lane, and affected E2E entries
-are refreshed after the cost-ranked conversions, so accepted Phase 7 movement does not present as regrowth.
+The unit local and CI rows retain their post-Phase 5 baselines because Phase 7 did not change that tier. The
+integration, lane, and E2E local rows use the post-audit baseline above; the integration and E2E CI rows use the
+exact-head reporter windows from dispatch `34666114866`. Accepted Phase 7 movement therefore does not present as
+regrowth. Earlier E2E observations that repeated each anchor in its remainder shard remain ineligible as baselines.
 
 ### Budget exercise
 
@@ -312,6 +391,19 @@ result in any remainder step. The run's ten successful job durations sum to 913 
 first baseline, that is a 464 job-second reduction (33.7%), clearing the fixed 300 job-second target by 164 s. After
 the corrected E2E baselines were recorded, a synthetic E2E 4 overage reported 137.892 s against 118.351 s, wrote a
 19.541 s advisory warning, and exited successfully.
+
+After the ranked conversions, exact-head dispatch `34666114866` completed every heavy job successfully. Its ten
+successful job durations sum to 887 s, 490 job-seconds (35.6%) below the 1,377 s first baseline and 190 s below the
+fixed target. The reporter windows below are the refreshed affected CI-job baselines; E2E 3's 140.095 s observation
+was 0.296 s over its pre-conversion budget, illustrating why the accepted redistribution needed a new record.
+
+| CI job      | Reporter window | Refreshed budget |
+| ----------- | --------------- | ---------------- |
+| Integration | 194.067 s       | 213.474 s        |
+| E2E 1       | 125.854 s       | 138.440 s        |
+| E2E 2       | 147.918 s       | 162.710 s        |
+| E2E 3       | 140.095 s       | 154.105 s        |
+| E2E 4       | 100.962 s       | 111.059 s        |
 
 ## Where the time concentrates
 
@@ -427,13 +519,15 @@ the four largest were `candidate-lineage`, `delivery-position`, `command-input-n
 This ranking is mode-sensitive: an earlier under-load run put `command-input-no-input` 7th rather than 3rd. Anchor
 selection must be made from tier-isolated data.
 
-## Effective E2E shard membership
+## Historical E2E shard membership
 
-`benchmark:test-cost:shards` reads the ordered anchor assignment and four live workflow exclusions, then asks
-Vitest's collecting `list --json` form for the filtered tier and each `--shard` leg. The 51-file remainder
-partitions exactly once, 13/13/13/12; each complete leg below is its pinned anchor plus that remainder. Because the
-instrument invokes Vitest's CLI while the test scripts use an in-process adapter, exact-head dispatch `34657372996`
-also proves the executed topology: its four remainder logs report 13/13/13/12 files and contain no anchor result.
+At exact-head dispatch `34657372996`, `benchmark:test-cost:shards` read the then-current ordered anchor assignment
+and four workflow exclusions, then asked Vitest's collecting `list --json` form for the filtered tier and each
+`--shard` leg. The 51-file remainder partitions exactly once, 13/13/13/12; each complete leg below is its pinned
+anchor plus that remainder. The instrument used Vitest's CLI while the test scripts used an in-process adapter.
+The dispatch's four remainder logs nevertheless report 13/13/13/12 files and no anchor result, confirming the
+historical executed topology. This table is not the final workflow's shard membership map; its fourth anchor
+changed to `lifecycle-exit`.
 
 | Leg | Pinned anchor            | Vitest-derived remainder                                                                                                                                                                                                                               |
 | --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -574,6 +668,11 @@ be larger. The resulting bar is **≤44 s at 12 workers**, the larger-floor rule
 rounded upward. If the later sizing sweep adopts a different worker count, it must forward-amend this bar before
 scoring against it.
 
+At member closure, the authorized spec amendment preserves that absolute derivation but supersedes it as the score.
+The normalized 44.925 s final median misses the projection by 0.925 s (2.1%), which the instrument classifies as
+noise, while improving 21.6% from the 57.33 s first baseline. The replacement therefore uses the already-established
+same-mode 10% directional bar rather than claiming precision the measurement rule rejects.
+
 ### CI heavy lane: reduce by at least 300 job-seconds
 
 The conservative projection counts only fixed-cost changes with measured rates:
@@ -606,6 +705,10 @@ double counting and leaving those later measurements as upside rather than prere
 | Fixture template copy, `user` / `init`     | `user` bound unknown; `init` ≤30.7%     | Incomplete user data             |
 | Skipping `build:fast` when `dist/` fresh   | 1.2 s                                   | High — effectively nil           |
 | Batching git spawns per fixture            | ~24 ms of ~106 ms per build             | High — effectively nil           |
+
+The preliminary hand baseline put a sequential full-local run at ~353 s and measured the one-command routine
+lane at 55.5–58.3 s, implying roughly 83–84% less wall time on that basis. The retained 80% result above comes
+from paired clean-tree runs and is the comparable outcome measurement.
 
 The two low-confidence rows are the reason the variance caveat matters: both sit at or below the ~8% run-to-run
 spread and neither is established by the single runs recorded here.
