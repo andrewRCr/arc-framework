@@ -54,10 +54,10 @@ export function createMeasurementMode(input: Partial<MeasurementMode>): Measurem
 export function compareLever(before: ComparableCost, after: ComparableCost): LeverComparison {
   requireComparableValue(before.valueMs, "before");
   requireComparableValue(after.valueMs, "after");
-  if (before.valueMs === 0) throw new Error("Cannot derive a lever percentage from a zero before value");
   const axes: readonly (keyof MeasurementMode)[] = ["condition", "projectSet", "workerSizing"];
   const mismatches = axes.filter((axis) => before.mode[axis] !== after.mode[axis]);
   if (mismatches.length > 0) return { kind: "refused", mismatches };
+  if (before.valueMs === 0) throw new Error("Cannot derive a lever percentage from a zero before value");
   const deltaMs = after.valueMs - before.valueMs;
   return { kind: "measured", deltaMs, deltaFraction: deltaMs / before.valueMs };
 }

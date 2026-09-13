@@ -59,6 +59,10 @@ export function normalizeRetainedTestCostRuns(
     if (tier === undefined || samples.some((file) => file.tier !== tier)) {
       throw new Error(`Retained tier attribution changed for ${path}`);
     }
+    const testIds = samples[0]?.tests.map((test) => test.id);
+    if (testIds === undefined || samples.some((file) => !sameMembers(file.tests.map((test) => test.id), testIds))) {
+      throw new Error(`Retained test membership changed for ${path}`);
+    }
     return {
       path,
       tier,
@@ -91,6 +95,20 @@ export function normalizeRetainedTestCostRuns(
       ...(waits.length === 0 ? {} : { medianMs: median(waits, "admission wait") }),
     },
   };
+}
+
+/**
+ * Canonical path, tier, and test-ID membership for a retained run.
+ *
+ * @param run - Retained run whose measured suite is compared.
+ * @returns Sorted, unambiguous per-file membership records.
+ */
+export function retainedSuiteMembership(run: RetainedTestCostRun): string[] {
+  return run.files.map((file) => JSON.stringify([
+    file.path,
+    file.tier,
+    file.tests.map((test) => test.id).sort(),
+  ])).sort();
 }
 
 export function assertRetainedTestCostRun(

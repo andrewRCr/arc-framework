@@ -105,4 +105,21 @@ describe("analyzeRetainedTestCost", () => {
       },
     });
   });
+
+  it("refuses worker-sizing comparisons over changed file, tier, or test membership", () => {
+    const first = run(100, "6");
+    const second = run(80, "12");
+    const file = second.files[0]!;
+    const test = file.tests[0]!;
+    for (const changedFile of [
+      { ...file, path: "b.test.ts" },
+      { ...file, tier: "integration" },
+      { ...file, tests: [{ ...test, id: "other", name: "other" }] },
+    ]) {
+      expect(() => analyzeRetainedTestCost({
+        kind: "sizing-sweep",
+        groups: [[first], [{ ...second, files: [changedFile] }]],
+      })).toThrow(/suite membership/u);
+    }
+  });
 });
