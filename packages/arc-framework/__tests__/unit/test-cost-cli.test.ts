@@ -25,4 +25,13 @@ describe("parseTestCostCli", () => {
     args.splice(index, 2);
     expect(() => parseTestCostCli(args)).toThrow();
   });
+
+  it("refuses an option token as the preceding option's value", () => {
+    expect(() => parseTestCostCli([
+      "--condition", "tier-isolated",
+      "--project-set", "integration",
+      "--workers", "12",
+      "--output", "--unknown",
+    ])).toThrow(/complete --name value pairs/u);
+  });
 });

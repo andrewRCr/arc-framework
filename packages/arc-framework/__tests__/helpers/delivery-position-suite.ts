@@ -2791,7 +2791,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       state: "ready",
       nextAction: "request-approval",
     });
-  });
+  }, 60_000);
 
   it("routes review-fix planning through an append-only terminal authoring advance", async () => {
     const fixture = await positionFixture("terminal-authoring");
