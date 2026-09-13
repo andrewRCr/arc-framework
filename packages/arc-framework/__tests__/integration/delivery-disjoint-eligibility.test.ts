@@ -17,7 +17,11 @@ import {
 } from "../../src/lib/delivery/git-eligibility.js";
 import { revalidateDeliveryLifecycleContribution } from
   "../../src/lib/delivery/git-lifecycle-contribution.js";
-import { deriveDeliveryMaterialization } from "../../src/lib/delivery/materialization.js";
+import {
+  bindInitialDeliveryRef,
+  deriveDeliveryMaterialization,
+  materializeBoundDeliveryChain,
+} from "../../src/lib/delivery/materialization.js";
 import {
   RepositoryDeliveryPlanStore,
   RepositoryDeliveryStateStore,
@@ -159,6 +163,34 @@ describe("disjoint delivery eligibility", () => {
     if (materialization.status !== "derived") return;
     expect(materialization.value.target.head).toBe(chainBase);
     expect(materialization.value.members[0]!.coordinates.base).toBe(chainBase);
+
+    const publisher = new RepositoryGitCommonStatePublisher(exec, repository);
+    const stateStore = new RepositoryDeliveryStateStore(publisher);
+    const refs = {
+      observe: async (ref: string) => {
+        try {
+          return { status: "observed" as const, head: await git(["rev-parse", "--verify", ref]) };
+        } catch {
+          return { status: "absent" as const };
+        }
+      },
+      publish: async (ref: string, head: string) => {
+        await git(["update-ref", ref, head]);
+        return { status: "published" as const };
+      },
+    };
+    const bound = await bindInitialDeliveryRef({
+      plan, materialization: materialization.value, stateStore, refs,
+    });
+    expect(bound.status).toBe("bound");
+    const materialized = await materializeBoundDeliveryChain({
+      plan, materialization: materialization.value, stateStore, refs,
+    });
+    expect(materialized.status).toBe("materialized");
+    if (materialized.status !== "materialized") return;
+    expect(materialized.state.value.target?.coordinates?.head).toBe(chainBase);
+    expect(materialized.state.value.members[0]?.coordinates?.base).toBe(chainBase);
+    expect(await git(["rev-parse", "main"])).toBe(observedTip);
 
     await git(["merge", "--no-ff", "--no-edit", "refs/heads/candidate/first"]);
     expect(await readFile(join(repository, ".arc", "backlog", "ROADMAP.md"), "utf8"))

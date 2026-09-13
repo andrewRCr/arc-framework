@@ -39,6 +39,7 @@ import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-re
 import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-fix.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
+import { constructInitialDeliveryState } from "../../src/lib/delivery/state.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
@@ -733,6 +734,11 @@ async function positionFixture(
     "    ;;",
     `  repos/owner/repo/git/commits/${secondHead})`,
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: secondTree } })}'`,
+    "    ;;",
+    "  repos/owner/repo/git/commits/*)",
+    "    commit=${2##*/}",
+    "    tree=$(git rev-parse \"$commit^{tree}\") || exit 1",
+    "    printf '{\"tree\":{\"sha\":\"%s\"}}\\n' \"$tree\"",
     "    ;;",
     "  repos/owner/repo/branches/main|"
       + "repos/owner/repo/branches/delivery%2Fmember-1|"
@@ -4504,6 +4510,63 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
       status: "ok",
       value: { revision: 3, value: { activeOperation: null } },
+    });
+  });
+
+  it("clears an interrupted initial target bind after disjoint protected-base movement", async () => {
+    const fixture = await positionFixture();
+    const prior = await fixture.states.read(fixture.plan.planId);
+    expect(prior.status).toBe("ok");
+    if (prior.status !== "ok" || prior.value === null) return;
+    const first = prior.value.value.members[0]!;
+    const target = prior.value.value.target!;
+    const initial = constructInitialDeliveryState(fixture.plan, {
+      kind: "pushed-ref",
+      deliverableId: first.deliverableId,
+      ref: first.ref!,
+      coordinates: first.coordinates!,
+    });
+    expect(initial.status).toBe("constructed");
+    if (initial.status !== "constructed") return;
+    expect(await fixture.states.publish(fixture.plan.planId, initial.state, prior.value.revision))
+      .toMatchObject({ status: "ok" });
+    const before = { target: null, members: [initial.state.members[0]!] };
+    const reserved = reserveDeliveryOperation({ revision: 2, value: initial.state }, fixture.plan, {
+      operationId: "interrupted-initial-target-bind",
+      kind: "materialize",
+      affectedDeliverableIds: [first.deliverableId],
+      expectedStateRevision: 2,
+      before,
+      requested: { ...before, target },
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    expect(await fixture.states.publish(fixture.plan.planId, reserved.state, 2))
+      .toMatchObject({ status: "ok" });
+
+    await git(fixture.repository, ["switch", "-c", "advanced-target", target.coordinates!.head]);
+    await writeFile(join(fixture.repository, "unrelated.txt"), "disjoint movement\n");
+    await git(fixture.repository, ["add", "unrelated.txt"]);
+    await git(fixture.repository, ["commit", "-m", "advance protected target"]);
+    await git(fixture.repository, ["push", "origin", "HEAD:refs/heads/main"]);
+
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-publish",
+      selector: { operationKind: "materialize", affectedDeliverableIds: [first.deliverableId] },
+    });
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
+      status: "ok",
+      value: { revision: 4, value: { target: null, activeOperation: null } },
     });
   });
 

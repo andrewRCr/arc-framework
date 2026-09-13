@@ -80,6 +80,7 @@ describe("deriveDeliveryMaterialization", () => {
     const result = deriveDeliveryMaterialization(plan, snapshot);
     expect(result.status).toBe("derived");
     if (result.status !== "derived") return;
+    expect(result.value.observedTarget).toEqual(snapshot.protectedBase);
     expect(result.value.target).toEqual({ ref: "refs/heads/main", head: chainHead, tree: chainTree });
     expect(result.value.members[0]).toMatchObject({
       requestBaseRef: "refs/heads/main",
@@ -274,6 +275,58 @@ describe("describeDeliveryMemberPresentation", () => {
 });
 
 describe("delivery materialization orchestration", () => {
+  it("verifies the observed protected tip while persisting a disjoint chain base", async () => {
+    const plan = deliveryPlanFixture();
+    const chainHead = "7".repeat(40);
+    const chainTree = "8".repeat(40);
+    const observedHead = "9".repeat(40);
+    const snapshot = {
+      ...eligible(plan),
+      protectedBase: { ref: "refs/heads/main", head: observedHead, tree: "a".repeat(40) },
+      chainBase: { head: chainHead, tree: chainTree },
+      predecessorRelation: {
+        kind: "disjoint-ahead" as const,
+        observedTip: observedHead,
+        chainBase: chainHead,
+        mergeBase: chainHead,
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      },
+    };
+    const derived = deriveDeliveryMaterialization(plan, snapshot);
+    if (derived.status !== "derived") throw new Error("fixture must derive");
+    const store = memoryStateStore();
+    let liveHead = observedHead;
+    const refs = {
+      publish: async () => ({ status: "published" as const }),
+      observe: async (ref: string) => ({
+        status: "observed" as const,
+        head: ref === "refs/heads/main" ? liveHead : firstHead,
+      }),
+    };
+    expect((await bindInitialDeliveryRef({ plan, materialization: derived.value, stateStore: store, refs })).status)
+      .toBe("bound");
+    const materialized = await materializeBoundDeliveryChain({
+      plan, materialization: derived.value, stateStore: store, refs,
+    });
+    expect(materialized.status).toBe("materialized");
+    if (materialized.status !== "materialized") return;
+    expect(materialized.state.value.target).toEqual({
+      ref: "refs/heads/main", coordinates: { head: chainHead, tree: chainTree },
+    });
+    expect(materialized.state.value.members[0]?.coordinates?.base).toBe(chainHead);
+    expect(materialized.state.value.activeOperation).toBeNull();
+
+    liveHead = "b".repeat(40);
+    const movedStore = memoryStateStore();
+    expect((await bindInitialDeliveryRef({
+      plan, materialization: derived.value, stateStore: movedStore, refs,
+    })).status).toBe("bound");
+    await expect(materializeBoundDeliveryChain({
+      plan, materialization: derived.value, stateStore: movedStore, refs,
+    })).resolves.toEqual({ status: "refused" });
+    expect((await movedStore.read()).value?.value.activeOperation?.kind).toBe("materialize");
+  });
+
   it("binds the first exact ref once, then reserves target and remaining coordinate changes", async () => {
     const plan = deliveryPlanFixture();
     const derived = deriveDeliveryMaterialization(plan, eligible(plan));
