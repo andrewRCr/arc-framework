@@ -181,6 +181,11 @@ export async function recordLaneAttempt(
     ...(input.local === undefined ? {} : { local: input.local }),
   };
   const replay = existing?.attempts.find((candidate) => candidate.attemptId === input.attemptId);
+  if (input.advancePendingHostedAttempt === true
+    && input.hosted?.handle?.invocation !== undefined
+    && replay === undefined) {
+    throw new Error("selected hosted attempt has no matching admitted request");
+  }
   if (replay !== undefined) {
     if (canonicalize(replay) === canonicalize(attempt)) {
       if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
@@ -294,6 +299,20 @@ export async function recordHostedAwaitAttempt(
 ): Promise<LaneProgressState> {
   const outcome = hostedAwaitLaneOutcome(input.result.state);
   const { handle } = input.result;
+  if (handle.invocation !== undefined) {
+    const { state } = await store.readOperation(laneProgressOperationId({
+      lane: "standard",
+      repositoryId: input.repositoryId,
+      headSha: handle.target.headSha,
+    }));
+    const admitted = state?.kind === "lane-progress"
+      ? state.attempts.find((attempt) => attempt.attemptId === hostedLaneAttemptId(handle))
+      : undefined;
+    if (admitted?.hosted?.handle === undefined
+      || canonicalize(admitted.hosted.handle) !== canonicalize(handle)) {
+      throw new Error("selected hosted attempt has no matching admitted request");
+    }
+  }
   if (outcome === null) {
     return recordHostedPendingRequest(store, {
       repositoryId: input.repositoryId,

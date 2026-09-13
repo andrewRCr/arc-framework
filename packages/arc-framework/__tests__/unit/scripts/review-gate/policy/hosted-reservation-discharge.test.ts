@@ -22,6 +22,9 @@ import {
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { composeDeliveryReviewObligation } from "../../../../../src/scripts/review-gate/status.js";
+import { resolveReviewPolicy } from
+  "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
 const oid = (character: string): string => character.repeat(40);
 const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
@@ -1155,6 +1158,195 @@ describe("hosted reservation discharge", () => {
 
     expect(result.discharged).toBe(false);
     expect(result.detail).toContain("coderabbit-pr");
+  });
+
+  it.each([
+    { selectedSource: "codex-pr", sources: ["coderabbit-pr", "codex-pr"] },
+    { selectedSource: "coderabbit-pr", sources: ["codex-pr", "coderabbit-pr"] },
+  ] as const)("accepts admitted Owner selection of $selectedSource after the configured prefix", async ({
+    selectedSource,
+    sources,
+  }) => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("a"),
+    });
+    const pending = attempt(oid("a"), selectedSource, "pending", vehicle);
+    const clean = attempt(oid("a"), selectedSource, "clean", vehicle);
+    const selected = {
+      ...clean,
+      hosted: {
+        ...clean.hosted,
+        handle: {
+          ...pending.hosted.handle!,
+          invocation: { mode: "force" as const, sourceId: selectedSource },
+        },
+      },
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation(sources[0], sources, {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [vehicle.head],
+      target: { ...target(vehicle.head), vehicle },
+      readLaneProgress: progress({
+        [vehicle.head]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [selected],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: true,
+      detail: `Hosted source \`${selectedSource}\` by explicit Owner selection.`,
+    });
+  });
+
+  it("advances work-unit review status to the next member after a selected-source discharge", async () => {
+    const reserved = reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+      kind: "delivery",
+      repository: "arc-framework/example",
+      workUnitId: "delivery",
+      planId: PLAN_ID,
+    });
+    const firstVehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("a"),
+    });
+    const secondVehicle = DeliveryReviewMemberVehicleSchema.parse({
+      ...firstVehicle,
+      deliverableId: MEMBER_TWO,
+      head: oid("b"),
+    });
+    const pending = attempt(firstVehicle.head, "codex-pr", "pending", firstVehicle);
+    const clean = attempt(firstVehicle.head, "codex-pr", "clean", firstVehicle);
+    const first = await projectHostedReservationDischarge({
+      reservation: reserved,
+      span: [firstVehicle.head],
+      target: { ...target(firstVehicle.head), vehicle: firstVehicle },
+      readLaneProgress: progress({
+        [firstVehicle.head]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [{
+            ...clean,
+            hosted: {
+              ...clean.hosted,
+              handle: {
+                ...pending.hosted.handle!,
+                invocation: { mode: "force", sourceId: "codex-pr" },
+              },
+            },
+          }],
+        },
+      }),
+    });
+    const secondTarget = { ...target(secondVehicle.head), pullRequest: 43 };
+    const second = await projectHostedReservationDischarge({
+      reservation: reserved,
+      span: [secondVehicle.head],
+      target: { ...secondTarget, vehicle: secondVehicle },
+      readLaneProgress: progress({}),
+    });
+    const status = composeDeliveryReviewObligation({
+      targets: [firstVehicle, secondVehicle].map((vehicle, index) => ({
+        ...(index === 0 ? target(vehicle.head) : secondTarget),
+        vehicle,
+        position: index + 1,
+        memberCount: 2,
+        chunkKey: `member-${index + 1}`,
+        title: `Member ${index + 1}`,
+      })),
+      discharges: [{ ...first, completedPasses: 1, passCeiling: 2, attemptHistory: [] }, {
+        ...second,
+        completedPasses: 0,
+        passCeiling: 2,
+        attemptHistory: [],
+        requestAdmission: resolveReviewPolicy({
+          schemaVersion: 1,
+          target: secondTarget,
+          lane: "standard",
+          standardReview: reserved.obligation,
+          sources: ["coderabbit-pr", "codex-pr"],
+          maxPasses: 2,
+          completedPasses: 0,
+          attempts: [],
+        }),
+      }],
+    });
+
+    expect(status).toMatchObject({
+      state: "review-required",
+      conjunction: { members: [{ state: "discharged" }, { state: "outstanding" }] },
+      action: { target: secondTarget, provider: "coderabbit-pr", vehicle: secondVehicle },
+    });
+  });
+
+  it("does not let a selected source bypass retained unresolved findings", async () => {
+    const headSha = oid("b");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: headSha,
+    });
+    const pending = attempt(headSha, "codex-pr", "pending", vehicle);
+    const clean = attempt(headSha, "codex-pr", "clean", vehicle);
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [{
+            ...clean,
+            hosted: {
+              ...clean.hosted,
+              handle: {
+                ...pending.hosted.handle!,
+                invocation: { mode: "force", sourceId: "codex-pr" },
+              },
+            },
+          }],
+        },
+      }),
+      readEarlierAttemptApplicability: async (sourceId) => sourceId === "coderabbit-pr"
+        ? {
+            status: "complete",
+            attempts: [earlierAttempt({
+              sourceId,
+              outcome: "findings",
+              requestedCoverage: "complete",
+              effectiveCoverage: "complete",
+              applicability: "retain-prior-attempt",
+            })],
+          }
+        : { status: "not-found", attempts: [] },
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      detail: "The reserved standard-review sources have retained findings without one exact response route.",
+    });
   });
 
   it("leaves the reservation pending when the reserved source reached no verdict", async () => {
