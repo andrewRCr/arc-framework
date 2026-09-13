@@ -3,7 +3,7 @@
   "slug": "keep-selected-member-exact-during-native-suffix-refresh",
   "claimId": "436a775da62de1b2c22325bd48049b60",
   "createdAt": "2026-09-13T20:05:10.875Z",
-  "updatedAt": "2026-09-13T20:05:10.875Z",
+  "updatedAt": "2026-09-13T20:24:08.438Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "keep-selected-member-exact-during-native-suffix-refresh",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep the selected member exact during provider-native suffix refresh",
   "originEntrySourceDigest": "sha256:8d48b7ebb58e1a493f494575918c3d5669661cbbb6c06ea7345e55e8d24d480d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/keep-selected-member-exact-during-native-suffix-refresh",
+    "headSha": "f4f4a6b420ab805ff16d7980c791c597e4a50845"
+  }
 }
