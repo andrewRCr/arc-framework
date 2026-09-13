@@ -35,7 +35,9 @@ async function branchAtHead(
       // Either ref may be absent; an exact local branch may outpace remote tracking.
     }
   }
-  return false;
+  const remoteRef = `refs/heads/${branch}`;
+  const { stdout } = await exec("git", ["ls-remote", "--heads", remote, remoteRef]);
+  return stdout.trim() === `${headSha}\t${remoteRef}`;
 }
 
 function matchingOrdinaryErrand(

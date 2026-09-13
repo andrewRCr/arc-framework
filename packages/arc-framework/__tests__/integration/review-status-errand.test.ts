@@ -1,7 +1,8 @@
 /** Exact Errand review-status composition from identity and durable lane progress. */
 
 import { execFile } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -43,6 +44,69 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
 }
 
 describe("Errand review status", () => {
+  it("accepts the exact live remote head without a local Errand branch ref", async () => {
+    const root = await createTempRepoCore({ prefix: "arc-review-status-remote-", identity: "andrew" });
+    const remote = await mkdtemp(join(tmpdir(), "arc-review-status-bare-"));
+    roots.push(root, remote);
+    const slug = "remote-only-errand";
+    const branch = `chore/${slug}`;
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3,
+      kind: "errand",
+      slug,
+      claimId: "0123456789abcdef0123456789abcdef",
+      purpose: "errand",
+      origin: "description",
+      originEntry: null,
+      intent: "Review an exact remote Errand head",
+      branch,
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
+      createdAt: "2026-09-13T00:00:00.000Z",
+      updatedAt: "2026-09-13T00:00:00.000Z",
+    });
+    await writeFile(join(root, slug), serializeTransientIdentityRecord(record), "utf8");
+    await git(root, ["add", slug]);
+    await git(root, ["commit", "-m", "identity snapshot"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    await git(root, ["switch", "-c", branch]);
+    await writeFile(join(root, "change.txt"), "remote reviewed change\n", "utf8");
+    await git(root, ["add", "change.txt"]);
+    await git(root, ["commit", "-m", "remote reviewed change"]);
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    await execFileAsync("git", ["init", "--bare", remote]);
+    await git(root, ["remote", "add", "origin", remote]);
+    await git(root, ["push", "origin", branch]);
+    await git(root, ["switch", "--detach", headSha]);
+    await git(root, ["update-ref", "-d", `refs/heads/${branch}`]);
+    await git(root, ["update-ref", "-d", `refs/remotes/origin/${branch}`]);
+
+    await expect(git(root, ["rev-parse", "--verify", `refs/heads/${branch}^{commit}`])).rejects.toThrow();
+    await expect(git(root, ["rev-parse", "--verify", `refs/remotes/origin/${branch}^{commit}`]))
+      .rejects.toThrow();
+    expect(await git(root, ["ls-remote", "--heads", "origin", `refs/heads/${branch}`]))
+      .toBe(`${headSha}\trefs/heads/${branch}`);
+
+    const exec = makeGitExec(root);
+    await expect(readRoutedObligation(root, exec, {
+      repository: "owner/repo",
+      headRef: branch,
+      headSha,
+    }, 42)).resolves.toEqual({
+      state: "review-required",
+      detail: "No standard review is recorded for this Errand head.",
+    });
+    await expect(readRoutedObligation(root, exec, {
+      repository: "owner/repo",
+      headRef: branch,
+      headSha: "0".repeat(40),
+    }, 42)).resolves.toEqual({
+      state: "blocked",
+      detail: "The Errand identity's branch does not match the exact review head.",
+    });
+  });
+
   it("reads a pending then clean hosted pass from an exact Errand identity without Candidate artifacts", async () => {
     const root = await createTempRepoCore({ prefix: "arc-review-status-errand-", identity: "andrew" });
     roots.push(root);
