@@ -22,6 +22,8 @@ export interface ReportedCostModule {
   state(): "skipped" | "pending" | "failed" | "passed" | "queued";
   ok(): boolean;
   diagnostic(): {
+    readonly environmentSetupDuration: number;
+    readonly prepareDuration: number;
     readonly collectDuration: number;
     readonly setupDuration: number;
     readonly duration: number;
@@ -43,6 +45,8 @@ export interface TestCostCase {
 export interface TestCostFile {
   readonly path: string;
   readonly tier: string;
+  readonly environmentSetupDurationMs: number;
+  readonly prepareDurationMs: number;
   readonly collectDurationMs: number;
   readonly setupDurationMs: number;
   readonly fixedCostMs: number;
@@ -82,6 +86,11 @@ function requireCompletedModule(module: ReportedCostModule): void {
 
 function captureFile(module: ReportedCostModule): TestCostFile {
   const diagnostic = module.diagnostic();
+  const environmentSetupDurationMs = requireDuration(
+    diagnostic.environmentSetupDuration,
+    `${module.relativeModuleId} environment setup`,
+  );
+  const prepareDurationMs = requireDuration(diagnostic.prepareDuration, `${module.relativeModuleId} preparation`);
   const collectDurationMs = requireDuration(diagnostic.collectDuration, `${module.relativeModuleId} collection`);
   const setupDurationMs = requireDuration(diagnostic.setupDuration, `${module.relativeModuleId} setup`);
   const executionDurationMs = requireDuration(diagnostic.duration, `${module.relativeModuleId} execution`);
@@ -105,7 +114,8 @@ function captureFile(module: ReportedCostModule): TestCostFile {
     const cliSpawnCount = typeof metadata === "object" && metadata !== null
       ? (metadata as Readonly<Record<string, unknown>>)[TEST_COST_CLI_SPAWN_COUNT_META]
       : undefined;
-    if (cliTimeoutValue !== undefined && typeof cliTimeoutValue !== "number") {
+    if (cliTimeoutValue !== undefined
+      && (typeof cliTimeoutValue !== "number" || !Number.isFinite(cliTimeoutValue) || cliTimeoutValue <= 0)) {
       throw new Error(`Invalid CLI timeout metadata for ${test.fullName}`);
     }
     if (cliSpawnCount !== undefined
@@ -123,10 +133,12 @@ function captureFile(module: ReportedCostModule): TestCostFile {
     }];
   });
   const testTimeMs = tests.reduce((sum, test) => sum + test.durationMs, 0);
-  const fixedCostMs = collectDurationMs + setupDurationMs;
+  const fixedCostMs = environmentSetupDurationMs + prepareDurationMs + collectDurationMs + setupDurationMs;
   return {
     path: module.relativeModuleId,
     tier: requireText(module.project.name, `${module.relativeModuleId} project name`),
+    environmentSetupDurationMs,
+    prepareDurationMs,
     collectDurationMs,
     setupDurationMs,
     fixedCostMs,

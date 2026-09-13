@@ -7,7 +7,7 @@ import type { RetainedTestCostRun } from "../../src/lib/test-cost/run.js";
 
 function run(valueMs: number, workerSizing: string = "12"): RetainedTestCostRun {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     outcome: "passed",
     unhandledErrorCount: 0,
     capturedAt: "2026-09-11T00:00:00.000Z",
@@ -22,6 +22,8 @@ function run(valueMs: number, workerSizing: string = "12"): RetainedTestCostRun 
     files: [{
       path: "a.test.ts",
       tier: "unit",
+      environmentSetupDurationMs: 0,
+      prepareDurationMs: 0,
       collectDurationMs: 0,
       setupDurationMs: 0,
       fixedCostMs: 0,
