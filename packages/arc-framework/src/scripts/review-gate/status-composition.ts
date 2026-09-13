@@ -33,6 +33,7 @@ import {
   type DeliveryTerminalRecordLookup,
 } from "./core/delivery-member-lookup.js";
 import { resolveReviewSubject } from "./core/review-subject.js";
+import { readErrandRoutedObligation } from "./status-errand.js";
 import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
@@ -233,6 +234,14 @@ export async function readRoutedObligation(
     ) => void;
   } = {},
 ): Promise<RoutedReviewObligation> {
+  const errand = await readErrandRoutedObligation({
+    cwd,
+    exec,
+    target,
+    pullRequest,
+    ...(options.remote === undefined ? {} : { remote: options.remote }),
+  });
+  if (errand !== null) return errand;
   const subject = await resolveReviewSubject({
     headRef: target.headRef,
     headSha: target.headSha,
