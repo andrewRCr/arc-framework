@@ -17,13 +17,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------------------- |
 | `Active`   | decompose-conservation-coverage | P1       | andrew | —                               | decompose-core-hardening  |
 | `Active`   | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                               | —                         |
 | `Planning` | decomposition-doctrine          | P1       | andrew | decompose-conservation-coverage | —                         |
 | `Active`   | evidence-applicability          | P1       | andrew | —                               | —                         |
 | `Active`   | local-ci-capacity-qualification | P1       | andrew | —                               | —                         |
-| `Planning` | plan-amendment                  | P1       | andrew | —                               | —                         |
+| `Active`   | plan-amendment                  | P1       | andrew | —                               | —                         |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —                         |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                               | —                         |
-| `Active`   | test-suite-right-sizing         | P2       | andrew | —                               | —                         |
 
 ## Ready
 
@@ -33,7 +33,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | lifecycle-advancement-provenance    | P1       | andrew | —          | approval-flow-refinement   |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
-| candidate-reroot-recovery-frame     | P1       | andrew | —          | —                          |
 | ci-defer-heavy-reconciliation       | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-correction-convergence     | P1       | andrew | —          | —                          |

@@ -26,6 +26,7 @@ export const baseOptions = {
   clean: true,
   dts: true,
   sourcemap: true,
+  splitting: false,
   // Emit the esbuild metafile so the dev-mode stale-build check can scope
   // staleness to the bundle's real input graph (see lib/dev-check.ts).
   metafile: true,

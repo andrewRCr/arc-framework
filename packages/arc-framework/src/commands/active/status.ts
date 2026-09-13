@@ -17,10 +17,9 @@ import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
-import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
 import { checkCurrentWorkflowConsistency } from "../../lib/active/current-workflow-consistency.js";
-import { getCurrentBranch } from "../../lib/git/index.js";
+import { getCurrentBranch } from "../../lib/git/exec.js";
 import { createRawGitExec, gitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
@@ -36,25 +35,11 @@ import type {
   SessionType,
   MetaFileCandidate,
 } from "./types.js";
-import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
-import { reduceCandidateDurableBaseline } from
-  "../../lib/work-unit/candidate-attestation.js";
 import {
   type CandidateTargetProjector,
 } from "../../lib/work-unit/candidate-effective-target.js";
-import { projectGitCandidateEffectiveTarget } from
-  "../../lib/work-unit/git-candidate-effective-target.js";
-import {
-  projectCandidateFixResumeBoundary,
-  projectCandidateReviewBoundary,
-  recoverPrePublicationBoundary,
-  recoverIntegratingBoundary,
-} from "../../scripts/review-gate/policy/integration-boundary-locus.js";
-import {
-  readPendingCandidateReviewFixAuthority,
-  type CandidateReviewFixAuthorityReader,
-} from "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
+import type { CandidateReviewFixAuthorityReader } from
+  "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
   "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
@@ -128,7 +113,9 @@ export async function runActiveStatus(
   const projectCandidateTarget = options.projectCandidateTarget
     ?? createRepositoryCandidateTargetProjector(exec);
   const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
-    ?? ((input) => readPendingCandidateReviewFixAuthority({ ...input, exec }));
+    ?? (async (input) => (await import(
+      "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
+    )).readPendingCandidateReviewFixAuthority({ ...input, exec }));
   const candidates = await Promise.all(rawCandidates.map((candidate) =>
     projectCandidateIntegrationBoundary(
       options.cwd,
@@ -203,7 +190,9 @@ export async function runActiveSessionInitStatusInternal(
   const projectCandidateTarget = options.projectCandidateTarget
     ?? createRepositoryCandidateTargetProjector(options.exec);
   const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
-    ?? ((input) => readPendingCandidateReviewFixAuthority({ ...input, exec: options.exec }));
+    ?? (async (input) => (await import(
+      "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
+    )).readPendingCandidateReviewFixAuthority({ ...input, exec: options.exec }));
   const projected = await Promise.all(scan.candidates.map((candidate) =>
     projectCandidateIntegrationBoundary(
       options.cwd,
@@ -390,6 +379,22 @@ async function projectCandidateIntegrationBoundary(
     && normalizeNullablePointer(candidate.currentWorkflow) !== "prepare-work-unit") {
     return { ...candidate, integrationBoundary: null };
   }
+  const [
+    { readSubmissionBoundary },
+    { readCandidateRecord },
+    { reduceCandidateDurableBaseline },
+    {
+      projectCandidateFixResumeBoundary,
+      projectCandidateReviewBoundary,
+      recoverPrePublicationBoundary,
+      recoverIntegratingBoundary,
+    },
+  ] = await Promise.all([
+    import("../../lib/work-unit/submission-boundary-store.js"),
+    import("../../lib/work-unit/candidate-record-store.js"),
+    import("../../lib/work-unit/candidate-attestation.js"),
+    import("../../scripts/review-gate/policy/integration-boundary-locus.js"),
+  ]);
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
@@ -489,7 +494,9 @@ function createRepositoryCandidateTargetProjector(
   return async ({ cwd, name, record }) => {
     let baseBranch = baseBranches.get(cwd);
     if (baseBranch === undefined) {
-      baseBranch = readConfigSettings(cwd).then(({ settings }) => settings["branch.base"]);
+      baseBranch = import("../../lib/config/status-reader.js")
+        .then(({ readConfigSettings }) => readConfigSettings(cwd))
+        .then(({ settings }) => settings["branch.base"]);
       baseBranches.set(cwd, baseBranch);
     }
     let rawExec = rawExecs.get(cwd);
@@ -497,7 +504,9 @@ function createRepositoryCandidateTargetProjector(
       rawExec = createRawGitExec(cwd);
       rawExecs.set(cwd, rawExec);
     }
-    return projectGitCandidateEffectiveTarget({
+    return (await import(
+      "../../lib/work-unit/git-candidate-effective-target.js"
+    )).projectGitCandidateEffectiveTarget({
       cwd,
       name,
       baseBranch: await baseBranch,
