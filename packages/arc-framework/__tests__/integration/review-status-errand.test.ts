@@ -195,6 +195,33 @@ describe("Errand review status", () => {
       detail: "Recorded review progress does not match the exact Errand identity and change request.",
     });
 
+    const nextHandle = {
+      ...handle,
+      artifact: {
+        ...handle.artifact,
+        id: "comment-43",
+        url: "https://example.test/comment-43",
+        createdAt: "2026-09-13T00:03:30Z",
+      },
+      vehicle: { ...handle.vehicle, claimId: nextRecord.claimId },
+    };
+    await recordHostedPendingRequest(store, { ...context, handle: nextHandle, now: "2026-09-13T00:03:30Z" });
+    await recordHostedAwaitAttempt(store, {
+      ...context,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: nextHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.test/review-43",
+      },
+      now: "2026-09-13T00:03:40Z",
+    });
+    await expect(readRoutedObligation(root, exec, target, 42)).resolves.toMatchObject({
+      state: "settled",
+    });
+
     await writeFile(join(root, "local-change.txt"), "locally reviewed change\n", "utf8");
     await git(root, ["add", "local-change.txt"]);
     await git(root, ["commit", "-m", "locally reviewed change"]);
@@ -245,6 +272,26 @@ describe("Errand review status", () => {
     await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
       state: "blocked",
       detail: "Recorded local review does not match the exact Errand target.",
+    });
+
+    await recordLaneAttempt(store, {
+      lane: "standard",
+      repositoryId,
+      changeRequestId: null,
+      headSha: localHeadSha,
+      attemptId: "local/review-2",
+      sourceId: "delegated-agent",
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      local: {
+        vehicle: { kind: "errand", identity: slug, claimId: finalRecord.claimId },
+        target: localTarget,
+      },
+      now: "2026-09-13T00:04:30Z",
+    });
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
+      state: "settled",
     });
 
     await writeFile(join(root, "legacy-local-change.txt"), "legacy review\n", "utf8");

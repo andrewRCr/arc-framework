@@ -107,37 +107,50 @@ export async function readErrandRoutedObligation(input: {
       return { state: "review-required", detail: "No standard review is recorded for this Errand head." };
     }
     let latest: { readonly outcome: string; readonly complete: boolean } | null = null;
+    let currentClaimAttempt = false;
+    let obsoleteClaimDetail: string | null = null;
     for (const attempt of progress.attempts) {
-      latest = { outcome: attempt.outcome, complete: false };
       const hosted = attempt.hosted;
       if (hosted?.handle !== undefined) {
         const handle = hosted.handle;
         const vehicle = handle.vehicle;
         if (vehicle?.kind !== "errand"
           || vehicle.key !== selected.record.slug
-          || vehicle.claimId !== selected.record.claimId
           || vehicle.branch !== selected.record.branch
           || handle.target.repository.toLowerCase() !== input.target.repository.toLowerCase()
           || handle.target.pullRequest !== input.pullRequest
           || handle.target.headSha !== input.target.headSha) {
           return blocked("Recorded review progress does not match the exact Errand identity and change request.");
         }
+        if (vehicle.claimId !== selected.record.claimId) {
+          obsoleteClaimDetail = "Recorded review progress does not match the exact Errand identity and change request.";
+          continue;
+        }
+        currentClaimAttempt = true;
         latest = { outcome: attempt.outcome, complete: hosted.effectiveCoverage === "complete" };
       } else if (hosted !== undefined) {
         if (attempt.outcome === "clean" || attempt.outcome === "findings"
           || attempt.outcome === "settled-findings") {
           return blocked("Recorded hosted review has no exact Errand request binding.");
         }
+        latest = { outcome: attempt.outcome, complete: false };
       } else if (attempt.local !== undefined) {
         if (attempt.local.vehicle.kind !== "errand"
           || attempt.local.vehicle.identity !== selected.record.slug
-          || attempt.local.vehicle.claimId !== selected.record.claimId
           || attempt.local.target.headSha !== input.target.headSha) {
           return blocked("Recorded local review does not match the exact Errand target.");
         }
+        if (attempt.local.vehicle.claimId !== selected.record.claimId) {
+          obsoleteClaimDetail = "Recorded local review does not match the exact Errand target.";
+          continue;
+        }
+        currentClaimAttempt = true;
         latest = { outcome: attempt.outcome, complete: attempt.chunkSeriesComplete !== false };
+      } else {
+        latest = { outcome: attempt.outcome, complete: false };
       }
     }
+    if (!currentClaimAttempt && obsoleteClaimDetail !== null) return blocked(obsoleteClaimDetail);
     const settled = latest !== null && latest.complete && progress.completedPasses > 0
       && (latest.outcome === "clean" || latest.outcome === "settled-findings");
     return settled
