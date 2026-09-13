@@ -56,4 +56,21 @@ describe("CI test-cost budget reporting", () => {
     expect(report.standing.status).toBe("within");
     expect(report.summary).toBeUndefined();
   });
+
+  it("warns when the CI worker sizing has no measured budget", () => {
+    const report = createCiTestBudgetReport(record, {
+      tier: "integration",
+      projectSet: "integration",
+      workerSizing: "native",
+      ciJob: "integration",
+      startedAtMs: 2_000,
+      completedAtMs: 3_075,
+    });
+
+    expect(report.standing).toEqual({ status: "unbudgeted", actualMs: 1_075 });
+    expect(report.summary).toContain("[!WARNING]");
+    expect(report.summary).toContain("native");
+    expect(report.summary).toContain("no CI-job budget");
+    expect(report.summary).toContain("no budget comparison was made");
+  });
 });

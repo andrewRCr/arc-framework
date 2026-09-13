@@ -41,7 +41,7 @@ permissions:
 # GitHub-hosted Linux runner uses native sizing; selecting a custom Linux runner
 # defaults to one worker so multiple jobs and their CLI/Git subprocesses fit a
 # constrained host. The repository variable can retune that fleet without a code
-# change.
+# change. An unbudgeted sizing mode receives an advisory warning, not a comparison.
 env:
   VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}
 

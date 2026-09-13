@@ -47,7 +47,22 @@ export function createCiTestBudgetReport(
     actualMs: elapsedMs,
     ciJob: input.ciJob,
   });
-  if (standing.status !== "over") return { standing };
+  if (standing.status === "unbudgeted") {
+    return {
+      standing,
+      summary: [
+        "### Test budget",
+        "",
+        "> [!WARNING]",
+        `> \`${input.ciJob}\` has no CI-job budget matching tier \`${input.tier}\`, `
+          + `project set \`${input.projectSet}\`, and worker sizing \`${input.workerSizing}\` `
+          + `(${formatMilliseconds(standing.actualMs)} observed). `
+          + "Advisory only; no budget comparison was made and the job result is unchanged.",
+        "",
+      ].join("\n"),
+    };
+  }
+  if (standing.status === "within") return { standing };
   return {
     standing,
     summary: [
