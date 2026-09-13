@@ -19,7 +19,7 @@ npm run -s lint:md
 npm run lint:ts
 npm run lint:sh
 npm run typecheck
-npm test
+npm run test:full
 npm run build
 ```
 

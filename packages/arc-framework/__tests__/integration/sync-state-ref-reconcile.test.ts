@@ -116,7 +116,7 @@ describe("sync-state-ref reconcile-push", () => {
   beforeEach(async () => {
     repoA = await createTempRepo();
     await makeCommit(repoA, "init");
-    remoteDir = await addBareRemote(repoA);
+    remoteDir = await addBareRemote(repoA, { callerOwnsCleanup: true });
     repoB = await cloneOf(remoteDir);
     ioA = ioFor(repoA);
     ioB = ioFor(repoB);

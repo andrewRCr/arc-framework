@@ -57,7 +57,7 @@ methodology strategy).
 
 - Everything in Tier 1 (full project scope)
 - Targeted E2E/integration tests for affected areas (when parent task touched E2E-tested code)
-- Build verification
+- Build verification when included in the project's designated Tier 2 gate
 
 **Time budget:** 1-5 minutes
 
@@ -69,11 +69,11 @@ methodology strategy).
 3. **Cross-cutting changes:** Did it modify shared infrastructure (middleware, shared utilities,
    configuration, dependency injection)?
 4. **If no integration/E2E relevance:** Skip targeted tests but still run full-project Tier 1
-   checks + build.
+   checks and any build check designated for Tier 2 by the project.
 
 **Running targeted integration/E2E tests:**
 
-Don't run the full suite at Tier 2 — that's Tier 3. Instead:
+Keep Tier 2 within the project's designated gate. When targeted integration/E2E evidence is required:
 
 - Run specific test files that cover the area you modified
 - Run tests tagged for the feature area (if using a tag system)
@@ -93,7 +93,7 @@ npm run test:e2e -- --grep "@navigation"
 
 ---
 
-### Tier 3: Full Suite (Per-Phase / Pre-PR)
+### Tier 3: Complete Project Gate (Per-Phase / Pre-PR)
 
 **When:**
 
@@ -106,16 +106,15 @@ npm run test:e2e -- --grep "@navigation"
 - Full type checking (entire project)
 - Full linting (entire project)
 - Full format checking
-- Full unit test suite
-- Full integration/E2E test suite (all configurations)
+- Every test lane the project designates for local Tier 3 enforcement
 - Build verification
 - Markdown linting (for documentation changes)
 
 **Time budget:** 5-15+ minutes (acceptable because it's infrequent)
 
-**Guidance:**
+**Guidance:** Complete every project-designated Tier 3 check. Test-tier and lane assignment belongs to the project;
+the framework does not promote a locally excluded lane into this gate.
 
-- Never skip or partially run Tier 3
 - If Tier 3 fails, fix before proceeding (see Quality gate failure in
   [DEV-RULES.ARC][dev-rules-arc])
 
@@ -161,8 +160,8 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 ```markdown
 ## **Phase N:** Testing & Quality Gates
 
-- [ ] **N.1 Run full test suite**
-- [ ] **N.2 Run full integration/E2E suite**
+- [ ] **N.1 Run the project-designated local test gate**
+- [ ] **N.2 Run any explicit integration/E2E checkpoint the project requires**
 - [ ] **N.3 Run all quality gates**
 ```
 
