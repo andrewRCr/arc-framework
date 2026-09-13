@@ -11,14 +11,14 @@
 - **Design:** `spec-evidence-applicability.md`
 - **Task List:** `tasks-evidence-applicability.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:5aa9b5a144c365747437e5d7ce7c49c613d2df1673c0ab4259a12ffd7db668ba`
+- **Candidate:** `sha256:a752340e2d9f00d83c18f97fd4418e5e1cccd171c91c2b55797803796e793a76`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 6.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** Candidate review pending — resume integration review
 
 - **PR URL:** [none]
 - **Completed:** [none]
