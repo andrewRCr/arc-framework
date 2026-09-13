@@ -79,4 +79,11 @@ describe("validateE2EShardMembership", () => {
       ["a.test.ts"], ["b.test.ts"], ["c.test.ts"], ["d.test.ts"],
     ], anchors)).toThrow(/anchor.*not found/u);
   });
+
+  it("keeps a valid remainder file whose basename only ends with an anchor name", () => {
+    const remainder = ["extended-anchor-a.test.ts", "b.test.ts", "c.test.ts", "d.test.ts"];
+    expect(validateE2EShardMembership([...remainder, ...anchors], remainder, exclusions, [
+      ["extended-anchor-a.test.ts"], ["b.test.ts"], ["c.test.ts"], ["d.test.ts"],
+    ], anchors).wholeTier).toEqual([...remainder].sort());
+  });
 });

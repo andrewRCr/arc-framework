@@ -67,7 +67,7 @@ export function validateE2EShardMembership(
   if (!sameMembers(discovered.filter((file) => !anchorFiles.includes(file)), whole)) {
     throw new Error("E2E remainder exclusions do not match the discovered tier and anchors");
   }
-  if (normalizedLegs.flat().some((file) => excludedNames.some((name) => file.endsWith(name)))) {
+  if (normalizedLegs.flat().some((file) => excludedNames.some((name) => file.split("/").at(-1) === name))) {
     throw new Error("An excluded anchor appeared in E2E remainder membership");
   }
   const occurrences = new Map<string, number>();
