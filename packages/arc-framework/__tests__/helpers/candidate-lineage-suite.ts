@@ -349,7 +349,10 @@ async function fixture(options: {
   return root;
 }
 
-async function installThreeMemberDelivery(root: string, deliveryState: "bound" | "planned" = "bound") {
+async function installThreeMemberDelivery(
+  root: string,
+  deliveryState: "bound" | "planned" | "planned-divergent" = "bound",
+) {
   const targetHead = await git(root, ["rev-parse", "main^{commit}"]);
   const targetTree = await git(root, ["rev-parse", `${targetHead}^{tree}`]);
   const operationGateHead = await git(root, [
@@ -364,7 +367,7 @@ async function installThreeMemberDelivery(root: string, deliveryState: "bound" |
   const secondTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
 
   const plan = deliveryThreeMemberStackPlanForWorkUnitFixture("example");
-  const taskMarker = deliveryState === "planned" ? "x" : " ";
+  const taskMarker = deliveryState !== "bound" ? "x" : " ";
   const taskList = [
     "# Task List: Example",
     "",
@@ -383,7 +386,7 @@ async function installThreeMemberDelivery(root: string, deliveryState: "bound" |
     "",
   ].join("\n");
   await writeFile(join(root, "member-three.txt"), "member three\n", "utf8");
-  if (deliveryState === "planned") {
+  if (deliveryState !== "bound") {
     await git(root, ["add", "member-three.txt"]);
     await git(root, ["commit", "-m", "member three"]);
   } else {
@@ -393,13 +396,28 @@ async function installThreeMemberDelivery(root: string, deliveryState: "bound" |
   }
   const thirdHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
   const thirdTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
-  if (deliveryState === "planned") {
+  if (deliveryState !== "bound") {
     await writeFile(join(root, ".arc", "active", "tasks-example.md"), taskList, "utf8");
     await git(root, ["add", ".arc/active/tasks-example.md"]);
     await git(root, ["commit", "-m", "record delivery plan"]);
   }
-  await git(root, ["update-ref", "refs/heads/delivery/member-one", firstHead]);
-  await git(root, ["update-ref", "refs/heads/delivery/member-two", secondHead]);
+  const candidateHeads = deliveryState === "planned-divergent"
+    ? [
+        await git(root, ["commit-tree", firstTree, "-p", targetHead, "-m", "private member one"]),
+      ]
+    : [firstHead];
+  if (deliveryState === "planned-divergent") {
+    candidateHeads.push(await git(root, [
+      "commit-tree", secondTree, "-p", candidateHeads[0]!, "-m", "private member two",
+    ]));
+    candidateHeads.push(await git(root, [
+      "commit-tree", thirdTree, "-p", candidateHeads[1]!, "-m", "private member three",
+    ]));
+  } else {
+    candidateHeads.push(secondHead, thirdHead);
+  }
+  await git(root, ["update-ref", "refs/heads/delivery/member-one", candidateHeads[0]!]);
+  await git(root, ["update-ref", "refs/heads/delivery/member-two", candidateHeads[1]!]);
 
   const state = DeliveryStateV1Schema.parse({
     schemaVersion: 1,
@@ -441,7 +459,7 @@ async function installThreeMemberDelivery(root: string, deliveryState: "bound" |
   } else {
     const commonDir = await git(root, ["rev-parse", "--git-common-dir"]);
     for (const [index, member] of plan.members.entries()) {
-      const candidateHead = [firstHead, secondHead, thirdHead][index];
+      const candidateHead = candidateHeads[index];
       if (candidateHead === undefined) throw new Error("missing delivery Candidate head");
       await git(root, [
         "update-ref",
@@ -454,7 +472,13 @@ async function installThreeMemberDelivery(root: string, deliveryState: "bound" |
       gatePaths.push(gatePath);
     }
   }
-  return { plan, firstMemberHead: firstHead, operationMemberHead: targetHead, operationGateHead, gatePaths };
+  return {
+    plan,
+    firstMemberHead: candidateHeads[0]!,
+    operationMemberHead: targetHead,
+    operationGateHead,
+    gatePaths,
+  };
 }
 
 async function expectStationaryWorkUnitLocus(
@@ -735,7 +759,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
   it("advances the root Candidate after a private delivery-member frontline fix", async () => {
     const root = await fixture({ activeArtifactsOnBase: true, frontlineReviewActive: true });
     await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
-    const delivery = await installThreeMemberDelivery(root, "planned");
+    const delivery = await installThreeMemberDelivery(root, "planned-divergent");
     const attested = await runArc(["attest", "example", "--json"], root);
     expect(attested.exitCode, attested.stderr || attested.stdout).toBe(0);
     await git(root, ["commit", "-m", "verification"]);
@@ -959,6 +983,113 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       applicability: "focused",
       verificationEvidenceRefs: ["verification://focused-private-member-fix"],
     }]);
+
+    await git(root, ["commit", "-m", "record private member response"]);
+    const converged = await runArc(["attest", "example", "--json"], root);
+    expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
+    await git(root, ["commit", "-m", "verify private member response"]);
+    const approvedHead = await git(root, ["rev-parse", "HEAD"]);
+    expect(await git(root, ["merge-base", delivery.firstMemberHead, approvedHead]))
+      .not.toBe(delivery.firstMemberHead);
+
+    const composed = await composeLineageReview(root, approvedHead);
+    expect(composed.dispositionIds).toContain(dispositions.dispositionSet.dispositionSetId);
+    expect(composed.actions).toEqual([expect.objectContaining({
+      channel: "candidate-response-confirmation",
+      dispositionId: dispositions.dispositionSet.dispositionSetId,
+    })]);
+    const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    const checkpoint = {
+      workUnit: "example",
+      approvedHead,
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+    } as IntegrationCheckpointCompositionRecord;
+    const executeAt = (head: string) => inRepository(root, async () => production.executeSettlement({
+      ...checkpoint,
+      approvedHead: head,
+    }));
+    await expect(executeAt(approvedHead)).resolves.toEqual({
+      state: "settled",
+      completedActions: 1,
+    });
+    await expect(executeAt(approvedHead)).resolves.toEqual({
+      state: "settled",
+      completedActions: 1,
+    });
+
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const index = new LocalApprovedDispositionRecordStore(publisher);
+    const [approved] = await index.listDispositionRecords();
+    if (approved === undefined) throw new Error("missing private disposition record");
+    const duplicateOperationId = `sha256:${"9".repeat(64)}`;
+    await index.appendDispositionRecord({ ...approved, operationId: duplicateOperationId });
+    await expect(executeAt(approvedHead)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "ambiguous",
+      dispositionId: dispositions.dispositionSet.dispositionSetId,
+    });
+    const duplicateName = `disposition-${canonicalDigest({ operationId: duplicateOperationId })
+      .slice("sha256:".length)}.json`;
+    await publisher.update({ root: "review-gate", namespace: "evidence" }, duplicateName, () => ({
+      kind: "delete",
+      result: undefined,
+    }));
+    const outcomeName = `frontline-outcome-${canonicalDigest({ operationId: approved.operationId })
+      .slice("sha256:".length)}.json`;
+    const outcomePath = { root: "review-gate" as const, namespace: "outcomes" as const };
+    const originalOutcome = await publisher.read(outcomePath, outcomeName);
+    if (originalOutcome === null) throw new Error("missing private Frontline outcome");
+    await publisher.update(outcomePath, outcomeName, () => ({ kind: "delete", result: undefined }));
+    await expect(executeAt(approvedHead)).resolves.toMatchObject({
+      state: "invalidated",
+      dispositionId: dispositions.dispositionSet.dispositionSetId,
+    });
+    const movedOutcome = JSON.parse(originalOutcome) as {
+      record: { responseBinding: { candidate: { candidateId: string } } };
+    };
+    movedOutcome.record.responseBinding.candidate.candidateId = `sha256:${"0".repeat(64)}`;
+    await publisher.update(outcomePath, outcomeName, () => ({
+      kind: "write",
+      content: `${JSON.stringify(movedOutcome)}\n`,
+      result: undefined,
+    }));
+    await expect(executeAt(approvedHead)).resolves.toMatchObject({
+      state: "invalidated",
+      dispositionId: dispositions.dispositionSet.dispositionSetId,
+    });
+    await publisher.update(outcomePath, outcomeName, () => ({
+      kind: "write",
+      content: originalOutcome,
+      result: undefined,
+    }));
+
+    const candidatePath = join(root, ".arc/system/.internal/candidates/example.json");
+    const originalCandidate = await readFile(candidatePath, "utf8");
+    const duplicatedCandidate = JSON.parse(originalCandidate) as { transitions: unknown[] };
+    const response = duplicatedCandidate.transitions.find((transition) => (
+      typeof transition === "object" && transition !== null
+      && "transitionKind" in transition && transition.transitionKind === "review-response"
+    ));
+    if (response === undefined) throw new Error("missing private Candidate response");
+    duplicatedCandidate.transitions.push(response);
+    await writeFile(candidatePath, `${JSON.stringify(duplicatedCandidate)}\n`, "utf8");
+    await expect(executeAt(approvedHead)).resolves.toMatchObject({
+      state: "invalidated",
+      dispositionId: dispositions.dispositionSet.dispositionSetId,
+    });
+    await writeFile(candidatePath, originalCandidate, "utf8");
+
+    await writeFile(join(root, "reviewed.txt"), "unproven post-checkpoint change\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "move beyond verified Candidate"]);
+    await expect(executeAt(approvedHead)).resolves.toMatchObject({
+      state: "invalidated",
+      dispositionId: dispositions.dispositionSet.dispositionSetId,
+    });
+    await expect(executeAt(await git(root, ["rev-parse", "HEAD"]))).resolves.toMatchObject({
+      state: "invalidated",
+      dispositionId: dispositions.dispositionSet.dispositionSetId,
+    });
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("resumes a Candidate-bound member-shaped fix before requiring a new root", async () => {
