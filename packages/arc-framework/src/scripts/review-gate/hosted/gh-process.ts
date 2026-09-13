@@ -350,7 +350,8 @@ export class GhHostedReviewPort implements HostedGitHubPort {
 
   async readThreads(target: HostedTarget, options?: { signal?: AbortSignal }): Promise<HostedGitHubThread[]> {
     const commentFields = "id databaseId body url path line originalLine commit{oid} "
-      + "pullRequestReview{id} author{... on User{databaseId} ... on Bot{databaseId}}";
+      + "pullRequestReview{id} replyTo{pullRequestReview{id}} "
+      + "author{... on User{databaseId} ... on Bot{databaseId}}";
     const query = `query($owner:String!,$repo:String!,$number:Int!,$threadCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$threadCursor){nodes{id isResolved comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}`;
     const commentQuery = `query($id:ID!,$commentCursor:String){node(id:$id){... on PullRequestReviewThread{id comments(first:100,after:$commentCursor){nodes{${commentFields}} pageInfo{hasNextPage endCursor}}}}}`;
     const [owner, repo] = target.repository.split("/");
@@ -428,6 +429,12 @@ export class GhHostedReviewPort implements HostedGitHubPort {
           return {
             id: integerString(item.databaseId, `${path}.databaseId`),
             reviewId: string(record(item.pullRequestReview, `${path}.pullRequestReview`).id, `${path}.reviewId`),
+            replyToReviewId: item.replyTo === null
+              ? null
+              : string(record(
+                  record(item.replyTo, `${path}.replyTo`).pullRequestReview,
+                  `${path}.replyTo.pullRequestReview`,
+                ).id, `${path}.replyTo.reviewId`),
             actorIdentity: author === null || author.databaseId === null || author.databaseId === undefined
               ? null
               : integerString(author.databaseId, `${path}.author.databaseId`),
