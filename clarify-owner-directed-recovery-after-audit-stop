@@ -3,14 +3,20 @@
   "slug": "clarify-owner-directed-recovery-after-audit-stop",
   "claimId": "a0d134ba4c9e2496b8866c42689b7998",
   "createdAt": "2026-09-12T21:53:21.089Z",
-  "updatedAt": "2026-09-12T21:53:21.089Z",
+  "updatedAt": "2026-09-13T12:07:15.026Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Clarify that a failed recovery audit stops autonomous restoration but permits explicit Owner-directed repair or fresh-session continuation without falsely clearing the pending marker.",
   "branch": "chore/clarify-owner-directed-recovery-after-audit-stop",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/clarify-owner-directed-recovery-after-audit-stop",
+    "headSha": "7913e469bfab5cf283240d65861f24fde6307443"
+  }
 }
