@@ -1,10 +1,11 @@
 import { configDefaults, defineConfig } from "vitest/config";
-import { accessSync, constants, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
+import { selectIntegrationTempRoot } from "./__tests__/helpers/integration-temp-root.js";
 import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-policy.js";
 
 // Absolute package root from this config file — not process.cwd(). `root: "."`
@@ -27,17 +28,9 @@ if (process.platform === "win32") {
   process.env.TMPDIR = canonicalTempRoot;
 }
 
-// Integration fixtures are write-heavy and short-lived. Prefer Linux's memory-backed temp root
-// when it is available, while keeping every other tier and non-Linux host on the canonical OS root.
-const integrationTempRoot = (() => {
-  if (process.platform !== "linux") return undefined;
-  try {
-    accessSync("/dev/shm", constants.W_OK);
-    return realpathSync("/dev/shm");
-  } catch {
-    return undefined;
-  }
-})();
+// Integration fixtures are write-heavy and short-lived. Use Linux's memory-backed root
+// only when it can execute the shims created by integration tests.
+const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
 
 // Test repositories must not inherit developer-machine Git configuration. A
 // long-lived workstation can carry `arc.identity` globally even when a fixture
