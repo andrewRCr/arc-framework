@@ -204,6 +204,10 @@ describe("local attest command", () => {
         local: {
           vehicle: records.operation.vehicle,
           target: records.operation.target,
+          rubricIdentity: {
+            version: records.operation.requirement.rubricVersion,
+            digest: records.operation.requirement.rubricDigest,
+          },
         },
       })],
     });
@@ -299,6 +303,10 @@ describe("local attest command", () => {
           local: {
             vehicle: records.operation.vehicle,
             target: records.operation.target,
+            rubricIdentity: {
+              version: records.operation.requirement.rubricVersion,
+              digest: records.operation.requirement.rubricDigest,
+            },
           },
         })],
       });

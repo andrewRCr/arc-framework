@@ -140,6 +140,10 @@ async function attestLocalReviewWithinSourceLock(
       local: {
         vehicle: state.vehicle,
         target: state.target,
+        rubricIdentity: {
+          version: state.requirement.rubricVersion,
+          digest: state.requirement.rubricDigest,
+        },
         ...(state.deliveryAdmission === undefined
           ? {}
           : { deliveryAdmission: state.deliveryAdmission }),
@@ -215,6 +219,10 @@ async function attestLocalReviewWithinSourceLock(
       local: {
         vehicle: state.vehicle,
         target: state.target,
+        rubricIdentity: {
+          version: state.requirement.rubricVersion,
+          digest: state.requirement.rubricDigest,
+        },
         ...(state.deliveryAdmission === undefined
           ? {}
           : { deliveryAdmission: state.deliveryAdmission }),
@@ -330,6 +338,10 @@ async function attestLocalReviewWithinSourceLock(
     local: {
       vehicle: state.vehicle,
       target: state.target,
+      rubricIdentity: {
+        version: state.requirement.rubricVersion,
+        digest: state.requirement.rubricDigest,
+      },
       ...(state.deliveryAdmission === undefined
         ? {}
         : { deliveryAdmission: state.deliveryAdmission }),

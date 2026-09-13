@@ -302,6 +302,46 @@ describe("Errand review status", () => {
       detail: "Recorded review progress does not match the exact Errand identity and change request.",
     });
 
+    const staleStandardReview = { ...standardReview, rubricDigest: `sha256:${"0".repeat(64)}` };
+    const staleRequirement = createReviewRequirement({
+      target: reviewTarget,
+      projection: staleStandardReview,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (staleRequirement === null) throw new Error("the stale hosted requirement must be present");
+    const staleHandle = {
+      ...handle,
+      artifact: {
+        ...handle.artifact,
+        id: "comment-stale-rubric",
+        url: "https://example.test/comment-stale-rubric",
+      },
+      vehicle: { ...handle.vehicle, standardReview: staleStandardReview },
+    };
+    await recordHostedPendingRequest(store, {
+      ...context,
+      handle: staleHandle,
+      requirement: staleRequirement,
+      now: "2026-09-13T00:02:30Z",
+    });
+    await recordHostedAwaitAttempt(store, {
+      ...context,
+      requirement: staleRequirement,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: staleHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.test/review-stale-rubric",
+      },
+      now: "2026-09-13T00:02:40Z",
+    });
+    await expect(readRoutedObligation(root, exec, target, 42)).resolves.toMatchObject({
+      state: "review-required",
+    });
+
     await recordLaneAttempt(store, {
       lane: "standard",
       repositoryId,
@@ -334,6 +374,7 @@ describe("Errand review status", () => {
 
     const nextHandle = {
       ...handle,
+      target: { ...hostedTarget, pullRequest: 43 },
       artifact: {
         ...handle.artifact,
         id: "comment-43",
@@ -355,7 +396,7 @@ describe("Errand review status", () => {
       },
       now: "2026-09-13T00:03:40Z",
     });
-    await expect(readRoutedObligation(root, exec, target, 42)).resolves.toMatchObject({
+    await expect(readRoutedObligation(root, exec, target, 43)).resolves.toMatchObject({
       state: "settled",
     });
 
@@ -393,6 +434,46 @@ describe("Errand review status", () => {
     });
     const localStatusTarget = { ...target, headSha: localHeadSha };
     await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
+      state: "review-required",
+    });
+    await recordLaneAttempt(store, {
+      lane: "standard",
+      repositoryId,
+      changeRequestId: null,
+      headSha: localHeadSha,
+      attemptId: "local/stale-rubric",
+      sourceId: "delegated-agent",
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      local: {
+        vehicle: { kind: "errand", identity: slug, claimId: nextRecord.claimId },
+        target: localTarget,
+        rubricIdentity: { version: staleStandardReview.rubricVersion, digest: staleStandardReview.rubricDigest },
+      },
+      now: "2026-09-13T00:04:10Z",
+    });
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
+      state: "review-required",
+    });
+    await recordLaneAttempt(store, {
+      lane: "standard",
+      repositoryId,
+      changeRequestId: null,
+      headSha: localHeadSha,
+      attemptId: "local/current-rubric",
+      sourceId: "delegated-agent",
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      local: {
+        vehicle: { kind: "errand", identity: slug, claimId: nextRecord.claimId },
+        target: localTarget,
+        rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
+      },
+      now: "2026-09-13T00:04:20Z",
+    });
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
       state: "settled",
     });
 
@@ -424,6 +505,7 @@ describe("Errand review status", () => {
       local: {
         vehicle: { kind: "errand", identity: slug, claimId: finalRecord.claimId },
         target: localTarget,
+        rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
       },
       now: "2026-09-13T00:04:30Z",
     });

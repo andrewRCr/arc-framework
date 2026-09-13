@@ -11,6 +11,7 @@ import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-st
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { readLaneProgress } from "./lane-progress.js";
 import type { ChangeRequestCandidate } from "./change-request.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "./policy/standard-review.js";
 import type { RoutedReviewObligation } from "./status.js";
 
 interface ExactErrandStatusTarget {
@@ -130,6 +131,7 @@ export async function readErrandRoutedObligation(input: {
     let latest: { readonly outcome: string; readonly complete: boolean } | null = null;
     let currentClaimAttempt = false;
     let obsoleteClaimDetail: string | null = null;
+    const rubric = STANDARD_REVIEW_RUBRIC_IDENTITY;
     for (const attempt of progress.attempts) {
       const hosted = attempt.hosted;
       if (hosted?.handle !== undefined) {
@@ -137,18 +139,27 @@ export async function readErrandRoutedObligation(input: {
         const vehicle = handle.vehicle;
         if (vehicle?.kind !== "errand"
           || vehicle.key !== selected.record.slug
-          || vehicle.branch !== selected.record.branch
-          || handle.target.repository.toLowerCase() !== input.target.repository.toLowerCase()
-          || handle.target.pullRequest !== input.pullRequest
-          || handle.target.headSha !== input.target.headSha) {
+          || vehicle.branch !== selected.record.branch) {
           return blocked("Recorded review progress does not match the exact Errand identity and change request.");
         }
         if (vehicle.claimId !== selected.record.claimId) {
           obsoleteClaimDetail = "Recorded review progress does not match the exact Errand identity and change request.";
           continue;
         }
+        if (handle.target.repository.toLowerCase() !== input.target.repository.toLowerCase()
+          || handle.target.pullRequest !== input.pullRequest
+          || handle.target.headSha !== input.target.headSha) {
+          return blocked("Recorded review progress does not match the exact Errand identity and change request.");
+        }
         currentClaimAttempt = true;
-        latest = { outcome: attempt.outcome, complete: hosted.effectiveCoverage === "complete" };
+        latest = {
+          outcome: attempt.outcome,
+          complete: hosted.effectiveCoverage === "complete"
+            && vehicle.standardReview.rubricVersion === rubric.version
+            && vehicle.standardReview.rubricDigest === rubric.digest
+            && hosted.requirement.rubricVersion === rubric.version
+            && hosted.requirement.rubricDigest === rubric.digest,
+        };
       } else if (hosted !== undefined) {
         if (attempt.outcome === "clean" || attempt.outcome === "findings"
           || attempt.outcome === "settled-findings") {
@@ -166,7 +177,12 @@ export async function readErrandRoutedObligation(input: {
           continue;
         }
         currentClaimAttempt = true;
-        latest = { outcome: attempt.outcome, complete: attempt.chunkSeriesComplete !== false };
+        latest = {
+          outcome: attempt.outcome,
+          complete: attempt.chunkSeriesComplete !== false
+            && attempt.local.rubricIdentity?.version === rubric.version
+            && attempt.local.rubricIdentity.digest === rubric.digest,
+        };
       } else {
         latest = { outcome: attempt.outcome, complete: false };
       }
