@@ -12,9 +12,12 @@
 
 import { describe, it, expect } from "vitest";
 
+import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { digestBytes } from "../../../../src/lib/canonical/canonical-json.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
+import { validatePlanningArtifactTuple } from "../../../../src/lib/work-unit/planning-artifact-tuple.js";
 import { runStub, type StubContext, type StubParams } from "../../../../src/lib/work-unit/verbs/stub.js";
 
 const CWD = "/repo";
@@ -133,6 +136,34 @@ describe("runStub — scaffolds the selected tier", () => {
     expect(writes).toHaveLength(1);
     expect(writes[0]!.content).toContain("- **Origin:** [internal]");
     expect(writes[0]!.content).toContain("- **Design:** [none]");
+  });
+
+  it("emits a planned meta that the planning launch validator accepts", async () => {
+    const { ctx, writes } = buildHarness();
+    const result = await runStub(ctx, BASE);
+
+    expect(result.status).toBe("scaffolded");
+    if (result.status !== "scaffolded") return;
+    const content = writes[0]!.content;
+    expect(validatePlanningArtifactTuple({
+      expectedSlug: "foo",
+      metaPath: result.metaPath,
+      metaContent: content,
+      meta: parseMetaRecord(content),
+      artifacts: [{
+        path: result.metaPath,
+        state: {
+          kind: "file",
+          mode: "100644",
+          contentDigest: digestBytes(new TextEncoder().encode(content)),
+        },
+      }],
+    })).toMatchObject({
+      status: "valid",
+      profile: { kind: "draft", sourceDesign: [] },
+      expectedWorkflow: "draft-design",
+      taskAuthority: "none",
+    });
   });
 
   it("routes a provisional commitment to the provisional tier (edge disambiguation)", async () => {
