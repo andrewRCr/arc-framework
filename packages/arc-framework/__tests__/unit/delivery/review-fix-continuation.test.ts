@@ -939,6 +939,54 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("does not mistake a landed predecessor for a pending M2 refresh or correction", () => {
+    const laterMember = plan.members[1];
+    if (laterMember === undefined) throw new Error("continuation fixture requires a later member");
+    const state = currentChainState();
+    const afterLanding = {
+      revision: 4,
+      value: {
+        ...state,
+        members: state.members.map((member, index) => index === 1
+          ? { ...member, coordinates: { ...member.coordinates!, base: "e".repeat(40) } }
+        : member),
+      },
+    };
+    const laterRoute = route("provider-refresh");
+    if (laterRoute.status !== "planned" || laterRoute.route !== "provider-refresh") {
+      throw new Error("continuation fixture requires a provider-refresh route");
+    }
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      state: afterLanding,
+      landedDeliverableIds: [selectedDeliverableId],
+      route: laterRoute,
+    })).toEqual({ status: "refused", reason: "review-fix-route-mismatch" });
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: { ...correctionEntry(), selectedDeliverableId: laterMember.deliverableId },
+      state: afterLanding,
+      landedDeliverableIds: [selectedDeliverableId],
+      route: {
+        ...laterRoute,
+        selectedDeliverableId: laterMember.deliverableId,
+        affectedDeliverableIds: [laterMember.deliverableId],
+      },
+      authoring: {
+        status: "authoring-required",
+        kind: "candidate",
+        ref: "refs/arc/delivery-candidates/plan/second",
+        checkoutPath: "/repo/.git/gate/second",
+      },
+    })).toMatchObject({
+      status: "authoring-required",
+      selectedDeliverableId: laterMember.deliverableId,
+      nextAction: "author-correction",
+      authoring: { kind: "candidate", checkoutPath: "/repo/.git/gate/second" },
+    });
+  });
+
   it("finishes a unique pending selected refresh before Candidate verification", () => {
     expect(projectDeliveryReviewFixContinuation({
       request,

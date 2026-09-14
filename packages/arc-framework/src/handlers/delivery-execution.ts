@@ -2355,6 +2355,18 @@ async function executeDeliveryCommand(
   );
   if (command === "review-fix-continue") {
     const parsed = ReviewFixContinueSchema.parse(request);
+    const readLandedDeliverableIds = async (planId: string): Promise<readonly string[] | null> => {
+      const positioned = await executeDeliveryCommand("position", {
+        planId,
+        repository: parsed.repository,
+        remote: parsed.remote,
+      }, interaction);
+      const result = z.object({
+        status: z.literal("position"),
+        position: z.object({ landedPrefix: z.array(DeliveryCanonicalDigestSchema) }),
+      }).safeParse(positioned);
+      return result.success ? result.data.position.landedPrefix : null;
+    };
     let projectionRequest: z.infer<typeof ReviewFixContinueSchema> = parsed;
     let expectedRecordEffects: readonly DeliveryReviewFixExpectedRecord[] = parsed.recordEffects ?? [];
     let settledRecordEffectHead: string | null = null;
@@ -2781,6 +2793,15 @@ async function executeDeliveryCommand(
           resolveReviewFixLocus(),
           planStore.readCurrent(correctionEntry.planId),
         ]);
+        const landedDeliverableIds = stateRead.status === "ok" && stateRead.value !== null
+          ? await readLandedDeliverableIds(correctionEntry.planId)
+          : [];
+        if (landedDeliverableIds === null) {
+          return {
+            status: "refused" as const,
+            result: { status: "refused" as const, reason: "review-fix-position-unavailable" },
+          };
+        }
         let authoring;
         if (stateRead.status === "ok" && stateRead.value !== null
           && locus !== null && locus.branch !== null
@@ -2962,6 +2983,7 @@ async function executeDeliveryCommand(
             request: projectionRequest,
             entry: correctionEntry,
             route: planned.data,
+            landedDeliverableIds,
             ...(stateRead.status === "ok" && stateRead.value !== null ? { state: stateRead.value } : {}),
             ...(locus === null || locus.branch === null ? {} : { activeBranch: locus.branch }),
             ...(authoring === undefined ? {} : { authoring }),
@@ -3270,18 +3292,32 @@ async function executeDeliveryCommand(
         if (stateRead.status !== "ok" || stateRead.value === null) {
           return { status: "refused", reason: "delivery-unavailable" };
         }
-        return projectDeliveryReviewFixContinuation({ request: projectionRequest, entry, state: stateRead.value });
+        const landedDeliverableIds = findExactPendingSelectedRefresh(stateRead.value.value) === null
+          ? []
+          : await readLandedDeliverableIds(entry.planId);
+        if (landedDeliverableIds === null) {
+          return { status: "refused", reason: "review-fix-position-unavailable" };
+        }
+        return projectDeliveryReviewFixContinuation({
+          request: projectionRequest, entry, state: stateRead.value, landedDeliverableIds,
+        });
       }
 
       if (entry.status === "correction-routing-required") {
         const stateRead = await stateStore.read(entry.planId);
         if (stateRead.status === "ok" && stateRead.value !== null) {
+          const landedDeliverableIds = await readLandedDeliverableIds(entry.planId);
+          if (landedDeliverableIds === null) {
+            return { status: "refused", reason: "review-fix-position-unavailable" };
+          }
           const resumed = projectDeliveryReviewFixContinuation({
             request: projectionRequest,
             entry,
             state: stateRead.value,
+            landedDeliverableIds,
           });
-          if (resumed.status === "dispatch") {
+          if (resumed.status === "dispatch"
+            || (resumed.status === "refused" && resumed.reason === "review-fix-route-mismatch")) {
             return resumed;
           }
         }
@@ -4557,8 +4593,26 @@ async function executeDeliveryCommand(
         ? { ...derived, facts: positioned.facts }
         : derived;
     };
-    if (current.value.activeOperation === null) {
-      const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(current.value);
+    const apparentPending = current.value.activeOperation === null
+      ? findExactPendingSelectedRefresh(current.value)
+      : null;
+    const selectionSubject = apparentPending === null
+      ? null
+      : await deriveIdleRefreshSubject(
+          command === "refresh-adopt" ? "review-fix-local-adopt" : "review-fix-local",
+        );
+    if (apparentPending !== null && selectionSubject?.status !== "derived") {
+      return {
+        status: "refused",
+        reason: "position-mismatch",
+        recommendedActionText: "Restore fresh delivery position before selecting a pending refresh.",
+      };
+    }
+    if (selectionSubject?.status === "derived") {
+      const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(
+        current.value,
+        selectionSubject.subject.landedPrefix,
+      );
       if ((parsed.scope?.kind === "dependent-suffix"
         && pendingSelectedDeliverableId !== parsed.scope.selectedDeliverableId)
         || (parsed.scope?.kind !== "dependent-suffix" && pendingSelectedDeliverableId !== null)) {
@@ -4569,11 +4623,16 @@ async function executeDeliveryCommand(
         };
       }
     }
+    const idleSubject = current.value.activeOperation === null
+      ? await deriveIdleRefreshSubject(
+          command === "refresh-adopt"
+            ? parsed.scope?.kind === "dependent-suffix" ? "review-fix-local-adopt" : "refresh-adopt"
+            : parsed.scope?.kind === "dependent-suffix" ? "review-fix-local" : "exact",
+        )
+      : null;
     if (command === "refresh-plan") {
       const planRequest = RefreshPlanSchema.parse(parsed);
-      const derived = await deriveIdleRefreshSubject(
-        planRequest.scope?.kind === "dependent-suffix" ? "review-fix-local" : "exact",
-      );
+      const derived = idleSubject ?? { status: "refused" as const, reason: "position-mismatch" as const };
       if (derived.status === "refused") {
         return {
           ...derived,
@@ -4642,11 +4701,6 @@ async function executeDeliveryCommand(
 
     if (command === "refresh-execute") {
       const executeRequest = RefreshExecuteSchema.parse(parsed);
-      const idleSubject = current.value.activeOperation === null
-        ? await deriveIdleRefreshSubject(
-            executeRequest.scope?.kind === "dependent-suffix" ? "review-fix-local" : "exact",
-          )
-        : null;
       const subject = idleSubject ?? (
         current.value.activeOperation === null
           ? { status: "refused" as const, reason: "position-mismatch" as const }
@@ -4798,9 +4852,7 @@ async function executeDeliveryCommand(
         recommendedActionText: "Omit operationId when adopting an externally initiated refresh.",
       };
     }
-    const derived = await deriveIdleRefreshSubject(
-      adopt.scope?.kind === "dependent-suffix" ? "review-fix-local-adopt" : "refresh-adopt",
-    );
+    const derived = idleSubject ?? { status: "refused" as const, reason: "position-mismatch" as const };
     if (derived.status === "refused") {
       return {
         ...derived,
@@ -4822,6 +4874,7 @@ async function executeDeliveryCommand(
       plan,
       current,
       affectedDeliverableIds: derived.subject.affectedDeliverableIds,
+      landedDeliverableIds: derived.facts.landedDeliverableIds,
       ...(selectedDeliverableId === undefined ? {} : { selectedDeliverableId }),
       ...(adopt.conflictResolution === undefined
         ? {}
