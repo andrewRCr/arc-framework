@@ -122,6 +122,34 @@ describe("arc attest", () => {
     ]);
   });
 
+  it("stages Candidate evidence over a base it shares a remote with", async () => {
+    repository = await createAttestFixture({ origin: true });
+
+    const result = await runArc(["attest", "example", "--json"], repository);
+
+    expect(result.exitCode, JSON.stringify(result)).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "attested",
+      operation: "root",
+      locus: { locus: "candidate-review-pending", workUnit: "example" },
+    });
+    const record = JSON.parse(await readFile(
+      join(repository, ".arc", "system", ".internal", "candidates", "example.json"),
+      "utf8",
+    )) as { subject: { entries: Array<{ path: string; treatment: string }> } };
+    expect(record.subject.entries.map((entry) => entry.path).sort()).toEqual([
+      ".arc/active/meta-example.md",
+      ".arc/active/tasks-example.md",
+      "src/example.ts",
+    ]);
+    expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n").sort()).toEqual([
+      ".arc/active/meta-example.md",
+      ".arc/active/tasks-example.md",
+      ".arc/system/.internal/candidates/example.boundary.json",
+      ".arc/system/.internal/candidates/example.json",
+    ]);
+  });
+
   it("stages the same Candidate evidence after a base advance sharing none of its paths", async () => {
     repository = await createAttestFixture({ origin: true });
     const advanced = movementPaths("disjoint", "example").base;

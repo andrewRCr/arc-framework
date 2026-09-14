@@ -19,6 +19,7 @@ import {
   git,
   runArc,
 } from "./helpers.js";
+import { advanceBase, movementPaths } from "../helpers/base-advance.js";
 import { createStandardReviewReservation } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -99,6 +100,84 @@ async function createAttestableRepo(): Promise<string> {
   await git(repository, ["add", ".arc/active/tasks-example.md"]);
   return repository;
 }
+
+/**
+ * Give one fixture copy a base it can actually move, without touching the coordinate its cases depend on.
+ *
+ * The rewrite maps the unreachable origin URL onto a local bare repository, so `origin` still reports the name
+ * the change-request resolver parses while Git reaches a real target. It is installed per probe rather than in
+ * the builder: every case above is written against an origin that resolves to no host, and a rewrite there would
+ * change that state for all of them.
+ */
+async function attachLiveBase(repository: string): Promise<string> {
+  const remote = join(repository, ".arc-fixture", "origin.git");
+  await mkdir(join(repository, ".arc-fixture"), { recursive: true });
+  await writeFile(join(repository, ".git", "info", "exclude"), ".arc-fixture/\n", { flag: "a" });
+  await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+  await git(repository, ["config", `url.${remote}.insteadOf`, OFFLINE_ORIGIN]);
+  await git(repository, ["push", "origin", "main"]);
+  return remote;
+}
+
+/** Settle the Candidate at its pre-publication boundary, the point the submit window opens from. */
+async function settleForPublication(repository: string): Promise<string> {
+  expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+  const reviewed = await runArc(
+    ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+    repository,
+    { env: OFFLINE_ENV },
+  );
+  expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
+  const envelope = JSON.parse(reviewed.stdout) as { locus: string; candidateId: string };
+  expect(envelope.locus).toBe("candidate-publish-ready");
+  return envelope.candidateId;
+}
+
+function submit(repository: string) {
+  return runArc(
+    ["publish", "example", "--last-completed", "verification", "--action", "push and open the PR", "--json"],
+    repository,
+    { env: OFFLINE_ENV },
+  );
+}
+
+describe("the settle-to-submit window over a live base", () => {
+  let repository: string | null = null;
+
+  afterEach(async () => {
+    if (repository !== null) await cleanupTempDir(repository);
+    repository = null;
+  });
+
+  it("submits the settled Candidate with the base held still", async () => {
+    repository = await createAttestableRepo();
+    await attachLiveBase(repository);
+    const candidateId = await settleForPublication(repository);
+
+    const submitted = await submit(repository);
+
+    expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
+    expect(JSON.parse(submitted.stdout)).toMatchObject({
+      status: "published",
+      boundary: { locus: "publication-pending", candidateId },
+    });
+  });
+
+  it("submits the same settled Candidate after an advance sharing none of its paths", async () => {
+    repository = await createAttestableRepo();
+    await attachLiveBase(repository);
+    const candidateId = await settleForPublication(repository);
+    await advanceBase({ cwd: repository, paths: movementPaths("disjoint", "example").base });
+
+    const submitted = await submit(repository);
+
+    expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
+    expect(JSON.parse(submitted.stdout)).toMatchObject({
+      status: "published",
+      boundary: { locus: "publication-pending", candidateId },
+    });
+  });
+});
 
 describe("attest → pre-publication → publish", () => {
   let repository: string | null = null;

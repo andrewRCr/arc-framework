@@ -513,9 +513,16 @@ unit's close, not at seed time.
 **Whole-work-unit verification · control · singleton**
 
 - _Intent:_ Ceremony baseline: the invocation and stop count the movement row at this boundary subtracts from.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `attest.e2e.test.ts` — "stages Candidate evidence over a base it shares a remote with" ·
+  _Base OID:_ `4f6b11568` · _Observed:_ `attested`, operation `root`, locus `candidate-review-pending`; no reason,
+  no remedy. Same fixture as this boundary's movement row, with the base held still.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this
+  row's finding is its count · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The baseline is one invocation and no stops, so this boundary carries no non-concurrency excess to route. The
+  `disjoint` row observes the same one and zero, putting its excess at the idiomatic zero: the advance costs the
+  boundary nothing.
 
 **Whole-work-unit verification · `disjoint` · singleton**
 
@@ -533,17 +540,33 @@ unit's close, not at seed time.
 **Candidate / prepublication · control · singleton**
 
 - _Intent:_ Ceremony baseline across the settle-to-submit window with the base held still.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `publication-spine.e2e.test.ts` — "submits the settled Candidate with the base held still" ·
+  _Base OID:_ `4f6b11568` · _Observed:_ `published`, boundary `publication-pending` on the Candidate the settle
+  point recorded; no reason, no remedy.
+- _Invocations:_ 3 — attest, the pre-publication settle, and the submit · _Stops:_ 0 · _Fork:_ none, no result in
+  the window is a stop · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this
+  row's finding is its count · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  Three invocations reach the window's end with the base still, and none of them stops. The `disjoint` row
+  observes the same three and zero, so the advance's excess here is the idiomatic zero.
 
 **Candidate / prepublication · `disjoint` · singleton**
 
 - _Intent:_ Advance the base inside the settle-to-submit window the spine test never moves across; expect the
   settled Candidate to stay current.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `publication-spine.e2e.test.ts` — "submits the same settled Candidate after an advance sharing none of
+  its paths" · _Base OID:_ `4f6b11568` · _Observed:_ `published`, boundary `publication-pending` on the same
+  Candidate the settle point recorded; no reason, no remedy. The advance lands between the settle and the submit,
+  and the submit neither re-reads nor re-ceremonies it.
+- _Invocations:_ 3 — attest, the pre-publication settle, and the submit · _Stops:_ 0 · _Fork:_ none, the result is
+  not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  What the tolerance rests on is visible when it is removed: deriving the Candidate subject from the base tip
+  rather than the fork point turns this same run into `rejected`, "the Candidate lineage is not current", carrying
+  a re-attest remedy. The whole settle-to-submit window survives concurrent base movement because one coordinate
+  is a merge base, and the re-ceremony is one source line away.
 
 **Public review and checks · control · singleton**
 

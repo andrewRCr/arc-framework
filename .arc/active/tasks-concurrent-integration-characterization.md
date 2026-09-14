@@ -238,32 +238,30 @@ the retention rule removes it at close while the row keeps what it saw. Where a 
 it takes that result's recommended continuation and records whether the stop cleared: a stop clearable in one
 recommended step is friction, while one that cannot be cleared is the freeze this work exists to find.
 
-### `[ ]` **3.1 Probe the whole-work-unit verification boundary**
+### `[x]` **3.1 Probe the whole-work-unit verification boundary**
 
 - _Goal:_ Every applicable cell at the verification boundary carries an observation, and its control row establishes
   the ceremony baseline the movement rows' excess is measured against.
 
-- _Note:_ `e2e/attest.e2e.test.ts` configures no remote at all. Giving it a real bare origin precedes the first
-  movement cell; the pilot's probe already sits on this fixture.
+- _Outcome:_ The boundary's cell surface is exhausted: the control row and the `disjoint` row both observed, the
+  other three closed not-applicable on the seam read. The control runs on the movement row's own fixture, base held
+  still, so the two counts are comparable — both are one invocation and no stops, putting the advance's excess at
+  the idiomatic zero. The baseline itself carries no non-concurrency excess to route. Nothing here classifies as a
+  response to movement, because the boundary has none: the merge-base coordinate absorbs the advance before any
+  result is computed.
 
-    - Cover every movement kind Task 1.1 left applicable that the pilot did not take, plus the control row.
-    - Record verb invocations and approval stops per run; excess is that count minus the control row's.
-
-### `[ ]` **3.2 Probe the Candidate and private-delivery prepublication boundary**
+### `[x]` **3.2 Probe the Candidate and private-delivery prepublication boundary**
 
 - _Goal:_ The settle-to-submit window carries an observation for every applicable movement kind, closing the gap the
   existing spine test leaves by moving only the head against an origin it can never reach.
 
-- _Shape:_ `e2e/publication-spine.e2e.test.ts` already runs attest through pre-publication and publish in one
-  fixture, but points origin at a deliberately unreachable URL — and that is load-bearing, not incidental: the
-  file documents the unreachable host as the pre-publication state its seven cases are written against. Do not
-  swap it out. Attach a live origin through a URL rewrite so the coordinate still parses as owner-and-repository
-  while reaching a real target — but **not inside the shared fixture builder**: a rewrite installed there makes the
-  ref probe reach a live target and succeed, which is the same state change as swapping the URL and breaks the same
-  seven cases. Install it on a per-probe copy after the builder returns, or stand up a second fixture beside it.
-  Establishing that is this task's first step and is what makes every later cell here possible.
-
-    - Cover every movement kind Task 1.1 left applicable, plus the control row.
+- _Outcome:_ The live base is attached per probe, after the shared builder returns: a rewrite maps the unreachable
+  origin URL onto a local bare repository, so the coordinate every existing case is written against is unchanged
+  and all seven stay green. Both applicable cells observed across the settle-to-submit window, control and
+  `disjoint`, at three invocations and no stops each — excess zero. The tolerance is one source line deep, and the
+  reconstruction shows what it holds back: derive the Candidate subject from the base tip instead of the fork point
+  and the same advance turns the submit into `rejected`, "the Candidate lineage is not current", carrying a
+  re-attest remedy.
 
 ## **Phase 4:** Singleton and delivery-member probes — the post-publish spine
 
