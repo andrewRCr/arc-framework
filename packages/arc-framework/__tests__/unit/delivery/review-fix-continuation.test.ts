@@ -939,7 +939,7 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
-  it("does not mistake a landed predecessor for a pending M2 refresh", () => {
+  it("does not mistake a landed predecessor for a pending M2 refresh or correction", () => {
     const laterMember = plan.members[1];
     if (laterMember === undefined) throw new Error("continuation fixture requires a later member");
     const state = currentChainState();
@@ -956,6 +956,13 @@ describe("delivery review-fix continuation projection", () => {
     if (laterRoute.status !== "planned" || laterRoute.route !== "provider-refresh") {
       throw new Error("continuation fixture requires a provider-refresh route");
     }
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      state: afterLanding,
+      landedDeliverableIds: [selectedDeliverableId],
+      route: laterRoute,
+    })).toEqual({ status: "refused", reason: "review-fix-route-mismatch" });
     expect(projectDeliveryReviewFixContinuation({
       request,
       entry: { ...correctionEntry(), selectedDeliverableId: laterMember.deliverableId },

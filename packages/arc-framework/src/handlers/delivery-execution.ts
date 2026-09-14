@@ -3068,7 +3068,8 @@ async function executeDeliveryCommand(
             state: stateRead.value,
             landedDeliverableIds,
           });
-          if (resumed.status === "dispatch") {
+          if (resumed.status === "dispatch"
+            || (resumed.status === "refused" && resumed.reason === "review-fix-route-mismatch")) {
             return resumed;
           }
         }

@@ -570,6 +570,9 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
   }
 
   if (entry.status === "correction-routing-required") {
+    if (input.landedDeliverableIds?.includes(entry.selectedDeliverableId)) {
+      return { status: "refused" as const, reason: "review-fix-route-mismatch" };
+    }
     if (input.state !== undefined
       && hasExactPendingSelectedRefresh(input.state.value, entry.selectedDeliverableId)) {
       return projectPendingSelectedRefresh({
