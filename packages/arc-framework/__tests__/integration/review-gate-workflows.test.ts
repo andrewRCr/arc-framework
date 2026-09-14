@@ -901,6 +901,30 @@ describe("trusted review-gate workflows", () => {
     expect(gate.indexOf("`push-interlock`", stop)).toBeGreaterThan(stop);
   });
 
+  it("gates and pushes only a successfully merged Errand reconcile", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const terminal = sectionBetween(packaged, "6. **Run the approved terminal operation.", "7. **Leave");
+    const actions = {
+      merged: "run-quality-gates",
+      "skipped-clean": "continue-reconcile",
+      "base-moved": "rerun-checkpoint",
+      "head-moved": "rerun-checkpoint",
+      "head-contained-by-base": "rerun-checkpoint",
+      conflict: "stop",
+      "regenerable-refused": "stop",
+      blocked: "stop",
+    } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;
+
+    for (const [state, nextAction] of Object.entries(actions)) {
+      expect(terminal).toContain(`\`${state} / ${nextAction}\``);
+    }
+    expect(terminal).toMatch(/merged \/ run-quality-gates` runs Tier 1[\s\S]*pushes[\s\S]*Step 4/iu);
+    expect(terminal).toMatch(/skipped-clean \/ continue-reconcile[\s\S]*without gates or push/iu);
+    expect(terminal).toMatch(/conflict \/ stop[\s\S]*blocked \/ stop[\s\S]*explanation and stop/iu);
+  });
+
   it("keeps verification applicability vocabulary aligned with the typed input schema", () => {
     for (const applicability of ["targeted", "focused", "full"] as const) {
       expect(RespondVerifiedFixSchema.safeParse({

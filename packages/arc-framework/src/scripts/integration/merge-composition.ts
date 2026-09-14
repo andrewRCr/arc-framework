@@ -461,14 +461,26 @@ export function createIntegrationMergeDependencies(input: {
           AbortSignal.timeout(60_000),
         );
         if (policy.strictCurrentness) {
-          return {
-            state: "base-currentness-required",
-            target,
-            detail: "Applicable target policy requires the head to include the current base.",
-          };
+          const drift = await runBaseDrift({
+            exec: input.exec,
+            baseBranch: target.baseRef,
+            mode: "authoritative",
+            ...createCurrentBaseDriftAdapters(
+              input.exec,
+              workUnitPathTreatmentContext(input.workUnit),
+            ),
+          });
+          if ((drift.verdict === "clean" || drift.verdict === "reconcile")
+            && drift.baseOid !== null && drift.headOid === target.headSha && drift.behind > 0) {
+            return {
+              state: "base-currentness-required",
+              target,
+              detail: "Applicable target policy requires the head to include the current base.",
+            };
+          }
         }
       } catch {
-        // An unavailable policy read cannot promote an opaque refusal to strict currency.
+        // Unavailable policy or exact base evidence cannot promote an opaque refusal.
       }
       return {
         state: "refused",

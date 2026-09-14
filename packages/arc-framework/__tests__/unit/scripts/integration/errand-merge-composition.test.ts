@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { composeErrandFinalPlan } from
+import { composeErrandFinalPlan, selectCurrentErrandMergeIdentity } from
   "../../../../src/scripts/integration/errand-merge-composition.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -130,4 +130,83 @@ describe("Errand final-plan composition", () => {
       plan: { state: "reconcile", nextAction: "reconcile-regenerable" },
     });
   });
+});
+
+type IdentityFrame = Parameters<typeof selectCurrentErrandMergeIdentity>[0];
+
+function currentErrandFrame(): IdentityFrame {
+  const claimId = "a".repeat(32);
+  const row: IdentityFrame["roster"][number] = {
+    kind: "transient",
+    checkout: {
+      path: "/repo/repair",
+      head: oid("b"),
+      branch: "chore/repair",
+      detached: false,
+      primary: false,
+    },
+    markerGeneration: `errand-v1/repair/${claimId}`,
+    parentCheckoutPath: "/repo",
+    origin: null,
+    identity: {
+      kind: "errand",
+      key: "repair",
+      claimId,
+      protection: "full",
+      branch: "chore/repair",
+      purpose: "errand",
+      origin: "description",
+      originEntry: null,
+      state: "open",
+      savedHead: null,
+      changeRequest: null,
+    },
+    context: null,
+    lifecycleLocation: null,
+    diagnostics: [],
+    subject: { kind: "errand", key: "repair", claimId },
+  };
+  return {
+    roster: [row],
+    entering: { kind: "selected", row },
+    identityDiscovery: { kind: "complete", identities: [row.identity!], diagnostics: [] },
+  };
+}
+
+describe("Errand terminal identity composition", () => {
+  it("accepts one exact current claim from complete shared discovery", () => {
+    expect(selectCurrentErrandMergeIdentity(currentErrandFrame(), "repair")).toEqual({
+      slug: "repair",
+      claimId: "a".repeat(32),
+      branch: "chore/repair",
+      generation: `errand-v1/repair/${"a".repeat(32)}`,
+    });
+  });
+
+  it.each(["incomplete", "diagnostic", "duplicate"] as const)(
+    "refuses %s shared identity authority before terminal merge",
+    (fault) => {
+      const frame = currentErrandFrame();
+      const row = frame.roster[0]!;
+      if (frame.identityDiscovery.kind !== "complete") throw new Error("fixture must have complete discovery");
+      const ambiguous: IdentityFrame = {
+        ...frame,
+        ...(fault === "incomplete"
+          ? { identityDiscovery: { kind: "error" as const, stage: "tree" as const, message: "unreadable identity root" } }
+          : fault === "diagnostic"
+            ? {
+                identityDiscovery: {
+                  ...frame.identityDiscovery,
+                  diagnostics: [{ kind: "malformed" as const, key: "other", message: "bad JSON" }],
+                },
+              }
+            : { roster: [row, { ...row, checkout: {
+              ...row.checkout, path: "/repo/other",
+            } }] }),
+      };
+      expect(() => selectCurrentErrandMergeIdentity(ambiguous, "repair")).toThrow(
+        fault === "duplicate" ? "claimed by more than one checkout" : "identity basis is incomplete",
+      );
+    },
+  );
 });
