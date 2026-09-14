@@ -4,6 +4,7 @@
 - [Base-movement coverage by boundary](#base-movement-coverage-by-boundary)
 - [Source loci by decision](#source-loci-by-decision)
 - [Alternatives retired at design](#alternatives-retired-at-design)
+- [Cell matrix](#cell-matrix)
 - [Characterization ledger](#characterization-ledger)
 
 ## Fixture inventory
@@ -24,17 +25,40 @@ the tree at this branch's base.
 - **Remote-base advance** — `__tests__/helpers/in-flight-reshuffle.ts` `advanceRemoteBranch({ branch, markerPath })`:
   temporary branch from `origin/<branch>`, one marker-file commit, push to `refs/heads/<branch>`, tracking refresh.
   Marker path only, disjoint only; the extension point for the D6 helper.
+- **Lane reach of the advance helper** — `multi-clone.ts` imports nothing from `src/` and is already imported by
+  three e2e files, so its topologies reach both lanes as they stand. `in-flight-reshuffle.ts` does not: it takes one
+  value import from `src/` (`renderMetaProjectionFile`) and builds its execs through `integration.ts`'s
+  `makeGitExec`, which carries about ten more. An e2e probe needs neither — it spawns the CLI rather than injecting
+  an exec, and `arc start` writes the meta itself. The `src`-free topology and advance steps are therefore separable
+  from the integration-lane conveniences wrapped around them. Note the "e2e imports only node builtins" line in
+  `e2e/helpers.ts` is convention rather than an enforced boundary: `helpers/test-cost-timeout.ts` takes a value
+  import from `src/lib/test-cost/metrics.js` and is imported from the e2e lane today.
 - **Hand-rolled base-advance idioms** (not migrated; listed so probes do not add a fourth): publisher clone commits
   and pushes (`e2e/base-drift.e2e.test.ts`, `base-merge.e2e.test.ts`, `base-sync.e2e.test.ts`,
   `sync-purity.e2e.test.ts`); forged `refs/remotes/origin/main` with local `main` pinned back
   (`e2e/candidate-applicability.e2e.test.ts`, `helpers/candidate-lineage-suite.ts`); `commit-tree` plus push of a
   detached base (`e2e/errand.e2e.test.ts`).
+- **Mid-process failure injection, by lane** — in-process callers wrap a `GitExec` with
+  `withGitCallBoundaryInjections` (`__tests__/helpers/in-flight-reshuffle.ts`), which fires before or after a
+  matched call; a spawned verb cannot be reached that way. The spawned lane's equivalent is a `PATH` shim:
+  `__tests__/helpers/delivery-position-suite.ts` writes a `git` wrapper that alters one behavior under an
+  environment flag and otherwise execs the real binary, and the same file plus `e2e/delivery-plan.e2e.test.ts` and
+  `delivery-authoring.e2e.test.ts` use a fake host binary the same way. This is the only route by which a remote
+  read can **go** unavailable mid-boundary in the spawned lane.
+- **URL-rewrite origin idiom** — `__tests__/helpers/delivery-position-suite.ts` attaches a bare remote, then sets
+  `url.<bare-path>.insteadOf` a host-shaped URL and points `origin` at that URL. The result parses as an
+  owner-and-repository coordinate for resolvers that need one while still pushing and fetching against a local
+  bare repository — the way to give a fixture a live base without discarding a host-shaped origin it depends on.
 - **True-race harness** — `__tests__/e2e/race-worker.ts` / `true-race.ts`: real multi-process racing over a file
   barrier; guards are `machine-id`, `sync-state`, `errand`, `notes` only, never the base. Out of scope for probes
   (D8 cost ceiling).
 - **Hosted-review seam** — `__tests__/integration/review-fan-out-lifecycle.test.ts` runs hosted request, await, and
   settle without a provider by passing `request` and `observers` functions into the handlers; review status derives
-  `base-moved` from the injected observation's containment fact (`src/scripts/review-gate/status.ts`). The
+  `base-moved` from the observation's containment fact (`src/scripts/review-gate/status.ts`). Two instruments reach
+  this boundary and they observe different things: injecting `observers` supplies the containment fact directly, so
+  the base read never runs, while the status port the production handler composes is exported and takes an
+  injectable exec — driving that runs the real fetch-and-contain read and is the only way an unavailable base read
+  can be observed here. The same file already drives production compositions through a fake host. The
   `hosts/local/` directory holds record stores and materialization, not a host adapter; `hosts/github/` holds the
   provider-bound request, checks-await, merge-lock, and merge-method adapters.
 - **Worktree evidence vocabulary** — `__tests__/helpers/worktree-evidence.ts` (`exact` | `not-applicable`).
@@ -78,7 +102,10 @@ What each existing test actually exercises, and the gap the probe at that bounda
   (rename-conservative changed-path intersection partitioned into `substantivePaths` and `regenerablePaths`; unit
   coverage in `__tests__/unit/git/base-overlap.test.ts`); `src/lib/git/base-integration-evidence.ts`;
   `src/lib/git/base-branch-sync.ts`; `src/lib/git/base-sync.ts`; `src/lib/git/refresh-base.ts` (post-merge base ref
-  resolution composed by teardown and errand close).
+  resolution; its only importers are `src/lib/work-unit/verbs/teardown.ts` and `src/handlers/start.ts`). Two
+  neighbours look like consumers and are not: the base-merge script defines its own inline refresh port method
+  rather than importing the module, and Errand close pins a remote base head through `pinRemoteBaseHead` in
+  `src/lib/errand/identity-claims.ts`, composed by `close-runtime.ts` and `partial-settle-runtime.ts`.
 - **Candidate applicability** — `src/lib/work-unit/candidate-applicability.ts`,
   `git-candidate-applicability.ts` (reads `refs/remotes/origin/main` via `for-each-ref`),
   `candidate-applicability-resolution.ts`, `candidate-effective-target.ts`.
@@ -107,11 +134,90 @@ What each existing test actually exercises, and the gap the probe at that bounda
 - **Characterizing by reading code** — finds what the code says, not what the lifecycle does across checkouts; its
   bounded use produced the coverage table above.
 
+## Cell matrix
+
+Enumerated at task generation from D3. Applicability is deliberately **not** settled here: the first task confirms
+each boundary's typed seam against source and records every not-applicable cell with its reason. Cells are cited by
+their boundary × movement kind × shape tuple; they carry no identifier, and nothing in this section may reach a test
+name (D1 — names and messages describe behavior only).
+
+Each boundary below contributes five singleton cells: the four movement kinds plus one no-movement control row.
+The movement kinds are `disjoint`, `overlapping-substantive`, `overlapping-regenerable-only`, and `unknown` — the
+last being remote evidence that **goes** unavailable at the boundary, not a static precondition.
+
+A movement kind is a property of the **intersection** of the branch's own diff with the base's, not of the advance
+alone: the shipped analyzer diffs `merge-base..HEAD` against `merge-base..<base>`, partitions what both touched, and
+short-circuits to an empty result whenever the branch is not both ahead and behind. The partition has three
+outcomes rather than two — `reviewable` paths become substantive, `.arc/backlog/ROADMAP.md` is the one path treated
+as regenerable, and evidence-neutral paths (a work unit's own artifacts, its candidate record under
+`.arc/system/.internal/candidates/`, its submission boundary) are dropped from the overlap entirely. An advance that
+intersects only evidence-neutral paths therefore reads identically to one that intersects nothing; `disjoint` means
+no intersection at all.
+
+### Singleton shape — 6 boundaries × 5 cells = 30
+
+| Boundary                     | Typed seam                                                      | Lane        | Nearest extendable test                        |
+| ---------------------------- | --------------------------------------------------------------- | ----------- | ---------------------------------------------- |
+| Whole-work-unit verification | `arc attest`                                                    | e2e         | `e2e/attest.e2e.test.ts`                       |
+| Candidate / prepublication   | `arc review pre-publication`, the publication transition        | e2e         | `e2e/publication-spine.e2e.test.ts`            |
+| Public review and checks     | `arc review status`, the hosted request and await handlers      | integration | `integration/review-fan-out-lifecycle.test.ts` |
+| Member / singleton landing   | `arc integrate checkpoint` / `merge`, the delivery landing path | e2e         | `e2e/delivery-terminal-recovery.e2e.test.ts`   |
+| Post-landing closeout        | `arc teardown`, archival                                        | e2e         | `e2e/teardown.e2e.test.ts`                     |
+| Errand review / merge        | `arc errand close`, the Errand's typed merge lane               | e2e         | `e2e/errand.e2e.test.ts`                       |
+
+Public review is the one integration-lane boundary: its existing tests inject the request and observer functions
+into the handlers, and a spawned CLI cannot reach that seam.
+
+### Delivery-member shape — 7 cells
+
+| Boundary                   | Cells                                      | Why this coverage                            |
+| -------------------------- | ------------------------------------------ | -------------------------------------------- |
+| Member / singleton landing | all four movement kinds plus a control row | the delivery path decides admissibility here |
+| Candidate / prepublication | `disjoint` only                            | the path only re-observes                    |
+| Post-landing closeout      | `disjoint` only                            | the path only re-observes                    |
+
+### Exact-target read isolation — 3 cells
+
+Not a boundary. One family in the integration lane on the worktree-siblings helper, where two checkouts share one
+git common dir. The first two are live field classes — three sibling checkouts' Candidate records were unreadable
+under this build's schema at this work unit's first session-init.
+
+- A sibling checkout whose build cannot parse this checkout's records.
+- A foreign owner's Candidate record in the shared namespace.
+- A sibling left byte-identical after this checkout's reconcile.
+
+### Control rows and excess
+
+One no-movement probe per boundary. A movement row's **excess** is its verb invocations and approval stops minus
+the control row's; the idiomatic excess is zero. The control row's own count is the ceremony baseline, and
+non-concurrency excess in it is routed, never fixed here. Probes assert typed outcomes only — never counts; counts
+are ledger observations taken from the probe's run, so deleting a control row under D9 breaks no retained probe.
+
+### Covered input
+
+D3 names the covered input per ceremony, which is what decides whether a repeat is justified: quality gates, the
+tree they ran over; attestation and verification currentness, the work unit's own subject digest; review clearance,
+the exact reviewed head and reviewed path set; checkpoint, the Candidate head and observed base relation; approval,
+the exact head it was given on. Which of these each boundary actually reads is confirmed against its typed seam at
+the first task, not assumed from this list.
+
+### Ceiling
+
+Thirty singleton and Errand cells, seven delivery-member cells, three isolation cells — forty before
+not-applicable verdicts. Cells at which the boundary never reads the base become not-applicable ledger rows rather
+than probes. There is no exhaustive state cross-product.
+
 ## Characterization ledger
 
 One row per probe, appended during execution (D4). Columns: boundary · movement kind · shape · test name · base OID
 observed against · observed typed result (reason, remedy) · verb invocations · approval stops · recommendation-bearing
-or bare · classification (`tolerates` / `redundant ceremony` / `mechanical block` / `fail-closed, correct`) · owner ·
-fix disposition at close · retention disposition at close (D9).
+or bare · continuation (`cleared` / `did-not-clear` / `none-offered` / `not-applicable`) · classification
+(`tolerates` / `redundant ceremony` / `mechanical block` / `fail-closed, correct`) · owner · fix disposition at
+close · retention disposition at close (D9).
+
+`fail-closed, correct` requires a continuation the probe exercised and that cleared the stop; a refusal the baseline
+also requires but which nothing is proven to clear is a `mechanical block`. A continuation's own invocations count
+toward that row's excess. An observation with nothing to probe — a prose-only gate, or a completion path no test
+covers — takes a ledger-only row carrying its recorded fix and an owner.
 
 _No rows yet._

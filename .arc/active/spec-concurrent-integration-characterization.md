@@ -87,11 +87,20 @@ against. No second tree and no provisional composition of unmerged branches.
 - Cells at which the boundary never reads the base are recorded as not-applicable, not probed. No exhaustive state
   cross-product.
 
+_Amended 2026-09-14 — widens the not-applicable test from "never reads the base" to "cannot produce a different
+observable typed result" — prompted by finding boundaries that read the base and then discard the distinction: the
+Candidate subject is computed from the merge base of head and base, so an advance descended from the fork point
+leaves it byte-identical whatever it touched, and Errand close pins a remote head with no overlap analysis at all._
+A cell closes not-applicable when the boundary's typed result would be identical to one already observed, with the
+seam evidence recorded. **Every boundary still yields at least one real probe**: the closing applies only to the
+second and later cells whose result a probe would not distinguish, never to the boundary itself. Reading source
+decides what is worth probing; it never substitutes for the observation.
+
 | Boundary                   | Existing base-movement coverage                          | Nearest extendable test                                |
 | -------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
-| Whole-WU verification      | none: no probe moves the base between start and finalize | `integration/prepublication-workflow.test.ts`          |
+| Whole-WU verification      | none: no probe moves the base between start and finalize | `e2e/attest.e2e.test.ts`                               |
 | Candidate / prepublication | applicability covered; settle-to-submit window unmoved   | `e2e/publication-spine.e2e.test.ts`                    |
-| Public review and checks   | none: caller branch moves under a pinned target only     | `integration/frontline-target-materialization.test.ts` |
+| Public review and checks   | none: caller branch moves under a pinned target only     | `integration/review-fan-out-lifecycle.test.ts`         |
 | Member / singleton landing | unavailable-base and post-landing advance only           | `e2e/delivery-terminal-recovery.e2e.test.ts`           |
 | Post-landing closeout      | one disjoint case; no overlapping, no unknown            | `integration/teardown.test.ts`                         |
 | Errand review / merge      | movement at open only; close and respond never see one   | `e2e/errand.e2e.test.ts`                               |
@@ -105,6 +114,19 @@ no added ceremony), **redundant ceremony** (proceeds but repeats a ceremony whos
 **mechanical block** (a typed refusal or dead end with no continuation), or **fail-closed, correct** (a refusal the
 baseline also requires). Prose-only gates — a workflow step that loops on a drift read with no typed verb behind it —
 cannot be probed; they take ledger-only rows whose recorded fix is relocation into a typed verb.
+
+_Amended 2026-09-14 — adds a continuation column, binds the `fail-closed, correct` cut to it, and generalizes the
+ledger-only row to any observation with nothing to probe — prompted by finding a completion path proven at the
+library seam while the operator-facing path that reaches it is exercised only through refusals, so a stop with no
+proven way forward would have been recorded as correct and closed._ Every row carries one further column: whether
+the probe **took** the result's recommended continuation and whether it cleared the stop — `cleared`,
+`did-not-clear`, `none-offered`, or `not-applicable`. Taking the
+continuation is observation, not repair, and its invocations count toward the row's excess, which otherwise
+undercounts every stop by the cost of getting past it. Classification follows from it: **fail-closed, correct**
+requires a continuation the probe exercised and that cleared, so a refusal the baseline also requires but which
+nothing is proven to clear is a **mechanical block** however justified the refusal is. The ledger-only row is not
+specific to prose-only gates: any observation with nothing to probe takes one, including a completion path no test
+covers, whose recorded fix is coverage of that path.
 
 **D5 — Fixes ship in their own homes; this work ships none.** Every non-passing row is routed at this work unit's
 close — the verification boundary, once the probes have run: existing owner first (the four delivery-stabilization
@@ -210,9 +232,10 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 
 - The exact cell list, including which cells are not-applicable and why, is enumerated at task generation from the
   matrix in D3 and confirmed against each boundary's typed seam as the first task.
-- The extended helper's signature, its e2e composition (the prepared-repository template and the reshuffle helper
-  are integration-lane fixtures today; e2e probes spawn the CLI over the same repository path), and whether
-  `unknown` movement is produced by severing the remote or by withholding the fetched object, resolve at
-  implementation.
+- The extended helper's signature, its e2e composition (the reshuffle helper is the one that cannot cross lanes as
+  written — it takes a value import from source and builds its execs through a fixture that takes several more;
+  the multi-clone topologies and the prepared-repository template import no source and are already used from both),
+  and whether `unknown` movement is produced by severing the remote or by withholding the fetched object, resolve
+  at implementation.
 - Which prose-only gates remain is read from the tree at each base merge, not assumed now.
 - The pin helper's failure messages and the ledger's not-applicable wording resolve at implementation.

@@ -1,0 +1,651 @@
+# Task List: concurrent-integration-characterization
+
+- **Design:** `spec-concurrent-integration-characterization.md`
+
+---
+
+## **Phase 1:** Characterization substrate
+
+_Purpose:_ Settle the record contract and the two shared helpers every later probe composes over, and confirm the
+cell matrix against each boundary's typed seam before any probe is written. Grouping them is what lets the probe
+passes replicate rather than invent: the helper signature, the pin contract, and the cell list are the three things
+a probe cannot be written without.
+
+_Mode:_ `layer` — closes on a settled probe substrate: confirmed cell matrix, seeded ledger, and both shared helpers.
+
+_Exit criterion:_ The extended base-advance helper produces all four movement kinds over a caller-supplied path set,
+verified through the shipped overlap classifier; the pin helper is red on any third outcome and red once its target
+is met; every cell in the matrix is confirmed against its boundary's typed seam and carries either a probe intent or
+a not-applicable reason.
+
+### `[ ]` **1.1 Confirm each boundary's typed seam and base-read behavior**
+
+- _Goal:_ Every cell in the matrix carries a verdict read from its boundary's own typed seam — probed, or
+  not-applicable with the reason — so no probe is written against a base read that does not exist.
+
+- _Note:_ Treat "this boundary does not read the base" as a claim to establish at the seam, never as a given. Both
+  adversarial passes over the design caught a greenfield claim that source contradicted.
+
+- _Shape:_ Apply the design's amended not-applicable test: a cell closes when the boundary's typed result would be
+  identical to one already observed, not merely when the boundary never reads the base. Every boundary still yields
+  at least one real probe — the closing reaches only the second and later cells a probe could not tell apart, and
+  the source read decides what is worth probing rather than standing in for the observation. Expect this to reduce
+  the cell count below the ceiling at boundaries that discard the distinction.
+
+- **Additional Context:** `notes-concurrent-integration-characterization.md` § Cell matrix, § Source loci by decision
+
+    - Each subtask writes its per-cell verdict into § Cell matrix — applicable, or not-applicable with the reason
+      and the seam evidence behind it. That section is Task 1.2's input, and the probe phases take their cell
+      counts from it rather than assuming four movement kinds per boundary.
+    - Where `unknown` cannot be produced at a boundary in its lane, close that cell not-applicable with that
+      reason rather than forcing a static precondition to stand in for movement that goes unavailable.
+
+    - `[ ]` **1.1.a Whole-work-unit verification — `arc attest`**
+
+        - Confirm that the verification workflow invokes this one typed verb and nothing else that reads the base.
+        - Record which covered inputs the seam actually consumes, and whether the subject digest is the only one.
+
+    - `[ ]` **1.1.b Candidate and private-delivery prepublication**
+
+        - Cover `arc review pre-publication` and the publication transition, including the settle-to-submit window
+          the existing spine test never moves the base across.
+
+    - `[ ]` **1.1.c Public review and checks**
+
+        - Cover `arc review status` and the hosted request and await handlers; locate where a moved base is derived
+          from an injected observation's containment fact.
+        - Settle this boundary's instrument here, once. The status port the production handler composes is
+          exported and takes an injectable exec, so a probe can drive the real composition and fail the base fetch
+          inside it. Prefer that over injecting the observation wholesale, which records the reducer's arithmetic
+          rather than the boundary's behavior — and which is the only way the base read never runs at all.
+        - `unknown` stays open here on that instrument: an unavailable base read yields a null base object id and a
+          blocked result, which the amended not-applicable test distinguishes from both a moved base and a clean
+          one. This is also the plan's only consumer for the in-process arm Task 1.4 builds.
+
+    - `[ ]` **1.1.d Member and singleton landing**
+
+        - Cover `arc integrate checkpoint`, `arc integrate merge`, and the delivery landing path; record the
+          checkpoint's observed base relation and the exact head merge authority binds to.
+
+    - `[ ]` **1.1.e Post-landing closeout**
+
+        - Cover `arc teardown` and archival, including the reap's refetch of a base that moved after landing.
+
+    - `[ ]` **1.1.f Errand review and merge**
+
+        - Cover `arc errand close` and the Errand's typed merge lane (`src/lib/errand/merge.ts`); distinguish the
+          base reads at close from the one at open, which is the only advance the suite exercises today.
+
+    - `[ ]` **1.1.g Record the prose-only gates visible at this base**
+
+        - A workflow step that loops on a drift read with no typed verb behind it cannot be probed. This read is
+          provisional — the set moves with each base merge, and Task 6.3 supersedes it from the tree at close.
+
+### `[ ]` **1.2 Seed the characterization ledger with the confirmed cell matrix**
+
+- _Goal:_ An observation has a row waiting the moment it is taken, and a not-applicable verdict is recorded with the
+  seam evidence behind it rather than inferred from an absent probe.
+
+    - `[ ]` **1.2.a Open one row per applicable cell, carrying boundary, movement kind, and shape**
+
+    - `[ ]` **1.2.b Close every not-applicable cell as a row carrying its reason**
+
+        - Settle the not-applicable wording here; the design deliberately left it to implementation.
+
+    - `[ ]` **1.2.c Add the ledger-only rows for observations with nothing to probe**
+
+        - A prose-only gate records relocation into a typed verb as its fix.
+        - A completion path no test covers records coverage of that path as its fix. Scope each such row to the
+          seam that is actually uncovered — a path proven at the library seam but never through the operator-facing
+          verb is a narrower gap than an unproven mechanism, and the routed owner needs that distinction.
+
+    - `[ ]` **1.2.d Record the re-run and empty-overlap conventions in the ledger's preamble**
+
+        - Every row names the base OID it was observed against; each base merge re-runs the suite and appends a row
+          per changed observation, rather than editing the original.
+        - An advance whose only intersection with the branch is evidence-neutral produces the same empty overlap as
+          a non-intersecting one. `disjoint` rows mean no intersection at all; note the distinction so a reader does
+          not read the two cases as one observation.
+        - The continuation column records whether the probe took the result's recommended continuation and whether
+          it cleared the stop, and its invocations count toward that row's excess.
+        - Fix the counting convention for verb invocations and approval stops once, here, and apply it to every row:
+          what counts as one invocation, whether fixture setup and read-only status calls count, and how an
+          interleaved step inside one anchored sequence is counted. Excess is a difference against a control row on
+          the same fixture, so any consistent convention is sound — an inconsistent one makes the metric noise.
+
+### `[ ]` **1.3 Record the pre-probe test-cost baseline**
+
+- _Goal:_ The measured delta stated at close has a before-value taken on a tree that carries no new test file, so the
+  delta is attributable to the probes.
+
+    - Run the package's test-cost benchmark for the e2e and integration tiers and **keep its retained-run file** —
+      the close-out comparison reads run files, not a number recorded in prose. It runs before Tasks 1.4 and 1.5,
+      whose coverage would otherwise land inside the baseline.
+    - Redirect each run to a named path and park it where the work unit can find it across sessions. The default
+      output directory is gitignored, so a clean, a fresh worktree, or a sibling checkout loses the baseline and
+      the stated delta becomes unmeasurable.
+    - Pin the measurement mode explicitly and record it. The tool refuses to default any of its three axes, and the
+      comparison at close refuses outright when a single axis differs between the two runs — so the condition,
+      project set, and worker sizing must match the budget rows being refreshed, and must be repeated exactly at
+      close. The axes cannot span project sets, so that means **three** baselines and three comparisons: the
+      integration and e2e tiers, and the combined local lane, whose own budget row this work moves every time it
+      adds an integration probe. The lane baseline is the one that cannot be recovered later — once Phase 2 lands
+      a probe, the pre-probe tree is gone.
+    - Capture the effective e2e shard membership with the package's shard-measurement script, which derives each
+      leg's remainder from the workflow, so the re-read at close compares like with like.
+
+### `[ ]` **1.4 Extend the base-advance helper with a path set and the four movement kinds**
+
+- _Goal:_ One helper call arranges a base advance a named movement kind can actually be read from, so every probe
+  moves the base the same way and none hand-rolls a fourth idiom.
+
+- _Approach:_ The existing remote-branch advance is the reference idiom, not a small edit away from the helper.
+  It lives as a closure bound to one fixture, takes only a branch and a marker path, and leaves the caller's
+  checkout on the base branch — every probe here runs with a work-unit branch checked out. Replace its core with a
+  plumbing-only push that touches no working tree, following the `commit-tree` idiom the Errand tests already use.
+  The three hand-rolled advance idioms elsewhere in the suite stay where they are; migrating them is out of scope.
+
+- _Shape:_ State the input contract before the first caller consumes it. The helper takes a repository and its
+  origin rather than a fixture it owns; it must leave the caller's checked-out branch untouched; and both a plain
+  temp repository with a bare origin and the prepared remote-bearing shape are first-class inputs, including the
+  case where the origin is reached through a URL rewrite rather than a direct path.
+
+- _Shape:_ The advance must also leave the caller's remote-tracking ref for the base pointing at the advanced head.
+  Some boundaries fetch for themselves, but the Candidate base revision is resolved by reading the tracking ref
+  with local-only object access and no fetch at all — so a push that skips the refresh leaves that boundary
+  observing no movement, the probe passing, the pin never firing, and a `tolerates` row recorded for a base that
+  never moved from the verb's point of view. The existing advance performs this refresh; the replacement must keep
+  it.
+
+- _Context:_ Movement kind is a property of the **intersection** of the branch's own diff with the base's, not of
+  the advance alone — the shipped analyzer diffs `merge-base..HEAD` against `merge-base..<base>` and partitions what
+  both touched. The helper therefore owns both sides for the overlapping kinds, and guarantees the branch is ahead
+  before any of them mean anything: the analyzer short-circuits to an empty result whenever the branch is not both
+  ahead and behind.
+
+- _Shape:_ Two call forms. A direct call serves probes that drive their boundary as separate processes. An argv
+  step list serves probes that must interleave the advance inside one persistent shell sequence — the Errand lane
+  closes that way, and without the argv form its probes would hand-roll an advance, which is the outcome this
+  helper exists to prevent. For the overlapping kinds the branch-side arrangement still happens before the
+  sequence; only the base-side push rides inside it.
+
+- _Note:_ The signature, and whether `unknown` movement is produced by severing the remote or by withholding the
+  fetched object, resolve here; the design left both open. Verify the kinds through the shipped overlap classifier
+  so the helper's claim is checked against the code the boundaries themselves use.
+
+- **Additional Context:** `notes-concurrent-integration-characterization.md` § Fixture inventory
+
+    - Build `test-first` (one behavior at a time):
+
+        - An advance sharing no path with the branch's own diff classifies as `disjoint`.
+        - An advance over reviewable paths the branch also changed classifies as `overlapping-substantive`.
+        - An advance over `.arc/backlog/ROADMAP.md`, which the branch also changed, classifies as
+          `overlapping-regenerable-only` — the tracked readiness projection is the one path the shipped classifier
+          treats as regenerable.
+        - An advance whose only shared paths are evidence-neutral — the work unit's own artifacts, its candidate
+          record, its submission boundary — yields an empty overlap rather than either overlapping kind.
+        - `unknown` leaves the boundary's remote read unavailable at the moment the boundary fires, not before it,
+          and surfaces as the analyzer's typed unavailable result rather than a thrown error. In-process callers
+          reach this through the git-call boundary wrapper; a spawned verb cannot, so the spawned lane needs a
+          `git` shim on `PATH` that fails one named remote read and execs the real binary otherwise — the idiom
+          the delivery suite and the fake-host shims already use. Where neither route works at a boundary, that
+          cell closes not-applicable per Task 1.1.
+        - An advance reaches a second checkout over both the multi-clone and the worktree-sibling topology.
+        - The argv form advances the base identically when run as an interleaved step inside an anchored
+          shell sequence.
+        - After any advance, the caller's remote-tracking ref for the base resolves to the advanced head.
+
+### `[ ]` **1.5 Add the pinned-observation assertion helper**
+
+- _Goal:_ A probe that fails today reads green only while the observed stop is exactly what it pinned, and turns red
+  the moment either that stop changes or the idiomatic target is met.
+
+- _Rationale:_ The runner's own failure marker converts every non-pass state to pass, so a marked probe cannot tell
+  failing-at-the-target from failing for any reason, and the net disarms silently as the suite decays.
+
+- _Shape:_ The call signature is settled here, not left to the first caller — how a probe supplies its observed and
+  its target result, and how it names the behavior under test. Every probe in Phases 2 through 5 consumes it.
+
+- _Shape:_ Matching is subset-and-shape over the fields that carry identity, never deep equality. The results being
+  pinned embed values that change on every run — the observed base object id, ahead and behind counts, the reviewed
+  head — so whole-result comparison could never pin anything. Which fields are identity and which are run noise is
+  decided here; leaving it to the first caller is what makes the red-on-any-third-outcome guarantee vacuous.
+
+    - Build `test-first` (one behavior at a time):
+
+        - The observed typed result passes.
+        - A third outcome — neither the observed result nor the target — is red.
+        - Reaching the target is red, carrying a message that tells the fixer to replace the call with a plain
+          assertion.
+        - Messages name behavior only, never a ledger row, a matrix cell, or any planning identifier.
+        - A result matching both the observed and the target shape resolves one way by rule, not by argument
+          order — subset matching makes that overlap reachable whenever the two differ only in ignored fields.
+        - A call whose observed shape already equals its target is refused rather than silently passing; that is a
+          pin whose retirement was missed.
+
+## **Phase 2:** Pilot probes across both lanes
+
+_Purpose:_ Retire the composition risk before the matrix is replicated across it. Two things are unresolved until one
+probe of each shape runs: whether an e2e probe can drive the extended helper from a spawned CLI over a repository the
+integration-lane fixtures build, and whether the pin path survives a real red-green cycle in the suite.
+
+_Mode:_ `slice` — closes on one probe per lane advancing the base inside a boundary and landing its ledger row.
+
+_Exit criterion:_ One e2e probe and one integration probe each advance the base between their boundary's precondition
+and its execution through the extended helper, at least one of the pair exercises the pin helper's observed-and-target
+path, both ledger rows carry every recorded column, and the suite is green.
+
+### `[ ]` **2.1 Probe the whole-work-unit verification boundary from the e2e lane**
+
+- _Goal:_ A spawned-CLI probe advances the base between the verification boundary's precondition and its execution
+  through the extended helper, proving the helper reaches the e2e lane at all.
+
+- _Context:_ This is the plan's dominant unknown. The topology and advance steps sit behind integration-lane
+  conveniences carrying `src` imports an e2e probe neither needs nor should pull in; the separable shape is recorded
+  in the notes, but the cut itself resolves here.
+
+- _Shape:_ Extend `e2e/attest.e2e.test.ts`, which already builds a minimal real-CLI fixture but configures no
+  remote. Attach one with the suite's established idiom — a bare remote plus a URL rewrite, so the origin both
+  parses as an owner-and-repository coordinate and reaches a live target — rather than a bare path alone, which
+  satisfies only the second. For a **spawned-CLI** probe the window between a boundary's precondition and its
+  execution is the gap between two invocations: the process is atomic from the test's side, so there is nothing to
+  inject into. Here that is establish the verification precondition, advance the base, then run the verb. The lane
+  name does not decide this — the e2e project also hosts in-process handler work — the spawn does.
+
+- **Additional Context:** `notes-concurrent-integration-characterization.md` § Fixture inventory
+
+    - Take one movement kind and record its row; the boundary's remaining kinds land in Phase 3.
+    - Assert the typed outcome Task 1.1.a recorded for this seam — the verb's result, never a count. Counts are
+      ledger observations read off the run.
+    - Where the observed result is not the idiomatic one, pin it through the helper from Task 1.5, then take its
+      recommended continuation and record whether the stop cleared.
+
+### `[ ]` **2.2 Probe the public-review boundary at the handler seam**
+
+- _Goal:_ An integration probe advances the base inside the public-review boundary by driving the injected request
+  and observer functions, proving the second lane composes before fifteen further probes assume it.
+
+- _Shape:_ Extend `integration/review-fan-out-lifecycle.test.ts`, which already passes `request` and `observers`
+  into the hosted handlers. A spawned verb can reach this boundary's behavior through host shims, but the injected
+  functions are the precise instrument for controlling what the observation contains, which is what a movement
+  probe needs. The boundary's typed stop for a moved base is `state: "base-moved"` with
+  `nextAction: "rerun-checkpoint"`, derived from the observation's containment fact.
+
+- _Note:_ The seam makes the movement trivial to fake — supplying a non-containing observation asserts the stop
+  without moving anything, which tests the handler's arithmetic rather than the lifecycle. Advance a real base
+  through the helper and observe it through the instrument Task 1.1.c settled, rather than handing the containment
+  fact in.
+
+- _Note:_ That stop has a shape precondition as well as a movement one: it is returned only when no outstanding
+  conjunction carries a dischargeable member, and the harness is delivery-member shaped throughout. A probe can
+  advance a real base, observe a non-contained result, and still land in a different typed state because the
+  conjunction decided it. Establish the singleton shape first, or the pilot debugs the wrong thing.
+
+- _Note:_ That harness builds its branches locally and attaches no remote, so there is no base to advance until one
+  is added. Giving it an origin in one of the helper's first-class shapes is this task's first step, as it is at
+  the other two boundaries whose fixtures lack one.
+
+    - Record the row, and pin the observed result where it is not the idiomatic one.
+    - Take the `rerun-checkpoint` continuation the stop names and record whether it clears — the first evidence of
+      whether this boundary's stop is friction or a freeze.
+
+### `[ ]` **2.3 Confirm the pilot pair's lane composition and ledger rows** — validate exit criterion at segment scope
+
+- _Goal:_ Both lanes are proven to carry a mid-boundary base advance, and the pin helper has been exercised through a
+  real red-green cycle in a suite run rather than only in its own unit tests.
+
+- _Note:_ If both pilots pass cleanly the pin path is still unproven — take one further cell at a boundary expected
+  to stop rather than closing the segment on an untested arm. That cell counts against its own boundary's phase,
+  not this one, so the ledger records it once.
+
+    - Run both lanes and confirm green with any pins in place.
+    - Confirm both rows carry every recorded column, including the base OID observed against.
+
+## **Phase 3:** Singleton probes — the pre-publish spine
+
+_Purpose:_ Exhaust the two boundaries reachable before anything is published. One existing fixture already drives
+`arc attest` through pre-publication and publish, so the two share a lifecycle even though each starts from its own
+repository shape — and neither can move a base until it is given a real origin.
+
+_Mode:_ `replication` through Phase 5 — closes when the enumerated cell surface is exhausted and batch-verified.
+
+_Design decisions:_ A control row asserts its boundary's clean typed outcome; verb invocations and approval stops
+are read off the run and recorded, never asserted, so the ceremony baseline stays an observation. A cell an existing
+test already exercises still gets a probe — the probe produces the ledger observation that test does not record, and
+the retention rule removes it at close while the row keeps what it saw. Where a probe's observed result is a stop,
+it takes that result's recommended continuation and records whether the stop cleared: a stop clearable in one
+recommended step is friction, while one that cannot be cleared is the freeze this work exists to find.
+
+### `[ ]` **3.1 Probe the whole-work-unit verification boundary**
+
+- _Goal:_ Every applicable cell at the verification boundary carries an observation, and its control row establishes
+  the ceremony baseline the movement rows' excess is measured against.
+
+- _Note:_ `e2e/attest.e2e.test.ts` configures no remote at all. Giving it a real bare origin precedes the first
+  movement cell; the pilot's probe already sits on this fixture.
+
+    - Cover every movement kind Task 1.1 left applicable that the pilot did not take, plus the control row.
+    - Record verb invocations and approval stops per run; excess is that count minus the control row's.
+
+### `[ ]` **3.2 Probe the Candidate and private-delivery prepublication boundary**
+
+- _Goal:_ The settle-to-submit window carries an observation for every applicable movement kind, closing the gap the
+  existing spine test leaves by moving only the head against an origin it can never reach.
+
+- _Shape:_ `e2e/publication-spine.e2e.test.ts` already runs attest through pre-publication and publish in one
+  fixture, but points origin at a deliberately unreachable URL — and that is load-bearing, not incidental: the
+  file documents the unreachable host as the pre-publication state its seven cases are written against. Do not
+  swap it out. Attach a live origin through a URL rewrite so the coordinate still parses as owner-and-repository
+  while reaching a real target — but **not inside the shared fixture builder**: a rewrite installed there makes the
+  ref probe reach a live target and succeed, which is the same state change as swapping the URL and breaks the same
+  seven cases. Install it on a per-probe copy after the builder returns, or stand up a second fixture beside it.
+  Establishing that is this task's first step and is what makes every later cell here possible.
+
+    - Cover every movement kind Task 1.1 left applicable, plus the control row.
+
+## **Phase 4:** Singleton and delivery-member probes — the post-publish spine
+
+_Purpose:_ Exhaust the two boundaries that exist only after a merge has landed, together with every delivery-member
+cell. They group by fixture depth: each needs a landed merge, a committed completed record, and a real origin whose
+base then advances, which is the deepest setup in the plan. Each task names its own nearest reference — the
+integrate token pair for singleton landing, the multi-clone advance for closeout, the installed-state idiom for the
+delivery-member cells — and they share the cost of getting a repository that far rather than one file.
+
+### `[ ]` **4.1 Probe the member and singleton landing boundary**
+
+- _Goal:_ Landing carries an observation for every applicable movement kind, including the window between landing
+  readiness and merge that nothing in the suite currently moves the base across.
+
+- _Shape:_ The window is the token pair: `arc integrate checkpoint` mints a handle and `arc integrate merge`
+  consumes it by exact value, so the advance lands between the two invocations.
+
+- _Note:_ Minting a real handle is this task's cost, and no existing fixture does it — the e2e references to these
+  verbs are outside-project refusals with a synthetic handle. The mint requires the phase's deep fixture plus a
+  fake host, because it reads a live change request and resolves a merge method before it will issue. Budget that
+  before the cells. Nothing yet establishes how this boundary behaves when the base moves under a minted handle:
+  the suite's "moved checkpoint head is refused" evidence belongs to `arc base merge`, a different verb with a
+  different handle contract.
+
+    - Cover every movement kind Task 1.1 left applicable, plus the control row, on the singleton shape.
+
+### `[ ]` **4.2 Probe the post-landing closeout boundary**
+
+- _Goal:_ Closeout's overlapping and unknown movement carry observations, extending the single disjoint case that is
+  the suite's only post-landing base-movement coverage today.
+
+- _Note:_ `arc teardown` is unreachable until the fixture carries a landed merge and a committed completed record.
+  `integration/teardown.test.ts` already builds the disjoint case over a multi-clone topology and is the nearest
+  working reference for both the fixture and the advance.
+
+- _Shape:_ These probes spawn the verb. The integration file drives the teardown functions in-process, so it is the
+  reference for the **advance idiom** — its multi-clone topology imports nothing from source and reaches either
+  lane — and not the host for the probes. Landing them there would put an operator-facing boundary at a library
+  seam, where a single in-process call has no verb invocations or approval stops to count and the boundary's excess
+  is structurally zero. The e2e teardown file already spawns the verb throughout and lacks only an origin.
+
+    - Cover every movement kind Task 1.1 left applicable, plus the control row.
+
+### `[ ]` **4.3 Probe the delivery-member landing cells**
+
+- _Goal:_ Landing under a published delivery plan carries an observation for every cell Task 1.1.d leaves
+  applicable, plus a control row, where the delivery path rather than the singleton path decides admissibility.
+
+- _Note:_ Expect fewer than five. The landing readiness projection states that protected-base movement is
+  deliberately absent from it, and the landing path carries the base only as a branch name — so the movement kinds
+  may well be indistinguishable here. Reaching any base decision at all also requires installing reviewed member
+  state first; the spawned path returns a not-ready refusal before it gets there.
+
+- _Approach:_ Establish delivery state the way the terminal-recovery probes already do — install the parsed state
+  record directly alongside synthetic heads pushed to the origin — rather than composing a plan through the
+  authoring verbs. That route is proven and keeps each probe inside the per-probe cost ceiling. Build it once and
+  let Task 4.4 re-use it.
+
+- _Note:_ The landing verbs are proven at the library seam — a unit file drives prepare and apply through to a
+  landed result across roughly twenty cases, and a member-lifecycle integration test drives both arms — but the
+  operator-facing spawned path reaches them only through refusals. Task 1.1.d settles what that means for these
+  cells; if the gap holds it is a seam gap, and its ledger row should say so rather than claim the mechanism is
+  unproven.
+
+### `[ ]` **4.4 Probe the delivery-member prepublication and closeout re-observation cells**
+
+- _Goal:_ The two boundaries where the delivery path only re-observes carry their disjoint rows, so re-observation is
+  distinguished in the record from admissibility.
+
+    - Re-use the delivery state Task 4.3 installed; neither cell needs a second plan.
+
+## **Phase 5:** Off-spine lanes — public review, the Errand lifecycle, and read isolation
+
+_Purpose:_ Close the three families that share nothing with the spine. Public review runs at an injected handler
+seam in the integration lane, the Errand lane carries its own lifecycle under a persistent shell anchor, and read
+isolation is not a boundary at all but a sibling-checkout topology.
+
+_Exit criterion:_ Every enumerated cell across all three shapes holds either a probe in the suite or a ledger row
+marked not-applicable with its reason; the full e2e and integration lanes run green with every pin in place, and no
+probe uses a skip, todo, or expected-failure marker.
+
+### `[ ]` **5.1 Complete the public-review and checks boundary's movement kinds and control row**
+
+- _Goal:_ Every applicable cell at the public-review boundary carries an observation taken at the handler seam,
+  where review clearance binds to an exact head and reviewed path set.
+
+    - Cover every movement kind Task 1.1 left applicable that the pilot did not take, plus the control row.
+    - The harness attaches no remote of its own; the pilot's origin setup is the prerequisite here too.
+    - Advance a real base through the helper for each and observe it through the instrument Task 1.1.c settled;
+      the containment fact is never handed in.
+    - Take each kind's own continuation rather than carrying the pilot's result forward. Whether a rerun clears may
+      differ by movement kind, and that difference is close to what this boundary is being asked.
+
+### `[ ]` **5.2 Probe the Errand review and merge boundary**
+
+- _Goal:_ The Errand lane's close and review-respond paths carry observations, where today only `open` ever cuts
+  from a freshly advanced base.
+
+- _Shape:_ The lane runs under one persistent shell anchor, so each advance rides inside the sequence as an
+  interleaved step through the helper's argv form. `e2e/errand.e2e.test.ts` already interleaves a hand-rolled push
+  that way; these probes use the helper instead.
+
+- _Note:_ Expect fewer than five cells here. Close pins a remote base head rather than analysing path overlap, so
+  the two overlapping kinds may be indistinguishable at this boundary and close as not-applicable with that reason.
+  Task 1.1.f settles it; budget against what it records, not against the full row.
+
+    - Cover every movement kind Task 1.1.f left applicable, plus the control row.
+
+### `[ ]` **5.3 Probe the exact-target read isolation family**
+
+- _Goal:_ Three cross-checkout read classes carry observations on the shared-common-dir sibling fixture, where an
+  unparseable sibling record, a foreign owner's Candidate record, and an untouched sibling each meet this checkout's
+  reads.
+
+- _Approach:_ The unreadable-record case needs no second build. The guard lives in `src/lib/locus/subject-meta.ts`
+  and fires on a candidate record this build's schema rejects, so writing a record that carries an enum member this
+  build does not accept reproduces it — which is exactly the state three sibling checkouts were in at this work
+  unit's first session-init. The guard is only reached when the sibling's own meta demands candidate authority: its
+  candidate id must be set and its state must be integrating, or active while preparing the work unit. Without
+  that precondition the probe reads green while exercising nothing.
+
+- _Note:_ Two of the three cells already have coverage, both in the other lane: a foreign active owner is refused in
+  `e2e/candidate-applicability.e2e.test.ts`, and a sibling is left byte-identical in `e2e/wu-reconcile.e2e.test.ts`.
+  Both probes are written for their ledger observation and then removed by the retention rule, with their rows
+  naming the covering test. That ratio is deliberate here, not an oversight found at close.
+
+### `[ ]` **5.4 Confirm matrix coverage across all three shapes** — validate exit criterion at segment scope
+
+- _Goal:_ Every enumerated cell resolves to a probe in the suite or a closed not-applicable row, and both lanes run
+  green with every pin in place.
+
+    - Walk the matrix against the ledger rather than the reverse; an absent probe with no closed row is the failure
+      this walk exists to catch.
+    - Confirm no probe uses a skip, todo, or expected-failure marker.
+
+## **Phase 6:** Ledger close-out
+
+_Purpose:_ Turn the observation record into the routed ledger the work unit ships. The order is forced: names resolve
+before routing cites them, classification precedes owner resolution, pin retirement precedes retention so the rule
+sees which probes are still pinned, and retention precedes the cost refresh, since the refreshed baselines must
+reflect only the retained set.
+
+_Mode:_ `replication` — closes when every ledger row is closed out and the retained suite is measured.
+
+_Exit criterion:_ Every ledger row carries every recorded column including continuation, classification, owner, fix
+disposition, and retention disposition; every non-passing and ledger-only row resolves to a `backlog/` stub, a
+capture targeting an in-flight work unit, or a capture whose fate is Errand; the retained probe set is green and the
+refreshed baselines reflect only it.
+
+### `[ ]` **6.1 Resolve every ledger test name against the suite**
+
+- _Goal:_ Every cited test name resolves to a test that exists, closing the one divergence the record cannot detect
+  on its own — the tests cite nothing back, so a renamed probe silently orphans its row.
+
+    - Enumerate the suite's test names with the runner's list mode and compare the two sets, rather than reading
+      forty rows against the files by hand.
+
+### `[ ]` **6.2 Classify every ledger row and record its recommendation and continuation columns**
+
+- _Goal:_ Each observation carries one classification, a record of whether the typed result arrived with a
+  recommendation or as a bare fork, and whether following that recommendation actually cleared the stop.
+
+- _Shape:_ Classification follows the continuation, not the reviewer's read of how justified a refusal looks.
+  Fail-closed and correct requires a continuation the probe exercised and that cleared; a refusal the baseline also
+  requires but which nothing is proven to clear is a mechanical block however defensible it is.
+
+    - Classify as tolerates, redundant ceremony, mechanical block, or fail-closed and correct.
+    - A bare "approve this?" with no composed recommendation is itself a defect; record it per stop.
+    - Compute each movement row's excess against its boundary's control row, counting the continuation's own
+      invocations; route non-concurrency excess in a control row rather than fixing it.
+
+### `[ ]` **6.3 Route every row that needs an owner**
+
+- _Goal:_ Every non-passing row and every ledger-only row resolves to exactly one owner, and the steering map
+  reflects the resulting shape of the stabilization runway.
+
+- _Approach:_ Existing owner first; then an Errand where the fix is one verb arm plus a pin retirement; then a new
+  stub only for an unowned, spec-worthy mechanism, consolidated by mechanism rather than by boundary. A ledger-only
+  row is neither passing nor failing and still needs an owner: an uncovered completion path and a prose-only gate
+  each carry a recorded fix, so each carries an owner too.
+
+- _Approach:_ Urgency outranks conceptual fit. An urgent or blocking row goes to a near-term candidate or an Errand
+  even where a later work unit would house it more tidily — a downstream owner that will not land for several work
+  units relieves no bottleneck, so it is a fit rather than an owner for that row.
+
+- _Note:_ The minting evidence is untracked — `backlog/` stubs live on the base branch and captures are gitignored —
+  so the mint runs at the verification boundary rather than as work on this branch. What lands here is the ledger's
+  owner and fix-disposition columns.
+
+    - `[ ]` **6.3.a Resolve each named target against live work-unit state**
+
+        - Rebuild the CLI first. A base merge during this work unit can move source under the built bundle, and
+          the staleness guard then refuses every slug resolution — a refusal that reads like a defect and is not
+          one.
+        - Resolve by slug; never read a dependency edge or a directory listing for lifecycle state.
+
+    - `[ ]` **6.3.b Record owner and fix disposition per row**
+
+        - The generalized doctrine sentence takes a row of its own.
+        - A third new stub beyond the four named targets is a signal to consolidate by mechanism; surface it rather
+          than deciding it.
+
+    - `[ ]` **6.3.c Screen each consolidated mechanism for forward compatibility**
+
+        - Run it once per mechanism, not once per row — the rows are already grouped by mechanism at this point.
+        - Evaluate the project strategies' own firing conditions and read only the ones that fire. Most will not:
+          the storage, knowledge, and PM-composition surfaces trigger on what a fix touches, not on this audit.
+        - Record what fired as a pointer in the capture, never as a design the owner has not made. Three of those
+          surfaces are marked in-development and one provisional, so nothing here becomes an acceptance condition.
+
+    - `[ ]` **6.3.d Re-read the tree for prose-only gates and refresh their ledger-only rows**
+
+    - `[ ]` **6.3.e Mint the routed owners at the verification boundary**
+
+        - The four named stabilization targets become `backlog/` stubs; the remaining rows become captures whose
+          fate is either an in-flight work unit or an Errand.
+
+    - `[ ]` **6.3.f Refresh `RELEASE-GATES.md` alongside the mint**
+
+        - Bring the stabilization runway and the Errand runway into agreement with the routed ledger, so the map
+          stops naming captures that are now stubs.
+
+### `[ ]` **6.4 Retire every pin whose target has been met**
+
+- _Goal:_ No probe still pins a stop that has since been fixed, so the suite is green with only live pins in place
+  and the ledger carries the changed observation rather than a stale one.
+
+- _Context:_ This is the re-run mechanism landing rather than an exception to it. A routed Errand fix may run and
+  land off-work-unit during this work unit's lifetime, and every base merge brings sibling work in — so the pin
+  helper's designed failure, red once the target is met, is expected to fire here by design.
+
+    - Rebuild the base, re-run both lanes, and take the red-on-target-met messages as the worklist.
+    - Convert each such probe to a plain assertion against the now-idiomatic result; the pin's job ends when the
+      fix lands.
+    - Append the changed observation as its own ledger row against the base it was seen on, rather than editing
+      the original row.
+    - A probe whose pin is retired then falls under the ordinary retention rule in the next task.
+
+### `[ ]` **6.5 Apply the retention rule and record each probe's disposition**
+
+- _Goal:_ The suite keeps only probes guarding a cell no other test covers, and every deleted probe's row keeps its
+  observation and names the test that covers its cell.
+
+    - Control rows are expected to fall wherever the clean path is already tested.
+    - Pinned probes are kept until their fix lands — the pin is the handoff contract — then fall under the same rule.
+
+### `[ ]` **6.6 Refresh the test-cost baselines and re-read e2e shard balance**
+
+- _Goal:_ The recorded budgets reflect the retained probe set, and the measured delta is stated in its own commit
+  rather than left standing as a CI summary warning.
+
+    - Measure after retention, so the baselines never include probes that were deleted.
+    - Compare against the retained-run file Task 1.3 kept, normalizing both runs first. The comparison is driven by
+      a request file naming the run groups, which this task authors; it does not take two run paths directly.
+    - Refresh all three tier-isolated rows this work moves — integration, e2e, and the combined local lane — each
+      against its own baseline and comparison. The per-CI-job rows measure a different thing under different worker
+      sizing and can only come from a run of this branch's own pull request, so they are refreshed at the
+      verification boundary rather than locally.
+    - Land the refresh as a dedicated `perf(test-cost)` commit whose message states the delta.
+    - Re-read the e2e shard balance with the same shard-measurement script. Sharding partitions whole files, so a
+      new file lands on exactly one leg; what redistributes is the existing remainder. The Errand probes are the
+      exception worth watching — their file is a pinned anchor excluded from the remainder entirely, so all of
+      their cost lands on that one leg.
+
+### `[ ]` **6.7 Close the ledger against the matrix** — validate exit criterion at segment scope
+
+- _Goal:_ Every ledger row is closed on all four closing columns, and the retained suite is green against the
+  refreshed baselines.
+
+- _Note:_ Two obligations cannot close here, and both land at the verification boundary. Whether the e2e and
+  integration lanes ran on the pull request is observable only once a pull request exists — and it asks whether the
+  legs **ran**, not whether the workflow went green: the e2e job is skipped when the change is classified
+  light-weight, when reconciliation is deferred, and when the lane is not the reviewed one. The same run is the only
+  source for the per-CI-job budget rows, so reading its elapsed figures and landing a second budget refresh belongs
+  there too. Neither is optional: the criterion forbids leaving a CI budget summary standing.
+
+## **Phase 7:** Verification
+
+### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ The complete work unit is validated against its success criteria and the project's gates before
+  integration, including the criteria only a pull request can settle and the routed owners only the mint can
+  produce.
+
+---
+
+## Success Criteria
+
+- `[ ]` Every enumerated cell across the singleton, delivery-member, and isolation shapes holds either a probe in
+  the suite or a ledger row marked not-applicable with its reason
+- `[ ]` Every probe that does not pass on the current tree calls the shared pin helper with both its observed and
+  target shapes, the suite is green with those pins in place, and no probe uses a skip, todo, or expected-failure
+  marker
+- `[ ]` The extended base-advance helper accepts a path set and all four movement kinds, and every new probe
+  advances the base through it
+- `[ ]` Every ledger row carries every recorded column, and every non-passing and ledger-only row's owner resolves
+  to a `backlog/` stub, a capture targeting an in-flight work unit, or a capture whose fate is Errand
+- `[ ]` Stubs minted beyond the four named stabilization targets number one or two
+- `[ ]` Each of the four named stabilization targets exists as a `backlog/` stub at close, the generalized doctrine
+  sentence has its own owned row, and `RELEASE-GATES.md` matches the routed ledger
+- `[ ]` The test-cost baselines are refreshed in a dedicated `perf(test-cost)` commit whose message states the
+  measured delta, and no CI test-budget summary is left standing
+- `[ ]` Every probe retained at close guards a cell or isolation case no other test covers, every deleted probe's
+  ledger row records its observation and the covering test, and the measured tier cost reflects only the retained set
+- `[ ]` The e2e and integration lanes ran on the pull request, not only locally
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration
