@@ -18,68 +18,67 @@ verified through the shipped overlap classifier; the pin helper is red on any th
 is met; every cell in the matrix is confirmed against its boundary's typed seam and carries either a probe intent or
 a not-applicable reason.
 
-### `[ ]` **1.1 Confirm each boundary's typed seam and base-read behavior**
+### `[x]` **1.1 Confirm each boundary's typed seam and base-read behavior**
 
 - _Goal:_ Every cell in the matrix carries a verdict read from its boundary's own typed seam — probed, or
   not-applicable with the reason — so no probe is written against a base read that does not exist.
 
-- _Note:_ Treat "this boundary does not read the base" as a claim to establish at the seam, never as a given. Both
-  adversarial passes over the design caught a greenfield claim that source contradicted.
+    - `[x]` **1.1.a Whole-work-unit verification — `arc attest`**
 
-- _Shape:_ Apply the design's amended not-applicable test: a cell closes when the boundary's typed result would be
-  identical to one already observed, not merely when the boundary never reads the base. Every boundary still yields
-  at least one real probe — the closing reaches only the second and later cells a probe could not tell apart, and
-  the source read decides what is worth probing rather than standing in for the observation. Expect this to reduce
-  the cell count below the ceiling at boundaries that discard the distinction.
+        - `arc attest` is the verification workflow's only typed verb: its `--new-root` continuation is the same
+          verb, `self-review` invokes none, and the member scale step inspects results already recorded. The base
+          reaches it only as the `merge-base` argument in `git-candidate-subject.ts`, read `local-only` from
+          `refs/remotes/origin/<base>` with a local-branch fallback, so the subject digest is byte-identical under
+          any advance. That digest is the only base-derived covered input; the task list, the index, and delivery
+          renewal evidence are the others.
 
-- **Additional Context:** `notes-concurrent-integration-characterization.md` § Cell matrix, § Source loci by decision
+    - `[x]` **1.1.b Candidate and private-delivery prepublication**
 
-    - Each subtask writes its per-cell verdict into § Cell matrix — applicable, or not-applicable with the reason
-      and the seam evidence behind it. That section is Task 1.2's input, and the probe phases take their cell
-      counts from it rather than assuming four movement kinds per boundary.
-    - Where `unknown` cannot be produced at a boundary in its lane, close that cell not-applicable with that
-      reason rather than forcing a static precondition to stand in for movement that goes unavailable.
+        - `arc review pre-publication` reads the Candidate through the same `local-only` effective-target seam, and
+          `arc publish` reads no base at all. The settle-to-submit window therefore collapses to one probe rather
+          than four.
 
-    - `[ ]` **1.1.a Whole-work-unit verification — `arc attest`**
+    - `[x]` **1.1.c Public review and checks**
 
-        - Confirm that the verification workflow invokes this one typed verb and nothing else that reads the base.
-        - Record which covered inputs the seam actually consumes, and whether the subject digest is the only one.
+        - The one boundary that fetches. `base-moved` derives from `merge-base --is-ancestor` over the freshly
+          fetched base, and that arm sits ahead of every applicability arm, so movement kind never reaches the
+          result; a failed fetch yields a null base object id and `blocked / status-unavailable`. Instrument
+          settled: drive `createReviewStatusPort` with an injected exec and fail only the base fetch — its catch
+          collapses every error into the same shape, so a `gh` failure is otherwise indistinguishable.
 
-    - `[ ]` **1.1.b Candidate and private-delivery prepublication**
+    - `[x]` **1.1.d Member and singleton landing**
 
-        - Cover `arc review pre-publication` and the publication transition, including the settle-to-submit window
-          the existing spine test never moves the base across.
+        - Two base-read windows that discriminate differently. The checkpoint's authoritative drift carries the
+          overlap partition into `reconcileSafety`, which gates on an empty substantive set; the merge window reads
+          `verdict` alone and emits it unqualified. Cells are placed at the window that can tell them apart, and
+          this is the only boundary that keeps all four movement kinds.
 
-    - `[ ]` **1.1.c Public review and checks**
+    - `[x]` **1.1.e Post-landing closeout**
 
-        - Cover `arc review status` and the hosted request and await handlers; locate where a moved base is derived
-          from an injected observation's containment fact.
-        - Settle this boundary's instrument here, once. The status port the production handler composes is
-          exported and takes an injectable exec, so a probe can drive the real composition and fail the base fetch
-          inside it. Prefer that over injecting the observation wholesale, which records the reducer's arithmetic
-          rather than the boundary's behavior — and which is the only way the base read never runs at all.
-        - `unknown` stays open here on that instrument: an unavailable base read yields a null base object id and a
-          blocked result, which the amended not-applicable test distinguishes from both a moved base and a clean
-          one. This is also the plan's only consumer for the in-process arm Task 1.4 builds.
+        - `arc teardown` carries the boundary alone — archival reads no base. Under full protection the
+          proof-target fetch refuses by name on failure, while the separate `refreshBase` leg absorbs its own
+          failure into the local base, so an unavailable read is observable through one leg only.
 
-    - `[ ]` **1.1.d Member and singleton landing**
+    - `[x]` **1.1.f Errand review and merge**
 
-        - Cover `arc integrate checkpoint`, `arc integrate merge`, and the delivery landing path; record the
-          checkpoint's observed base relation and the exact head merge authority binds to.
+        - Narrower than the coverage table implied: `close`'s base pin sits behind the no-op precondition, so an
+          ordinary Errand ahead of its base never reaches it, and a failed pin takes the same fall-through as a
+          moved base. `src/lib/errand/merge.ts` merges Errand record trees, not the base; the lane's real base gate
+          is prose.
 
-    - `[ ]` **1.1.e Post-landing closeout**
+    - `[x]` **1.1.g Record the prose-only gates visible at this base**
 
-        - Cover `arc teardown` and archival, including the reap's refetch of a base that moved after landing.
+        - Four recorded: the pre-hosted-pass advisory read in `integrate-work-unit.md` Step 1, and three in
+          `run-errand.md` — the Step 5 freshness loop and the two Step 6 lane gates. Each disposes of a drift
+          verdict with no typed verb behind the disposition.
 
-    - `[ ]` **1.1.f Errand review and merge**
-
-        - Cover `arc errand close` and the Errand's typed merge lane (`src/lib/errand/merge.ts`); distinguish the
-          base reads at close from the one at open, which is the only advance the suite exercises today.
-
-    - `[ ]` **1.1.g Record the prose-only gates visible at this base**
-
-        - A workflow step that loops on a drift read with no typed verb behind it cannot be probed. This read is
-          provisional — the set moves with each base merge, and Task 6.3 supersedes it from the tree at close.
+- _Outcome:_ Twenty-four of the forty enumerated cells are applicable; sixteen close not-applicable. Two seam facts
+  account for most of the closures: the Candidate seam never fetches, so `unknown` cannot arise there at all, and
+  its merge-base coordinate is unmoved by an advance descended from the fork point, so the subject stays
+  byte-identical whatever the advance touched. Public review and closeout keep `unknown` because each performs a
+  real fetch that refuses distinctly; only landing keeps all four movement kinds, and only because the checkpoint
+  carries the overlap partition into its payload. Verdicts and seam evidence are in
+  `notes-concurrent-integration-characterization.md` § Cell matrix § Seam verdicts.
 
 ### `[ ]` **1.2 Seed the characterization ledger with the confirmed cell matrix**
 

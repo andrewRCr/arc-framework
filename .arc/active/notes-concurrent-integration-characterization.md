@@ -207,6 +207,188 @@ Thirty singleton and Errand cells, seven delivery-member cells, three isolation 
 not-applicable verdicts. Cells at which the boundary never reads the base become not-applicable ledger rows rather
 than probes. There is no exhaustive state cross-product.
 
+### Seam verdicts
+
+Confirmed against each boundary's typed seam on this branch's base. Every verdict is a source read at the seam: it
+decides what is worth probing and never stands in for the observation. A cell closes `not-applicable` only on
+positive evidence that the boundary's own typed result would be identical to one already recorded at that
+boundary. Where the source read leaves the question open, the cell stays applicable — absence of evidence for a
+collapse is not evidence of one.
+
+Two facts recur and are stated once rather than per boundary:
+
+- **A `local-only` base read cannot produce `unknown`.** The Candidate seam resolves its base coordinate from the
+  already-materialized `refs/remotes/origin/<base>` through `for-each-ref`, falling back to the local `<base>`
+  branch, and every invocation on that path carries `objectAccess: "local-only"`. Nothing on it fetches, so remote
+  evidence has no opportunity to go unavailable mid-boundary. An absent remote-tracking ref is a static
+  precondition, which the design already excludes from `unknown`.
+- **A merge-base coordinate absorbs every advance.** `collectGitCandidateTarget` diffs the index against
+  `merge-base(HEAD, <base>)` (`src/lib/work-unit/git-candidate-subject.ts`). A base advance descends from the fork
+  point, so the merge base is unmoved and the subject stays byte-identical whatever the advance touched. This is
+  the amendment's first prompt, now confirmed at the seam.
+
+#### Whole-work-unit verification — `arc attest`
+
+`verify-work-unit.md` invokes exactly one typed verb. Its `blocked / establish-new-root` continuation is the same
+verb with `--new-root`, the `self-review` method invokes none, and the delivery-member scale step inspects results
+already recorded rather than issuing a verb. Nothing else in the workflow reads the base.
+
+Covered inputs the seam consumes: the staged subject digest, the canonical task list (readable, structurally
+valid, closed on `no-open-task`), the index itself (unstaged reviewable content refuses), and — only while
+`Integrating` or `Shipped` — delivery Candidate renewal evidence, which performs no base read of its own. The
+subject digest is the only one of these derived from the base.
+
+| Cell                           | Verdict        | Reason / probe intent                                        |
+| ------------------------------ | -------------- | ------------------------------------------------------------ |
+| control (no movement)          | applicable     | ceremony baseline for this boundary's excess                 |
+| `disjoint`                     | applicable     | the boundary's one real probe: advance, then attest          |
+| `overlapping-substantive`      | not-applicable | no overlap classification on this path; merge base unmoved   |
+| `overlapping-regenerable-only` | not-applicable | same seam, same byte-identical subject                       |
+| `unknown`                      | not-applicable | the seam performs no remote read; nothing can go unavailable |
+
+One window does discriminate, and it is not a movement kind: on the convergence arm (a Candidate record already
+exists), `projectGitCandidateEffectiveTarget` re-reads the base ref inside the invocation and returns
+`rerun-checkpoint / base-moved` when it changed between the two reads. That requires the local remote-tracking ref
+to move _mid-verb_, reachable only through an injected exec or a `PATH` shim. Recorded here; whether it earns a
+probe is Phase 3's call.
+
+#### Candidate and private-delivery prepublication — `arc review pre-publication`, the publication transition
+
+`handleReviewPrePublication` reads the Candidate through `projectGitCandidateEffectiveTarget` — the same
+`local-only` seam as `arc attest`. `arc publish` performs no base read at all; the publication transition writes
+the durable boundary the prepublication settle point already composed.
+
+| Cell                           | Verdict        | Reason / probe intent                                        |
+| ------------------------------ | -------------- | ------------------------------------------------------------ |
+| control (no movement)          | applicable     | ceremony baseline                                            |
+| `disjoint`                     | applicable     | the real probe, across the settle-to-submit window           |
+| `overlapping-substantive`      | not-applicable | identical to `disjoint`; merge base unmoved, no overlap read |
+| `overlapping-regenerable-only` | not-applicable | same                                                         |
+| `unknown`                      | not-applicable | no remote read on this path                                  |
+
+#### Public review and checks — `arc review status`, the hosted request and await handlers
+
+This is the one boundary that fetches. `readBasePosition` in `status-composition.ts` runs `git fetch <remote>
+<base>`, resolves `refs/remotes/<remote>/<base>`, and derives `baseContained` from
+`merge-base --is-ancestor <base> <head>`. `resolveReviewStatus` returns `base-moved / rerun-checkpoint` on
+`!baseContained` with a non-null base OID, and that arm sits **ahead of** every applicability arm, so a moved base
+short-circuits before any overlap classification is consulted.
+
+Instrument, settled here: drive `createReviewStatusPort` with an injectable exec. It is the production composition
+and no test drives it today. Injecting `observers` supplies the containment fact directly and the base read never
+runs. One caveat the probe must respect: `observe`'s catch collapses _every_ error into
+`currentBaseOid: null` plus a blocked obligation, so only the `fetch <remote> <base>` call may be failed if
+`unknown` is to be attributed to the base read rather than to `gh`.
+
+| Cell                           | Verdict        | Reason / probe intent                                         |
+| ------------------------------ | -------------- | ------------------------------------------------------------- |
+| control (no movement)          | applicable     | ceremony baseline; base contained                             |
+| `disjoint`                     | applicable     | `base-moved / rerun-checkpoint`                               |
+| `overlapping-substantive`      | not-applicable | `baseContained` is pure ancestry; the kind is never consulted |
+| `overlapping-regenerable-only` | not-applicable | same                                                          |
+| `unknown`                      | applicable     | null base OID → `blocked / status-unavailable`, distinct      |
+
+#### Member and singleton landing — `arc integrate checkpoint` / `merge`, the delivery landing path
+
+Two base-read windows, and they discriminate differently. The **checkpoint** window runs `runBaseDrift` in
+`authoritative` mode: a real fetch, then `behind > 0` ⇒ `verdict: reconcile` carrying the overlap partition.
+`reconcileSafety` gates on `substantivePaths.length === 0` (unless the delivery arm supplies
+`residual-contained`), and the emitted payload carries both `substantivePaths` and `regenerablePaths`. The
+**merge** window (`readFinalDrift`) reads `verdict` alone and emits `invalidated / drift-reconcile` with a
+`{ verdict }` payload, so the three overlap kinds are indistinguishable there.
+
+Cells are therefore placed at the window that can tell them apart, and the merge window carries the movement the
+design named as uncovered — nothing in the suite moves the base between landing readiness and merge.
+
+| Cell                           | Verdict    | Window · reason / probe intent                                   |
+| ------------------------------ | ---------- | ---------------------------------------------------------------- |
+| control (no movement)          | applicable | clean checkpoint-to-merge span; ceremony baseline                |
+| `disjoint`                     | applicable | merge · `invalidated / drift-reconcile`, `verdict: reconcile`    |
+| `overlapping-substantive`      | applicable | checkpoint · `blocked / unsafe-reconcile`                        |
+| `overlapping-regenerable-only` | applicable | checkpoint · `reconcile / reconcile-base`, regenerable non-empty |
+| `unknown`                      | applicable | checkpoint · `blocked / drift-unavailable`                       |
+
+#### Post-landing closeout — `arc teardown`, archival
+
+Archival performs no base read; `arc teardown` carries the boundary alone. Under `full` protection
+`resolveParkProofTarget` fetches `origin/<base>` and a failure returns `rejected` naming the unresolvable
+lifecycle authority ref; the fetched head is then the ref the completed-index membership of _this_ work unit is
+read from. The separate `refreshBase` leg is best-effort and falls back to the local base silently, so an
+unavailable base read is observable only through the proof-target leg.
+
+| Cell                           | Verdict        | Reason / probe intent                                          |
+| ------------------------------ | -------------- | -------------------------------------------------------------- |
+| control (no movement)          | applicable     | ceremony baseline                                              |
+| `disjoint`                     | applicable     | the real probe: the reap refetches and sees this WU's archival |
+| `overlapping-substantive`      | not-applicable | no overlap read; the verdict turns on this WU's own membership |
+| `overlapping-regenerable-only` | not-applicable | same                                                           |
+| `unknown`                      | applicable     | fetch failure → `rejected`, authority ref unresolvable         |
+
+#### Errand review and merge — `arc errand close`, the Errand's typed merge lane
+
+The base read at `close` is narrower than the coverage table implied. `close-runtime.ts` calls
+`pinRemoteBaseHead` only inside `localBase.oid === head.oid` — the no-op shortcut — so an ordinary Errand whose
+branch is ahead of the base never reaches it. When it is reached, a pin that is not `pinned` and a pin at a moved
+head take the same fall-through to `observeExactChangeRequest`, so an unavailable base read is absorbed
+indistinguishably from a moved one. `src/lib/errand/merge.ts` merges Errand _record_ trees, not the base. The
+lane's actual base gate is prose over `arc base drift` (below), whose typed verb the standalone drift probes
+already cover.
+
+Under `partial` protection the picture differs — `partial-settle-runtime.ts` refuses `preservation-unproven` on a
+failed pin — but this project runs `full`, and D2 binds observation to the tree under test.
+
+| Cell                           | Verdict        | Reason / probe intent                                          |
+| ------------------------------ | -------------- | -------------------------------------------------------------- |
+| control (no movement)          | applicable     | ceremony baseline                                              |
+| `disjoint`                     | applicable     | the real probe: close after an advance, observe no re-ceremony |
+| `overlapping-substantive`      | not-applicable | the seam runs no overlap classification                        |
+| `overlapping-regenerable-only` | not-applicable | same                                                           |
+| `unknown`                      | not-applicable | a failed pin takes the same fall-through as a moved base       |
+
+#### Delivery-member shape
+
+Landing keeps four of its five cells. `classifyDeliveryDrift` supplies the `residual-contained` safety class that
+moves the substantive cut, so the member rows are not repeats of the singleton ones. `unknown` is the exception:
+`verdict: unavailable` never enters the delivery arm, so it reaches the identical `blocked / drift-unavailable`
+the singleton cell already records. Prepublication and closeout each close their single `disjoint` cell — the
+delivery arms add no base read of their own, so the shape cannot change a base-derived result.
+
+| Cell                                     | Verdict        | Reason                                             |
+| ---------------------------------------- | -------------- | -------------------------------------------------- |
+| landing · control                        | applicable     | member-scope ceremony baseline                     |
+| landing · `disjoint`                     | applicable     | member admissibility decides here                  |
+| landing · `overlapping-substantive`      | applicable     | `residual-contained` moves the cut                 |
+| landing · `overlapping-regenerable-only` | applicable     | partition reaches the member payload               |
+| landing · `unknown`                      | not-applicable | skips the delivery arm; identical to the singleton |
+| prepublication · `disjoint`              | not-applicable | the renewal inspection performs no base read       |
+| closeout · `disjoint`                    | not-applicable | no delivery-specific base read at teardown         |
+
+#### Exact-target read isolation
+
+Not a boundary and not a base read: all three cells stay applicable as enumerated. Their concern is what one
+checkout's records look like from a sibling sharing the git common dir, which no base advance reaches.
+
+#### Prose-only gates visible at this base
+
+Provisional — the set moves with each base merge and is superseded from the tree at close. Each is a workflow step
+that loops or gates on a drift read with no typed verb behind the disposition, so each takes a ledger-only row.
+
+- `integrate-work-unit.md` Step 1 — the pre-hosted-pass advisory read. Keeping `clean` and regenerable-only drift
+  silent, reconciling early "only when the interaction is clear", and stopping on a material interaction are all
+  agent judgment; no verb enforces any of them.
+- `run-errand.md` Step 5 — "authoritative base freshness", then "repeat until base, head, and requirements are
+  settled". The loop itself is the gate.
+- `run-errand.md` Step 6, before either lane action — only `clean` continues, `reconcile` returns to Step 5,
+  unavailable or malformed output stops.
+- `run-errand.md` Step 6, auto-merge lane after checks permit merge — the same disposition, re-read under the held
+  lock.
+
+#### Confirmed count
+
+Twenty-four applicable cells and sixteen not-applicable, against the enumerated forty: seventeen of thirty
+singleton and Errand cells, four of seven delivery-member cells, and all three isolation cells. Four prose-only
+gates take ledger-only rows on top.
+
 ## Characterization ledger
 
 One row per probe, appended during execution (D4). Columns: boundary · movement kind · shape · test name · base OID
