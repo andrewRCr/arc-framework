@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "allow-meta-only-planned-stubs",
+  "claimId": "5b2579cdb5930568ad7289eadc716f4c",
+  "createdAt": "2026-09-14T17:02:56.246Z",
+  "updatedAt": "2026-09-14T17:02:56.246Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Allow planned stubs with no design artifact to enter planning while preserving exact validation of declared artifacts and launch safety.",
+  "branch": "chore/allow-meta-only-planned-stubs",
+  "origin": "inbox",
+  "originEntry": "Allow meta-only planned stubs to enter planning",
+  "originEntrySourceDigest": "sha256:2ac1669d75ed0fcc9556918489afc22423af7049781d61d7a397ab59aee4fc7a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
