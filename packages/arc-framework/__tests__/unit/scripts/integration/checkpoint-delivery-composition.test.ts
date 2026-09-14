@@ -219,6 +219,7 @@ describe("delivery checkpoint composition", () => {
       recognizedRevision: candidateHead,
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     };
     const effective = {
       state: "current" as const,
@@ -323,6 +324,7 @@ describe("delivery checkpoint composition", () => {
       recognizedRevision: baselineRevision,
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
     const exec = vi.fn(async (_command: string, args: readonly string[]) => {
       if (args[0] === "merge-base") return { stdout: `${mergeBase}\n`, stderr: "" };
@@ -548,6 +550,7 @@ describe("delivery checkpoint composition", () => {
       recognizedRevision: candidateHead,
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
     const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
     await dependencies.readCandidate(plan.workUnitId, oid("d"));
@@ -640,6 +643,7 @@ describe("delivery checkpoint composition", () => {
       recognizedRevision: candidateHead,
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     };
     const effective = {
       state: "current" as const,
@@ -826,6 +830,7 @@ describe("delivery checkpoint composition", () => {
       recognizedRevision: candidateHead,
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     };
     mocks.readCandidateRecordVersioned.mockResolvedValue({
       record: { candidateId },

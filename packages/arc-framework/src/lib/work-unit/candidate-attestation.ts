@@ -7,35 +7,47 @@ import {
   canonicalDigest,
   sortByCanonicalBytes,
 } from "../canonical/canonical-json.js";
-import { PathTreatmentSchema } from "../evidence-applicability/path-treatment.js";
+import { composeEvidenceDelta, reduceEvidenceApplicability } from "../evidence-applicability/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";
+import {
+  CandidateCanonicalDigestSchema,
+  CandidateGitObjectIdSchema,
+  CandidateLineageTargetSchema,
+  CandidateSubjectDeltaSchema,
+  CandidateSubjectEntrySchema,
+  CandidateSubjectSnapshotSchema,
+  CandidateSubjectTreatmentSchema,
+  CandidateVerificationApplicabilitySchema,
+  type CandidateLineageTarget,
+  type CandidateSubjectDelta,
+  type CandidateSubjectSnapshot,
+  type CandidateVerificationApplicability,
+} from "./candidate-evidence.js";
+
+export {
+  CandidateLineageTargetSchema,
+  CandidateSubjectDeltaSchema,
+  CandidateSubjectSnapshotSchema,
+  CandidateVerificationApplicabilitySchema,
+};
+export type {
+  CandidateLineageTarget,
+  CandidateSubjectDelta,
+  CandidateSubjectSnapshot,
+  CandidateVerificationApplicability,
+};
 
 const CandidateSemanticsSchema = z.literal("candidate-attestation/v1");
-const CandidateCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const CandidateGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const CandidatePathSchema = z.string().min(1)
-  .refine(
-    (value) => !value.startsWith("/") && !value.includes("\\") && !value.split("/").includes(".."),
-    "must be a repository-relative POSIX path",
-  )
-  .refine((value) => value.normalize("NFC") === value, "must use NFC-normalized repository path bytes");
-const CandidateSubjectTreatmentSchema = PathTreatmentSchema;
-const CandidateTreeEntryModeSchema = z.union([
-  z.string().regex(/^[0-7]{6}$/u),
-  z.literal("absent"),
-]);
-const CandidateSubjectEntrySchema = z.strictObject({
-  path: CandidatePathSchema,
-  digest: CandidateCanonicalDigestSchema,
-  mode: CandidateTreeEntryModeSchema,
-  treatment: CandidateSubjectTreatmentSchema,
-});
-export const CandidateSubjectSnapshotSchema = z.strictObject({
-  entries: z.array(CandidateSubjectEntrySchema),
-  subjectDigest: CandidateCanonicalDigestSchema,
-});
-export type CandidateSubjectSnapshot = z.infer<typeof CandidateSubjectSnapshotSchema>;
+
+/** Reserved action placeholder that must be replaced before evidence enters a Candidate record. */
+export const CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER = "{verificationEvidenceRef}" as const;
+
+/** Fresh verification evidence reference accepted by Candidate attestation boundaries. */
+export const CandidateVerificationEvidenceRefSchema = z.string().trim().min(1).refine(
+  (value) => value !== CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  "verification evidence placeholder must be replaced with a fresh evidence reference",
+);
 
 export const CandidateAttestationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -46,19 +58,12 @@ export const CandidateAttestationV1Schema = z.strictObject({
   baseRevision: CandidateGitObjectIdSchema,
   attestedBy: z.string().trim().min(1),
   attestedAt: z.iso.datetime(),
-  verificationEvidenceRef: z.string().trim().min(1),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema,
   /** The Candidate this root replaces, present only on a re-rooted lineage. */
   supersedes: CandidateCanonicalDigestSchema.optional(),
 });
 export type CandidateAttestationV1 = z.infer<typeof CandidateAttestationV1Schema>;
 
-export const CandidateLineageTargetSchema = z.strictObject({
-  revision: CandidateGitObjectIdSchema,
-  subject: CandidateSubjectSnapshotSchema,
-});
-export type CandidateLineageTarget = z.infer<typeof CandidateLineageTargetSchema>;
-export const CandidateVerificationApplicabilitySchema = z.enum(["targeted", "focused", "full"]);
-export type CandidateVerificationApplicability = z.infer<typeof CandidateVerificationApplicabilitySchema>;
 
 export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
   transitionKind: z.literal("review-response"),
@@ -72,6 +77,7 @@ export const CandidateReviewResponseEvidenceV1Schema = z.strictObject({
   approvedBy: z.string().trim().min(1),
   appliedBy: z.string().trim().min(1),
   applicability: CandidateVerificationApplicabilitySchema,
+  approvedVerification: CandidateVerificationApplicabilitySchema.optional(),
   verificationEvidenceRefs: z.array(z.string().trim().min(1)).min(1),
   implementationChanged: z.boolean(),
 });
@@ -168,10 +174,13 @@ export const CandidateLineageAttestationV1Schema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: CandidateSemanticsSchema,
   candidateId: CandidateCanonicalDigestSchema,
+  /** Exact review-response occurrence whose pending convergence this evidence satisfies. */
+  responseId: CandidateCanonicalDigestSchema,
   target: CandidateLineageTargetSchema,
   attestedBy: z.string().trim().min(1),
   attestedAt: z.iso.datetime(),
-  verificationEvidenceRef: z.string().trim().min(1),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema,
+  scope: z.enum(["focused", "full"]),
 });
 export type CandidateLineageAttestationV1 = z.infer<typeof CandidateLineageAttestationV1Schema>;
 
@@ -216,6 +225,7 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
   };
   const recognizedSubjects = new Set([record.subject.subjectDigest]);
   const reviewApplicabilityKeys = new Set<string>();
+  const usedVerificationEvidenceRefs = new Set([record.attestation.verificationEvidenceRef]);
   for (const [index, transition] of record.transitions.entries()) {
     if (transition.candidateId !== record.attestation.candidateId) {
       context.addIssue({
@@ -225,6 +235,9 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
       });
     }
     if (transition.transitionKind === "review-response" || transition.transitionKind === "verification-response") {
+      for (const evidenceRef of transition.verificationEvidenceRefs) {
+        usedVerificationEvidenceRefs.add(evidenceRef);
+      }
       validateSubject(transition.oldTarget.subject, ["transitions", index, "oldTarget", "subject"]);
       validateSubject(transition.newTarget.subject, ["transitions", index, "newTarget", "subject"]);
       const responseDigestMatches = (() => {
@@ -318,6 +331,37 @@ export const CandidateManagedRecordV1Schema = z.strictObject({
         code: "custom",
         path: ["lineageAttestations", index, "target", "subject"],
         message: "must attest a recognized Candidate lineage subject",
+      });
+    }
+    if (usedVerificationEvidenceRefs.has(attestation.verificationEvidenceRef)) {
+      context.addIssue({
+        code: "custom",
+        path: ["lineageAttestations", index, "verificationEvidenceRef"],
+        message: "must be fresh within the managed Candidate record",
+      });
+    }
+    usedVerificationEvidenceRefs.add(attestation.verificationEvidenceRef);
+    const requiredScope = requiredConvergenceScopeAtResponse(
+      record.transitions,
+      record.lineageAttestations.filter((_other, otherIndex) => otherIndex !== index),
+      {
+        revision: record.attestation.baseRevision,
+        subject: record.subject,
+      },
+      attestation.responseId,
+      attestation.target.subject.subjectDigest,
+    );
+    if (requiredScope === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["lineageAttestations", index, "responseId"],
+        message: "must identify the exact pending review-response occurrence",
+      });
+    } else if (!candidateConvergenceScopeCovers(attestation.scope, requiredScope)) {
+      context.addIssue({
+        code: "custom",
+        path: ["lineageAttestations", index, "scope"],
+        message: `must satisfy the ${requiredScope} convergence requirement at the attested subject`,
       });
     }
   }
@@ -418,6 +462,7 @@ export interface CreateCandidateReviewResponseEvidenceInput {
   approvedBy: string;
   appliedBy: string;
   applicability: CandidateVerificationApplicability;
+  approvedVerification?: CandidateVerificationApplicability;
   verificationEvidenceRefs: readonly string[];
   implementationChanged: boolean;
 }
@@ -478,6 +523,9 @@ export function createCandidateReviewResponseEvidence(
     approvedBy: input.approvedBy,
     appliedBy: input.appliedBy,
     applicability: input.applicability,
+    ...(input.approvedVerification === undefined
+      ? {}
+      : { approvedVerification: CandidateVerificationApplicabilitySchema.parse(input.approvedVerification) }),
     verificationEvidenceRefs: [...input.verificationEvidenceRefs],
     implementationChanged: input.implementationChanged,
   };
@@ -489,13 +537,15 @@ export function createCandidateReviewResponseEvidence(
 
 export interface CreateCandidateLineageAttestationInput {
   candidateId: string;
+  responseId: string;
   target: z.input<typeof CandidateLineageTargetSchema>;
   attestedBy: string;
   attestedAt: string;
   verificationEvidenceRef: string;
+  scope: "focused" | "full";
 }
 
-/** Record full verification over one recognized Candidate lineage head. */
+/** Record scoped convergence verification over one recognized Candidate lineage head. */
 export function createCandidateLineageAttestation(
   input: CreateCandidateLineageAttestationInput,
 ): CandidateLineageAttestationV1 {
@@ -503,21 +553,126 @@ export function createCandidateLineageAttestation(
     schemaVersion: 1,
     semanticsVersion: "candidate-attestation/v1",
     candidateId: input.candidateId,
+    responseId: input.responseId,
     target: input.target,
     attestedBy: input.attestedBy,
     attestedAt: input.attestedAt,
     verificationEvidenceRef: input.verificationEvidenceRef,
+    scope: input.scope,
   });
 }
 
+/** Decide whether supplied convergence evidence is at least as broad as the required scope. */
+export function candidateConvergenceScopeCovers(
+  supplied: "focused" | "full",
+  required: "focused" | "full",
+): boolean {
+  return supplied === "full" || required === "focused";
+}
+
+export const CandidateConvergenceProjectionSchema = z.union([
+  z.strictObject({
+    convergenceVerification: z.literal("satisfied"),
+    convergenceScope: z.null(),
+  }),
+  z.strictObject({
+    convergenceVerification: z.literal("pending"),
+    convergenceScope: z.enum(["focused", "full"]),
+  }),
+]);
+export type CandidateConvergenceProjection = z.infer<typeof CandidateConvergenceProjectionSchema>;
+
+const SATISFIED_CONVERGENCE = {
+  convergenceVerification: "satisfied",
+  convergenceScope: null,
+} as const satisfies CandidateConvergenceProjection;
+
+type CandidateConvergenceReduction =
+  | (Extract<CandidateConvergenceProjection, { convergenceVerification: "satisfied" }> & {
+      pendingResponseId: null;
+    })
+  | (Extract<CandidateConvergenceProjection, { convergenceVerification: "pending" }> & {
+      pendingResponseId: string;
+    });
+
+const SATISFIED_CONVERGENCE_REDUCTION = {
+  ...SATISFIED_CONVERGENCE,
+  pendingResponseId: null,
+} as const satisfies CandidateConvergenceReduction;
+
+function reduceReviewResponseConvergence(
+  current: CandidateConvergenceReduction,
+  transition: CandidateReviewResponseEvidenceV1,
+): CandidateConvergenceReduction {
+  const result = reduceEvidenceApplicability(composeEvidenceDelta({
+    cause: "approved-fix",
+    response: {
+      candidateId: transition.candidateId,
+      dispositionId: transition.dispositionId,
+      oldTarget: transition.oldTarget,
+      newTarget: transition.newTarget,
+      applicability: transition.applicability,
+      ...(transition.approvedVerification === undefined
+        ? {}
+        : { approvedVerification: transition.approvedVerification }),
+    },
+    delta: diffCandidateSubjectSnapshots(transition.oldTarget.subject, transition.newTarget.subject),
+  }), "verification");
+  if (result.verdict === "carries") return current;
+  if (result.verdict === "fresh") {
+    return {
+      convergenceVerification: "pending",
+      convergenceScope: "full",
+      pendingResponseId: transition.responseId,
+    };
+  }
+  return {
+    convergenceVerification: "pending",
+    convergenceScope: current.convergenceVerification === "pending" && current.convergenceScope === "full"
+      ? "full"
+      : "focused",
+    pendingResponseId: transition.responseId,
+  };
+}
+
+function requiredConvergenceScopeAtResponse(
+  transitions: readonly CandidateLineageTransitionV1[],
+  otherAttestations: readonly CandidateLineageAttestationV1[],
+  rootTarget: CandidateLineageTarget,
+  responseId: string,
+  subjectDigest: string,
+): "focused" | "full" | null {
+  let target = rootTarget;
+  let convergence: CandidateConvergenceReduction = SATISFIED_CONVERGENCE_REDUCTION;
+  for (const transition of transitions) {
+    if (transition.transitionKind === "verification-response") {
+      convergence = SATISFIED_CONVERGENCE_REDUCTION;
+    } else if (transition.transitionKind === "review-response") {
+      convergence = applyLineageAttestations(otherAttestations, target, convergence);
+      convergence = reduceReviewResponseConvergence(convergence, transition);
+    }
+    if (transition.transitionKind === "review-response" || transition.transitionKind === "verification-response") {
+      target = transition.newTarget;
+    } else if (transition.transitionKind === "applicability-selection" && transition.choice !== "changed") {
+      target = transition.currentTarget;
+    }
+    if (convergence.convergenceVerification === "pending"
+      && convergence.pendingResponseId === responseId
+      && target.subject.subjectDigest === subjectDigest) {
+      return convergence.convergenceScope;
+    }
+    convergence = applyLineageAttestations(otherAttestations, target, convergence);
+  }
+  return null;
+}
+
 export type CandidateCurrentnessProjection =
-  | {
+  | ({
       status: "current";
       candidateId: string;
       recognizedRevision: string;
       implementationChanged: boolean;
-      convergenceVerification: "satisfied" | "pending";
-    }
+    } & CandidateConvergenceProjection)
   | {
       status: "blocked";
       candidateId: string;
@@ -527,38 +682,69 @@ export type CandidateCurrentnessProjection =
       nextAction: "Run full work-unit verification to establish a new Candidate lineage root.";
     };
 
-export interface CandidateDurableBaselineProjection {
+export type CandidateDurableBaselineProjection = {
   candidateId: string;
   target: CandidateLineageTarget;
   implementationChanged: boolean;
-  verificationCompleted: boolean;
   selectedChange: CandidateApplicabilitySelectionV1 | null;
-}
+} & CandidateConvergenceProjection;
+
+type CandidateDurableBaselineReduction = Omit<CandidateDurableBaselineProjection,
+  "convergenceVerification" | "convergenceScope"> & CandidateConvergenceReduction;
 
 /** Reduce the storage-neutral Candidate root and ordered authority transitions to one durable baseline. */
 export function reduceCandidateDurableBaseline(
   input: CandidateManagedRecordV1,
 ): CandidateDurableBaselineProjection {
   const record = CandidateManagedRecordV1Schema.parse(input);
+  const reduction = reduceCandidateDurableBaselineRecord(record);
+  const common = {
+    candidateId: reduction.candidateId,
+    target: reduction.target,
+    implementationChanged: reduction.implementationChanged,
+    selectedChange: reduction.selectedChange,
+  };
+  return reduction.convergenceVerification === "satisfied"
+    ? { ...common, convergenceVerification: "satisfied", convergenceScope: null }
+    : {
+        ...common,
+        convergenceVerification: "pending",
+        convergenceScope: reduction.convergenceScope,
+      };
+}
+
+/** Identify the exact review-response occurrence awaiting convergence evidence. */
+export function candidatePendingConvergenceResponseId(
+  input: CandidateManagedRecordV1,
+): string | null {
+  const record = CandidateManagedRecordV1Schema.parse(input);
+  return reduceCandidateDurableBaselineRecord(record).pendingResponseId;
+}
+
+function reduceCandidateDurableBaselineRecord(
+  record: CandidateManagedRecordV1,
+): CandidateDurableBaselineReduction {
   let target: CandidateLineageTarget = {
     revision: record.attestation.baseRevision,
     subject: record.subject,
   };
   let implementationChanged = false;
-  let verificationCompleted = true;
+  let convergence: CandidateConvergenceReduction = SATISFIED_CONVERGENCE_REDUCTION;
   let selectedChange: CandidateApplicabilitySelectionV1 | null = null;
   for (const transition of record.transitions) {
     if (transition.transitionKind === "review-response") {
+      convergence = applyLineageAttestations(record.lineageAttestations, target, convergence);
+      convergence = reduceReviewResponseConvergence(convergence, transition);
       target = transition.newTarget;
+      convergence = applyLineageAttestations(record.lineageAttestations, target, convergence);
       implementationChanged ||= transition.implementationChanged;
-      if (transition.implementationChanged) verificationCompleted = false;
       selectedChange = null;
       continue;
     }
     if (transition.transitionKind === "verification-response") {
       target = transition.newTarget;
       implementationChanged ||= transition.implementationChanged;
-      verificationCompleted = true;
+      convergence = SATISFIED_CONVERGENCE_REDUCTION;
       selectedChange = null;
       continue;
     }
@@ -571,15 +757,31 @@ export function reduceCandidateDurableBaseline(
       continue;
     }
     target = transition.currentTarget;
+    convergence = applyLineageAttestations(record.lineageAttestations, target, convergence);
     selectedChange = null;
   }
+  convergence = applyLineageAttestations(record.lineageAttestations, target, convergence);
   return {
     candidateId: record.attestation.candidateId,
     target,
     implementationChanged,
-    verificationCompleted,
     selectedChange,
+    ...convergence,
   };
+}
+
+function applyLineageAttestations(
+  lineageAttestations: readonly CandidateLineageAttestationV1[],
+  target: CandidateLineageTarget,
+  convergence: CandidateConvergenceReduction,
+): CandidateConvergenceReduction {
+  if (convergence.convergenceVerification === "satisfied") return convergence;
+  return lineageAttestations.some((attestation) =>
+    attestation.responseId === convergence.pendingResponseId
+      && attestation.target.subject.subjectDigest === target.subject.subjectDigest
+      && candidateConvergenceScopeCovers(attestation.scope, convergence.convergenceScope))
+    ? SATISFIED_CONVERGENCE_REDUCTION
+    : convergence;
 }
 
 /**
@@ -601,20 +803,16 @@ export function projectCandidateCurrentness(input: {
     return blockedProjection(record.attestation.candidateId, revision, current, subject);
   }
   const operationalOnlyAdvance = current.revision !== revision;
-  // Convergence is a claim about content: a lineage attestation records that full verification ran
-  // over one exact reviewable subject. Keying it to the subject alone is what lets it survive the
-  // head movement `recognizedRevision` already absorbs — an attestation written at the recognized
-  // head could never equal the response revision it was confirming, and pinning either revision
-  // would break again at the next operational-only advance. The revision stays recorded as
-  // provenance for which head carried the verification.
-  const convergenceSatisfied = baseline.verificationCompleted || record.lineageAttestations.some((attestation) =>
-    attestation.target.subject.subjectDigest === subject.subjectDigest);
+  const convergence = CandidateConvergenceProjectionSchema.parse({
+    convergenceVerification: baseline.convergenceVerification,
+    convergenceScope: baseline.convergenceScope,
+  });
   return {
     status: "current",
     candidateId: record.attestation.candidateId,
     recognizedRevision: operationalOnlyAdvance ? current.revision : revision,
     implementationChanged,
-    convergenceVerification: convergenceSatisfied ? "satisfied" : "pending",
+    ...convergence,
   };
 }
 
@@ -633,13 +831,6 @@ function blockedProjection(
     nextAction: "Run full work-unit verification to establish a new Candidate lineage root.",
   };
 }
-
-export const CandidateSubjectDeltaSchema = z.strictObject({
-  added: z.array(CandidatePathSchema),
-  removed: z.array(CandidatePathSchema),
-  changed: z.array(CandidatePathSchema),
-});
-export type CandidateSubjectDelta = z.infer<typeof CandidateSubjectDeltaSchema>;
 
 /** Compute the exact reviewable path delta between two Candidate subjects. */
 export function diffCandidateSubjectSnapshots(

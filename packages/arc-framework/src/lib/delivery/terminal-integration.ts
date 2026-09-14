@@ -127,6 +127,7 @@ export interface DeliveryTerminalReviewFixCandidate {
     readonly baselineRelation: "exact" | "ancestor" | "equivalent";
   };
   readonly convergenceVerification: "satisfied";
+  readonly convergenceScope: null;
 }
 
 export type DeliveryTerminalCandidateRebindAuthority =

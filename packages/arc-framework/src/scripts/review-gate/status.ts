@@ -169,6 +169,17 @@ export const DeliveryReviewConjunctionSchema = z.strictObject({
 });
 export type DeliveryReviewConjunction = z.infer<typeof DeliveryReviewConjunctionSchema>;
 
+/** Select one uniquely exact member without granting review clearance. */
+function selectExactDeliveryMember(
+  target: z.infer<typeof ChangeRequestTargetRefSchema>,
+  conjunction: DeliveryReviewConjunction,
+): DeliveryReviewConjunction["members"][number] | null {
+  const matches = conjunction.members.filter((member) =>
+    member.target.repository.toLowerCase() === target.repository.toLowerCase()
+      && member.target.headSha === target.headSha);
+  return matches.length === 1 ? matches[0] ?? null : null;
+}
+
 /**
  * Select one uniquely exact discharged member from a delivery review conjunction.
  *
@@ -180,10 +191,8 @@ export function selectDischargedDeliveryMember(
   target: z.infer<typeof ChangeRequestTargetRefSchema>,
   conjunction: DeliveryReviewConjunction,
 ): DeliveryReviewConjunction["members"][number] | null {
-  const matches = conjunction.members.filter((member) =>
-    member.target.repository.toLowerCase() === target.repository.toLowerCase()
-      && member.target.headSha === target.headSha);
-  return matches.length === 1 && matches[0]?.state === "discharged" ? matches[0] : null;
+  const member = selectExactDeliveryMember(target, conjunction);
+  return member?.state === "discharged" ? member : null;
 }
 
 export const DeliveryReviewCursorSchema = z.strictObject({
@@ -1147,22 +1156,45 @@ export async function resolveReviewStatus(
       ),
     };
   }
-  const selectedMember = conjunction?.status !== "outstanding"
+  const exactMember = conjunction === undefined ? null : selectExactDeliveryMember(request.target, conjunction);
+  const selectedMember = conjunction?.status !== "outstanding" || exactMember?.state !== "discharged"
     ? null
-    : selectDischargedDeliveryMember(request.target, conjunction);
+    : exactMember;
+  const preTerminalMember = exactMember !== null
+    && exactMember.position < exactMember.memberCount
+    && (exactMember.state === "discharged" || currentMember === exactMember);
+  const memberMovementBound = preTerminalMember
+    && movement.baseMovement?.overlap.status === "available"
+    && movement.baseMovement.coordinates.repository.toLowerCase() === exactMember.target.repository.toLowerCase()
+    && movement.baseMovement.coordinates.changeRequest === exactMember.target.pullRequest
+    && movement.baseMovement.coordinates.base === base.currentBaseOid
+    && movement.baseMovement.coordinates.head === exactMember.target.headSha;
   if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries) {
-    const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
-    const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);
-    return {
-      ...base,
-      state: "base-moved",
-      nextAction: "rerun-checkpoint",
-      ...(workUnit === undefined
-        ? {
-            terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
-          }
-        : { checkpointAction: { command: "rerun-checkpoint", workUnit } }),
-    };
+    if (preTerminalMember) {
+      if (!memberMovementBound) {
+        return {
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "status-unavailable",
+          detail: "Pre-terminal delivery-member base movement is unavailable for the exact selected request.",
+          remedy: reviewStatusRetryRemedy(request.target),
+        };
+      }
+    } else {
+      const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
+      const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);
+      return {
+        ...base,
+        state: "base-moved",
+        nextAction: "rerun-checkpoint",
+        ...(workUnit === undefined
+          ? {
+              terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+            }
+          : { checkpointAction: { command: "rerun-checkpoint", workUnit } }),
+      };
+    }
   }
   if (selectedMember !== null && base.currentBaseOid !== null) {
     if (base.requiredChecks === "pending") {

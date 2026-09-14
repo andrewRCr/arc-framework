@@ -9,6 +9,8 @@ import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-trigger
 
 const root = resolve(import.meta.dirname, "../../../..");
 
+const prepareWorkflow = "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+
 const workflows = {
   integrate: "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
   deliver: "system/workflows/arc/supplemental/deliver-stack.md",
@@ -37,6 +39,16 @@ function sectionBetween(content: string, start: string, end: string): string {
 }
 
 describe("evidence applicability workflow fire-points", () => {
+  it("renders scoped convergence only from the typed pre-publication action", async () => {
+    const workflow = await readPair(prepareWorkflow);
+
+    expect(workflow).toContain("`nextAction.requiredScope`");
+    expect(workflow).toContain("`nextAction.verificationKind`");
+    expect(workflow).toContain("`nextAction.attestArgv`");
+    expect(workflow).toContain("`{verificationEvidenceRef}`");
+    expect(workflow).toMatch(/never select a\s+verification scope in prose/iu);
+  });
+
   it("requires only the typed bounded result that every fire-point actually supplies", async () => {
     const method = await readPair("system/methods/assess-evidence-applicability.md");
 
@@ -89,5 +101,16 @@ describe("evidence applicability workflow fire-points", () => {
     expect(terminal).not.toContain("arc merge lock hold");
     expect(occurrences(terminal, "arc merge lock release -")).toBe(1);
     expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh integration approval/iu);
+    expect(terminal).toMatch(/arc base drift --json[\s\S]*last-observed base OID/iu);
+    expect(terminal).toMatch(/required checks are bound to the approved head[\s\S]*residual race/iu);
+    expect(terminal).toMatch(/base OID qualifies the evidence but is not merge authority/iu);
+  });
+
+  it("dispatches the coordinate-bound currentness remedy returned by terminal integration", async () => {
+    const workflow = await readPair(workflows.integrate);
+
+    expect(workflow).toMatch(
+      /invalidated \/ reconcile-base[\s\S]*remedy\.argv[\s\S]*--expected-base[\s\S]*--expected-head/iu,
+    );
   });
 });

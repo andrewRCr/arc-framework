@@ -140,6 +140,8 @@ import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
 import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import { CandidateVerificationEvidenceRefSchema } from
+  "../lib/work-unit/candidate-attestation.js";
 import {
   collectGitCandidateTarget,
   collectUnstagedReviewablePaths,
@@ -625,6 +627,8 @@ export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
+  scope: z.enum(["focused", "full"]).default("full"),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema.optional(),
   expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
 }).strict().superRefine((value, refinement) => {
@@ -764,6 +768,8 @@ export const lifecycleCommandInputRegistrations = [
       "operand.name": "name",
       "option.json": "json",
       "option.new-root": "newRoot",
+      "option.scope": "scope",
+      "option.verification-evidence-ref": "verificationEvidenceRef",
       "option.expected-candidate": "expectedCandidate",
       "option.expected-subject": "expectedSubject",
     },
@@ -2579,6 +2585,8 @@ export async function handleFinalizeStage(
 export interface AttestOptions {
   json?: boolean;
   newRoot?: boolean;
+  scope?: "focused" | "full";
+  verificationEvidenceRef?: string;
   expectedCandidate?: string;
   expectedSubject?: string;
 }
@@ -2596,6 +2604,8 @@ export async function handleAttest(
       name: name?.trim(),
       json: opts.json,
       newRoot: opts.newRoot,
+      scope: opts.scope,
+      verificationEvidenceRef: opts.verificationEvidenceRef,
       expectedCandidate: opts.expectedCandidate,
       expectedSubject: opts.expectedSubject,
     },
@@ -2875,6 +2885,8 @@ export async function handleAttest(
       name: input.name,
       lifecycle: meta.state,
       newRoot: input.newRoot === true,
+      scope: input.scope,
+      verificationEvidenceRef: input.verificationEvidenceRef,
       ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
         ? {}
         : {
@@ -2917,13 +2929,39 @@ export async function handleAttest(
   } else if (result.status === "blocked") {
     p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
   } else if (result.status === "refused") {
-    p.log.error(result.recommendedActionText);
+    if ("expected" in result) {
+      p.log.error([
+        result.recommendedActionText,
+        `Reason: ${result.reason}`,
+        `Expected Candidate: ${result.expected.candidateId}`,
+        `Observed Candidate: ${result.observed.candidateId ?? "[none]"}`,
+        `Expected Subject: ${result.expected.subjectDigest}`,
+        `Observed Subject: ${result.observed.subjectDigest}`,
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    } else {
+      p.log.error([
+        result.recommendedActionText,
+        `Candidate: ${result.candidateId ?? "[none]"}`,
+        `Subject: ${result.subjectDigest}`,
+        `Scope: ${result.requestedScope} requested; ${result.requiredScope} required`,
+        `Fresh evidence: ${result.verificationEvidenceProvided ? "supplied" : "missing"}`,
+        ...(result.nextAction.verificationEvidenceRequired
+          ? []
+          : [`Operation: ${result.nextAction.operation}`]),
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    }
   } else {
     const lines = [
       `Work unit: ${result.locus.workUnit}`,
       `Candidate: ${result.locus.candidateId}`,
       `Locus:     ${result.locus.locus}`,
     ];
+    if ("operation" in result && result.operation === "convergence") {
+      lines.push(`Scope:     ${result.scope}`);
+      lines.push(`Evidence:  ${result.verificationEvidenceRef}`);
+    }
     p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
     p.outro("Done.");
   }

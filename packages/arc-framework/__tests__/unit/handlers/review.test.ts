@@ -2155,6 +2155,7 @@ describe("handleReviewPrePublication", () => {
       subjectDigest: `sha256:${"e".repeat(64)}`,
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     },
   };
 
@@ -2235,6 +2236,7 @@ describe("handleReviewPrePublication", () => {
             subjectDigest: `sha256:${"e".repeat(64)}`,
             implementationChanged: true,
             convergenceVerification: "pending" as const,
+            convergenceScope: "full",
           },
         },
         advisories: [],

@@ -10,6 +10,7 @@ import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
+import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -120,6 +121,7 @@ function dependencies(): IntegrationCheckpointDependencies {
       recognizedRevision: oid("c"),
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     }),
     composeCandidateApplicabilityResolutionSelector: async () => {
       throw new Error("a current Candidate does not require an applicability selector");
@@ -280,10 +282,19 @@ describe("integration checkpoint", () => {
       ? readCandidate(workUnit, baseRevision)
       : null;
 
-    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
-      .resolves.toMatchObject({
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+    expect(result).toMatchObject({
         state: "reconcile",
         nextAction: "reconcile-base",
+        reason: "base-reconcile-required",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", oid("c"),
+            "--json",
+          ],
+        },
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
           candidateHead: oid("c"),
@@ -295,6 +306,11 @@ describe("integration checkpoint", () => {
           },
         },
       });
+    if (result.state !== "reconcile") throw new Error("expected base reconciliation");
+    expect(BaseMergeInputSchema.parse({
+      expectedBase: result.remedy.argv[4],
+      expectedHead: result.remedy.argv[6],
+    })).toEqual({ expectedBase: oid("b"), expectedHead: oid("c") });
   });
 
   it("continues directly to approval for disjoint exact-pair movement", async () => {
@@ -325,6 +341,24 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it("blocks when drift and merge observations name different heads", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => ({ ...CLEAN_DRIFT, headOid: oid("d") });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "unsafe-reconcile",
+        detail: "Git feasibility belongs to a different head than the drift observation.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("d") },
+        payload: {
+          drift: { headOid: oid("d") },
+          observation: { feasibility: { head: oid("c") }, admission: { head: oid("c") } },
+        },
+      });
+  });
+
   it("returns the distinct regenerable reconcile continuation", async () => {
     const deps = dependencies();
     deps.readMovementObservation = async () => ({
@@ -339,6 +373,16 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "reconcile",
         nextAction: "reconcile-regenerable",
+        reason: "regenerable-reconcile-required",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", oid("c"),
+            "--regenerate-roadmap",
+            "--json",
+          ],
+        },
         payload: { candidateHead: oid("c") },
       });
   });
@@ -892,6 +936,11 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "terminal-rebind-required",
         nextAction: "reconcile-delivery-state",
+        reason: "delivery-terminal-rebind-required",
+        remedy: {
+          argv: ["arc", "delivery", "reconcile", "-", "--json"],
+          stdin: { planId: PLAN_ID, repository: "owner/repo" },
+        },
         payload: {
           reconcileInput: { planId: PLAN_ID, repository: "owner/repo" },
         },
@@ -910,6 +959,7 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "candidate-publication-required",
         nextAction: "resume-pre-publication",
+        reason: "candidate-publication-stale",
         payload: {
           attestArgv: ["arc", "attest", "example", "--json"],
         },
@@ -1134,16 +1184,28 @@ describe("integration checkpoint", () => {
       recognizedRevision: oid("c"),
       implementationChanged: true,
       convergenceVerification: "pending",
+      convergenceScope: "full",
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "blocked",
         reason: "candidate-convergence-pending",
+        nextAction: "run-convergence-verification",
+        action: {
+          kind: "run-convergence-verification",
+          requiredScope: "full",
+          verificationEvidenceRefRequired: true,
+          attestArgv: [
+            "arc", "attest", "example", "--scope", "full",
+            "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+          ],
+        },
         payload: {
           candidate: {
             implementationChanged: true,
             convergenceVerification: "pending",
+            convergenceScope: "full",
           },
         },
       });

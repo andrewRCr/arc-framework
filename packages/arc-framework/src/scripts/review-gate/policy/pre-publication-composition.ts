@@ -26,6 +26,7 @@ import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
 import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
 import {
+  CandidateConvergenceProjectionSchema,
   candidateReviewResponses,
   reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
@@ -88,13 +89,17 @@ export function projectPrePublicationCandidateRead(input: {
 }): CandidateRead {
   const baseline = reduceCandidateDurableBaseline(input.record);
   if (input.effective.state === "current") {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: input.effective.convergenceVerification,
+      convergenceScope: input.effective.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: input.effective.candidateId,
       headSha: input.effective.recognizedTarget.revision,
       subjectDigest: input.effective.recognizedTarget.subject.subjectDigest,
       implementationChanged: input.effective.implementationChanged,
-      convergenceVerification: input.effective.convergenceVerification,
+      ...convergence,
       lineageHeadShas: [...new Set([
         input.record.attestation.baseRevision,
         ...candidateReviewResponses(input.record)
@@ -108,13 +113,17 @@ export function projectPrePublicationCandidateRead(input: {
     || input.effective.state === "decision-required";
   if (authorizedPendingFix && input.pending.status === "selected"
     && input.pending.candidateId === baseline.candidateId) {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: baseline.convergenceVerification,
+      convergenceScope: baseline.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: baseline.candidateId,
       headSha: input.pending.reviewedHead,
       subjectDigest: baseline.target.subject.subjectDigest,
       implementationChanged: baseline.implementationChanged,
-      convergenceVerification: baseline.verificationCompleted ? "satisfied" : "pending",
+      ...convergence,
       pendingReviewTarget: input.pending.reviewedTarget,
       lineageHeadShas: [...new Set([
         input.record.attestation.baseRevision,

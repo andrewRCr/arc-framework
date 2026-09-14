@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { CandidateConvergenceProjection } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
@@ -95,17 +97,16 @@ export type ReviewPolicyTarget = PrePublicationReviewRequest["frontline"]["targe
 export type CandidateRead =
   | { status: "missing" }
   | { status: "blocked"; reason: string }
-  | {
+  | ({
     status: "current";
     candidateId: string;
     headSha: string;
     subjectDigest: string;
     implementationChanged: boolean;
-    convergenceVerification: "satisfied" | "pending";
     lineageHeadShas: readonly string[];
     /** Exact originating target retained only while an approved fix awaits response settlement. */
     pendingReviewTarget?: ReviewTarget;
-  };
+  } & CandidateConvergenceProjection);
 
 export type AssuranceRead =
   | { status: "resolved"; assurance: ReviewAssuranceInput; activity: ReviewMethodActivity }
@@ -582,6 +583,7 @@ export async function composePrePublicationReviewRequest(
       subjectDigest: candidate.subjectDigest,
       implementationChanged: candidate.implementationChanged,
       convergenceVerification: candidate.convergenceVerification,
+      convergenceScope: candidate.convergenceScope,
     },
     ...(responseBinding === undefined ? {} : { responseBinding }),
   };

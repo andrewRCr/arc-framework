@@ -509,6 +509,7 @@ describe("delivery review-fix routing", () => {
     expect(projectCandidateCurrentness({ record: result.record, current: currentTarget })).toMatchObject({
       status: "current",
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
 
     expect(recordDeliveryReviewFixCandidateVerification({

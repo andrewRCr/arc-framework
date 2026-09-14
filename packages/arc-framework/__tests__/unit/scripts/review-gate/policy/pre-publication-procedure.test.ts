@@ -10,6 +10,7 @@ import {
 } from "../../../../../src/scripts/review-gate/core/register-review-schemas.js";
 import {
   createStandardReviewReservation,
+  CandidateConvergenceBoundarySchema,
   IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
   projectCandidateFixResumeBoundary,
@@ -19,6 +20,8 @@ import {
   projectPublicationBoundary,
   recoverIntegratingBoundary,
   recoverPublicationBoundary,
+  RunConvergenceVerificationActionSchema,
+  createRunConvergenceVerificationAction,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   createCandidateAttestation,
@@ -27,6 +30,7 @@ import {
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   prePublicationBoundary,
+  PrePublicationReviewRequestSchema,
   PrePublicationReviewEnvelopeSchema,
   projectCandidateDeltaVerification,
   projectPrePublicationReview,
@@ -535,12 +539,36 @@ function request(overrides: Record<string, unknown> = {}) {
       maxPasses: 2,
       attempts: [],
     },
-    candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: false, convergenceVerification: "satisfied" },
+    candidate: {
+      subjectDigest: SUBJECT_DIGEST,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    },
     ...overrides,
   };
 }
 
 describe("projectPrePublicationReview", () => {
+  it("rejects impossible convergence status and scope pairs", () => {
+    expect(PrePublicationReviewRequestSchema.safeParse(request({
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "satisfied",
+        convergenceScope: "focused",
+      },
+    })).success).toBe(false);
+    expect(PrePublicationReviewRequestSchema.safeParse(request({
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: null,
+      },
+    })).success).toBe(false);
+  });
+
   it("carries the exact target through to every locus that routes to an exact-target operation", () => {
     const exact = createReviewTarget({
       schemaVersion: 2,
@@ -760,7 +788,12 @@ describe("projectPrePublicationReview", () => {
   it("requires one final convergence verification only after the review obligations settle", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "pending" },
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: "full",
+      },
     });
     const result = projectPrePublicationReview({
       ...base,
@@ -775,15 +808,120 @@ describe("projectPrePublicationReview", () => {
       reservation: { sources: ["codex-pr", "delegated-agent"] },
       nextAction: {
         kind: "run-convergence-verification",
-        command: "arc attest example --json",
+        requiredScope: "full",
+        verificationKind: "tier-3",
+        verificationEvidenceRefRequired: true,
+        command: "arc attest example --scope full --verification-evidence-ref {verificationEvidenceRef} --json",
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "full",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
       },
     });
+  });
+
+  it("projects the bounded verification and exact attest action for focused convergence", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "pending",
+        convergenceScope: "focused",
+      },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope: "focused",
+        verificationKind: "focused",
+        verificationEvidenceRefRequired: true,
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+    });
+  });
+
+  it("routes pending convergence through verification even when implementationChanged is false", () => {
+    const base = request({
+      selfReview: "settled",
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: false,
+        convergenceVerification: "pending",
+        convergenceScope: "focused",
+      },
+    });
+    const result = projectPrePublicationReview({
+      ...base,
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        frontlineActive: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: {
+        kind: "run-convergence-verification",
+        requiredScope: "focused",
+        verificationKind: "focused",
+      },
+    });
+  });
+
+  it("rejects a convergence action whose kind or argv disagrees with its scope", () => {
+    const action = {
+      kind: "run-convergence-verification",
+      requiredScope: "focused",
+      verificationKind: "tier-3",
+      verificationEvidenceRefRequired: true,
+      attestArgv: [
+        "arc", "attest", "example", "--scope", "full",
+        "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+      ],
+      command: "arc attest example --scope full --verification-evidence-ref {verificationEvidenceRef} --json",
+      interactionText: "Run verification.",
+    };
+    expect(RunConvergenceVerificationActionSchema.safeParse(action).success).toBe(false);
+  });
+
+  it("rejects a convergence action for another boundary work unit", () => {
+    expect(CandidateConvergenceBoundarySchema.safeParse({
+      schemaVersion: 1,
+      mode: "pre-publication-review",
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      candidateSubjectDigest: SUBJECT_DIGEST,
+      terminus: null,
+      deliveryReviewTermini: [],
+      locus: "candidate-convergence-verification-pending",
+      nextAction: createRunConvergenceVerificationAction("other", "focused"),
+      policy: null,
+      reservation: null,
+    }).success).toBe(false);
   });
 
   it("submits a converged implementation-changing lineage after full verification", () => {
     const base = request({
       selfReview: "settled",
-      candidate: { subjectDigest: SUBJECT_DIGEST, implementationChanged: true, convergenceVerification: "satisfied" },
+      candidate: {
+        subjectDigest: SUBJECT_DIGEST,
+        implementationChanged: true,
+        convergenceVerification: "satisfied",
+        convergenceScope: null,
+      },
     });
     const result = projectPrePublicationReview({
       ...base,

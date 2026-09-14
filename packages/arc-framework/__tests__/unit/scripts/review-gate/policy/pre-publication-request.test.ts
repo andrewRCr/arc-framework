@@ -65,6 +65,7 @@ const currentCandidate: CandidateRead = {
   subjectDigest: `sha256:${"d".repeat(64)}`,
   implementationChanged: false,
   convergenceVerification: "satisfied",
+  convergenceScope: null,
   lineageHeadShas: [HEAD],
 };
 

@@ -89,6 +89,7 @@ describe("delivery public-review continuation Git proof", () => {
       },
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     };
 
     await expect(projectGitDeliveryTerminalCoordinateAdvance({
@@ -203,6 +204,7 @@ describe("delivery public-review continuation Git proof", () => {
       recognition: { kind: "durable" },
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     };
 
     await expect(projectGitDeliveryTerminalCoordinateAdvance({

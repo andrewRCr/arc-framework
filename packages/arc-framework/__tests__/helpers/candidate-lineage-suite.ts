@@ -165,6 +165,8 @@ async function runArc(args: string[], cwd: string): Promise<HandlerRunResult> {
       await handleAttest(args[1], {
         json: args.includes("--json"),
         newRoot: args.includes("--new-root"),
+        scope: optionValue(args, "--scope") as "focused" | "full" | undefined,
+        verificationEvidenceRef: optionValue(args, "--verification-evidence-ref"),
         expectedCandidate: optionValue(args, "--expected-candidate"),
         expectedSubject: optionValue(args, "--expected-subject"),
       }, machineContext());
@@ -1015,7 +1017,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     }]);
 
     await git(root, ["commit", "-m", "record private member response"]);
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-private-member-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     await git(root, ["commit", "-m", "verify private member response"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
@@ -1499,13 +1504,31 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     await writeFile(join(root, "reviewed.txt"), "later staged subject\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
+    const observedTarget = await collectGitCandidateTarget({
+      cwd: root,
+      name: "example",
+      baseBranch: "main",
+      exec: gitExec,
+    });
     const replayed = await runArc(continuation.slice(1), root);
 
     expect(replayed.exitCode).toBe(1);
     expect(JSON.parse(replayed.stdout)).toEqual({
       status: "refused",
       reason: "re-root-subject-mismatch",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId,
+        subjectDigest: continuation[7],
+      },
+      observed: {
+        candidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(await readCandidateRecord(root, "example")).toEqual(recordBeforeReplay);
     expect(recordBeforeReplay?.attestation.candidateId).toBe(candidateId);
@@ -1550,6 +1573,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     if (candidate.status !== "current") {
       throw new Error("expected a current Candidate lineage");
     }
+    expect(candidate).toMatchObject({
+      convergenceVerification: "pending",
+      convergenceScope: "full",
+    });
     expect(candidate.lineageHeadShas).toContain(reviewedHead);
     await expect(composition.readLaneProgress(
       "standard",
@@ -1565,11 +1592,16 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       payload: { candidate: { status: "current", implementationChanged: true } },
     });
 
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({
       status: "attested",
       operation: "convergence",
+      scope: "full",
+      verificationEvidenceRef: "verification://full-convergence",
       locus: { locus: "candidate-review-pending" },
     });
 
@@ -1601,7 +1633,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["commit", "-m", "record verified response"]);
     expect(await git(root, ["rev-parse", "HEAD"])).not.toBe(responseHead);
 
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-operational-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
 
@@ -1869,7 +1904,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       })).resolves.toMatchObject({ state: "candidate-advanced" });
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
 
-      const converged = await runArc(["attest", "example", "--json"], origin);
+      const converged = await runArc([
+        "attest", "example", "--scope", "full",
+        "--verification-evidence-ref", "verification://full-stationary-convergence", "--json",
+      ], origin);
       expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
       expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
@@ -2007,7 +2045,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       },
     })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await git(root, ["commit", "-m", "record hosted verified response"]);
-    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-hosted-convergence", "--json",
+    ], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "hosted convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
@@ -2190,7 +2231,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     })).resolves.toMatchObject({ state: "candidate-advanced" });
     await git(root, ["commit", "-m", "record verified response"]);
-    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-span-convergence", "--json",
+    ], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     expect(approvedHead).not.toBe(deferredHead);
@@ -2276,7 +2320,10 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
   })).resolves.toMatchObject({ state: "candidate-advanced" });
   await git(root, ["commit", "-m", "record verified response"]);
 
-  expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+  expect((await runArc([
+    "attest", "example", "--scope", "full",
+    "--verification-evidence-ref", "verification://full-settlement-convergence", "--json",
+  ], root)).exitCode).toBe(0);
   await git(root, ["commit", "-m", "convergence verification"]);
   return { root, approvedHead: await git(root, ["rev-parse", "HEAD"]) };
 }
