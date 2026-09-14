@@ -3,7 +3,7 @@
   "slug": "accept-errand-review-residual-risk",
   "claimId": "70f6e903aea3faf9aa2c07a597e5f399",
   "createdAt": "2026-09-14T00:59:04.511Z",
-  "updatedAt": "2026-09-14T00:59:04.511Z",
+  "updatedAt": "2026-09-14T02:04:55.389Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Give ordinary Errands an exact-target, explicit Owner-accepted standard-review terminus for residual risk after reviewed fixes",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Accept exact-target residual review risk for ordinary Errands",
   "originEntrySourceDigest": "sha256:b100743355edd3ae6b8c3e914bbfe5546047221e73c061478a6d88535b8e38b7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/accept-errand-review-residual-risk",
+    "headSha": "685ad7b4acb4c4f627cc03d8d1d2a2b18ea3aa93"
+  }
 }
