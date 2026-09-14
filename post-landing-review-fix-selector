@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "post-landing-review-fix-selector",
+  "claimId": "14e64e7126570133592ba932eff5e58a",
+  "createdAt": "2026-09-14T13:59:13.599Z",
+  "updatedAt": "2026-09-14T13:59:13.599Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Select delivery review-fix refresh work from the authoritative unlanded suffix after a landed predecessor",
+  "branch": "chore/post-landing-review-fix-selector",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
