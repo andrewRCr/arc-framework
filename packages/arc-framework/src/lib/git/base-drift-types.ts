@@ -5,6 +5,7 @@
  */
 
 import type { WorktreeSyncState } from "./worktree-sync.js";
+import type { PathTreatment } from "../evidence-applicability/index.js";
 
 export type BaseDriftMode = "advisory" | "authoritative";
 export type BaseDriftVerdict = "clean" | "reconcile" | "unavailable" | "skipped";
@@ -111,5 +112,4 @@ export type IntegrationEvidenceResolverFactory = (
   baseOid: string,
 ) => IntegrationEvidenceResolver;
 
-export type ReconciliationBehavior = "substantive" | "regenerable";
-export type ReconciliationClassifier = (path: string) => ReconciliationBehavior;
+export type PathTreatmentClassifier = (path: string) => PathTreatment;

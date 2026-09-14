@@ -4,6 +4,10 @@ import { z } from "zod";
 
 import { canonicalDigest } from "../canonical/canonical-json.js";
 import {
+  MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
+} from "../evidence-applicability/schema.js";
+import {
   DeliveryContributionEndpointsSchema,
   DeliveryContributionProofResultSchema,
 } from "../delivery/contribution-proof.js";
@@ -14,8 +18,8 @@ const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ApplicabilityPathSchema = z.string().min(1).refine(isManagedPath, "must be a managed repository path");
 
-export const MAX_CANDIDATE_APPLICABILITY_PATHS = 200;
-export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = 16_384;
+export const MAX_CANDIDATE_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
+export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = MAX_EVIDENCE_APPLICABILITY_PATH_BYTES;
 export const CANDIDATE_APPLICABILITY_CHOICES = ["covered", "targeted-check", "changed"] as const;
 export const CandidateApplicabilityChoicesSchema = z.tuple([
   z.literal("covered"),
@@ -241,7 +245,7 @@ export function classifyCandidateApplicability(
       );
       const reviewableResidual = structural.proof.paths.filter((path) =>
         treatments.get(path) === "reviewable" || !treatments.has(path));
-      // Candidate-owned projections and other operational entries deliberately do not participate
+      // Candidate-owned projections and other evidence-neutral entries deliberately do not participate
       // in the reviewable subject. D4 still compares complete Git trees, so its exact tree residual
       // can contain those post-attestation writes even when the reapplied reviewable contribution is
       // identical. Unknown paths remain substantive and therefore fail closed into the judgment arm.

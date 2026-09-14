@@ -94,7 +94,7 @@ describe("arc attest", () => {
       "utf8",
     )) as { subject: { entries: Array<{ path: string; treatment: string }> } };
     expect(record.subject.entries).toEqual(expect.arrayContaining([
-      expect.objectContaining({ path: ".arc/active/tasks-example.md", treatment: "reviewable" }),
+      expect.objectContaining({ path: ".arc/active/tasks-example.md", treatment: "evidence-neutral" }),
     ]));
     expect((await git(repository, ["diff", "--cached", "--name-only"])).split("\n").sort()).toEqual([
       ".arc/active/meta-example.md",

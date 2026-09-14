@@ -5,7 +5,8 @@
  */
 
 import type { GitExec } from "./exec.js";
-import type { OverlapEvidence, ReconciliationClassifier } from "./base-drift-types.js";
+import { PathTreatmentSchema } from "../evidence-applicability/index.js";
+import type { OverlapEvidence, PathTreatmentClassifier } from "./base-drift-types.js";
 import { isGitObjectId } from "./object-id.js";
 
 export interface AnalyzeBaseOverlapOptions {
@@ -13,7 +14,7 @@ export interface AnalyzeBaseOverlapOptions {
   baseOid: string;
   ahead: number;
   behind: number;
-  classify: ReconciliationClassifier;
+  classify: PathTreatmentClassifier;
 }
 
 export async function analyzeBaseOverlap(
@@ -55,12 +56,28 @@ export async function analyzeBaseOverlap(
   const regenerablePaths: string[] = [];
   try {
     for (const path of overlap) {
-      (options.classify(path) === "regenerable" ? regenerablePaths : substantivePaths).push(path);
+      const treatment = PathTreatmentSchema.parse(options.classify(path));
+      switch (treatment) {
+        case "reviewable":
+          substantivePaths.push(path);
+          break;
+        case "evidence-neutral":
+          break;
+        case "regenerable":
+          regenerablePaths.push(path);
+          break;
+        default:
+          assertNever(treatment);
+      }
     }
   } catch {
     return { status: "unavailable", reason: "classification-failed" };
   }
   return { status: "available", substantivePaths, regenerablePaths };
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled path treatment: ${String(value)}`);
 }
 
 function parseNulPaths(stdout: string): string[] {

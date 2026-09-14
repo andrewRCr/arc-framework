@@ -102,7 +102,11 @@ import {
   runPassiveWorktreeInspection,
 } from "../lib/git/worktree-sync.js";
 import { analyzeBaseDistanceSnapshot } from "../lib/git/base-distance.js";
-import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../lib/base-drift/current-adapters.js";
+import { locusWorkUnitAtPath } from "../lib/session-init/locus-classification.js";
 import {
   analyzeBaseBranchSnapshot,
   readLocalBaseOid,
@@ -399,6 +403,19 @@ export function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: s
     throw new Error("Local history completeness could not be inspected.");
   }
   return baseOid;
+}
+
+/**
+ * Resolve the work unit at the derived frame's canonical entering checkout.
+ *
+ * @param frame - Derived roster and canonical entering-checkout selection.
+ * @returns The retained work-unit identity, or `null` when the entering row owns none.
+ */
+export function sessionPathTreatmentWorkUnit(
+  frame: Pick<Awaited<ReturnType<typeof runDerivedLocusStateProbe>>, "roster" | "entering">,
+): { name: string } | null {
+  const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+  return row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
 }
 
 function parsePositiveInteger(raw: string, fallback: number): number {
@@ -727,14 +744,15 @@ export async function handleStatus(
       }
       return pending;
     };
-    const getOptionalDerivedRoster = async () => {
+    const getOptionalDerivedFrame = async () => {
       if (identity === null) return null;
       try {
-        return (await getDerivedLocusState(identity)).roster;
+        return await getDerivedLocusState(identity);
       } catch {
         return null;
       }
     };
+    const getOptionalDerivedRoster = async () => (await getOptionalDerivedFrame())?.roster ?? null;
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
@@ -967,6 +985,8 @@ export async function handleStatus(
           ...options,
           objectAccess: "local-only",
         });
+        const frame = await getOptionalDerivedFrame();
+        const workUnit = frame === null ? null : sessionPathTreatmentWorkUnit(frame);
         return analyzeBaseDistanceSnapshot({
           exec,
           baseBranch,
@@ -974,7 +994,10 @@ export async function handleStatus(
           snapshot: prerequisites.snapshot,
           objectAvailability: prerequisites.objectAvailability,
           history: prerequisites.history,
-          ...createCurrentBaseDriftAdapters(localOnlyExec),
+          ...createCurrentBaseDriftAdapters(
+            localOnlyExec,
+            workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name),
+          ),
         });
       },
       baseBranchSync: async (context) => {

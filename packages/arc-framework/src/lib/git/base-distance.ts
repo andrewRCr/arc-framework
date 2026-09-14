@@ -29,7 +29,7 @@ import type {
   BaseDriftUnavailableReason,
   IntegrationEvidenceResolver,
   IntegrationEvidenceResolverFactory,
-  ReconciliationClassifier,
+  PathTreatmentClassifier,
 } from "./base-drift-types.js";
 import {
   countAheadBehindRef,
@@ -51,7 +51,7 @@ export interface RunBaseDriftOptions {
   mode: "authoritative";
   resolver?: IntegrationEvidenceResolver;
   resolverFactory?: IntegrationEvidenceResolverFactory;
-  classifyReconciliation?: ReconciliationClassifier;
+  classifyReconciliation?: PathTreatmentClassifier;
 }
 
 /** Supplied remote and local prerequisites for read-only base-distance analysis. */
@@ -64,7 +64,7 @@ export interface AnalyzeBaseDistanceSnapshotOptions {
   history: HistoryCompletenessResult;
   resolver?: IntegrationEvidenceResolver;
   resolverFactory?: IntegrationEvidenceResolverFactory;
-  classifyReconciliation?: ReconciliationClassifier;
+  classifyReconciliation?: PathTreatmentClassifier;
 }
 
 /** Base-distance result classified against one immutable advertised snapshot. */
@@ -158,7 +158,7 @@ export async function analyzeBaseDistanceSnapshot(
     baseOid,
     resolver: options.resolver,
     resolverFactory: options.resolverFactory,
-    classifyReconciliation: options.classifyReconciliation ?? (() => "substantive"),
+    classifyReconciliation: options.classifyReconciliation ?? (() => "reviewable"),
   });
   return { ...analysis, remoteEvidence: "exact" };
 }
@@ -183,7 +183,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
     fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
     resolver,
     resolverFactory,
-    classifyReconciliation = () => "substantive",
+    classifyReconciliation = () => "reviewable",
   } = options;
   const sourceRef = `refs/heads/${baseBranch}`;
   try {
@@ -282,7 +282,7 @@ interface AnalyzeAvailableBaseOptions {
   baseOid: string;
   resolver?: IntegrationEvidenceResolver;
   resolverFactory?: IntegrationEvidenceResolverFactory;
-  classifyReconciliation: ReconciliationClassifier;
+  classifyReconciliation: PathTreatmentClassifier;
 }
 
 async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promise<BaseDriftResult> {
@@ -385,5 +385,5 @@ export type {
   BaseDriftUnavailableReason,
   IntegrationEvidenceResolver,
   IntegrationEvidenceResolverFactory,
-  ReconciliationClassifier,
+  PathTreatmentClassifier,
 } from "./base-drift-types.js";

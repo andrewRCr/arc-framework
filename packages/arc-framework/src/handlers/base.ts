@@ -6,7 +6,10 @@
 
 import * as p from "@clack/prompts";
 
-import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
 import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
@@ -16,6 +19,7 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import { locusWorkUnitAtPath } from "../lib/session-init/locus-classification.js";
 import { createBaseMergePort } from "../scripts/base/merge-composition.js";
 import {
   BaseMergeInputSchema,
@@ -24,6 +28,8 @@ import {
   type BaseMergeResult,
 } from "../scripts/base/merge.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { readIdentityPointers } from "./identity-pointers.js";
+import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 
 /** Options for `arc base sync`. */
 export interface BaseSyncOptions {
@@ -177,12 +183,34 @@ export async function handleBaseDrift(opts: BaseDriftOptions, interaction?: Inte
         register: composeUnavailableRegister(null, "config-unavailable"),
         failureReason: "error",
       }
-    : await runBaseDrift({
-        exec,
-        baseBranch: config.settings["branch.base"],
-        mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(exec),
-      });
+    : await (async () => {
+        let treatmentContext = {};
+        try {
+          const { identity } = await readIdentityPointers(exec);
+          if (identity !== null) {
+            const frame = await runDerivedLocusStateProbe({
+              cwd,
+              identity,
+              baseBranch: config.settings["branch.base"],
+              exec,
+            });
+            const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+            const workUnit = row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
+            treatmentContext = workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name);
+          }
+        } catch {
+          treatmentContext = {};
+        }
+        return runBaseDrift({
+          exec,
+          baseBranch: config.settings["branch.base"],
+          mode: "authoritative",
+          ...createCurrentBaseDriftAdapters(
+            exec,
+            treatmentContext,
+          ),
+        });
+      })();
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
