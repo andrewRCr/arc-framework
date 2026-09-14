@@ -31,7 +31,223 @@ function publicationFields(plan: ReturnType<typeof deliveryStackPlanFixture>) {
   };
 }
 
+function standaloneRewriteRequest(plan = deliveryStackPlanFixture()) {
+  const state = deliveryStateFixture(plan);
+  const member = state.members[0]!;
+  return {
+    planId: plan.planId,
+    deliverableId: member.deliverableId,
+    requested: { target: state.target, members: [{ ...member }] },
+  };
+}
+
+function eligibilityCloseRequest(plan = deliveryStackPlanFixture()) {
+  const snapshot = {
+    planId: plan.planId,
+    workUnitId: plan.workUnitId,
+    planRevision: plan.planRevision,
+    planDigest: plan.planDigest,
+    protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
+    chainBase: { head: "1".repeat(40), tree: "2".repeat(40) },
+    predecessorRelation: {
+      kind: "exact" as const,
+      observedTip: "1".repeat(40),
+      chainBase: "1".repeat(40),
+    },
+    top: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
+    members: plan.members.map((member, index) => ({
+      deliverableId: member.deliverableId,
+      ref: `refs/heads/candidate-${index + 1}`,
+      head: String(index + 5).repeat(40),
+      tree: String(index + 7).repeat(40),
+    })),
+    lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
+    regenerablePaths: [],
+  };
+  return {
+    snapshot,
+    gateResults: snapshot.members.map(({ deliverableId, head, tree }) => ({
+      deliverableId, head, tree, status: "passed" as const,
+    })),
+  };
+}
+
 describe("delivery execution handler", () => {
+  it.each([
+    ["candidate ref", { candidateRef: "refs/heads/foreign" }],
+    ["protected-base ref", { protectedBaseRef: "refs/heads/foreign" }],
+    ["lifecycle paths", { lifecyclePaths: ["caller.md"] }],
+    ["selected-change exemption", { contributionMode: "selected-change" }],
+    ["contribution endpoints", {
+      contribution: {
+        before: {
+          predecessor: { head: "1".repeat(40), tree: "2".repeat(40) },
+          member: { head: "3".repeat(40), tree: "4".repeat(40) },
+        },
+        after: {
+          predecessor: { head: "5".repeat(40), tree: "6".repeat(40) },
+          member: { head: "7".repeat(40), tree: "8".repeat(40) },
+        },
+      },
+    }],
+  ] as const)("rejects caller-authored standalone rewrite authority from %s", async (_label, authority) => {
+    const execute = vi.fn();
+    const write = vi.fn();
+    await handleDeliveryExecution("rewrite", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({ ...standaloneRewriteRequest(), ...authority })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery rewrite",
+      status: "refused",
+      reason: "invalid-command-input",
+      detail: expect.any(String),
+      coordinates: {
+        planId: standaloneRewriteRequest().planId,
+        deliverableId: standaloneRewriteRequest().deliverableId,
+      },
+      continuation: {
+        kind: "remedy",
+        argv: ["arc", "delivery", "rewrite", "--help"],
+      },
+    });
+  });
+
+  it("carries a non-default remote into standalone rewrite execution", async () => {
+    const request = { ...standaloneRewriteRequest(), remote: "upstream" };
+    const execute = vi.fn().mockRejectedValue(new Error("adapter failed"));
+    await handleDeliveryExecution("rewrite", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write: vi.fn(),
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).toHaveBeenCalledWith("rewrite", request, undefined);
+  });
+
+  it("preserves a bounded standalone rewrite failure and decisive requested coordinates", async () => {
+    const request = standaloneRewriteRequest();
+    const write = vi.fn();
+    await handleDeliveryExecution("rewrite", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockRejectedValue(new Error(`adapter\nfailed ${"x".repeat(5_000)}`)),
+      write,
+      setExitCode: vi.fn(),
+    });
+    const result = JSON.parse(write.mock.calls[0]?.[0] as string);
+    expect(result).toMatchObject({
+      command: "delivery rewrite",
+      status: "refused",
+      reason: "execution-unavailable",
+      coordinates: {
+        planId: request.planId,
+        deliverableId: request.deliverableId,
+        requestedBase: request.requested.members[0]!.coordinates!.base,
+        requestedHead: request.requested.members[0]!.coordinates!.head,
+      },
+      continuation: { kind: "terminal-explanation" },
+    });
+    expect(result.detail).not.toContain("\n");
+    expect(result.detail.length).toBeLessThanOrEqual(4_096);
+  });
+
+  it("projects eligibility-close refusal evidence through the public failure contract", async () => {
+    const request = eligibilityCloseRequest();
+    const observedHead = "9".repeat(40);
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-close", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "source-moved",
+        source: {
+          ref: request.snapshot.top.ref,
+          expected: { head: request.snapshot.top.head, tree: request.snapshot.top.tree },
+          observed: { head: observedHead, tree: "a".repeat(40) },
+        },
+        nextAction: {
+          kind: "reprepare-delivery-eligibility",
+          planId: request.snapshot.planId,
+          protectedBaseRef: request.snapshot.protectedBase.ref,
+          topRef: request.snapshot.top.ref,
+          candidates: request.snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
+          lifecyclePaths: request.snapshot.lifecyclePaths,
+        },
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery eligibility close",
+      status: "refused",
+      reason: "source-moved",
+      detail: "The delivery eligibility close operation stopped because source-moved.",
+      coordinates: {
+        planId: request.snapshot.planId,
+        snapshotBaseHead: request.snapshot.protectedBase.head,
+        snapshotTopHead: request.snapshot.top.head,
+        observedHead,
+      },
+      continuation: { kind: "terminal-explanation" },
+    });
+  });
+
+  it.each(["eligibility-prepare", "publish", "rematerialize"] as const)(
+    "projects %s eligibility-consumer refusals through the public failure contract",
+    async (command) => {
+      const plan = deliveryStackPlanFixture();
+      const close = eligibilityCloseRequest(plan);
+      const request = command === "eligibility-prepare"
+        ? {
+            plan,
+            protectedBaseRef: close.snapshot.protectedBase.ref,
+            topRef: close.snapshot.top.ref,
+            candidates: close.snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
+            lifecyclePaths: close.snapshot.lifecyclePaths,
+          }
+        : command === "publish"
+          ? {
+              planId: plan.planId,
+              protectedBaseRef: close.snapshot.protectedBase.ref,
+              topRef: close.snapshot.top.ref,
+              candidates: close.snapshot.members.map(({ deliverableId, ref }) => ({
+                deliverableId, ref, checkoutPath: `/tmp/${deliverableId}`,
+              })),
+              remote: "origin",
+              ...publicationFields(plan),
+            }
+          : {
+              planId: plan.planId,
+              protectedBaseRef: close.snapshot.protectedBase.ref,
+              topRef: close.snapshot.top.ref,
+              selectedDeliverableIds: [plan.members[0]!.deliverableId],
+              repository: "owner/repo",
+              remote: "origin",
+            };
+      const write = vi.fn();
+      await handleDeliveryExecution(command, { input: "-", json: true }, undefined, {
+        readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+        execute: vi.fn().mockResolvedValue({ status: "refused", reason: "lifecycle-paths-moved" }),
+        write,
+        setExitCode: vi.fn(),
+      });
+      expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+        command: command === "eligibility-prepare"
+          ? "delivery eligibility prepare"
+          : `delivery ${command}`,
+        status: "refused",
+        reason: "lifecycle-paths-moved",
+        detail: expect.any(String),
+        coordinates: { planId: plan.planId },
+        continuation: { kind: "terminal-explanation" },
+      });
+    },
+  );
+
   it("preserves a typed landing refusal and bounded provider cause through the public envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const deliverableId = plan.members[0]!.deliverableId;
@@ -266,6 +482,12 @@ describe("delivery execution handler", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
+      chainBase: { head: "1".repeat(40), tree: "2".repeat(40) },
+      predecessorRelation: {
+        kind: "exact",
+        observedTip: "1".repeat(40),
+        chainBase: "1".repeat(40),
+      },
       top: { ref: "refs/heads/control", head: "3".repeat(40), tree: "4".repeat(40) },
       members: plan.members.map((member, index) => ({
         deliverableId: member.deliverableId,
@@ -274,6 +496,7 @@ describe("delivery execution handler", () => {
         tree: String(index + 7).repeat(40),
       })),
       lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
+      regenerablePaths: [],
     };
     const write = vi.fn();
     const setExitCode = vi.fn();
@@ -1812,13 +2035,16 @@ describe("delivery execution handler", () => {
       setExitCode,
     });
 
-    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
       schemaVersion: 1,
       command: "delivery publish",
       status: "refused",
       reason: "lifecycle-contribution",
       deliverableId,
       paths,
+      detail: "The delivery publish operation stopped because lifecycle-contribution.",
+      coordinates: { planId: plan.planId, deliverableId },
+      continuation: { kind: "terminal-explanation" },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });

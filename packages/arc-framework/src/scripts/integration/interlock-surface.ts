@@ -56,6 +56,8 @@ export function composeCheckpointInterlockSurface(input: {
   approvedHead: string;
   repository: string;
   pullRequest: number;
+  baseRef: string;
+  observedBase: string;
   method: "merge" | "rebase" | "squash";
   candidateTailReference: string;
   reviewLanding: string;
@@ -65,6 +67,10 @@ export function composeCheckpointInterlockSurface(input: {
   const exceptions = signals.filter(({ clean }) => !clean);
   const decision = `Approve merge of ${input.approvedHead} via ${input.method} for `
     + `${input.repository}#${input.pullRequest}.\nCandidate tail: ${input.candidateTailReference}`
+    + `\nNamed target: ${input.baseRef} at last observed base ${input.observedBase}.`
+    + "\nHost policy controls base currency; ARC pins only the approved head."
+    + "\nRequired checks are head-bound, not exact base/head-pair evidence."
+    + "\nBase movement during the host's in-call merge window remains a residual race."
     + `\nReview landed: ${input.reviewLanding}`;
   const text = exceptions.length === 0
     ? `${decision}\nMachine evidence: ${signals.length} checks clean.`

@@ -207,6 +207,15 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
       routedObligation: { state: "settled", detail: "The routed review obligation is settled." },
       currentBaseOid: oid("b"),
       baseContained: true,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
       ...overrides,
     }),
   };
@@ -231,10 +240,136 @@ describe("review status", () => {
   });
 
   it("routes a newly advanced base back through the checkpoint", async () => {
-    await expect(resolveReviewStatus({ target }, port({ baseContained: false }))).resolves.toMatchObject({
+    await expect(resolveReviewStatus({ target }, port({
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+    }))).resolves.toMatchObject({
       state: "base-moved",
       nextAction: "rerun-checkpoint",
       currentBaseOid: oid("b"),
+      movement: "overlapping",
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+      terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+    });
+  });
+
+  it("routes a resolved singleton base movement through its work-unit checkpoint", async () => {
+    await expect(resolveReviewStatus({ target }, port({
+      workUnitId: "example",
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+    }))).resolves.toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
+    });
+  });
+
+  it("retains a settled attempt across disjoint non-contained base movement", async () => {
+    await expect(resolveReviewStatus({ target }, port({ baseContained: false }))).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      movement: "disjoint",
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+    });
+  });
+
+  it("reruns the checkpoint with precise unavailable movement evidence", async () => {
+    const detail = "The merge base could not be established for the exact revisions.";
+    await expect(resolveReviewStatus({ target }, port({
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "unavailable", reason: "merge-base-failed" },
+      },
+      baseMovementDetail: detail,
+    }))).resolves.toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      movement: "unknown",
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "unavailable", reason: "merge-base-failed" },
+      },
+      baseMovementDetail: detail,
+      terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+    });
+  });
+
+  it("preserves the settled result when the observed base is contained", async () => {
+    await expect(resolveReviewStatus({ target }, port({
+      baseContained: true,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+    }))).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      movement: "overlapping",
     });
   });
 
@@ -619,6 +754,19 @@ describe("review status", () => {
     const status = await resolveReviewStatus({ target }, port({
       routedObligation: obligation,
       baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
     }));
 
     expect(bindDeliveryReviewTerminusOffer(status, {
@@ -629,6 +777,8 @@ describe("review status", () => {
     })).toMatchObject({
       state: "base-moved",
       nextAction: "rerun-checkpoint",
+      movement: "overlapping",
+      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
       terminusAction: {
         schemaVersion: 1,
         offer: {
@@ -1829,7 +1979,39 @@ describe("review status", () => {
       actualHeadSha: laterTarget.headSha,
       baseContained: false,
       routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "review-required", nextAction: "review-hosted-request" });
+    await expect(resolveReviewStatus({ target: laterTarget }, port({
+      actualHeadSha: laterTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: laterTarget.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: laterTarget.headSha,
+        },
+        overlap: { status: "available", substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+      },
+      routedObligation: obligation,
     }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: selectedTarget.repository,
+          changeRequest: 41,
+          base: oid("b"),
+          head: selectedTarget.headSha,
+        },
+        overlap: { status: "available", substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
+    });
     await expect(resolveReviewStatus({ target: selectedTarget }, port({
       actualHeadSha: selectedTarget.headSha,
       requiredChecks: "pending",

@@ -183,6 +183,54 @@ function inspectIdentityCommand(slug: string): readonly string[] {
   ];
 }
 
+describe("arc errand merge", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("refuses an invalid lane through the built destructive command boundary", async () => {
+    const result = await runArcWithStdin(
+      ["errand", "merge", "example", "-", "--json"],
+      tmpDir,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        identity: {
+          slug: "example",
+          claimId: "1".repeat(32),
+          branch: "chore/example",
+          generation: `errand-v1/example/${"1".repeat(32)}`,
+        },
+        approvedTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "chore/example",
+          headSha: "c".repeat(40),
+        },
+        lane: "native-auto-merge",
+        mergeMethod: { method: "merge", policyFingerprint: `sha256:${"d".repeat(64)}` },
+      })}\n`,
+    );
+
+    expect(result.exitCode, result.stderr || result.stdout).toBe(64);
+    expect(JSON.parse(result.stdout) as unknown).toMatchObject({
+      mode: "errand-merge",
+      state: "refused",
+      nextAction: "stop",
+      reason: "invalid-input",
+      lane: null,
+    });
+  });
+});
+
 async function createMergedGhFixture(cwd: string, slug: string, exactHead?: string): Promise<{
   ghDir: string;
   remoteDir: string;

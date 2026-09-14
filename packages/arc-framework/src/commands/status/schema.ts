@@ -648,6 +648,7 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
     ahead: z.number().int().nonnegative(),
     behind: z.number().int().nonnegative(),
     baseOid: z.string().nullable(),
+    movement: z.enum(["disjoint", "overlapping", "unknown"]).optional(),
     unavailableReason: z.string().optional(),
   },
 ).loose().superRefine((value, context) => {
@@ -666,6 +667,9 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
           && ["exact", "pending-fetch", "unreachable"].includes(value.remoteEvidence);
   if (!evidenceMatches) {
     context.addIssue({ code: "custom", path: ["remoteEvidence"], message: "must match base-distance state" });
+  }
+  if (healthy !== (value.movement !== undefined)) {
+    context.addIssue({ code: "custom", path: ["movement"], message: "must be present only for healthy readings" });
   }
   const countsMatch = value.state === "remote-ahead"
     ? value.ahead === 0 && value.behind > 0
@@ -693,7 +697,7 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
             ? value.unavailableReason === "remote-base-absent" && value.baseOid === null
             : value.remoteEvidence === "pending-fetch"
               ? value.unavailableReason === "base-object-pending-fetch" && value.baseOid !== null
-              : value.unavailableReason === undefined && value.baseOid === null;
+              : value.unavailableReason === "remote-evidence-unreachable" && value.baseOid === null;
   if (!unavailableShapeMatches) {
     context.addIssue({ code: "custom", path: ["unavailableReason"], message: "must match base-distance evidence" });
   }

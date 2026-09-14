@@ -294,6 +294,27 @@ describe("arc delivery", () => {
       const candidateRef = "refs/heads/delivery-candidate";
       await git(repository, ["update-ref", topRef, head]);
       await git(repository, ["update-ref", candidateRef, head]);
+      const metaPath = `.arc/active/meta-${plan.workUnitId}.md`;
+      await mkdir(join(repository, ".arc", "active"), { recursive: true });
+      await writeFile(join(repository, metaPath), [
+        `# Metadata: ${plan.workUnitId}`,
+        "",
+        "- **State:** Integrating",
+        "- **Owner:** test-user",
+        `- **Branch:** ${branch}`,
+        "- **Candidate:** [none]",
+        "- **Current Workflow:** `integrate-work-unit`",
+        "- **Last Completed:** [none]",
+        "- **Next Task:** [none]",
+        "- **Next Action:** Close delivery eligibility",
+        "",
+      ].join("\n"));
+      const lifecyclePaths = [
+        metaPath,
+        ".arc/backlog/ROADMAP.md",
+        `.arc/system/.internal/candidates/${plan.workUnitId}.boundary.json`,
+        `.arc/system/.internal/candidates/${plan.workUnitId}.json`,
+      ];
 
       const deliveryRoot = join(repository, ".git", "arc", "delivery");
       const planDirectory = join(deliveryRoot, "plans");
@@ -308,6 +329,8 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
+          chainBase: { head, tree },
+          predecessorRelation: { kind: "exact", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
@@ -315,7 +338,8 @@ describe("arc delivery", () => {
             head,
             tree,
           }],
-          lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
+          lifecyclePaths,
+          regenerablePaths: [".arc/backlog/ROADMAP.md"],
         },
         gateResults: [{ deliverableId: plan.members[0]!.deliverableId, head, tree, status: "passed" }],
       })}\n`);
@@ -325,7 +349,7 @@ describe("arc delivery", () => {
         const result = await runArc([
           "delivery", "eligibility", "close", "eligibility-close.json", "--json",
         ], repository);
-        expect(result.exitCode, result.stderr).toBe(0);
+        expect(result.exitCode, result.stderr || result.stdout).toBe(0);
         expect(JSON.parse(result.stdout)).toMatchObject({
           command: "delivery eligibility close",
           status: "eligible",
@@ -363,6 +387,8 @@ describe("arc delivery", () => {
           planRevision: plan.planRevision,
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
+          chainBase: { head, tree },
+          predecessorRelation: { kind: "exact", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
@@ -371,6 +397,7 @@ describe("arc delivery", () => {
             tree,
           }],
           lifecyclePaths: [`.arc/active/meta-${plan.workUnitId}.md`],
+          regenerablePaths: [],
         },
         gateResults: [{ deliverableId: plan.members[0]!.deliverableId, head, tree, status: "passed" }],
       })}\n`);

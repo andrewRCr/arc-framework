@@ -254,11 +254,12 @@ function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): Worktr
 }
 
 function baseDistance(
-  overrides: Partial<BaseDistanceStatusResult> = {},
+  overrides: Partial<Extract<BaseDistanceStatusResult, { verdict: "clean" | "reconcile" }>> = {},
 ): Awaited<ReturnType<SessionInitProbes["baseDistance"]>> {
   const value: BaseDistanceStatusResult = {
     mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
     base: "main", baseOid: "a".repeat(40),
+    movement: "disjoint",
     integrationEvidence: {
       coverage: "complete", scannedCommitCount: 0, events: [],
       unclassifiedCommitCount: 0, truncated: false, limitations: [],
@@ -266,18 +267,34 @@ function baseDistance(
     overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
     register: null,
     ...overrides,
+    headOid: overrides.headOid ?? "b".repeat(40),
   };
-  // Compared as literals rather than through `includes`, so the narrowed state reaches
-  // the returned value: the not-applicable arm is bounded to exactly these states, and
-  // an unnarrowed `WorktreeSyncState` would let this helper build a pair the envelope
-  // rule refuses.
-  const { state } = value;
-  if (state === "skipped" || state === "no-remote" || state === "detached-head") {
-    return { ...value, state, remoteEvidence: "not-applicable" };
-  }
   const { failureReason, ...result } = value;
   void failureReason;
   return { ...result, remoteEvidence: "exact" };
+}
+
+function unavailableBaseDistance(
+  state: "no-remote" | "detached-head",
+): Awaited<ReturnType<SessionInitProbes["baseDistance"]>> {
+  const base = state === "detached-head" ? null : "main";
+  return {
+    mode: "advisory", verdict: "unavailable", state, ahead: 0, behind: 0,
+    base, baseOid: null, headOid: null,
+    integrationEvidence: null, overlap: null, register: null,
+    unavailableReason: state,
+    detail: state === "no-remote"
+      ? "No remote is configured for base-distance evidence."
+      : "Base-distance evidence is unavailable from a detached HEAD.",
+    coordinates: { base, baseOid: null, headOid: null },
+    continuation: {
+      kind: "terminal-explanation",
+      terminalExplanation: state === "no-remote"
+        ? "Configure a remote before requesting base-distance evidence."
+        : "Check out a branch before requesting base-distance evidence.",
+    },
+    remoteEvidence: "not-applicable",
+  };
 }
 
 function baseBranchSync(
@@ -1635,6 +1652,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
       expect(result.baseDistance.value.state).toBe("remote-ahead");
       expect(result.baseDistance.value.behind).toBe(5);
       expect(result.baseDistance.value.base).toBe("main");
+      expect(result.baseDistance.value.movement).toBe("disjoint");
       // Behind-base drift surfaces an advisory reconcile offer (never gates).
       expect(result.baseDistance.value.recommendedAction).toBe("surface");
       expect(result.baseDistance.value.recommendedPromptText).toBe("Analyzer register text.");
@@ -1649,32 +1667,33 @@ describe("runSessionInitStatus — base-distance slot", () => {
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("clean");
+      expect(result.baseDistance.value.movement).toBe("disjoint");
       expect(result.baseDistance.value.recommendedAction).toBe("skip");
     }
   });
 
   it("carries a degraded no-remote slot through to the envelope", async () => {
     const probes = sessionInitProbes({
-      baseDistance: vi.fn(async () => baseDistance({ verdict: "unavailable", state: "no-remote" })),
+      baseDistance: vi.fn(async () => unavailableBaseDistance("no-remote")),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("no-remote");
+      expect(result.baseDistance.value).not.toHaveProperty("movement");
     }
   });
 
   it("carries a degraded detached-head slot (null base) through to the envelope", async () => {
     const probes = sessionInitProbes({
-      baseDistance: vi.fn(async () => baseDistance({
-        verdict: "unavailable", state: "detached-head", base: null,
-      })),
+      baseDistance: vi.fn(async () => unavailableBaseDistance("detached-head")),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("detached-head");
       expect(result.baseDistance.value.base).toBeNull();
+      expect(result.baseDistance.value).not.toHaveProperty("movement");
     }
   });
 

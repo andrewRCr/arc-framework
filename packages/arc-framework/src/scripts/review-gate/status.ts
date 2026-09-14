@@ -2,6 +2,13 @@
 
 import { z } from "zod";
 
+import {
+  BaseMovementObservationSchema,
+  composeEvidenceDelta,
+  reduceEvidenceApplicability,
+  type BaseMovementObservation,
+} from "../../lib/evidence-applicability/index.js";
+
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
@@ -741,6 +748,7 @@ export function composeDeliveryReviewObligation(input: {
 
 export const RequiredCheckStatusSchema = z.enum(["green", "pending", "failed", "not-required", "unavailable"]);
 export type RequiredCheckStatus = z.infer<typeof RequiredCheckStatusSchema>;
+const ReviewStatusMovementSchema = z.enum(["disjoint", "overlapping", "unknown"]);
 
 const ReviewStatusBaseShape = {
   schemaVersion: z.literal(1),
@@ -749,6 +757,9 @@ const ReviewStatusBaseShape = {
   requiredChecks: RequiredCheckStatusSchema,
   routedObligation: RoutedReviewObligationSchema,
   currentBaseOid: GitObjectIdSchema.nullable(),
+  movement: ReviewStatusMovementSchema,
+  baseMovement: BaseMovementObservationSchema.nullable(),
+  baseMovementDetail: z.string().trim().min(1).optional(),
   deliveryCursor: DeliveryReviewCursorSchema.optional(),
 };
 
@@ -864,12 +875,26 @@ const ReviewStatusChecksPendingSchema = z.strictObject({
   state: z.literal("checks-pending"),
   nextAction: z.literal("rerun-checkpoint"),
 });
-const ReviewStatusBaseMovedSchema = z.strictObject({
+const ReviewStatusCheckpointActionSchema = z.strictObject({
+  command: z.literal("rerun-checkpoint"),
+  workUnit: SlugSchema,
+});
+const ReviewStatusBaseMovedShape = {
   ...ReviewStatusBaseShape,
   state: z.literal("base-moved"),
   nextAction: z.literal("rerun-checkpoint"),
   terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
-});
+};
+const ReviewStatusBaseMovedSchema = z.union([
+  z.strictObject({
+    ...ReviewStatusBaseMovedShape,
+    checkpointAction: ReviewStatusCheckpointActionSchema,
+  }),
+  z.strictObject({
+    ...ReviewStatusBaseMovedShape,
+    terminalExplanation: z.string().trim().min(1),
+  }),
+]);
 const ReviewStatusBlockedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("blocked"),
@@ -1016,6 +1041,9 @@ export interface ReviewStatusObservation {
   routedObligation: RoutedReviewObligation;
   currentBaseOid: string | null;
   baseContained: boolean;
+  workUnitId?: string;
+  baseMovement?: BaseMovementObservation | null;
+  baseMovementDetail?: string;
 }
 
 export interface ReviewStatusPort {
@@ -1025,6 +1053,36 @@ export interface ReviewStatusPort {
     coverage?: HostedReviewCoverage,
     sourceId?: string,
   ): Promise<ReviewStatusObservation>;
+}
+
+function projectReviewBaseMovement(observation: ReviewStatusObservation): {
+  movement: z.infer<typeof ReviewStatusMovementSchema>;
+  baseMovement: BaseMovementObservation | null;
+  baseMovementDetail?: string;
+  carries: boolean;
+} {
+  if (observation.baseMovement === undefined || observation.baseMovement === null) {
+    return {
+      movement: "unknown",
+      baseMovement: null,
+      baseMovementDetail: observation.baseMovementDetail ?? "Base movement evidence is unavailable.",
+      carries: false,
+    };
+  }
+  const baseMovement = BaseMovementObservationSchema.parse(observation.baseMovement);
+  const delta = composeEvidenceDelta({ cause: "base-movement", observation: baseMovement });
+  const applicability = reduceEvidenceApplicability(delta, "review-clearance");
+  if (delta.overlap.kind === "not-applicable") {
+    throw new Error("Base movement must produce an overlap classification.");
+  }
+  return {
+    movement: delta.overlap.kind,
+    baseMovement,
+    ...(observation.baseMovementDetail === undefined
+      ? {}
+      : { baseMovementDetail: observation.baseMovementDetail }),
+    carries: applicability.verdict === "carries",
+  };
 }
 
 /** Reduce live exact-target evidence to one orchestration action. */
@@ -1044,6 +1102,7 @@ export async function resolveReviewStatus(
     ? observation.routedObligation.conjunction
     : undefined;
   const currentMember = conjunction?.members.find((member) => member.state === "outstanding") ?? null;
+  const movement = projectReviewBaseMovement(observation);
   const base = {
     schemaVersion: 1 as const,
     mode: "review-status" as const,
@@ -1053,6 +1112,11 @@ export async function resolveReviewStatus(
     currentBaseOid: observation.currentBaseOid === null
       ? null
       : ObjectIdSchema.parse(observation.currentBaseOid),
+    movement: movement.movement,
+    baseMovement: movement.baseMovement,
+    ...(movement.baseMovementDetail === undefined
+      ? {}
+      : { baseMovementDetail: movement.baseMovementDetail }),
     ...(conjunction === undefined
       ? {}
       : {
@@ -1086,8 +1150,19 @@ export async function resolveReviewStatus(
   const selectedMember = conjunction?.status !== "outstanding"
     ? null
     : selectDischargedDeliveryMember(request.target, conjunction);
-  if (!observation.baseContained && base.currentBaseOid !== null && selectedMember === null) {
-    return { ...base, state: "base-moved", nextAction: "rerun-checkpoint" };
+  if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries) {
+    const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
+    const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);
+    return {
+      ...base,
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      ...(workUnit === undefined
+        ? {
+            terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+          }
+        : { checkpointAction: { command: "rerun-checkpoint", workUnit } }),
+    };
   }
   if (selectedMember !== null && base.currentBaseOid !== null) {
     if (base.requiredChecks === "pending") {

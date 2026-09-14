@@ -19,6 +19,10 @@ import {
   checkCommitMessageInputRegistration,
 } from "./handlers/check/commit-msg-cli.js";
 import { errandCommandInputPolicyDeclarations, errandCommandInputRegistrations } from "./handlers/errand.js";
+import {
+  errandMergeCommandInputPolicyDeclarations,
+  errandMergeCommandInputRegistration,
+} from "./handlers/errand-merge.js";
 import { housekeepCommandInputPolicyDeclarations } from "./handlers/housekeep.js";
 import { installationCommandInputPolicyDeclarations } from "./handlers/installation.js";
 import {
@@ -96,6 +100,7 @@ export const commandInputRegistrations = [
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
   ...errandCommandInputRegistrations,
+  errandMergeCommandInputRegistration,
   ...locusCommandInputRegistrations,
   planCheckInputRegistration,
   ...deliveryCommandInputRegistrations,
@@ -125,6 +130,7 @@ export const commandInputPolicyDeclarations = [
   ...checkCommitMessageInputPolicyDeclarations,
   ...configCommandInputPolicyDeclarations,
   ...errandCommandInputPolicyDeclarations,
+  ...errandMergeCommandInputPolicyDeclarations,
   ...extensionsCommandInputPolicyDeclarations,
   ...housekeepCommandInputPolicyDeclarations,
   ...initCommandInputPolicyDeclarations,
