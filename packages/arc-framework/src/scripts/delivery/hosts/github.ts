@@ -191,11 +191,11 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
         const landedPrefix = preceding.length > 0 && preceding.every((request) => {
           const member = record(request);
           const head = record(member?.head);
-          return Number.isSafeInteger(member?.number)
-            && member?.state === "closed"
+          return member !== null && Number.isSafeInteger(member.number) && (member.number as number) > 0
+            && member.state === "closed"
             && typeof member.merged_at === "string" && member.merged_at.length > 0
             && typeof head?.ref === "string" && head.ref.length > 0
-            && typeof head.sha === "string" && head.sha.length > 0;
+            && typeof head.sha === "string" && objectId.test(head.sha);
         });
         const remainingRequests = landedPrefix ? requests.slice(firstIndex) : requests;
         const requestedIds = new Set(input.members.map((member) => member.changeRequestId));

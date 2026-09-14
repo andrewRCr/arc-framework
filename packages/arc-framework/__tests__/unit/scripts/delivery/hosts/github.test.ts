@@ -118,6 +118,31 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "registered", stackNumber: 9 });
   });
 
+  it.each([
+    { label: "an invalid head SHA", prefix: { number: 401, head: { ref: "delivery/example/first", sha: "invalid" } } },
+    { label: "a nonpositive PR number", prefix: { number: 0, head: { ref: "delivery/example/first", sha: headSha } } },
+  ])("does not discard a merged prefix with $label", async ({ prefix }) => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { ...prefix, state: "closed", merged_at: "2026-09-14T04:06:01Z" },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining)).resolves.toEqual({
+      status: "partial",
+      affectedDeliverableIds: [second.deliverableId],
+    });
+  });
+
   it("excludes a chained dependent request from the registered-member predicate", async () => {
     const response = [{
       number: 9,
