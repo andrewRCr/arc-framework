@@ -678,6 +678,40 @@ describe("trusted review-gate workflows", () => {
     expect(partial).not.toContain("integration-interlock");
   });
 
+  it("carries explicit Errand review-risk acceptance through the protected merge path", async () => {
+    const [packaged, project] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+    ]);
+    expect(project).toBe(packaged);
+
+    const review = sectionBetween(packaged, "4. **Enter the open PR.**", "5. **Settle the final head.**");
+    const compactReview = review.replace(/\s+/gu, " ");
+    expect(review.indexOf("stop before source dispatch")).toBeLessThan(
+      review.indexOf("`arc review hosted request -`"),
+    );
+    expect(compactReview).toContain("`ready / local-prepare`");
+    expect(compactReview).toContain("Owner-directed review stop (open PR only)");
+    expect(compactReview).toContain("arc review status --target <targetRef> --json");
+    expect(compactReview).toContain("at least one completed same-claim standard-review pass");
+    expect(compactReview).toContain("an authorized fix remains unfinished");
+    expect(compactReview).toContain("`review-required`: this is Owner acceptance");
+    expect(compactReview).toContain("Do not submit a fabricated `clean` attempt, `terminus`, or `ceilingOverride`");
+    expect(compactReview).toContain("obtain it again");
+    expect(compactReview).toContain("the exact Owner-directed review stop above is approved");
+    expect(compactReview).toContain("An Owner-directed review stop always selects the reviewed-lane");
+
+    const landing = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
+    const compactLanding = landing.replace(/\s+/gu, " ");
+    expect(compactLanding).toContain("a `review-required` result is expected");
+    expect(compactLanding).toContain("a changed base OID or Errand claim requires a new Step 4 offer");
+    expect(compactLanding).toContain("Under an Owner-directed review stop, inspect the exact PR's native review");
+    expect(compactLanding).toContain("Owner acceptance never satisfies or bypasses a required check");
+    expect(compactLanding).toContain("review-cycle CI deferral");
+    expect(compactLanding).toContain("obtain separate Owner direction for any host-native dismissal or thread action");
+    expect(compactLanding).toContain("--match-head-commit {approved-head-sha}");
+  });
+
   it("covers Errand review outcomes and exact-target re-entry", async () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
