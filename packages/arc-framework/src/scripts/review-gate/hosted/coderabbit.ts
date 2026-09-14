@@ -11,6 +11,7 @@ import {
   type HostedGitHubPort,
   type HostedGitHubIssueComment,
   type HostedGitHubReview,
+  type HostedGitHubThread,
   type HostedGitHubThreadComment,
 } from "./github.js";
 import type {
@@ -31,6 +32,12 @@ const APP_ID = "347564";
 const COMPLETE_REPLY = /^[ \t]*Full review finished\.[ \t]*$/imu;
 const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
 const COMMAND_INVOCATION_MARKER = /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu;
+const RESOLVED_THREAD_REPLY_FOOTER = new RegExp(
+  String.raw`(?:^|\r?\n)✅ Review thread resolved\.\s*`
+    + String.raw`_You are interacting with an AI system\._\s*`
+    + String.raw`<!-- This is an auto-generated reply by CodeRabbit -->\s*$`,
+  "u",
+);
 
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
@@ -458,6 +465,19 @@ function newestTerminalReview(reviews: HostedGitHubReview[]): HostedGitHubReview
   return [...reviews].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))[0];
 }
 
+function isPriorThreadResolutionReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
+  return comment.actorIdentity === BOT_USER_ID
+    && comment.replyToReviewId !== null
+    && comment.replyToReviewId !== reviewId
+    && RESOLVED_THREAD_REPLY_FOOTER.test(comment.body);
+}
+
+function isConfirmationOnlyReview(review: HostedGitHubReview, threads: readonly HostedGitHubThread[]): boolean {
+  if (review.state !== "commented" || review.body.trim() !== "") return false;
+  const comments = threads.flatMap((thread) => thread.comments.filter((comment) => comment.reviewId === review.id));
+  return comments.length > 0 && comments.every((comment) => isPriorThreadResolutionReply(comment, review.id));
+}
+
 /** CodeRabbit request and exact-head observation through the lean GitHub port. */
 export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedReviewObserver {
   readonly id = CODERABBIT_HOSTED_REGISTRATION.id;
@@ -548,7 +568,9 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         review.actorIdentity === BOT_USER_ID
         && review.headSha === target.headSha
         && review.submittedAt >= requestedAt);
-      const review = newestTerminalReview(providerReviews);
+      const review = newestTerminalReview(providerReviews.filter((candidate) => (
+        !isConfirmationOnlyReview(candidate, threads)
+      )));
       if (review === undefined) {
         const providerComments = comments.filter((comment) =>
           comment.actorIdentity === BOT_USER_ID && comment.appId === APP_ID);
@@ -574,7 +596,8 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
           .filter((comment) =>
             comment.actorIdentity === BOT_USER_ID
             && comment.headSha === target.headSha
-            && comment.reviewId === review.id)
+            && comment.reviewId === review.id
+            && !isPriorThreadResolutionReply(comment, review.id))
           .map((comment) => ({ threadId: thread.id, comment })));
       const parsedComments = candidateComments.map(({ threadId, comment }) => ({
         threadId,

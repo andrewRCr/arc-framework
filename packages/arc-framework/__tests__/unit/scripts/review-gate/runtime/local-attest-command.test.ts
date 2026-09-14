@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
+  createReviewRequest,
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
@@ -204,6 +205,10 @@ describe("local attest command", () => {
         local: {
           vehicle: records.operation.vehicle,
           target: records.operation.target,
+          rubricIdentity: {
+            version: records.operation.requirement.rubricVersion,
+            digest: records.operation.requirement.rubricDigest,
+          },
         },
       })],
     });
@@ -299,6 +304,10 @@ describe("local attest command", () => {
           local: {
             vehicle: records.operation.vehicle,
             target: records.operation.target,
+            rubricIdentity: {
+              version: records.operation.requirement.rubricVersion,
+              digest: records.operation.requirement.rubricDigest,
+            },
           },
         })],
       });
@@ -758,6 +767,126 @@ describe("local attest command", () => {
     expect(appendReceipt).toHaveBeenCalledWith(receipt, 1);
     expect(releaseMaterialization).toHaveBeenCalledWith(records.operation.operationId);
     expect(inspectMaterialization).not.toHaveBeenCalled();
+  });
+
+  it("records a separate receipt when the same Errand target has a new claim", async () => {
+    const previous = fixture({ kind: "errand", identity: "same-errand", claimId: "claim-1" });
+    const current = fixture({ kind: "errand", identity: "same-errand", claimId: "claim-2" });
+    const previousReceipt = createLocalReviewReceipt({
+      target: previous.operation.target,
+      requirement: previous.operation.requirement,
+      carrier: {
+        target: previous.operation.target,
+        request: previous.operation.request,
+        attestation: previous.operation.attestation,
+      },
+      result: { ...previous.result, status: "complete" },
+      runtimeIdentity: previous.operation.attestation.runtimeIdentity,
+      attestationMechanism: previous.operation.attestation.mechanism,
+      sourceDigest: previous.operation.sourceDigest,
+      guidanceDigest: previous.operation.guidanceDigest,
+    });
+    const receipts = [previousReceipt];
+
+    const outcome = await attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: current.operation.operationId,
+      result: { ...current.evaluatorResult, status: "complete" },
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: current.operation }),
+        publishOperation: async () => ({ version: 2 }),
+      },
+      sourceStore: {
+        readSource: async () => current.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: receipts.length, receipts: [...receipts] }),
+        appendReceipt: async (receipt) => {
+          if (!receipts.some((existing) => existing.requestId === receipt.requestId)) {
+            receipts.push(receipt);
+          }
+          return { ledgerVersion: receipts.length, durableEvidenceRef: `receipt.json#${receipts.length}` };
+        },
+      },
+      resolveAuthority: async () => current.admission.authority,
+      resolveGuidanceDigest: async () => current.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: current.operation.target }),
+      inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
+    });
+
+    expect(outcome.state).toBe("attested-current");
+    expect(receipts).toHaveLength(2);
+    expect(receipts[1]?.requestId).not.toBe(previousReceipt.requestId);
+  });
+
+  it.each([
+    { label: "request claim missing", vehicleClaim: true },
+    { label: "both claims missing", vehicleClaim: false },
+  ])("refuses an older Errand operation with $label", async ({ vehicleClaim }) => {
+    const records = fixture({ kind: "errand", identity: "same-errand", claimId: "claim-2" });
+    const bound = records.operation.request;
+    const legacyRequest = createReviewRequest(records.operation.target, {
+      schemaVersion: bound.schemaVersion,
+      semanticsVersion: bound.semanticsVersion,
+      repositoryId: bound.repositoryId,
+      targetId: bound.targetId,
+      requirementId: bound.requirementId,
+      carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
+      authorIdentity: bound.authorIdentity,
+      evaluatorIdentity: bound.evaluatorIdentity,
+      generation: bound.generation,
+      requestMechanism: bound.requestMechanism,
+    });
+    const legacyOperation = {
+      ...records.operation,
+      vehicle: vehicleClaim
+        ? records.operation.vehicle
+        : { kind: "errand" as const, identity: "same-errand" },
+      request: legacyRequest,
+      requestId: legacyRequest.requestId,
+    };
+    const priorReceipt = createLocalReviewReceipt({
+      target: legacyOperation.target,
+      requirement: legacyOperation.requirement,
+      carrier: {
+        target: legacyOperation.target,
+        request: legacyRequest,
+        attestation: legacyOperation.attestation,
+      },
+      result: { ...records.result, status: "complete" },
+      runtimeIdentity: legacyOperation.attestation.runtimeIdentity,
+      attestationMechanism: legacyOperation.attestation.mechanism,
+      sourceDigest: legacyOperation.sourceDigest,
+      guidanceDigest: legacyOperation.guidanceDigest,
+    });
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: legacyOperation.operationId,
+      result: { ...records.evaluatorResult, status: "complete" },
+    }, {
+      withSourceLock,
+      operationStore: {
+        readOperation: async () => ({ version: 1, state: legacyOperation }),
+        publishOperation: async () => ({ version: 2 }),
+      },
+      sourceStore: { readSource: async () => records.source, appendSource: vi.fn() },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 1, receipts: [priorReceipt] }),
+        appendReceipt: async () => ({ ledgerVersion: 1, durableEvidenceRef: "receipt.json#1" }),
+      },
+      resolveAuthority: async () => records.admission.authority,
+      resolveGuidanceDigest: async () => records.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
+    })).rejects.toMatchObject({ code: "corrupt-state" });
   });
 
   it("rejects multiple terminal receipts for one local operation", async () => {

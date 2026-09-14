@@ -70,6 +70,7 @@ function findingThread(body: string): HostedGitHubThread {
     comments: [{
       id: "123",
       reviewId: "PRR_1",
+      replyToReviewId: null,
       actorIdentity: "136622811",
       body,
       url: "https://github.com/owner/repo/pull/42#discussion_r1",
@@ -247,6 +248,160 @@ describe("CodeRabbit hosted adapter", () => {
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appOwnerId).toBe("132028505");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appId).toBe("347564");
+  });
+
+  it.each(["findings", "clean"] as const)(
+    "keeps prior-thread confirmations pending until the fresh %s review arrives",
+    async (resultKind) => {
+      const resolutionBody = `Thanks for the correction.\n\n✅ Review thread resolved.\n\n`
+        + `_You are interacting with an AI system._\n\n`
+        + `<!-- This is an auto-generated reply by CodeRabbit -->`;
+      const priorRoot = {
+        ...findingThread("_🟠 Major_ prior concern").comments[0]!,
+        id: "prior-finding",
+        reviewId: "PRR_PRIOR",
+        headSha: "b".repeat(40),
+        replyToReviewId: null,
+      };
+      const firstConfirmation = {
+        ...priorRoot,
+        id: "confirmation-1",
+        reviewId: "PRR_CONFIRM_1",
+        headSha: HEAD,
+        replyToReviewId: "PRR_PRIOR",
+        body: resolutionBody,
+      };
+      const priorThread: HostedGitHubThread = {
+        id: "PRRT_PRIOR",
+        isResolved: true,
+        comments: [priorRoot, firstConfirmation],
+      };
+      const reviews: HostedGitHubReview[] = [review({
+        id: "PRR_CONFIRM_1",
+        state: "commented",
+        body: "",
+        submittedAt: "2026-07-23T12:02:00.000Z",
+      })];
+      const threads: HostedGitHubThread[] = [priorThread];
+      const adapter = new CodeRabbitHostedAdapter(port({
+        readReviews: () => Promise.resolve(reviews),
+        readThreads: () => Promise.resolve(threads),
+        readIssueComments: () => Promise.resolve([requestComment()]),
+      }));
+
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+
+      const fresh = review({
+        id: "PRR_FRESH",
+        state: resultKind === "findings" ? "changes-requested" : "approved",
+        body: `**Actionable comments posted: ${resultKind === "findings" ? 1 : 0}**`,
+        submittedAt: "2026-07-23T12:04:00.000Z",
+      });
+      reviews.push(fresh);
+      if (resultKind === "findings") {
+        const freshThread = findingThread("_🟠 Major_ new concern");
+        threads.push({
+          ...freshThread,
+          id: "PRRT_FRESH",
+          comments: [{
+            ...freshThread.comments[0]!,
+            id: "fresh-finding",
+            reviewId: fresh.id,
+            replyToReviewId: null,
+          }],
+        });
+      }
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: resultKind,
+        reviewUrl: fresh.url,
+      });
+
+      reviews.push(review({
+        id: "PRR_CONFIRM_2",
+        state: "commented",
+        body: "",
+        submittedAt: "2026-07-23T12:05:00.000Z",
+      }));
+      priorThread.comments.push({
+        ...firstConfirmation,
+        id: "confirmation-2",
+        reviewId: "PRR_CONFIRM_2",
+      });
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: resultKind,
+        reviewUrl: fresh.url,
+      });
+    },
+  );
+
+  it("does not discard an ungraded new reply to an older review thread", async () => {
+    const oldRoot = {
+      ...findingThread("_🟠 Major_ prior concern").comments[0]!,
+      id: "old-root",
+      reviewId: "PRR_PRIOR",
+      headSha: "b".repeat(40),
+    };
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ state: "commented", body: "" })]),
+      readThreads: () => Promise.resolve([{
+        id: "PRRT_PRIOR",
+        isResolved: false,
+        comments: [oldRoot, {
+          ...oldRoot,
+          id: "new-ungraded-reply",
+          reviewId: "PRR_1",
+          replyToReviewId: "PRR_PRIOR",
+          headSha: HEAD,
+          body: "This new concern has no severity marker.",
+        }],
+      }]),
+      readIssueComments: () => Promise.resolve([requestComment()]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+      kind: "terminal-failure",
+      reason: expect.stringContaining("provider-thread-finding-severity-unrecognized"),
+    });
+  });
+
+  it("keeps a new finding when its review also carries a prior-thread confirmation", async () => {
+    const oldRoot = {
+      ...findingThread("_🟠 Major_ prior concern").comments[0]!,
+      id: "old-root",
+      reviewId: "PRR_PRIOR",
+      headSha: "b".repeat(40),
+    };
+    const newFinding = findingThread("_🟠 Major_ fresh concern");
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: "**Actionable comments posted: 1**",
+      })]),
+      readThreads: () => Promise.resolve([{
+        id: "PRRT_PRIOR",
+        isResolved: true,
+        comments: [oldRoot, {
+          ...oldRoot,
+          id: "confirmation",
+          reviewId: "PRR_1",
+          replyToReviewId: "PRR_PRIOR",
+          headSha: HEAD,
+          body: `The correction is verified.\n\n✅ Review thread resolved.\n\n`
+            + `_You are interacting with an AI system._\n\n`
+            + `<!-- This is an auto-generated reply by CodeRabbit -->`,
+        }],
+      }, {
+        ...newFinding,
+        id: "PRRT_FRESH",
+        comments: [{ ...newFinding.comments[0]!, id: "fresh-finding" }],
+      }]),
+      readIssueComments: () => Promise.resolve([requestComment()]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ findingId: "PRRT_FRESH", commentId: "fresh-finding", severity: "major" }],
+    });
   });
 
   it("recognizes exact-head clean completion without a new review object", async () => {

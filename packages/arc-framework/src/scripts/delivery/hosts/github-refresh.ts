@@ -1110,8 +1110,11 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
           ? input.scope.selectedDeliverableId
           : input.before.members[0]?.deliverableId;
         const selectedIndex = input.before.members.findIndex(({ deliverableId }) => deliverableId === selectedId);
-        const selectedBranch = registration.members[selectedIndex]?.headRef;
-        if (selectedIndex < 0 || selectedBranch === undefined) {
+        // The native upstack range includes its checked-out branch, so start after an exact selected member.
+        const rebaseStartBranch = registration.members[
+          input.scope.kind === "dependent-suffix" ? selectedIndex + 1 : selectedIndex
+        ]?.headRef;
+        if (selectedIndex < 0 || rebaseStartBranch === undefined) {
           result = { status: "refused", reason: "scope-mismatch" };
         } else if (targetMovement === null) {
           result = { status: "refused", reason: "target-mismatch" };
@@ -1119,7 +1122,7 @@ export class GhDeliveryProviderRefreshPort implements DeliveryProviderRefreshPre
           if (input.scope.kind === "dependent-suffix") {
             await seedSelectedPredecessorTransition(this.options.git, temporaryPath, input.before, selectedIndex);
           }
-          await this.options.git("git", ["switch", "--", selectedBranch], { cwd: temporaryPath });
+          await this.options.git("git", ["switch", "--", rebaseStartBranch], { cwd: temporaryPath });
           let collisionRecovery: ProviderHistoryCollisionRecovery | null = null;
           try {
             await this.options.gh.run([

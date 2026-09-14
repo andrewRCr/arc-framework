@@ -52,6 +52,7 @@ function comment(id: number) {
     originalLine: id,
     commit: { oid: HEAD },
     pullRequestReview: { id: "PRR_1" },
+    replyTo: null,
     author: { databaseId: 123 },
   };
 }
@@ -181,6 +182,7 @@ describe("hosted GitHub process boundary", () => {
                     originalLine: 7,
                     commit: { oid: HEAD },
                     pullRequestReview: { id: "PRR_1" },
+                    replyTo: null,
                     author: null,
                   }],
                   pageInfo: { hasNextPage: false },
@@ -244,7 +246,7 @@ describe("hosted GitHub process boundary", () => {
           node: {
             id: "PRRT_1",
             comments: {
-              nodes: [comment(2)],
+              nodes: [{ ...comment(2), replyTo: { pullRequestReview: { id: "PRR_OLD" } } }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -254,8 +256,11 @@ describe("hosted GitHub process boundary", () => {
     const port = new GhHostedReviewPort(mock.boundary);
 
     await expect(port.readThreads(target)).resolves.toMatchObject([
-      { id: "PRRT_1", comments: [{ id: "1" }, { id: "2" }] },
-      { id: "PRRT_2", comments: [{ id: "3" }] },
+      { id: "PRRT_1", comments: [
+        { id: "1", replyToReviewId: null },
+        { id: "2", replyToReviewId: "PRR_OLD" },
+      ] },
+      { id: "PRRT_2", comments: [{ id: "3", replyToReviewId: null }] },
     ]);
     expect(mock.calls[1]?.args).toEqual(expect.arrayContaining(["-F", "threadCursor=THREADS_1"]));
     expect(mock.calls[2]?.args).toEqual(expect.arrayContaining([
