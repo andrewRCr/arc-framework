@@ -413,6 +413,7 @@ export interface DeliveryReviewFixContinuationProjectionInput {
   readonly request: DeliveryReviewFixContinueRequest;
   readonly entry: DeliveryEntryInspectionResult;
   readonly state?: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly landedDeliverableIds?: readonly string[];
   readonly route?: DeliveryReviewFixRouteResult;
   readonly activeBranch?: string;
   readonly authoring?: DeliveryReviewFixAuthoringReadiness;
@@ -504,7 +505,10 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
 
   if ((entry.status === "candidate-verification-required" || entry.status === "correction-routing-required")
     && input.state !== undefined) {
-    const selectedDeliverableId = findExactPendingSelectedRefresh(input.state.value);
+    const selectedDeliverableId = findExactPendingSelectedRefresh(
+      input.state.value,
+      input.landedDeliverableIds,
+    );
     if (selectedDeliverableId !== null) {
       return projectPendingSelectedRefresh({
         request,

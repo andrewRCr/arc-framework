@@ -97,6 +97,27 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "registered", stackNumber: 9 });
   });
 
+  it("recognizes the registered unlanded suffix after GitHub retains a merged prefix", async () => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, state: "closed", merged_at: "2026-09-14T04:06:01Z",
+          head: { ref: "delivery/example/first", sha: headSha } },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
   it("excludes a chained dependent request from the registered-member predicate", async () => {
     const response = [{
       number: 9,

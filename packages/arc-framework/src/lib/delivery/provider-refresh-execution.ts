@@ -330,7 +330,10 @@ export async function executeDeliveryProviderRefresh(_input: {
     const selectedIndex = input.scope.kind === "dependent-suffix"
       ? derived.subject.affectedDeliverableIds.indexOf(input.scope.selectedDeliverableId)
       : -1;
-    const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(input.current.value);
+    const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(
+      input.current.value,
+      input.facts.landedDeliverableIds,
+    );
     if (input.scope.kind === "dependent-suffix" && (
       selectedIndex < 0
       || pendingSelectedDeliverableId !== input.scope.selectedDeliverableId

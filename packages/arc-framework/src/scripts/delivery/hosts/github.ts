@@ -184,13 +184,27 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
           || !Array.isArray(requests)) return { status: "malformed" };
         const firstMember = input.members[0];
         const highestMember = input.members.at(-1);
+        const firstIndex = requests.findIndex((request) => (
+          String(record(request)?.number) === firstMember?.changeRequestId
+        ));
+        const preceding = firstIndex > 0 ? requests.slice(0, firstIndex) : [];
+        const landedPrefix = preceding.length > 0 && preceding.every((request) => {
+          const member = record(request);
+          const head = record(member?.head);
+          return Number.isSafeInteger(member?.number)
+            && member?.state === "closed"
+            && typeof member.merged_at === "string" && member.merged_at.length > 0
+            && typeof head?.ref === "string" && head.ref.length > 0
+            && typeof head.sha === "string" && head.sha.length > 0;
+        });
+        const remainingRequests = landedPrefix ? requests.slice(firstIndex) : requests;
         const requestedIds = new Set(input.members.map((member) => member.changeRequestId));
-        const dependentIndexes = highestMember === undefined ? [] : requests.flatMap((request, index) => (
+        const dependentIndexes = highestMember === undefined ? [] : remainingRequests.flatMap((request, index) => (
           isDependentNativeRequest(request, requestedIds, highestMember.headRef) ? [index] : []
         ));
         const comparedRequests = dependentIndexes.length === 1
-          ? requests.filter((_, index) => index !== dependentIndexes[0])
-          : requests;
+          ? remainingRequests.filter((_, index) => index !== dependentIndexes[0])
+          : remainingRequests;
         let exact = comparedRequests.length === input.members.length && stackBaseRef === firstMember?.baseRef;
         if (stackBaseRef !== firstMember?.baseRef && firstMember !== undefined) {
           affected.add(firstMember.deliverableId);
