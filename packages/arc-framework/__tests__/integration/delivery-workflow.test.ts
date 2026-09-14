@@ -55,6 +55,8 @@ describe("packaged delivery workflow", () => {
     const materializeSection = section(packaged, "Validate and publish");
     const nativeSection = section(packaged, "Select and execute the native landing arm");
     const reviewSection = section(packaged, "Review and land the current member");
+    expect(nativeSection).toMatch(/`member-discharged \/ continue-reconcile`[\s\S]*arc delivery native land-prepare/u);
+    expect(reviewSection).toMatch(/`member-discharged \/ continue-reconcile`[\s\S]*arc delivery land prepare/u);
     const terminalSection = section(packaged, "Terminal handoff");
     const terminalTail = packaged.slice(packaged.indexOf("arc delivery teardown"));
     const recoveryStart = materializeSection.indexOf("After interruption");
