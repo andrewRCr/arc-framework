@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Planned a lifecycle-wide characterization of concurrent integration without a protected-base
   freeze.
 - **Next Task:** [none]
