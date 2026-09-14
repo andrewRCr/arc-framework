@@ -3,14 +3,20 @@
   "slug": "self-hosting-defect-continuation",
   "claimId": "8e156e0f4a5bb15e41d840606307757b",
   "createdAt": "2026-09-14T02:09:21.225Z",
-  "updatedAt": "2026-09-14T02:09:21.225Z",
+  "updatedAt": "2026-09-14T02:23:10.704Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Clarify Owner-authorized continuation and repair routing for ARC self-hosting defects",
   "branch": "chore/self-hosting-defect-continuation",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/self-hosting-defect-continuation",
+    "headSha": "dd2a917d150efe4dc08548611f0925a5aa6cafbf"
+  }
 }
