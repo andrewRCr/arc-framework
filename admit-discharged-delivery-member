@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "admit-discharged-delivery-member",
+  "claimId": "65e4933a08006c693e5f7e4d593c99bd",
+  "createdAt": "2026-09-14T02:34:23.104Z",
+  "updatedAt": "2026-09-14T02:34:23.104Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Admit one exact discharged delivery member without waiting for later members review settlement",
+  "branch": "chore/admit-discharged-delivery-member",
+  "origin": "inbox",
+  "originEntry": "Admit a discharged delivery member before later reviews settle",
+  "originEntrySourceDigest": "sha256:ae25474f54b4a5d0c9f19918bbd8eedf252ba3665838d932d98c9b896a30ffa7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
