@@ -29,21 +29,21 @@ Evidence applicability now follows the content an earlier check covered across i
 verification. Disjoint base movement can carry that evidence forward, while interacting or unavailable evidence
 receives a bounded reassessment or a fresh check.
 
-**Added**
+### Added
 
 - A shared path-treatment registry, typed evidence-delta envelope, and deterministic applicability reducer for merge
   safety, review clearance, and Candidate verification currentness.
 - Candidate convergence can honor an approved targeted or focused verification scope when its response supplies one;
   omitted scope retains the full-verification default.
 
-**Changed**
+### Changed
 
 - Integration checkpoints and review status use exact overlap, Git feasibility, and host admission to distinguish
   disjoint movement from movement that needs reconciliation or renewed judgment.
 - Pending required checks return a resumable, exact-checkpoint continuation instead of occupying the agent session
   while polling.
 
-**Fixed**
+### Fixed
 
 - Delivery terminal drift can be classified from the durable Candidate baseline after a predecessor lands, without
   requiring that Candidate to be current against the newly advanced base first.
