@@ -80,37 +80,46 @@ a not-applicable reason.
   carries the overlap partition into its payload. Verdicts and seam evidence are in
   `notes-concurrent-integration-characterization.md` § Cell matrix § Seam verdicts.
 
-### `[ ]` **1.2 Seed the characterization ledger with the confirmed cell matrix**
+### `[x]` **1.2 Seed the characterization ledger with the confirmed cell matrix**
 
 - _Goal:_ An observation has a row waiting the moment it is taken, and a not-applicable verdict is recorded with the
   seam evidence behind it rather than inferred from an absent probe.
 
-    - `[ ]` **1.2.a Open one row per applicable cell, carrying boundary, movement kind, and shape**
+    - `[x]` **1.2.a Open one row per applicable cell, carrying boundary, movement kind, and shape**
 
-    - `[ ]` **1.2.b Close every not-applicable cell as a row carrying its reason**
+        - Twenty-four open rows, each carrying its identity, the intent its seam verdict established, and every
+          observation field as `—` until a probe fills it from its own run. A row is complete when no `—` remains.
 
-        - Settle the not-applicable wording here; the design deliberately left it to implementation.
+    - `[x]` **1.2.b Close every not-applicable cell as a row carrying its reason**
 
-    - `[ ]` **1.2.c Add the ledger-only rows for observations with nothing to probe**
+        - Sixteen closed rows over two closure kinds, which is the wording settled here: **collapse**, where the
+          typed result would be identical to a named row already open, and **unproducible**, where the movement
+          kind cannot arise at the seam at all. A collapse names the row it defers to, so no closure rests on an
+          observation nobody will take. Only the two Candidate-seam `unknown` cells close as unproducible.
 
-        - A prose-only gate records relocation into a typed verb as its fix.
-        - A completion path no test covers records coverage of that path as its fix. Scope each such row to the
-          seam that is actually uncovered — a path proven at the library seam but never through the operator-facing
-          verb is a narrower gap than an unproven mechanism, and the routed owner needs that distinction.
+    - `[x]` **1.2.c Add the ledger-only rows for observations with nothing to probe**
 
-    - `[ ]` **1.2.d Record the re-run and empty-overlap conventions in the ledger's preamble**
+        - Six: the four prose-only drift gates, the Errand close unchanged-base resolution, and the generalized
+          doctrine sentence. The Errand row is scoped as an unproven mechanism rather than an unproven route —
+          nothing in the suite references that resolution, and this work unit's Errand cells probe the ordinary
+          path, which never reaches it. The public-review composed base read and the spawned-verb closeout route
+          are _not_ rows: this work unit's own probes cover both.
 
-        - Every row names the base OID it was observed against; each base merge re-runs the suite and appends a row
-          per changed observation, rather than editing the original.
-        - An advance whose only intersection with the branch is evidence-neutral produces the same empty overlap as
-          a non-intersecting one. `disjoint` rows mean no intersection at all; note the distinction so a reader does
-          not read the two cases as one observation.
-        - The continuation column records whether the probe took the result's recommended continuation and whether
-          it cleared the stop, and its invocations count toward that row's excess.
-        - Fix the counting convention for verb invocations and approval stops once, here, and apply it to every row:
-          what counts as one invocation, whether fixture setup and read-only status calls count, and how an
-          interleaved step inside one anchored sequence is counted. Excess is a difference against a control row on
-          the same fixture, so any consistent convention is sound — an inconsistent one makes the metric noise.
+    - `[x]` **1.2.d Record the re-run and empty-overlap conventions in the ledger's preamble**
+
+        - Rows are append-only under re-run, each naming the base OID it was observed against. An advance whose
+          only intersection is evidence-neutral records as `disjoint (evidence-neutral intersection)` so it is not
+          read as a true non-intersection. Counting is fixed at one verb entry per spawned process or port call,
+          fixture setup excluded, assertion-only reads excluded, each verb in an anchored sequence counted
+          separately; an approval stop is one typed result whose next action requires operator direction, named by
+          the eight next-action values that qualify.
+
+- _Outcome:_ Forty rows are open or closed against the enumerated matrix, plus six ledger-only rows. The ledger now
+  fails closed in one direction that matters: a not-applicable verdict cannot be inferred from an absent probe,
+  because each names either the observation it defers to or the seam fact that makes the movement unproducible.
+  The counting conventions are stated as rules the control row obeys too, so excess stays a difference on the same
+  fixture rather than a number that depends on who wrote the probe. Owner, fix disposition, and retention
+  disposition stay `—` by design; D5 routes them at close.
 
 ### `[ ]` **1.3 Record the pre-probe test-cost baseline**
 

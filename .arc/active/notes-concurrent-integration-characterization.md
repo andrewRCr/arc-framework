@@ -402,4 +402,331 @@ also requires but which nothing is proven to clear is a `mechanical block`. A co
 toward that row's excess. An observation with nothing to probe — a prose-only gate, or a completion path no test
 covers — takes a ledger-only row carrying its recorded fix and an owner.
 
-_No rows yet._
+### Conventions
+
+Fixed here and applied to every row. Excess is a difference against a control row on the same fixture, so the
+counting rules below only have to be consistent — an inconsistent one makes the metric noise.
+
+**Append-only under re-run.** Every row names the base OID it was observed against. Each base merge re-runs the
+suite and appends a row per changed observation; an existing row is never edited to match a later run. A row whose
+observation is unchanged by the merge is not re-appended.
+
+**`disjoint` means no intersection at all.** The shipped classifier drops evidence-neutral paths from the overlap
+entirely, so an advance touching only a work unit's own artifacts, its candidate record, or its submission
+boundary reports the same empty overlap as one touching nothing the branch touched. Record the second case as
+`disjoint (evidence-neutral intersection)` so a reader does not collapse the two into one observation.
+
+**Continuation.** Records whether the probe took the result's recommended continuation and whether it cleared the
+stop: `cleared`, `did-not-clear`, `none-offered`, `not-applicable`. Taking it is observation, not repair, and its
+invocations count toward the row's excess. `fail-closed, correct` requires a continuation the probe exercised and
+that cleared; a refusal nothing is proven to clear is a `mechanical block` however justified it is.
+
+**What counts as one invocation.** One verb entry: one spawned `arc <verb>` process in the e2e lane, one handler
+or port entry call in the integration lane. A verb that internally composes others counts once.
+
+- Fixture setup does not count — everything before the boundary's precondition holds, including repository
+  scaffolding, the lifecycle verbs that reach the precondition, and the base advance itself.
+- A read-only status call counts when the procedure requires it to reach the next step, and does not count when
+  the probe issues it only to assert. The control row applies the same rule, so an assertion-only read never
+  inflates excess.
+- Inside one anchored sequence, each verb in the chain counts separately, and a step interleaved mid-sequence
+  counts as its own invocation attributed to the row whose movement prompted it.
+
+**What counts as one approval stop.** One typed result whose next action requires operator direction before the
+next step — `stop`, `rerun-checkpoint`, `select-review-scope`, `obtain-ceiling-override`, `establish-new-root`,
+`reconcile-base`, `retarget`, `reopen-and-retarget`. A result the procedure continues from without direction is
+not a stop, whatever it reports.
+
+### Row shape
+
+An open row carries its identity and its intent; every observation field reads `—` until the probe runs and is
+filled from that run, never from a source read. A row is complete when no `—` remains.
+
+- _Intent:_ what this cell is expected to establish, from the confirmed seam verdict.
+- _Probe:_ test name · _Base OID:_ the base this run observed against · _Observed:_ typed result, reason, remedy.
+- _Invocations:_ · _Stops:_ · _Fork:_ recommendation-bearing or bare · _Continuation:_ per the convention above.
+- _Classification:_ `tolerates` / `redundant ceremony` / `mechanical block` / `fail-closed, correct` ·
+  _Owner:_ · _Fix at close:_ · _Retention at close:_ per D9.
+
+Not-applicable rows close on the seam verdict alone and carry no observation fields. Each declares its closure
+kind — collapse or unproducible — and a collapse names the row it defers to, so no closure rests on an
+observation nobody will take.
+
+### Open probe rows
+
+Twenty-four rows, one per applicable cell. Owner, fix disposition, and retention disposition resolve at this work
+unit's close, not at seed time.
+
+**Whole-work-unit verification · control · singleton**
+
+- _Intent:_ Ceremony baseline: the invocation and stop count the movement row at this boundary subtracts from.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Whole-work-unit verification · `disjoint` · singleton**
+
+- _Intent:_ Attest after an advance the checkout has fetched; expect the staged subject unchanged and the result
+  unaffected.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Candidate / prepublication · control · singleton**
+
+- _Intent:_ Ceremony baseline across the settle-to-submit window with the base held still.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Candidate / prepublication · `disjoint` · singleton**
+
+- _Intent:_ Advance the base inside the settle-to-submit window the spine test never moves across; expect the
+  settled Candidate to stay current.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Public review and checks · control · singleton**
+
+- _Intent:_ Ceremony baseline with the fetched base still contained in the reviewed head.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Public review and checks · `disjoint` · singleton**
+
+- _Intent:_ Advance the base under an open request; expect `base-moved / rerun-checkpoint` from the containment
+  fact alone.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Public review and checks · `unknown` · singleton**
+
+- _Intent:_ Fail only the base fetch inside the composed status port; expect a null base object id and `blocked /
+  status-unavailable`.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · control · singleton**
+
+- _Intent:_ Ceremony baseline across a clean checkpoint-to-merge span.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · `disjoint` · singleton**
+
+- _Intent:_ Advance the base between landing readiness and merge — the span nothing in the suite moves; expect
+  the settled merge invalidated on the verdict alone.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · `overlapping-substantive` · singleton**
+
+- _Intent:_ Advance over paths the branch also touched; expect the checkpoint to refuse as an unsafe reconcile.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · `overlapping-regenerable-only` · singleton**
+
+- _Intent:_ Advance over the regenerable projection only; expect the checkpoint to stay safe and report the
+  partition, proving regenerable overlap does not block.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · `unknown` · singleton**
+
+- _Intent:_ Sever the checkpoint's base fetch; expect a distinct drift-unavailable refusal rather than a reconcile.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Post-landing closeout · control · singleton**
+
+- _Intent:_ Ceremony baseline for the reap with the base held still.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Post-landing closeout · `disjoint` · singleton**
+
+- _Intent:_ Advance the base past this work unit's landing; expect the reap to refetch and recognize its own
+  archival.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Post-landing closeout · `unknown` · singleton**
+
+- _Intent:_ Sever the proof-target fetch; expect a refusal naming the unresolvable lifecycle authority ref.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Errand review / merge · control · singleton**
+
+- _Intent:_ Ceremony baseline for the Errand close path with the base held still.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Errand review / merge · `disjoint` · singleton**
+
+- _Intent:_ Advance the base between the Errand's open and its close; expect close to proceed with no added
+  ceremony.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · control · delivery-member**
+
+- _Intent:_ Member-scope ceremony baseline; the delivery arm's own admissibility span.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · `disjoint` · delivery-member**
+
+- _Intent:_ Advance under a bound member; expect the delivery path to decide admissibility rather than re-observe.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · `overlapping-substantive` · delivery-member**
+
+- _Intent:_ Advance over shared paths under a bound member; expect the residual-contained safety class to move the
+  cut the singleton row refuses on.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Member / singleton landing · `overlapping-regenerable-only` · delivery-member**
+
+- _Intent:_ Advance over the regenerable projection under a bound member; expect the partition to reach the member
+  payload.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Exact-target read isolation · sibling build cannot parse · isolation**
+
+- _Intent:_ A sibling checkout whose build rejects this checkout's candidate record; the live field class three
+  sibling checkouts reproduced at this work unit's first session entry.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Exact-target read isolation · foreign-owner record · isolation**
+
+- _Intent:_ A foreign owner's candidate record in the shared namespace; expect this checkout's read to stay bound
+  to its own.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+**Exact-target read isolation · byte-identical sibling · isolation**
+
+- _Intent:_ A sibling left byte-identical after this checkout's reconcile ceremony.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+### Not-applicable rows
+
+Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:
+**collapse** — the boundary's typed result would be identical to a named row already open — and **unproducible**
+— the movement kind cannot arise at this seam at all. A collapse names the row it defers to, so every closure is
+auditable against an observation that will actually be taken.
+
+- **Whole-work-unit verification · `overlapping-substantive` · singleton** — collapse onto this boundary's
+  `disjoint` row. The seam runs no overlap classification, and its base coordinate reaches it only as a merge-base
+  argument that an advance descended from the fork point leaves unmoved, so the staged subject is byte-identical
+  whatever the advance touched.
+- **Whole-work-unit verification · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Whole-work-unit verification · `unknown` · singleton** — unproducible. Every invocation on this seam is
+  local-only and nothing on it fetches, so remote evidence has no opportunity to go unavailable at the boundary.
+  An absent remote-tracking ref falls back to the local base branch, which is a static precondition the design
+  excludes from `unknown`.
+- **Candidate / prepublication · `overlapping-substantive` · singleton** — collapse onto this boundary's
+  `disjoint` row; the same effective-target seam, with the same unmoved merge-base coordinate.
+- **Candidate / prepublication · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Candidate / prepublication · `unknown` · singleton** — unproducible, for the same reason as verification: the
+  prepublication read shares that local-only seam, and the publication transition reads no base at all.
+- **Public review and checks · `overlapping-substantive` · singleton** — collapse onto this boundary's `disjoint`
+  row. Containment is a pure ancestry fact over the fetched base, and that arm precedes every applicability arm,
+  so the kind of movement never reaches the result.
+- **Public review and checks · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same ordering.
+- **Post-landing closeout · `overlapping-substantive` · singleton** — collapse onto this boundary's `disjoint`
+  row. The reap runs no overlap classification; its verdict turns on whether this work unit is present in the
+  completed index at the refetched head, which the advance's path set cannot change.
+- **Post-landing closeout · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Errand review / merge · `overlapping-substantive` · singleton** — collapse onto this boundary's `disjoint`
+  row; the close path runs no overlap classification.
+- **Errand review / merge · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Errand review / merge · `unknown` · singleton** — collapse onto this boundary's `disjoint` row. A base pin
+  that fails and a base pin at a moved head take the same fall-through, so an unavailable read is not
+  distinguishable from a moved one at this seam.
+- **Member / singleton landing · `unknown` · delivery-member** — collapse onto the singleton `unknown` row at the
+  same boundary. An unavailable drift verdict never enters the delivery arm, so the member shape reaches the
+  identical refusal.
+- **Candidate / prepublication · `disjoint` · delivery-member** — collapse onto the singleton `disjoint` row at
+  the same boundary. The delivery renewal inspection performs no base read, so the shape cannot change a
+  base-derived result.
+- **Post-landing closeout · `disjoint` · delivery-member** — collapse onto the singleton `disjoint` row at the
+  same boundary; teardown has no delivery-specific base read.
+
+### Ledger-only rows
+
+Six observations with nothing to probe. The prose-only set is provisional — it is read from the tree at each base
+merge and superseded at close. Owners resolve at this work unit's close.
+
+**Prose-only gate · pre-hosted-pass drift read**
+
+- _Observation:_ `integrate-work-unit.md` Step 1 reads authoritative drift before spending a hosted pass, then
+  disposes of it in prose — keeping clean and regenerable-only silent, reconciling early "only when the
+  interaction is clear", and stopping on a conflict or material interaction. No typed verb carries any of it.
+- _Fix:_ relocate the disposition into a typed verb. · _Owner:_ — (at close)
+
+**Prose-only gate · Errand base-freshness loop**
+
+- _Observation:_ `run-errand.md` Step 5 invokes authoritative drift, then loops in prose until base, head, and
+  requirements are settled. The loop itself is the gate.
+- _Fix:_ relocate the disposition into a typed verb. · _Owner:_ — (at close)
+
+**Prose-only gate · Errand pre-lane-action gate**
+
+- _Observation:_ `run-errand.md` Step 6 re-reads drift immediately before either lane action and admits only a
+  clean verdict, returning a reconcile to Step 5 and stopping on unavailable or malformed output — all in prose.
+- _Fix:_ relocate the disposition into a typed verb. · _Owner:_ — (at close)
+
+**Prose-only gate · Errand post-checks gate under the held lock**
+
+- _Observation:_ `run-errand.md` Step 6's auto-merge lane re-reads drift once more after checks permit merge,
+  while the lock is held, with the same prose disposition.
+- _Fix:_ relocate the disposition into a typed verb. · _Owner:_ — (at close)
+
+**Uncovered completion path · Errand close unchanged-base resolution**
+
+- _Observation:_ the Errand close path's remote base pin sits behind an unchanged-base precondition, and no test
+  in the suite references that resolution. The gap is the mechanism itself, not merely its operator-facing route:
+  nothing proves the pin, the shortcut it guards, or the fall-through when the pin fails. This work unit's Errand
+  cells probe the ordinary path, which never reaches it, so the gap survives this characterization.
+- _Fix:_ coverage of the unchanged-base resolution and its base pin. · _Owner:_ — (at close)
+
+**Doctrine · ceremony repetition turns on covered input**
+
+- _Observation:_ the review-admission sentence already landed generalizes to every ceremony in the post-execution
+  tail — a ceremony repeats only when a covered input changed, and head or base movement is never itself a
+  covered input. There is no probe for a doctrine sentence; it needs a home.
+- _Fix:_ land the generalized sentence in its own home. · _Owner:_ — (at close)
