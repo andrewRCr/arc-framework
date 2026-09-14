@@ -370,7 +370,7 @@ describe("disjoint delivery eligibility", () => {
       reason: "delivery-terminal-blocked",
       payload: { reason: "drift-classification-unavailable" },
     });
-    expect(downstreamReads).toEqual(["movement", "lifecycle"]);
+    expect(downstreamReads).toEqual(["lifecycle", "movement", "lifecycle"]);
     expect(await git(["rev-parse", "refs/heads/candidate/first"])).toBe(firstHead);
     expect(await git(["rev-parse", "refs/heads/candidate/second"])).toBe(secondHead);
     expect(await git(["rev-parse", "refs/heads/candidate/top"])).toBe(terminalHead);

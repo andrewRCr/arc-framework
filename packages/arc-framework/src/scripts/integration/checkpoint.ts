@@ -377,8 +377,11 @@ const CandidatePublicationCheckpointResultSchema = z.union([
 
 const CandidatePublicationCommitCheckpointResultSchema = z.strictObject({
   ...ResultBaseShape,
+  ...CheckpointNonSuccessShape,
   state: z.literal("candidate-publication-commit-required"),
   nextAction: z.literal("commit-boundary"),
+  reason: z.literal("candidate-publication-boundary-staged"),
+  continuation: CheckpointContinuationSchema,
   payload: z.strictObject({
     boundaryPath: z.string().min(1),
     recommendedActionText: z.string().min(1),
@@ -746,6 +749,11 @@ export interface IntegrationCheckpointDependencies {
     | { readonly status: "current" }
     | { readonly status: "refresh-required"; readonly kind: "delivery" | "singleton" }
   >;
+  readDeliveryTerminalRemedy(input: {
+    workUnit: string;
+    candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
+    baseRevision: string;
+  }): Promise<Extract<DeliveryCheckpointArmResult, { status: "blocked" }> | null>;
   composeDelivery(input: {
     workUnit: string;
     candidate: Extract<CandidateCurrentnessProjection, { status: "current" }>;
@@ -858,6 +866,29 @@ function deliveryTerminalDisposition(
   };
 }
 
+function deliveryTerminalBlockedResult(
+  workUnit: string,
+  coordinates: z.infer<typeof CheckpointCoordinatesSchema>,
+  delivery: Extract<DeliveryCheckpointArmResult, { readonly status: "blocked" }>,
+): IntegrationCheckpointResult {
+  const terminal = deliveryTerminalDisposition(workUnit, delivery);
+  return IntegrationCheckpointResultSchema.parse({
+    schemaVersion: 1,
+    mode: "integrate-checkpoint",
+    workUnit,
+    state: "blocked",
+    nextAction: terminal.nextAction,
+    reason: "delivery-terminal-blocked",
+    detail: boundedCheckpointDetail(
+      "detail" in delivery ? delivery.detail : undefined,
+      "Delivery terminal evidence blocks checkpoint composition.",
+    ),
+    coordinates,
+    remedy: terminal.remedy,
+    payload: delivery,
+  });
+}
+
 /**
  * Reduce the complete pre-approval span to one typed checkpoint verdict.
  *
@@ -937,6 +968,29 @@ export async function checkpointIntegration(
     }
     applicabilityAllowsReconcile = deliveryDrift.status !== "reconcile"
       || deliveryDrift.safetyClass === "residual-contained";
+  }
+  let preflightRemedy: Extract<DeliveryCheckpointArmResult, { status: "blocked" }> | null = null;
+  try {
+    const lifecycle = IntegrationLifecycleSummarySchema.parse(await dependencies.readLifecycle(request.workUnit));
+    const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
+    if (lifecycle.complete && candidate !== null
+      && "status" in candidate && candidate.status === "current"
+      && candidate.convergenceVerification !== "pending"
+      && candidate.recognizedRevision === drift.headOid) {
+      const publication = await dependencies.readCandidatePublication(request.workUnit, drift.baseOid);
+      if (publication.status === "current") {
+        preflightRemedy = await dependencies.readDeliveryTerminalRemedy({
+          workUnit: request.workUnit,
+          candidate,
+          baseRevision: drift.baseOid,
+        });
+      }
+    }
+  } catch {
+    // A terminal remedy needs complete proof; ordinary checkpointing retains its original reads.
+  }
+  if (preflightRemedy !== null) {
+    return deliveryTerminalBlockedResult(request.workUnit, coordinates, preflightRemedy);
   }
   const observed = await dependencies.readMovementObservation(request.workUnit, drift);
   const observation = CheckpointMovementObservationSchema.parse({
@@ -1192,20 +1246,7 @@ export async function checkpointIntegration(
       });
     }
     if (delivery.status === "blocked") {
-      const terminal = deliveryTerminalDisposition(request.workUnit, delivery);
-      return IntegrationCheckpointResultSchema.parse({
-        ...base,
-        state: "blocked",
-        nextAction: terminal.nextAction,
-        reason: "delivery-terminal-blocked",
-        detail: boundedCheckpointDetail(
-          "detail" in delivery ? delivery.detail : undefined,
-          "Delivery terminal evidence blocks checkpoint composition.",
-        ),
-        coordinates,
-        remedy: terminal.remedy,
-        payload: delivery,
-      });
+      return deliveryTerminalBlockedResult(request.workUnit, coordinates, delivery);
     }
     if (lifecycle.state === "shipped" && delivery.status === "ready") {
       const publicationCommit = await dependencies.readShippedDeliveryPublicationCommit(
@@ -1235,6 +1276,13 @@ export async function checkpointIntegration(
           ...base,
           state: "candidate-publication-commit-required",
           nextAction: "commit-boundary",
+          reason: "candidate-publication-boundary-staged",
+          detail: "The shipped delivery publication boundary is staged and requires a commit before checkpointing.",
+          coordinates,
+          continuation: {
+            kind: "terminal-explanation",
+            terminalExplanation: "Commit and push the exact staged boundary under the workflow gates, then rerun checkpoint.",
+          },
           payload: {
             boundaryPath: publicationCommit.boundaryPath,
             recommendedActionText:

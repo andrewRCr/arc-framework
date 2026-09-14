@@ -1996,6 +1996,24 @@ describe("review status", () => {
     }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
     await expect(resolveReviewStatus({ target: selectedTarget }, port({
       actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: selectedTarget.repository,
+          changeRequest: 41,
+          base: oid("b"),
+          head: selectedTarget.headSha,
+        },
+        overlap: { status: "available", substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
       requiredChecks: "pending",
       routedObligation: obligation,
     }))).resolves.toMatchObject({ state: "checks-pending", nextAction: "rerun-checkpoint" });

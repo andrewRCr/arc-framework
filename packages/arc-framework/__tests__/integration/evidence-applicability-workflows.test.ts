@@ -49,6 +49,13 @@ describe("evidence applicability workflow fire-points", () => {
     expect(workflow).toMatch(/never select a\s+verification scope in prose/iu);
   });
 
+  it("requires only the typed bounded result that every fire-point actually supplies", async () => {
+    const method = await readPair("system/methods/assess-evidence-applicability.md");
+
+    expect(method).toContain("Receive the supplied typed applicability result or projection");
+    expect(method).not.toContain("Receive the exact normalized `delta`, evidence kind, and typed result/action");
+  });
+
   it.each(Object.entries(workflows))("declares bounded residual judgment in %s", async (_name, path) => {
     const workflow = await readPair(path);
     const frontmatter = parseWorkflowFrontmatter(workflow);

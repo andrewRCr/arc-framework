@@ -675,7 +675,9 @@ export function createIntegrationCheckpointDependencies(input: {
           workUnitPathTreatmentContext(workUnit),
         ).classifyReconciliation,
       });
-      const admission = await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort);
+      const admission = await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort, {
+        baseContained: drift.behind === 0,
+      });
       if (
         feasibility.base !== coordinates.base
         || feasibility.head !== coordinates.head
@@ -755,6 +757,58 @@ export function createIntegrationCheckpointDependencies(input: {
             status: "refresh-required",
             kind: publicationBoundary?.reservation?.target.kind === "delivery" ? "delivery" : "singleton",
           };
+    },
+    readDeliveryTerminalRemedy: async ({ workUnit, candidate: currentness }) => {
+      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      if (records.status === "unbound") return null;
+      if (records.status === "unavailable") throw new Error("The delivery terminal records are unavailable.");
+      const config = await settings();
+      const configuredBase = config.settings["branch.base"];
+      const terminal = records.state.members.at(-1);
+      if (terminal?.ref === null || terminal?.ref === undefined
+        || terminal.changeRequest === null || terminal.coordinates === null) {
+        throw new Error("The delivery top has no exact retained binding.");
+      }
+      const predecessorRef = records.state.members.at(-2)?.ref;
+      const currentHead = currentness.recognizedRevision;
+      const frozenHead = terminal.coordinates.head;
+      const resolved = await resolveChangeRequest({
+        headRef: branchName(terminal.ref),
+        headSha: currentHead,
+        baseRef: configuredBase,
+        acceptableBaseRefs: predecessorRef === null || predecessorRef === undefined
+          ? []
+          : [branchName(predecessorRef)],
+      }, changeRequestPort);
+      if (resolved.state !== "open" && resolved.state !== "closed-unmerged") return null;
+      if (String(resolved.candidate.number) !== terminal.changeRequest.changeRequestId
+        || resolved.candidate.headRefName !== branchName(terminal.ref)
+        || resolved.candidate.headRefOid !== frozenHead) {
+        return null;
+      }
+      if (currentHead !== frozenHead && resolved.state !== "closed-unmerged") return null;
+      const top = assessDeliveryTerminalTop({
+        terminal: true,
+        protectedBaseRef: configuredBase,
+        publicationHead: frozenHead,
+        request: {
+          binding: terminal.changeRequest,
+          repository: resolved.targetRef.repository,
+          headRef: resolved.candidate.headRefName,
+          headSha: resolved.candidate.headRefOid,
+          baseRef: resolved.candidate.baseRefName,
+          state: resolved.state === "open" ? "open" : "closed",
+        },
+      });
+      return top.status === "refused" && top.reason === "top-target-mismatch"
+        ? {
+            status: "blocked",
+            nextAction: top.remedy.nextAction,
+            reason: top.reason,
+            planId: records.plan.planId,
+            remedy: top.remedy,
+          }
+        : null;
     },
     composeDelivery: async ({ workUnit, candidate: currentness, baseRevision }) => {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);

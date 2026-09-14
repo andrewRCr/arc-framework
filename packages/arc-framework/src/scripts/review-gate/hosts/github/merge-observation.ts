@@ -114,6 +114,29 @@ export function createGhChangeRequestMergeObservationPort(
         ) {
           return unresolved(coordinates, "GitHub pull-request coordinates moved during merge observation.");
         }
+        if (options?.baseContained !== true) {
+          try {
+            const policy = await readGhRequiredStatusPolicy(
+              runner,
+              coordinates.repository,
+              pull.baseRef,
+              signal,
+            );
+            if (policy.strictCurrentness) {
+              return options?.baseContained === false
+                ? ChangeRequestMergeObservationSchema.parse({
+                    ...coordinates,
+                    state: "base-currentness-required",
+                    detail: "Applicable target policy requires the head to include the current base.",
+                    evidenceRef: `github:target-policy:${pull.baseRef}`,
+                  })
+                : unresolved(coordinates, "Exact head containment is unavailable under strict target policy.");
+            }
+          } catch (error) {
+            if (signal.aborted) signal.throwIfAborted();
+            return unresolved(coordinates, `GitHub target policy was unavailable: ${failureDetail(error)}`);
+          }
+        }
         if (pull.mergeable === true && pull.mergeCommit !== null) {
           try {
             const parents = commitParents(parse((await runner.run([
@@ -132,25 +155,6 @@ export function createGhChangeRequestMergeObservationPort(
             lastDetail = `GitHub test-merge evidence was unavailable: ${failureDetail(error)}`;
             continue;
           }
-        }
-        try {
-          const policy = await readGhRequiredStatusPolicy(
-            runner,
-            coordinates.repository,
-            pull.baseRef,
-            signal,
-          );
-          if (policy.strictCurrentness) {
-            return ChangeRequestMergeObservationSchema.parse({
-              ...coordinates,
-              state: "base-currentness-required",
-              detail: "Applicable target policy requires the head to include the current base.",
-              evidenceRef: `github:target-policy:${pull.baseRef}`,
-            });
-          }
-        } catch (error) {
-          if (signal.aborted) signal.throwIfAborted();
-          return unresolved(coordinates, `GitHub target policy was unavailable: ${failureDetail(error)}`);
         }
         if (pull.mergeable === false) {
           return unresolved(

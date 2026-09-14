@@ -127,6 +127,7 @@ import {
   advanceDeliveryReviewFixResponse,
   acknowledgeDeliveryReviewFixVerification,
   carryDeliveryReviewFixPublicBoundary,
+  deriveDeliveryReviewFixLifecycleRevalidation,
   planDeliveryReviewFixRoute,
   projectDeliveryReviewFixVerificationAcknowledgement,
   publishSelectedDeliveryReviewFix,
@@ -4503,6 +4504,13 @@ async function executeDeliveryCommand(
     } catch {
       return { status: "refused", reason: "evidence-unavailable" };
     }
+    const lifecycleInput = deriveDeliveryReviewFixLifecycleRevalidation({
+      state: current.value,
+      selectedDeliverableId: publish.selectedDeliverableId,
+      candidateRef: locator.candidateRef,
+      lifecyclePaths,
+    });
+    if (lifecycleInput === null) return { status: "refused", reason: "position-mismatch" };
     return publishSelectedDeliveryReviewFix({
       plan,
       current,
@@ -4515,17 +4523,7 @@ async function executeDeliveryCommand(
       inspectCandidate: () => inspectDeliveryCandidateCheckout(exec, locator.gatePath),
       observeCandidateRef: () => observeDeliveryEligibilityRef(exec, locator.candidateRef),
       readAncestry: (ancestor, descendant) => readAncestry(exec, ancestor, descendant),
-      revalidateLifecycle: async () => {
-        const checked = await revalidateDeliveryLifecycleContribution({
-          exec,
-          protectedBaseRef,
-          chainBaseRef: protectedBaseRef,
-          candidateRef: locator.candidateRef,
-          paths: lifecyclePaths,
-          regenerablePaths: [],
-        });
-        return checked;
-      },
+      revalidateLifecycle: () => revalidateDeliveryLifecycleContribution({ exec, ...lifecycleInput }),
       reobserveAuthority: async () => {
         const reobserved = await observeReviewFixAuthority(
           plan,

@@ -43,7 +43,7 @@ import {
 import {
   createIntegrationMergeDependencies,
 } from "./merge-composition.js";
-import type { IntegrationMergeTarget } from "./merge.js";
+import { IntegrationBindingChangedError, type IntegrationMergeTarget } from "./merge.js";
 import type {
   ErrandMergeDependencies,
   ErrandMergeFinalPlan,
@@ -173,7 +173,9 @@ export function createErrandMergeDependencies(input: {
         || record.key !== slug || record.claimId !== row.subject.claimId
         || record.branch !== row.checkout.branch
         || row.markerGeneration !== `errand-v1/${slug}/${record.claimId}`) {
-        throw new Error("The entering checkout no longer proves the exact current Errand generation.");
+        throw new IntegrationBindingChangedError(
+          "identity", "The entering checkout no longer proves the exact current Errand generation.",
+        );
       }
       return {
         slug,
@@ -226,7 +228,9 @@ export function createErrandMergeDependencies(input: {
         classify: treatment.classifyReconciliation,
       });
       const admission = admissionOverride === undefined
-        ? await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort)
+        ? await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort, {
+            baseContained: drift.behind === 0,
+          })
         : ChangeRequestMergeObservationSchema.parse({ ...coordinates, ...admissionOverride });
       return composeErrandFinalPlan({ drift, target: observedTarget, feasibility, admission });
     },

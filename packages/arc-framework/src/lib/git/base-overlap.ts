@@ -103,10 +103,18 @@ async function analyzeRevisionOverlapWithClassifier(options: {
 }): Promise<RevisionOverlapResult> {
   let mergeBase: string;
   try {
-    mergeBase = (await options.exec(
+    const mergeBases = (await options.exec(
       "git",
-      ["merge-base", options.leftRevision, options.rightRevision],
-    )).stdout.trim();
+      ["merge-base", "--all", options.leftRevision, options.rightRevision],
+    )).stdout.trim().split(/\r?\n/u);
+    if (mergeBases.length > 1) {
+      return {
+        status: "unavailable",
+        reason: "merge-base-failed",
+        detail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
+      };
+    }
+    mergeBase = mergeBases[0] ?? "";
     if (!isGitObjectId(mergeBase)) throw new Error("Invalid merge base.");
   } catch (error) {
     if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) {

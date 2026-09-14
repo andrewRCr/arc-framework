@@ -859,6 +859,17 @@ describe("delivery checkpoint composition", () => {
     });
 
     const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec: vi.fn() });
+    await expect(dependencies.readDeliveryTerminalRemedy({
+      workUnit: plan.workUnitId,
+      candidate: currentness,
+      baseRevision: oid("d"),
+    })).resolves.toMatchObject({
+      status: "blocked",
+      nextAction: "reopen-and-retarget",
+      reason: "top-target-mismatch",
+      planId: plan.planId,
+    });
+    expect(mocks.resolveDischargeTargets).not.toHaveBeenCalled();
     await expect(dependencies.composeDelivery({
       workUnit: plan.workUnitId,
       candidate: currentness,

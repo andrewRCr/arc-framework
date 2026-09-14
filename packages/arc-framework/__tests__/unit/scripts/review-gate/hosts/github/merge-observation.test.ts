@@ -27,7 +27,7 @@ describe("GitHub merge-observation port", () => {
       ? output({ parents: [{ sha: coordinates.base }, { sha: coordinates.head }] })
       : output(pull()));
     const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
-    await expect(port.observe(coordinates)).resolves.toEqual({
+    await expect(port.observe(coordinates, { baseContained: true })).resolves.toEqual({
       ...coordinates,
       state: "mergeable",
       evidenceRef: `github:test-merge:${oid("c")}`,
@@ -51,7 +51,27 @@ describe("GitHub merge-observation port", () => {
       throw new Error(`unexpected command: ${args.join(" ")}`);
     });
     const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
-    await expect(port.observe(coordinates)).resolves.toMatchObject({
+    await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
+      ...coordinates,
+      state: "base-currentness-required",
+    });
+  });
+
+  it("prioritizes strict currentness over an exact test merge for a behind head", async () => {
+    const run = vi.fn(async (args: string[]) => {
+      const endpoint = args.at(-1) ?? "";
+      if (endpoint.endsWith("/pulls/42")) return output(pull());
+      if (endpoint.endsWith("/branches/main")) return output({
+        protection: { required_status_checks: { contexts: [], strict: true } },
+      });
+      if (endpoint.includes("/rules/branches/main")) return output([[]]);
+      if (endpoint.includes("/commits/")) return output({
+        parents: [{ sha: coordinates.base }, { sha: coordinates.head }],
+      });
+      throw new Error(`unexpected command: ${args.join(" ")}`);
+    });
+    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
       ...coordinates,
       state: "base-currentness-required",
     });
@@ -87,7 +107,7 @@ describe("GitHub merge-observation port", () => {
         ? output({ parents: [{ sha: coordinates.base }] })
         : output(pull()),
     });
-    await expect(malformed.observe(coordinates)).resolves.toMatchObject({
+    await expect(malformed.observe(coordinates, { baseContained: true })).resolves.toMatchObject({
       state: "unresolved", detail: expect.stringContaining("parents did not match"),
     });
   });
