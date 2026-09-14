@@ -410,6 +410,13 @@ async function resolveLocalSource(
   }
   const state = persisted.state;
   assertLocalReviewClaimBinding(state);
+  if (state.vehicle.kind === "errand") {
+    const activeErrand = await dependencies.resolveActiveErrand();
+    if (activeErrand === null || activeErrand.key !== state.vehicle.identity
+      || activeErrand.claimId !== state.vehicle.claimId) {
+      throw new RespondCommandError("invalid-input", "local review Errand claim does not match the active Errand");
+    }
+  }
   const [receipt, localSource, actors] = await Promise.all([
     dependencies.readReceipt(reference.durableRef),
     dependencies.sourceStore.readSource(state.sourceRef),

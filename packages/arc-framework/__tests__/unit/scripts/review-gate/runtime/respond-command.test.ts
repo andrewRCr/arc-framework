@@ -1294,6 +1294,7 @@ describe("review response command", () => {
     const deps = dependencies(records);
     const resolveLocalActors = vi.fn(deps.resolveLocalActors);
     deps.resolveLocalActors = resolveLocalActors;
+    if (vehicle.kind === "errand") deps.resolveActiveErrand = async () => activeErrandBinding();
 
     await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
       state: "ready-to-fix",
@@ -1320,6 +1321,7 @@ describe("review response command", () => {
       dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
     }));
     deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
     deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
 
     await expect(respondToReviewCommand(localRequest(records, disposition), deps))
@@ -1580,6 +1582,36 @@ describe("verified-fix Candidate settlement", () => {
     )).rejects.toThrow("requires a changed exact target");
   });
 
+  it.each(["proposal", "approval"] as const)(
+    "refuses a local Errand %s after its live claim changes",
+    async (stage) => {
+      const records = fixture(errandVehicle);
+      const deps = dependencies(records);
+      deps.readCandidateLineage = async () => null;
+      deps.resolveActiveErrand = async () => activeErrandBinding("claim-2");
+      const request = stage === "proposal"
+        ? {
+            schemaVersion: 1,
+            source: { kind: "attested-local", receiptRef: records.receiptRef },
+            proposal: {
+              findings: [{
+                findingId: records.finding.findingId,
+                sourceVerification: "verified",
+                verificationRefs: ["source:src/index.ts:7"],
+                disposition: "fix",
+                rationale: "The selected source supports this disposition.",
+                recommendation: "Apply the fix.",
+                openQuestions: [],
+              }],
+            },
+          }
+        : localRequest(records);
+
+      await expect(respondToReviewCommand(request, deps))
+        .rejects.toThrow("local review Errand claim does not match the active Errand");
+    },
+  );
+
   it("persists a verified fix for the exact active Errand without Candidate lineage", async () => {
     const records = fixture(errandVehicle);
     const { deps, moveTo } = movingCheckout(records);
@@ -1696,7 +1728,7 @@ describe("verified-fix Candidate settlement", () => {
     moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
 
     await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
-      .rejects.toThrow("exact approved active Errand response record");
+      .rejects.toThrow("local review Errand claim does not match the active Errand");
   });
 
   it("refuses a verified fix the index does not carry, rather than advancing a lineage without it", async () => {
