@@ -13,9 +13,10 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Finalized `spec-concurrent-integration-characterization.md` (outline) through draft-design
-  and create-spec, one adversarial pass at each boundary.
-- **Next Task:** Task 1.1 — Confirm each boundary's typed seam and base-read behavior
+- **Last Completed:** Generated `tasks-concurrent-integration-characterization.md` through generate-tasks — seven
+  phases over four segments — then activated. Three adversarial passes folded; the design gained two forward
+  amendments.
+- **Next Task:** Task 1.1 — Confirm each boundary's typed seam and base-read behavior (line ~21)
 - **Blockers:** [none]
 
 - **Next Action:** Begin Task 1.1 — walk the six boundaries and write each per-cell verdict into notes § Cell matrix
