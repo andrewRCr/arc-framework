@@ -323,6 +323,15 @@ currentness and merge authority are re-established.
   movement retains the review attempt, while overlapping or unavailable movement returns actionable checkpoint
   guidance and contained-head outcomes remain unchanged.
 
+### `[x]` **3.R Preserve exact pre-terminal member review under protected-base movement**
+
+- _Goal:_ a selected non-terminal delivery member can continue its exact review or landing route when protected-base
+  movement is classified, without prematurely invoking the terminal checkpoint or weakening member-bound checks.
+
+- _Outcome:_ status keeps the current outstanding or discharged exact member on its ordinary route for classified
+  movement; unavailable or mismatched evidence stops, and ambiguous or terminal targets retain checkpoint routing.
+  Focused status tests cover overlapping review, discharged landing, and each refusal boundary.
+
 ## **Phase 4:** Terminal integration operations and doctrine
 
 **Delivery member:** 2 — `concurrent-integration`

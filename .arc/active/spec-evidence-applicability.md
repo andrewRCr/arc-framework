@@ -704,6 +704,14 @@ review-applicability decision. The status result carries movement, exact coordin
 unavailability reason, and a structured return-to-checkpoint action (or an explicit terminal explanation when its
 target-only scope cannot construct one), so neither unknown evidence nor a missing subject strands the caller.
 
+_Amended 2026-09-14 — pre-terminal delivery review._ When a request uniquely matches the current outstanding or an
+already discharged non-terminal delivery member, classified protected-base movement retains the ordinary exact-member
+review or landing route, even when its overlap is substantive. Status carries the movement evidence; member landing
+reobserves its own exact target and predecessor chain, while the terminal checkpoint handles downstream interaction
+after the preceding members land. Unavailable or mismatched movement evidence stops with a retryable status result;
+ambiguous member binding, singleton requests, and terminal members keep the checkpoint route. This does not grant
+review clearance, change the member head, or bypass required checks or landing authorization.
+
 ### D9. The Errand path gets the same policy through the same read
 
 _Amended 2026-09-09 after the procedure-evolution self-check._ Workflow prose does not evaluate the movement matrix,

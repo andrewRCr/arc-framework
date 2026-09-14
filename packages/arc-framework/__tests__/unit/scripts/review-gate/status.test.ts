@@ -2008,9 +2008,10 @@ describe("review status", () => {
       },
       routedObligation: obligation,
     }))).resolves.toMatchObject({
-      state: "base-moved",
-      nextAction: "rerun-checkpoint",
-      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
+      movement: "overlapping",
+      selectedMember: { vehicle: memberVehicle, state: "discharged" },
     });
     await expect(resolveReviewStatus({ target: selectedTarget }, port({
       actualHeadSha: selectedTarget.headSha,
@@ -2022,6 +2023,142 @@ describe("review status", () => {
       requiredChecks: "failed",
       routedObligation: obligation,
     }))).resolves.toMatchObject({ state: "blocked", reason: "checks-failed" });
+  });
+
+  it("continues exact pre-terminal member review while protected-base movement overlaps", async () => {
+    const secondVehicle = {
+      ...memberVehicle,
+      deliverableId: `sha256:${"d".repeat(64)}`,
+      head: oid("d"),
+    };
+    const thirdVehicle = {
+      ...memberVehicle,
+      deliverableId: `sha256:${"e".repeat(64)}`,
+      head: oid("e"),
+    };
+    const secondHostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
+    const thirdHostedTarget = { repository: "owner/repo", pullRequest: 43, headSha: thirdVehicle.head };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 3),
+        deliveryTarget(secondHostedTarget, secondVehicle, 2, 3),
+        deliveryTarget(thirdHostedTarget, thirdVehicle, 3, 3),
+      ],
+      discharges: [
+        deliveryDischarge({ discharged: true, detail: "member one discharged", nextSource: null }),
+        deliveryDischarge({
+          discharged: false,
+          detail: "member two outstanding",
+          nextSource: "codex-pr",
+          requestAdmission: readyAdmission("codex-pr", secondHostedTarget),
+        }),
+        deliveryDischarge({ discharged: false, detail: "member three outstanding", nextSource: "codex-pr" }),
+      ],
+    });
+    const selectedTarget = { ...target, headRef: "delivery/member-2", headSha: secondVehicle.head };
+    const baseMovement = {
+      coordinates: {
+        repository: selectedTarget.repository,
+        changeRequest: 42,
+        base: oid("b"),
+        head: selectedTarget.headSha,
+      },
+      overlap: { status: "available" as const, substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+    };
+
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      movement: "overlapping",
+      baseMovement,
+      action: { target: secondHostedTarget },
+    });
+    const earlierOutstanding = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 3),
+        deliveryTarget(secondHostedTarget, secondVehicle, 2, 3),
+        deliveryTarget(thirdHostedTarget, thirdVehicle, 3, 3),
+      ],
+      discharges: [
+        deliveryDischarge({ discharged: false, detail: "member one outstanding", nextSource: "codex-pr",
+          requestAdmission: readyAdmission("codex-pr", hostedAction.target) }),
+        deliveryDischarge({ discharged: false, detail: "member two outstanding", nextSource: "codex-pr" }),
+        deliveryDischarge({ discharged: false, detail: "member three outstanding", nextSource: "codex-pr" }),
+      ],
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement,
+      routedObligation: earlierOutstanding,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        overlap: { status: "unavailable", reason: "classification-failed" },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      movement: "unknown",
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        coordinates: { ...baseMovement.coordinates, changeRequest: 43 },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "blocked", nextAction: "stop", reason: "status-unavailable" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        coordinates: { ...baseMovement.coordinates, base: oid("c") },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "blocked", nextAction: "stop", reason: "status-unavailable" });
+    if (!("conjunction" in obligation)) throw new Error("expected delivery conjunction");
+    const firstMember = obligation.conjunction.members[0];
+    if (firstMember === undefined) throw new Error("expected first member");
+    const ambiguousObligation = RoutedReviewObligationSchema.parse({
+      ...obligation,
+      conjunction: {
+        ...obligation.conjunction,
+        members: [{
+          ...firstMember,
+          target: { ...firstMember.target, headSha: secondVehicle.head },
+          vehicle: { ...firstMember.vehicle, head: secondVehicle.head },
+        }, ...obligation.conjunction.members.slice(1)],
+      },
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement,
+      routedObligation: ambiguousObligation,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+    const terminalTarget = { ...target, headSha: thirdVehicle.head };
+    await expect(resolveReviewStatus({ target: terminalTarget }, port({
+      actualHeadSha: terminalTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        coordinates: { ...baseMovement.coordinates, changeRequest: 43, head: terminalTarget.headSha },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
   });
 
   it("reports a discharged typed conjunction only after every retained member settles", () => {
