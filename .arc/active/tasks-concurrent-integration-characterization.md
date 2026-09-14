@@ -211,17 +211,17 @@ path, both ledger rows carry every recorded column, and the suite is green.
   belong there too. The stop is bare and its continuation does not clear; the ledger row in
   `notes-concurrent-integration-characterization.md` carries what the refusal actually rests on.
 
-### `[ ]` **2.3 Confirm the pilot pair's lane composition and ledger rows** — validate exit criterion at segment scope
+### `[x]` **2.3 Confirm the pilot pair's lane composition and ledger rows** — validate exit criterion at segment scope
 
 - _Goal:_ Both lanes are proven to carry a mid-boundary base advance, and the pin helper has been exercised through a
   real red-green cycle in a suite run rather than only in its own unit tests.
 
-- _Note:_ If both pilots pass cleanly the pin path is still unproven — take one further cell at a boundary expected
-  to stop rather than closing the segment on an untested arm. That cell counts against its own boundary's phase,
-  not this one, so the ledger records it once.
-
-    - Run both lanes and confirm green with any pins in place.
-    - Confirm both rows carry every recorded column, including the base OID observed against.
+- _Outcome:_ The segment's exit criterion holds on all four clauses. Both pilots advance the base between their
+  boundary's precondition and its execution through the shared helper, one per lane. The public-review pilot is
+  itself a pinned stop, so the contingency of taking a further cell to prove the pin path did not fire — removing
+  its advance turns the helper red with its retirement message, which is the red-green cycle in a suite run rather
+  than in the helper's own tests. Both rows carry every column recorded at probe time; owner, fix disposition, and
+  retention disposition stay open under the convention that resolves them at close.
 
 ## **Phase 3:** Singleton probes — the pre-publish spine
 
