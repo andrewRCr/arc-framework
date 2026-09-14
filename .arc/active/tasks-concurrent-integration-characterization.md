@@ -183,30 +183,18 @@ _Exit criterion:_ One e2e probe and one integration probe each advance the base 
 and its execution through the extended helper, at least one of the pair exercises the pin helper's observed-and-target
 path, both ledger rows carry every recorded column, and the suite is green.
 
-### `[ ]` **2.1 Probe the whole-work-unit verification boundary from the e2e lane**
+### `[x]` **2.1 Probe the whole-work-unit verification boundary from the e2e lane**
 
 - _Goal:_ A spawned-CLI probe advances the base between the verification boundary's precondition and its execution
   through the extended helper, proving the helper reaches the e2e lane at all.
 
-- _Context:_ This is the plan's dominant unknown. The topology and advance steps sit behind integration-lane
-  conveniences carrying `src` imports an e2e probe neither needs nor should pull in; the separable shape is recorded
-  in the notes, but the cut itself resolves here.
-
-- _Shape:_ Extend `e2e/attest.e2e.test.ts`, which already builds a minimal real-CLI fixture but configures no
-  remote. Attach one with the suite's established idiom — a bare remote plus a URL rewrite, so the origin both
-  parses as an owner-and-repository coordinate and reaches a live target — rather than a bare path alone, which
-  satisfies only the second. For a **spawned-CLI** probe the window between a boundary's precondition and its
-  execution is the gap between two invocations: the process is atomic from the test's side, so there is nothing to
-  inject into. Here that is establish the verification precondition, advance the base, then run the verb. The lane
-  name does not decide this — the e2e project also hosts in-process handler work — the spawn does.
-
-- **Additional Context:** `notes-concurrent-integration-characterization.md` § Fixture inventory
-
-    - Take one movement kind and record its row; the boundary's remaining kinds land in Phase 3.
-    - Assert the typed outcome Task 1.1.a recorded for this seam — the verb's result, never a count. Counts are
-      ledger observations read off the run.
-    - Where the observed result is not the idiomatic one, pin it through the helper from Task 1.5, then take its
-      recommended continuation and record whether the stop cleared.
+- _Outcome:_ The `disjoint` cell is an ordinary passing test: `attest.e2e.test.ts` attaches a bare origin reached
+  through a host-shaped URL, advances the base over a path the branch never touched, and finds the Candidate subject
+  and staged set identical to the run with the base held still. Attaching the origin is what makes that mean
+  anything — with a remote present the seam resolves its base from `refs/remotes/origin/main`, so the advance moves
+  the coordinate it reads. The lane cut the task expected to negotiate did not arise: the advance helper already
+  imports nothing the spawned lane should avoid, so the probe calls it directly and the integration-lane
+  conveniences stay where they are.
 
 ### `[ ]` **2.2 Probe the public-review boundary at the handler seam**
 

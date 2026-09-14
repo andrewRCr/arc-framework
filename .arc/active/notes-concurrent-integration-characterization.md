@@ -515,9 +515,14 @@ unit's close, not at seed time.
 
 - _Intent:_ Attest after an advance the checkout has fetched; expect the staged subject unchanged and the result
   unaffected.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `attest.e2e.test.ts` — "stages the same Candidate evidence after a base advance sharing none of its
+  paths" · _Base OID:_ `4f6b11568` · _Observed:_ `attested`, operation `root`, locus `candidate-review-pending`;
+  no reason, no remedy. Subject entries and staged set identical to the run with the base held still. The origin
+  attached for this probe moves the coordinate the seam actually reads — with a remote present the base resolves
+  from `refs/remotes/origin/main` rather than the local branch — so the unchanged subject is a result, not an
+  advance the boundary never saw.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
 
 **Candidate / prepublication · control · singleton**
 
