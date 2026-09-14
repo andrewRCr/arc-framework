@@ -36,18 +36,20 @@ function observedArtifact(value: GraduationStoredArtifact) {
 function input(options: {
   workflow?: "draft-design" | "create-spec" | "generate-tasks" | null;
   suppliedClass?: boolean;
+  design?: "draft" | "none";
 } = {}): PrepareGraduationTransactionInput {
+  const hasDraft = options.design !== "none";
   const metaContent = renderMetaFile("widget", {
     state: "Planning",
     owner: "andrew",
     branch: null,
     workClass: options.suppliedClass ? "TBD" : "Heavy",
-    design: ["draft-widget.md"],
-    currentWorkflow: options.workflow === undefined ? "create-spec" : options.workflow,
+    design: hasDraft ? ["draft-widget.md"] : [],
+    currentWorkflow: options.workflow === undefined ? (hasDraft ? "create-spec" : null) : options.workflow,
   });
   const artifacts = [
     artifact("meta-widget.md", metaContent),
-    artifact("draft-widget.md", "# Draft\n"),
+    ...(hasDraft ? [artifact("draft-widget.md", "# Draft\n")] : []),
   ];
   return {
     slug: "widget",
@@ -80,6 +82,32 @@ function input(options: {
 }
 
 describe("prepareValidatedGraduationTransaction", () => {
+  it.each([
+    ["without a companion", false],
+    ["with a companion", true],
+  ])("starts a meta-only planned stub %s in draft-design", (_label, withCompanion) => {
+    const candidate = input({ design: "none" });
+    if (withCompanion) {
+      const notes = artifact("notes-widget.md", "# Notes\n");
+      candidate.artifacts.push(notes);
+      candidate.destinations.push({ path: notes.targetPath, state: { kind: "absent" } });
+    }
+
+    const result = prepareValidatedGraduationTransaction(candidate);
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.transaction.policy.profile).toEqual({ kind: "draft", sourceDesign: [] });
+    expect(result.transaction.policy.workflow).toEqual({ kind: "derived", value: "draft-design" });
+    const meta = parseMetaRecord(new TextDecoder().decode(result.transaction.target.metaBytes));
+    expect(meta.design).toEqual([]);
+    expect(meta.taskList).toBeNull();
+    expect(meta.currentWorkflow).toBe("draft-design");
+    expect(result.transaction.target.artifacts.map(({ basename }) => basename)).toEqual(
+      withCompanion ? ["meta-widget.md", "notes-widget.md"] : ["meta-widget.md"],
+    );
+  });
+
   it("preserves a valid recorded workflow and exact non-meta bytes", () => {
     const result = prepareValidatedGraduationTransaction(input());
     expect(result.status).toBe("ready");
