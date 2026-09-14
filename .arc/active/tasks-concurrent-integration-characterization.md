@@ -157,33 +157,19 @@ a not-applicable reason.
   directory, since its loader resolves from the cwd and a fixture repository has no modules of its own. Sixteen
   tests across both lanes, each shown failing first against a reconstruction of the behavior it guards.
 
-### `[ ]` **1.5 Add the pinned-observation assertion helper**
+### `[x]` **1.5 Add the pinned-observation assertion helper**
 
 - _Goal:_ A probe that fails today reads green only while the observed stop is exactly what it pinned, and turns red
   the moment either that stop changes or the idiomatic target is met.
 
-- _Rationale:_ The runner's own failure marker converts every non-pass state to pass, so a marked probe cannot tell
-  failing-at-the-target from failing for any reason, and the net disarms silently as the suite decays.
-
-- _Shape:_ The call signature is settled here, not left to the first caller — how a probe supplies its observed and
-  its target result, and how it names the behavior under test. Every probe in Phases 2 through 5 consumes it.
-
-- _Shape:_ Matching is subset-and-shape over the fields that carry identity, never deep equality. The results being
-  pinned embed values that change on every run — the observed base object id, ahead and behind counts, the reviewed
-  head — so whole-result comparison could never pin anything. Which fields are identity and which are run noise is
-  decided here; leaving it to the first caller is what makes the red-on-any-third-outcome guarantee vacuous.
-
-    - Build `test-first` (one behavior at a time):
-
-        - The observed typed result passes.
-        - A third outcome — neither the observed result nor the target — is red.
-        - Reaching the target is red, carrying a message that tells the fixer to replace the call with a plain
-          assertion.
-        - Messages name behavior only, never a ledger row, a matrix cell, or any planning identifier.
-        - A result matching both the observed and the target shape resolves one way by rule, not by argument
-          order — subset matching makes that overlap reachable whenever the two differ only in ignored fields.
-        - A call whose observed shape already equals its target is refused rather than silently passing; that is a
-          pin whose retirement was missed.
+- _Outcome:_ `expectPinnedObservation` takes the behavior sentence, the result held today, and the result awaited:
+  the held one passes, anything else fails, and the awaited one fails asking for a plain assertion in its place. The
+  awaited shape is read first, so a result satisfying both retires the hold rather than renewing it — read the other
+  way, a landed fix stays invisible for as long as the two shapes overlap. Identity is settled in the shape type:
+  discriminants, flags, and path lists, never counts; an object id is refused at the call, being the one run-varying
+  value a string field cannot exclude. A behavior sentence citing something that organizes work rather than
+  describing it is refused on the same call, since that is the only route by which such a citation reaches the
+  runner's output.
 
 ## **Phase 2:** Pilot probes across both lanes
 
