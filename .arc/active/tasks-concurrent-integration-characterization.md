@@ -196,34 +196,20 @@ path, both ledger rows carry every recorded column, and the suite is green.
   imports nothing the spawned lane should avoid, so the probe calls it directly and the integration-lane
   conveniences stay where they are.
 
-### `[ ]` **2.2 Probe the public-review boundary at the handler seam**
+### `[x]` **2.2 Probe the public-review boundary at the handler seam**
 
 - _Goal:_ An integration probe advances the base inside the public-review boundary by driving the injected request
   and observer functions, proving the second lane composes before fifteen further probes assume it.
 
-- _Shape:_ Extend `integration/review-fan-out-lifecycle.test.ts`, which already passes `request` and `observers`
-  into the hosted handlers. A spawned verb can reach this boundary's behavior through host shims, but the injected
-  functions are the precise instrument for controlling what the observation contains, which is what a movement
-  probe needs. The boundary's typed stop for a moved base is `state: "base-moved"` with
-  `nextAction: "rerun-checkpoint"`, derived from the observation's containment fact.
-
-- _Note:_ The seam makes the movement trivial to fake — supplying a non-containing observation asserts the stop
-  without moving anything, which tests the handler's arithmetic rather than the lifecycle. Advance a real base
-  through the helper and observe it through the instrument Task 1.1.c settled, rather than handing the containment
-  fact in.
-
-- _Note:_ That stop has a shape precondition as well as a movement one: it is returned only when no outstanding
-  conjunction carries a dischargeable member, and the harness is delivery-member shaped throughout. A probe can
-  advance a real base, observe a non-contained result, and still land in a different typed state because the
-  conjunction decided it. Establish the singleton shape first, or the pilot debugs the wrong thing.
-
-- _Note:_ That harness builds its branches locally and attaches no remote, so there is no base to advance until one
-  is added. Giving it an origin in one of the helper's first-class shapes is this task's first step, as it is at
-  the other two boundaries whose fixtures lack one.
-
-    - Record the row, and pin the observed result where it is not the idiomatic one.
-    - Take the `rerun-checkpoint` continuation the stop names and record whether it clears — the first evidence of
-      whether this boundary's stop is friction or a freeze.
+- _Outcome:_ The probes drive the production status port rather than the injected observer the goal anticipated:
+  injecting an observation decides the containment fact instead of reading it, so the base read never runs. The
+  port reaches the host through the same injected exec it uses for Git — required checks are the one exception,
+  resolving through the process runner — so a stub host on `PATH` covers the whole composition. The shape
+  precondition resolved to a work unit on an ordinary branch whose publication reserved no hosted review: the
+  routed obligation comes back `settled` with no conjunction, leaving the moved-base arm reachable. The fixture is
+  a new file, since the fan-out harness is delivery-plan shaped throughout, and this boundary's remaining cells
+  belong there too. The stop is bare and its continuation does not clear; the ledger row in
+  `notes-concurrent-integration-characterization.md` carries what the refusal actually rests on.
 
 ### `[ ]` **2.3 Confirm the pilot pair's lane composition and ledger rows** — validate exit criterion at segment scope
 

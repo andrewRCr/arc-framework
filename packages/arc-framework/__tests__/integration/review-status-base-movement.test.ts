@@ -1,0 +1,247 @@
+/**
+ * Public review status observed across a base advance, through the production status composition.
+ *
+ * The status port is what threads the base read into the reducer, so these drive it rather than supplying a
+ * containment fact: the repository has a real origin, the advance really moves it, and the observation comes
+ * back through the same composition the review verb uses. The host is a stub on `PATH`, which is the only
+ * dependency here that is not the repository itself.
+ */
+
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { handleIntegrationCheckpoint } from "../../src/handlers/integration.js";
+import { handleAttest } from "../../src/handlers/lifecycle.js";
+import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
+import { createReviewStatusPort } from "../../src/scripts/review-gate/status-composition.js";
+import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
+import { advanceBase, movementPaths } from "../helpers/base-advance.js";
+import { runHandlerAt } from "../helpers/handler.js";
+import {
+  cleanupTempDir,
+  DEFAULT_PROMPTS,
+  execFileAsync,
+  initInTempRepo,
+  makeGitExec,
+  removeGitBackedDir,
+} from "../helpers/integration.js";
+import { expectPinnedObservation } from "../helpers/pinned-observation.js";
+
+const WORK_UNIT = "example";
+const HEAD_REF = `feat/${WORK_UNIT}`;
+const REPOSITORY = "owner/repository";
+const HOST_URL = `git@github.com:${REPOSITORY}.git`;
+const PULL_REQUEST = 41;
+
+const cleanups: (() => Promise<void>)[] = [];
+
+afterEach(async () => {
+  while (cleanups.length > 0) await cleanups.pop()?.();
+});
+
+async function git(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd });
+  return stdout.trim();
+}
+
+function metaDocument(): string {
+  return [
+    `# Metadata: ${WORK_UNIT}`,
+    "",
+    "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
+    "| --------- | ----------- | -------------- | --------- | ------------ |",
+    `| \`Active\`  | \`test-user\` | \`${HEAD_REF}\` | \`Light\`   | \`P2\`         |`,
+    "",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
+    "- **Origin:** [internal]",
+    "- **Design:** [none]",
+    `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
+    "- **Review Rubric:** [none]",
+    "- **Promotion Receipt:** [none]",
+    "",
+    "- **Current Workflow:** [none]",
+    "- **Last Completed:** verification",
+    "- **Next Task:** Task 1.1 — Verification complete",
+    "- **Blockers:** [none]",
+    "",
+    "- **Next Action:** verification complete",
+    "",
+    "- **PR URL:** [none]",
+    "- **Completed:** [none]",
+    "",
+    "---",
+    "",
+  ].join("\n");
+}
+
+/** A stub host answering only what the status composition asks of it. */
+async function installHost(root: string): Promise<string> {
+  const bin = join(root, ".arc-fixture", "bin");
+  const headSha = await git(root, ["rev-parse", "HEAD"]);
+  const listed = JSON.stringify([{
+    number: PULL_REQUEST,
+    url: `https://example.test/pull/${String(PULL_REQUEST)}`,
+    state: "OPEN",
+    baseRefName: "main",
+    headRefName: HEAD_REF,
+    headRefOid: headSha,
+  }]);
+  const pull = JSON.stringify({
+    number: PULL_REQUEST,
+    state: "open",
+    merged: false,
+    draft: false,
+    merge_commit_sha: null,
+    mergeable: true,
+    head: { ref: HEAD_REF, sha: headSha, repo: { full_name: REPOSITORY } },
+    base: { ref: "main", repo: { full_name: REPOSITORY } },
+  });
+  await mkdir(bin, { recursive: true });
+  const script = join(bin, "gh");
+  await writeFile(script, [
+    "#!/bin/sh",
+    'case "$1:$2" in',
+    `  pr:list) printf '%s\\n' '${listed}' ;;`,
+    "  pr:checks) echo 'no required checks reported' >&2; exit 1 ;;",
+    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}) printf '%s\\n' '${pull}' ;;`,
+    `  api:repos/${REPOSITORY}/branches/main) printf '%s\\n' '{}' ;;`,
+    "  api:--paginate) printf '%s\\n' '[[]]' ;;",
+    '  *) echo "unexpected host invocation: $*" >&2; exit 1 ;;',
+    "esac",
+    "",
+  ].join("\n"), "utf8");
+  await chmod(script, 0o755);
+  return bin;
+}
+
+/**
+ * A singleton work unit whose publication reserved no hosted review, published to a host-shaped origin.
+ *
+ * The branch is an ordinary work-unit branch, so the routed obligation resolves without consulting any
+ * delivery plan — which is what keeps the moved-base arm reachable instead of a conjunction deciding first.
+ */
+async function singletonUnderReview(): Promise<{ root: string; headSha: string; bin: string }> {
+  const root = await initInTempRepo(DEFAULT_PROMPTS);
+  cleanups.push(async () => cleanupTempDir(root));
+  await git(root, ["add", "-A"]);
+  await git(root, ["commit", "-m", "init"]);
+
+  const remote = join(root, ".arc-fixture", "origin.git");
+  await mkdir(join(root, ".arc-fixture"), { recursive: true });
+  await writeFile(join(root, ".git", "info", "exclude"), ".arc-fixture/\n", { flag: "a" });
+  await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+  cleanups.push(async () => removeGitBackedDir(remote));
+  await git(root, ["remote", "add", "origin", remote]);
+  await git(root, ["config", `url.${remote}.insteadOf`, HOST_URL]);
+  await git(root, ["remote", "set-url", "origin", HOST_URL]);
+  await git(root, ["push", "origin", "main"]);
+
+  await git(root, ["switch", "-c", HEAD_REF]);
+  await mkdir(join(root, ".arc", "active"), { recursive: true });
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, ".arc", "active", `meta-${WORK_UNIT}.md`), metaDocument());
+  await writeFile(join(root, "src", "example.ts"), "export const example = true;\n");
+  await git(root, ["add", "-A"]);
+  await git(root, ["commit", "-m", "implementation"]);
+  await git(root, ["push", "origin", HEAD_REF]);
+  await writeFile(
+    join(root, ".arc", "active", `tasks-${WORK_UNIT}.md`),
+    "# Task List: Example\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n",
+  );
+  await git(root, ["add", `.arc/active/tasks-${WORK_UNIT}.md`]);
+
+  const attested = await runHandlerAt(root, async () => {
+    await handleAttest(WORK_UNIT, { json: true }, machineContext());
+  });
+  expect(attested.exitCode, attested.stdout + attested.stderr).toBe(0);
+
+  return { root, headSha: await git(root, ["rev-parse", "HEAD"]), bin: await installHost(root) };
+}
+
+/** Run one handler with the stub host reachable, as a session invoking it from this repository would. */
+async function withHost<T>(bin: string, run: () => Promise<T>): Promise<T> {
+  const previous = process.env.PATH;
+  process.env.PATH = `${bin}:${previous ?? ""}`;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env.PATH;
+    else process.env.PATH = previous;
+  }
+}
+
+function machineContext() {
+  return resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
+}
+
+/** Resolve review status through the production port, with the stub host on `PATH`. */
+async function statusThroughPort(fixture: { root: string; headSha: string; bin: string }) {
+  return await withHost(fixture.bin, async () => resolveReviewStatus(
+    { target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha } },
+    createReviewStatusPort({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+  ));
+}
+
+/** Take the checkpoint rerun a moved-base stop names, through its own handler seam. */
+async function checkpointThroughHandler(fixture: { root: string; bin: string }): Promise<unknown> {
+  const run = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+    await handleIntegrationCheckpoint(WORK_UNIT, { json: true }, machineContext());
+  }));
+  return JSON.parse(run.stdout);
+}
+
+describe("review status over a base the work unit contains", () => {
+  it("reports the settled state the moved-base reading is measured against", async () => {
+    const fixture = await singletonUnderReview();
+
+    const status = await statusThroughPort(fixture);
+
+    expect(status).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
+    expect(status.currentBaseOid).not.toBeNull();
+  });
+});
+
+describe("review status over a base advanced under the work unit", () => {
+  it("stops for a checkpoint rerun after an advance sharing no path with the branch", async () => {
+    const fixture = await singletonUnderReview();
+    await advanceBase({ cwd: fixture.root, paths: movementPaths("disjoint", WORK_UNIT).base });
+
+    const status = await statusThroughPort(fixture);
+
+    expectPinnedObservation(status, {
+      behavior: "an advance sharing no path with the branch stops public review for a checkpoint rerun",
+      observed: { state: "base-moved", nextAction: "rerun-checkpoint" },
+      target: { state: "settled", nextAction: "continue-reconcile" },
+    });
+  });
+});
+
+describe("the checkpoint rerun a moved-base stop names", () => {
+  it("does not clear the stop after an advance sharing no path with the branch", async () => {
+    const fixture = await singletonUnderReview();
+    await advanceBase({ cwd: fixture.root, paths: movementPaths("disjoint", WORK_UNIT).base });
+
+    const checkpoint = await checkpointThroughHandler(fixture);
+
+    expect(checkpoint).toMatchObject({ state: "blocked", nextAction: "stop", reason: "unsafe-reconcile" });
+    // Neither of the two facts the refusal is usually about holds here: the advance intersects nothing the
+    // branch changed, and the host reports the change request mergeable. What withholds the reconcile is
+    // that the advanced commit carries no landing provenance to classify.
+    expect(checkpoint).toMatchObject({
+      payload: {
+        safety: {
+          host: { state: "mergeable" },
+          overlapAvailable: true,
+          substantivePaths: [],
+          regenerablePaths: [],
+          integrationEvidenceComplete: false,
+          safe: false,
+        },
+      },
+    });
+  });
+});

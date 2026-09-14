@@ -166,8 +166,14 @@ no intersection at all.
 | Post-landing closeout        | `arc teardown`, archival                                        | e2e         | `e2e/teardown.e2e.test.ts`                     |
 | Errand review / merge        | `arc errand close`, the Errand's typed merge lane               | e2e         | `e2e/errand.e2e.test.ts`                       |
 
-Public review is the one integration-lane boundary: its existing tests inject the request and observer functions
-into the handlers, and a spawned CLI cannot reach that seam.
+Public review is the one integration-lane boundary: a spawned CLI cannot reach the seam its existing tests use,
+which inject the request and observer functions into the handlers. Its probes do not extend those tests. Injecting
+an observation is what makes the containment fact a value the test chose, so the probes drive the production status
+port instead, over a work unit whose branch is an ordinary one and whose publication reserved no hosted review —
+the shape that leaves the moved-base arm reachable rather than decided by a conjunction. The port reaches the host
+through the same injected exec it uses for Git, except for required checks, which resolve through the process
+runner; a stub host on `PATH` covers both. That fixture lives in `integration/review-status-base-movement.test.ts`
+and is where this boundary's remaining cells belong.
 
 ### Delivery-member shape — 7 cells
 
@@ -550,9 +556,22 @@ unit's close, not at seed time.
 
 - _Intent:_ Advance the base under an open request; expect `base-moved / rerun-checkpoint` from the containment
   fact alone.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `review-status-base-movement.test.ts` — "stops for a checkpoint rerun after an advance sharing no
+  path with the branch" · _Base OID:_ `4f6b11568` · _Observed:_ `base-moved / rerun-checkpoint`, carrying no
+  reason and no remedy. The routed obligation is `settled` and required checks are `not-required`, so the stop
+  comes from the containment fact alone, as the seam read predicted.
+- _Invocations:_ 2 — the status resolve, plus the checkpoint the stop names · _Stops:_ 2 — `rerun-checkpoint`,
+  then the checkpoint's own `stop` · _Fork:_ bare at the stop, which names an action but carries no argv; the
+  continuation's refusal is recommendation-bearing · _Continuation:_ `did-not-clear`
+- _Classification:_ `mechanical block` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The continuation refuses with `blocked / unsafe-reconcile` while reporting an empty overlap and a mergeable
+  host. Removing the integration-evidence term from the safety conjunction turns the same run into
+  `reconcile / reconcile-base`, so the refusal rests entirely on the advanced commit carrying no landing
+  provenance to classify — not on the overlap its remedy text tells the reader to resolve. A base advance that
+  is not merge-shaped is therefore unreconcilable at this seam however disjoint it is, and the remedy names a
+  cause the same payload contradicts. Whether the fixture can present merge-shaped movement is the landing
+  boundary's question, not this row's; the refusal stands either way, and only its attribution is at issue.
 
 **Public review and checks · `unknown` · singleton**
 
