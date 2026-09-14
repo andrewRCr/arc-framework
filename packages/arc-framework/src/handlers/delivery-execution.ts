@@ -2543,7 +2543,6 @@ async function executeDeliveryCommand(
           planStore.readCurrent(correctionEntry.planId),
         ]);
         const landedDeliverableIds = stateRead.status === "ok" && stateRead.value !== null
-          && findExactPendingSelectedRefresh(stateRead.value.value) !== null
           ? await readLandedDeliverableIds(correctionEntry.planId)
           : [];
         if (landedDeliverableIds === null) {
@@ -3056,9 +3055,7 @@ async function executeDeliveryCommand(
       if (entry.status === "correction-routing-required") {
         const stateRead = await stateStore.read(entry.planId);
         if (stateRead.status === "ok" && stateRead.value !== null) {
-          const landedDeliverableIds = findExactPendingSelectedRefresh(stateRead.value.value) === null
-            ? []
-            : await readLandedDeliverableIds(entry.planId);
+          const landedDeliverableIds = await readLandedDeliverableIds(entry.planId);
           if (landedDeliverableIds === null) {
             return { status: "refused", reason: "review-fix-position-unavailable" };
           }

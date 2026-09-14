@@ -809,8 +809,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   }) as typeof vitestIt;
 
   describe("arc delivery position", () => {
-  it("resumes one approved member fix without manufacturing a task cursor", async () => {
-    const fixture = await positionFixture();
+  for (const { label, scenario } of [
+    { label: "an unlanded member", scenario: undefined },
+    { label: "a stale landed member", scenario: "landed-prefix" as const },
+  ]) {
+  it(`resumes an approved member fix only for ${label}`, async () => {
+    const fixture = await positionFixture(scenario);
     const workUnitId = fixture.plan.workUnitId;
     const branch = `feat/${workUnitId}`;
     await git(fixture.repository, ["switch", "-c", branch]);
@@ -1021,6 +1025,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
     );
+    if (scenario === "landed-prefix") {
+      expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(1);
+      expect(JSON.parse(result.stdout), result.stdout).toMatchObject({
+        command: "delivery review-fix continue",
+        status: "refused",
+        reason: "review-fix-route-mismatch",
+      });
+      return;
+    }
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
     expect(JSON.parse(result.stdout), result.stdout).toMatchObject({
       command: "delivery review-fix continue",
@@ -1052,6 +1065,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       },
     });
   });
+  }
 
   it("projects pending review-fix verification into the integration session", async () => {
     const fixture = await positionFixture();
@@ -2040,7 +2054,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect(JSON.parse(resumed.stdout), resumed.stdout).toMatchObject({
       command: "delivery review-fix continue",
       status: "refused",
-      reason: "review-fix-route-unavailable",
+      reason: "review-fix-position-unavailable",
       effectLog: [
         { kind: "dispatch", actionKind: "delivery-review-fix-acknowledge", resultStatus: "acknowledged" },
         { kind: "boundary-carry" },

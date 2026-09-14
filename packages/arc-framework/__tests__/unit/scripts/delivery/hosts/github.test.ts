@@ -121,6 +121,8 @@ describe("GhDeliveryHostPort", () => {
   it.each([
     { label: "an invalid head SHA", prefix: { number: 401, head: { ref: "delivery/example/first", sha: "invalid" } } },
     { label: "a nonpositive PR number", prefix: { number: 0, head: { ref: "delivery/example/first", sha: headSha } } },
+    { label: "an invalid merge timestamp", prefix: { number: 401,
+      head: { ref: "delivery/example/first", sha: headSha }, merged_at: "invalid" } },
   ])("does not discard a merged prefix with $label", async ({ prefix }) => {
     const second = nativeInput.members[1]!;
     const remaining: DeliveryNativeStackInput = {
@@ -131,7 +133,7 @@ describe("GhDeliveryHostPort", () => {
       number: 9,
       base: { ref: "main" },
       pull_requests: [
-        { ...prefix, state: "closed", merged_at: "2026-09-14T04:06:01Z" },
+        { state: "closed", merged_at: "2026-09-14T04:06:01Z", ...prefix },
         { number: 402, state: "open", merged_at: null,
           head: { ref: second.headRef, sha: second.headSha } },
       ],

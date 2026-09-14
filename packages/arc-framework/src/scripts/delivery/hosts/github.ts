@@ -1,5 +1,7 @@
 /** GitHub CLI implementation of the provider-neutral delivery host boundary. */
 
+import { z } from "zod";
+
 import type {
   DeliveryHostChangeRequest,
   DeliveryHostMergeResult,
@@ -31,6 +33,7 @@ import type {
 } from "../../../lib/delivery/native-landing.js";
 
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const mergedAtTimestamp = z.iso.datetime({ offset: true });
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -193,7 +196,7 @@ export class GhDeliveryHostPort implements DeliveryHostPort, DeliveryTopRemedyHo
           const head = record(member?.head);
           return member !== null && Number.isSafeInteger(member.number) && (member.number as number) > 0
             && member.state === "closed"
-            && typeof member.merged_at === "string" && member.merged_at.length > 0
+            && mergedAtTimestamp.safeParse(member.merged_at).success
             && typeof head?.ref === "string" && head.ref.length > 0
             && typeof head.sha === "string" && objectId.test(head.sha);
         });
