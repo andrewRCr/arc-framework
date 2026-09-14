@@ -103,6 +103,16 @@ not relax distrust of agent self-attestation or exactness over ARC-owned single-
 - TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
   describing the module's purpose
 
+## Self-Hosting Defects
+
+This repository uses ARC to build ARC, so an ARC refusal or workflow dead end may expose an unfinished or defective
+control, not a final veto. Diagnose it and make safe, in-scope repairs and retries. If the repair is not already owned
+or planned, propose a proportionate Errand or work-unit capture at the next natural report boundary; routing the defect
+does not itself halt the present task. Continue by the narrowest sound path. Before crossing a failed ARC control,
+disclose why it appears defective and what remains unverified, then obtain explicit Owner direction for that specific
+workaround. Never report a failed check as passed or bypass higher-priority instructions or independently required
+quality and merge gates.
+
 ## Documentation Standards
 
 ### Markdown quality

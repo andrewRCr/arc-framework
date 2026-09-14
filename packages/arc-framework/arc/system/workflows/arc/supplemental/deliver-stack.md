@@ -421,16 +421,21 @@ arc candidate applicability resolve {workUnitId} -
 ```
 
 Commit a returned `commit-selection`, then re-enter through `arc review status`. `continue` retains the earlier
-attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns and
-check/base movement return to their typed checkpoint; `upgrade` and every `stop` remain stops. After any concluded
-attempt, invoke status again. The CLI selects the next retained target; only `settled / continue-reconcile` permits
-either landing preparation. A returned typed discharge conjunction must be `discharged`; the typed settled variant
-without a conjunction is also authoritative because no delivery-member conjunction remains to discharge.
+attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns,
+check failures, and base movement without a discharged selected member return to their typed checkpoint; `upgrade`
+and every `stop` remain stops. After any concluded attempt, invoke status again for the arm-selected exact member
+target. A `member-discharged / continue-reconcile`
+result permits that member's landing when `selectedMember.vehicle.deliverableId` matches the arm selection and its
+target matches the resolved `targetRef`; later members may still need review. `settled / continue-reconcile` also
+permits landing when a returned typed discharge conjunction is `discharged`; the typed settled variant without a
+conjunction is also authoritative because no delivery-member conjunction remains to discharge. No other review-status
+result permits landing preparation.
 
 Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable, and settle findings through
 `review-triage` and `review-response` before returning to the calling landing arm.
 
-Only the settled native arm advances to set-wide preparation:
+Only a native arm admitted by `member-discharged / continue-reconcile` or `settled / continue-reconcile` advances to
+set-wide preparation:
 
 ```bash
 arc delivery native land-prepare - --json
@@ -500,7 +505,8 @@ unsettled approved review response; never infer that selection from terminal bra
 stops.
 
 For `review-member`, settle exact member review authority above with the returned `selectedDeliverableId`. Only its
-`settled / continue-reconcile` result returns here for ordinary landing preparation.
+`member-discharged / continue-reconcile` result for that exact selected member, or its
+`settled / continue-reconcile` result, returns here for ordinary landing preparation.
 
 The preparation request carries that selection plus plan, repository, remote, target, lock, and tree locators — no
 position facts. The handler freshly reobserves position before preparing the singleton effect.
