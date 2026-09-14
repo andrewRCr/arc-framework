@@ -1775,6 +1775,73 @@ describe("review status", () => {
     });
   });
 
+  it("routes a discharged selected member to landing while later review remains outstanding", async () => {
+    const secondVehicle = {
+      ...memberVehicle,
+      deliverableId: `sha256:${"d".repeat(64)}`,
+      head: oid("d"),
+    };
+    const secondHostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 2),
+        deliveryTarget(secondHostedTarget, secondVehicle, 2, 2),
+      ],
+      discharges: [
+        deliveryDischarge({ discharged: true, detail: "member one discharged", nextSource: null }),
+        deliveryDischarge({
+          discharged: false,
+          detail: "member two outstanding",
+          nextSource: "codex-pr",
+          requestAdmission: readyAdmission("codex-pr", secondHostedTarget),
+        }),
+      ],
+    });
+    const selectedTarget = { ...target, headSha: memberVehicle.head };
+    const laterTarget = { ...target, headRef: "delivery/member-2", headSha: secondVehicle.head };
+
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
+      selectedMember: { vehicle: memberVehicle, state: "discharged" },
+      routedObligation: {
+        state: "review-required",
+        conjunction: { status: "outstanding" },
+      },
+    });
+    await expect(resolveReviewStatus({ target: laterTarget }, port({
+      actualHeadSha: laterTarget.headSha,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: { target: secondHostedTarget },
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "member-discharged", nextAction: "continue-reconcile" });
+    await expect(resolveReviewStatus({ target: laterTarget }, port({
+      actualHeadSha: laterTarget.headSha,
+      baseContained: false,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      requiredChecks: "pending",
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "checks-pending", nextAction: "rerun-checkpoint" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      requiredChecks: "failed",
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "blocked", reason: "checks-failed" });
+  });
+
   it("reports a discharged typed conjunction only after every retained member settles", () => {
     const secondVehicle = {
       ...memberVehicle,

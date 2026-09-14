@@ -75,10 +75,10 @@ describe("hosted review fan-out workflow", () => {
     const section = reviewSection(
       packaged,
       "### Settle exact member review authority",
-      "Only the settled native arm advances",
+      "Only a native arm admitted",
     );
     expectTypedProgression(section);
-    expect(section).toMatch(/typed settled variant\s+without a conjunction is also authoritative/iu);
+    expect(section).toMatch(/typed settled variant\s+without a\s+conjunction is also authoritative/iu);
     expect(packaged.indexOf("arc delivery native land-prepare - --json"))
       .toBeGreaterThan(packaged.indexOf("arc review status"));
     expect(packaged.indexOf("arc delivery land prepare - --json"))
