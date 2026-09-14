@@ -11,6 +11,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { analyzeBaseOverlap } from "../../src/lib/git/base-overlap.js";
+import { analyzeIntegrationEvidence } from "../../src/lib/git/base-integration-evidence.js";
 import { runBaseDrift } from "../../src/lib/git/base-distance.js";
 import { classifyPathTreatment } from "../../src/lib/evidence-applicability/index.js";
 import { makeGitExec } from "../helpers/integration.js";
@@ -208,5 +209,38 @@ describe("an unavailable base read", () => {
     const head = await exec("git", ["rev-parse", "HEAD"]);
 
     expect(head.stdout.trim()).toMatch(/^[0-9a-f]{40}$/u);
+  });
+});
+
+describe("the shape of the advancing commit, as the shipped evidence scan reads it", () => {
+  it("leaves a direct advance unclassifiable", async () => {
+    const { cwd } = await checkoutOnWorkUnitBranch();
+    await arrangeBranchSide({ cwd, paths: ["src/branch-only-surface.ts"] });
+
+    const advance = await advanceBase({ cwd, paths: ["src/base-only-surface.ts"] });
+
+    expect(await analyzeIntegrationEvidence({ exec: makeGitExec(cwd), baseOid: advance.head })).toMatchObject({
+      coverage: "partial",
+      unclassifiedCommitCount: 1,
+      limitations: expect.arrayContaining(["unclassified-commits"]),
+    });
+  });
+
+  it("proves a landed advance from topology alone", async () => {
+    const { cwd } = await checkoutOnWorkUnitBranch();
+    await arrangeBranchSide({ cwd, paths: ["src/branch-only-surface.ts"] });
+
+    const advance = await advanceBase({
+      cwd,
+      paths: ["src/base-only-surface.ts"],
+      landing: "merge",
+    });
+
+    expect(await analyzeIntegrationEvidence({ exec: makeGitExec(cwd), baseOid: advance.head })).toMatchObject({
+      coverage: "complete",
+      unclassifiedCommitCount: 0,
+      limitations: [],
+      events: [{ proof: "topology" }],
+    });
   });
 });

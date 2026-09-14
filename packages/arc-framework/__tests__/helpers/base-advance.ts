@@ -72,6 +72,17 @@ export interface BaseAdvanceOptions extends BaseCoordinates {
   /** Distinguishes successive advances so each writes different content. */
   readonly generation?: number;
   /**
+   * How the advancing commit reached the base.
+   *
+   * A protected base ordinarily moves by landing a change request, and the shipped evidence scan proves a
+   * landing from topology alone — a second parent is the whole proof. `direct` is the other real shape, a
+   * commit pushed straight to the base, which no scan can classify. The shapes are not interchangeable:
+   * anything gated on complete integration evidence refuses under `direct` however disjoint the advance is.
+   */
+  readonly landing?: "direct" | "merge";
+  /** Change-request number a `merge` landing names; irrelevant to a `direct` one. */
+  readonly pullRequest?: number;
+  /**
    * Further checkouts that must see the advance through their own remote-tracking ref.
    *
    * A sibling worktree shares the primary's ref store and needs no entry here; a separate clone
@@ -142,6 +153,39 @@ export async function arrangeBranchSide(options: BranchSideOptions): Promise<voi
 }
 
 /**
+ * Land the advance as a merge of a change-request branch, the way a protected base ordinarily moves.
+ *
+ * The evidence scan proves an event from the second parent alone; the subject only names which change
+ * request it was. The side commit carries the same tree, so the merge introduces nothing its branch did not.
+ */
+async function landMergeCommit(input: {
+  readonly cwd: string;
+  readonly tree: string;
+  readonly parent: string;
+  readonly message: string;
+  readonly generation: number;
+  readonly pullRequest?: number;
+}): Promise<string> {
+  const branch = `arc-fixture/advance-${input.generation}`;
+  const pullRequest = input.pullRequest ?? input.generation + 1;
+  const side = (await git(
+    input.cwd,
+    ["commit-tree", input.tree, "-p", input.parent, "-m", input.message],
+    authorEnvironment(),
+  )).trim();
+  return (await git(
+    input.cwd,
+    [
+      "commit-tree", input.tree,
+      "-p", input.parent,
+      "-p", side,
+      "-m", `Merge pull request #${String(pullRequest)} from ${branch}`,
+    ],
+    authorEnvironment(),
+  )).trim();
+}
+
+/**
  * Advance the remote base over a path set without touching the caller's checkout.
  *
  * @param options - The checkout, base coordinates, and paths the advance should change.
@@ -177,11 +221,15 @@ export async function advanceBase(options: BaseAdvanceOptions): Promise<BaseAdva
     );
   }
   const tree = (await git(options.cwd, ["write-tree"], indexEnvironment)).trim();
-  const head = (await git(
-    options.cwd,
-    ["commit-tree", tree, "-p", parent, "-m", message],
-    authorEnvironment(),
-  )).trim();
+  const head = options.landing === "merge"
+    ? await landMergeCommit({ cwd: options.cwd, tree, parent, message, generation, ...(
+        options.pullRequest === undefined ? {} : { pullRequest: options.pullRequest }
+      ) })
+    : (await git(
+        options.cwd,
+        ["commit-tree", tree, "-p", parent, "-m", message],
+        authorEnvironment(),
+      )).trim();
 
   // Push by remote name. A URL-rewritten origin needs no special handling — Git resolves
   // `insteadOf` wherever it consumes the URL, and `remote get-url` already reports the rewritten

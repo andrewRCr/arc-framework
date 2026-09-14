@@ -442,6 +442,28 @@ What it assumes is that this work unit runs on one machine, which is its plan. I
 run files do not follow, and the closing comparison degrades from a tool-computed delta to the medians recorded
 above. Nothing is removed from the tree at close, because nothing was added to it.
 
+## Movement shape
+
+The advance helper carries two landing shapes, and they are not interchangeable at any seam gated on integration
+evidence. The shipped scan proves an event from commit topology alone — a second parent is the whole proof — so a
+change request landed as a merge classifies, while a commit pushed straight to the base cannot be classified by any
+scan and leaves coverage `partial` with the movement unclassified.
+
+Observed at the checkpoint seam over one disjoint advance, every other fact held constant:
+
+| Landing shape | Evidence coverage | Reconcile safety | Checkpoint result            |
+| ------------- | ----------------- | ---------------- | ---------------------------- |
+| `direct`      | `partial`         | unsafe           | `blocked / unsafe-reconcile` |
+| `merge`       | `complete`        | safe             | `reconcile / reconcile-base` |
+
+Two consequences the probes carry forward. Movement shape is a real axis of this boundary's behavior even though
+the matrix has no column for it, so a row that observed a refusal names the shape it observed. And the refusal
+under `direct` is mis-signalled: its reason and remedy name a substantive overlap that the same payload reports as
+empty, so a reader following the remedy would look for a conflict that is not there.
+
+`direct` stays the helper's default. It is the shape every row recorded before this was observed against, and
+changing the default would silently restate those observations.
+
 ## Characterization ledger
 
 One row per probe, appended during execution (D4). Columns: boundary · movement kind · shape · test name · base OID
@@ -595,6 +617,10 @@ unit's close, not at seed time.
   is not merge-shaped is therefore unreconcilable at this seam however disjoint it is, and the remedy names a
   cause the same payload contradicts. Whether the fixture can present merge-shaped movement is the landing
   boundary's question, not this row's; the refusal stands either way, and only its attribution is at issue.
+
+  _Answered at the landing boundary, without restating this observation:_ it can, and the continuation then
+  clears — see § Movement shape. This row's `did-not-clear` stands as the observation taken against
+  movement pushed straight to the base.
 
 **Public review and checks · `unknown` · singleton**
 
