@@ -41,6 +41,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | locus-claim-revalidation                | P1       | andrew | —          | —                          |
 | recovery-hardening                      | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution          | P1       | andrew | —          | —                          |
+| review-operation-state-isolation        | P1       | andrew | —          | —                          |
 | roadmap-tooling                         | P1       | andrew | —          | —                          |
 | session-init-performance                | P1       | andrew | —          | —                          |
 | verification-falsification-contract     | P1       | andrew | —          | —                          |
