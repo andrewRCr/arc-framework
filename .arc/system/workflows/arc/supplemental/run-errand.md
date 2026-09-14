@@ -458,8 +458,11 @@ remote base all name the same exact head. Any tracked change continues through t
 > for asynchronous host review or later manual merge. Close with `Approve (or redirect)?`.
 
 After approval, apply the approved final dispositions and channel settlements. An explicit release-only redirect
-invokes `arc merge lock release -` for the exact approved target and stops after `released / proceed` or `no-lock /
-none`; `blocked / stop` renders its typed reason and stops. This separate operation authorizes no merge.
+composes `releaseRequest` with `schemaVersion: 1`, the absolute checkout path as `treeRoot`, the exact approved PR as
+`target: { repository, pullRequest, headSha }`, and the strict Errand identity as
+`vehicle: { kind: "errand", slug }`. Pass `releaseRequest` as JSON stdin to `arc merge lock release -` and stop after
+`released / proceed` or `no-lock / none`; `blocked / stop` renders its typed reason and stops.
+This separate operation authorizes no merge.
 
 6. **Run the approved terminal operation.** Under an Owner-directed review stop, immediately recheck the accepted
    Errand claim, PR, base OID, head, and known review/response state. Any movement or new finding returns to Step 4
