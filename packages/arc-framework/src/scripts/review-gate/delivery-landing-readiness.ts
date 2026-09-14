@@ -1,6 +1,7 @@
 /** Delivery landing admission over existing exact-target review authority. */
 
 import type { ChangeRequestTargetRef } from "./change-request.js";
+import { selectDischargedDeliveryMember } from "./status.js";
 import type { RoutedReviewObligation, ReviewStatusPort } from "./status.js";
 
 export type DeliveryLandingReviewReadiness =
@@ -34,14 +35,9 @@ export async function assessDeliveryLandingReviewReadiness(
     return { status: "refused", reason: "stale-target" };
   }
   const obligation = observation.routedObligation;
-  const matchingMembers = "conjunction" in obligation
-    ? obligation.conjunction.members.filter((member) =>
-      member.target.repository.toLowerCase() === target.repository.toLowerCase()
-        && member.target.headSha === target.headSha)
-    : null;
-  const reviewDischarged = matchingMembers === null
-    ? obligation.state === "settled"
-    : matchingMembers.length === 1 && matchingMembers[0]?.state === "discharged";
+  const reviewDischarged = "conjunction" in obligation
+    ? selectDischargedDeliveryMember(target, obligation.conjunction) !== null
+    : obligation.state === "settled";
   if (!reviewDischarged) {
     return { status: "refused", reason: "review-unsettled" };
   }

@@ -162,6 +162,23 @@ export const DeliveryReviewConjunctionSchema = z.strictObject({
 });
 export type DeliveryReviewConjunction = z.infer<typeof DeliveryReviewConjunctionSchema>;
 
+/**
+ * Select one uniquely exact discharged member from a delivery review conjunction.
+ *
+ * @param target - Exact member change-request target selected by the caller.
+ * @param conjunction - Fresh routed review state for the complete delivery.
+ * @returns The discharged selected member, or null when the binding is absent or ambiguous.
+ */
+export function selectDischargedDeliveryMember(
+  target: z.infer<typeof ChangeRequestTargetRefSchema>,
+  conjunction: DeliveryReviewConjunction,
+): DeliveryReviewConjunction["members"][number] | null {
+  const matches = conjunction.members.filter((member) =>
+    member.target.repository.toLowerCase() === target.repository.toLowerCase()
+      && member.target.headSha === target.headSha);
+  return matches.length === 1 && matches[0]?.state === "discharged" ? matches[0] : null;
+}
+
 export const DeliveryReviewCursorSchema = z.strictObject({
   status: z.enum(["outstanding", "discharged"]),
   completedMemberCount: z.number().int().nonnegative(),
@@ -740,6 +757,27 @@ const ReviewStatusSettledSchema = z.strictObject({
   state: z.literal("settled"),
   nextAction: z.literal("continue-reconcile"),
 });
+const ReviewStatusMemberDischargedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("member-discharged"),
+  nextAction: z.literal("continue-reconcile"),
+  selectedMember: DeliveryReviewConjunctionMemberSchema,
+}).superRefine((result, context) => {
+  const selected = "conjunction" in result.routedObligation
+    ? selectDischargedDeliveryMember(result.target, result.routedObligation.conjunction)
+    : null;
+  if (selected === null || result.selectedMember.state !== "discharged"
+    || !sameDeliveryReviewMemberVehicle(result.selectedMember.vehicle, selected.vehicle)
+    || result.selectedMember.target.pullRequest !== selected.target.pullRequest
+    || result.selectedMember.target.repository.toLowerCase() !== selected.target.repository.toLowerCase()
+    || result.selectedMember.target.headSha !== selected.target.headSha) {
+    context.addIssue({
+      code: "custom",
+      path: ["selectedMember"],
+      message: "selected landing member must match one discharged exact delivery target",
+    });
+  }
+});
 const ReviewStatusRunReviewSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("review-required"),
@@ -855,6 +893,7 @@ const ReviewStatusCoverageUnsupportedSchema = z.strictObject({
 });
 export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
+  | z.infer<typeof ReviewStatusMemberDischargedSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
   | z.infer<typeof ReviewStatusHostedAwaitSchema>
@@ -873,6 +912,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusBlockedSchema>;
 const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
   ReviewStatusSettledSchema,
+  ReviewStatusMemberDischargedSchema,
   ReviewStatusRunReviewSchema,
   ReviewStatusHostedRequestSchema,
   ReviewStatusHostedAwaitSchema,
@@ -1043,8 +1083,34 @@ export async function resolveReviewStatus(
       ),
     };
   }
-  if (!observation.baseContained && base.currentBaseOid !== null) {
+  const selectedMember = conjunction?.status !== "outstanding"
+    ? null
+    : selectDischargedDeliveryMember(request.target, conjunction);
+  if (!observation.baseContained && base.currentBaseOid !== null && selectedMember === null) {
     return { ...base, state: "base-moved", nextAction: "rerun-checkpoint" };
+  }
+  if (selectedMember !== null && base.currentBaseOid !== null) {
+    if (base.requiredChecks === "pending") {
+      return { ...base, state: "checks-pending", nextAction: "rerun-checkpoint" };
+    }
+    if (base.requiredChecks === "failed" || base.requiredChecks === "unavailable") {
+      return {
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: base.requiredChecks === "failed" ? "checks-failed" : "status-unavailable",
+        detail: base.requiredChecks === "failed"
+          ? "One or more required checks failed."
+          : "Required-check status is unavailable.",
+        remedy: reviewStatusRetryRemedy(request.target),
+      };
+    }
+    return ReviewStatusMemberDischargedSchema.parse({
+      ...base,
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
+      selectedMember,
+    });
   }
   if (base.routedObligation.state === "applicability-blocked") {
     const applicability = base.routedObligation.applicability;
