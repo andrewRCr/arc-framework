@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-concurrent-integration-characterization.md`
+- **Design:** `spec-concurrent-integration-characterization.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Planned a lifecycle-wide characterization of concurrent integration without a protected-base
   freeze.
 - **Next Task:** [none]
