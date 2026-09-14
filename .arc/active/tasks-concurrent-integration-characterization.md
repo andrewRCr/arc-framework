@@ -139,66 +139,23 @@ a not-applicable reason.
   cost is an explicit single-machine assumption, recorded with the axes, medians, and path in
   `notes-concurrent-integration-characterization.md` § Pre-probe cost baseline.
 
-### `[ ]` **1.4 Extend the base-advance helper with a path set and the four movement kinds**
+### `[x]` **1.4 Extend the base-advance helper with a path set and the four movement kinds**
 
 - _Goal:_ One helper call arranges a base advance a named movement kind can actually be read from, so every probe
   moves the base the same way and none hand-rolls a fourth idiom.
 
-- _Approach:_ The existing remote-branch advance is the reference idiom, not a small edit away from the helper.
-  It lives as a closure bound to one fixture, takes only a branch and a marker path, and leaves the caller's
-  checkout on the base branch — every probe here runs with a work-unit branch checked out. Replace its core with a
-  plumbing-only push that touches no working tree, following the `commit-tree` idiom the Errand tests already use.
-  The three hand-rolled advance idioms elsewhere in the suite stay where they are; migrating them is out of scope.
-
-- _Shape:_ State the input contract before the first caller consumes it. The helper takes a repository and its
-  origin rather than a fixture it owns; it must leave the caller's checked-out branch untouched; and both a plain
-  temp repository with a bare origin and the prepared remote-bearing shape are first-class inputs, including the
-  case where the origin is reached through a URL rewrite rather than a direct path.
-
-- _Shape:_ The advance must also leave the caller's remote-tracking ref for the base pointing at the advanced head.
-  Some boundaries fetch for themselves, but the Candidate base revision is resolved by reading the tracking ref
-  with local-only object access and no fetch at all — so a push that skips the refresh leaves that boundary
-  observing no movement, the probe passing, the pin never firing, and a `tolerates` row recorded for a base that
-  never moved from the verb's point of view. The existing advance performs this refresh; the replacement must keep
-  it.
-
-- _Context:_ Movement kind is a property of the **intersection** of the branch's own diff with the base's, not of
-  the advance alone — the shipped analyzer diffs `merge-base..HEAD` against `merge-base..<base>` and partitions what
-  both touched. The helper therefore owns both sides for the overlapping kinds, and guarantees the branch is ahead
-  before any of them mean anything: the analyzer short-circuits to an empty result whenever the branch is not both
-  ahead and behind.
-
-- _Shape:_ Two call forms. A direct call serves probes that drive their boundary as separate processes. An argv
-  step list serves probes that must interleave the advance inside one persistent shell sequence — the Errand lane
-  closes that way, and without the argv form its probes would hand-roll an advance, which is the outcome this
-  helper exists to prevent. For the overlapping kinds the branch-side arrangement still happens before the
-  sequence; only the base-side push rides inside it.
-
-- _Note:_ The signature, and whether `unknown` movement is produced by severing the remote or by withholding the
-  fetched object, resolve here; the design left both open. Verify the kinds through the shipped overlap classifier
-  so the helper's claim is checked against the code the boundaries themselves use.
-
-- **Additional Context:** `notes-concurrent-integration-characterization.md` § Fixture inventory
-
-    - Build `test-first` (one behavior at a time):
-
-        - An advance sharing no path with the branch's own diff classifies as `disjoint`.
-        - An advance over reviewable paths the branch also changed classifies as `overlapping-substantive`.
-        - An advance over `.arc/backlog/ROADMAP.md`, which the branch also changed, classifies as
-          `overlapping-regenerable-only` — the tracked readiness projection is the one path the shipped classifier
-          treats as regenerable.
-        - An advance whose only shared paths are evidence-neutral — the work unit's own artifacts, its candidate
-          record, its submission boundary — yields an empty overlap rather than either overlapping kind.
-        - `unknown` leaves the boundary's remote read unavailable at the moment the boundary fires, not before it,
-          and surfaces as the analyzer's typed unavailable result rather than a thrown error. In-process callers
-          reach this through the git-call boundary wrapper; a spawned verb cannot, so the spawned lane needs a
-          `git` shim on `PATH` that fails one named remote read and execs the real binary otherwise — the idiom
-          the delivery suite and the fake-host shims already use. Where neither route works at a boundary, that
-          cell closes not-applicable per Task 1.1.
-        - An advance reaches a second checkout over both the multi-clone and the worktree-sibling topology.
-        - The argv form advances the base identically when run as an interleaved step inside an anchored
-          shell sequence.
-        - After any advance, the caller's remote-tracking ref for the base resolves to the advanced head.
+- _Outcome:_ Two phases, because the analyzer short-circuits unless the branch is both ahead and behind:
+  `arrangeBranchSide` commits for real on the caller's branch, and `advanceBase` moves the base through a
+  temporary index, `commit-tree`, and a push. The temporary index is load-bearing — building the base commit
+  through the real one would publish whatever the caller had staged and leave the checkout dirty, which is how
+  the existing advance behaves. `movementPaths` maps each kind to its two path sets, and the tests assert those
+  against the shipped classifier with ahead and behind counts read from `rev-list`, never hand-supplied. An
+  `observers` list refreshes a separate clone's tracking ref; a sibling worktree needs no entry, which the tests
+  establish rather than assume. An unavailable base read is not a movement kind but two exports — a seam wrapper
+  for in-process callers and a `PATH` shim for spawned ones — both confirmed to reach the analyzer's typed
+  unavailable verdict rather than a thrown error. The argv form returns a sequence entry carrying its own working
+  directory, since its loader resolves from the cwd and a fixture repository has no modules of its own. Sixteen
+  tests across both lanes, each shown failing first against a reconstruction of the behavior it guards.
 
 ### `[ ]` **1.5 Add the pinned-observation assertion helper**
 
