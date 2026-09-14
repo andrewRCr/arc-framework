@@ -1,8 +1,8 @@
 # Metadata: concurrent-integration-characterization
 
-| **State**  | **Owner** | **Branch**                                     | **Class** | **Priority** |
-| ---------- | --------- | ---------------------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/concurrent-integration-characterization` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                                     | **Class** | **Priority** |
+| --------- | --------- | ---------------------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/concurrent-integration-characterization` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,13 +12,13 @@
 - **Task List:** `tasks-concurrent-integration-characterization.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** Finalized `spec-concurrent-integration-characterization.md` (outline) through draft-design
   and create-spec, one adversarial pass at each boundary.
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Confirm each boundary's typed seam and base-read behavior
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — walk the six boundaries and write each per-cell verdict into notes § Cell matrix
 
 - **PR URL:** [none]
 - **Completed:** [none]
