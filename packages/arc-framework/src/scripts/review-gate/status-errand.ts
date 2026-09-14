@@ -172,10 +172,10 @@ export async function readErrandRoutedObligation(input: {
           continue;
         }
         if (handle.target.repository.toLowerCase() !== input.target.repository.toLowerCase()
-          || handle.target.pullRequest !== input.pullRequest
           || handle.target.headSha !== input.target.headSha) {
           return blocked("Recorded review progress does not match the exact Errand identity and change request.");
         }
+        if (handle.target.pullRequest !== input.pullRequest) continue;
         currentClaimAttempt = true;
         latest = {
           outcome: attempt.outcome,

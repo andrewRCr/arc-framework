@@ -306,9 +306,38 @@ describe("Errand review status", () => {
     await expect(readRoutedObligation(root, exec, target, 42, undefined, headSha))
       .resolves.toMatchObject({ state: "settled" });
 
-    await expect(readRoutedObligation(root, exec, target, 43)).resolves.toMatchObject({
-      state: "blocked",
-      detail: "Recorded review progress does not match the exact Errand identity and change request.",
+    await expect(readRoutedObligation(root, exec, target, 43, undefined, base)).resolves.toMatchObject({
+      state: "review-required",
+    });
+
+    const replacementHandle = {
+      ...handle,
+      target: { ...hostedTarget, pullRequest: 43 },
+      artifact: {
+        ...handle.artifact,
+        id: "comment-replacement-43",
+        url: "https://example.test/comment-replacement-43",
+      },
+    };
+    await recordHostedPendingRequest(store, {
+      ...context,
+      handle: replacementHandle,
+      now: "2026-09-13T00:02:10Z",
+    });
+    await recordHostedAwaitAttempt(store, {
+      ...context,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: replacementHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.test/review-replacement-43",
+      },
+      now: "2026-09-13T00:02:20Z",
+    });
+    await expect(readRoutedObligation(root, exec, target, 43, undefined, base)).resolves.toMatchObject({
+      state: "settled",
     });
 
     const staleStandardReview = { ...standardReview, rubricDigest: `sha256:${"0".repeat(64)}` };
