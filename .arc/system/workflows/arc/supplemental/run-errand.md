@@ -480,8 +480,12 @@ none`; `blocked / stop` renders its typed reason and stops. This separate operat
      with the exact continuation intact. A later re-entry invokes only its supplied remedy; never poll or recursively
      invoke the terminal command.
    - `reconcile-base / reconcile-base` and `reconcile-regenerable / reconcile-regenerable` invoke only the supplied
-     remedy, run Tier 1 on the resulting head, push through the generic contract, and return through Step 4 before a
-     fresh integration approval.
+     remedy. Dispatch its typed base-merge result: `merged / run-quality-gates` runs Tier 1 on the new head, pushes
+     through the generic contract, and returns through Step 4 before fresh approval.
+     `skipped-clean / continue-reconcile`, `base-moved / rerun-checkpoint`, `head-moved / rerun-checkpoint`, and
+     `head-contained-by-base / rerun-checkpoint` return through Step 4 without gates or push. `conflict / stop`,
+     `regenerable-refused / stop`, and `blocked / stop` render the supplied explanation and stop; any other result
+     is a contract violation.
    - `invalidated / request-approval` returns through Step 4 and settles a fresh exact request before approval.
    - `conflict / stop`, `host-refused / stop`, and non-retryable operational results stop on their supplied
      explanation. Lock recovery and mutation-state classification remain owned by the verb.
