@@ -13,8 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Planned a lifecycle-wide characterization of concurrent integration without a protected-base
-  freeze.
+- **Last Completed:** Finalized `spec-concurrent-integration-characterization.md` (outline) through draft-design
+  and create-spec, one adversarial pass at each boundary.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
