@@ -5,6 +5,7 @@
 - [Source loci by decision](#source-loci-by-decision)
 - [Alternatives retired at design](#alternatives-retired-at-design)
 - [Cell matrix](#cell-matrix)
+- [Pre-probe cost baseline](#pre-probe-cost-baseline)
 - [Characterization ledger](#characterization-ledger)
 
 ## Fixture inventory
@@ -388,6 +389,52 @@ that loops or gates on a drift read with no typed verb behind the disposition, s
 Twenty-four applicable cells and sixteen not-applicable, against the enumerated forty: seventeen of thirty
 singleton and Errand cells, four of seven delivery-member cells, and all three isolation cells. Four prose-only
 gates take ledger-only rows on top.
+
+## Pre-probe cost baseline
+
+Taken on a tree carrying no new test file, before the helper and pin work of Tasks 1.4 and 1.5, so the delta
+stated at close is attributable to the probes. The tool refuses to default any measurement axis and the closing
+comparison refuses outright when one differs, so the axes below must be repeated exactly at close.
+
+**Mode, all three baselines:** `condition: tier-isolated` · `projectSet: <tier>` · `workerSizing: 12`. These match
+the four tier-isolated rows in the package's budget record; the per-CI-job rows measure a different thing under
+different worker sizing and are not this work unit's to move.
+
+**Three runs per tier, not one.** The retained-run reducer takes the median of a group and stamps a lone run as
+`single-run` rather than `median`, and the project's existing cost baseline was established the same way. The
+first round ran cold and produced the widest sample at every tier — e2e came in above its recorded budget on that
+run alone — which is the spread a single sample would have silently baked into the delta.
+
+| Tier          | Runs (wall-clock ms)        | Median ms | Summed file time (median ms) | Files | Tests  |
+| ------------- | --------------------------- | --------- | ---------------------------- | ----- | ------ |
+| `integration` | 42 072 / 44 784 / 48 993    | 44 784    | 411 631                      | 141   | 1 418  |
+| `lane`        | 49 543 / 49 624 / 50 883    | 49 624    | 542 947                      | 845   | 11 354 |
+| `e2e`         | 201 009 / 205 011 / 231 338 | 205 011   | 1 272 393                    | 56    | 548    |
+
+**Where the medians sit against the recorded budgets.** `integration` lands on its recorded baseline almost
+exactly. `lane` sits just above its own. `e2e` has drifted up about eight percent since its baseline was recorded
+and now consumes most of its ten-percent allowance before a single probe lands, so the refresh at close is
+compelled rather than optional — and an integration probe moves `lane` as well as `integration`, because `lane`
+is the combined local tier.
+
+**Effective e2e shard membership at this base.** Four legs, each anchored on one heavyweight file and carrying a
+thirteen-file remainder out of fifty-two: `errand`, `candidate-lineage`, `command-input-no-input`, and
+`lifecycle-exit`. A new e2e probe lands in a remainder, so the re-read at close compares like with like only if
+it derives membership the same way.
+
+**Retained run files.** `~/.local/share/arc/test-cost-baselines/concurrent-integration-characterization/` — an
+absolute path outside every checkout. Nine run files plus the shard membership:
+`pre-probe-{integration,lane,e2e}-{1,2,3}.json` and `pre-probe-e2e-shards.json`. The closing comparison reads
+these paths directly, so they are the baseline; the table above is a reader's summary of them, not the record.
+
+The package-local run directory is gitignored, so a clean, a fresh worktree, or a sibling checkout would lose it —
+and worktree churn is something the lifecycle performs routinely. Tracking the files would answer two of those
+three and cost the repository a permanent couple of megabytes of packed history that deleting them later would not
+reclaim. A path outside every checkout answers all three at no such cost.
+
+What it assumes is that this work unit runs on one machine, which is its plan. If the work does move machines the
+run files do not follow, and the closing comparison degrades from a tool-computed delta to the medians recorded
+above. Nothing is removed from the tree at close, because nothing was added to it.
 
 ## Characterization ledger
 

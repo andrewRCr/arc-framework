@@ -121,26 +121,23 @@ a not-applicable reason.
   fixture rather than a number that depends on who wrote the probe. Owner, fix disposition, and retention
   disposition stay `—` by design; D5 routes them at close.
 
-### `[ ]` **1.3 Record the pre-probe test-cost baseline**
+### `[x]` **1.3 Record the pre-probe test-cost baseline**
 
 - _Goal:_ The measured delta stated at close has a before-value taken on a tree that carries no new test file, so the
   delta is attributable to the probes.
 
-    - Run the package's test-cost benchmark for the e2e and integration tiers and **keep its retained-run file** —
-      the close-out comparison reads run files, not a number recorded in prose. It runs before Tasks 1.4 and 1.5,
-      whose coverage would otherwise land inside the baseline.
-    - Redirect each run to a named path and park it where the work unit can find it across sessions. The default
-      output directory is gitignored, so a clean, a fresh worktree, or a sibling checkout loses the baseline and
-      the stated delta becomes unmeasurable.
-    - Pin the measurement mode explicitly and record it. The tool refuses to default any of its three axes, and the
-      comparison at close refuses outright when a single axis differs between the two runs — so the condition,
-      project set, and worker sizing must match the budget rows being refreshed, and must be repeated exactly at
-      close. The axes cannot span project sets, so that means **three** baselines and three comparisons: the
-      integration and e2e tiers, and the combined local lane, whose own budget row this work moves every time it
-      adds an integration probe. The lane baseline is the one that cannot be recovered later — once Phase 2 lands
-      a probe, the pre-probe tree is gone.
-    - Capture the effective e2e shard membership with the package's shard-measurement script, which derives each
-      leg's remainder from the workflow, so the re-read at close compares like with like.
+- _Outcome:_ Three tier-isolated baselines at twelve workers — integration, e2e, and the combined local lane —
+  captured as **three runs each**, because the retained-run reducer takes a group's median and stamps a lone run as
+  `single-run`, and the project's existing cost baseline was established the same way. That choice paid for itself:
+  the cold first round put e2e above its recorded budget, a spread a single sample would have baked into the delta
+  silently. Medians are 44 784 ms integration, 49 624 ms lane, 205 011 ms e2e. The e2e tier has drifted about eight
+  percent above its recorded baseline and now consumes most of its allowance before a probe lands, so the refresh at
+  close is compelled rather than optional. Effective shard membership captured at the same base: four legs, each a
+  pinned anchor plus a thirteen-file remainder of fifty-two. Run files are parked outside every checkout rather
+  than tracked: the gitignored run directory loses them to a clean or to lifecycle worktree churn, while tracking
+  them would buy back only part of that and leave permanent packed history for evidence with one consumer. The
+  cost is an explicit single-machine assumption, recorded with the axes, medians, and path in
+  `notes-concurrent-integration-characterization.md` § Pre-probe cost baseline.
 
 ### `[ ]` **1.4 Extend the base-advance helper with a path set and the four movement kinds**
 
@@ -609,6 +606,10 @@ refreshed baselines reflect only it.
       sizing and can only come from a run of this branch's own pull request, so they are refreshed at the
       verification boundary rather than locally.
     - Land the refresh as a dedicated `perf(test-cost)` commit whose message states the delta.
+    - The before-side run files live outside every checkout, at the path recorded in
+      `notes-concurrent-integration-characterization.md` § Pre-probe cost baseline. Nothing is removed from the
+      tree here; if they are gone, say so and state the delta against the recorded medians rather than reporting
+      a comparison that was not run.
     - Re-read the e2e shard balance with the same shard-measurement script. Sharding partitions whole files, so a
       new file lands on exactly one leg; what redistributes is the existing remainder. The Errand probes are the
       exception worth watching — their file is a pinned anchor excluded from the remainder entirely, so all of
