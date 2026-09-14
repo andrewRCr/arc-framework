@@ -110,6 +110,58 @@ export function composeErrandFinalPlan(input: {
   };
 }
 
+/**
+ * Select one exact current Errand identity from complete derived locus authority.
+ *
+ * @param frame - Fresh entering-checkout and shared identity evidence
+ * @param slug - Approved Errand slug
+ * @returns The exact current Errand identity for terminal merge
+ */
+export function selectCurrentErrandMergeIdentity(
+  frame: Pick<Awaited<ReturnType<typeof runDerivedLocusStateProbe>>,
+    "entering" | "identityDiscovery" | "roster">,
+  slug: string,
+): {
+  readonly slug: ReturnType<typeof SlugSchema.parse>;
+  readonly claimId: string;
+  readonly branch: string;
+  readonly generation: string;
+} {
+  if (frame.entering.kind !== "selected") {
+    throw new Error("The entering checkout does not resolve to one current Errand identity.");
+  }
+  if (frame.identityDiscovery.kind !== "complete" || frame.identityDiscovery.diagnostics.length > 0) {
+    throw new IntegrationBindingChangedError(
+      "identity", "The shared Errand identity basis is incomplete.",
+    );
+  }
+  const row = frame.entering.row;
+  const record = row.identity;
+  if (row.kind !== "transient" || row.subject.kind !== "errand"
+    || row.subject.key !== slug || record === null
+    || record.kind !== "errand" || record.purpose !== "errand"
+    || record.key !== slug || record.claimId !== row.subject.claimId
+    || record.branch !== row.checkout.branch
+    || row.markerGeneration !== `errand-v1/${slug}/${record.claimId}`) {
+    throw new IntegrationBindingChangedError(
+      "identity", "The entering checkout no longer proves the exact current Errand generation.",
+    );
+  }
+  const claims = frame.roster.filter((candidate) => candidate.subject?.kind === "errand"
+    && candidate.subject.key === slug && candidate.subject.claimId === record.claimId);
+  if (claims.length !== 1 || claims[0]?.checkout.path !== row.checkout.path) {
+    throw new IntegrationBindingChangedError(
+      "identity", "The current Errand identity is claimed by more than one checkout.",
+    );
+  }
+  return {
+    slug: SlugSchema.parse(slug),
+    claimId: record.claimId,
+    branch: record.branch,
+    generation: row.markerGeneration,
+  };
+}
+
 /** Bind the current Errand locus, Git, GitHub, checks, merge policy, lock, and provider ports. */
 export function createErrandMergeDependencies(input: {
   readonly cwd: string;
@@ -162,27 +214,7 @@ export function createErrandMergeDependencies(input: {
         baseBranch: config.settings["branch.base"],
         exec: input.exec,
       });
-      if (frame.entering.kind !== "selected") {
-        throw new Error("The entering checkout does not resolve to one current Errand identity.");
-      }
-      const row = frame.entering.row;
-      const record = row.identity;
-      if (row.kind !== "transient" || row.subject.kind !== "errand"
-        || row.subject.key !== slug || record === null
-        || record.kind !== "errand" || record.purpose !== "errand"
-        || record.key !== slug || record.claimId !== row.subject.claimId
-        || record.branch !== row.checkout.branch
-        || row.markerGeneration !== `errand-v1/${slug}/${record.claimId}`) {
-        throw new IntegrationBindingChangedError(
-          "identity", "The entering checkout no longer proves the exact current Errand generation.",
-        );
-      }
-      return {
-        slug,
-        claimId: record.claimId,
-        branch: record.branch,
-        generation: row.markerGeneration,
-      };
+      return selectCurrentErrandMergeIdentity(frame, slug);
     },
     readMerged: async (target) => ({
       merged: await common.readMerged(target),
