@@ -3,7 +3,7 @@
   "slug": "resolve-errand-review-status-from-identity",
   "claimId": "af46e368438147ab4161a31aa0c5579a",
   "createdAt": "2026-09-13T20:25:43.349Z",
-  "updatedAt": "2026-09-13T20:25:43.349Z",
+  "updatedAt": "2026-09-14T00:50:55.954Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "resolve-errand-review-status-from-identity",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Resolve Errand review status from Errand identity",
   "originEntrySourceDigest": "sha256:7cdf115f9231e20f8e863601342abb96a7b0c532eb4a0c9b9c91016ad8ad72e0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/resolve-errand-review-status-from-identity",
+    "headSha": "97cffd7137175c1c0f1e615d7a0b6a5d705d0e55"
+  }
 }
