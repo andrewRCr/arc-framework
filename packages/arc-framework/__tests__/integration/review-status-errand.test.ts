@@ -183,6 +183,7 @@ describe("Errand review status", () => {
   it("reads a pending then clean hosted pass from an exact Errand identity without Candidate artifacts", async () => {
     const root = await createTempRepoCore({ prefix: "arc-review-status-errand-", identity: "andrew" });
     roots.push(root);
+    await git(root, ["commit", "--allow-empty", "-m", "earlier base"]);
     const slug = "review-status-errand";
     const branch = `chore/${slug}`;
     const claimId = "0123456789abcdef0123456789abcdef";
@@ -207,6 +208,7 @@ describe("Errand review status", () => {
     await git(root, ["commit", "-m", "identity snapshot"]);
     await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
     const base = await git(root, ["rev-parse", "HEAD"]);
+    const earlierBase = await git(root, ["rev-parse", "HEAD^"]);
     const baseTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
     await git(root, ["switch", "-c", branch]);
     await writeFile(join(root, "change.txt"), "reviewed change\n", "utf8");
@@ -294,8 +296,15 @@ describe("Errand review status", () => {
       now: "2026-09-13T00:02:00Z",
     });
     await expect(readRoutedObligation(root, exec, target, 42)).resolves.toMatchObject({
+      state: "review-required",
+    });
+    await expect(readRoutedObligation(root, exec, target, 42, undefined, base)).resolves.toMatchObject({
       state: "settled",
     });
+    await expect(readRoutedObligation(root, exec, target, 42, undefined, earlierBase))
+      .resolves.toMatchObject({ state: "review-required" });
+    await expect(readRoutedObligation(root, exec, target, 42, undefined, headSha))
+      .resolves.toMatchObject({ state: "settled" });
 
     await expect(readRoutedObligation(root, exec, target, 43)).resolves.toMatchObject({
       state: "blocked",
@@ -396,7 +405,7 @@ describe("Errand review status", () => {
       },
       now: "2026-09-13T00:03:40Z",
     });
-    await expect(readRoutedObligation(root, exec, target, 43)).resolves.toMatchObject({
+    await expect(readRoutedObligation(root, exec, target, 43, undefined, base)).resolves.toMatchObject({
       state: "settled",
     });
 
@@ -473,9 +482,11 @@ describe("Errand review status", () => {
       },
       now: "2026-09-13T00:04:20Z",
     });
-    await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42, undefined, base)).resolves.toMatchObject({
       state: "settled",
     });
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42, undefined, earlierBase))
+      .resolves.toMatchObject({ state: "review-required" });
 
     await git(root, ["switch", "main"]);
     const finalRecord = TransientIdentityRecordV3Schema.parse({
@@ -509,7 +520,7 @@ describe("Errand review status", () => {
       },
       now: "2026-09-13T00:04:30Z",
     });
-    await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
+    await expect(readRoutedObligation(root, exec, localStatusTarget, 42, undefined, base)).resolves.toMatchObject({
       state: "settled",
     });
 

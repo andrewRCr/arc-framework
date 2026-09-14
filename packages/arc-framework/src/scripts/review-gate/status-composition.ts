@@ -241,6 +241,7 @@ export async function readRoutedObligation(
     exec,
     target,
     pullRequest,
+    ...(currentBaseRevision === undefined ? {} : { currentBaseOid: currentBaseRevision }),
     ...(options.remote === undefined ? {} : { remote: options.remote }),
     ...(options.changeRequestCandidate === undefined
       ? {}

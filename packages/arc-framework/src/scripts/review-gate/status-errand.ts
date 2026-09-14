@@ -6,10 +6,12 @@ import type { TransientIdentityRecord } from "../../lib/errand/identity-record.j
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import type { GitExec } from "../../lib/git/exec.js";
+import { isGitProcessError } from "../../lib/git/process-error.js";
 import { resolveIdentity } from "../../lib/git/index.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { readLaneProgress } from "./lane-progress.js";
+import { GitObjectIdSchema, type ReviewTarget } from "./core/gate-contract-v2-schema.js";
 import type { ChangeRequestCandidate } from "./change-request.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "./policy/standard-review.js";
 import type { RoutedReviewObligation } from "./status.js";
@@ -41,6 +43,28 @@ async function branchAtHead(
   const remoteRef = `refs/heads/${branch}`;
   const { stdout } = await exec("git", ["ls-remote", "--heads", remote, remoteRef]);
   return stdout.trim() === `${headSha}\t${remoteRef}`;
+}
+
+async function isAncestor(exec: GitExec, ancestor: string, descendant: string): Promise<boolean> {
+  try {
+    await exec("git", ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch (error) {
+    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return false;
+    throw error;
+  }
+}
+
+async function reviewCoversCurrentBase(
+  exec: GitExec,
+  reviewed: ReviewTarget,
+  currentBaseOid: string | undefined,
+  currentBaseRef: string | undefined,
+): Promise<boolean> {
+  if (currentBaseOid === undefined || !GitObjectIdSchema.safeParse(currentBaseOid).success
+    || (currentBaseRef !== undefined && reviewed.baseRef !== currentBaseRef)) return false;
+  return await isAncestor(exec, reviewed.diffBaseSha, currentBaseOid)
+    && await isAncestor(exec, currentBaseOid, reviewed.headSha);
 }
 
 function matchingOrdinaryErrand(
@@ -83,6 +107,7 @@ export async function readErrandRoutedObligation(input: {
   readonly pullRequest: number;
   readonly remote?: string;
   readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
+  readonly currentBaseOid?: string;
 }): Promise<RoutedReviewObligation | null> {
   // The branch vocabulary only avoids an impossible identity read; the record still grants authority.
   if (!isErrandBranchType(input.target.headRef.split("/", 1)[0] ?? "")) return null;
@@ -158,7 +183,13 @@ export async function readErrandRoutedObligation(input: {
             && vehicle.standardReview.rubricVersion === rubric.version
             && vehicle.standardReview.rubricDigest === rubric.digest
             && hosted.requirement.rubricVersion === rubric.version
-            && hosted.requirement.rubricDigest === rubric.digest,
+            && hosted.requirement.rubricDigest === rubric.digest
+            && await reviewCoversCurrentBase(
+              exec,
+              hosted.reviewTarget,
+              input.currentBaseOid,
+              input.changeRequestCandidate?.baseRefName,
+            ),
         };
       } else if (hosted !== undefined) {
         if (attempt.outcome === "clean" || attempt.outcome === "findings"
@@ -181,7 +212,13 @@ export async function readErrandRoutedObligation(input: {
           outcome: attempt.outcome,
           complete: attempt.chunkSeriesComplete !== false
             && attempt.local.rubricIdentity?.version === rubric.version
-            && attempt.local.rubricIdentity.digest === rubric.digest,
+            && attempt.local.rubricIdentity.digest === rubric.digest
+            && await reviewCoversCurrentBase(
+              exec,
+              attempt.local.target,
+              input.currentBaseOid,
+              input.changeRequestCandidate?.baseRefName,
+            ),
         };
       } else {
         latest = { outcome: attempt.outcome, complete: false };

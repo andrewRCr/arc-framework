@@ -89,7 +89,8 @@ export function assertLocalReviewClaimBinding(
     ? state.request.carrier.errandClaimId
     : undefined;
   if (state.vehicle.kind === "errand") {
-    if (claimId !== state.vehicle.claimId) {
+    if (state.vehicle.claimId === undefined || claimId === undefined
+      || claimId !== state.vehicle.claimId) {
       throw new LocalReviewAdmissionError("local review request does not bind its Errand claim");
     }
   } else if (claimId !== undefined) {

@@ -824,7 +824,10 @@ describe("local attest command", () => {
     expect(receipts[1]?.requestId).not.toBe(previousReceipt.requestId);
   });
 
-  it("refuses an older Errand operation whose request did not bind its claim", async () => {
+  it.each([
+    { label: "request claim missing", vehicleClaim: true },
+    { label: "both claims missing", vehicleClaim: false },
+  ])("refuses an older Errand operation with $label", async ({ vehicleClaim }) => {
     const records = fixture({ kind: "errand", identity: "same-errand", claimId: "claim-2" });
     const bound = records.operation.request;
     const legacyRequest = createReviewRequest(records.operation.target, {
@@ -841,9 +844,26 @@ describe("local attest command", () => {
     });
     const legacyOperation = {
       ...records.operation,
+      vehicle: vehicleClaim
+        ? records.operation.vehicle
+        : { kind: "errand" as const, identity: "same-errand" },
       request: legacyRequest,
       requestId: legacyRequest.requestId,
     };
+    const priorReceipt = createLocalReviewReceipt({
+      target: legacyOperation.target,
+      requirement: legacyOperation.requirement,
+      carrier: {
+        target: legacyOperation.target,
+        request: legacyRequest,
+        attestation: legacyOperation.attestation,
+      },
+      result: { ...records.result, status: "complete" },
+      runtimeIdentity: legacyOperation.attestation.runtimeIdentity,
+      attestationMechanism: legacyOperation.attestation.mechanism,
+      sourceDigest: legacyOperation.sourceDigest,
+      guidanceDigest: legacyOperation.guidanceDigest,
+    });
 
     await expect(attestLocalReviewCommand({
       schemaVersion: 1,
@@ -857,7 +877,7 @@ describe("local attest command", () => {
       },
       sourceStore: { readSource: async () => records.source, appendSource: vi.fn() },
       receiptStore: {
-        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        readReceipts: async () => ({ ledgerVersion: 1, receipts: [priorReceipt] }),
         appendReceipt: async () => ({ ledgerVersion: 1, durableEvidenceRef: "receipt.json#1" }),
       },
       resolveAuthority: async () => records.admission.authority,
