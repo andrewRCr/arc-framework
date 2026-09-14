@@ -2,6 +2,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import * as baseDistance from "../../../../src/lib/git/base-distance.js";
+import type { BaseDriftResult } from "../../../../src/lib/git/base-drift-types.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { ChangeRequestResolutionPort } from
   "../../../../src/scripts/review-gate/change-request.js";
@@ -224,9 +226,11 @@ describe("integration merge composition", () => {
     });
   });
 
-  it.each([false, true])(
-    "classifies exact strict-currentness policy after a confirmed unmerged refusal (non-2xx: %s)",
-    async (non2xx) => {
+  it.each([
+    [false, 1], [true, 1], [false, 0], [true, 0],
+  ] as const)(
+    "classifies strict-currentness only when the exact head is behind (non-2xx: %s, behind: %s)",
+    async (non2xx, behind) => {
     const target = {
       repository: "owner/repo",
       pullRequest: 42,
@@ -234,6 +238,20 @@ describe("integration merge composition", () => {
       headRef: "feat/example",
       headSha: oid("c"),
     };
+    const drift = vi.spyOn(baseDistance, "runBaseDrift").mockResolvedValue({
+      mode: "authoritative",
+      verdict: behind > 0 ? "reconcile" : "clean",
+      state: behind > 0 ? "diverged" : "local-ahead",
+      ahead: 1,
+      behind,
+      base: "main",
+      baseOid: oid("b"),
+      headOid: target.headSha,
+      movement: "disjoint",
+      integrationEvidence: null,
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    } as BaseDriftResult);
     const dependencies = createIntegrationMergeDependencies({
       cwd: "/candidate",
       exec: vi.fn() as unknown as GitExec,
@@ -272,11 +290,15 @@ describe("integration merge composition", () => {
       },
     });
 
-    await expect(dependencies.mergePinned(target, "merge")).resolves.toEqual({
-      state: "base-currentness-required",
+    await expect(dependencies.mergePinned(target, "merge")).resolves.toMatchObject({
+      state: behind > 0 ? "base-currentness-required" : "refused",
       target,
-      detail: "Applicable target policy requires the head to include the current base.",
     });
+    expect(drift).toHaveBeenCalledWith(expect.objectContaining({
+      baseBranch: "main",
+      mode: "authoritative",
+    }));
+    drift.mockRestore();
     },
   );
 
