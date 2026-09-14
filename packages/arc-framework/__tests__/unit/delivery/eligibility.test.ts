@@ -620,6 +620,46 @@ describe("eligibility observation bracket", () => {
       });
   });
 
+  it.each([false, true])(
+    "reobserves refs after awaited close checks when a source moves: %s",
+    async (moveSource) => {
+      const deps = dependencies();
+      const prepared = await prepareDeliveryEligibility({
+        plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+        candidates: candidates(), lifecyclePaths: [],
+      }, deps);
+      if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+      const observedRef = deps.observeRef;
+      const events: string[] = [];
+      deps.compareNormalizedCompleteness = vi.fn(async () => {
+        events.push("completeness");
+        return { status: "match" as const };
+      });
+      deps.resolveMember = vi.fn(async () => {
+        events.push("binding");
+        return { status: "ok" as const, value: null };
+      });
+      deps.observeRef = vi.fn(async (ref: string) => {
+        events.push(`ref:${ref}`);
+        return moveSource && ref === "candidate/first"
+          ? { head: oid("f"), tree: oid("6") }
+          : observedRef(ref);
+      });
+
+      const result = await closeDeliveryEligibility(prepared.snapshot, deps);
+      if (moveSource) {
+        expect(result).toMatchObject({
+          status: "refused",
+          reason: "source-moved",
+          source: { ref: "candidate/first" },
+        });
+      } else {
+        expect(result).toEqual({ status: "eligible", snapshot: prepared.snapshot });
+      }
+      expect(events.lastIndexOf("ref:candidate/first")).toBeGreaterThan(events.lastIndexOf("binding"));
+    },
+  );
+
   it("rejects a caller-altered predecessor relation before completeness", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({

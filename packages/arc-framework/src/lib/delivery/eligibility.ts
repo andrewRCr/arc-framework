@@ -556,31 +556,6 @@ async function closeMechanicalDeliveryEligibility(
   snapshot: DeliveryEligibilitySnapshot,
   deps: DeliveryEligibilityDependencies,
 ): Promise<{ readonly status: "eligible"; readonly snapshot: DeliveryEligibilitySnapshot } | DeliveryEligibilityRefusal> {
-  const refs = [snapshot.protectedBase, snapshot.top, ...snapshot.members];
-  const currentRefs = await Promise.all(refs.map((entry) => deps.observeRef(entry.ref)));
-  for (const [index, entry] of currentRefs.entries()) {
-    const expected = refs[index];
-    if (expected === undefined) return { status: "refused", reason: "evidence-unavailable" };
-    if (entry === null || entry.head !== expected.head || entry.tree !== expected.tree) {
-      return {
-        status: "refused",
-        reason: "source-moved",
-        source: {
-          ref: expected.ref,
-          expected: { head: expected.head, tree: expected.tree },
-          observed: entry ?? null,
-        },
-        nextAction: {
-          kind: "reprepare-delivery-eligibility",
-          planId: snapshot.planId,
-          protectedBaseRef: snapshot.protectedBase.ref,
-          topRef: snapshot.top.ref,
-          candidates: snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
-          lifecyclePaths: snapshot.lifecyclePaths,
-        },
-      };
-    }
-  }
   const firstMember = snapshot.members[0];
   const finalCandidate = snapshot.members.at(-1);
   if (firstMember === undefined || finalCandidate === undefined) {
@@ -659,6 +634,31 @@ async function closeMechanicalDeliveryEligibility(
       || binding.value.workUnitId !== snapshot.workUnitId
       || binding.value.deliverableId !== member.deliverableId)) {
       return { status: "refused", reason: "head-already-bound", deliverableId: member.deliverableId };
+    }
+  }
+  const refs = [snapshot.protectedBase, snapshot.top, ...snapshot.members];
+  const currentRefs = await Promise.all(refs.map((entry) => deps.observeRef(entry.ref)));
+  for (const [index, entry] of currentRefs.entries()) {
+    const expected = refs[index];
+    if (expected === undefined) return { status: "refused", reason: "evidence-unavailable" };
+    if (entry === null || entry.head !== expected.head || entry.tree !== expected.tree) {
+      return {
+        status: "refused",
+        reason: "source-moved",
+        source: {
+          ref: expected.ref,
+          expected: { head: expected.head, tree: expected.tree },
+          observed: entry ?? null,
+        },
+        nextAction: {
+          kind: "reprepare-delivery-eligibility",
+          planId: snapshot.planId,
+          protectedBaseRef: snapshot.protectedBase.ref,
+          topRef: snapshot.top.ref,
+          candidates: snapshot.members.map(({ deliverableId, ref }) => ({ deliverableId, ref })),
+          lifecyclePaths: snapshot.lifecyclePaths,
+        },
+      };
     }
   }
   return { status: "eligible", snapshot };
