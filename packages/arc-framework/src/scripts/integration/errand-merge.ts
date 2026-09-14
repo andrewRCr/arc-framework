@@ -15,6 +15,7 @@ import {
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
 import type { CheckpointMovementObservation, CheckpointMovementPlan } from "./checkpoint.js";
 import {
+  IntegrationBindingChangedError,
   IntegrationMergeTargetSchema,
   type IntegrationMergeTarget,
   type PinnedMergeResult,
@@ -312,6 +313,25 @@ function operationFailedResult(
   return result;
 }
 
+function observationFailureResult(
+  request: ErrandMergeRequest,
+  error: unknown,
+  reason: "identity-observation-failed" | "provider-operation-failed",
+  target: IntegrationMergeTarget | null,
+  baseOid: string | null,
+): ErrandMergeResult {
+  if (error instanceof IntegrationBindingChangedError) {
+    return invalidatedResult(
+      request,
+      error.binding === "identity" ? "identity-moved" : "target-moved",
+      error.message,
+      target,
+      baseOid,
+    );
+  }
+  return operationFailedResult(request, reason, failureDetail(error), target, baseOid);
+}
+
 /** Compose a typed adapter-boundary failure for one otherwise valid exact request. */
 export function errandMergeOperationRefusal(
   requestInput: ErrandMergeRequest,
@@ -407,6 +427,29 @@ function reconcileResult(
   });
 }
 
+function applicabilityJudgmentResult(
+  request: ErrandMergeRequest,
+  final: Extract<ErrandMergeFinalPlan, { status: "available" }>,
+): ErrandMergeResult {
+  return ErrandMergeResultSchema.parse({
+    schemaVersion: 1,
+    mode: "errand-merge",
+    state: "applicability-judgment-required",
+    nextAction: "assess-applicability",
+    reason: "bounded-review-residual",
+    detail: "Review applicability requires a bounded residual judgment before terminal mutation.",
+    identity: request.identity,
+    approvedTarget: request.approvedTarget,
+    lane: request.lane,
+    coordinates: { observedTarget: final.target, observedBaseOid: final.baseOid },
+    applicability: final.reviewApplicability,
+    continuation: {
+      kind: "terminal-explanation",
+      terminalExplanation: "Assess the bounded residual and obtain a fresh exact integration approval.",
+    },
+  });
+}
+
 /** Execute one approved direct Errand merge effect. */
 export async function mergeErrand(
   requestInput: ErrandMergeRequest,
@@ -417,13 +460,7 @@ export async function mergeErrand(
   try {
     identity = await dependencies.readCurrentIdentity();
   } catch (error) {
-    return operationFailedResult(
-      request,
-      "identity-observation-failed",
-      failureDetail(error),
-      null,
-      null,
-    );
+    return observationFailureResult(request, error, "identity-observation-failed", null, null);
   }
   const identityInvalidation = validateErrandMergeBinding(request, {
     identity,
@@ -435,9 +472,12 @@ export async function mergeErrand(
   if (existing.merged) {
     return mergedResult(request, existing.providerMergeId);
   }
-  let target = IntegrationMergeTargetSchema.parse(
-    await dependencies.refreshTarget(request.approvedTarget),
-  );
+  let target: IntegrationMergeTarget;
+  try {
+    target = IntegrationMergeTargetSchema.parse(await dependencies.refreshTarget(request.approvedTarget));
+  } catch (error) {
+    return observationFailureResult(request, error, "provider-operation-failed", null, null);
+  }
   const initialInvalidation = validateErrandMergeBinding(request, {
     identity,
     target,
@@ -495,9 +535,18 @@ export async function mergeErrand(
       null,
     );
   }
-  target = IntegrationMergeTargetSchema.parse(await dependencies.refreshTarget(target));
+  try {
+    target = IntegrationMergeTargetSchema.parse(await dependencies.refreshTarget(target));
+  } catch (error) {
+    return observationFailureResult(request, error, "provider-operation-failed", target, null);
+  }
+  try {
+    identity = await dependencies.readCurrentIdentity();
+  } catch (error) {
+    return observationFailureResult(request, error, "identity-observation-failed", target, null);
+  }
   const postChecksInvalidation = validateErrandMergeBinding(request, {
-    identity: await dependencies.readCurrentIdentity(),
+    identity,
     target,
     baseOid: null,
   });
@@ -543,26 +592,10 @@ export async function mergeErrand(
       final.baseOid,
     );
   }
-  if (request.lane === "auto" && final.reviewApplicability.judgmentRequired) {
-    return ErrandMergeResultSchema.parse({
-      schemaVersion: 1,
-      mode: "errand-merge",
-      state: "applicability-judgment-required",
-      nextAction: "assess-applicability",
-      reason: "bounded-review-residual",
-      detail: "Review applicability requires a bounded residual judgment before terminal mutation.",
-      identity: request.identity,
-      approvedTarget: request.approvedTarget,
-      lane: request.lane,
-      coordinates: { observedTarget: final.target, observedBaseOid: final.baseOid },
-      applicability: final.reviewApplicability,
-      continuation: {
-        kind: "terminal-explanation",
-        terminalExplanation: "Assess the bounded residual and obtain a fresh exact integration approval.",
-      },
-    });
+  if (final.reviewApplicability.judgmentRequired) {
+    return applicabilityJudgmentResult(request, final);
   }
-  if (request.lane === "auto" && final.reviewApplicability.verdict === "fresh") {
+  if (final.reviewApplicability.verdict === "fresh") {
     return invalidatedResult(
       request,
       "review-applicability-fresh",
@@ -571,8 +604,7 @@ export async function mergeErrand(
       final.baseOid,
     );
   }
-  if ((request.lane === "reviewed" || final.reviewApplicability.verdict === "carries")
-    && final.plan.state === "reconcile") {
+  if (final.reviewApplicability.verdict === "carries" && final.plan.state === "reconcile") {
     return reconcileResult(request, final, final.plan.nextAction);
   }
   if (final.plan.state === "blocked") {
@@ -628,12 +660,16 @@ export async function mergeErrand(
       },
     });
   }
-  if (final.plan.state !== "proceed"
-    || (request.lane !== "reviewed" && final.reviewApplicability.verdict !== "carries")) {
+  if (final.plan.state !== "proceed" || final.reviewApplicability.verdict !== "carries") {
     throw new Error("The final Errand merge plan did not permit direct merge.");
   }
+  try {
+    identity = await dependencies.readCurrentIdentity();
+  } catch (error) {
+    return observationFailureResult(request, error, "identity-observation-failed", final.target, final.baseOid);
+  }
   const finalInvalidation = validateErrandMergeBinding(request, {
-    identity: await dependencies.readCurrentIdentity(),
+    identity,
     target: final.target,
     baseOid: final.baseOid,
   });
@@ -927,7 +963,31 @@ export async function mergeErrand(
         ),
       );
     }
-    if ((request.lane === "reviewed" || currentnessPlan.reviewApplicability.verdict === "carries")
+    if (currentnessPlan.reviewApplicability.judgmentRequired) {
+      return withReheldTarget(
+        request,
+        dependencies,
+        currentnessPlan.target,
+        currentnessPlan.baseOid,
+        applicabilityJudgmentResult(request, currentnessPlan),
+      );
+    }
+    if (currentnessPlan.reviewApplicability.verdict === "fresh") {
+      return withReheldTarget(
+        request,
+        dependencies,
+        currentnessPlan.target,
+        currentnessPlan.baseOid,
+        invalidatedResult(
+          request,
+          "review-applicability-fresh",
+          "The final evidence requires fresh review and exact integration approval.",
+          currentnessPlan.target,
+          currentnessPlan.baseOid,
+        ),
+      );
+    }
+    if (currentnessPlan.reviewApplicability.verdict === "carries"
       && currentnessPlan.plan.state === "reconcile") {
       return withReheldTarget(
         request,

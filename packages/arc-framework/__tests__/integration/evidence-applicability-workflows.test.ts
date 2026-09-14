@@ -37,6 +37,13 @@ function sectionBetween(content: string, start: string, end: string): string {
 }
 
 describe("evidence applicability workflow fire-points", () => {
+  it("requires only the typed bounded result that every fire-point actually supplies", async () => {
+    const method = await readPair("system/methods/assess-evidence-applicability.md");
+
+    expect(method).toContain("Receive the supplied typed applicability result or projection");
+    expect(method).not.toContain("Receive the exact normalized `delta`, evidence kind, and typed result/action");
+  });
+
   it.each(Object.entries(workflows))("declares bounded residual judgment in %s", async (_name, path) => {
     const workflow = await readPair(path);
     const frontmatter = parseWorkflowFrontmatter(workflow);

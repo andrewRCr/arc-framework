@@ -18,15 +18,14 @@ override-active: false
 
 ## assess-evidence-applicability.default
 
-Apply this method only when all of these input conditions hold:
+Apply this method only when the caller supplies a typed review or verification applicability result that:
 
-- `judgmentRequired` is `true`, and the result includes its non-empty bounded `residual`;
-- the evidence kind is `review-clearance` or `verification`, never `merge-safety`; and
-- the result describes either review/verification overlap after `base-movement`, or `clean-divergence` from a
-  cause other than `base-movement`.
+- has `judgmentRequired: true` and a non-empty bounded `residual`; and
+- names `bounded-overlap` or `bounded-clean-divergence` as its reason.
 
-Receive the exact normalized `delta`, evidence kind, and typed result/action as `act`; do not reconstruct any of
-them from workflow context.
+Receive the supplied typed applicability result or projection as `act`. The caller owns the evidence-kind boundary:
+`merge-safety` never fires this method. Do not reconstruct the normalized delta, cause, or evidence kind from
+workflow context; none is required to judge the supplied residual.
 
 If any condition does not hold, do not assess applicability. Dispatch the typed result and its supplied next action
 unchanged; every `judgmentRequired: false` row is final.

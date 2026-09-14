@@ -50,6 +50,17 @@ export const IntegrationMergeTargetSchema = z.strictObject({
 });
 export type IntegrationMergeTarget = z.infer<typeof IntegrationMergeTargetSchema>;
 
+/** An authoritative read proves that an approved integration binding changed. */
+export class IntegrationBindingChangedError extends Error {
+  constructor(
+    readonly binding: "identity" | "target",
+    message: string,
+  ) {
+    super(message);
+    this.name = "IntegrationBindingChangedError";
+  }
+}
+
 export const PinnedMergeResultSchema = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("merged"),

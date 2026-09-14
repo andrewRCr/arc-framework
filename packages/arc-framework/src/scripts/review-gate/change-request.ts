@@ -65,7 +65,7 @@ export type ChangeRequestMergeObservation = z.infer<typeof ChangeRequestMergeObs
 export interface ChangeRequestMergeObservationPort {
   observe(
     coordinates: ChangeRequestMergeCoordinates,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; baseContained?: boolean },
   ): Promise<unknown>;
 }
 
@@ -80,7 +80,7 @@ function unresolvedMergeObservation(
 export async function observeChangeRequestMergeAdmission(
   input: ChangeRequestMergeCoordinates,
   port: ChangeRequestMergeObservationPort,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; baseContained?: boolean },
 ): Promise<ChangeRequestMergeObservation> {
   const coordinates = ChangeRequestMergeCoordinatesSchema.parse(input);
   let observed: unknown;

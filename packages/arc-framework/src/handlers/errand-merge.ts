@@ -197,7 +197,10 @@ export function formatErrandMergeResult(
     };
   }
   const continuation = result.continuation.kind === "remedy"
-    ? `Run: ${result.continuation.remedy.argv.map(renderArgument).join(" ")}`
+    ? `Run: ${result.continuation.remedy.stdin === undefined
+      ? ""
+      : `printf '%s\\n' ${renderArgument(JSON.stringify(result.continuation.remedy.stdin))} | `}`
+      + result.continuation.remedy.argv.map(renderArgument).join(" ")
     : `Explanation: ${result.continuation.terminalExplanation}`;
   return {
     stream: "stderr",

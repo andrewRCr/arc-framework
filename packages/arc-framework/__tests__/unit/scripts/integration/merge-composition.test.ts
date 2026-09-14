@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { ChangeRequestResolutionPort } from
   "../../../../src/scripts/review-gate/change-request.js";
+import { HostedProcessError } from
+  "../../../../src/scripts/review-gate/hosted/gh-process.js";
 import { composeIntegrationFinalPlan, createIntegrationMergeDependencies } from
   "../../../../src/scripts/integration/merge-composition.js";
 
@@ -222,7 +224,9 @@ describe("integration merge composition", () => {
     });
   });
 
-  it("classifies an exact strict-currentness policy separately from opaque refusal", async () => {
+  it.each([false, true])(
+    "classifies exact strict-currentness policy after a confirmed unmerged refusal (non-2xx: %s)",
+    async (non2xx) => {
     const target = {
       repository: "owner/repo",
       pullRequest: 42,
@@ -239,6 +243,7 @@ describe("integration merge composition", () => {
         run: async (args) => {
           const endpoint = args.find((argument) => argument.startsWith("repos/")) ?? "";
           if (endpoint.endsWith("/merge")) {
+            if (non2xx) throw new HostedProcessError("HTTP 405: Merge refused.", "", 1, 405);
             return { stdout: JSON.stringify({ merged: false, message: "Merge refused.", sha: null }), stderr: "" };
           }
           if (endpoint.endsWith("/pulls/42")) {
@@ -272,7 +277,8 @@ describe("integration merge composition", () => {
       target,
       detail: "Applicable target policy requires the head to include the current base.",
     });
-  });
+    },
+  );
 
   it("classifies native head movement from exact confirmation", async () => {
     const target = {

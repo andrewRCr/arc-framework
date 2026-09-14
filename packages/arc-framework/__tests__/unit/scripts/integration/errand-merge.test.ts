@@ -10,6 +10,8 @@ import {
   type ErrandMergeDependencies,
   type ErrandMergeFinalPlan,
 } from "../../../../src/scripts/integration/errand-merge.js";
+import { IntegrationBindingChangedError } from
+  "../../../../src/scripts/integration/merge.js";
 import { RequiredChecksObservationResultSchema } from
   "../../../../src/scripts/review-gate/checks-await.js";
 
@@ -347,6 +349,51 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
+  it("invalidates approval when the current Errand generation is known to have changed", async () => {
+    const { value, state } = dependencies();
+    value.readCurrentIdentity = async () => {
+      throw new IntegrationBindingChangedError("identity", "The current Errand generation changed.");
+    };
+
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "request-approval",
+      reason: "identity-moved",
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
+  it("invalidates approval when an authoritative host read no longer finds the bound request", async () => {
+    const { value, state } = dependencies();
+    value.refreshTarget = async () => {
+      throw new IntegrationBindingChangedError("target", "The approved change request is no longer open.");
+    };
+
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "request-approval",
+      reason: "target-moved",
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
+  it("keeps a later unavailable identity read distinct from a provider failure", async () => {
+    const { value, state } = dependencies();
+    let reads = 0;
+    value.readCurrentIdentity = async () => {
+      reads += 1;
+      if (reads === 2) throw new Error("The identity observation is unavailable.");
+      return request.identity;
+    };
+
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "operation-failed",
+      nextAction: "retry",
+      reason: "identity-observation-failed",
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
   it("retains approval and the lock when required checks are pending", async () => {
     const { value, state } = dependencies();
     value.observeChecks = async () => ({
@@ -422,7 +469,7 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it("returns a bounded review-applicability judgment before mutation", async () => {
+  it.each(["auto", "reviewed"] as const)("returns a bounded review-applicability judgment in the %s lane", async (lane) => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
       ...directPlan(),
@@ -434,7 +481,7 @@ describe("Errand merge operation", () => {
       },
     });
 
-    await expect(mergeErrand({ ...request, lane: "auto" }, value)).resolves.toMatchObject({
+    await expect(mergeErrand({ ...request, lane }, value)).resolves.toMatchObject({
       state: "applicability-judgment-required",
       nextAction: "assess-applicability",
       reason: "bounded-review-residual",
@@ -472,7 +519,7 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it("requires fresh approval when final review applicability is fresh", async () => {
+  it.each(["auto", "reviewed"] as const)("requires fresh approval in the %s lane when review applicability is fresh", async (lane) => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
       ...directPlan(),
@@ -484,7 +531,7 @@ describe("Errand merge operation", () => {
       },
     });
 
-    await expect(mergeErrand({ ...request, lane: "auto" }, value)).resolves.toMatchObject({
+    await expect(mergeErrand({ ...request, lane }, value)).resolves.toMatchObject({
       state: "invalidated",
       nextAction: "request-approval",
       reason: "review-applicability-fresh",
@@ -614,7 +661,7 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
-  it("treats the reviewed lane as clearance for a bounded final residual", async () => {
+  it("requires a bounded judgment before a reviewed-lane reconcile", async () => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
       ...directPlan(),
@@ -629,9 +676,9 @@ describe("Errand merge operation", () => {
     });
 
     await expect(mergeErrand(request, value)).resolves.toMatchObject({
-      state: "reconcile-base",
-      nextAction: "reconcile-base",
-      reason: "base-reconcile-required",
+      state: "applicability-judgment-required",
+      nextAction: "assess-applicability",
+      reason: "bounded-review-residual",
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
@@ -831,6 +878,33 @@ describe("Errand merge operation", () => {
           ],
         },
       },
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
+  });
+
+  it("does not turn reviewed-lane host currentness into clearance for a new overlap", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => {
+      state.mergeCalls += 1;
+      return { state: "base-currentness-required", target, detail: "The host requires the current base." };
+    };
+    value.readFinalPlan = async (_target, override) => override?.state === "base-currentness-required"
+      ? {
+          ...directPlan(),
+          plan: { state: "reconcile", nextAction: "reconcile-base" },
+          reviewApplicability: {
+            verdict: "supplemental",
+            residual: ["src/index.ts"],
+            reason: "bounded-overlap",
+            judgmentRequired: true,
+          },
+        }
+      : directPlan();
+
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "applicability-judgment-required",
+      nextAction: "assess-applicability",
+      reason: "bounded-review-residual",
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });

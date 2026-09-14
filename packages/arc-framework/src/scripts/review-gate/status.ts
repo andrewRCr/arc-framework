@@ -1150,8 +1150,7 @@ export async function resolveReviewStatus(
   const selectedMember = conjunction?.status !== "outstanding"
     ? null
     : selectDischargedDeliveryMember(request.target, conjunction);
-  if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries
-    && selectedMember === null) {
+  if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries) {
     const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
     const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);
     return {

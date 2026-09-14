@@ -125,6 +125,7 @@ function dependencies(): IntegrationCheckpointDependencies {
       throw new Error("a current Candidate does not require an applicability selector");
     },
     readCandidatePublication: async () => ({ status: "current" as const }),
+    readDeliveryTerminalRemedy: async () => null,
     composeDelivery: async () => ({ status: "not-applicable" }),
     readShippedDeliveryPublicationCommit: async () => ({ status: "none" }),
     resolveMergeMethod: async (_repository, stackPosition) => ({
@@ -765,6 +766,94 @@ describe("integration checkpoint", () => {
     expect(events).toEqual([]);
   });
 
+  it.each([
+    ["retarget", "pending host admission"],
+    ["reopen-and-retarget", "closed terminal request"],
+  ] as const)("returns %s before %s blocks checkpointing", async (action, condition) => {
+    const deps = dependencies();
+    const events: string[] = [];
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readMovementObservation = condition === "closed terminal request"
+      ? async () => {
+          events.push("host-admission");
+          throw new Error("The terminal request is closed.");
+        }
+      : async () => {
+          events.push("host-admission");
+          return {
+            feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+            admission: {
+              state: "unresolved", repository: "owner/repo", changeRequest: 42,
+              base: oid("b"), head: oid("c"), detail: "Host admission is pending.",
+            },
+          };
+        };
+    deps.readDeliveryTerminalRemedy = async () => {
+      events.push("terminal-target");
+      return {
+        status: "blocked",
+        nextAction: action,
+        reason: "top-target-mismatch",
+        planId: PLAN_ID,
+        remedy: {
+          nextAction: action,
+          repository: "owner/repo",
+          changeRequestId: "42",
+          protectedBaseRef: "main",
+        },
+      };
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: action,
+        reason: "delivery-terminal-blocked",
+        remedy: {
+          argv: ["arc", "delivery", "top-remedy", "-", "--json"],
+          stdin: { planId: PLAN_ID, action, repository: "owner/repo", protectedBaseRef: "main" },
+        },
+      });
+    expect(events).toEqual(["terminal-target"]);
+  });
+
+  it("reobserves delivery after host admission before composing readiness", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const events: string[] = [];
+    deps.readDeliveryTerminalRemedy = async () => {
+      events.push("terminal-target");
+      return null;
+    };
+    const readMovementObservation = deps.readMovementObservation;
+    deps.readMovementObservation = async (workUnit, drift) => {
+      events.push("host-admission");
+      return readMovementObservation(workUnit, drift);
+    };
+    let deliveryReads = 0;
+    deps.composeDelivery = async () => {
+      events.push("full-delivery");
+      deliveryReads += 1;
+      return {
+        status: "blocked",
+        nextAction: "retarget",
+        reason: "top-target-mismatch",
+        planId: PLAN_ID,
+        remedy: {
+          nextAction: "retarget",
+          repository: "owner/repo",
+          changeRequestId: "42",
+          protectedBaseRef: "main",
+        },
+      };
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({ state: "blocked", nextAction: "retarget" });
+    expect(deliveryReads).toBe(1);
+    expect(events).toEqual(["terminal-target", "host-admission", "full-delivery"]);
+  });
+
   it("stops when a delivery terminal result lacks coordinates for its retarget remedy", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
@@ -903,6 +992,13 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "candidate-publication-commit-required",
         nextAction: "commit-boundary",
+        reason: "candidate-publication-boundary-staged",
+        detail: "The shipped delivery publication boundary is staged and requires a commit before checkpointing.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("c") },
+        continuation: {
+          kind: "terminal-explanation",
+          terminalExplanation: expect.stringContaining("exact staged"),
+        },
         payload: {
           boundaryPath: ".arc/system/.internal/candidates/example.boundary.json",
         },

@@ -43,7 +43,7 @@ describe("base overlap evidence", () => {
         regenerablePaths: [".arc/backlog/ROADMAP.md"],
       },
     });
-    expect(calls).toContainEqual(["merge-base", HEAD, BASE]);
+    expect(calls).toContainEqual(["merge-base", "--all", HEAD, BASE]);
     expect(calls).toContainEqual([
       "diff", "--name-only", "-z", "--no-renames", `${MERGE_BASE}..${HEAD}`,
     ]);
@@ -64,6 +64,30 @@ describe("base overlap evidence", () => {
     })).resolves.toMatchObject({
       status: "available",
       overlap: { substantivePaths: [".arc/active/meta-example.md"] },
+    });
+  });
+
+  it("refuses overlap proof when Git has multiple best merge bases", async () => {
+    const head = "c".repeat(40);
+    const otherBase = "d".repeat(40);
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "merge-base") {
+        return { stdout: args.includes("--all")
+          ? `${MERGE_BASE}\n${otherBase}\n`
+          : `${MERGE_BASE}\n` };
+      }
+      if (args[0] === "diff") return { stdout: "" };
+      throw new Error("unexpected invocation");
+    };
+
+    await expect(analyzeRevisionOverlap({
+      exec,
+      leftRevision: head,
+      rightRevision: BASE,
+      treatmentContext: {},
+    })).resolves.toMatchObject({
+      status: "unavailable",
+      reason: "merge-base-failed",
     });
   });
 

@@ -41,6 +41,7 @@ import { RepositoryDeliveryMemberLookup } from "../review-gate/hosts/local/deliv
 import { readMergeLockSetting } from "../review-gate/hosts/local/merge-lock-config.js";
 import {
   GhHostedReviewPort,
+  HostedProcessError,
   hostedGhRunner,
   type HostedProcessRunner,
 } from "../review-gate/hosted/gh-process.js";
@@ -53,6 +54,7 @@ import { confirmCandidateResponseAction } from "./candidate-response-confirmatio
 import { readIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import { composeCheckpointMovementPlan, CheckpointMovementObservationSchema } from "./checkpoint.js";
 import {
+  IntegrationBindingChangedError,
   type IntegrationFinalPlan,
   type IntegrationMergeDependencies,
   type IntegrationMergeTarget,
@@ -192,12 +194,14 @@ export function createIntegrationMergeDependencies(input: {
   const liveTarget = async (target: IntegrationMergeTarget): Promise<IntegrationMergeTarget> => {
     const repository = await changeRequestPort.resolveRepository();
     if (repository.toLowerCase() !== target.repository.toLowerCase()) {
-      throw new Error("The live repository no longer matches the checkpointed target.");
+      throw new IntegrationBindingChangedError(
+        "target", "The live repository no longer matches the checkpointed target.",
+      );
     }
     const candidates = await changeRequestPort.listByHead(repository, target.headRef);
     const candidate = candidates.find(({ number }) => number === target.pullRequest);
     if (candidate === undefined || candidate.state !== "OPEN") {
-      throw new Error("The checkpointed change request is no longer open.");
+      throw new IntegrationBindingChangedError("target", "The checkpointed change request is no longer open.");
     }
     return {
       repository,
@@ -329,7 +333,9 @@ export function createIntegrationMergeDependencies(input: {
         || current.baseRef !== target.baseRef
         || current.headRef !== target.headRef
       ) {
-        throw new Error("The live target no longer identifies the checkpointed change request.");
+        throw new IntegrationBindingChangedError(
+          "target", "The live target no longer identifies the checkpointed change request.",
+        );
       }
       return current;
     },
@@ -393,13 +399,16 @@ export function createIntegrationMergeDependencies(input: {
         ).classifyReconciliation,
       });
       const admission = admissionOverride === undefined
-        ? await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort)
+        ? await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort, {
+            baseContained: drift.behind === 0,
+          })
         : ChangeRequestMergeObservationSchema.parse({ ...coordinates, ...admissionOverride });
       return composeIntegrationFinalPlan({ drift, target: observedTarget, feasibility, admission });
     },
     mergePinned: async (target, method) => {
       let response: z.infer<typeof GitHubMergeResponseSchema> | null = null;
       let mutationDetail: string | null = null;
+      let definitiveHostRejection = false;
       try {
         const result = await runner.run([
           "api", `repos/${target.repository}/pulls/${target.pullRequest}/merge`,
@@ -410,6 +419,8 @@ export function createIntegrationMergeDependencies(input: {
         response = GitHubMergeResponseSchema.parse(JSON.parse(result.stdout) as unknown);
       } catch (error) {
         mutationDetail = failureDetail(error);
+        definitiveHostRejection = error instanceof HostedProcessError
+          && [405, 409, 422].includes(error.httpStatus ?? 0);
       }
       const confirmation = await confirmPinned(target);
       if (confirmation.state === "merged") {
@@ -435,7 +446,7 @@ export function createIntegrationMergeDependencies(input: {
           confirmationDetail: confirmation.detail,
         };
       }
-      if (mutationDetail !== null || response?.merged === true) {
+      if ((mutationDetail !== null && !definitiveHostRejection) || response?.merged === true) {
         return {
           state: "operation-failed",
           target,
@@ -462,7 +473,8 @@ export function createIntegrationMergeDependencies(input: {
       return {
         state: "refused",
         target,
-        detail: response?.message ?? "The host refused the exact merge without establishing a narrower cause.",
+        detail: mutationDetail ?? response?.message
+          ?? "The host refused the exact merge without establishing a narrower cause.",
       };
     },
   };

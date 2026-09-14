@@ -145,7 +145,7 @@ describe("Errand merge handler", () => {
       text: [
         "operation-failed: The provider was temporarily unavailable.",
         "Next: retry",
-        "Run: arc errand merge example - --json",
+        `Run: printf '%s\\n' '${JSON.stringify(request)}' | arc errand merge example - --json`,
       ].join("\n"),
       exitCode: 1,
     });
