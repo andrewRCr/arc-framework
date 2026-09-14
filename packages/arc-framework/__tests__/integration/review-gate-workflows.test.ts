@@ -925,6 +925,22 @@ describe("trusted review-gate workflows", () => {
     expect(terminal).toMatch(/conflict \/ stop[\s\S]*blocked \/ stop[\s\S]*explanation and stop/iu);
   });
 
+  it("passes the exact approved Errand target to release-only lock transition", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const releaseOnly = sectionBetween(
+      packaged,
+      "After approval, apply the approved final dispositions and channel settlements.",
+      "6. **Run the approved terminal operation.",
+    );
+    expect(releaseOnly).toContain("`schemaVersion: 1`");
+    expect(releaseOnly).toContain("`treeRoot`");
+    expect(releaseOnly).toContain("`target: { repository, pullRequest, headSha }`");
+    expect(releaseOnly).toContain('`vehicle: { kind: "errand", slug }`');
+    expect(releaseOnly).toContain("Pass `releaseRequest` as JSON stdin to `arc merge lock release -`");
+  });
+
   it("keeps verification applicability vocabulary aligned with the typed input schema", () => {
     for (const applicability of ["targeted", "focused", "full"] as const) {
       expect(RespondVerifiedFixSchema.safeParse({
