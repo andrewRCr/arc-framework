@@ -143,6 +143,40 @@ function reservedProviderRefreshFixture() {
 }
 
 describe("delivery suffix reconciliation", () => {
+  it("ignores a landed predecessor edge while selecting an unlanded review-fix refresh", () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const current = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => {
+        if (member.coordinates === null) throw new Error("fixture member must be bound");
+        const base = index === 0
+          ? fixture.target!.coordinates!.head
+          : members[index - 1]!.coordinates!.head;
+        return { ...member, coordinates: { ...member.coordinates, base } };
+      }),
+    };
+    const landedFirst = {
+      ...current,
+      members: current.members.map((member, index) => index === 1
+        ? { ...member, coordinates: { ...member.coordinates!, base: "e".repeat(40) } }
+        : member),
+    };
+    const landedPrefix = [plan.members[0]!.deliverableId];
+
+    expect(findExactPendingSelectedRefresh(landedFirst)).toBe(plan.members[0]!.deliverableId);
+    expect(findExactPendingSelectedRefresh(landedFirst, landedPrefix)).toBeNull();
+
+    const publishedSecond = {
+      ...landedFirst,
+      members: landedFirst.members.map((member, index) => index === 1
+        ? { ...member, coordinates: { ...member.coordinates!, head: "f".repeat(40) } }
+        : member),
+    };
+    expect(findExactPendingSelectedRefresh(publishedSecond, landedPrefix))
+      .toBe(plan.members[1]!.deliverableId);
+  });
+
   it("selects the earliest pending refresh when later publication creates a second chain break", () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
@@ -265,6 +299,42 @@ describe("delivery suffix reconciliation", () => {
     expect(result).toEqual({ status: "refused", reason: "selected-member-moved" });
     expect(proveContribution).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("keeps landed M1 outside the pending selector when adopting M2 refresh", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(800 + index) },
+        coordinates: {
+          ...member.coordinates!,
+          base: index === 0 ? fixture.target!.coordinates!.head
+            : index === 1 ? "e".repeat(40) : members[index - 1]!.coordinates!.head,
+          head: index === 1 ? "f".repeat(40) : member.coordinates!.head,
+        },
+      })),
+    };
+    const affectedDeliverableIds = plan.members.slice(1, -1).map(({ deliverableId }) => deliverableId);
+
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds,
+      selectedDeliverableId: affectedDeliverableIds[0],
+      landedDeliverableIds: [plan.members[0]!.deliverableId],
+      observeResult: async () => ({ status: "refused", reason: "observation-unavailable" }),
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "observation-unavailable" });
   });
 
   it("refuses dependent adoption when the selected member has not published a correction", async () => {

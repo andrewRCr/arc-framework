@@ -117,9 +117,12 @@ export function hasExactPendingSelectedRefresh(
   return true;
 }
 
-/** Resolve the earliest selected member whose published head has not reached its dependent suffix. */
-export function findExactPendingSelectedRefresh(state: DeliveryStateV1): string | null {
-  for (let index = 0; index < state.members.length - 1; index += 1) {
+/** Resolve the earliest unlanded member whose published head has not reached its dependent suffix. */
+export function findExactPendingSelectedRefresh(
+  state: DeliveryStateV1,
+  landedDeliverableIds: readonly string[] = [],
+): string | null {
+  for (let index = landedDeliverableIds.length; index < state.members.length - 1; index += 1) {
     const selected = state.members[index];
     const dependent = state.members[index + 1];
     if (selected?.coordinates === null || selected?.coordinates === undefined
@@ -691,6 +694,7 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly affectedDeliverableIds: readonly string[];
   readonly selectedDeliverableId?: string;
+  readonly landedDeliverableIds?: readonly string[];
   readonly terminalAuthoringMovement?: DeliveryTerminalAuthoringMovementV1;
   readonly conflictResolution?: DeliveryProviderConflictResolutionInput;
 } & ProviderAdoptionExecutionDependencies): Promise<
@@ -738,7 +742,10 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   const selectedIndex = input.selectedDeliverableId === undefined
     ? -1
     : input.affectedDeliverableIds.indexOf(input.selectedDeliverableId);
-  const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(input.current.value);
+  const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(
+    input.current.value,
+    input.landedDeliverableIds,
+  );
   if (input.selectedDeliverableId !== undefined && (
     selectedIndex < 0
     || pendingSelectedDeliverableId !== input.selectedDeliverableId
