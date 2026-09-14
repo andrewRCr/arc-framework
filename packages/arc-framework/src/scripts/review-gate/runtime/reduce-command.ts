@@ -24,6 +24,7 @@ import {
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import type {
   ApprovedDispositionRecordStore,
   FrontlineOutcomeStore,
@@ -175,6 +176,7 @@ async function reduceLocal(
       },
     });
   }
+  assertLocalReviewClaimBinding(state);
   const [source, entries, disposition] = await Promise.all([
     dependencies.sourceStore.readSource(state.sourceRef),
     dependencies.readReceiptEntries(state.targetId),
