@@ -1298,6 +1298,78 @@ invocation and one stop unless the row says otherwise.
   to bind and preserve the typed continuation across the transition, or to stop emitting a signal no caller can
   act on — and it is settled without a probe.
 
+**Whole-WU verification · history shape · singleton**
+
+- _Intent:_ Subject collection over a branch and base with two best merge bases; expect the branch's own
+  contribution reported.
+- _Probe:_ `history-shape-ambiguity.test.ts` — "reports the base's own change as the contribution when two merge
+  bases exist" · _Base OID:_ `cbf075da7` · _Observed:_ the collected subject names `src/criss-cross-base-side.ts`,
+  which is the base's own change, and omits the branch's commit entirely. No refusal, no reason, no remedy, and
+  nothing in the result records that a choice between two ancestors was made.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed to that target, whose second locus records the same behavior in the field · _Retention at close:_ —
+
+  The reader is plain `merge-base` with no `--all`, so Git returns one of the two and the caller cannot tell it
+  had a choice. Two companion cases carry the finding: the control over the same arrangement with a single merge
+  base reports the branch's own path, and a third compares digests across the two arrangements and finds them
+  different. That difference is the cost — the subject digest is what currentness compares, so identical branch
+  work reads as a changed Candidate and the ordinary fallback demands a fresh root. The owner's draft records the
+  live shape of it: roughly 130 removed paths and a demand for a full new root over a terminal branch that
+  already contained the landed predecessor.
+
+**Candidate / prepublication · history shape · singleton**
+
+- _Intent:_ Applicability classifying a Candidate whose baseline and current base share two best merge bases;
+  expect the contribution classified from either one.
+- _Probe:_ `history-shape-ambiguity.test.ts` — "refuses with a typed reason rather than choosing one of the two
+  bases" · _Base OID:_ `cbf075da7` · _Observed:_ `classification-unavailable`, next action `stop`, reason
+  `merge-base-ambiguous`, detail "Multiple baseline-to-current merge bases are available."; no remedy.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; this is the typed half of that target's second locus · _Retention at close:_ —
+
+  The same condition the row above passes through silently, refused here with a typed reason. Both readers are
+  correct about the history and disagree about what follows from it, which is the finding: one boundary binds a
+  subject derived from an arbitrary choice while the next refuses to classify at all.
+
+**Public review · history shape · singleton**
+
+- _Intent:_ Review status over a Candidate whose target and base share two best merge bases; expect a status
+  rather than a re-ceremony directive.
+- _Probe:_ `review-status-base-movement.test.ts` — "directs a checkpoint rerun on a base that moved only in
+  shape" · _Base OID:_ `cbf075da7` · _Observed:_ `base-moved`, next action `rerun-checkpoint`, detail "The
+  revisions have multiple best merge bases; overlap cannot be proved from one."; the routed obligation reads
+  `blocked` carrying "The Candidate target has no sole base coordinate." The control on the same scaffold with an
+  unambiguous history settles and continues to reconcile.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ recommendation-bearing — the result names a checkpoint rerun ·
+  _Continuation:_ `did-not-clear` — the rerun reads the same history and reaches the same reading.
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; a fourth locus on the seam that target's draft already holds three of · _Retention at close:_ —
+
+  The fourth vocabulary on one condition, and the only one that is not a refusal at all: the sole-base resolver's
+  untyped message is caught and surfaced as a blocked obligation's `detail`, while the status itself reports the
+  base moved. Nothing about the branch's contribution changed, so what the caller is sent back to re-run is a
+  checkpoint that already passed.
+
+**Landing · history shape · singleton**
+
+- _Intent:_ Authoritative base drift over a branch and base with two best merge bases; expect the changed-path
+  intersection reported, since it is the same from either ancestor.
+- _Probe:_ `history-shape-ambiguity.test.ts` — "reports the overlap unavailable rather than proving it from one
+  of the two bases" · _Base OID:_ `cbf075da7` · _Observed:_ verdict `reconcile` with overlap
+  `unavailable / merge-base-failed`; no remedy at this reader. The control on the same arrangement with one merge
+  base reports the same `reconcile` verdict with the overlap available and no substantive paths.
+- _Invocations:_ 1 · _Stops:_ 0 — the drift read itself returns no next action · _Fork:_ none ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; the first locus that target's draft records · _Retention at close:_ —
+
+  The verdict is unchanged by the ambiguity and only the evidence under it degrades, which is what makes the
+  consequence a classification failure rather than a drift failure. The checkpoint that consumes this reading is
+  where it becomes a stop — `delivery-terminal-blocked / drift-classification-unavailable`, offering only a
+  retry — and that mapping is recorded by the owner rather than re-observed here.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:

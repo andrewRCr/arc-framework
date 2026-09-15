@@ -612,7 +612,7 @@ every pin in place.
           durable and enumerable — so the loss is not storage but the absence of any read from it when the target
           moves. Rows are in `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **7.3 Probe the history-shape axis**
+### `[x]` **7.3 Probe the history-shape axis**
 
 - _Goal:_ Observe what each reached boundary returns when merge-base cardinality is not one and overlap cannot be
   classified at all.
@@ -632,7 +632,21 @@ every pin in place.
           throws is not on the prepublication path, which reaches applicability directly, and the overlap
           analyzer is reached only from base distance rather than from checkpoint composition.
 
-    - `[ ]` **7.3.b Probe the four boundaries that read a merge base**
+    - `[x]` **7.3.b Probe the four boundaries that read a merge base**
+
+        - Four cells, each against a control on the same arrangement with one merge base, and the four handlings
+          the enumeration predicted are all confirmed distinct. Verification is the sharp one: subject collection
+          uses plain `merge-base`, Git returns the branch-side ancestor, and the subject reports the base's own
+          change as the work unit's contribution while omitting the branch's commit — with no refusal and nothing
+          recording that a choice was made. A companion case shows the resulting digest differs from the one the
+          same branch work produces unambiguously, which is how identical work reads as a changed Candidate and
+          draws a fresh root. Applicability refuses `classification-unavailable / merge-base-ambiguous` over the
+          same condition. Review status neither picks nor refuses: the sole-base resolver's untyped message is
+          caught into a blocked obligation's detail while the status reports the base moved and directs a
+          checkpoint rerun that reads the same history. Drift keeps its `reconcile` verdict and degrades only the
+          overlap beneath it, which is why the consequence lands as a classification failure. All four route to
+          one owner, whose draft already records three of them from the field. Rows are in
+          `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **7.4 Probe the ceremony-concurrent-write axis**
 

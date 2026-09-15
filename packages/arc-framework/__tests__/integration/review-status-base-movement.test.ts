@@ -18,11 +18,13 @@ import { createReviewStatusPort } from "../../src/scripts/review-gate/status-com
 import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
 import {
   advanceBase,
+  arrangeAmbiguousMergeBase,
   movementPaths,
   withUnavailableBaseRead,
   type GitExecLike,
 } from "../helpers/base-advance.js";
 import { runHandlerAt } from "../helpers/handler.js";
+import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
@@ -134,7 +136,9 @@ async function installHost(root: string): Promise<string> {
  * The branch is an ordinary work-unit branch, so the routed obligation resolves without consulting any
  * delivery plan — which is what keeps the moved-base arm reachable instead of a conjunction deciding first.
  */
-async function singletonUnderReview(): Promise<{ root: string; headSha: string; bin: string }> {
+async function singletonUnderReview(
+  arrange?: (root: string) => Promise<void>,
+): Promise<{ root: string; headSha: string; bin: string }> {
   const root = await initInTempRepo(DEFAULT_PROMPTS);
   cleanups.push(async () => cleanupTempDir(root));
   await git(root, ["add", "-A"]);
@@ -158,6 +162,9 @@ async function singletonUnderReview(): Promise<{ root: string; headSha: string; 
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "implementation"]);
   await git(root, ["push", "origin", HEAD_REF]);
+  // Any history the case needs is arranged here: the attestation below binds whatever HEAD it finds,
+  // and a branch rearranged after attestation would carry the old head as its reviewed revision.
+  await arrange?.(root);
   await writeFile(
     join(root, ".arc", "active", `tasks-${WORK_UNIT}.md`),
     "# Task List: Example\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n",
@@ -246,6 +253,38 @@ describe("review status when the base read goes unavailable under it", () => {
     expect(await statusThroughPort(fixture)).toMatchObject({
       state: "settled",
       nextAction: "continue-reconcile",
+    });
+  });
+});
+
+describe("review status over a history leaving two merge bases", () => {
+  it("reports the settled state the ambiguous reading is measured against", async () => {
+    const fixture = await singletonUnderReview();
+
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+    });
+  });
+
+  it("directs a checkpoint rerun on a base that moved only in shape", async () => {
+    const fixture = await singletonUnderReview(async (root) => {
+      await arrangeAmbiguousMergeBase({ cwd: root });
+    });
+
+    const status = await statusThroughPort(fixture);
+
+    expectPinnedObservation(status, {
+      behavior: "A second equally good merge base changes the shape of the history and nothing about "
+        + "what the branch contributed, so review status should settle rather than report the base moved "
+        + "and send the work back through a checkpoint it has already passed.",
+      observed: {
+        state: "base-moved",
+        nextAction: "rerun-checkpoint",
+        baseMovementDetail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
+        routedObligation: { state: "blocked", detail: "The Candidate target has no sole base coordinate." },
+      },
+      target: { state: "settled" },
     });
   });
 });
