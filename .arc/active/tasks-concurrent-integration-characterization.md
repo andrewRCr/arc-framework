@@ -830,11 +830,22 @@ every pin in place.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The complete work unit is validated against its success criteria and the project's gates before
   integration, including the criteria only a pull request can settle and the routed owners only the mint can
   produce.
+
+- _Quality gates:_ Markdown lint, three ARC contract checks over 1 854 files, TypeScript and shell lint, both type
+  checks, build, the local lane at 11 700 passing over 865 files with one environment-gated skip, and e2e at 568
+  over 59 — all passed. Two review passes ran ahead of them, one over the shared harness and one over the probe
+  suites, scoped local because the change carries no production source; of twelve findings, ten were fixed and two
+  rejected on proportionality. A record audit over the work unit's own factual claims ran alongside, correcting
+  seven.
+
+- _Success criteria:_ Thirteen criteria, none unresolved — nine met, one superseded where the routing produced no
+  unowned mechanism to mint a stub for, and three bound by forward amendment to the integration boundary, each
+  naming the pull-request run that settles it. Criterion text is unchanged throughout.
 
 ---
 
