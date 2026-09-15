@@ -494,21 +494,18 @@ unaffected and run in place._
   prompted widening the span here rather than sending each routed owner hunting. The runway came out at three work
   units instead of four, two owners stay open by design, and the mint ran on this branch under a forward amendment.
 
-### `[ ]` **6.4 Retire every pin whose target has been met**
+### `[x]` **6.4 Retire every pin whose target has been met**
 
 - _Goal:_ No probe still pins a stop that has since been fixed, so the suite is green with only live pins in place
   and the ledger carries the changed observation rather than a stale one.
 
-- _Context:_ This is the re-run mechanism landing rather than an exception to it. A routed Errand fix may run and
-  land off-work-unit during this work unit's lifetime, and every base merge brings sibling work in — so the pin
-  helper's designed failure, red once the target is met, is expected to fire here by design.
-
-    - Rebuild the base, re-run both lanes, and take the red-on-target-met messages as the worklist.
-    - Convert each such probe to a plain assertion against the now-idiomatic result; the pin's job ends when the
-      fix lands.
-    - Append the changed observation as its own ledger row against the base it was seen on, rather than editing
-      the original row.
-    - A probe whose pin is retired then falls under the ordinary retention rule in the next task.
+- _Outcome:_ The base merge brought 139 commits, and the suite's one pin fired on its own terms, naming the plain
+  assertion that replaced it: public review no longer stops on a disjoint advance. Both `mechanical block` rows are
+  resolved — the landing window now merges across that same advance and the member path reaches approval — and the
+  regenerable case gained a typed arm with a reason where it had been one of the six bare stops. Eight rows are
+  appended against the new base rather than edited. What made any of it readable was a fixture repair: the
+  checkpoint now demands host evidence the stubs never supplied, and both control rows failing first is what
+  separated a stale fixture from a changed boundary.
 
 ### `[ ]` **6.5 Apply the retention rule and record each probe's disposition**
 

@@ -12,7 +12,6 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { handleIntegrationCheckpoint } from "../../src/handlers/integration.js";
 import { handleAttest } from "../../src/handlers/lifecycle.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { createReviewStatusPort } from "../../src/scripts/review-gate/status-composition.js";
@@ -32,7 +31,6 @@ import {
   makeGitExec,
   removeGitBackedDir,
 } from "../helpers/integration.js";
-import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 
 const WORK_UNIT = "example";
 const HEAD_REF = `feat/${WORK_UNIT}`;
@@ -87,6 +85,8 @@ function metaDocument(): string {
 async function installHost(root: string): Promise<string> {
   const bin = join(root, ".arc-fixture", "bin");
   const headSha = await git(root, ["rev-parse", "HEAD"]);
+  // Exact merge admission is proved by a test-merge commit whose parents are the requested base and head.
+  const TEST_MERGE = "a".repeat(40);
   const listed = JSON.stringify([{
     number: PULL_REQUEST,
     url: `https://example.test/pull/${String(PULL_REQUEST)}`,
@@ -100,20 +100,25 @@ async function installHost(root: string): Promise<string> {
     state: "open",
     merged: false,
     draft: false,
-    merge_commit_sha: null,
+    merge_commit_sha: TEST_MERGE,
     mergeable: true,
     head: { ref: HEAD_REF, sha: headSha, repo: { full_name: REPOSITORY } },
-    base: { ref: "main", repo: { full_name: REPOSITORY } },
+    base: { ref: "main", sha: "%s", repo: { full_name: REPOSITORY } },
   });
   await mkdir(bin, { recursive: true });
   const script = join(bin, "gh");
   await writeFile(script, [
     "#!/bin/sh",
+    // The host reports the base it actually has, so the stub reads the remote rather than pinning a value the
+    // advance would invalidate.
+    `base=$(git --git-dir='${join(root, ".arc-fixture", "origin.git")}' rev-parse refs/heads/main)`,
     'case "$1:$2" in',
     `  pr:list) printf '%s\\n' '${listed}' ;;`,
     "  pr:checks) echo 'no required checks reported' >&2; exit 1 ;;",
-    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}) printf '%s\\n' '${pull}' ;;`,
+    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}) printf '${pull}\\n' "$base" ;;`,
     `  api:repos/${REPOSITORY}/branches/main) printf '%s\\n' '{}' ;;`,
+    `  api:repos/${REPOSITORY}/commits/${TEST_MERGE})`,
+    `    printf '{"parents":[{"sha":"%s"},{"sha":"${headSha}"}]}\\n' "$base" ;;`,
     "  api:--paginate) printf '%s\\n' '[[]]' ;;",
     '  *) echo "unexpected host invocation: $*" >&2; exit 1 ;;',
     "esac",
@@ -200,14 +205,6 @@ async function statusThroughPort(
   ));
 }
 
-/** Take the checkpoint rerun a moved-base stop names, through its own handler seam. */
-async function checkpointThroughHandler(fixture: { root: string; bin: string }): Promise<unknown> {
-  const run = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
-    await handleIntegrationCheckpoint(WORK_UNIT, { json: true }, machineContext());
-  }));
-  return JSON.parse(run.stdout);
-}
-
 describe("review status over a base the work unit contains", () => {
   it("reports the settled state the moved-base reading is measured against", async () => {
     const fixture = await singletonUnderReview();
@@ -220,43 +217,15 @@ describe("review status over a base the work unit contains", () => {
 });
 
 describe("review status over a base advanced under the work unit", () => {
-  it("stops for a checkpoint rerun after an advance sharing no path with the branch", async () => {
+  it("settles after an advance sharing no path with the branch", async () => {
     const fixture = await singletonUnderReview();
     await advanceBase({ cwd: fixture.root, paths: movementPaths("disjoint", WORK_UNIT).base });
 
     const status = await statusThroughPort(fixture);
 
-    expectPinnedObservation(status, {
-      behavior: "an advance sharing no path with the branch stops public review for a checkpoint rerun",
-      observed: { state: "base-moved", nextAction: "rerun-checkpoint" },
-      target: { state: "settled", nextAction: "continue-reconcile" },
-    });
-  });
-});
-
-describe("the checkpoint rerun a moved-base stop names", () => {
-  it("does not clear the stop after an advance sharing no path with the branch", async () => {
-    const fixture = await singletonUnderReview();
-    await advanceBase({ cwd: fixture.root, paths: movementPaths("disjoint", WORK_UNIT).base });
-
-    const checkpoint = await checkpointThroughHandler(fixture);
-
-    expect(checkpoint).toMatchObject({ state: "blocked", nextAction: "stop", reason: "unsafe-reconcile" });
-    // Neither of the two facts the refusal is usually about holds here: the advance intersects nothing the
-    // branch changed, and the host reports the change request mergeable. What withholds the reconcile is
-    // that the advanced commit carries no landing provenance to classify.
-    expect(checkpoint).toMatchObject({
-      payload: {
-        safety: {
-          host: { state: "mergeable" },
-          overlapAvailable: true,
-          substantivePaths: [],
-          regenerablePaths: [],
-          integrationEvidenceComplete: false,
-          safe: false,
-        },
-      },
-    });
+    // The stop this held is gone: containment no longer decides the reading, so an advance the branch shares
+    // no path with costs public review nothing.
+    expect(status).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
   });
 });
 

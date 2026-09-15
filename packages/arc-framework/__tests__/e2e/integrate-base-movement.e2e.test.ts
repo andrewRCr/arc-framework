@@ -90,13 +90,23 @@ async function installHost(
 ): Promise<{ bin: string; headFile: string }> {
   const bin = join(repository, ".arc-fixture", "bin");
   const headFile = join(repository, ".arc-fixture", "head-sha");
+  // The host remembers its own merge: exact confirmation re-reads the pull request and requires it to report
+  // merged, so a stub that always answers "open" would fail the confirmation rather than the behaviour under test.
+  const mergedFile = join(repository, ".arc-fixture", "merged-sha");
   const listed = `[{"number":${String(PULL_REQUEST)},`
     + `"url":"https://example.test/pull/${String(PULL_REQUEST)}",`
     + `"state":"OPEN","baseRefName":"main","headRefName":"${HEAD_REF}","headRefOid":"%s"}]`;
+  // The host proves exact mergeability with a test-merge commit whose parents are the requested base and head.
+  // Its object id is the host's to invent; the parents the stub reports for it are the repository's real ones.
+  const testMerge = "a".repeat(40);
   const pull = `{"number":${String(PULL_REQUEST)},"state":"open","merged":false,"draft":false,`
-    + `"merge_commit_sha":null,"mergeable":true,`
+    + `"merge_commit_sha":"${testMerge}","mergeable":true,`
     + `"head":{"ref":"${HEAD_REF}","sha":"%s","repo":{"full_name":"${REPOSITORY}"}},`
-    + `"base":{"ref":"main","repo":{"full_name":"${REPOSITORY}"}}}`;
+    + `"base":{"ref":"main","sha":"%s","repo":{"full_name":"${REPOSITORY}"}}}`;
+  const mergedPull = `{"number":${String(PULL_REQUEST)},"state":"closed","merged":true,"draft":false,`
+    + `"head":{"ref":"${HEAD_REF}","sha":"%s","repo":{"full_name":"${REPOSITORY}"}},`
+    + `"base":{"ref":"main","sha":"%s","repo":{"full_name":"${REPOSITORY}"}},`
+    + `"merge_commit_sha":"%s","mergeable":null}`;
   const landed = predecessor === null ? null : JSON.stringify([{
     number: predecessor.number,
     url: `https://example.test/pull/${String(predecessor.number)}`,
@@ -112,6 +122,10 @@ async function installHost(
   await writeFile(script, [
     "#!/bin/sh",
     `head=$(cat '${headFile}')`,
+    // The host reports the base it actually has, so the stub reads the remote rather than pinning a value that
+    // every advance would invalidate.
+    `base=$(git --git-dir='${remote}' rev-parse refs/heads/main)`,
+    `merged=$(cat '${mergedFile}' 2>/dev/null || true)`,
     'case "$1:$2" in',
     `  repo:view) printf '%s\\n' '${repositoryView}' ;;`,
     "  pr:ready) exit 0 ;;",
@@ -124,20 +138,25 @@ async function installHost(
     `    printf '${listed}\\n' "$head" ;;`,
     "  pr:checks) echo 'no required checks reported' >&2; exit 1 ;;",
     `  api:repos/${REPOSITORY}) printf '%s\\n' '${settings}' ;;`,
-    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}) printf '${pull}\\n' "$head" ;;`,
+    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)})`,
+    `    if [ -n "$merged" ]; then printf '${mergedPull}\\n' "$head" "$base" "$merged";`,
+    `    else printf '${pull}\\n' "$head" "$base"; fi ;;`,
     `  api:repos/${REPOSITORY}/branches/main) printf '%s\\n' '{}' ;;`,
+    `  api:repos/${REPOSITORY}/commits/${testMerge})`,
+    `    printf '{"parents":[{"sha":"%s"},{"sha":"%s"}]}\\n' "$base" "$head" ;;`,
     ...(predecessor === null ? [] : [
       `  api:repos/${REPOSITORY}/pulls/${String(predecessor.number)})`,
       `    printf '%s\\n' '{"number":${String(predecessor.number)},"state":"closed","merged":true,"draft":false,`
         + `"merge_commit_sha":"${predecessor.head}","mergeable":true,`
         + `"head":{"ref":"${predecessor.ref}","sha":"${predecessor.head}","repo":{"full_name":"${REPOSITORY}"}},`
-        + `"base":{"ref":"main","repo":{"full_name":"${REPOSITORY}"}}}' ;;`,
+        + `"base":{"ref":"main","sha":"'"$base"'","repo":{"full_name":"${REPOSITORY}"}}}' ;;`,
     ]),
     "  api:--paginate) printf '%s\\n' '[[]]' ;;",
     // Landing the change request really moves the base, so everything downstream of the merge reads a
     // repository in the state the host claims rather than a response with nothing behind it.
     `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}/merge)`,
     `    git --git-dir='${remote}' update-ref refs/heads/main "$head"`,
+    `    printf '%s' "$head" > '${mergedFile}'`,
     `    printf '{"sha":"%s","merged":true,"message":"merged"}\\n' "$head"`,
     "    ;;",
     '  *) echo "unexpected host invocation: $*" >&2; exit 1 ;;',
@@ -390,24 +409,15 @@ describe("the window between a minted handle and the merge that consumes it", ()
     expect(result, JSON.stringify(result)).toMatchObject({ state: "merged" });
   });
 
-  it("invalidates the handle when the base advances under it", async () => {
+  it("merges the approved head after an advance sharing no path with it", async () => {
     const fixture = await publishedAtLanding();
     const handle = await mintHandle(fixture);
     await advanceFor(fixture, "disjoint");
 
     const result = await runMerge(fixture, handle);
 
-    expect(result, JSON.stringify(result)).toMatchObject({
-      state: "invalidated",
-      reason: "drift-reconcile",
-      payload: { verdict: "reconcile" },
-    });
-    // The step it names does not return a handle: the base it now reads has moved, so the same invocation
-    // that minted one before asks for a reconcile instead.
-    expect(await takeContinuation(fixture, result)).toMatchObject({
-      state: "reconcile",
-      nextAction: "reconcile-base",
-    });
+    // The handle survives movement that shares no path with the branch: the window costs the advance nothing.
+    expect(result, JSON.stringify(result)).toMatchObject({ state: "merged" });
   });
 });
 
@@ -421,14 +431,18 @@ describe("the checkpoint's own base read", () => {
 
     expect(result, JSON.stringify(result)).toMatchObject({
       state: "blocked",
-      reason: "unsafe-reconcile",
-      payload: { safety: { substantivePaths: [...paths.base], safe: false } },
+      reason: "conflict",
+      payload: {
+        observation: {
+          movement: "overlapping",
+          feasibility: { state: "substantive-conflict", paths: [...paths.base] },
+        },
+      },
     });
-    // The remedy asks in prose for an append-only base merge, but the argv it carries only re-runs the
-    // checkpoint, so following it exactly returns the same refusal.
-    expect(await takeContinuation(fixture, result)).toMatchObject({
-      state: "blocked",
-      reason: "unsafe-reconcile",
+    // The refusal now names the conflicting paths and sends the reader at the drift read rather than at a
+    // re-run of the checkpoint that produced it.
+    expect(result["remedy"], JSON.stringify(result)).toMatchObject({
+      argv: ["arc", "base", "drift", "--json"],
     });
   });
 
@@ -441,12 +455,15 @@ describe("the checkpoint's own base read", () => {
 
     expect(result, JSON.stringify(result)).toMatchObject({
       state: "reconcile",
-      nextAction: "reconcile-base",
-      payload: { safety: { substantivePaths: [], regenerablePaths: [...paths.base], safe: true } },
+      nextAction: "reconcile-regenerable",
+      reason: "regenerable-reconcile-required",
+      payload: {
+        observation: {
+          movement: "disjoint",
+          feasibility: { state: "regenerable-conflict", paths: [...paths.base] },
+        },
+      },
     });
-    // The one result here that is safe to act on is also the only one carrying no remedy: it names a next
-    // action and leaves the reader to work out the invocation.
-    expect(result["remedy"], JSON.stringify(result)).toBeUndefined();
   });
 
   it("refuses when the base read goes unavailable under it", async () => {
@@ -490,21 +507,22 @@ describe("the checkpoint's base read under a bound delivery plan", () => {
     });
   });
 
-  it("offers a reconcile after an advance sharing no path with the branch", async () => {
+  it("mints a handle after an advance sharing no path with the branch", async () => {
     const fixture = await publishedAtLanding({ predecessor: true });
     await bindDeliveryPlan(fixture);
     await advanceFor(fixture, "disjoint");
 
     const result = await runCheckpoint(fixture);
 
+    // The member path costs the advance nothing either: the same baseline result, with the plan still deciding.
     expect(result, JSON.stringify(result)).toMatchObject({
-      state: "reconcile",
-      nextAction: "reconcile-base",
-      payload: { safety: { substantivePaths: [], regenerablePaths: [], safe: true } },
+      state: "ready",
+      nextAction: "request-approval",
+      payload: { mergeMethod: { stackPosition: "top" } },
     });
   });
 
-  it("admits an advance over a reviewable path the top member alone changed", async () => {
+  it("refuses a conflicting advance even under a bound delivery plan", async () => {
     const paths = movementPaths("overlapping-substantive", WORK_UNIT);
     const fixture = await publishedAtLanding({ predecessor: true, branchPaths: paths.branch });
     await bindDeliveryPlan(fixture);
@@ -512,12 +530,17 @@ describe("the checkpoint's base read under a bound delivery plan", () => {
 
     const result = await runCheckpoint(fixture);
 
-    // The same overlap the singleton path refuses on. Scoping it to the top member's residual — the span
-    // no landed member contributed — is what turns the refusal into an offer.
+    // Git feasibility is read before the plan's scoping, so a path both sides changed refuses here exactly as
+    // it does on the singleton path — the delivery arm never reaches the question.
     expect(result, JSON.stringify(result)).toMatchObject({
-      state: "reconcile",
-      nextAction: "reconcile-base",
-      payload: { safety: { substantivePaths: [...paths.base], safe: true } },
+      state: "blocked",
+      reason: "conflict",
+      payload: {
+        observation: {
+          movement: "overlapping",
+          feasibility: { state: "substantive-conflict", paths: [...paths.base] },
+        },
+      },
     });
   });
 
@@ -531,8 +554,14 @@ describe("the checkpoint's base read under a bound delivery plan", () => {
 
     expect(result, JSON.stringify(result)).toMatchObject({
       state: "reconcile",
-      nextAction: "reconcile-base",
-      payload: { safety: { substantivePaths: [], regenerablePaths: [...paths.base], safe: true } },
+      nextAction: "reconcile-regenerable",
+      reason: "regenerable-reconcile-required",
+      payload: {
+        observation: {
+          movement: "disjoint",
+          feasibility: { state: "regenerable-conflict", paths: [...paths.base] },
+        },
+      },
     });
   });
 });

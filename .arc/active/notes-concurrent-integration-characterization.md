@@ -953,6 +953,94 @@ unit's close, not at seed time.
   plausible convenience — is what turns this row red. Covering test at close:
   `wu-reconcile.e2e.test.ts` asserts the same property over its own topology.
 
+### Re-run rows — base `cbf075da7`
+
+Appended under the re-run convention after merging 139 commits of base. Every row below records a **changed**
+observation; rows unchanged by the merge are not re-appended, and no row observed against `4f6b11568` is edited.
+Classification, fork, and continuation columns are deliberately left for the second matrix, which re-reads this
+boundary against its own axes rather than re-deriving them twice.
+
+One contract change underlies most of them: the checkpoint's payload moved from
+`safety.{overlapAvailable, substantivePaths, regenerablePaths, integrationEvidenceComplete, safe}` to
+`observation.{movement, integrationEvidenceComplete, feasibility, admission}`. It now reports the movement kind and
+the conflicting paths directly, so the partition the earlier rows recorded as discarded at the merge window is
+carried.
+
+**Public review and checks · `disjoint` · singleton** — _superseded_
+
+- _Observed:_ `settled / continue-reconcile`. The stop is gone: containment no longer decides the reading, so an
+  advance sharing no path with the branch costs public review nothing.
+- _Probe:_ `review-status-base-movement.test.ts` — "review status over a base advanced under the work unit >
+  settles after an advance sharing no path with the branch" · _Base OID:_ `cbf075da7`
+- _Held result retired:_ the pin fired on its own terms — "this now produces the result it was waiting for, so the
+  hold is spent" — and was replaced by a plain assertion. This is the only pin the ledger carried, and its target
+  was met by sibling work rather than by a routed fix.
+- _Continuation retired:_ the row's continuation probe observed the checkpoint the stop named. With no stop there
+  is nothing to continue, and that checkpoint now refuses `lifecycle-incomplete` at this fixture for reasons
+  unrelated to base movement, so the probe was deleted rather than left asserting fixture state.
+
+**Member / singleton landing · `disjoint` · singleton** — _superseded_
+
+- _Observed:_ `merged`. The handle survives an advance sharing no path with the branch; the window no longer
+  invalidates it, so the reconcile, fresh checkpoint, and fresh approval the earlier row recorded are all gone.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the window between a minted handle and the merge that consumes
+  it > merges the approved head after an advance sharing no path with it" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `overlapping-substantive` · singleton** — _superseded_
+
+- _Observed:_ `blocked / stop`, reason `conflict`, `feasibility: substantive-conflict` naming the conflicting path,
+  with host admission `mergeable`. The refusal stands and is still correct, but it now rests on Git feasibility
+  rather than on the safety conjunction, and its remedy points at `arc base drift --json` rather than at a re-run
+  of the checkpoint that produced it.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's own base read > refuses an advance over a
+  reviewable path the branch also changed" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `overlapping-regenerable-only` · singleton** — _superseded_
+
+- _Observed:_ `reconcile / reconcile-regenerable`, reason `regenerable-reconcile-required`,
+  `feasibility: regenerable-conflict`. The regenerable case gained its own typed arm rather than sharing
+  `reconcile-base`, and the result now carries a reason where the earlier one was bare.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's own base read > offers a reconcile for an
+  advance over the regenerable projection alone" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `disjoint` · delivery-member** — _superseded_
+
+- _Observed:_ `ready / request-approval` with the plan still deciding the stack position. The member path reaches
+  the same baseline result the control does, so the advance costs it nothing either.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan > mints
+  a handle after an advance sharing no path with the branch" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `overlapping-substantive` · delivery-member** — _superseded_
+
+- _Observed:_ `blocked / stop`, reason `conflict`, identical to the singleton row at the same movement. Git
+  feasibility is read ahead of the plan's scoping, so a path both sides changed refuses before the delivery arm is
+  reached — the `residual-contained` admission the earlier row recorded is not reachable at this fixture.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan >
+  refuses a conflicting advance even under a bound delivery plan" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `overlapping-regenerable-only` · delivery-member** — _superseded_
+
+- _Observed:_ `reconcile / reconcile-regenerable`, as the singleton row at the same movement.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan > offers
+  a reconcile for an advance over the regenerable projection alone" · _Base OID:_ `cbf075da7`
+
+**Prose-only gates** — _superseded_
+
+- _Observed:_ five gates became three, and not by subtraction alone. Three of the original five are gone — the
+  Errand lane's base-freshness loop and both of its mechanical Step 6 gates, whose dispatch prose admitting only
+  `clean` no longer exists anywhere in the tree. Two survive unchanged: the pre-hosted-pass advisory at the
+  integration boundary and the Errand lane's own copy of it, both judgment-bearing. A third is **new**: a single
+  read before approval composition whose disposition is a head-equality check, with the terminal operation
+  performing its own post-approval observation. The routed **typed drift dispatch** Errand has had its target met
+  by sibling work and is retired; the new gate is uncharacterized and belongs to the second matrix's re-read rather
+  than to this row.
+
+**Fixture repair recorded with these rows.** The checkpoint now requires host evidence the earlier stubs did not
+supply — a base object id on the pull request, a test-merge commit whose parents are the exact base and head, and a
+pull request that reports itself merged once merged. Both control rows failed on that gap before the repair, which
+is the signal that separated a stale fixture from a changed boundary: no movement row's observation was recorded
+until its own control read green again.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:
