@@ -331,6 +331,12 @@ unavailable base read is observable only through the proof-target leg.
 | `overlapping-regenerable-only` | not-applicable | same                                                           |
 | `unknown`                      | applicable     | fetch failure → `rejected`, authority ref unresolvable         |
 
+Instrument, settled at the probe: the existing e2e file has no origin and runs at the shipped `partial`
+default, under which the proof target reads the local base and never fetches — the boundary's base read does
+not exist there. Adding an origin and full protection to its shared builder would change what its existing
+cases observe, so these probes take their own file, `teardown-base-movement.e2e.test.ts`, over a repository
+whose merge and archival have both reached a live base.
+
 #### Errand review and merge — `arc errand close`, the Errand's typed merge lane
 
 The base read at `close` is narrower than the coverage table implied. `close-runtime.ts` calls
@@ -713,24 +719,51 @@ unit's close, not at seed time.
 **Post-landing closeout · control · singleton**
 
 - _Intent:_ Ceremony baseline for the reap with the base held still.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `teardown-base-movement.e2e.test.ts` — "reaps the branch when the base holds still"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `torn-down` — the branch deleted locally and on the remote, the worktree in-place, the stale
+  tracking ref pruned; no reason, no remedy.
+- _Invocations:_ 1 — the cleanup verb · _Stops:_ 0 — the reap runs to completion unattended · _Fork:_ bare ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ — · _Fix at close:_ — ·
+  _Retention at close:_ —
+
+  Full protection is what puts a base read here at all: the shipped default resolves the proof target from the
+  local base and never fetches, so on that setting the boundary has nothing for an advance to move.
 
 **Post-landing closeout · `disjoint` · singleton**
 
 - _Intent:_ Advance the base past this work unit's landing; expect the reap to refetch and recognize its own
   archival.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `teardown-base-movement.e2e.test.ts` — "reaps the branch after an advance sharing no path with it"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `torn-down`, identical to the control in every reported field — the same two deletions, the same
+  prune, no reason and no remedy.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  Excess is zero and the advance is real: at the boundary the local base sits one commit behind the remote, and
+  the gate reads membership from the refetched tip, which still carries this work unit's archival. Landing shape
+  does not enter — nothing here proves an integration event from topology — so the advance is recorded as a
+  direct push and a merge landing would read the same. The tolerance is one predicate deep: refuse when the
+  refetched head differs from the local base tip, and this row goes red while the control stays green.
 
 **Post-landing closeout · `unknown` · singleton**
 
 - _Intent:_ Sever the proof-target fetch; expect a refusal naming the unresolvable lifecycle authority ref.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `teardown-base-movement.e2e.test.ts` — "refuses with the branch untouched, and reaps once the read is
+  restored" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `rejected` — "Could not resolve lifecycle authority ref `origin/main`; refusing teardown.", with the
+  branch and its remote head left intact.
+- _Invocations:_ 2 — the refused cleanup and the one that follows it · _Stops:_ 1 — the refusal ·
+  _Fork:_ **bare**, the refusal names no invocation · _Continuation:_ `cleared`
+- _Classification:_ `fail-closed, correct` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The refusal is attributable: it fires on the proof-target leg, ahead of the best-effort refresh that would have
+  absorbed the same failure into a silent fall-back to the local ref. It also costs nothing to clear — a plain
+  retry once the read is restored tears down — but nothing in the message says so. That makes it the second
+  result in the ledger whose decision is correct and whose signalling names no step, after the landing boundary's
+  safe reconcile.
 
 **Errand review / merge · control · singleton**
 

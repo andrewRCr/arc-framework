@@ -288,22 +288,19 @@ delivery-member cells — and they share the cost of getting a repository that f
   merge its own argv does not perform. The rows are in
   `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **4.2 Probe the post-landing closeout boundary**
+### `[x]` **4.2 Probe the post-landing closeout boundary**
 
 - _Goal:_ Closeout's overlapping and unknown movement carry observations, extending the single disjoint case that is
   the suite's only post-landing base-movement coverage today.
 
-- _Note:_ `arc teardown` is unreachable until the fixture carries a landed merge and a committed completed record.
-  `integration/teardown.test.ts` already builds the disjoint case over a multi-clone topology and is the nearest
-  working reference for both the fixture and the advance.
-
-- _Shape:_ These probes spawn the verb. The integration file drives the teardown functions in-process, so it is the
-  reference for the **advance idiom** — its multi-clone topology imports nothing from source and reaches either
-  lane — and not the host for the probes. Landing them there would put an operator-facing boundary at a library
-  seam, where a single in-process call has no verb invocations or approval stops to count and the boundary's excess
-  is structurally zero. The e2e teardown file already spawns the verb throughout and lacks only an origin.
-
-    - Cover every movement kind Task 1.1 left applicable, plus the control row.
+- _Outcome:_ The boundary exists only under full branch protection — the shipped default resolves the proof target
+  from the local base and never fetches — so the probes carry their own fixture, a merge and an archival both landed
+  on a live base, rather than changing what the existing e2e file's cases observe. All three applicable cells are
+  covered and the two overlapping ones stay closed: the gate reads this work unit's membership in the fetched tree
+  and its branch's containment in it, never what the advance touched. The advance is absorbed whole at excess zero;
+  a severed read refuses on the proof-target leg, ahead of the best-effort refresh that would have swallowed it, and
+  clears on a plain retry the refusal never names. The rows are in
+  `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **4.3 Probe the delivery-member landing cells**
 
