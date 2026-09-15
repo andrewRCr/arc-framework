@@ -648,7 +648,7 @@ every pin in place.
           one owner, whose draft already records three of them from the field. Rows are in
           `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **7.4 Probe the ceremony-concurrent-write axis**
+### `[x]` **7.4 Probe the ceremony-concurrent-write axis**
 
 - _Goal:_ Observe what happens when a ceremony's own record writes move the head its preconditions were read
   against, with no base movement involved.
@@ -669,14 +669,20 @@ every pin in place.
           what is missing is a typed reason naming the index and not the ability to proceed. The rows and the
           correction are in `notes-concurrent-integration-characterization.md`.
 
-    - `[ ]` **7.4.b Probe the three cells whose writes are the verbs' own**
+    - `[x]` **7.4.b Probe the three cells whose writes are the verbs' own**
 
         - Terminal landing observed. A correction resumed over an advance made only of the ceremony's own record
           writes rebinds and then raises a verification task naming the member, indistinguishable from the same
           resume over an authored change. The terminal fixture bound the terminal to the head its record write
           produced, so the arrangement could not arise in it; one option binding to the head that write advanced
           past is what makes the cell expressible. A plain reconcile over the same arrangement is tolerant, so
-          the cost appears only on the resumed path.
+          the cost appears only on the resumed path. The other two close unproducible with their mechanisms
+          recorded from the field: landing has no prepare-to-apply composition anywhere in the suite and its
+          nearest fixture refuses with no reason field, so no control is readable; entry's selection is pure over
+          disposition records, so supplying them would construct the condition rather than watch a ceremony write
+          it, and reaching two pending authorities needs an approve-reattest-approve sequence no fixture performs.
+          Each closure names the capture that owns it and records that the composition the cell lacks is the one
+          that fix requires anyway, so coverage travels with the fix rather than ending at the closure.
 
 ### `[ ]` **7.5 Probe the boundaries outside the enumerated six**
 

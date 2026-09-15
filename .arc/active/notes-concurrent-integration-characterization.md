@@ -1458,6 +1458,53 @@ invocation and one stop unless the row says otherwise.
   artifact of running it after a reconcile had already rebound the state rather than on untouched state; it is
   recorded here because the refusal is plausible enough to be mistaken for the observation.
 
+**Landing · a write that is not a base advance · delivery-member** — closed, unproducible
+
+- _Intent:_ Applying a prepared landing whose readiness is revalidated against the state preparation's own
+  reservation advanced; expect the prepared landing to remain admissible.
+- _Closure:_ unproducible here. Nothing in the suite composes preparation with application — the only references
+  to those verbs assert their order inside workflow prose — and the position suite dispatches its verbs through an
+  in-process command map that carries neither. Added to that map, `land prepare` over the nearest fixture refuses
+  carrying no reason field at all, so the cell has no readable control, and a movement row without one is exactly
+  what this ledger does not record. D10 admits closing rather than forcing the composition.
+- _Owner:_ the capture holding this as an Errand, "Keep sequential landing review current through preparation and
+  no-effect recovery" · _Fix at close:_ routed · _Retention at close:_ not applicable — no probe
+
+  What replaces the observation is the field record rather than a source read. With member review discharged and
+  checks green, preparation reserved its operation and application refused at `readiness-revalidation /
+  before-lock-release / review-readiness-refused / review-unsettled`: exact-target review status reported the
+  public delivery continuation not current, because preparation's own reservation had advanced Delivery State
+  past the continuation that status reads. No lock released and no merge occurred. Reconcile then proved no
+  effect and cleared the reservation — and advanced the state again. An unchanged re-attestation renewed the
+  continuation without repeating verification or review, so a remedy exists and the refusal never names it, which
+  is the same shape the public-review row above carries.
+
+  The coverage is not dropped by this closure. That capture's own approach already requires covering both a
+  successful sequential prepare-to-apply path and its stale or mismatched refusals, and the composition this cell
+  would need is the one the fix requires anyway — a prepare-to-apply pair cannot be fixed without being
+  composed. The obligation therefore travels with the fix rather than ending here.
+
+**Prepublication to entry · a write that is not a base advance · delivery-member** — closed, unproducible
+
+- _Intent:_ Entry selecting pending delivery-member fix authority after a later attested root superseded an
+  earlier one; expect the superseded authority not selected.
+- _Closure:_ unproducible here. The selection is a pure function over approved-disposition records, so supplying
+  the records would construct the condition rather than observe a ceremony writing it — the distinction this axis
+  exists to make. The one suite that creates real approved dispositions produces Candidate-bound records, while
+  this selection reads only records with no Candidate binding, and reaching two pending authorities needs an
+  approve, re-attest, approve sequence no fixture performs.
+- _Owner:_ `review-orchestration-right-sizing`, through the capture retiring superseded private Frontline
+  response authority · _Fix at close:_ routed · _Retention at close:_ not applicable — no probe
+
+  The mechanism is the filter's own shape. It selects records carrying no Candidate binding, a delivery member
+  matching the active work unit, an approved fix authorization, and no response. A record a superseded authority
+  leaves in exactly that shape stays live indefinitely, because nothing retires it when a later root is attested:
+  one such record failing the exact-authority check refuses `review-fix-response-invalid`, and two of them refuse
+  `review-fix-response-ambiguous`. The field record carries both, at two different revisions.
+
+  As above, the coverage travels with the fix: that capture already requires covering entry with a stranded
+  legacy record and a still-pending fix, which is the composition this cell could not build.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:
