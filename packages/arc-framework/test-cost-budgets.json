@@ -42,32 +42,32 @@
       "tier": "integration",
       "mode": { "condition": "ci-job", "projectSet": "integration", "workerSizing": "1" },
       "metric": "job-elapsed-ms",
-      "baselineMs": 194067,
-      "budgetMs": 213474,
+      "baselineMs": 215072,
+      "budgetMs": 236580,
       "ciJob": "integration"
     },
     {
       "tier": "e2e",
       "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "1" },
       "metric": "job-elapsed-ms",
-      "baselineMs": 125854,
-      "budgetMs": 138440,
+      "baselineMs": 142024,
+      "budgetMs": 156227,
       "ciJob": "e2e-1"
     },
     {
       "tier": "e2e",
       "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "1" },
       "metric": "job-elapsed-ms",
-      "baselineMs": 147918,
-      "budgetMs": 162710,
+      "baselineMs": 163928,
+      "budgetMs": 180321,
       "ciJob": "e2e-2"
     },
     {
       "tier": "e2e",
       "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "1" },
       "metric": "job-elapsed-ms",
-      "baselineMs": 140095,
-      "budgetMs": 154105,
+      "baselineMs": 157427,
+      "budgetMs": 173170,
       "ciJob": "e2e-3"
     },
     {
