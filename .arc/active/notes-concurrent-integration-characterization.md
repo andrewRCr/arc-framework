@@ -13,6 +13,7 @@
 - [Post-probe cost](#post-probe-cost)
 - [Retention at close](#retention-at-close)
 - [Second-matrix confirmation](#second-matrix-confirmation)
+- [Record audit at close](#record-audit-at-close)
 
 ## Fixture inventory
 
@@ -2245,3 +2246,140 @@ touched the file. The same failure mode as the close-out audit that missed the d
 column name: **the check's scope did not match the sentence it was asked to support.** A row-level claim needs a
 row-level check, and any check quoted as evidence has to be re-run at the boundary that quotes it, not at the
 boundary that first ran it.
+
+## Record audit at close
+
+A pass over this file's and the task list's factual claims, run after the review fixes landed. Roughly fifty
+claims hold, including every not-applicable collapse, every unproducible closure, the cell matrix, the shard
+re-read, and both resolution tables. Seven do not. Four of those were written by commits in this same close-out
+sequence, and one of them is the correction immediately above. Rows are never edited, so each superseded reading
+stays where it is and the corrected reading is here.
+
+### The correction above measured against a baseline its own sentence does not name
+
+The subsection it corrects anchors itself explicitly — "the commit that introduced § Second-matrix probe rows".
+That is `97e160d4a`. The correction measured against `7bf8eba2c~1`, the span-widening amendment an hour earlier.
+Against the baseline the sentence actually names:
+
+| Baseline                            | Removed lines when the sentence was written | Removed lines now |
+| ----------------------------------- | ------------------------------------------- | ----------------- |
+| `97e160d4a~1` — the one it names    | **0**                                       | 25                |
+| `7bf8eba2c~1` — the one it measured | 9                                           | 34                |
+
+**The original sentence was true when written**, and the charge that the diff "already returned nine" is
+withdrawn. The nine lines are the forward-compatibility screen's table, changed by `62edc45a6`, which falls
+between the two baselines — inside the wrong one, outside the right one. What survives is the staleness: the
+diff returns twenty-five now, all of them placeholder fills and none an observation field, so the heading holds
+and the evidence first offered for it does not.
+
+One further claim in that correction is wrong on its own terms. _The single owner fill is the same class_ — it is
+not. Each of the twenty-four retention fills replaces a bare `—`, the completion sentinel § Row shape defines. The
+owner fill replaced `_Owner:_ [open — no surface owns it yet; see the routing report]`, prose that is not that
+sentinel. The conclusion it was offered for still stands, because `_Owner:_` is a disposition column rather than
+an observation, but it stands for a different reason than the one given.
+
+Worth saying without softening: a correction about a check whose scope did not match its sentence was itself
+written from a check whose scope did not match the sentence it corrected.
+
+### Six live rows cite a probe name that resolves to nothing
+
+Task 6.1 closed on the claim that every cited name resolves, and to exactly one test. Its goal named the exact
+mechanism that would undo it — the tests cite nothing back, so a renamed probe silently orphans its row. The
+claim held for ninety-three minutes. Two later commits renamed six cited probes and nothing re-ran the check.
+
+Renamed by `45d0d9060`, re-observing the landing boundary on the merged base. Each of these four rows has an
+explicit superseding row under § Re-run rows carrying the new name, so the record has a successor — but the
+superseded row does not say so at the row, and it still reads as live, `_Retention at close:_ kept`:
+
+- **Public review and checks · `disjoint` · singleton** — `review-status-base-movement.test.ts`, cited as "stops
+  for a checkpoint rerun after an advance sharing no path with the branch"; now "review status over a base
+  advanced under the work unit > settles after an advance sharing no path with the branch".
+- **Member / singleton landing · `disjoint` · singleton** — `integrate-base-movement.e2e.test.ts`, cited as
+  "invalidates the handle when the base advances under it"; now "the window between a minted handle and the merge
+  that consumes it > merges the approved head after an advance sharing no path with it".
+- **Member / singleton landing · `disjoint` · delivery-member** — `integrate-base-movement.e2e.test.ts`, cited as
+  "offers a reconcile after an advance sharing no path with the branch"; now "the checkpoint's base read under a
+  bound delivery plan > mints a handle after an advance sharing no path with the branch".
+- **Member / singleton landing · `overlapping-substantive` · delivery-member** —
+  `integrate-base-movement.e2e.test.ts`, cited as "admits an advance over a reviewable path the top member alone
+  changed"; now "the checkpoint's base read under a bound delivery plan > refuses a conflicting advance even under
+  a bound delivery plan".
+
+Renamed by `de7eb2eca`, the review-fix increment, which renamed each probe to assert what its row actually
+records rather than what it was hoped to record. These two rows are current readings with no superseding row, so
+nothing in the record points at the test that exists:
+
+- **Public review · head movement, append-only · delivery-member** —
+  `review-readiness-delivery-binding.test.ts`, cited as "admits a member whose head advanced without changing its
+  contribution"; now "readiness against a member head that advanced under its binding > reports nothing bound when
+  a member's head advanced without changing its contribution".
+- **Post-landing closeout · head movement, append-only · delivery-member** —
+  `delivery-binding-head-movement.test.ts`, cited as "retires a terminal the host merged at a descendant of the
+  head it binds"; now "delivery closeout against a terminal head that advanced under its binding > reports a
+  terminal unsettled when the host merged it past the head it binds".
+
+Each observation is unchanged; only the address is. The rename in both cases was the right fix — the old titles
+named the behavior the boundary does not have.
+
+### The `redundant ceremony` clause generalizes past its own scope
+
+§ Excess and bare stops gives the tally and then adds: **No row is `redundant ceremony`** — across six boundaries
+and both shapes, nothing in the post-execution tail re-ran a ceremony on base movement alone.
+
+The tally is right and the six-boundary scope is right. Across the twenty-four first-matrix rows no row carries
+that classification. The clause after the dash is not scoped to the six, and it is false. The second matrix's
+**Eligibility window · base movement, disjoint · delivery-member** row is a `redundant ceremony` classification on
+a disjoint base advance at a boundary in the post-execution tail. That is Axis D's whole point — a seam none of
+the enumerated six reads the base the way it does — so the counterexample is this work unit's own, produced after
+the sentence was written.
+
+Three other second-matrix rows carry `redundant ceremony` and do not bear on this: two are `history shape` and one
+is `a write that is not a base advance`, none of them base movement.
+
+The cost is what makes it matter more than the tally. That row's continuation `cleared`, but at a price its own
+cost column does not hold — re-preparing is one call, and the gates the fresh snapshot then requires are a full
+Tier 2 run per member. The most quotable sentence in the record is contradicted by its most expensive finding.
+
+### Fifteen resolving to none is nineteen
+
+Task 6.3.b's outcome reads: twenty-four open rows and seven ledger-only rows carry an owner and a fix; fifteen
+resolve to none. Both denominators are right. Counted against the rows, **sixteen** open rows carry
+`_Fix at close:_ none` and **three** ledger-only rows carry `_Fix:_ none` — nineteen, and nineteen at the commit
+that wrote the sentence as well. Sixteen is what a filter keyed on `_Fix at close:_` alone returns, so even the
+filter artifact does not reach fifteen. The ledger-only rows' different column name is the same defect
+§ Correction — the gap was misread records, one pass earlier and still uncaught here.
+
+### Two of the nine runs is four of the nine
+
+§ Most of the e2e overage reports that two of the nine post-probe runs came in `over` against the old budgets and
+one `within`. The nine are three rounds across three tiers. **Four** came in `over` — e2e in all three rounds, and
+`lane` in round three — and **five** `within`. Two plus one also does not account for nine.
+
+The sentence's point survives: a single sample would have hidden the spread, and the medians are what the refresh
+uses. The spread is wider than it said, and `lane` crossing in one round of three is precisely what the smaller
+number hid.
+
+### Two counts predate the review-fix increment
+
+Both were true when measured and have since moved, so these are stale rather than wrong.
+
+- § One row this task does not refresh says this work unit added eight tests to the `unit` tier in
+  `pinned-observation.test.ts`. That file is entirely this work unit's, and it carried eight `it` blocks when the
+  sentence was written. It carries **eighteen** now — `de7eb2eca` added ten while closing the helper's
+  silent-pass hole. The row is further from what it measures than the sentence says; the direction is unchanged.
+- § Post-probe cost records the `lane` tier at `11 354 → 11 687` tests over `845 → 865` files. The file count
+  still holds. The test count does not: the lane now reports 11 700 passing and one environment-gated skip. That
+  figure comes from the runner rather than from the benchmark that wrote the row, so read the direction and not
+  the delta — the like-for-like re-measure is the budget refresh the integration boundary already owns.
+
+### What has no guard
+
+Five of the seven are one defect: a claim measured once and quoted afterwards, with nothing re-running the
+measurement at the boundary that quotes it. Two of those were established by a task whose own goal named the
+failure mode it later suffered.
+
+One of the seven is mechanizable and the rest are not. A `_Probe:_` citation names a file and a test title, and
+the runner can produce the collected set; binding one to the other is a check rather than a judgment. Nothing
+does it, which is why Task 6.1's result survived ninety-three minutes and three subsequent close-out passes
+without anyone noticing. Routed as a capture rather than built here — this work unit ships no production surface,
+and a new check is not characterization.

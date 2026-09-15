@@ -422,6 +422,14 @@ unaffected and run in place._
   no row named; it is now cited the same way rather than left resting on prose. Accounting closes both ways: of
   fifty-one tests added, twenty-five are cited and twenty-six are the helpers' own.
 
+- _Amended 2026-09-15 — the result did not survive the work unit._ The goal named the mechanism exactly: the
+  tests cite nothing back, so a renamed probe silently orphans its row. Ninety-three minutes after this closed,
+  `45d0d9060` renamed four cited probes while re-observing the landing boundary, and `de7eb2eca` renamed two more
+  in the review-fix increment. Six citations resolved to nothing and nothing re-ran the check across three later
+  close-out passes. The old-to-new mapping is recorded in `notes-concurrent-integration-characterization.md`
+  § Record audit at close; a mechanical check binding citations to collected test names is captured rather than
+  built, this work unit shipping no production surface.
+
 ### `[x]` **6.2 Classify every ledger row and record its recommendation and continuation columns**
 
 - _Goal:_ Each observation carries one classification, a record of whether the typed result arrived with a
@@ -451,6 +459,12 @@ unaffected and run in place._
           the boundary's response needing no change. Two owners stay open and are surfaced rather than decided:
           no surface yet owns the ceremony-repetition doctrine, and the approval-gate capture's own target is
           still undecided, so neither is owned by the criterion's definition.
+
+        - _Amended 2026-09-15 — fifteen is nineteen._ Both denominators are right; the count of rows resolving to
+          none is not. Sixteen open rows carry `_Fix at close:_ none` and three ledger-only rows carry
+          `_Fix:_ none`, at the commit that wrote this sentence as well as now. Sixteen is what a filter keyed on
+          `_Fix at close:_` alone returns, so the ledger-only rows' different column name does not explain
+          fifteen either. Nothing about the owner routing or the two held-open owners changes.
 
     - `[x]` **6.3.c Screen each consolidated mechanism for forward compatibility**
 
@@ -877,6 +891,13 @@ boundary too early. The criteria themselves are unchanged._
   that is not a ledger row. The file-level evidence first recorded for this criterion was wrong, and the
   correction is appended in `notes-concurrent-integration-characterization.md` § Second-matrix
   confirmation.
+
+  _Amended 2026-09-15:_ that correction is itself corrected in
+  `notes-concurrent-integration-characterization.md` § Record audit at close — it measured against a baseline its
+  own sentence does not name, so the claim it faulted was true when written and the table it counts falls outside
+  the named baseline entirely. The criterion still holds, and for a cleaner reason: against the baseline the claim
+  names, the diff removed nothing when the claim was made and removes twenty-five lines now, every one a
+  placeholder fill and none an observation field.
 - `[~]` The e2e and integration lanes ran on the pull request, not only locally
 
   _Deferred to the integration boundary._ Settled by the pull-request run and nothing else. Read the job list
