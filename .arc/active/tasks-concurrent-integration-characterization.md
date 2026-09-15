@@ -479,10 +479,17 @@ unaffected and run in place._
           typed verdict and nothing more, three turn on a judgment a verb would have to define first — and only
           the first pair takes a fix.
 
-    - `[ ]` **6.3.e Mint the routed owners at the verification boundary**
+    - `[x]` **6.3.e Mint the routed owners at the verification boundary**
 
-        - The four named stabilization targets become `backlog/` stubs; the remaining rows become captures whose
-          fate is either an in-flight work unit or an Errand.
+        - Two stubs carry the four named targets: `delivery-post-landing-conflict-recovery`, and
+          `delivery-rebuild-continuity`, which consolidates the authoring and prepublication-evidence targets into
+          the one mechanism they share. `delivery-correction-convergence` already existed and is untouched — its
+          own failure fires with the base unmoved, so it is a convergence concern rather than a movement one. Each
+          draft carries the problem space, the recorded loci, the characterization's own evidence, recommendations
+          marked as recommendations, and the span caveat. Three Errand captures cover the routed rows and the
+          approval-gate capture gained the six bare stops as field evidence. Two criteria need a disposition at
+          verification rather than here: two of the four target slugs do not exist by name, and stubs minted beyond
+          the four number zero rather than one or two.
 
     - `[ ]` **6.3.f Refresh `RELEASE-GATES.md` alongside the mint**
 

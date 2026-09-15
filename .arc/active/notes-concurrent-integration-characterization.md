@@ -1140,15 +1140,15 @@ Run once per routed mechanism against each project strategy's own firing conditi
 Three of those surfaces are marked in-development and one provisional, so what fired is recorded as a pointer for
 the owner, never as a design or an acceptance condition.
 
-| Mechanism                                     | Fired                                                          | Pointer                                                                       |
-| --------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Refusal remedy accuracy                       | procedure-evolution                                            | precomposed text at the CLI↔agent boundary                                    |
-| Typed drift dispatch                          | procedure-evolution; package-project sync                      | a verb replacing prose mechanics, in a two-copy workflow file                 |
-| Errand-close base-pin coverage                | —                                                              | the testing methods settle it                                                 |
-| Recommendations at approval gates             | procedure-evolution; knowledge-evolution; package-project sync | precomposed text; it grows an always-loaded surface; that surface is two-copy |
-| Post-landing conflict recovery                | storage-evolution                                              | work-unit identity and branch coupling — a member bound to a commit           |
-| Private-chain rebuild and evidence continuity | storage-evolution                                              | branch coupling, and the records carried across a rebuild                     |
-| Ceremony-repetition doctrine                  | knowledge-evolution                                            | placement of agent-facing guidance                                            |
+| Mechanism                                 | Fired                                                          | Pointer                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Refusal remedy accuracy                   | procedure-evolution                                            | precomposed text at the CLI↔agent boundary                                    |
+| Typed drift dispatch                      | procedure-evolution; package-project sync                      | a verb replacing prose mechanics, in a two-copy workflow file                 |
+| Errand-close base-pin coverage            | —                                                              | the testing methods settle it                                                 |
+| Recommendations at approval gates         | procedure-evolution; knowledge-evolution; package-project sync | precomposed text; it grows an always-loaded surface; that surface is two-copy |
+| `delivery-post-landing-conflict-recovery` | storage-evolution                                              | work-unit identity and branch coupling — a member bound to a commit           |
+| `delivery-rebuild-continuity`             | storage-evolution                                              | branch coupling, and the records carried across a rebuild                     |
+| Ceremony-repetition doctrine              | knowledge-evolution                                            | placement of agent-facing guidance                                            |
 
 The PM-composition surface fired for nothing: no routed mechanism adds or moves a PM-like fact, and none changes
 whether a backlog, roadmap, or inbox surface is authoritative.
