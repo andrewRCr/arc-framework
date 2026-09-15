@@ -726,13 +726,29 @@ every pin in place.
           routed rather than probed, since reaching it needs scaffolding no fixture composes. Rows are in
           `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **7.6 Confirm the second matrix and re-close the ledger** — validate exit criterion at segment scope
+### `[x]` **7.6 Confirm the second matrix and re-close the ledger** — validate exit criterion at segment scope
 
 - _Goal:_ Every enumerated cell resolves to a probe or a closed row, no earlier row was edited, and both lanes run
   green with every pin in place.
 
     - Walk the second matrix against the ledger rather than the reverse, as at Task 5.4.
     - Confirm every row recorded before the widening is byte-identical to what it was.
+
+- _Outcome:_ Exit criterion met on all three clauses. Walking the enumeration forward, all nineteen surviving cells
+  resolve — sixteen probed and three closed with their reasons — across twenty rows, the extra being the control
+  post-landing closeout needed before its movement was readable. Diffing this file against its state immediately
+  before the widening commit returns zero removed or changed lines, so every pre-widening row is present in order
+  and unedited, and the two corrections taken during the widening were appended beside the readings they replaced
+  rather than over them. Both lanes run green with every pin in place: integration 1,489 and e2e 574. The
+  Errand-ceiling recheck corrected its own premise — `review-signal-convergence` is implementation-complete but is
+  not merged into `origin/main`, the base is unchanged at `cbf075da7`, and the closure's condition was always about
+  the base rather than the work unit's maturity, so it holds as written. The second-matrix forward-compatibility
+  screen ran over ten routed mechanisms: PM-composition fired for nothing a second independent time, and
+  `package-project-sync` fired where the first screen had found nothing, because the authoring remedy is a typed
+  verb replacing prose in `deliver-stack.md`, which is two-copy — an obligation its capture does not name. Refusal
+  remedy accuracy now stands at four instances, the fourth inverting the shape: three remedies that work and go
+  unnamed, and one that is named and cannot clear the refusal carrying it. Confirmation is in
+  `notes-concurrent-integration-characterization.md` § Second-matrix confirmation.
 
 ## **Phase 8:** Verification
 

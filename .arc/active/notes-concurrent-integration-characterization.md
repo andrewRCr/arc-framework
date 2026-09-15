@@ -1844,3 +1844,97 @@ One screen result reaches back into a disposition rather than forward into a cap
 model is deterministic logic in the CLI, structure in typed contracts, and **judgment in minimal prose** — which is
 the layer the three judgment-bearing drift gates already occupy. Their no-fix disposition is that model's own
 answer, arrived at independently, rather than only this work unit's reading of them.
+
+## Second-matrix confirmation
+
+Taken at Task 7.6, walking § Second matrix against the ledger rather than the reverse, as at Task 5.4. The walk
+starts from what the enumeration promised so a cell that was never probed cannot pass by being absent from both.
+
+### Every enumerated cell resolves
+
+Nineteen cells survive applicability and twenty rows stand — the nineteen plus one control row at post-landing
+closeout, which the head-movement cell needed before its movement was readable.
+
+| Axis                               | Surviving | Probed | Closed with a reason                           |
+| ---------------------------------- | --------- | ------ | ---------------------------------------------- |
+| A — head movement                  | 5         | 4      | 1 — the Frontline-result binding, unproducible |
+| B — history shape                  | 4         | 4      | —                                              |
+| C — a write that is not an advance | 5         | 3      | 2 — landing and prepublication-to-entry        |
+| D — boundaries outside the six     | 5         | 5      | —                                              |
+
+Sixteen probed, three closed, none unresolved. The three closures each name the capture that owns the fix and
+record that the composition the cell lacks is the one that fix requires anyway.
+
+One enumerated cell sits outside this count because it never entered it: Axis A's Errand-review column was
+dispositioned `unobservable` at enumeration rather than surviving into the ledger, and it is rechecked below.
+
+### No pre-widening row was edited
+
+The widening began at the commit that introduced § Second-matrix probe rows. Diffing this file against its state
+immediately before that commit returns **zero removed or changed lines** — every line recorded before the widening
+is still present, in order, unedited. The widening is additive in the strict sense, which is what the append-only
+convention asks for and what makes the first matrix's rows still readable as the observations they were.
+
+The two corrections taken during the widening obey the same rule. Session-init's Axis C enumeration and the
+terminal-landing reading were both corrected by appending, so the superseded reading stays legible beside the one
+that replaced it.
+
+### The Errand-ceiling closure still holds, for the reason it was recorded
+
+Rechecked because the closure was written as conditional: Failure 6's cumulative accounting was held pending
+`review-signal-convergence`, on the ground that the lineage conventions it would count across are not on the base.
+
+`review-signal-convergence` is implementation-complete and verified on its own branch. It is **not merged into
+`origin/main`**, which still carries it as a planned draft under `review-protocol-alignment`, and the base this
+work unit records is unchanged at `cbf075da7`. The closure's condition is about the base, not about the work unit's
+maturity, so it holds exactly as written and nothing reopens.
+
+Worth stating plainly because the two readings are easy to swap: a work unit being done is not the same fact as its
+conventions being on the base a probe would run against.
+
+### Forward-compatibility screen — second matrix
+
+The first screen ran against the first matrix's routed mechanisms only. This one runs against the second matrix's,
+by the same method: each project strategy's own firing conditions rather than the index summary, once per routed
+mechanism rather than once per row. Three surfaces are in-development and one provisional, so what fired is a
+pointer for the owner and never a design or an acceptance condition.
+
+| Mechanism                                        | Fired                                                        | Pointer                                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Head-equality bindings that read no ancestry     | storage-evolution; procedure-evolution                       | branch coupling — a member bound to a commit; recognizing append-only movement is computable                           |
+| Session-init's strictest-posture default         | storage-evolution; knowledge-evolution; procedure-evolution  | seed and locus reads under a moved record; an always-loaded surface; a cause-free message                              |
+| Frontline result as a projection, not a record   | storage-evolution                                            | whether a typed continuation becomes durable or stops being emitted at all                                             |
+| One ambiguity, four refusal vocabularies         | procedure-evolution; storage-evolution                       | controlled vocabulary for a load-bearing concept; the base coordinate's own identity                                   |
+| Operator index invalidating a minted admission   | procedure-evolution                                          | an untyped failure at the CLI↔agent boundary, with no reason field                                                     |
+| Record-only advance read as substantive          | storage-evolution; procedure-evolution                       | a record write moving a bound head; the distinction is computable                                                      |
+| Superseded authority never retired               | storage-evolution                                            | record lifecycle, and version-checked writes over records nothing retires                                              |
+| Preparation's reservation invalidating its apply | storage-evolution                                            | durable state a ceremony advances in the middle of its own ceremony                                                    |
+| Rebuild continuity across authoring and windows  | storage-evolution; procedure-evolution; package-project-sync | records carried across a rebuild; a typed constructor for what `deliver-stack.md` asks in prose; that file is two-copy |
+| Post-land settlement with no completing input    | procedure-evolution; storage-evolution                       | guidance naming a remedy that cannot clear it; a durable, re-enterable settlement                                      |
+
+As in the first screen, **the PM-composition surface fired for nothing.** No second-matrix mechanism adds or moves
+a PM-like fact, reads or writes a tracker, or changes whether a backlog, roadmap, or inbox surface is authoritative.
+That is now two independent passes over eighteen recorded failures with the same result, which is a stronger
+statement about this work unit's span than either pass alone.
+
+One newly fired surface is worth the owner's attention. `package-project-sync` did not fire anywhere in the first
+screen for `delivery-rebuild-continuity`; it fires here because the authoring capture's remedy is a typed verb
+replacing `deliver-stack.md`'s prose instruction to "record each authored cut", and that workflow file exists in
+both copies. The fix therefore carries a two-copy obligation its capture does not currently name.
+
+### Refusal remedy accuracy, at four instances
+
+The first screen recorded this mechanism firing `procedure-evolution` once. The second matrix supplies three more,
+and they are not variations — each is a working remedy the failing result does not name:
+
+1. A staged index invalidating a minted admission; clearing the index readmits it, proven at the probe.
+2. The owner-accepted terminus bypassing the review ceiling, which no ceiling refusal mentions.
+3. Sequential landing's refusal, where an unchanged re-attestation renews the continuation, recorded from the field.
+
+The fourth is the strongest and inverts the shape. Post-land settlement's guidance **does** name a remedy — resolve
+the listed paths and rerun — and the probe proves that remedy cannot clear it, because the conflict is composed
+before the resolved head is read. The first three are remedies that exist and go unnamed; this is a remedy that is
+named and does not exist.
+
+That asymmetry is why this belongs in the ceremony-repetition doctrine's home rather than in any single capture:
+a result's remedy field is load-bearing in both directions, and nothing currently checks it in either.
