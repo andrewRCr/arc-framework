@@ -2,8 +2,11 @@
  * A two-member candidate chain, its eligibility dependencies, and the base movement under it.
  *
  * Every dependency that reads the repository is the one `delivery-execution.ts` composes for the real verbs,
- * and the completeness precedence — dropped, then invented, then mismatched — is reproduced exactly, because
- * which reason a moved base produces is the observation several probes here are taking.
+ * over the same executor the real verbs run on: it forwards the per-call working directory a dependency steers
+ * with, and it rejects with the normalized error the overlap and ancestry readers narrow on, so an outcome that
+ * turns on either is the one production would reach. The completeness precedence — dropped, then invented, then
+ * mismatched — is reproduced exactly, because which reason a moved base produces is the observation several
+ * probes here are taking.
  *
  * Two dependencies are constants rather than readers, and they bound what this arrangement can observe:
  * `resolveMember` answers that no member is bound, and `resolveLifecyclePaths` answers with the one path the
@@ -37,6 +40,7 @@ import type { GitExec } from "../../src/lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { readAncestry } from "../../src/lib/work-unit/git-decomposition-object-readers.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
@@ -74,10 +78,7 @@ export async function arrangeCandidateChain(prefix: string): Promise<CandidateCh
   const git = async (args: readonly string[]): Promise<string> => (
     await execFileAsync("git", [...args], { cwd: repository })
   ).stdout.trim();
-  const exec: GitExec = async (command, args) => {
-    const result = await execFileAsync(command, args, { cwd: repository });
-    return { stdout: result.stdout, stderr: result.stderr };
-  };
+  const exec = makeGitExec(repository);
 
   await mkdir(join(repository, ".arc", "backlog"), { recursive: true });
   await writeFile(join(repository, ".gitattributes"), `${LIFECYCLE_PATH} merge=arc-roadmap\n`, "utf8");
@@ -115,9 +116,11 @@ export async function arrangeCandidateChain(prefix: string): Promise<CandidateCh
       observedRefs.push(ref);
       let head: string;
       try {
-        // `--quiet` makes a ref that simply is not there exit 1 with no output. Every other failure — a
-        // broken object store, a malformed ref — still exits 128, and answering "absent" to one of those
-        // would hand production a reason the repository never gave.
+        // `--quiet` exits 1 with no output for a ref that is not there — and also for a malformed ref name
+        // or a broken ref file, which this cannot tell apart from absence. Only a failure outside the ref
+        // read itself, such as no repository at all, still exits 128. Every ref this arrangement observes is
+        // one it published, so absence is the only exit-1 case it can produce; a probe that corrupts the ref
+        // store to observe a read failure needs a narrower port than this one.
         head = await git(["rev-parse", "--verify", "--quiet", ref]);
       } catch (error) {
         if ((error as { code?: unknown }).code === 1) return { status: "absent" as const };

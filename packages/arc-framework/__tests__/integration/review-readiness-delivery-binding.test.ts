@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -31,13 +33,24 @@ const TREE = "b".repeat(40);
 const WORK_UNIT = "delivery-plan-record";
 const plan = deliveryStackPlanFixture(PLAN_ID);
 
+const execFileAsync = promisify(execFile);
+
+async function tree(cwd: string, revision: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", `${revision}^{tree}`], { cwd });
+  return stdout.trim();
+}
+
 const roots: string[] = [];
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(cleanupTempDir));
 });
 
-function state(boundHead: string = HEAD, boundBase: string = BASE): DeliveryStateV1 {
+function state(
+  boundHead: string = HEAD,
+  boundBase: string = BASE,
+  boundTree: string = TREE,
+): DeliveryStateV1 {
   return DeliveryStateV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-state/v1",
@@ -50,7 +63,7 @@ function state(boundHead: string = HEAD, boundBase: string = BASE): DeliveryStat
         deliverableId: plan.members[0]!.deliverableId,
         ref: "opaque-member-0",
         changeRequest: null,
-        coordinates: { base: boundBase, head: boundHead, tree: TREE },
+        coordinates: { base: boundBase, head: boundHead, tree: boundTree },
       },
       {
         deliverableId: plan.members[1]!.deliverableId,
@@ -247,7 +260,10 @@ async function staleBoundRepository(): Promise<{
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   expect((await planStore.publishCurrent(PLAN_ID, plan, null)).status).toBe("ok");
   const store = new RepositoryDeliveryStateStore(publisher);
-  expect((await store.publish(PLAN_ID, state(bound, root), 0)).status).toBe("ok");
+  // The advance changes nothing, and the bound tree is the evidence of that — so it has to be the real
+  // one the bound commit carries, not a synthetic id no comparison could ever satisfy.
+  const boundTree = await tree(cwd, bound);
+  expect((await store.publish(PLAN_ID, state(bound, root, boundTree), 0)).status).toBe("ok");
   return { cwd, bound, advanced };
 }
 

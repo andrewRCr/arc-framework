@@ -412,8 +412,8 @@ describe("the window between a minted handle and the merge that consumes it", ()
 
     // The handle survives movement that shares no path with the branch: the window costs the advance nothing.
     expect(result, JSON.stringify(result)).toMatchObject({ state: "merged" });
-    // Read from the remote rather than from the host's own answer, so a reported merge has to be one the
-    // base actually carries.
+    // The stub's merge endpoint is what moves this ref, so this establishes that the merge endpoint ran —
+    // ruling out a host that reports `merged` without being asked to merge, not proving what the base carries.
     expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
       .not.toBe(baseBefore);
   });

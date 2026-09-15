@@ -496,7 +496,6 @@ export async function writeUnavailableBaseReadShim(options: {
 function isBaseFetch(args: readonly string[], remote: string, base: string): boolean {
   if (args[0] !== "fetch") return false;
   const rest = args.slice(1);
-  if (!rest.includes(remote)) return false;
   return rest.some((argument) => (
     argument === base
     || argument.includes(`refs/heads/${base}`)

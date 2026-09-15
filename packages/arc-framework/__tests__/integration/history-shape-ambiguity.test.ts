@@ -97,7 +97,7 @@ describe("the subject a work unit's own verification binds", () => {
     });
   });
 
-  it("digests a subject that differs from the one the same branch work produces unambiguously", async () => {
+  it("reads the ambiguous subject against the one the same branch work produces unambiguously", async () => {
     const ambiguous = await checkoutOnWorkUnitBranch();
     const arrangement = await arrangeAmbiguousMergeBase({ cwd: ambiguous, message: ARRANGEMENT_MESSAGE });
     const unambiguous = await checkoutOnWorkUnitBranch();
@@ -112,9 +112,21 @@ describe("the subject a work unit's own verification binds", () => {
       })
     ).subject.subjectDigest;
 
-    expect(await digest(ambiguous, arrangement.head, arrangement.base)).not.toBe(
-      await digest(unambiguous, await git(unambiguous, ["rev-parse", "HEAD"]), advance.head),
+    const ambiguousDigest = await digest(ambiguous, arrangement.head, arrangement.base);
+    const unambiguousDigest = await digest(
+      unambiguous, await git(unambiguous, ["rev-parse", "HEAD"]), advance.head,
     );
+
+    // Held rather than compared bare: the two arms write identical content deliberately, so the reading that
+    // retires the pin above is the same reading that makes these digests agree. A plain inequality would go
+    // red on that fix with an object diff and nothing saying the hold was spent.
+    expectPinnedObservation({ differs: ambiguousDigest !== unambiguousDigest }, {
+      behavior: "The same branch work contributes the same subject whether or not its history leaves two "
+        + "equally good merge bases, so the ambiguous reading should digest to what the unambiguous one "
+        + "does rather than to whichever side one silently chosen ancestor exposes.",
+      observed: { differs: true },
+      target: { differs: false },
+    });
   });
 });
 
@@ -149,7 +161,8 @@ describe("Candidate applicability over an ambiguous history", () => {
 
     expectPinnedObservation(projected, {
       behavior: "Two equally good merge bases leave the contribution provable from either one, so "
-        + "applicability should classify the Candidate rather than report that it cannot be classified at all.",
+        + "applicability should reach the applicable classification rather than report that it cannot "
+        + "classify the Candidate at all.",
       observed: {
         state: "classification-unavailable",
         nextAction: "stop",

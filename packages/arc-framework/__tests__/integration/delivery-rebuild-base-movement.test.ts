@@ -190,7 +190,7 @@ describe("rematerialization, once an authorized correction moved what the suffix
         + "rebuilt from it, so dispatching against the suffix should reach a result that names the rebuild owed "
         + "rather than a completeness comparison the suffix cannot satisfy until someone rebuilds it by hand.",
       observed: { status: "refused", reason: "completeness-mismatched" },
-      target: { status: "eligible" },
+      target: { status: "refused", reason: "rebuild-required" },
     });
   });
 });

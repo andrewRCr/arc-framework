@@ -4776,10 +4776,10 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     // Read after the hold, for the same reason: the awaited result comes with a zero exit code.
     expectPinnedObservation(JSON.parse(positioned.stdout), {
       behavior:
-        "A terminal top that advanced by an append-only commit is still the bound chain, so position " +
+        "An append-only advance on a terminal top should not cost the chain its position, so position " +
         "should resume it rather than send the caller back to plan a correction it has not been asked for.",
       observed: { status: "refused", reason: "review-fix-routing-required", nextAction: "plan-review-fix" },
-      target: { status: "observed" },
+      target: { status: "position" },
     });
     expect(positioned.exitCode, `${positioned.stderr}\n${positioned.stdout}`).toBe(1);
   });
@@ -4836,7 +4836,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     expectPinnedObservation(position(advanced), {
       behavior:
-        "A terminal top that advanced by an append-only commit leaves the bound chain exact, so a session " +
+        "An append-only advance on a terminal top should not cost the chain its position, so a session " +
         "opening over it should report the same delivery position it reports with the top held still.",
       observed: {
         ok: false,
