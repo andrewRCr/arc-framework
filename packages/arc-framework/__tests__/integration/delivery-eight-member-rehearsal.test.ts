@@ -107,6 +107,7 @@ describe("eight-member delivery integration rehearsal", () => {
       recognition: { kind: "durable" as const },
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     };
     const predecessor = initial.members.at(-2)!;
     const terminal = initial.members.at(-1)!;

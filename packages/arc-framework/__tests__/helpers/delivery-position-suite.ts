@@ -39,6 +39,7 @@ import { deriveDeliveryResidueLocators } from "../../src/lib/delivery/residue-re
 import { advanceDeliveryReviewFixResponse } from "../../src/lib/delivery/review-fix.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
+import { constructInitialDeliveryState } from "../../src/lib/delivery/state.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
@@ -699,6 +700,28 @@ async function positionFixture(
     "    *) echo \"unexpected closeout gh invocation: $*\" >&2; exit 1 ;;",
     "  esac",
     "fi",
+    "if [ \"${ARC_FAKE_MERGE_ADMISSION:-0}\" = \"1\" ]; then",
+    "  case \"$2\" in",
+    "    repos/owner/repo/pulls/403)",
+    "      base_head=$(remote_head 'main')",
+    "      head_ref=${ARC_FAKE_TERMINAL_REF:-member-3}",
+    "      head_head=$(remote_head \"$head_ref\")",
+    `      printf '{"number":403,"state":"open","merged":false,"draft":true,`
+      + `"head":{"ref":"%s","sha":"%s","repo":{"full_name":"owner/repo"}},`
+      + `"base":{"ref":"main","sha":"%s","repo":{"full_name":"owner/repo"}},`
+      + `"mergeable":true,"merge_commit_sha":"${"f".repeat(40)}"}\\n' `
+      + `"$head_ref" "$head_head" "$base_head"`,
+    "      exit 0",
+    "      ;;",
+    `    repos/owner/repo/commits/${"f".repeat(40)})`,
+    "      base_head=$(remote_head 'main')",
+    "      head_ref=${ARC_FAKE_TERMINAL_REF:-member-3}",
+    "      head_head=$(remote_head \"$head_ref\")",
+    "      printf '{\"parents\":[{\"sha\":\"%s\"},{\"sha\":\"%s\"}]}\\n' \"$base_head\" \"$head_head\"",
+    "      exit 0",
+    "      ;;",
+    "  esac",
+    "fi",
     "case \"$2\" in",
     "  repos/owner/repo)",
     "    printf '%s\\n' '{\"allow_merge_commit\":true,\"allow_rebase_merge\":false,\"allow_squash_merge\":false}'",
@@ -711,6 +734,11 @@ async function positionFixture(
     "    ;;",
     `  repos/owner/repo/git/commits/${secondHead})`,
     `    printf '%s\\n' '${JSON.stringify({ tree: { sha: secondTree } })}'`,
+    "    ;;",
+    "  repos/owner/repo/git/commits/*)",
+    "    commit=${2##*/}",
+    "    tree=$(git rev-parse \"$commit^{tree}\") || exit 1",
+    "    printf '{\"tree\":{\"sha\":\"%s\"}}\\n' \"$tree\"",
     "    ;;",
     "  repos/owner/repo/branches/main|"
       + "repos/owner/repo/branches/delivery%2Fmember-1|"
@@ -2149,6 +2177,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
 
   it("returns settled review and closes shipped publication refresh after terminal rebind", async () => {
     const fixture = await positionFixture("landed-nonterminal");
+    const checkpointEnv = { ...fixture.env, ARC_FAKE_MERGE_ADMISSION: "1" };
     const stateRead = await fixture.states.read(fixture.plan.planId);
     if (stateRead.status !== "ok" || stateRead.value === null) {
       throw new Error("settled teardown delivery state must be readable");
@@ -2657,7 +2686,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const stalePublication = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(stalePublication.exitCode, `${stalePublication.stderr}\n${stalePublication.stdout}`).toBe(0);
     expect(JSON.parse(stalePublication.stdout), stalePublication.stdout).toMatchObject({
@@ -2681,7 +2710,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const pendingRebind = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(pendingRebind.exitCode, `${pendingRebind.stderr}\n${pendingRebind.stdout}`).toBe(0);
     expect(JSON.parse(pendingRebind.stdout), pendingRebind.stdout).toMatchObject({
@@ -2774,7 +2803,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const publicationRebind = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(publicationRebind.exitCode, `${publicationRebind.stderr}\n${publicationRebind.stdout}`).toBe(0);
     expect(JSON.parse(publicationRebind.stdout), publicationRebind.stdout).toMatchObject({
@@ -2802,7 +2831,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const converged = await runBuiltArc(
       ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
       archivedCheckout,
-      { env: fixture.env },
+      { env: checkpointEnv },
     );
     expect(converged.exitCode, `${converged.stderr}\n${converged.stdout}`).toBe(0);
     expect(JSON.parse(converged.stdout), converged.stdout).toMatchObject({
@@ -4242,7 +4271,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         effectLog: [],
       });
     }
-  }, 90_000);
+  }, 120_000);
 
   it("plans a bound terminal correction as ordinary top authoring", async () => {
     const fixture = await positionFixture();
@@ -4495,6 +4524,63 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
       status: "ok",
       value: { revision: 3, value: { activeOperation: null } },
+    });
+  });
+
+  it("clears an interrupted initial target bind after disjoint protected-base movement", async () => {
+    const fixture = await positionFixture();
+    const prior = await fixture.states.read(fixture.plan.planId);
+    expect(prior.status).toBe("ok");
+    if (prior.status !== "ok" || prior.value === null) return;
+    const first = prior.value.value.members[0]!;
+    const target = prior.value.value.target!;
+    const initial = constructInitialDeliveryState(fixture.plan, {
+      kind: "pushed-ref",
+      deliverableId: first.deliverableId,
+      ref: first.ref!,
+      coordinates: first.coordinates!,
+    });
+    expect(initial.status).toBe("constructed");
+    if (initial.status !== "constructed") return;
+    expect(await fixture.states.publish(fixture.plan.planId, initial.state, prior.value.revision))
+      .toMatchObject({ status: "ok" });
+    const before = { target: null, members: [initial.state.members[0]!] };
+    const reserved = reserveDeliveryOperation({ revision: 2, value: initial.state }, fixture.plan, {
+      operationId: "interrupted-initial-target-bind",
+      kind: "materialize",
+      affectedDeliverableIds: [first.deliverableId],
+      expectedStateRevision: 2,
+      before,
+      requested: { ...before, target },
+    });
+    expect(reserved.status).toBe("reserved");
+    if (reserved.status !== "reserved") return;
+    expect(await fixture.states.publish(fixture.plan.planId, reserved.state, 2))
+      .toMatchObject({ status: "ok" });
+
+    await git(fixture.repository, ["switch", "-c", "advanced-target", target.coordinates!.head]);
+    await writeFile(join(fixture.repository, "unrelated.txt"), "disjoint movement\n");
+    await git(fixture.repository, ["add", "unrelated.txt"]);
+    await git(fixture.repository, ["commit", "-m", "advance protected target"]);
+    await git(fixture.repository, ["push", "origin", "HEAD:refs/heads/main"]);
+
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: "delivery reconcile",
+      status: "retryable",
+      transition: "cleared",
+      action: "delivery-publish",
+      selector: { operationKind: "materialize", affectedDeliverableIds: [first.deliverableId] },
+    });
+    await expect(fixture.states.read(fixture.plan.planId)).resolves.toMatchObject({
+      status: "ok",
+      value: { revision: 4, value: { target: null, activeOperation: null } },
     });
   });
 

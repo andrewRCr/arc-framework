@@ -80,7 +80,7 @@ describe("arc base merge", () => {
       "--json",
     ], repo);
 
-    expect(moved.exitCode).toBe(0);
+    expect(moved.exitCode, moved.stderr).toBe(0);
     expect(JSON.parse(moved.stdout)).toMatchObject({
       state: "head-moved",
       expectedBase: newBase,
@@ -127,7 +127,7 @@ describe("arc base merge", () => {
       featureHead,
       "--json",
     ], repo);
-    expect(moved.exitCode).toBe(0);
+    expect(moved.exitCode, moved.stderr).toBe(0);
     expect(JSON.parse(moved.stdout)).toMatchObject({
       state: "base-moved",
       expectedBase: oldBase,

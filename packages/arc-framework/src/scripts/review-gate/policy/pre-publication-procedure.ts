@@ -29,6 +29,7 @@ import {
   CandidateReviewResumeBoundarySchema,
   CandidateSelfReviewBoundarySchema,
   ContinuePrePublicationActionSchema,
+  createRunConvergenceVerificationAction,
   createStandardReviewReservation as buildStandardReviewReservation,
   PublishCandidateActionSchema,
   RunConvergenceVerificationActionSchema,
@@ -51,6 +52,11 @@ const StandardPolicyRequestSchema = ReviewPolicyRequestSchema.refine(
   "standard policy input must select the standard lane",
 );
 
+const PrePublicationCandidateCommonSchema = {
+  subjectDigest: CandidateSubjectDigestSchema,
+  implementationChanged: z.boolean(),
+};
+
 export const PrePublicationReviewRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   workUnit: SlugSchema,
@@ -70,11 +76,18 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
-  candidate: z.strictObject({
-    subjectDigest: CandidateSubjectDigestSchema,
-    implementationChanged: z.boolean(),
-    convergenceVerification: z.enum(["satisfied", "pending"]),
-  }),
+  candidate: z.union([
+    z.strictObject({
+      ...PrePublicationCandidateCommonSchema,
+      convergenceVerification: z.literal("satisfied"),
+      convergenceScope: z.null(),
+    }),
+    z.strictObject({
+      ...PrePublicationCandidateCommonSchema,
+      convergenceVerification: z.literal("pending"),
+      convergenceScope: z.enum(["focused", "full"]),
+    }),
+  ]),
 }).superRefine((request, context) => {
   if (!samePolicyTarget(request.frontline.target, request.standard.target)) {
     context.addIssue({ code: "custom", path: ["standard", "target"], message: "must match the frontline target" });
@@ -121,7 +134,7 @@ export const PrePublicationReviewEnvelopeSchema = z.union([
   CandidatePolicyReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateReviewResumeBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateFixBoundarySchema.extend(PrePublicationEnvelopeFields),
-  CandidateConvergenceBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidateConvergenceBoundarySchema.safeExtend(PrePublicationEnvelopeFields),
   CandidatePublishReadyBoundarySchema.extend(PrePublicationEnvelopeFields),
 ]);
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
@@ -163,15 +176,11 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
     : null;
   const terminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
 
-  if (request.candidate.implementationChanged
-    && request.candidate.convergenceVerification === "pending") {
+  if (request.candidate.convergenceVerification === "pending") {
+    const requiredScope = request.candidate.convergenceScope;
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: action(
-        request.workUnit,
-        "run-convergence-verification",
-        "Run one final Tier 3 over the converged Candidate lineage, then invoke arc attest.",
-      ),
+      nextAction: createRunConvergenceVerificationAction(request.workUnit, requiredScope),
       reservation,
       terminus,
     });
@@ -296,15 +305,24 @@ function envelope(
 
 function action(
   workUnit: string,
-  kind: PrePublicationNextAction["kind"],
+  kind: Exclude<PrePublicationNextAction["kind"], "run-convergence-verification">,
   interactionText: string,
 ): PrePublicationNextAction {
-  const command = kind === "publish-candidate"
-    ? `arc publish ${workUnit} --json`
-    : kind === "run-convergence-verification"
-      ? `arc attest ${workUnit} --json`
-      : `arc review pre-publication ${workUnit} --json`;
-  return { kind, command, interactionText };
+  if (kind === "publish-candidate") {
+    return PublishCandidateActionSchema.parse({
+      kind,
+      command: `arc publish ${workUnit} --json`,
+      interactionText,
+    });
+  }
+  const value = {
+    kind,
+    command: `arc review pre-publication ${workUnit} --json`,
+    interactionText,
+  };
+  return kind === "run-self-review"
+    ? RunSelfReviewActionSchema.parse(value)
+    : ContinuePrePublicationActionSchema.parse(value);
 }
 
 function isSettledFrontline(state: z.infer<typeof ReviewResolveEnvelopeSchema>["state"]): boolean {

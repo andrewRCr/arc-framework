@@ -328,6 +328,7 @@ const {
   handleAbandon,
   handleReopen,
   handleAttest,
+  AttestCommandInputSchema,
   LifecycleCommandRefusalSchema,
 } = await import("../../../src/handlers/lifecycle.js");
 
@@ -465,6 +466,7 @@ beforeEach(() => {
       subject: { subjectDigest: `sha256:${"b".repeat(64)}` },
     },
     convergenceVerification: "satisfied",
+    convergenceScope: null,
   });
   mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: "boundary-version" });
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
@@ -1452,6 +1454,19 @@ describe("handleReopen", () => {
 });
 
 describe("handleAttest", () => {
+  it("defaults convergence scope to full and rejects malformed scope or evidence", () => {
+    expect(AttestCommandInputSchema.parse({ name: "foo" })).toMatchObject({ scope: "full" });
+    expect(AttestCommandInputSchema.safeParse({ name: "foo", scope: "broad" }).success).toBe(false);
+    expect(AttestCommandInputSchema.safeParse({
+      name: "foo",
+      verificationEvidenceRef: " ",
+    }).success).toBe(false);
+    expect(AttestCommandInputSchema.safeParse({
+      name: "foo",
+      verificationEvidenceRef: "{verificationEvidenceRef}",
+    }).success).toBe(false);
+  });
+
   it("emits one typed JSON refusal when identity resolution fails", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     mockResolveUserIdentity.mockRejectedValueOnce(new Error("identity unavailable"));
@@ -1475,7 +1490,148 @@ describe("handleAttest", () => {
       name: "foo",
       lifecycle: "Active",
       newRoot: false,
+      scope: "full",
     });
+  });
+
+  it("passes scoped convergence evidence through the public handler", async () => {
+    await handleAttest("foo", {
+      json: true,
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+
+    expect(mockRunAttest).toHaveBeenCalledTimes(1);
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+  });
+
+  it("preserves scoped refusal coordinates and action in JSON output", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockRunAttest.mockResolvedValueOnce({
+      status: "refused",
+      reason: "verification-evidence-required",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      subjectDigest: `sha256:${"d".repeat(64)}`,
+      requestedScope: "focused",
+      requiredScope: "focused",
+      verificationEvidenceProvided: false,
+      nextAction: {
+        kind: "run-verification",
+        scope: "focused",
+        verificationKind: "focused",
+        verificationEvidenceRequired: true,
+        attestArgv: [
+          "arc", "attest", "foo", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+      recommendedActionText: "Run focused convergence verification and supply its fresh evidence reference.",
+    });
+
+    await handleAttest("foo", { json: true, scope: "focused" });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "refused",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      subjectDigest: `sha256:${"d".repeat(64)}`,
+      requestedScope: "focused",
+      requiredScope: "focused",
+      verificationEvidenceProvided: false,
+      nextAction: {
+        verificationKind: "focused",
+        attestArgv: [
+          "arc", "attest", "foo", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+    });
+  });
+
+  it("renders scoped refusal coordinates and exact action interactively", async () => {
+    mockRunAttest.mockResolvedValueOnce({
+      status: "refused",
+      reason: "verification-scope-insufficient",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      subjectDigest: `sha256:${"d".repeat(64)}`,
+      requestedScope: "focused",
+      requiredScope: "full",
+      verificationEvidenceProvided: true,
+      nextAction: {
+        kind: "run-verification",
+        scope: "full",
+        verificationKind: "tier-3",
+        verificationEvidenceRequired: true,
+        attestArgv: [
+          "arc", "attest", "foo", "--scope", "full",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+      recommendedActionText: "Run full convergence verification.",
+    });
+
+    await handleAttest("foo", {
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringMatching(
+      /Candidate: sha256:c{64}[\s\S]*Subject: sha256:d{64}[\s\S]*focused requested; full required[\s\S]*Fresh evidence: supplied[\s\S]*arc attest foo --scope full --verification-evidence-ref \{verificationEvidenceRef\} --json/u,
+    ));
+  });
+
+  it("renders re-root race coordinates, reason, and refresh action interactively", async () => {
+    mockRunAttest.mockResolvedValueOnce({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
+      expected: {
+        candidateId: `sha256:${"a".repeat(64)}`,
+        subjectDigest: `sha256:${"b".repeat(64)}`,
+      },
+      observed: {
+        candidateId: `sha256:${"a".repeat(64)}`,
+        subjectDigest: `sha256:${"c".repeat(64)}`,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "foo", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
+    });
+
+    await handleAttest("foo", { newRoot: true });
+
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringMatching(
+      /Reason: re-root-subject-mismatch[\s\S]*Expected Candidate: sha256:a{64}[\s\S]*Observed Candidate: sha256:a{64}[\s\S]*Expected Subject: sha256:b{64}[\s\S]*Observed Subject: sha256:c{64}[\s\S]*Next: arc attest foo --json/u,
+    ));
+  });
+
+  it("renders recorded convergence scope and evidence in interactive output", async () => {
+    mockRunAttest.mockResolvedValueOnce({
+      status: "attested",
+      operation: "convergence",
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+      recordPath: ".arc/system/.internal/candidates/foo.json",
+      metaPath: ".arc/active/meta-foo.md",
+      locus: projectCandidateReviewBoundary({
+        workUnit: "foo",
+        candidateId: `sha256:${"c".repeat(64)}`,
+      }),
+    });
+
+    await handleAttest("foo", {
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringMatching(/Scope:\s+focused[\s\S]*Evidence:\s+verification:\/\/focused\/current/u),
+      "Candidate attested",
+    );
   });
 
   it("refuses Integrating attestation before Candidate mutation when public delivery evidence is not exact", async () => {

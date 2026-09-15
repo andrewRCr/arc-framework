@@ -165,6 +165,8 @@ async function runArc(args: string[], cwd: string): Promise<HandlerRunResult> {
       await handleAttest(args[1], {
         json: args.includes("--json"),
         newRoot: args.includes("--new-root"),
+        scope: optionValue(args, "--scope") as "focused" | "full" | undefined,
+        verificationEvidenceRef: optionValue(args, "--verification-evidence-ref"),
         expectedCandidate: optionValue(args, "--expected-candidate"),
         expectedSubject: optionValue(args, "--expected-subject"),
       }, machineContext());
@@ -719,11 +721,41 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
   const shipped = cadence === "with-integration";
   const dependencies: IntegrationCheckpointDependencies = {
     ...production,
-    readDrift: async (workUnit) => ({
-      ...await production.readDrift(workUnit),
+    readDrift: async () => ({
+      mode: "authoritative",
       verdict: "clean",
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      base: "main",
       baseOid: await resolveGitCandidateBaseRevision({ cwd: root, baseBranch: "main", exec: gitExec }),
+      headOid: await git(root, ["rev-parse", "HEAD"]),
+      movement: "disjoint",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 0,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
     }),
+    readMovementObservation: async (_workUnit, drift) => {
+      if (drift.baseOid === null) throw new Error("expected an exact base");
+      const head = await git(root, ["rev-parse", "HEAD"]);
+      return {
+        feasibility: { state: "clean", base: drift.baseOid, head },
+        admission: {
+          state: "mergeable",
+          repository: "owner/repo",
+          changeRequest: 42,
+          base: drift.baseOid,
+          head,
+        },
+      };
+    },
     readLifecycle: async (workUnit) => ({
       workUnit,
       storageVersion: await git(root, ["rev-parse", "HEAD"]),
@@ -985,7 +1017,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     }]);
 
     await git(root, ["commit", "-m", "record private member response"]);
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-private-member-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     await git(root, ["commit", "-m", "verify private member response"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
@@ -1327,7 +1362,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       headSha: mergedHead,
     });
     await expect(createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec })
-      .readCandidate("example")).resolves.toMatchObject({
+      .readCandidate("example", currentBase)).resolves.toMatchObject({
         status: "current",
         recognizedRevision: mergedHead,
       });
@@ -1469,13 +1504,31 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     await writeFile(join(root, "reviewed.txt"), "later staged subject\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
+    const observedTarget = await collectGitCandidateTarget({
+      cwd: root,
+      name: "example",
+      baseBranch: "main",
+      exec: gitExec,
+    });
     const replayed = await runArc(continuation.slice(1), root);
 
     expect(replayed.exitCode).toBe(1);
     expect(JSON.parse(replayed.stdout)).toEqual({
       status: "refused",
       reason: "re-root-subject-mismatch",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId,
+        subjectDigest: continuation[7],
+      },
+      observed: {
+        candidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(await readCandidateRecord(root, "example")).toEqual(recordBeforeReplay);
     expect(recordBeforeReplay?.attestation.candidateId).toBe(candidateId);
@@ -1520,6 +1573,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     if (candidate.status !== "current") {
       throw new Error("expected a current Candidate lineage");
     }
+    expect(candidate).toMatchObject({
+      convergenceVerification: "pending",
+      convergenceScope: "full",
+    });
     expect(candidate.lineageHeadShas).toContain(reviewedHead);
     await expect(composition.readLaneProgress(
       "standard",
@@ -1535,11 +1592,16 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       payload: { candidate: { status: "current", implementationChanged: true } },
     });
 
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({
       status: "attested",
       operation: "convergence",
+      scope: "full",
+      verificationEvidenceRef: "verification://full-convergence",
       locus: { locus: "candidate-review-pending" },
     });
 
@@ -1571,7 +1633,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["commit", "-m", "record verified response"]);
     expect(await git(root, ["rev-parse", "HEAD"])).not.toBe(responseHead);
 
-    const converged = await runArc(["attest", "example", "--json"], root);
+    const converged = await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-operational-convergence", "--json",
+    ], root);
     expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
 
@@ -1839,7 +1904,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       })).resolves.toMatchObject({ state: "candidate-advanced" });
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
 
-      const converged = await runArc(["attest", "example", "--json"], origin);
+      const converged = await runArc([
+        "attest", "example", "--scope", "full",
+        "--verification-evidence-ref", "verification://full-stationary-convergence", "--json",
+      ], origin);
       expect(converged.exitCode, converged.stderr || converged.stdout).toBe(0);
       expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence" });
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
@@ -1977,7 +2045,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       },
     })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await git(root, ["commit", "-m", "record hosted verified response"]);
-    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-hosted-convergence", "--json",
+    ], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "hosted convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
 
@@ -2160,7 +2231,10 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       verifiedFix: { applicability: "focused", verificationEvidenceRefs: ["verification://focused-fix"] },
     })).resolves.toMatchObject({ state: "candidate-advanced" });
     await git(root, ["commit", "-m", "record verified response"]);
-    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    expect((await runArc([
+      "attest", "example", "--scope", "full",
+      "--verification-evidence-ref", "verification://full-span-convergence", "--json",
+    ], root)).exitCode).toBe(0);
     await git(root, ["commit", "-m", "convergence verification"]);
     const approvedHead = await git(root, ["rev-parse", "HEAD"]);
     expect(approvedHead).not.toBe(deferredHead);
@@ -2246,7 +2320,10 @@ async function settledReviewLineage(): Promise<{ root: string; approvedHead: str
   })).resolves.toMatchObject({ state: "candidate-advanced" });
   await git(root, ["commit", "-m", "record verified response"]);
 
-  expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+  expect((await runArc([
+    "attest", "example", "--scope", "full",
+    "--verification-evidence-ref", "verification://full-settlement-convergence", "--json",
+  ], root)).exitCode).toBe(0);
   await git(root, ["commit", "-m", "convergence verification"]);
   return { root, approvedHead: await git(root, ["rev-parse", "HEAD"]) };
 }
@@ -2279,44 +2356,48 @@ async function composeLineageReview(
 /** Persist the composition through the production checkpoint store and return its handle. */
 async function persistComposition(root: string, approvedHead: string): Promise<string> {
   const composed = await composeLineageReview(root, approvedHead);
-  return inRepository(root, async () => createIntegrationCheckpointDependencies({
-    cwd: root,
-    exec: gitExec,
-  }).createHandle({
-    workUnit: "example",
-    approvedHead,
-    candidateTailDiff: {
-      fromRevision: approvedHead,
-      throughRevision: approvedHead,
-      reference: `${approvedHead}..${approvedHead}`,
-    },
-    requirementSummary: {
-      conclusion: "satisfied",
-      requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
-    },
-    statusSummary: {
-      lifecycle: {
-        workUnit: "example",
-        storageVersion: approvedHead,
-        archiveCadence: "manual",
-        state: "integrating",
-        position: { phase: "Integrating", location: "active" },
-        artifactFacts: [],
-        complete: true,
+  return inRepository(root, async () => {
+    const baseRevision = await git(root, ["rev-parse", "main^{commit}"]);
+    const dependencies = createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec });
+    await dependencies.readCandidate("example", baseRevision);
+    const persisted = await dependencies.createHandle({
+      workUnit: "example",
+      approvedHead,
+      candidateTailDiff: {
+        fromRevision: approvedHead,
+        throughRevision: approvedHead,
+        reference: `${approvedHead}..${approvedHead}`,
       },
-      changeRequest: {
-        repository: "owner/repo",
-        pullRequest: 42,
-        baseRef: "main",
-        headRef: "feat/example",
-        headSha: approvedHead,
-        state: "open",
+      requirementSummary: {
+        conclusion: "satisfied",
+        requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
       },
-      requiredChecks: "green",
-    },
-    settlementPlan: composeCanonicalSettlementPlan(composed.actions),
-    mergeMethod: MERGE_METHOD,
-  }));
+      statusSummary: {
+        lifecycle: {
+          workUnit: "example",
+          storageVersion: approvedHead,
+          archiveCadence: "manual",
+          state: "integrating",
+          position: { phase: "Integrating", location: "active" },
+          artifactFacts: [],
+          complete: true,
+        },
+        changeRequest: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: approvedHead,
+          state: "open",
+        },
+        requiredChecks: "green",
+      },
+      settlementPlan: composeCanonicalSettlementPlan(composed.actions),
+      mergeMethod: MERGE_METHOD,
+    });
+    if (persisted.status !== "created") throw new Error("Candidate moved before checkpoint persistence");
+    return persisted.handle;
+  });
 }
 
 function registerReviewBearingIntegration(it: typeof vitestIt): void {
@@ -2371,9 +2452,9 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
         },
         vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
       }),
-      awaitChecks: async () => ({
+      observeChecks: async () => ({
         schemaVersion: 1,
-        mode: "review-checks-await",
+        mode: "review-checks-observe",
         repository: target.repository,
         pullRequest: target.pullRequest,
         headSha: target.headSha,
@@ -2382,7 +2463,24 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
         checks: [],
       }),
       resolveMergeMethod: async () => MERGE_METHOD,
-      readFinalDrift: async () => ({ verdict: "reconcile" }),
+      readFinalPlan: async (finalTarget) => ({
+        status: "available",
+        target: finalTarget,
+        baseOid: "b".repeat(40),
+        observation: {
+          movement: "overlapping",
+          integrationEvidenceComplete: true,
+          feasibility: { state: "clean", base: "b".repeat(40), head: finalTarget.headSha },
+          admission: {
+            state: "mergeable",
+            repository: finalTarget.repository,
+            changeRequest: finalTarget.pullRequest,
+            base: "b".repeat(40),
+            head: finalTarget.headSha,
+          },
+        },
+        plan: { state: "reconcile", nextAction: "reconcile-base" },
+      }),
       mergePinned: () => Promise.reject(new Error("unexpected merge")),
     };
 
@@ -2417,9 +2515,9 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
           target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
           vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
         }),
-        awaitChecks: () => Promise.reject(new Error("unexpected checks await")),
+        observeChecks: () => Promise.reject(new Error("unexpected checks observation")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),
-        readFinalDrift: () => Promise.reject(new Error("unexpected drift read")),
+        readFinalPlan: () => Promise.reject(new Error("unexpected final plan read")),
         mergePinned: () => Promise.reject(new Error("unexpected merge")),
       },
     ))).resolves.toMatchObject({ state: "invalidated", reason: "checkpoint-missing" });

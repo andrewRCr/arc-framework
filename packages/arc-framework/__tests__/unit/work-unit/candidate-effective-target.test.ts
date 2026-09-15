@@ -80,6 +80,7 @@ describe("projectEffectiveCandidateTarget", () => {
       recognition: { kind: "machine", proof: "tree-equality" },
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
     expect(record.transitions).toEqual([]);
   });

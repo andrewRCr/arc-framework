@@ -403,10 +403,10 @@ describe("trusted review-gate workflows", () => {
 
   it("routes frontline and local review through the public advisory command surface", async () => {
     const paths = [
-      "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md",
-      "system/workflows/arc/supplemental/run-errand.md",
-    ];
-    for (const path of paths) {
+      ["system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md", /targeted[\s\S]*focused[\s\S]*full/iu],
+      ["system/workflows/arc/supplemental/run-errand.md", /supplemental[\s\S]*fresh/iu],
+    ] as const;
+    for (const [path, applicabilityPattern] of paths) {
       const [packaged, project] = await Promise.all([
         readRepositoryFile(`packages/arc-framework/arc/${path}`),
         readRepositoryFile(`.arc/${path}`),
@@ -426,7 +426,7 @@ describe("trusted review-gate workflows", () => {
       expect(packaged).toMatch(/runtime-owned bindings/iu);
       expect(packaged).toContain("`findings / respond`");
       expect(packaged).toContain("review applicability");
-      expect(packaged).toMatch(/targeted[\s\S]*focused[\s\S]*full/iu);
+      expect(packaged).toMatch(applicabilityPattern);
       expect(packaged).toMatch(/command error\s+envelope/iu);
       expect(packaged).not.toMatch(/ReviewOperationStateStore|invalid-request/u);
       expect(packaged).not.toMatch(/review-suspension|promoted watcher|scheduled wakeup/iu);
@@ -490,7 +490,7 @@ describe("trusted review-gate workflows", () => {
     expect(packaged).toMatch(/Never reconstruct review state[\s\S]*invent\s+WU state/iu);
     expect(packaged).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
     expect(packaged.slice(finalHead, integrationInterlock)).toMatch(
-      /adapter target[^.]*final[^.]*head/iu,
+      /adapter target[^.]*match it/iu,
     );
   });
 
@@ -541,6 +541,9 @@ describe("trusted review-gate workflows", () => {
       expect(pendingInspection).toContain("--timeout-ms 10000");
       expect(pendingInspection).toContain("--poll-interval-ms 10000");
       expect(pendingInspection).toContain("diagnosticFailures");
+      expect(pendingInspection).toContain("`unavailable / retry`");
+      expect(pendingInspection).toContain("`cause`");
+      expect(pendingInspection).toContain("`detail`");
       expect(pendingInspection).toMatch(/read-only diagnos/iu);
       expect(pendingInspection).toMatch(/inspect-or-extend[\s\S]{0,250}diagnostic below, then stop/iu);
       expect(pendingInspection).toContain("continueAfterAttention: true");
@@ -645,32 +648,32 @@ describe("trusted review-gate workflows", () => {
     const full = sectionBetween(packaged, "### Ship — full protection", "### Ship — partial protection");
     expect(full).toContain("arc base drift --json");
     expect(full).toContain("review applicability");
-    expect(full).toMatch(/targeted verification[\s\S]*focused[\s\S]*full review/u);
+    expect(full).toMatch(/applicability-judgment-required[\s\S]*supplemental[\s\S]*fresh/u);
     expect(full).toMatch(
       /When gated local review ran,[\s\S]*include `\*\*Local review:\*\* \{carrier identity\}`/u,
     );
     expect(full).toMatch(/otherwise omit the field entirely/u);
     expect(full).toMatch(/`vehicle: errand`[\s\S]*outside WU composition-product requirements/u);
     expect(full).toMatch(/never infer[\s\S]*absent or\s+malformed WU state/iu);
-    expect(full).toMatch(/retain\s+`openedChangeRequest\.headSha` as `\{approved-head-sha\}`/iu);
+    expect(full).toMatch(/strict Errand record[\s\S]*exact PR/iu);
 
     const preMerge = full.lastIndexOf("**Extension report** · `#pre-merge`");
     const interlock = full.lastIndexOf("`integration-interlock`");
-    const autoMerge = full.lastIndexOf("gh pr merge <pr-number>");
+    const terminalMerge = full.lastIndexOf("arc errand merge <slug> - --json");
     expect(preMerge).toBeLessThan(interlock);
-    expect(interlock).toBeLessThan(autoMerge);
+    expect(interlock).toBeLessThan(terminalMerge);
     expect(full.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
-    const interlockText = full.slice(interlock, autoMerge);
+    const interlockText = full.slice(interlock, terminalMerge);
     const pinnedInterlockText = interlockText.replace(/^>\s?/gmu, "").replace(/\s+/gu, " ");
-    expect(pinnedInterlockText).toContain("Surface the exact head");
+    expect(pinnedInterlockText).toContain("Surface the request");
     expect(pinnedInterlockText).toContain("proposed final dispositions");
-    expect(pinnedInterlockText).toContain("authorizes exact-head merge");
+    expect(pinnedInterlockText).toContain("authorizes the exact-head merge");
     expect(pinnedInterlockText).toMatch(/redirect[\s\S]*release-only/iu);
     expect(full).not.toContain("## Review");
     expect(full).not.toMatch(/`Local`, `Hosted PR`, and `Triage`|`Coverage`/u);
     expect(full).not.toContain("authorizes the lane action only if");
     expect(full).not.toMatch(/changed head[\s\S]*invalidates approval/iu);
-    expect(full).toContain("--match-head-commit {approved-head-sha}");
+    expect(full).not.toContain("gh pr merge");
 
     const partial = sectionBetween(packaged, "### Ship — partial protection", "### Complete");
     expect(partial).toContain("direct base-branch commit");
@@ -703,13 +706,14 @@ describe("trusted review-gate workflows", () => {
 
     const landing = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
     const compactLanding = landing.replace(/\s+/gu, " ");
-    expect(compactLanding).toContain("a `review-required` result is expected");
-    expect(compactLanding).toContain("a changed base OID or Errand claim requires a new Step 4 offer");
-    expect(compactLanding).toContain("Under an Owner-directed review stop, inspect the exact PR's native review");
-    expect(compactLanding).toContain("Owner acceptance never satisfies or bypasses a required check");
+    expect(compactLanding).toContain("`review-required` remains expected");
+    expect(compactLanding).toContain("A changed coordinate (including base OID or Errand claim)");
+    expect(compactLanding).toContain("Inspect the PR's native review and unresolved conversations separately");
+    expect(compactLanding).toContain("Owner acceptance never satisfies a required check");
     expect(compactLanding).toContain("review-cycle CI deferral");
-    expect(compactLanding).toContain("obtain separate Owner direction for any host-native dismissal or thread action");
-    expect(compactLanding).toContain("--match-head-commit {approved-head-sha}");
+    expect(compactLanding).toContain("obtain separate Owner direction for any dismissal or thread action");
+    expect(compactLanding).toContain("pass `errandMergeRequest` unchanged exactly once");
+    expect(compactLanding).toContain("arc errand merge <slug> - --json");
   });
 
   it("covers Errand review outcomes and exact-target re-entry", async () => {
@@ -735,7 +739,7 @@ describe("trusted review-gate workflows", () => {
     );
     expect(openPr).toMatch(/rate-limited \| transient-unavailable \/ try-next-source/iu);
     expect(openPr).toMatch(/ambiguous delivery[\s\S]*terminal failure stops/iu);
-    expect(openPr).toMatch(/target movement[\s\S]*review applicability/iu);
+    expect(openPr).toMatch(/target movement[\s\S]*routed review action[\s\S]*typed continuation/iu);
     expect(openPr).toMatch(/On interruption[\s\S]*typed `state` \/ `nextAction`/iu);
     expect(openPr).not.toMatch(/review-suspension|promoted watcher|bounded schedule/u);
 
@@ -754,62 +758,16 @@ describe("trusted review-gate workflows", () => {
     expect(prResolution).toMatch(/`merged-at-head \/ complete`[\s\S]*Complete/u);
     expect(prResolution).toContain("`closed-unmerged / reopen-change-request`");
 
-    const lanes = sectionBetween(packaged, "6. Land per lane:", "7. **Leave");
-    const autoLane = sectionBetween(lanes, "**Auto-merge-lane**", "**Reviewed-lane**");
-    expect(autoLane).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
-    expect(autoLane).toMatch(/only literal `planning`[\s\S]*preserves this lane/iu);
-    const autoMethod = autoLane.indexOf("arc review merge-method resolve --json");
-    const autoRelease = autoLane.indexOf("arc merge lock release -", autoMethod);
-    const autoArm = autoLane.indexOf(
-      "gh pr merge <pr-number> --auto <merge-flag> --match-head-commit {approved-head-sha}",
-      autoRelease,
-    );
-    expect(autoMethod).toBeGreaterThan(-1);
-    expect(autoRelease).toBeGreaterThan(autoMethod);
-    expect(autoArm).toBeGreaterThan(autoRelease);
-    expect(autoLane).toMatch(/arming-time head validation/iu);
-    expect(autoLane).not.toContain("arc review checks await");
-
-    const reviewedLane = sectionBetween(lanes, "**Reviewed-lane**", "**Release-only redirect**");
-    const wait = reviewedLane.indexOf("arc review checks await");
-    const postWaitDrift = reviewedLane.indexOf("arc base drift --json", wait);
-    const postWaitTarget = reviewedLane.indexOf(
-      "arc review change-request resolve --head-ref <branch> --head-sha {approved-head-sha} --json",
-      postWaitDrift,
-    );
-    const reviewedMethod = reviewedLane.indexOf("arc review merge-method resolve --json", postWaitTarget);
-    const reviewedRelease = reviewedLane.indexOf("arc merge lock release -", reviewedMethod);
-    const merge = reviewedLane.indexOf(
-      "gh pr merge <pr-number> <merge-flag> --match-head-commit {approved-head-sha}",
-      reviewedRelease,
-    );
-    expect(wait).toBeGreaterThan(-1);
-    expect(postWaitDrift).toBeGreaterThan(wait);
-    expect(postWaitTarget).toBeGreaterThan(postWaitDrift);
-    expect(reviewedMethod).toBeGreaterThan(postWaitTarget);
-    expect(reviewedRelease).toBeGreaterThan(reviewedMethod);
-    expect(merge).toBeGreaterThan(reviewedRelease);
-    expect(reviewedLane).not.toContain("--auto");
-    expect(reviewedLane).toMatch(/pending \/ await[\s\S]*same exact\s+head[\s\S]*no second ARC approval/iu);
-    expect(reviewedLane).toMatch(/`green \/ complete` and `not-required \/ complete` proceed/iu);
-    expect(reviewedLane).toMatch(
-      /`failed \/\s+stop`, `stale-target \/ stop`, `target-mismatch \/ stop`, and `blocked \/ stop` stop with the lock held/iu,
-    );
-    expect(reviewedLane).toMatch(
-      /arc base drift --json[\s\S]*Only authoritative\s+`clean` continues; `reconcile` returns to Step 5[\s\S]*unavailable or malformed output stops/iu,
-    );
-    expect(reviewedLane).toMatch(
-      /`open \/ reuse-change-request`[\s\S]*same `<pr-number>`[\s\S]*configured\s+base[\s\S]*exact approved head/iu,
-    );
-    expect(reviewedLane).toMatch(/Any other state, action, or candidate stops with the lock held/iu);
-
-    const releaseOnly = sectionBetween(lanes, "**Release-only redirect** —", "Once a lane releases");
-    expect(releaseOnly).toMatch(/arc merge lock release -[\s\S]*stop/iu);
-    expect(releaseOnly).not.toContain("gh pr merge");
-    expect(lanes).toMatch(
-      /failed or refused auto-merge arm or direct merge[\s\S]*arc merge lock hold -/iu,
-    );
-    expect(lanes.match(/arc merge lock hold -/gu)).toHaveLength(1);
+    const terminal = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
+    expect(terminal.match(/arc errand merge <slug> - --json/gu)).toHaveLength(1);
+    expect(terminal).toMatch(/errandMergeRequest[\s\S]*integration-interlock[\s\S]*arc errand merge/iu);
+    expect(terminal).toMatch(/awaiting-checks \/ retry[\s\S]*exact continuation/iu);
+    expect(terminal).toMatch(/reconcile-base[\s\S]*reconcile-regenerable[\s\S]*supplied\s+remedy/iu);
+    expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh integration approval/iu);
+    expect(terminal).toMatch(/arc merge lock release -[\s\S]*separate operation authorizes no merge/iu);
+    expect(terminal).not.toContain("gh pr merge");
+    expect(terminal).not.toContain("arc review checks await");
+    expect(terminal).not.toContain("arc merge lock hold");
 
     const complete = sectionBetween(packaged, "### Complete");
     expect(complete).toMatch(
@@ -824,7 +782,7 @@ describe("trusted review-gate workflows", () => {
 
     const leave = sectionBetween(packaged, "7. **Leave", "### Ship — partial protection");
     expect(packaged.match(/arc errand leave <slug>/gu)).toHaveLength(1);
-    expect(lanes).not.toContain("arc errand leave <slug>");
+    expect(terminal).not.toContain("arc errand leave <slug>");
     expect(leave).toMatch(/session is ending[\s\S]*moving machines/iu);
     expect(leave).toMatch(
       /Do not leave[\s\S]*change request is open[\s\S]*ordinary next-Errand queue advancement/iu,
@@ -852,8 +810,10 @@ describe("trusted review-gate workflows", () => {
     }));
     const documents = Object.fromEntries(entries);
 
-    expect(documents.errand).toContain("arc review planning-lane <base-sha> {approved-head-sha}");
-    expect(documents.errand).toMatch(/only literal `planning`[\s\S]*preserves this lane/iu);
+    expect(documents.errand).toContain("arc review planning-lane <base-sha> <head-sha>");
+    expect(documents.errand).toMatch(/Only literal `planning`[\s\S]*auto-merge-lane/iu);
+    expect(documents.errand).toContain("arc errand merge <slug> - --json");
+    expect(documents.errand).not.toContain("gh pr merge");
     expect(documents.drain).toMatch(
       /arc review planning-lane <base-sha> <head-sha>[\s\S]*only[\s\S]*`planning`[\s\S]*arm/iu,
     );
@@ -884,9 +844,7 @@ describe("trusted review-gate workflows", () => {
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
     const checkpoint = gate.indexOf("arc integrate checkpoint {name} --json");
-    const baseMerge = gate.indexOf(
-      "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
-    );
+    const baseMerge = gate.indexOf("checkpoint's supplied `remedy.argv` unchanged");
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
     const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
     expect(reconcile).toBeGreaterThan(-1);
@@ -898,11 +856,13 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
     expect(gate).toContain("keeps the checkpoint and draft lock");
+    expect(gate).toContain("`payload.observationKind`");
     expect(gate).toContain("`payload.diagnosticFailures`");
+    expect(gate).toContain("`payload.detail`");
+    expect(gate).toContain("`payload.retry.argv`");
     expect(gate).toContain("Do not re-invoke recursively");
     expect(gate).not.toContain("re-invokes this same command immediately");
-    expect(gate).toContain("`payload.elapsedMs` discloses the bounded wait already served");
-    expect(gate).not.toContain("after `payload.elapsedMs` milliseconds");
+    expect(gate).not.toContain("payload.elapsedMs");
     expect(gate).not.toContain("returned deadline");
     expect(gate).not.toContain("otherwise render `None`");
     expect(gate).not.toContain("exact-head mutability action");
@@ -927,15 +887,58 @@ describe("trusted review-gate workflows", () => {
       "head-moved": "rerun-checkpoint",
       "head-contained-by-base": "rerun-checkpoint",
       conflict: "stop",
+      "regenerable-refused": "stop",
       blocked: "stop",
     } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;
 
     for (const [state, nextAction] of Object.entries(actions)) {
       expect(gate).toContain(`\`${state} / ${nextAction}\``);
     }
-    const stop = gate.search(/`blocked \/ stop` and `conflict \/ stop` stop before every later\s+fire point/u);
+    const stop = gate.search(
+      /`blocked \/ stop`, `conflict \/ stop`, and `regenerable-refused \/ stop` stop before every later\s+fire point/u,
+    );
     expect(stop).toBeGreaterThan(-1);
     expect(gate.indexOf("`push-interlock`", stop)).toBeGreaterThan(stop);
+  });
+
+  it("gates and pushes only a successfully merged Errand reconcile", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const terminal = sectionBetween(packaged, "6. **Run the approved terminal operation.", "7. **Leave");
+    const actions = {
+      merged: "run-quality-gates",
+      "skipped-clean": "continue-reconcile",
+      "base-moved": "rerun-checkpoint",
+      "head-moved": "rerun-checkpoint",
+      "head-contained-by-base": "rerun-checkpoint",
+      conflict: "stop",
+      "regenerable-refused": "stop",
+      blocked: "stop",
+    } satisfies Record<BaseMergeResult["state"], BaseMergeResult["nextAction"]>;
+
+    for (const [state, nextAction] of Object.entries(actions)) {
+      expect(terminal).toContain(`\`${state} / ${nextAction}\``);
+    }
+    expect(terminal).toMatch(/merged \/ run-quality-gates` runs Tier 1[\s\S]*pushes[\s\S]*Step 4/iu);
+    expect(terminal).toMatch(/skipped-clean \/ continue-reconcile[\s\S]*without gates or push/iu);
+    expect(terminal).toMatch(/conflict \/ stop[\s\S]*blocked \/ stop[\s\S]*explanation and stop/iu);
+  });
+
+  it("passes the exact approved Errand target to release-only lock transition", async () => {
+    const packaged = await readRepositoryFile(
+      "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+    );
+    const releaseOnly = sectionBetween(
+      packaged,
+      "After approval, apply the approved final dispositions and channel settlements.",
+      "6. **Run the approved terminal operation.",
+    );
+    expect(releaseOnly).toContain("`schemaVersion: 1`");
+    expect(releaseOnly).toContain("`treeRoot`");
+    expect(releaseOnly).toContain("`target: { repository, pullRequest, headSha }`");
+    expect(releaseOnly).toContain('`vehicle: { kind: "errand", slug }`');
+    expect(releaseOnly).toContain("Pass `releaseRequest` as JSON stdin to `arc merge lock release -`");
   });
 
   it("keeps verification applicability vocabulary aligned with the typed input schema", () => {
@@ -969,11 +972,14 @@ describe("trusted review-gate workflows", () => {
   });
 
   it("keeps early drift advisory separate from final authoritative reconciliation", async () => {
-    const [packageIntegration, instanceIntegration] = await Promise.all([
+    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand] = await Promise.all([
       readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
       readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
     ]);
     expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageErrand).toBe(instanceErrand);
     const reviewSettlement = sectionBetween(
       packageIntegration,
       "### 3) Confirm review coordination",
@@ -984,8 +990,22 @@ describe("trusted review-gate workflows", () => {
     const advisory = packageIntegration.indexOf("Before spending a hosted pass");
     const finalGate = packageIntegration.indexOf("### 10) Behind-base reconcile gate and merge");
     expect(packageIntegration.indexOf("arc base drift --json", advisory)).toBeLessThan(finalGate);
-    expect(packageIntegration.indexOf("arc base merge --expected-base", finalGate)).toBeGreaterThan(finalGate);
+    const advisoryText = packageIntegration.slice(advisory, finalGate);
+    expect(advisoryText).toContain("authorizes no merge, commit, push, or target recomposition");
+    expect(advisoryText).not.toContain("use an append-only merge");
+    expect(packageIntegration.indexOf(
+      "checkpoint's supplied `remedy.argv` unchanged",
+      finalGate,
+    )).toBeGreaterThan(finalGate);
     expect(packageIntegration.indexOf("git merge --no-edit {baseOid}")).toBe(-1);
+
+    const errandAdvisoryText = sectionBetween(
+      packageErrand,
+      "4. **Enter the open PR.**",
+      "5. **Settle the final head.**",
+    );
+    expect(errandAdvisoryText).toContain("authorizes no merge, commit, push, or target recomposition");
+    expect(errandAdvisoryText).not.toContain("use an append-only merge");
   });
 
   it("preserves checkpoint readiness through an exact-head merge window", async () => {

@@ -3,12 +3,15 @@
 import { z } from "zod";
 
 import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
+import { CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import {
   DeliveryPublicReviewContinuationV1Schema,
   type DeliveryPublicReviewContinuationV1,
 } from "../../../lib/delivery/public-review-continuation.js";
 import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
@@ -66,8 +69,62 @@ const LegacyContinueHostedReviewActionSchema = z.strictObject({
 });
 export const RunConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
+  requiredScope: z.enum(["focused", "full"]),
+  verificationKind: z.enum(["focused", "tier-3"]),
+  verificationEvidenceRefRequired: z.literal(true),
+  attestArgv: z.array(z.string().trim().min(1)).length(8),
   ...ActionFields,
+}).superRefine((action, context) => {
+  const expectedKind = action.requiredScope === "focused" ? "focused" : "tier-3";
+  if (action.verificationKind !== expectedKind) {
+    context.addIssue({
+      code: "custom",
+      path: ["verificationKind"],
+      message: "must match the required convergence scope",
+    });
+  }
+  const expected = [
+    "arc", "attest", action.attestArgv[2], "--scope", action.requiredScope,
+    "--verification-evidence-ref", CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER, "--json",
+  ];
+  if (JSON.stringify(action.attestArgv) !== JSON.stringify(expected)
+    || action.command !== expected.join(" ")) {
+    context.addIssue({
+      code: "custom",
+      path: ["attestArgv"],
+      message: "must carry the exact scoped attest invocation",
+    });
+  }
 });
+
+/**
+ * Compose a substitution-required convergence-verification action for one work unit.
+ *
+ * @param workUnit - Work unit bound into the eventual attest invocation.
+ * @param requiredScope - Scope required to satisfy the pending convergence.
+ * @returns An action whose evidence placeholder must be replaced before invocation.
+ */
+export function createRunConvergenceVerificationAction(
+  workUnit: string,
+  requiredScope: "focused" | "full",
+): z.infer<typeof RunConvergenceVerificationActionSchema> {
+  const attestArgv = attestConvergenceArgv(
+    workUnit,
+    requiredScope,
+    CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  );
+  return RunConvergenceVerificationActionSchema.parse({
+    kind: "run-convergence-verification",
+    requiredScope,
+    verificationKind: requiredScope === "focused" ? "focused" : "tier-3",
+    verificationEvidenceRefRequired: true,
+    attestArgv: [...attestArgv],
+    command: attestArgv.join(" "),
+    interactionText: requiredScope === "focused"
+      ? "Run the bounded focused verification, then replace the carried evidence placeholder and attest."
+      : "Run Tier 3, then replace the carried evidence placeholder and attest.",
+  });
+}
 export const PublishCandidateActionSchema = z.strictObject({
   kind: z.literal("publish-candidate"),
   ...ActionFields,
@@ -182,6 +239,14 @@ export const CandidateConvergenceBoundarySchema = z.strictObject({
   nextAction: RunConvergenceVerificationActionSchema,
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+}).superRefine((boundary, context) => {
+  if (boundary.nextAction.attestArgv[2] !== boundary.workUnit) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction", "attestArgv", 2],
+      message: "must match the enclosing Candidate boundary work unit",
+    });
+  }
 });
 export const CandidatePublishReadyBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,

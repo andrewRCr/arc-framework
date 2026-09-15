@@ -283,6 +283,14 @@ describe("session-init envelope schema", () => {
     setPath(missingExactBase, ["baseDistance", "value", "baseOid"], null);
     expectInvalid(missingExactBase);
 
+    const missingHealthyMovement = fixture("branch-gone");
+    setPath(missingHealthyMovement, ["baseDistance", "value", "movement"], undefined);
+    expectInvalid(missingHealthyMovement);
+
+    const crossedInapplicableMovement = fixture("orient");
+    setPath(crossedInapplicableMovement, ["baseDistance", "value", "movement"], "disjoint");
+    expectInvalid(crossedInapplicableMovement);
+
     const crossedBaseRecommendation = fixture("branch-gone");
     setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedAction"], "surface");
     setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedPromptText"], "wrong");

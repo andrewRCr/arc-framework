@@ -53,6 +53,7 @@ async function analyzeOverlapAt(cwd: string, baseOid: string) {
   const overlap = await analyzeBaseOverlap({
     exec: makeGitExec(cwd),
     baseOid,
+    headOid: await git(cwd, ["rev-parse", "HEAD"]),
     ahead,
     behind,
     classify: (path) => classifyPathTreatment(path, { workUnit: WORK_UNIT }),
@@ -219,7 +220,13 @@ describe("the shape of the advancing commit, as the shipped evidence scan reads 
 
     const advance = await advanceBase({ cwd, paths: ["src/base-only-surface.ts"] });
 
-    expect(await analyzeIntegrationEvidence({ exec: makeGitExec(cwd), baseOid: advance.head })).toMatchObject({
+    const evidence = await analyzeIntegrationEvidence({
+      exec: makeGitExec(cwd),
+      baseOid: advance.head,
+      headOid: await git(cwd, ["rev-parse", "HEAD"]),
+    });
+
+    expect(evidence).toMatchObject({
       coverage: "partial",
       unclassifiedCommitCount: 1,
       limitations: expect.arrayContaining(["unclassified-commits"]),
@@ -236,7 +243,13 @@ describe("the shape of the advancing commit, as the shipped evidence scan reads 
       landing: "merge",
     });
 
-    expect(await analyzeIntegrationEvidence({ exec: makeGitExec(cwd), baseOid: advance.head })).toMatchObject({
+    const evidence = await analyzeIntegrationEvidence({
+      exec: makeGitExec(cwd),
+      baseOid: advance.head,
+      headOid: await git(cwd, ["rev-parse", "HEAD"]),
+    });
+
+    expect(evidence).toMatchObject({
       coverage: "complete",
       unclassifiedCommitCount: 0,
       limitations: [],

@@ -369,7 +369,9 @@ function effectiveCurrent(
     recognizedTarget: target,
     recognition: { kind: "durable" as const },
     implementationChanged,
-    convergenceVerification: implementationChanged ? "pending" as const : "satisfied" as const,
+    ...(implementationChanged
+      ? { convergenceVerification: "pending" as const, convergenceScope: "full" as const }
+      : { convergenceVerification: "satisfied" as const, convergenceScope: null }),
   };
 }
 
@@ -1414,6 +1416,7 @@ describe("verified-fix Candidate settlement", () => {
       status: "current",
       implementationChanged: true,
       convergenceVerification: "pending",
+      convergenceScope: "full",
     });
   });
 

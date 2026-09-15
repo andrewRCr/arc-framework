@@ -42,7 +42,7 @@ describe("delivery terminal integration handoff", () => {
     const terminalRemedy = packaged.indexOf("`retarget` or `reopen-and-retarget`");
     const remedyInvocation = packaged.indexOf("remedy.argv", terminalRemedy);
     expect(packaged).not.toContain("`verify-terminal-member`");
-    const baseMerge = packaged.indexOf("arc base merge --expected-base", checkpoint);
+    const baseMerge = packaged.indexOf("checkpoint's supplied `remedy.argv`", checkpoint);
     for (const position of [terminalRemedy, remedyInvocation, baseMerge]) {
       expect(position).toBeGreaterThan(-1);
     }

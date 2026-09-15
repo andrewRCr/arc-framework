@@ -8,6 +8,11 @@ import {
   MAX_EVIDENCE_APPLICABILITY_PATHS,
 } from "../evidence-applicability/schema.js";
 import {
+  composeEvidenceDelta,
+  EvidenceApplicabilityResultSchema,
+  reduceEvidenceApplicability,
+} from "../evidence-applicability/index.js";
+import {
   DeliveryContributionEndpointsSchema,
   DeliveryContributionProofResultSchema,
 } from "../delivery/contribution-proof.js";
@@ -87,6 +92,7 @@ export const CandidateApplicabilityDecisionResultSchema = z.strictObject({
   state: z.literal("decision-required"),
   nextAction: z.literal("request-authority"),
   verdict: z.enum(["clean-divergence", "interaction"]),
+  applicability: EvidenceApplicabilityResultSchema,
   projection: DeliveryContributionEndpointsSchema,
   paths: BoundedApplicabilityPathsSchema,
   choices: CandidateApplicabilityChoicesSchema,
@@ -309,12 +315,18 @@ export function classifyCandidateApplicability(
         verdict,
         paths: bounded.data,
       });
+      const applicability = reduceEvidenceApplicability(composeEvidenceDelta({
+        cause: "member-rewrite",
+        endpoints: structural.endpoints,
+        proof: { ...structural.proof, paths: bounded.data },
+      }), "review-clearance");
       const presentation = decisionPresentation({ request, verdict, paths: bounded.data, ...digests });
       return CandidateApplicabilityResultSchema.parse({
         ...candidateApplicabilityResultBase(request),
         state: "decision-required",
         nextAction: "request-authority",
         verdict,
+        applicability,
         projection: structural.endpoints,
         paths: bounded.data,
         choices: CANDIDATE_APPLICABILITY_CHOICES,

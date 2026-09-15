@@ -7,6 +7,8 @@ import {
   CHECKPOINT_BLOCKED_REASONS,
   checkpointRemedy,
 } from "../../../../src/scripts/integration/checkpoint.js";
+import { createRunConvergenceVerificationAction } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   IntegrationMergeResultSchema,
   MERGE_REFUSAL_REASONS,
@@ -22,8 +24,8 @@ import {
 
 describe("spine refusal remedies", () => {
   it("derives its reason coverage from the refusal schemas", () => {
-    expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(10);
-    expect(MERGE_REFUSAL_REASONS).toHaveLength(11);
+    expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(13);
+    expect(MERGE_REFUSAL_REASONS).toHaveLength(16);
     expect(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).toHaveLength(4);
     expect(new Set(CHECKPOINT_BLOCKED_REASONS).size).toBe(CHECKPOINT_BLOCKED_REASONS.length);
     expect(new Set(MERGE_REFUSAL_REASONS).size).toBe(MERGE_REFUSAL_REASONS.length);
@@ -33,6 +35,7 @@ describe("spine refusal remedies", () => {
 
   it("names an invariant and one corrective command for every checkpoint refusal", () => {
     for (const reason of CHECKPOINT_BLOCKED_REASONS) {
+      if (reason === "candidate-convergence-pending") continue;
       const remedy = SpineRemedySchema.parse(checkpointRemedy(reason, "example"));
 
       expect(remedy.invariant, reason).toMatch(/\.$/u);
@@ -44,14 +47,20 @@ describe("spine refusal remedies", () => {
 
   it("names an invariant and one corrective command for every merge refusal", () => {
     for (const reason of MERGE_REFUSAL_REASONS) {
-      const remedy = SpineRemedySchema.parse(mergeRemedy(reason, "example", reason === "relock-failed"
-        ? {
+      const remedy = SpineRemedySchema.parse(mergeRemedy(
+        reason,
+        "example",
+        reason === "relock-failed" ? {
             schemaVersion: 1,
             treeRoot: "/candidate",
             target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(40) },
             vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
           }
-        : undefined));
+          : undefined,
+        reason === "host-pending" || reason === "merge-outcome-unknown"
+          ? `checkpoint-v1:${"c".repeat(40)}:sha256:${"e".repeat(64)}`
+          : undefined,
+      ));
 
       expect(remedy.invariant, reason).toMatch(/\.$/u);
       expect(remedy.argv[0], reason).toBe("arc");
@@ -89,10 +98,25 @@ describe("spine refusal remedies", () => {
   });
 
   it("interpolates the refused work unit into slug-bearing commands", () => {
-    expect(checkpointRemedy("candidate-convergence-pending", "example").argv)
-      .toEqual(["arc", "attest", "example"]);
+    expect(createRunConvergenceVerificationAction("example", "full").attestArgv)
+      .toEqual([
+        "arc", "attest", "example", "--scope", "full",
+        "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+      ]);
     expect(mergeRemedy("head-mismatch", "example").argv)
       .toEqual(["arc", "integrate", "checkpoint", "example", "--json"]);
+    expect(mergeRemedy(
+      "base-currentness-required",
+      "example",
+      undefined,
+      undefined,
+      { expectedBase: "b".repeat(40), expectedHead: "c".repeat(40) },
+    ).argv).toEqual([
+      "arc", "base", "merge",
+      "--expected-base", "b".repeat(40),
+      "--expected-head", "c".repeat(40),
+      "--json",
+    ]);
     expect(prePublicationRemedy("corrupt-state", "example").argv)
       .toEqual(["arc", "review", "pre-publication", "example", "--json"]);
   });
@@ -128,6 +152,31 @@ describe("spine refusal remedies", () => {
       reason: "head-mismatch",
       payload: {},
     })).toThrow();
+  });
+
+  it("rejects a base-reconcile continuation that is not bound to its published coordinates", () => {
+    expect(() => IntegrationMergeResultSchema.parse({
+      schemaVersion: 1,
+      mode: "integrate-merge",
+      workUnit: "example",
+      state: "invalidated",
+      nextAction: "reconcile-base",
+      reason: "base-currentness-required",
+      detail: "The host requires the current base.",
+      coordinates: {
+        approvedTarget: {
+          repository: "owner/repo",
+          pullRequest: 42,
+          baseRef: "main",
+          headRef: "feat/example",
+          headSha: "c".repeat(40),
+        },
+        observedTarget: null,
+        observedBaseOid: "b".repeat(40),
+      },
+      remedy: mergeRemedy("base-currentness-required", "example"),
+      payload: {},
+    })).toThrow(/exact observed base and approved head/iu);
   });
 
   it("rejects a pre-publication refusal envelope carrying no remedy", () => {

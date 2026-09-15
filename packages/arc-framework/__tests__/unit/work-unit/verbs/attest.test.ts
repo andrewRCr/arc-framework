@@ -4,11 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import {
+  CandidateManagedRecordV1Schema,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
+  createCandidateVerificationResponseEvidence,
   type CandidateManagedRecordV1,
 } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import {
+  AttestResultSchema,
   runAttest,
   type AttestContext,
 } from "../../../../src/lib/work-unit/verbs/attest.js";
@@ -18,6 +21,7 @@ import { projectDurableCandidateTarget } from "../../../helpers/candidate.js";
 
 const REVISION = "a".repeat(40);
 const CHANGED_REVISION = "b".repeat(40);
+const FINAL_REVISION = "c".repeat(40);
 
 function subject(source = "verified") {
   return createCandidateSubjectSnapshot([
@@ -80,7 +84,42 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
   };
 }
 
+async function pendingHarness(approvedVerification: "focused" | "full") {
+  const fixture = harness();
+  await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+  const root = fixture.state().storedRecord!;
+  const changedTarget = { revision: CHANGED_REVISION, subject: subject(`${approvedVerification}-fix`) };
+  const response = createCandidateReviewResponseEvidence({
+    candidateId: root.attestation.candidateId,
+    oldTarget: { revision: REVISION, subject: subject() },
+    newTarget: changedTarget,
+    dispositionId: canonicalDigest({ dispositions: approvedVerification }),
+    approvedBy: "andrew",
+    appliedBy: "codex",
+    applicability: approvedVerification,
+    approvedVerification,
+    verificationEvidenceRefs: [`test://candidate/${approvedVerification}`],
+    implementationChanged: true,
+  });
+  fixture.replaceRecord({ ...root, transitions: [response] });
+  fixture.setCurrentTarget(changedTarget);
+  return { fixture, root, changedTarget, response };
+}
+
 describe("runAttest", () => {
+  it("rejects an unfilled convergence evidence placeholder before publication", async () => {
+    const { fixture } = await pendingHarness("full");
+    const publicationCount = fixture.state().publicationCount;
+
+    await expect(runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "full",
+      verificationEvidenceRef: "{verificationEvidenceRef}",
+    })).rejects.toThrow(/placeholder must be replaced/u);
+    expect(fixture.state().publicationCount).toBe(publicationCount);
+  });
+
   it("establishes the initial Candidate root and projects Candidate preparation", async () => {
     const { context, state } = harness();
 
@@ -154,7 +193,11 @@ describe("runAttest", () => {
     fixture.replaceRecord({ ...root, transitions: [response] });
     fixture.setCurrentTarget(changedTarget);
 
-    const converged = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const converged = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      verificationEvidenceRef: "verification://example/full",
+    });
     const repeated = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
 
     // Converging a lineage attests content; it does not settle the pre-publication obligations that
@@ -163,6 +206,8 @@ describe("runAttest", () => {
     expect(converged).toMatchObject({
       status: "attested",
       operation: "convergence",
+      scope: "full",
+      verificationEvidenceRef: "verification://example/full",
       locus: { locus: "candidate-review-pending" },
     });
     expect(repeated).toMatchObject({ status: "unchanged", locus: { locus: "candidate-review-pending" } });
@@ -170,8 +215,375 @@ describe("runAttest", () => {
       publicationCount: 3,
       projectedCurrentWorkflow: "prepare-work-unit",
       projectedNextAction: "Candidate review pending — run pre-publication review",
-      storedRecord: { lineageAttestations: [{ target: changedTarget }] },
+      storedRecord: {
+        lineageAttestations: [{
+          target: changedTarget,
+          scope: "full",
+          verificationEvidenceRef: "verification://example/full",
+        }],
+      },
     });
+  });
+
+  it.each(["focused", "full"] as const)(
+    "accepts %s evidence for pending focused convergence",
+    async (scope) => {
+      const { fixture, changedTarget } = await pendingHarness("focused");
+
+      const result = await runAttest(fixture.context, {
+        name: "example",
+        lifecycle: "Active",
+        scope,
+        verificationEvidenceRef: `verification://example/${scope}`,
+      });
+
+      expect(result).toMatchObject({
+        status: "attested",
+        operation: "convergence",
+        scope,
+        verificationEvidenceRef: `verification://example/${scope}`,
+      });
+      expect(fixture.state().storedRecord).toMatchObject({
+        lineageAttestations: [{ target: changedTarget, scope }],
+      });
+    },
+  );
+
+  it("refuses reuse of review-response verification evidence before write", async () => {
+    const { fixture, root, changedTarget, response } = await pendingHarness("focused");
+
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+      verificationEvidenceRef: response.verificationEvidenceRefs[0],
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "verification-evidence-reused",
+      candidateId: root.attestation.candidateId,
+      subjectDigest: changedTarget.subject.subjectDigest,
+      requestedScope: "focused",
+      requiredScope: "focused",
+    });
+    expect(fixture.state()).toMatchObject({ publicationCount: 1, storedRecord: { lineageAttestations: [] } });
+  });
+
+  it("refuses reuse of earlier verification-response evidence before write", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const root = fixture.state().storedRecord!;
+    const verifiedTarget = { revision: CHANGED_REVISION, subject: subject("verified-response") };
+    const verification = createCandidateVerificationResponseEvidence({
+      candidateId: root.attestation.candidateId,
+      oldTarget: { revision: REVISION, subject: subject() },
+      newTarget: verifiedTarget,
+      authorityRef: canonicalDigest({ authority: "verification-response" }),
+      verifiedBy: "andrew",
+      verifiedAt: "2026-08-12T13:00:00.000Z",
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://example/prior-response"],
+      implementationChanged: true,
+    });
+    const pendingTarget = { revision: FINAL_REVISION, subject: subject("pending-after-verification") };
+    const pending = createCandidateReviewResponseEvidence({
+      candidateId: root.attestation.candidateId,
+      oldTarget: verifiedTarget,
+      newTarget: pendingTarget,
+      dispositionId: canonicalDigest({ dispositions: "pending-after-verification" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      approvedVerification: "focused",
+      verificationEvidenceRefs: ["test://candidate/pending-after-verification"],
+      implementationChanged: true,
+    });
+    fixture.replaceRecord(CandidateManagedRecordV1Schema.parse({
+      ...root,
+      transitions: [verification, pending],
+    }));
+    fixture.setCurrentTarget(pendingTarget);
+
+    await expect(runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+      verificationEvidenceRef: verification.verificationEvidenceRefs[0],
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "verification-evidence-reused",
+      candidateId: root.attestation.candidateId,
+      subjectDigest: pendingTarget.subject.subjectDigest,
+      requiredScope: "focused",
+    });
+    expect(fixture.state()).toMatchObject({ publicationCount: 1, storedRecord: { lineageAttestations: [] } });
+  });
+
+  it("refuses convergence without a fresh evidence reference", async () => {
+    const { fixture, root, changedTarget } = await pendingHarness("focused");
+
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "verification-evidence-required",
+      candidateId: root.attestation.candidateId,
+      subjectDigest: changedTarget.subject.subjectDigest,
+      requestedScope: "focused",
+      requiredScope: "focused",
+      verificationEvidenceProvided: false,
+      nextAction: {
+        scope: "focused",
+        verificationKind: "focused",
+        attestArgv: [
+          "arc", "attest", "example", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it.each(["focused", "full"] as const)(
+    "refuses reuse of the root verification receipt for %s convergence before write",
+    async (scope) => {
+      const { fixture, root, changedTarget } = await pendingHarness(scope);
+
+      const result = await runAttest(fixture.context, {
+        name: "example",
+        lifecycle: "Active",
+        scope,
+        verificationEvidenceRef: root.attestation.verificationEvidenceRef,
+      });
+
+      expect(result).toMatchObject({
+        status: "refused",
+        reason: "verification-evidence-reused",
+        candidateId: root.attestation.candidateId,
+        subjectDigest: changedTarget.subject.subjectDigest,
+        requestedScope: scope,
+        requiredScope: scope,
+        verificationEvidenceProvided: true,
+        nextAction: {
+          scope,
+          verificationKind: scope === "focused" ? "focused" : "tier-3",
+          verificationEvidenceRequired: true,
+        },
+      });
+      expect(fixture.state()).toMatchObject({ publicationCount: 1, storedRecord: { lineageAttestations: [] } });
+    },
+  );
+
+  it.each(["focused", "full"] as const)(
+    "refuses reuse of a prior lineage receipt for %s convergence before write",
+    async (scope) => {
+      const { fixture, root, changedTarget } = await pendingHarness(scope);
+      const priorEvidenceRef = `verification://example/prior-${scope}`;
+      await runAttest(fixture.context, {
+        name: "example",
+        lifecycle: "Active",
+        scope,
+        verificationEvidenceRef: priorEvidenceRef,
+      });
+      const priorRecord = fixture.state().storedRecord!;
+      const nextTarget = { revision: FINAL_REVISION, subject: subject(`${scope}-fix-later`) };
+      const laterResponse = createCandidateReviewResponseEvidence({
+        candidateId: root.attestation.candidateId,
+        oldTarget: changedTarget,
+        newTarget: nextTarget,
+        dispositionId: canonicalDigest({ dispositions: `${scope}-later` }),
+        approvedBy: "andrew",
+        appliedBy: "codex",
+        applicability: scope,
+        approvedVerification: scope,
+        verificationEvidenceRefs: [`test://candidate/${scope}-later`],
+        implementationChanged: true,
+      });
+      fixture.replaceRecord({
+        ...priorRecord,
+        transitions: [...priorRecord.transitions, laterResponse],
+      });
+      fixture.setCurrentTarget(nextTarget);
+
+      const result = await runAttest(fixture.context, {
+        name: "example",
+        lifecycle: "Active",
+        scope,
+        verificationEvidenceRef: priorEvidenceRef,
+      });
+
+      expect(result).toMatchObject({
+        status: "refused",
+        reason: "verification-evidence-reused",
+        candidateId: root.attestation.candidateId,
+        subjectDigest: nextTarget.subject.subjectDigest,
+        requestedScope: scope,
+        requiredScope: scope,
+      });
+      expect(fixture.state()).toMatchObject({
+        publicationCount: 2,
+        storedRecord: { lineageAttestations: [{ verificationEvidenceRef: priorEvidenceRef }] },
+      });
+    },
+  );
+
+  it("records focused convergence after a prior full requirement was attested", async () => {
+    const { fixture, root, changedTarget } = await pendingHarness("full");
+    const fullEvidenceRef = "verification://example/full-first";
+    await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "full",
+      verificationEvidenceRef: fullEvidenceRef,
+    });
+    const fullRecord = fixture.state().storedRecord!;
+    const focusedTarget = { revision: FINAL_REVISION, subject: subject("focused-after-full") };
+    const focusedResponse = createCandidateReviewResponseEvidence({
+      candidateId: root.attestation.candidateId,
+      oldTarget: changedTarget,
+      newTarget: focusedTarget,
+      dispositionId: canonicalDigest({ dispositions: "focused-after-full" }),
+      approvedBy: "andrew",
+      appliedBy: "codex",
+      applicability: "focused",
+      approvedVerification: "focused",
+      verificationEvidenceRefs: ["test://candidate/focused-after-full"],
+      implementationChanged: true,
+    });
+    fixture.replaceRecord({ ...fullRecord, transitions: [...fullRecord.transitions, focusedResponse] });
+    fixture.setCurrentTarget(focusedTarget);
+
+    await expect(runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+      verificationEvidenceRef: "verification://example/focused-after-full",
+    })).resolves.toMatchObject({
+      status: "attested",
+      operation: "convergence",
+      scope: "focused",
+    });
+    expect(fixture.state().storedRecord).toMatchObject({
+      lineageAttestations: [
+        { scope: "full", verificationEvidenceRef: fullEvidenceRef },
+        { scope: "focused", verificationEvidenceRef: "verification://example/focused-after-full" },
+      ],
+    });
+  });
+
+  it("rejects a corrective verification action that disagrees with its scope", async () => {
+    const { fixture } = await pendingHarness("focused");
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+    });
+    if (result.status !== "refused" || !("candidateId" in result)) {
+      throw new Error("expected a scoped refusal");
+    }
+
+    expect(AttestResultSchema.safeParse({
+      ...result,
+      nextAction: {
+        ...result.nextAction,
+        verificationKind: "tier-3",
+        attestArgv: ["arc", "attest", "example", "--scope", "full", "--json"],
+      },
+    }).success).toBe(false);
+  });
+
+  it("refuses focused evidence against pending full convergence", async () => {
+    const { fixture, root, changedTarget } = await pendingHarness("full");
+
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+      verificationEvidenceRef: "verification://example/focused",
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "verification-scope-insufficient",
+      candidateId: root.attestation.candidateId,
+      subjectDigest: changedTarget.subject.subjectDigest,
+      requestedScope: "focused",
+      requiredScope: "full",
+      verificationEvidenceProvided: true,
+      nextAction: { scope: "full", verificationKind: "tier-3" },
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it("refuses focused scope for a root or re-root before write", async () => {
+    const rootFixture = harness();
+    const rootResult = await runAttest(rootFixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      scope: "focused",
+    });
+    expect(rootResult).toMatchObject({
+      status: "refused",
+      reason: "focused-scope-inapplicable",
+      candidateId: null,
+      subjectDigest: subject().subjectDigest,
+      requestedScope: "focused",
+      requiredScope: "full",
+      nextAction: { scope: "full", verificationKind: "tier-3" },
+    });
+    expect(rootFixture.state().publicationCount).toBe(0);
+
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const candidateId = fixture.state().storedRecord!.attestation.candidateId;
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+    const rerootResult = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      scope: "focused",
+    });
+    expect(rerootResult).toMatchObject({
+      status: "refused",
+      reason: "focused-scope-inapplicable",
+      candidateId,
+      requiredScope: "full",
+      nextAction: {
+        operation: "re-root",
+        expected: {
+          candidateId,
+          subjectDigest: subject("unexplained").subjectDigest,
+        },
+        attestArgv: [
+          "arc", "attest", "example", "--new-root",
+          "--expected-candidate", candidateId,
+          "--expected-subject", subject("unexplained").subjectDigest,
+          "--scope", "full", "--json",
+        ],
+      },
+    });
+    expect(fixture.state().publicationCount).toBe(1);
+
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("moved-again") });
+    await expect(runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      scope: "full",
+      expectedBlocked: {
+        candidateId,
+        subjectDigest: subject("unexplained").subjectDigest,
+      },
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
+    });
+    expect(fixture.state().publicationCount).toBe(1);
   });
 
   it("republishes a committed machine-carried target without masking later staged content", async () => {
@@ -196,6 +608,7 @@ describe("runAttest", () => {
       },
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
 
     await expect(runAttest(fixture.context, { name: "example", lifecycle: "Active" }))
@@ -247,7 +660,8 @@ describe("runAttest", () => {
     const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
 
-    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("staged-later") });
+    const observedTarget = { revision: CHANGED_REVISION, subject: subject("staged-later") };
+    fixture.setCurrentTarget(observedTarget);
     const result = await runAttest(fixture.context, {
       name: "example",
       lifecycle: "Active",
@@ -261,7 +675,19 @@ describe("runAttest", () => {
     expect(result).toEqual({
       status: "refused",
       reason: "re-root-subject-mismatch",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+      observed: {
+        candidateId: blocked.candidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(fixture.state().publicationCount).toBe(1);
   });
@@ -275,7 +701,9 @@ describe("runAttest", () => {
     if (firstBlocked.status !== "blocked") throw new Error("expected first blocked Candidate delta");
 
     await runAttest(fixture.context, { name: "example", lifecycle: "Active", newRoot: true });
-    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("second-refusal") });
+    const observedCandidateId = fixture.state().storedRecord!.attestation.candidateId;
+    const observedTarget = { revision: CHANGED_REVISION, subject: subject("second-refusal") };
+    fixture.setCurrentTarget(observedTarget);
     const result = await runAttest(fixture.context, {
       name: "example",
       lifecycle: "Active",
@@ -289,7 +717,19 @@ describe("runAttest", () => {
     expect(result).toEqual({
       status: "refused",
       reason: "re-root-candidate-mismatch",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId: firstBlocked.candidateId,
+        subjectDigest: firstTarget.subject.subjectDigest,
+      },
+      observed: {
+        candidateId: observedCandidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(fixture.state().publicationCount).toBe(2);
   });
@@ -302,7 +742,8 @@ describe("runAttest", () => {
     const blocked = await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     if (blocked.status !== "blocked") throw new Error("expected blocked Candidate delta");
 
-    fixture.setCurrentTarget({ revision: REVISION, subject: subject() });
+    const observedTarget = { revision: REVISION, subject: subject() };
+    fixture.setCurrentTarget(observedTarget);
     const result = await runAttest(fixture.context, {
       name: "example",
       lifecycle: "Active",
@@ -316,9 +757,52 @@ describe("runAttest", () => {
     expect(result).toEqual({
       status: "refused",
       reason: "re-root-no-longer-blocked",
-      recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
+      expected: {
+        candidateId: blocked.candidateId,
+        subjectDigest: refusedTarget.subject.subjectDigest,
+      },
+      observed: {
+        candidateId: blocked.candidateId,
+        subjectDigest: observedTarget.subject.subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
     });
     expect(fixture.state().publicationCount).toBe(1);
+  });
+
+  it("reports an absent observed Candidate on a stale re-root continuation", async () => {
+    const fixture = harness();
+    const expected = {
+      candidateId: canonicalDigest({ expected: "candidate" }),
+      subjectDigest: subject("missing-candidate").subjectDigest,
+    };
+
+    const result = await runAttest(fixture.context, {
+      name: "example",
+      lifecycle: "Active",
+      newRoot: true,
+      expectedBlocked: expected,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "re-root-candidate-mismatch",
+      expected,
+      observed: {
+        candidateId: null,
+        subjectDigest: subject().subjectDigest,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "example", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
+    });
+    expect(fixture.state().publicationCount).toBe(0);
   });
 
   it("establishes a new lineage root over a blocked Candidate on deliberate invocation", async () => {

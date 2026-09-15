@@ -109,6 +109,11 @@ A null `policy` means no lane operation is open — follow the envelope's `nextA
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
 
+For `run-convergence-verification`, use only the typed action: run its `nextAction.verificationKind` at
+`nextAction.requiredScope`, obtain a fresh verification evidence reference, replace only the
+`{verificationEvidenceRef}` operand in `nextAction.attestArgv`, and invoke that exact argv. Never select a
+verification scope in prose or substitute the Candidate root task-list reference.
+
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
 - `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at

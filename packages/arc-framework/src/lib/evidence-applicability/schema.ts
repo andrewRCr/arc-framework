@@ -9,7 +9,7 @@ import {
   CandidateLineageTargetSchema,
   CandidateSubjectDeltaSchema,
   CandidateVerificationApplicabilitySchema,
-} from "../work-unit/candidate-attestation.js";
+} from "../work-unit/candidate-evidence.js";
 
 export const MAX_EVIDENCE_APPLICABILITY_PATHS = 200;
 export const MAX_EVIDENCE_APPLICABILITY_PATH_BYTES = 16_384;
