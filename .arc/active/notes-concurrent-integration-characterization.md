@@ -801,6 +801,9 @@ unit's close, not at seed time.
 - _Classification:_ `mechanical block` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ name the cause the
   refusal actually rests on, not the overlap its own payload reports empty · _Retention at close:_ kept — guards its
     boundary × movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "review status over a base
+  advanced under the work unit > settles after an advance sharing no path with the branch". The observation is
+  unchanged — only the address. § Re-run rows carries the superseding row.
 
   The continuation refuses with `blocked / unsafe-reconcile` while reporting an empty overlap and a mergeable
   host. Removing the integration-evidence term from the safety conjunction turns the same run into
@@ -865,6 +868,9 @@ unit's close, not at seed time.
 - _Classification:_ `mechanical block` · _Owner:_ [open — ceremony-repetition doctrine home] · _Fix at close:_ carry the
   partition into the merge window so a disjoint advance does not re-ceremony the landing · _Retention at close:_ kept
     — guards its boundary × movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "the window between a
+  minted handle and the merge that consumes it > merges the approved head after an advance sharing no path with it".
+  The observation is unchanged — only the address. § Re-run rows carries the superseding row.
 
   Excess over the control row is one invocation and two stops. The continuation does not return a handle:
   the same invocation that minted one before now reads a moved base and asks for a reconcile first, so a
@@ -1039,6 +1045,9 @@ unit's close, not at seed time.
 - _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
   change · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "the checkpoint's base
+  read under a bound delivery plan > mints a handle after an advance sharing no path with the branch". The
+  observation is unchanged — only the address. § Re-run rows carries the superseding row.
 
   The delivery arm does decide this row — severing it turns the result into `blocked / delivery-terminal-blocked`
   — but it decides the same way. With no substantive overlap there is nothing for the residual scope to narrow,
@@ -1056,6 +1065,9 @@ unit's close, not at seed time.
 - _Classification:_ `tolerates` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ compose the register from
   the decision rather than from the overlap partition alone · _Retention at close:_ kept — guards its boundary ×
     movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "the checkpoint's base
+  read under a bound delivery plan > refuses a conflicting advance even under a bound delivery plan". The
+  observation is unchanged — only the address. § Re-run rows carries the superseding row.
 
   The cut moves as the seam read predicted, and a safe verdict over a non-empty substantive set is reachable no
   other way. The finding is the register riding along with it: its text is composed from the partition alone, so
@@ -1250,6 +1262,10 @@ invocation and one stop unless the row says otherwise.
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
   routed to that target, whose draft already records this locus · _Retention at close:_ kept — pinned; the pin is the
     handoff contract, and it falls under this rule once its fix lands
+- _Citation superseded:_ renamed by `de7eb2eca` after this row closed; the test now reads "readiness against a
+  member head that advanced under its binding > reports nothing bound when a member's head advanced without changing
+  its contribution". The observation is unchanged — only the address. No superseding row exists; this reading
+  stands.
 
 **Post-landing closeout · control, head held · delivery-member**
 
@@ -1278,6 +1294,9 @@ invocation and one stop unless the row says otherwise.
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
   routed; this is the fourth locus that target's draft records, reproduced here against a synthetic host ·
   _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
+- _Citation superseded:_ renamed by `de7eb2eca` after this row closed; the test now reads "delivery closeout against
+  a terminal head that advanced under its binding > reports a terminal unsettled when the host merged it past the
+  head it binds". The observation is unchanged — only the address. No superseding row exists; this reading stands.
 
 **Landing · head movement, append-only · delivery-member**
 
