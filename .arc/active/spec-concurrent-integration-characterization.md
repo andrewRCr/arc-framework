@@ -87,6 +87,9 @@ against. No second tree and no provisional composition of unmerged branches.
 - Cells at which the boundary never reads the base are recorded as not-applicable, not probed. No exhaustive state
   cross-product.
 
+_Amended 2026-09-14 — the single base-movement axis is joined by four derived under D10 — prompted by the close-out
+finding that this matrix independently re-finds none of the failures already on file._
+
 _Amended 2026-09-14 — widens the not-applicable test from "never reads the base" to "cannot produce a different
 observable typed result" — prompted by finding boundaries that read the base and then discard the distinction: the
 Candidate subject is computed from the merge base of head and base, so an advance descended from the fork point
@@ -170,6 +173,25 @@ observation. Control rows exist for the baseline count and are expected to fall 
 is already tested. Pinned probes are kept until their fix lands, since the pin is the handoff contract, and then
 survive as ordinary guards under the same rule. The ledger records each probe's retention disposition.
 
+**D10 — The span is widened to the axes the recorded failures actually move.** The close-out routing found that no
+ledger row routes to either delivery-stabilization target, and that the matrix independently re-finds **none** of the
+failures already on file: the one known field class it reproduced was written into D3 because it was already known.
+The delivery-member `overlapping-substantive` row recorded the miss in-band — an advance intersecting a landed
+member's span refuses as a predecessor overlap, "which the matrix enumerates no cell for". D3 spans boundary ×
+base-movement kind; the recorded failures move four other things. Four axes join it, each derived from a failure
+already on file rather than imagined: **head movement** under a bound record; **history shape**, where merge-base
+cardinality is not one; **ceremony-concurrent writes**, where a ceremony's own records invalidate the preconditions it
+was admitted on; and **boundaries outside the enumerated six**, where delivery authoring reads a base D3 never named.
+Each axis is enumerated with a stated ceiling before any probe is written, D3's applicability rule applies to it
+unchanged, and an axis may close as unobservable on this tree rather than forcing a fixture. What prompted the
+widening is that the alternative was to send each routed owner hunting, and their design time is for solving rather
+than finding. What it does not change: D3's rows stand as observed and are never reopened — a changed observation
+appends under D4's re-run rule; D5 still ships no fix here; the lanes and budget rows are unchanged.
+
+_Recorded with it: the span check was answerable at the first task, from the same captures read at the close. The
+design recorded "no exhaustive state cross-product" as a scope decision, which was legitimate; what was missing is
+that nothing tested that decision against the failures already on file._
+
 **Boundary and Class (sticky from the draft).** `Class: Heavy` — the probe matrix, record contract, and routing
 posture had to be authored before an engineer could start, and nothing is invented. Boundary fit: **stays one WU**
 — the helper, probes, ledger, and routing are one concern with one review surface; the fixes are routed out by D5.
@@ -177,6 +199,9 @@ posture had to be authored before an engineer could start, and nothing is invent
 ## Scope boundary (No-gos)
 
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
+
+_Amended 2026-09-14 — the base-advance-only span widens under D10 to four derived axes, each carrying a stated
+ceiling; the no-cross-product no-go stands unchanged — prompted by a zero re-find rate against recorded failures._
 
 - No fix lands on this branch, including the doctrine sentence; every fix is routed under D5, and a routed Errand
   runs off-work-unit.
@@ -227,6 +252,10 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 8. Every probe in the suite at close guards a cell or isolation case no other test covers, and every deleted probe's
    ledger row records the observation and the covering test; the measured tier cost at close reflects only the
    retained set.
+9. Every axis D10 names is either enumerated with a stated ceiling and probed to it, or closed with a recorded
+   reason it cannot be observed on this tree.
+10. No row recorded before the widening is edited to agree with a later observation; every changed observation
+    appends under D4's re-run rule.
 
 ## Open items
 

@@ -405,6 +405,11 @@ disposition, and retention disposition; every non-passing and ledger-only row re
 capture targeting an in-flight work unit, or a capture whose fate is Errand; the retained probe set is green and the
 refreshed baselines reflect only it.
 
+_Amended 2026-09-14 — Tasks 6.5 through 6.7 execute after Phase 7 rather than in file order. Retention decides
+which probes survive and the refreshed baselines must reflect only the retained set, so both would be redone once
+the second matrix lands, and the baseline is the measurement that is hardest to redo. Tasks 6.1 through 6.4 are
+unaffected and run in place._
+
 ### `[x]` **6.1 Resolve every ledger test name against the suite**
 
 - _Goal:_ Every cited test name resolves to a test that exists, closing the one divergence the record cannot detect
@@ -542,9 +547,68 @@ refreshed baselines reflect only it.
   source for the per-CI-job budget rows, so reading its elapsed figures and landing a second budget refresh belongs
   there too. Neither is optional: the criterion forbids leaving a CI budget summary standing.
 
-## **Phase 7:** Verification
+## **Phase 7:** Second matrix — the axes the failures actually move
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+_Purpose:_ Close the span gap the routing exposed. D3 enumerates boundary × base-movement kind, and the recorded
+failures move four other things, so the routed owners would otherwise inherit a caveat where they need coverage.
+
+_Mode:_ `replication` — closes when the enumerated axis surface is exhausted and batch-verified.
+
+_Ordering:_ runs after Task 6.4 and before Task 6.5, per the amendment on Phase 6.
+
+_Design decisions:_ The axes are derived from failures already on file, never imagined. D3's applicability rule
+applies unchanged, and an axis may close as unobservable on this tree rather than forcing a fixture. Rows recorded
+before the widening are never edited; a changed observation appends against the base it was seen on.
+
+_Exit criterion:_ Every cell the second matrix enumerates holds either a probe in the suite or a ledger row closed
+with its reason; no row recorded before the widening is edited; the full e2e and integration lanes run green with
+every pin in place.
+
+### `[ ]` **7.1 Derive the second matrix from the recorded failures**
+
+- _Goal:_ Each axis D10 names is enumerated against the boundaries, carries a stated ceiling, and resolves to a
+  go or no-go before any probe is written.
+
+- _Note:_ This is the task that was missing at Task 1.1, and it is a decision gate rather than preparation. An
+  axis that cannot be observed on this tree closes here with its reason. A combined ceiling above roughly
+  twenty-five cells is the signal to cut the phase rather than to proceed with it.
+
+    - Read the recorded failures themselves — the inbox captures, the steering map's incident notes, and the
+      four loci of the multi-base capture — and record what actually moved in each.
+    - Enumerate axis × boundary, apply the applicability rule, and state the surviving cell count per axis.
+    - Name the fixture each surviving axis needs, and which existing helper it composes from.
+
+### `[ ]` **7.2 Probe the head-movement axis**
+
+- _Goal:_ Observe what each reached boundary returns when a bound record's head moves under it, which is the
+  binding mismatch currently holding a shipped work unit's closeout open.
+
+### `[ ]` **7.3 Probe the history-shape axis**
+
+- _Goal:_ Observe what each reached boundary returns when merge-base cardinality is not one and overlap cannot be
+  classified at all.
+
+### `[ ]` **7.4 Probe the ceremony-concurrent-write axis**
+
+- _Goal:_ Observe what happens when a ceremony's own record writes move the head its preconditions were read
+  against, with no base movement involved.
+
+### `[ ]` **7.5 Probe the boundaries outside the enumerated six**
+
+- _Goal:_ Observe base movement at the delivery authoring and rematerialization surfaces, which read a base the
+  first matrix never named.
+
+### `[ ]` **7.6 Confirm the second matrix and re-close the ledger** — validate exit criterion at segment scope
+
+- _Goal:_ Every enumerated cell resolves to a probe or a closed row, no earlier row was edited, and both lanes run
+  green with every pin in place.
+
+    - Walk the second matrix against the ledger rather than the reverse, as at Task 5.4.
+    - Confirm every row recorded before the widening is byte-identical to what it was.
+
+## **Phase 8:** Verification
+
+### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The complete work unit is validated against its success criteria and the project's gates before
   integration, including the criteria only a pull request can settle and the routed owners only the mint can
@@ -570,6 +634,10 @@ refreshed baselines reflect only it.
   measured delta, and no CI test-budget summary is left standing
 - `[ ]` Every probe retained at close guards a cell or isolation case no other test covers, every deleted probe's
   ledger row records its observation and the covering test, and the measured tier cost reflects only the retained set
+- `[ ]` Every axis the second matrix names is either enumerated with a stated ceiling and probed to it, or closed
+  with a recorded reason it cannot be observed on this tree
+- `[ ]` No row recorded before the span widened is edited to agree with a later observation; every changed
+  observation appends against the base it was seen on
 - `[ ]` The e2e and integration lanes ran on the pull request, not only locally
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
