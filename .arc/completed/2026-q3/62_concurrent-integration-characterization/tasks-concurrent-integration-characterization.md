@@ -924,8 +924,10 @@ boundary too early. The criteria themselves are unchanged._
   classified light-weight, when reconciliation is deferred, and when the lane is not the reviewed one.
 
   _Settled at the integration boundary:_ read from the job list rather than the badge, as the deferral directed.
-  E2E ran as four shards and Integration as its own job on every pull-request run, with real elapsed times; the
-  change was not classified light-weight, so neither leg was skipped.
+  E2E ran as four shards and Integration as its own job on all three runs whose head carried the probes, with
+  real elapsed times and no light-weight classification. The final head is documentation-only, and its run
+  skips both legs under that same classifier rule — which is the distinction the deferral warned to read from
+  the job list rather than the badge.
 - `[x]` All quality gates pass (tests, linting, type checking)
 - `[x]` Ready for integration
 
