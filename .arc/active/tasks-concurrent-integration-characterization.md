@@ -271,22 +271,22 @@ base then advances, which is the deepest setup in the plan. Each task names its 
 integrate token pair for singleton landing, the multi-clone advance for closeout, the installed-state idiom for the
 delivery-member cells — and they share the cost of getting a repository that far rather than one file.
 
-### `[ ]` **4.1 Probe the member and singleton landing boundary**
+### `[x]` **4.1 Probe the member and singleton landing boundary**
 
 - _Goal:_ Landing carries an observation for every applicable movement kind, including the window between landing
   readiness and merge that nothing in the suite currently moves the base across.
 
-- _Shape:_ The window is the token pair: `arc integrate checkpoint` mints a handle and `arc integrate merge`
-  consumes it by exact value, so the advance lands between the two invocations.
-
-- _Note:_ Minting a real handle is this task's cost, and no existing fixture does it — the e2e references to these
-  verbs are outside-project refusals with a synthetic handle. The mint requires the phase's deep fixture plus a
-  fake host, because it reads a live change request and resolves a merge method before it will issue. Budget that
-  before the cells. Nothing yet establishes how this boundary behaves when the base moves under a minted handle:
-  the suite's "moved checkpoint head is refused" evidence belongs to `arc base merge`, a different verb with a
-  different handle contract.
-
-    - Cover every movement kind Task 1.1 left applicable, plus the control row, on the singleton shape.
+- _Outcome:_ The mint was the cost the task predicted, and it is paid: a work unit published to a live origin
+  with a stub host answering the reads landing makes, standing at its boundary with a real handle. Manual archive
+  cadence keeps the archive move out of the preconditions, which is orthogonal to the base — that gate sits behind
+  the base gate either way. All five cells observed. The merge window, which nothing in the suite moved a base
+  across before, invalidates on the verdict alone and its continuation does not return a handle: the same
+  invocation that minted one now reads a moved base and asks for a reconcile, so any movement during a landing
+  costs a reconcile, a fresh checkpoint, and a fresh approval — whatever the advance touched. The checkpoint
+  window does discriminate all three of its kinds. Two findings sit in the signalling rather than the decisions:
+  the one safe result is the only one carrying no remedy, and the substantive refusal's prose asks for a base
+  merge its own argv does not perform. The rows are in
+  `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **4.2 Probe the post-landing closeout boundary**
 

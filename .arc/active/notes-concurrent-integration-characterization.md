@@ -633,39 +633,82 @@ unit's close, not at seed time.
 **Member / singleton landing · control · singleton**
 
 - _Intent:_ Ceremony baseline across a clean checkpoint-to-merge span.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "merges the approved head when the base holds still"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `ready / request-approval`, then `merged`. The clean span costs one approval stop and lands.
+- _Invocations:_ 2 — the checkpoint and the merge · _Stops:_ 1 — `request-approval`, the integration
+  interlock · _Fork:_ recommendation-bearing · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this
+  row's finding is its count · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  `request-approval` is an approval stop by the convention's own test and is absent from the enumerated
+  list, which was written before any landing run existed. The list is illustrative; the test is whether the
+  next action requires operator direction, and merge authority always does.
 
 **Member / singleton landing · `disjoint` · singleton**
 
 - _Intent:_ Advance the base between landing readiness and merge — the span nothing in the suite moves; expect
   the settled merge invalidated on the verdict alone.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "invalidates the handle when the base advances under it"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `invalidated / drift-reconcile`, payload `{ verdict: "reconcile" }` — the verdict alone, with no overlap
+  partition, exactly as the merge window's seam read predicted.
+- _Invocations:_ 3 — checkpoint, merge, and the checkpoint the refusal names · _Stops:_ 3 —
+  `request-approval`, the invalidation, then `reconcile / reconcile-base` · _Fork:_ recommendation-bearing ·
+  _Continuation:_ `did-not-clear`
+- _Classification:_ `mechanical block` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  Excess over the control row is one invocation and two stops. The continuation does not return a handle:
+  the same invocation that minted one before now reads a moved base and asks for a reconcile first, so a
+  landing interrupted by any base movement costs a reconcile, a fresh checkpoint, and a fresh approval.
+  The advance shared no path with the branch, and the window discards that fact before it is consulted.
 
 **Member / singleton landing · `overlapping-substantive` · singleton**
 
 - _Intent:_ Advance over paths the branch also touched; expect the checkpoint to refuse as an unsafe reconcile.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "refuses an advance over a reviewable path the branch also changed"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `blocked / unsafe-reconcile`, naming the shared path in `substantivePaths` with `safe: false`.
+- _Invocations:_ 2 — the checkpoint and the one its remedy names · _Stops:_ 2 — the same refusal twice ·
+  _Fork:_ recommendation-bearing · _Continuation:_ `did-not-clear`
+- _Classification:_ `mechanical block` under the convention, though the refusal itself is correct ·
+  _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The refusal is right: a reviewable path changed on both sides is exactly what should stop a merge. What
+  the probe records is the gap between the remedy's prose and its argv — the text asks for an append-only
+  base merge, the argv only re-runs the checkpoint, and following the argv exactly returns the same
+  refusal. The convention reserves `fail-closed, correct` for a continuation the probe exercised and that
+  cleared, and this one cannot clear without a step the result does not carry.
 
 **Member / singleton landing · `overlapping-regenerable-only` · singleton**
 
 - _Intent:_ Advance over the regenerable projection only; expect the checkpoint to stay safe and report the
   partition, proving regenerable overlap does not block.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "offers a reconcile for an advance over the regenerable projection alone"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base`, `substantivePaths` empty and the projection in `regenerablePaths`, `safe: true`.
+- _Invocations:_ 1 — the checkpoint · _Stops:_ 1 — `reconcile-base` · _Fork:_ **bare**, the only result at
+  this boundary carrying no remedy at all · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The partition works: regenerable overlap does not block, and the register says so in plain terms. The
+  finding is the fork — the one result here that is safe to act on is the only one that names a next action
+  without an invocation to reach it, while every refusal carries one.
 
 **Member / singleton landing · `unknown` · singleton**
 
 - _Intent:_ Sever the checkpoint's base fetch; expect a distinct drift-unavailable refusal rather than a reconcile.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "refuses when the base read goes unavailable under it"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `blocked / drift-unavailable` — distinct from every reconcile arm, as the seam read predicted.
+- _Invocations:_ 2 — the checkpoint and the reading its remedy names · _Stops:_ 1 — the refusal ·
+  _Fork:_ recommendation-bearing · _Continuation:_ `cleared`
+- _Classification:_ `fail-closed, correct` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The continuation is a base reading rather than another checkpoint, and with the base read restored it
+  reports a clean base. The refusal clears in one recommended step, which makes this friction rather than a
+  freeze — though the step lands the reader on a drift report and leaves the return to the checkpoint to
+  them.
 
 **Post-landing closeout · control · singleton**
 
