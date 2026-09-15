@@ -684,10 +684,47 @@ every pin in place.
           Each closure names the capture that owns it and records that the composition the cell lacks is the one
           that fix requires anyway, so coverage travels with the fix rather than ending at the closure.
 
-### `[ ]` **7.5 Probe the boundaries outside the enumerated six**
+### `[x]` **7.5 Probe the boundaries outside the enumerated six**
 
 - _Goal:_ Observe base movement at the delivery authoring and rematerialization surfaces, which read a base the
   first matrix never named.
+
+    - `[x]` **7.5.a Probe the two windows a base can advance inside**
+
+        - Both observed against controls on one arrangement. Eligibility proves its whole window intact and then
+          discards it: gate results, plan, lifecycle paths, per-member contribution, predecessor relation and
+          normalized completeness all pass against the prepared snapshot, and only then does the close re-observe
+          the refs that snapshot named. A base advance on a path no member touches refuses `source-moved` and
+          directs a fresh preparation, which means a fresh Tier 2 run per member; the result names that remedy
+          with its complete argument set but not its price. A third case establishes the gates are not what is
+          refused, the gateless mechanical close returning a result identical to the publication close that
+          validated two passing ones. Materialization is recorded without a pin, deliberately: its owning capture
+          leaves open whether an in-call recheck or a later review gate is the right authority and forbids
+          treating either outcome as implicit, so the probe supplies the fact that decision needs instead. The tip
+          observation exists and is reachable — a first pass over the same advance refuses on it — but it lives
+          inside the branch that binds the target, so a bound chain republishes identically whether or not the
+          base moved and never observes the base ref at all. Rows are in
+          `notes-concurrent-integration-characterization.md`.
+
+    - `[x]` **7.5.b Probe the three surfaces a moved base makes unrebuildable**
+
+        - All three observed, and one of them found a collapse the enumeration did not predict. Authoring admits
+          a chain recut on the moved base and then refuses it at close: preparation validates chaining, ancestry,
+          emptiness and lifecycle contribution while holding every coordinate the completeness comparison needs,
+          and compares none of them against the top, so `prepared` sends a full Tier 2 cycle after a fact it
+          already had. Its control is the field's own successful path, the same advance with the chain left on the
+          top's base closing `eligible`, and a second case records that the reason follows what the base change
+          touched — an added path returns `completeness-invented` for the identical mistake. Rematerialization
+          returns the byte-identical refusal for the opposite condition, and a third case proves the equality
+          rather than leaving it to be noticed: at authoring the members are ahead of the top and the remedy is to
+          recut, at rematerialization the top is ahead of the members and the remedy is to rebuild the suffix, and
+          one reason code carries neither direction nor remedy. Post-land settlement was read from source before
+          it was probed, which corrected the field's account: the conflict composes from the pinned predecessor,
+          the pinned member and the landed predecessor, so the resolved member head cannot affect it, and the
+          probe shows resolving the named path returns the identical refusal. That refusal is correct; the defect
+          is the guidance one layer up directing a remedy this proves cannot clear it, recorded with its locus and
+          routed rather than probed, since reaching it needs scaffolding no fixture composes. Rows are in
+          `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **7.6 Confirm the second matrix and re-close the ledger** — validate exit criterion at segment scope
 

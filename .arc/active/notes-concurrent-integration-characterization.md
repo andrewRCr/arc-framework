@@ -1559,6 +1559,87 @@ invocation and one stop unless the row says otherwise.
   D7 is not violated by this. It requires a tip proof before the initial chain-base record, and that proof is the
   first pass, which takes it. What the second pass writes is member refs.
 
+**Delivery authoring · base movement, disjoint · delivery-member**
+
+- _Intent:_ Closing a chain recut on a base that advanced after the originating top was cut; expect the mismatch
+  named before a gate cycle is spent on it.
+- _Probe:_ `delivery-rebuild-base-movement.test.ts` — "admits a chain recut on the moved base, then refuses it
+  after the gates would have run" · _Base OID:_ `cbf075da7` · _Observed:_ preparation returns `prepared`, and the
+  close then refuses `completeness-mismatched`. The control is the field's own successful path: the same base
+  advance with the chain left on the top's base closes `eligible`.
+- _Invocations:_ 2 · _Stops:_ 1 · _Fork:_ bare — the refusal carries neither remedy nor next action ·
+  _Continuation:_ `none-offered` by the result; the control shows a recut on the top's base clears, which the
+  refusal never names
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-rebuild-continuity`, whose authoring capture records
+  this exact field sequence · _Fix at close:_ routed · _Retention at close:_ —
+
+  Where the refusal lands is the finding, not that it refuses. Preparation validates member chaining, ancestry,
+  emptiness and lifecycle contribution, and it holds every coordinate the completeness comparison needs — the
+  originating top, the recut final candidate, and both base trees. It compares none of them against the top.
+  `prepared` is the signal to go run Tier 2 per member, so the close rejects on a fact preparation already had.
+  That is the preflight the owning capture asks for, stated from the other side.
+
+  A second case records something the field record could not: the reason follows what the base change touched,
+  not what the operator did. The same recut after a base advance that adds a path returns `completeness-invented`
+  rather than `completeness-mismatched`, because production takes dropped, then invented, then mismatched in that
+  order. An adopter meeting this once has no reason to expect the same reason twice.
+
+**Rematerialization · base movement, under a bound plan · delivery-member**
+
+- _Intent:_ Dispatching rematerialization against private candidates after an authorized correction landed on the
+  top locus; expect a result naming the rebuild the correction owes.
+- _Probe:_ `delivery-rebuild-base-movement.test.ts` — "refuses the unchanged private candidates once the
+  correction lands on the top" · _Base OID:_ `cbf075da7` · _Observed:_ `refused`, reason
+  `completeness-mismatched`. The control is the same dispatch before the correction, which closes `eligible`.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered` — the suffix rebuild the result
+  requires has no verb, which is the capture's own observation
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-rebuild-continuity`, through its bound-correction
+  capture · _Fix at close:_ routed · _Retention at close:_ —
+
+  **This cell's typed result is identical to the authoring cell's, and a third case proves it** rather than
+  leaving it to be noticed later: the two refusals compare equal, both being exactly
+  `{ status: "refused", reason: "completeness-mismatched" }` with no further fields. The enumeration predicted
+  five distinct seams and no closures on this axis; on the typed result these two are one. Recorded here as the
+  observation rather than by editing that prediction.
+
+  The collapse is worth more than either cell alone, because the two conditions are opposites. At authoring the
+  members are ahead of the top and the remedy is to recut on the top's base — proven by this row's own control.
+  At rematerialization the top is ahead of the members and the remedy is to rebuild the suffix from the corrected
+  top. One reason code covers both, carries no direction, and names neither remedy, while the owner is building
+  one rebuild primitive that has to serve both.
+
+**Post-land settlement · base movement, under a pinned pre-landing replay · delivery-member**
+
+- _Intent:_ Replaying a pinned pre-landing contribution onto a landed predecessor, then resolving what it names;
+  expect the resolution to reach the result.
+- _Probe:_ `delivery-rebuild-base-movement.test.ts` — "returns the identical refusal after the operator resolves
+  the conflicted path" · _Base OID:_ `cbf075da7` · _Observed:_ `contribution-conflicted` naming the path, and the
+  byte-identical refusal again once the operator has resolved that path onto the landed predecessor. The control
+  is the unresolved replay in the same run, which the resolved one compares equal to.
+- _Invocations:_ 2 · _Stops:_ 2 · _Fork:_ recommendation-bearing at the settlement above it, which directs
+  resolving the listed paths and rerunning `arc delivery native land-status` · _Continuation:_ `did-not-clear`,
+  and the probe proves it cannot: the directed action is not an input to the outcome
+- _Classification:_ `fail-closed, correct` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed · _Retention at close:_ —
+
+  The mechanism is read from source and then observed. The conflict is composed from three coordinates — the
+  pinned predecessor as merge base, the pinned member, and the observed landed predecessor. The resolved member
+  head is consulted only after composition succeeds, so it cannot affect a composition that conflicts. Resolving
+  the listed path therefore changes nothing, which is the probe's result.
+
+  This sharpens the field record rather than repeating it. That record attributes the dead end to an external
+  stack rebase being unable to change the pinned replay; the pinned side is only half of it. The replay's other
+  endpoint does follow the operator, and it still cannot help, because the conflict is decided before that
+  endpoint is read at all.
+
+  The refusal itself is correct — a hand-resolved suffix is not a mechanical reapply and the proof is right not
+  to call it one. What is wrong is one layer up, at `native-landing.ts`, where the settlement wraps this result in
+  guidance directing the operator to resolve and rerun. That text names a remedy this row proves cannot clear it.
+  Reaching that seam needs a three-member plan, host request observations and a before/landed state pair that no
+  fixture composes, so the guidance defect is recorded here with its locus and routed rather than probed; the
+  owning capture already requires covering conflicting and clean suffixes with Git-backed and handler-level tests,
+  so the coverage travels with the fix.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:
