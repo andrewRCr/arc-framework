@@ -379,14 +379,17 @@ probe uses a skip, todo, or expected-failure marker.
   than unreadable. The guard itself is one precondition deep, and the probe establishes that precondition
   positively rather than assuming it. Rows are in `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **5.4 Confirm matrix coverage across all three shapes** — validate exit criterion at segment scope
+### `[x]` **5.4 Confirm matrix coverage across all three shapes** — validate exit criterion at segment scope
 
 - _Goal:_ Every enumerated cell resolves to a probe in the suite or a closed not-applicable row, and both lanes run
   green with every pin in place.
 
-    - Walk the matrix against the ledger rather than the reverse; an absent probe with no closed row is the failure
-      this walk exists to catch.
-    - Confirm no probe uses a skip, todo, or expected-failure marker.
+- _Outcome:_ The segment's exit criterion holds on all four clauses. Walked from the matrix rather than the ledger,
+  all forty enumerated cells resolve — twenty-four to a probe row whose named test resolves in the suite, sixteen to
+  a closed row — with nothing uncovered, nothing double-booked, and no row claiming a cell the matrix does not
+  enumerate. Each of the fourteen collapses names an open row that will actually be observed, and the two
+  unproducible closures rest on the seam fact rather than a deferral. No probe carries a skip, todo, or
+  expected-failure marker, and both lanes are green with the suite's one live pin in place.
 
 ## **Phase 6:** Ledger close-out
 
