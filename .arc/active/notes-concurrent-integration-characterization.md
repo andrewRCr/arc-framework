@@ -492,6 +492,12 @@ counting rules below only have to be consistent — an inconsistent one makes th
 suite and appends a row per changed observation; an existing row is never edited to match a later run. A row whose
 observation is unchanged by the merge is not re-appended.
 
+**A citation addresses exactly one collected test.** A row names its probe by the title the runner collects it
+under — the enclosing describe path plus the test's own title. The title alone stands while it is unique within
+its file; where two tests share one, the row carries the describe path as well, so no row resolves to a pair. A
+continuation exercised in a test of its own is named the same way, so its verdict rests on a resolvable test
+rather than on prose.
+
 **`disjoint` means no intersection at all.** The shipped classifier drops evidence-neutral paths from the overlap
 entirely, so an advance touching only a work unit's own artifacts, its candidate record, or its submission
 boundary reports the same empty overlap as one touching nothing the branch touched. Record the second case as
@@ -620,7 +626,8 @@ unit's close, not at seed time.
   comes from the containment fact alone, as the seam read predicted.
 - _Invocations:_ 2 — the status resolve, plus the checkpoint the stop names · _Stops:_ 2 — `rerun-checkpoint`,
   then the checkpoint's own `stop` · _Fork:_ bare at the stop, which names an action but carries no argv; the
-  continuation's refusal is recommendation-bearing · _Continuation:_ `did-not-clear`
+  continuation's refusal is recommendation-bearing · _Continuation:_ `did-not-clear`, taken in "does not clear
+  the stop after an advance sharing no path with the branch"
 - _Classification:_ `mechanical block` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
 
   The continuation refuses with `blocked / unsafe-reconcile` while reporting an empty overlap and a mergeable
@@ -708,9 +715,10 @@ unit's close, not at seed time.
 
 - _Intent:_ Advance over the regenerable projection only; expect the checkpoint to stay safe and report the
   partition, proving regenerable overlap does not block.
-- _Probe:_ `integrate-base-movement.e2e.test.ts` — "offers a reconcile for an advance over the regenerable projection alone"
-  · _Base OID:_ `4f6b11568` ·
-  _Observed:_ `reconcile / reconcile-base`, `substantivePaths` empty and the projection in `regenerablePaths`, `safe: true`.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's own base read > offers a reconcile for an
+  advance over the regenerable projection alone" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base`, `substantivePaths` empty and the projection in `regenerablePaths`,
+  `safe: true`.
 - _Invocations:_ 1 — the checkpoint · _Stops:_ 1 — `reconcile-base` · _Fork:_ **bare**, the only result at
   this boundary carrying no remedy at all · _Continuation:_ `none-offered`
 - _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
@@ -867,8 +875,8 @@ unit's close, not at seed time.
 
 - _Intent:_ Advance over the regenerable projection under a bound member; expect the partition to reach the member
   payload.
-- _Probe:_ `integrate-base-movement.e2e.test.ts` — "offers a reconcile for an advance over the regenerable
-  projection alone" · _Base OID:_ `4f6b11568` ·
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan >
+  offers a reconcile for an advance over the regenerable projection alone" · _Base OID:_ `4f6b11568` ·
   _Observed:_ `reconcile / reconcile-base`, the projection in `regenerablePaths`, `safe: true`, register `calm` —
   identical to the singleton row.
 - _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`

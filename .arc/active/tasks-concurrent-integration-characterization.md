@@ -405,13 +405,17 @@ disposition, and retention disposition; every non-passing and ledger-only row re
 capture targeting an in-flight work unit, or a capture whose fate is Errand; the retained probe set is green and the
 refreshed baselines reflect only it.
 
-### `[ ]` **6.1 Resolve every ledger test name against the suite**
+### `[x]` **6.1 Resolve every ledger test name against the suite**
 
 - _Goal:_ Every cited test name resolves to a test that exists, closing the one divergence the record cannot detect
   on its own — the tests cite nothing back, so a renamed probe silently orphans its row.
 
-    - Enumerate the suite's test names with the runner's list mode and compare the two sets, rather than reading
-      forty rows against the files by hand.
+- _Outcome:_ Compared against the runner's collected set rather than the files. Every cited name resolves, and now
+  to exactly one test: a leaf title alone does not address one, and two rows had cited the same sentence while
+  meaning different tests — the singleton checkpoint's and the bound delivery plan's — so both now carry their
+  describe path, under a convention requiring one. The public-review continuation lives in a test of its own that
+  no row named; it is now cited the same way rather than left resting on prose. Accounting closes both ways: of
+  fifty-one tests added, twenty-five are cited and twenty-six are the helpers' own.
 
 ### `[ ]` **6.2 Classify every ledger row and record its recommendation and continuation columns**
 
