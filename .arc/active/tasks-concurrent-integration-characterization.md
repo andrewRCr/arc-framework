@@ -434,23 +434,10 @@ unaffected and run in place._
   raw difference reads low for the wrong reason: eight of fourteen movement rows never did. Six stops are bare,
   four of them the same `reconcile-base` — the safe results are the bare ones while every refusal carries a remedy.
 
-### `[ ]` **6.3 Route every row that needs an owner**
+### `[x]` **6.3 Route every row that needs an owner**
 
 - _Goal:_ Every non-passing row and every ledger-only row resolves to exactly one owner, and the steering map
   reflects the resulting shape of the stabilization runway.
-
-- _Approach:_ Existing owner first; then an Errand where the fix is one verb arm plus a pin retirement; then a new
-  stub only for an unowned, spec-worthy mechanism, consolidated by mechanism rather than by boundary. A ledger-only
-  row is neither passing nor failing and still needs an owner: an uncovered completion path and a prose-only gate
-  each carry a recorded fix, so each carries an owner too.
-
-- _Approach:_ Urgency outranks conceptual fit. An urgent or blocking row goes to a near-term candidate or an Errand
-  even where a later work unit would house it more tidily — a downstream owner that will not land for several work
-  units relieves no bottleneck, so it is a fit rather than an owner for that row.
-
-- _Note:_ The minting evidence is untracked — `backlog/` stubs live on the base branch and captures are gitignored —
-  so the mint runs at the verification boundary rather than as work on this branch. What lands here is the ledger's
-  owner and fix-disposition columns.
 
     - `[x]` **6.3.a Resolve each named target against live work-unit state**
 
@@ -489,14 +476,23 @@ unaffected and run in place._
           recommendations, and the span caveat, and absorbs its routed captures in full — six moved out of the
           personal inbox and removed from it, so each draft is the single authoritative source for its concern.
           Three Errand captures cover the routed rows and the approval-gate capture gained the six bare stops as
-          field evidence. Two criteria need a disposition at
-          verification rather than here: two of the four target slugs do not exist by name, and stubs minted beyond
-          the four number zero rather than one or two.
+          field evidence. Two criteria need a disposition at verification rather than here: two of the four target
+          slugs do not exist by name, and stubs minted beyond the four number zero rather than one or two.
 
-    - `[ ]` **6.3.f Refresh `RELEASE-GATES.md` alongside the mint**
+    - `[x]` **6.3.f Refresh `RELEASE-GATES.md` alongside the mint**
 
-        - Bring the stabilization runway and the Errand runway into agreement with the routed ledger, so the map
-          stops naming captures that are now stubs.
+        - The stabilization runway is three work units rather than four and all three are stubs, so the map no
+          longer names captures as targets. The integration runway records that the blocking work unit shipped and
+          why its closeout is still open; a resumption order records that only two things are actually gated on the
+          runway, so the rest resumes in parallel rather than waiting; and the Errand runway leads with the live
+          blocker and carries the three routed out of the ledger.
+
+- _Outcome:_ The routing's own finding outweighed the routing. No ledger row resolves to either stabilization
+  target: the post-execution tail largely tolerates base movement, and what remains is signalling defects plus one
+  doctrine gap. Following that through, the matrix re-finds none of the failures already recorded — they move a
+  bound record's head, the shape of the history, or a ceremony's own writes rather than the base — which is what
+  prompted widening the span here rather than sending each routed owner hunting. The runway came out at three work
+  units instead of four, two owners stay open by design, and the mint ran on this branch under a forward amendment.
 
 ### `[ ]` **6.4 Retire every pin whose target has been met**
 
