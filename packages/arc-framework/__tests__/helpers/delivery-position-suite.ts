@@ -4720,5 +4720,67 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       target: { status: "observed" },
     });
   });
+
+  it("opens a session over a terminal top that advanced by an append-only commit", async () => {
+    const orient = async (scenario?: ActiveOperationScenario): Promise<HandlerRunResult> => {
+      const fixture = await positionFixture(scenario);
+      const workUnitId = fixture.plan.workUnitId;
+      const branch = `feat/${workUnitId}`;
+      await git(fixture.repository, ["switch", "-c", branch]);
+      await git(fixture.repository, ["push", "-u", "origin", branch]);
+      const activeDir = join(fixture.repository, ".arc", "active");
+      await mkdir(activeDir, { recursive: true });
+      await writeFile(join(activeDir, `tasks-${workUnitId}.md`), [
+        `# Task List: ${workUnitId}`,
+        "",
+        renderDeliveryPlanSection(fixture.plan),
+        "## **Phase 1:** Members",
+        "",
+        "### `[x]` **1.1 Close member one**",
+        "",
+      ].join("\n"));
+      await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
+        `# Metadata: ${workUnitId}`,
+        "",
+        "- **State:** Integrating",
+        "- **Owner:** test-user",
+        `- **Branch:** ${branch}`,
+        `- **Task List:** tasks-${workUnitId}.md`,
+        "- **Candidate:** [none]",
+        "- **Current Workflow:** `integrate-work-unit`",
+        "- **Last Completed:** Task 1.1 — Close member one",
+        "- **Next Task:** [none]",
+        "- **Next Action:** Resume hosted review",
+        "",
+      ].join("\n"));
+      await git(fixture.repository, ["add", "-A"]);
+      await git(fixture.repository, ["commit", "--no-verify", "-m", "orientation fixture"]);
+      return await runArc(["status", "--session-init", "--json"], fixture.repository, {
+        env: fixture.env,
+      });
+    };
+
+    const advanced = await orient("terminal-authoring");
+    const held = await orient();
+
+    const position = (result: HandlerRunResult): unknown => {
+      expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+      return (JSON.parse(result.stdout) as { deliveryPosition: unknown }).deliveryPosition;
+    };
+    expect(position(held)).toMatchObject({
+      ok: true,
+      value: { workUnitId: "delivery-plan-record", landedCount: 0, totalCount: 3, activeOperation: null },
+    });
+    expectPinnedObservation(position(advanced), {
+      behavior:
+        "A terminal top that advanced by an append-only commit leaves the bound chain exact, so a session " +
+        "opening over it should report the same delivery position it reports with the top held still.",
+      observed: {
+        ok: false,
+        error: { kind: "runtime", message: "Delivery position is unavailable: observation-unavailable." },
+      },
+      target: { ok: true },
+    });
+  });
   });
 }

@@ -582,7 +582,7 @@ every pin in place.
   carries by forward amendment. Enumeration in `notes-concurrent-integration-characterization.md`
   § Second matrix.
 
-### `[ ]` **7.2 Probe the head-movement axis**
+### `[x]` **7.2 Probe the head-movement axis**
 
 - _Goal:_ Observe what each reached boundary returns when a bound record's head moves under it, which is the
   binding mismatch currently holding a shipped work unit's closeout open.
@@ -599,16 +599,18 @@ every pin in place.
           fact rather than admitting it, so the gap is a route from fact to resumption. Rows are in
           `notes-concurrent-integration-characterization.md`.
 
-    - `[ ]` **7.2.b Probe the session-init posture and the Frontline-result binding**
+    - `[x]` **7.2.b Probe the session-init posture and the Frontline-result binding**
 
-        - The two cells whose fixtures differ in kind from the three above. Session-init needs the active meta and
-          task-list scaffold its sibling cases install before an advanced-versus-held comparison reads the movement
-          rather than the fixture — a first attempt without it observed nothing, and its control observed the same
-          nothing. Its asymmetry is the lead: the position verb passes an observation mode and session-init passes
-          none, so the exact posture is the default for one consumer of the derivation and opted out of by the
-          other. The Frontline-result cell drives a response at one head and a second after rerouting selects the
-          member's new exact head, and is the one cell on this axis whose lane was left unestablished when the
-          axis was declared a go.
+        - Both cells resolved: one observed, one closed. Session-init's delivery orientation reads `ok: false`
+          with "Delivery position is unavailable: observation-unavailable" over an append-only terminal advance,
+          against a control on the same scaffold that carries the position line — the session still exits zero, so
+          what is lost is one field and a message naming no cause a reader can act on. The asymmetry is the fix's
+          shape: this derivation takes an observation mode whose values admit exactly this movement, and its two
+          consumers disagree, the position verb passing one and session-init passing none. The Frontline-result
+          cell closes unproducible, its mechanism recorded in place of the observation: the advice is a projection
+          over the current outcome and its dispositions with no history input, while the approved dispositions are
+          durable and enumerable — so the loss is not storage but the absence of any read from it when the target
+          moves. Rows are in `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **7.3 Probe the history-shape axis**
 

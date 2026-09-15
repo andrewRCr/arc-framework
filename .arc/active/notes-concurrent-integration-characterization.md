@@ -1266,33 +1266,37 @@ invocation and one stop unless the row says otherwise.
 
 - _Intent:_ A session opening over a terminal top that advanced append-only; expect it to orient into the delivery
   position the chain is actually in.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ the execute-bound capture for append-only terminal movement in session-init
-  position · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `delivery-position.test.ts` — "opens a session over a terminal top that advanced by an append-only
+  commit" · _Base OID:_ `cbf075da7` · _Observed:_ the envelope's delivery position reads `ok: false` with a
+  runtime error, "Delivery position is unavailable: observation-unavailable." The control — the same scaffold over
+  the same plan with the top held still — reads `ok: true` and carries the position itself.
+- _Invocations:_ 1 · _Stops:_ 0 — the session still exits zero and loads its context · _Fork:_ bare ·
+  _Continuation:_ `none-offered`
+- _Classification:_ `mechanical block` · _Owner:_ the execute-bound capture for append-only terminal movement in
+  session-init position · _Fix at close:_ routed · _Retention at close:_ —
 
-  Open, and the reason is worth keeping. A first attempt read the session envelope's work-unit stage over the
-  advanced fixture and found nothing, which looked like the recorded failure; the control returned exactly the
-  same nothing over an unadvanced one. The fixture never installs an active meta, so the session never reaches
-  delivery orientation and the reading was of the fixture rather than the movement. Observing this cell needs the
-  meta and task-list scaffold the other session-init cases in that suite install, then the same two-fixture
-  comparison. The two consumers of this derivation are worth naming: the position verb passes an observation mode
-  and this one passes none, so session-init runs in the exact posture while its only sibling opts out of it.
+  The session does not fail; it loses one orientation field and says so in a message naming no cause a reader can
+  act on. The asymmetry behind it is the fix's shape: this derivation takes an observation mode, five of whose
+  values admit append-only terminal movement, and its two consumers disagree — the position verb passes one and
+  session-init passes none, so the strictest posture is the default for the surface that only reads.
 
-**Candidate / prepublication · head movement · Frontline-result binding**
+**Candidate / prepublication · head movement · Frontline-result binding** — closed, unproducible
 
-- _Intent:_ A no-material follow-up result produced at one head, then read after rerouting selects the member's
-  new exact head; expect the typed result to survive the transition or not to be offered at all.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ the capture holding this as an Errand with its own re-triage note ·
-  _Fix at close:_ — · _Retention at close:_ —
+- _Intent:_ A no-material follow-up result produced at one head, then read after rerouting selects the member's new
+  exact head; expect the typed result to survive the transition or not to be offered at all.
+- _Closure:_ unproducible here. Observing the loss at a boundary needs the delivery reroute path and the frontline
+  review path composed in one tree, which the suite has no fixture for; D10 admits closing rather than forcing one.
+  What replaces the observation is the mechanism, read from source so the owner does not re-derive it.
+- _Owner:_ the capture holding this as an Errand with its own re-triage note · _Fix at close:_ routed ·
+  _Retention at close:_ not applicable — no probe
 
-  Open. The advice is projected into the response envelope at the respond and reduce composition seams, and the
-  loss happens at the transition between them rather than inside either, so the probe has to drive a response at
-  one head and a second at the rerouted head. Whether that reaches the integration lane or needs the end-to-end
-  review-protocol surface is unsettled, and it is the one cell on this axis whose lane was not established when
-  the axis was declared a go.
+  The result is a **projection, not a record**. The advice function takes the current outcome and its approved
+  dispositions and nothing else, so no prior pass at a different target has any input by which to reach it — its
+  own contract says it creates no durable chain. The approved dispositions, by contrast, _are_ durable and
+  enumerable, keyed by operation in the review-gate evidence namespace. So the loss is not storage: it is that
+  nothing reads that store when the target moves. That distinction is the whole of the routed decision — whether
+  to bind and preserve the typed continuation across the transition, or to stop emitting a signal no caller can
+  act on — and it is settled without a probe.
 
 ### Not-applicable rows
 
