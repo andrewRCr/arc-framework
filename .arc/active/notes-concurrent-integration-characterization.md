@@ -1197,6 +1197,103 @@ pull request that reports itself merged once merged. Both control rows failed on
 is the signal that separated a stale fixture from a changed boundary: no movement row's observation was recorded
 until its own control read green again.
 
+### Second-matrix probe rows — base `cbf075da7`
+
+Rows for the cells § Second matrix enumerates. They carry the same shape as every row above with three readings
+fixed here rather than repeated per row: the movement-kind column carries the **axis**, the base OID is the base
+the run was seen on, and **excess reads against the matrix-1 control row at the same boundary**, since these cells
+move something other than the base and the ceremony baseline is unchanged by that. A refusal observed here is one
+invocation and one stop unless the row says otherwise.
+
+**Public review · head movement, append-only · delivery-member**
+
+- _Intent:_ Readiness against a member whose branch advanced past the head its delivery record binds; expect the
+  advance recognized rather than reported as nothing bound.
+- _Probe:_ `review-readiness-delivery-binding.test.ts` — "admits a member whose head advanced without changing its
+  contribution" · _Base OID:_ `cbf075da7` · _Observed:_ `invalid`, diagnostic `delivery-member-unbound`; no
+  remedy. The probe asserts directly that this is the same result the same handler returns over a repository
+  carrying no delivery state at all — the comparison is head equality and reads no ancestry, so a binding that is
+  stale and one that is absent are indistinguishable at this boundary.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed to that target, whose draft already records this locus · _Retention at close:_ —
+
+**Post-landing closeout · control, head held · delivery-member**
+
+- _Intent:_ Ceremony baseline: the same closeout with the host reporting the terminal merged at the exact head the
+  record binds.
+- _Probe:_ `delivery-binding-head-movement.test.ts` — "settles a terminal the host merged at the exact head it
+  binds" · _Base OID:_ `cbf075da7` · _Observed:_ `closed-out`; no reason, no remedy.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — its finding is its count · _Owner:_ not applicable · _Fix at close:_ none
+  — baseline count · _Retention at close:_ —
+
+  Recorded because the movement row below is unreadable without it. The first run of this fixture blocked on an
+  invalid Git common directory, which would have read as the movement's own refusal had the control not failed
+  first.
+
+**Post-landing closeout · head movement, append-only · delivery-member**
+
+- _Intent:_ Closeout against a terminal the host merged at a descendant of the bound head; expect the landed
+  contribution retired rather than the terminal reported unsettled.
+- _Probe:_ `delivery-binding-head-movement.test.ts` — "retires a terminal the host merged at a descendant of the
+  head it binds" · _Base OID:_ `cbf075da7` · _Observed:_ `blocked`, reason `terminal-unsettled`, remedy: resolve
+  the reported state and rerun the closeout with the same work-unit, repository, and remote inputs.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `did-not-clear` — the remedy names a rerun over
+  the same three inputs, none of which reaches the binding the comparison actually reads.
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; this is the fourth locus that target's draft records, reproduced here against a synthetic host ·
+  _Retention at close:_ —
+
+**Landing · head movement, append-only · delivery-member**
+
+- _Intent:_ Position over a terminal top that advanced by an append-only commit; expect the bound chain resumed.
+- _Probe:_ `delivery-position.test.ts` — "resumes the bound chain at a terminal top that advanced by an
+  append-only commit" · _Base OID:_ `cbf075da7` · _Observed:_ `refused`, reason `review-fix-routing-required`,
+  remedy: plan a review fix.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ recommendation-bearing — the refusal names its next action ·
+  _Continuation:_ `did-not-clear` for the caller this failure was recorded from: the correction driver reads this
+  refusal as no position at all and stops before its own terminal-rebind path.
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-correction-convergence` · _Fix at close:_ routed ·
+  _Retention at close:_ —
+
+  The recognition mechanism is already built, which narrows the fix considerably. Five observation modes pass
+  `terminalAuthoringMovement: allow-append-only`, and this verb is one of them — the allowance makes the movement
+  an observable **fact** rather than admitting it, and the verb then refuses on that fact's presence. What is
+  missing is a route from the fact to resumption, not the ability to see the movement.
+
+**Session-init · head movement, append-only · delivery-member**
+
+- _Intent:_ A session opening over a terminal top that advanced append-only; expect it to orient into the delivery
+  position the chain is actually in.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ the execute-bound capture for append-only terminal movement in session-init
+  position · _Fix at close:_ — · _Retention at close:_ —
+
+  Open, and the reason is worth keeping. A first attempt read the session envelope's work-unit stage over the
+  advanced fixture and found nothing, which looked like the recorded failure; the control returned exactly the
+  same nothing over an unadvanced one. The fixture never installs an active meta, so the session never reaches
+  delivery orientation and the reading was of the fixture rather than the movement. Observing this cell needs the
+  meta and task-list scaffold the other session-init cases in that suite install, then the same two-fixture
+  comparison. The two consumers of this derivation are worth naming: the position verb passes an observation mode
+  and this one passes none, so session-init runs in the exact posture while its only sibling opts out of it.
+
+**Candidate / prepublication · head movement · Frontline-result binding**
+
+- _Intent:_ A no-material follow-up result produced at one head, then read after rerouting selects the member's
+  new exact head; expect the typed result to survive the transition or not to be offered at all.
+- _Probe:_ — · _Base OID:_ — · _Observed:_ —
+- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
+- _Classification:_ — · _Owner:_ the capture holding this as an Errand with its own re-triage note ·
+  _Fix at close:_ — · _Retention at close:_ —
+
+  Open. The advice is projected into the response envelope at the respond and reduce composition seams, and the
+  loss happens at the transition between them rather than inside either, so the probe has to drive a response at
+  one head and a second at the rerouted head. Whether that reaches the integration lane or needs the end-to-end
+  review-protocol surface is unsettled, and it is the one cell on this axis whose lane was not established when
+  the axis was declared a go.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:

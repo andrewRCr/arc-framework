@@ -114,6 +114,7 @@ import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.j
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runHandlerAt, type HandlerRunResult } from "../helpers/handler.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
+import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { runArc as runBuiltArc } from "../e2e/helpers.js";
 import {
   copyPreparedRepository,
@@ -4697,6 +4698,26 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         revision: 2,
         value: { activeOperation: { operationId: "interrupted-provider-refresh-position-operation" } },
       },
+    });
+  });
+
+  it("resumes the bound chain at a terminal top that advanced by an append-only commit", async () => {
+    const fixture = await positionFixture("terminal-authoring");
+
+    const positioned = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+
+    expect(positioned.exitCode, `${positioned.stderr}\n${positioned.stdout}`).toBe(1);
+    expectPinnedObservation(JSON.parse(positioned.stdout), {
+      behavior:
+        "A terminal top that advanced by an append-only commit is still the bound chain, so position " +
+        "should resume it rather than send the caller back to plan a correction it has not been asked for.",
+      observed: { status: "refused", reason: "review-fix-routing-required", nextAction: "plan-review-fix" },
+      target: { status: "observed" },
     });
   });
   });

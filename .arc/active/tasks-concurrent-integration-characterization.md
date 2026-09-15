@@ -587,6 +587,29 @@ every pin in place.
 - _Goal:_ Observe what each reached boundary returns when a bound record's head moves under it, which is the
   binding mismatch currently holding a shipped work unit's closeout open.
 
+    - `[x]` **7.2.a Probe the bindings that refuse on head equality**
+
+        - Three cells and a control, each reproducing its recorded failure. Readiness returns the byte-identical
+          result for a member bound to an earlier head as for a repository carrying no delivery state at all —
+          the comparison is head equality and reads no ancestry — and the probe asserts that equivalence rather
+          than describing it. Closeout blocks `terminal-unsettled` on a host merge at a descendant of the bound
+          head, its control settling at the exact head; the control failed first on its own fixture, which is what
+          made the movement readable. Position refuses `review-fix-routing-required`, and the recognition is
+          already built: the verb passes the append-only allowance, which turns the movement into an observable
+          fact rather than admitting it, so the gap is a route from fact to resumption. Rows are in
+          `notes-concurrent-integration-characterization.md`.
+
+    - `[ ]` **7.2.b Probe the session-init posture and the Frontline-result binding**
+
+        - The two cells whose fixtures differ in kind from the three above. Session-init needs the active meta and
+          task-list scaffold its sibling cases install before an advanced-versus-held comparison reads the movement
+          rather than the fixture — a first attempt without it observed nothing, and its control observed the same
+          nothing. Its asymmetry is the lead: the position verb passes an observation mode and session-init passes
+          none, so the exact posture is the default for one consumer of the derivation and opted out of by the
+          other. The Frontline-result cell drives a response at one head and a second after rerouting selects the
+          member's new exact head, and is the one cell on this axis whose lane was left unestablished when the
+          axis was declared a go.
+
 ### `[ ]` **7.3 Probe the history-shape axis**
 
 - _Goal:_ Observe what each reached boundary returns when merge-base cardinality is not one and overlap cannot be
