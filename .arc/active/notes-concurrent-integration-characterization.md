@@ -1875,6 +1875,84 @@ model is deterministic logic in the CLI, structure in typed contracts, and **jud
 the layer the three judgment-bearing drift gates already occupy. Their no-fix disposition is that model's own
 answer, arrived at independently, rather than only this work unit's reading of them.
 
+## Post-probe cost
+
+Measured at Task 6.6, after retention, so the delta reflects the probes the suite keeps rather than the ones it
+briefly had. Same mode as the pre-probe baseline — `condition: tier-isolated` · `projectSet: <tier>` ·
+`workerSizing: 12` — three runs per tier, interleaved round-robin as the baseline was, so machine drift spreads
+across the three runs of each tier instead of pooling in one.
+
+All ten baseline run files were still in place, so the closing comparison is tool-computed rather than degraded to
+the recorded medians. Three request files name the run groups and live beside the runs, outside every checkout,
+because a tracked request naming machine-local absolute paths would read as portable when it is not.
+
+| Tier          | Before ms | After ms | Δ ms   | Δ %    | Files     | Tests           |
+| ------------- | --------- | -------- | ------ | ------ | --------- | --------------- |
+| `integration` | 44 784    | 46 553   | +1 769 | +3.95% | 141 → 152 | 1 418 → 1 488   |
+| `lane`        | 49 624    | 52 365   | +2 741 | +5.52% | 845 → 865 | 11 354 → 11 687 |
+| `e2e`         | 205 011   | 210 051  | +5 040 | +2.46% | 56 → 59   | 548 → 568       |
+
+**Budgets refreshed**, `budgetMs` being the ceiling of the baseline plus the record's ten-percent allowance:
+`integration` 44 836 → 46 553 (budget 49 320 → 51 209), `lane` 48 793 → 52 365 (53 673 → 57 602), `e2e`
+189 246 → 210 051 (208 171 → 231 057).
+
+### The wall clock hides what the probes actually cost
+
+Summed file time moved further than wall clock everywhere, and at one tier the gap is the finding:
+
+| Tier          | Summed file time      | Δ        | Δ %     | Noise verdict     |
+| ------------- | --------------------- | -------- | ------- | ----------------- |
+| `integration` | 411 631 → 462 686     | +51 055  | +12.40% | **established**   |
+| `lane`        | 542 947 → 572 896     | +29 949  | +5.52%  | unestablished     |
+| `e2e`         | 1 272 393 → 1 352 288 | +79 895  | +6.28%  | unestablished     |
+
+Integration's summed file time is the **only established signal in the sweep** — the only delta the tool puts
+outside its ten-percent noise band — while that same tier's wall clock moved under four percent. Twelve workers
+absorb the added file time almost entirely. So the probes cost real CPU that this measurement mode does not show,
+and the tier-isolated rows refreshed above understate what a lower worker sizing would charge.
+
+That matters for the rows this task cannot refresh. The per-CI-job rows run at `workerSizing: 1`, where there is
+no parallelism to absorb anything, so the twelve-percent file-time growth has nowhere to hide. They are refreshed
+at the verification boundary from the pull request's own run, and this is the number to expect there.
+
+### Most of the e2e overage is not this work unit's
+
+Worth separating, because the refresh is large enough to look like the probes caused it. The recorded e2e baseline
+was 189 246 ms. The pre-probe median was already 205 011 ms — **up 8.3 percent before a single probe landed** — and
+this work unit's probes added 2.46 percent on top. The pre-probe note predicted exactly this and called the refresh
+compelled rather than optional; it was right, and for the reason it gave.
+
+Two of the nine post-probe runs came in `over` against the old budgets and one `within`, which is the spread a
+single sample would have hidden. The medians are what the refresh uses.
+
+### E2E shard balance, re-read
+
+Derived with the same script, which reads the workflow and the file list rather than running anything, so the
+comparison is like for like.
+
+| Leg | Anchor                          | Remainder | New file landed here          |
+| --- | ------------------------------- | --------- | ----------------------------- |
+| 1   | `errand.e2e.test.ts`            | 13 → 14   | `integrate-base-movement`     |
+| 2   | `candidate-lineage.e2e.test.ts` | 13 → 14   | — (redistributed existing)    |
+| 3   | `command-input-no-input`        | 13 → 14   | `base-advance`                |
+| 4   | `lifecycle-exit.e2e.test.ts`    | 13 → 13   | `teardown-base-movement`      |
+
+Fifty-two files became fifty-five, and the anchors did not change. The partition behaved as the baseline said it
+would: whole files move, so three new files landed on three legs while the existing remainder redistributed —
+which is why leg 2 grew without gaining a new file and leg 4 gained one without growing.
+
+**Leg 1 is the one to watch.** Its anchor is `errand.e2e.test.ts`, which is excluded from the remainder entirely,
+and this work unit's Errand probes live inside that file — so their cost lands on that leg outside the balancing.
+Leg 1 then also drew `integrate-base-movement.e2e.test.ts`, the largest new e2e file. It is the only leg carrying
+both kinds of growth, and the per-CI-job refresh at the verification boundary should read it first.
+
+### One row this task does not refresh
+
+The `unit` tier-isolated row stands at its recorded baseline. The task names three rows and `unit` is not among
+them, so it is left as recorded rather than quietly widened — but this work unit did add eight tests to that tier
+in `pinned-observation.test.ts`, so the row is no longer measuring quite what it was. Stated here rather than
+acted on, because changing it is outside what this task was scoped to move.
+
 ## Retention at close
 
 D9 applied at Task 6.5, once per probe. Forty-four rows carry a disposition; three of them name no probe because

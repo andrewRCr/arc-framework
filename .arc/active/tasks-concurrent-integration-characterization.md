@@ -531,7 +531,7 @@ unaffected and run in place._
   1,489 and 574 before. Dispositions and the summary are in
   `notes-concurrent-integration-characterization.md` § Retention at close.
 
-### `[ ]` **6.6 Refresh the test-cost baselines and re-read e2e shard balance**
+### `[x]` **6.6 Refresh the test-cost baselines and re-read e2e shard balance**
 
 - _Goal:_ The recorded budgets reflect the retained probe set, and the measured delta is stated in its own commit
   rather than left standing as a CI summary warning.
@@ -552,6 +552,23 @@ unaffected and run in place._
       new file lands on exactly one leg; what redistributes is the existing remainder. The Errand probes are the
       exception worth watching — their file is a pinned anchor excluded from the remainder entirely, so all of
       their cost lands on that one leg.
+
+- _Outcome:_ All ten baseline run files were still in place, so the comparison is tool-computed rather than
+  degraded to the recorded medians. Nine runs, three per tier, interleaved round-robin as the baseline was.
+  Wall-clock medians moved `integration` 44 784 → 46 553 (+3.95%), `lane` 49 624 → 52 365 (+5.52%), and `e2e`
+  205 011 → 210 051 (+2.46%); all three tier-isolated rows are refreshed to those medians with budgets at the
+  ceiling of the ten-percent allowance. Two findings sit underneath the headline. Summed file time is the only
+  place the probes' real cost shows: integration's rose 12.40%, the **only delta in the sweep the tool puts outside
+  its noise band**, while that tier's wall clock moved under four percent, because twelve workers absorb it — so
+  the per-CI-job rows at `workerSizing: 1`, refreshed at the verification boundary, have nowhere to hide it and
+  should expect that number. And most of the e2e overage is not this work unit's: the pre-probe median was already
+  8.3% above its recorded baseline before a probe landed, against 2.46% added here, which is what the pre-probe
+  note predicted when it called this refresh compelled. The shard re-read went 52 files to 55 with anchors
+  unchanged and remainders 13/13/13/13 → 14/14/14/13, the partition redistributing whole files exactly as
+  described; leg 1 is the one to watch, carrying the Errand probes inside its excluded anchor and drawing the
+  largest new file on top. The `unit` tier-isolated row is left as recorded, outside this task's three, though this
+  work added eight tests to it — stated rather than acted on. Figures are in
+  `notes-concurrent-integration-characterization.md` § Post-probe cost.
 
 ### `[ ]` **6.7 Close the ledger against the matrix** — validate exit criterion at segment scope
 

@@ -13,22 +13,22 @@
       "tier": "integration",
       "mode": { "condition": "tier-isolated", "projectSet": "integration", "workerSizing": "12" },
       "metric": "wall-clock-ms",
-      "baselineMs": 44836,
-      "budgetMs": 49320
+      "baselineMs": 46553,
+      "budgetMs": 51209
     },
     {
       "tier": "lane",
       "mode": { "condition": "tier-isolated", "projectSet": "lane", "workerSizing": "12" },
       "metric": "wall-clock-ms",
-      "baselineMs": 48793,
-      "budgetMs": 53673
+      "baselineMs": 52365,
+      "budgetMs": 57602
     },
     {
       "tier": "e2e",
       "mode": { "condition": "tier-isolated", "projectSet": "e2e", "workerSizing": "12" },
       "metric": "wall-clock-ms",
-      "baselineMs": 189246,
-      "budgetMs": 208171
+      "baselineMs": 210051,
+      "budgetMs": 231057
     },
     {
       "tier": "unit",
