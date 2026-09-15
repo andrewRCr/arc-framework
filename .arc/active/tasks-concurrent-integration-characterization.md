@@ -351,20 +351,18 @@ probe uses a skip, todo, or expected-failure marker.
   The control row is filled from the pilot's measurement baseline at zero stops. Rows are in
   `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **5.2 Probe the Errand review and merge boundary**
+### `[x]` **5.2 Probe the Errand review and merge boundary**
 
 - _Goal:_ The Errand lane's close and review-respond paths carry observations, where today only `open` ever cuts
   from a freshly advanced base.
 
-- _Shape:_ The lane runs under one persistent shell anchor, so each advance rides inside the sequence as an
-  interleaved step through the helper's argv form. `e2e/errand.e2e.test.ts` already interleaves a hand-rolled push
-  that way; these probes use the helper instead.
-
-- _Note:_ Expect fewer than five cells here. Close pins a remote base head rather than analysing path overlap, so
-  the two overlapping kinds may be indistinguishable at this boundary and close as not-applicable with that reason.
-  Task 1.1.f settles it; budget against what it records, not against the full row.
-
-    - Cover every movement kind Task 1.1.f left applicable, plus the control row.
+- _Outcome:_ Two cells, control and `disjoint`, both closing at zero stops with the advance interleaved inside the
+  anchored sequence through the helper's argv form. The tolerance is structural rather than decided: the base pin
+  sits behind a no-op shortcut an Errand carrying a commit never enters, so the close reads no base at all and the
+  boundary's other three kinds stay closed for the same reason. Preservation rests entirely on merged host truth —
+  the Errand head is ahead of the local base at close and is retired anyway — and pinning the base unconditionally
+  turns the movement row red while the control stays green, so the tolerance is one predicate from being a stop.
+  Rows are in `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **5.3 Probe the exact-target read isolation family**
 

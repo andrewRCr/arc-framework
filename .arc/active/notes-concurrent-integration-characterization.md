@@ -786,17 +786,34 @@ unit's close, not at seed time.
 **Errand review / merge · control · singleton**
 
 - _Intent:_ Ceremony baseline for the Errand close path with the base held still.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `errand.e2e.test.ts` — "closes the Errand when the base holds still" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `applied`, operation `errand-close` — the branch reaped and the identity record retired; no reason,
+  no remedy.
+- _Invocations:_ 1 — the close · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ — · _Fix at close:_ — ·
+  _Retention at close:_ —
+
+  Preservation here is proven from merged host truth, not from local containment: the Errand head is one commit
+  ahead of the local base at close and the lane retires it anyway. Proving it from containment instead refuses
+  both rows at this boundary.
 
 **Errand review / merge · `disjoint` · singleton**
 
 - _Intent:_ Advance the base between the Errand's open and its close; expect close to proceed with no added
   ceremony.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `errand.e2e.test.ts` — "closes the Errand after an advance sharing no path with it" ·
+  _Base OID:_ `4f6b11568` ·
+  _Observed:_ `applied`, operation `errand-close` — identical to the control, with the remote base proven to have
+  moved inside the same sequence.
+- _Invocations:_ 1 — the close; the advance is fixture movement and does not count · _Stops:_ 0 · _Fork:_ bare ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  Excess zero, and the tolerance is structural rather than decided: the base pin sits behind the no-op shortcut,
+  which an Errand carrying a commit never enters, so the close reads no base at all. That is what the seam read
+  predicted, and it is why this boundary's three other movement kinds close not-applicable. Pinning the base
+  unconditionally and refusing a moved head turns this row red while the control stays green — so the tolerance
+  is one predicate away from being a stop, and nothing at this boundary would notice the difference today.
 
 **Member / singleton landing · control · delivery-member**
 

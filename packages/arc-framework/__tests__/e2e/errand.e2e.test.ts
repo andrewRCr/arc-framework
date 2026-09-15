@@ -23,6 +23,7 @@ import {
   runArcAnchoredSequence,
   runArcWithStdin,
 } from "./helpers.js";
+import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 
 const execFileAsync = promisify(execFile);
@@ -1675,5 +1676,87 @@ describe("arc errand promote", () => {
       .rejects.toMatchObject({ code: "ENOENT" });
     await expect(git(tmpDir, ["cat-file", "-p", `refs/arc/user/test-user/errands:${slug}`]))
       .rejects.toThrow();
+  });
+});
+
+describe("the Errand close boundary over a base that moves under it", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  /**
+   * An ordinary Errand standing at its close boundary, its change request merged at the exact head.
+   *
+   * The branch carries a commit, which is what puts the close on its ordinary path: the base pin sits behind a
+   * no-op shortcut that only an Errand level with its base ever reaches.
+   */
+  async function errandAwaitingClose(slug: string): Promise<{
+    ghDir: string;
+    remoteDir: string;
+    env: Record<string, string>;
+  }> {
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    await seedOpenV3Errand(tmpDir, slug);
+    await git(tmpDir, ["switch", `chore/${slug}`]);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "tracked Errand change"]);
+    const head = (await git(tmpDir, ["rev-parse", "HEAD"])).trim();
+    await git(tmpDir, ["switch", "main"]);
+    return await createMergedGhFixture(tmpDir, slug, head);
+  }
+
+  function closeArgs(slug: string): readonly string[] {
+    return [
+      "errand", "close", slug,
+      "--confirm-foreign-generation", `errand-v1/${slug}/${"d".repeat(32)}`,
+      "--json",
+    ];
+  }
+
+  it("closes the Errand when the base holds still", async () => {
+    const slug = "close-base-still";
+    const host = await errandAwaitingClose(slug);
+    try {
+      const result = await runArcAnchoredSequence([closeArgs(slug)], tmpDir, { env: host.env });
+
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toBe("");
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
+  });
+
+  it("closes the Errand after an advance sharing no path with it", async () => {
+    const slug = "close-base-advanced";
+    const host = await errandAwaitingClose(slug);
+    const before = await git(tmpDir, ["rev-parse", "refs/remotes/origin/main"]);
+    try {
+      // The advance rides inside the anchored sequence, between the close's precondition and the close
+      // itself — the only place it can land, since the lane closes under one shell.
+      const result = await runArcAnchoredSequence([
+        advanceBaseStep({ cwd: tmpDir, paths: movementPaths("disjoint", slug).base }),
+        closeArgs(slug),
+      ], tmpDir, { env: host.env });
+
+      expect(await git(host.remoteDir, ["rev-parse", "refs/heads/main"])).not.toBe(before);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
+      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toBe("");
+    } finally {
+      await cleanupTempDir(host.ghDir);
+      await cleanupTempDir(host.remoteDir);
+    }
   });
 });
