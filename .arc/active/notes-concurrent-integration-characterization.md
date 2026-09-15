@@ -1430,6 +1430,34 @@ invocation and one stop unless the row says otherwise.
   contribution did not move. The enumeration placed this cell on the operator's index and, unlike the session-init
   cell above, that placement holds.
 
+**Landing, terminal · a write that is not a base advance · delivery-member**
+
+- _Intent:_ Resuming a correction over an advance made only of the ceremony's own record writes; expect the
+  terminal carried forward without raising verification work against it.
+- _Probe:_ `delivery-terminal-recovery.e2e.test.ts` — "routes a record-only advance past the head the terminal
+  binds" · _Base OID:_ `cbf075da7` · _Observed:_ exit 0, `rebound`, next action `verify-review-fix`, and a
+  `pendingReviewFixVerification` persisted naming the member. No refusal and no reason: the advance is admitted
+  and then treated as a fix to verify, so the cost lands as work directed rather than as a stop.
+- _Invocations:_ 1 · _Stops:_ 0 — `verify-review-fix` is not among the next actions the convention counts as
+  requiring direction, though it does direct work · _Fork:_ recommendation-bearing · _Continuation:_
+  `not-applicable`, the result being no stop to clear
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-correction-convergence` · _Fix at close:_ routed to
+  that target, whose draft already records persisting record-only applicability as moving the terminal head ·
+  _Retention at close:_ —
+
+  The arrangement is the finding as much as the result. This file's terminal fixture always bound the terminal to
+  the head its record write produced, so an advance made only of record writes could not arise in it at all; one
+  option binding the terminal to the head that write advanced past is what makes the cell expressible. The
+  neighbouring case renews verification for _substantive_ movement past a settled record-only terminal and is
+  right to, so what this establishes is that the two are indistinguishable here: the same next action and the
+  same persisted task for an advance that carries an authored change and for one that carries none.
+
+  Two readings were discarded before this one. A plain reconcile over the same arrangement rebinds cleanly with
+  no pending verification, so the tolerance is real on that path and the cost appears only when the correction is
+  resumed. A first attempt at the resumed path read `refused / terminal-correction-not-append-only`, which was an
+  artifact of running it after a reconcile had already rebound the state rather than on untouched state; it is
+  recorded here because the refusal is plausible enough to be mistaken for the observation.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:

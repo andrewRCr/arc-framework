@@ -671,6 +671,13 @@ every pin in place.
 
     - `[ ]` **7.4.b Probe the three cells whose writes are the verbs' own**
 
+        - Terminal landing observed. A correction resumed over an advance made only of the ceremony's own record
+          writes rebinds and then raises a verification task naming the member, indistinguishable from the same
+          resume over an authored change. The terminal fixture bound the terminal to the head its record write
+          produced, so the arrangement could not arise in it; one option binding to the head that write advanced
+          past is what makes the cell expressible. A plain reconcile over the same arrangement is tolerant, so
+          the cost appears only on the resumed path.
+
 ### `[ ]` **7.5 Probe the boundaries outside the enumerated six**
 
 - _Goal:_ Observe base movement at the delivery authoring and rematerialization surfaces, which read a base the
