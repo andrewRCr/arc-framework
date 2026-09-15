@@ -16,10 +16,101 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-Two captures in `USER-INBOX § Work Unit` name this slug and route here at the next drain: **Make post-landing stack
-conflicts recoverable** and **Make multi-base delivery terminal reconciliation actionable**. The second carries four
-loci and is the origin of most of the evidence below. They are left in the inbox rather than moved here, because the
-drain owns that transit; this note exists so neither is lost in the meantime.
+Both routed captures are reproduced below in full and removed from the inbox, so this draft is the single
+authoritative source for the concern.
+
+### `[ ]` **Make post-landing stack conflicts recoverable**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: delivery-post-landing-conflict-recovery (planned)`), routed at the
+  `concurrent-integration-characterization` close-out, 2026-09-14.
+
+- _Observation:_ `evidence-applicability` Member 1 PR #618 merged at `b088fff0` under a native linked-single
+  reservation, but Member 2 PR #619 was retargeted to `main` without a new head and became conflicting; Member 3
+  remains open. Delivery State revision 25 retains the exact M1 land operation. Both `delivery native land-status`
+  and `delivery reconcile` enter the same suffix settlement. It replays the pinned pre-landing M2 contribution onto
+  the landed predecessor and returns `contribution-conflicted` before it can evaluate a resolved M2 head or publish
+  state. Its instruction to resolve paths and retry has no completing input: an external stack rebase alone cannot
+  change the pinned replay, and the existing provider-adoption conflict decision cannot enter an active native-land
+  reservation. This is a normal concurrent-stack conflict with a missing recovery transition, not an ambiguous M1
+  merge result.
+
+- _Approach:_ Design a durable, re-enterable post-land settlement that records the verified M1 effect once and
+  admits an attended resolution for the remaining registered suffix and excluded terminal top. Bind the decision to
+  the exact plan, operation, state revision, observed suffix, member identities, before/after refs and trees, and
+  conflict paths. Require semantic approval only for the disclosed conflicted contributions; continue mechanical
+  proof for every other movement. Reobserve host effects and refs, use lease-checked publication and revision-checked
+  state writes, and make interrupted retries converge without resubmitting M1. Decide whether a durable
+  `landed-awaiting-suffix-resolution` phase or an equally complete reservation-local transition best composes with
+  the existing provider-adoption conflict machinery.
+
+- _Success criterion:_ After a real overlapping base change prevents GitHub's M2 rebase, the CLI returns an exact
+  actionable resolution offer; approved M2 and top resolutions can settle the retained operation and continue the
+  delivery. New member heads receive fresh applicability, review, and checks before landing. Stale decisions,
+  undisclosed divergence, ref collisions, incomplete suffix observations, and ambiguous host results still refuse
+  without claiming clearance. Cover conflicting and clean suffixes, terminal-top conflict, and interruption/retry
+  with Git-backed and handler-level tests, including no duplicate merge submission.
+
+- _Boundary:_ Do not weaken repository-wide contribution proof, accept arbitrary state edits, or fold in unrelated
+  prepublication authoring and review-fix convergence. The Owner-directed one-time recovery of the live
+  `evidence-applicability` reservation is an urgent operational unblock, not a prerequisite WU lifecycle or evidence
+  that the durable mechanism is complete.
+
+- _Files:_ Native landing and suffix reconciliation, delivery execution request/result schemas, contribution and
+  terminal absorption composition, the `deliver-stack` workflow, and focused unit/integration tests.
+
+- _Captured during:_ `evidence-applicability` M1 post-landing recovery, 2026-09-13.
+
+### `[ ]` **Make multi-base delivery terminal reconciliation actionable**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: delivery-post-landing-conflict-recovery (planned)`), routed at the
+  `concurrent-integration-characterization` close-out, 2026-09-14.
+
+- _Home fit:_ The existing post-landing recovery target already owns settlement of the retained suffix and
+  terminal top after a member lands. This is a second, later failure at that same landing-to-terminal boundary;
+  integrate it during that target's planning rather than minting a separate work unit.
+
+- _Observation:_ After `evidence-applicability` Member 2 PR #619 landed, the terminal branch and `origin/main`
+  had two best merge bases (`823239161` and `b5344fb19`). `arc base drift` had complete integration-event evidence
+  but returned `overlap: unavailable / merge-base-failed`; `arc integrate checkpoint` stopped at
+  `delivery-terminal-blocked / drift-classification-unavailable` and offered only a checkpoint retry. A local
+  virtual merge was conflict-free and added just five unrelated base paths, but the typed checkpoint could not
+  authorize the exact append-only base merge. An Owner-approved, exact-base/head `arc base merge` unblocked this
+  instance; that one-time authorization is not a general escape contract.
+
+- _Second locus:_ After that exact base merge and ordinary archive composition, Candidate applicability still
+  compared the durable baseline `d1d25ef86` to the landed base `6804c40e4`, found the same two best merge bases,
+  and stopped `classification-unavailable / merge-base-ambiguous`. The ordinary `attest` fallback instead reported
+  roughly 130 removed paths and demanded a full new root, although the terminal branch already contains the
+  landed predecessor. Include the Candidate producer and its recovery path in the post-landing design; neither a
+  clean Git virtual merge nor a prior review alone establishes evidence carry.
+
+- _Third locus:_ With terminal PR #620 at the post-archive head `841ddb632` while Delivery State still binds its
+  member to reviewed head `57ce62b1d`, `arc review readiness` refuses `delivery-member-unbound`. Thus the typed
+  draft-lock release cannot complete even if independent evidence proves the terminal contribution unchanged.
+  The recovery design should carry a current terminal binding through review readiness and lock release, without
+  treating a new commit ID alone as a fresh review obligation or weakening exact-head host merge protection.
+
+- _Fourth locus:_ An explicitly approved, host-head-matched manual merge landed PR #620 at `841ddb632` into
+  `main` as `cbf075da`. `arc review change-request resolve` confirms `merged-at-head`, but
+  `arc delivery closeout` refuses `terminal-unsettled`: the retained terminal member still binds `57ce62b1d`,
+  so the exact merged-host-head comparison fails. No delivery JSON, refs, or reservation were manually changed;
+  typed closeout and physical teardown remain pending. Include a safe post-merge rebind or exact recovery route
+  that can retire this residue without repeating verification or review solely for the binding mismatch.
+
+- _Approach:_ Decide whether a conservative overlap proof across multiple best bases can admit the ordinary
+  checkpoint and Candidate applicability, or whether the correct bounded route is a typed Owner-directed
+  exact-base reconcile and Candidate decision when Git feasibility and integration/host evidence suffice. Preserve
+  fail-closed treatment for unresolved substantive overlap and stale coordinates; never infer disjointness from a
+  clean virtual merge alone. Cover native linked-single landing plus concurrent-base topology, clean and
+  conflicting cases, and retry after a new head.
+
+- _Scope:_ Public delivery terminal checkpoint, Candidate currentness, lock release, and post-merge closeout
+  authority; not private delivery rebuilding, a review waiver, or automatic terminal merge approval.
+
+- _Files:_ base overlap/drift analysis, `git-candidate-applicability.ts`, integration checkpoint composition,
+  exact-base merge continuation, and delivery terminal integration tests.
+
+- _Captured during:_ `evidence-applicability` terminal landing dogfooding, 2026-09-14.
 
 ---
 

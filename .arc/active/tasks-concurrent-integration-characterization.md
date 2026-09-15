@@ -485,9 +485,11 @@ unaffected and run in place._
           `delivery-rebuild-continuity`, which consolidates the authoring and prepublication-evidence targets into
           the one mechanism they share. `delivery-correction-convergence` already existed and is untouched — its
           own failure fires with the base unmoved, so it is a convergence concern rather than a movement one. Each
-          draft carries the problem space, the recorded loci, the characterization's own evidence, recommendations
-          marked as recommendations, and the span caveat. Three Errand captures cover the routed rows and the
-          approval-gate capture gained the six bare stops as field evidence. Two criteria need a disposition at
+          draft carries the problem space, the characterization's own evidence, recommendations marked as
+          recommendations, and the span caveat, and absorbs its routed captures in full — six moved out of the
+          personal inbox and removed from it, so each draft is the single authoritative source for its concern.
+          Three Errand captures cover the routed rows and the approval-gate capture gained the six bare stops as
+          field evidence. Two criteria need a disposition at
           verification rather than here: two of the four target slugs do not exist by name, and stubs minted beyond
           the four number zero rather than one or two.
 
