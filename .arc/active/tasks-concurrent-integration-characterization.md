@@ -364,23 +364,20 @@ probe uses a skip, todo, or expected-failure marker.
   turns the movement row red while the control stays green, so the tolerance is one predicate from being a stop.
   Rows are in `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **5.3 Probe the exact-target read isolation family**
+### `[x]` **5.3 Probe the exact-target read isolation family**
 
 - _Goal:_ Three cross-checkout read classes carry observations on the shared-common-dir sibling fixture, where an
   unparseable sibling record, a foreign owner's Candidate record, and an untouched sibling each meet this checkout's
   reads.
 
-- _Approach:_ The unreadable-record case needs no second build. The guard lives in `src/lib/locus/subject-meta.ts`
-  and fires on a candidate record this build's schema rejects, so writing a record that carries an enum member this
-  build does not accept reproduces it — which is exactly the state three sibling checkouts were in at this work
-  unit's first session-init. The guard is only reached when the sibling's own meta demands candidate authority: its
-  candidate id must be set and its state must be integrating, or active while preparing the work unit. Without
-  that precondition the probe reads green while exercising nothing.
-
-- _Note:_ Two of the three cells already have coverage, both in the other lane: a foreign active owner is refused in
-  `e2e/candidate-applicability.e2e.test.ts`, and a sibling is left byte-identical in `e2e/wu-reconcile.e2e.test.ts`.
-  Both probes are written for their ledger observation and then removed by the retention rule, with their rows
-  naming the covering test. That ratio is deliberate here, not an oversight found at close.
+- _Outcome:_ All three observed through the production locus probe driven from the primary, plus the reconcile
+  handler for the write direction. The isolation is real and asymmetric: a record this build cannot parse leaves
+  the sibling row unresolved with a named diagnostic while this checkout's own frame stays selected and its
+  primary free — the owning checkout is the one that cannot enter a session. The two refusals are not the same
+  reading: ownership settles before the record is opened, so a foreign work unit never reaches the Candidate guard
+  and its subject is never projected, which means a foreign owner's unreadable record reports as foreign rather
+  than unreadable. The guard itself is one precondition deep, and the probe establishes that precondition
+  positively rather than assuming it. Rows are in `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **5.4 Confirm matrix coverage across all three shapes** — validate exit criterion at segment scope
 

@@ -882,24 +882,49 @@ unit's close, not at seed time.
 
 - _Intent:_ A sibling checkout whose build rejects this checkout's candidate record; the live field class three
   sibling checkouts reproduced at this work unit's first session entry.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `exact-target-read-isolation.test.ts` — "names the sibling unresolved while this checkout's own frame
+  still resolves" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ the sibling row `unresolved-checkout`, naming its subject and carrying one `subject-unresolved`
+  diagnostic — "Candidate record could not be read under this build's schema". This checkout's own row stays
+  selected and its primary reads free.
+- _Invocations:_ 1 — the locus reading · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The isolation is real and asymmetric: the refusal stays with the checkout that owns the record — which cannot
+  enter a session at all — while a reader next door gets a named diagnostic and keeps going. The record is only
+  opened when the sibling's own meta demands Candidate authority, so the guard is one precondition deep: with
+  that demand removed the same unreadable record resolves silently.
 
 **Exact-target read isolation · foreign-owner record · isolation**
 
 - _Intent:_ A foreign owner's candidate record in the shared namespace; expect this checkout's read to stay bound
   to its own.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `exact-target-read-isolation.test.ts` — "refuses the sibling on ownership without projecting its
+  subject at all" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ the sibling row `unresolved-checkout` with `subject: null` and one `authority-evidence-unreadable`
+  diagnostic sourced to lifecycle — "The marker-named work unit is owned by another identity".
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  Narrower than the row above, and deliberately so: ownership settles before the record is opened, so a foreign
+  work unit never reaches the Candidate guard and its subject is never projected. A foreign owner's unreadable
+  record therefore reports as foreign, not as unreadable. Covering test at close: a foreign active owner is
+  already refused in `candidate-applicability.e2e.test.ts`.
 
 **Exact-target read isolation · byte-identical sibling · isolation**
 
 - _Intent:_ A sibling left byte-identical after this checkout's reconcile ceremony.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `exact-target-read-isolation.test.ts` — "leaves the sibling byte-identical after the ceremony applies"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `applied` — the dependency rewritten in this checkout's own projection, the sibling's copy of the
+  same file byte-identical and its worktree clean.
+- _Invocations:_ 1 — the reconcile · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The write direction of the same isolation, and the one the other two cannot show: a ceremony that rewrites a
+  projection touches only the checkout that ran it. Fanning the rewrite out to every registered worktree — the
+  plausible convenience — is what turns this row red. Covering test at close:
+  `wu-reconcile.e2e.test.ts` asserts the same property over its own topology.
 
 ### Not-applicable rows
 
