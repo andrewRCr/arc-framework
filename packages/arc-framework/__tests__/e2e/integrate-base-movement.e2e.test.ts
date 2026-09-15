@@ -14,6 +14,8 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
+import { deliveryStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import {
   advanceBase,
@@ -30,6 +32,7 @@ const HEAD_REF = `feat/${WORK_UNIT}`;
 const REPOSITORY = "owner/repository";
 const HOST_URL = `git@github.com:${REPOSITORY}.git`;
 const PULL_REQUEST = 41;
+const PREDECESSOR_REF = "delivery/member-1";
 
 const cleanups: string[] = [];
 
@@ -80,7 +83,11 @@ const META = [
  * The head is read from a file on every invocation rather than baked in, so the lifecycle commits that follow
  * publication do not leave the host describing a change request whose head no longer exists.
  */
-async function installHost(repository: string, remote: string): Promise<{ bin: string; headFile: string }> {
+async function installHost(
+  repository: string,
+  remote: string,
+  predecessor: { readonly ref: string; readonly head: string; readonly number: number } | null,
+): Promise<{ bin: string; headFile: string }> {
   const bin = join(repository, ".arc-fixture", "bin");
   const headFile = join(repository, ".arc-fixture", "head-sha");
   const listed = `[{"number":${String(PULL_REQUEST)},`
@@ -90,6 +97,14 @@ async function installHost(repository: string, remote: string): Promise<{ bin: s
     + `"merge_commit_sha":null,"mergeable":true,`
     + `"head":{"ref":"${HEAD_REF}","sha":"%s","repo":{"full_name":"${REPOSITORY}"}},`
     + `"base":{"ref":"main","repo":{"full_name":"${REPOSITORY}"}}}`;
+  const landed = predecessor === null ? null : JSON.stringify([{
+    number: predecessor.number,
+    url: `https://example.test/pull/${String(predecessor.number)}`,
+    state: "MERGED",
+    baseRefName: "main",
+    headRefName: predecessor.ref,
+    headRefOid: predecessor.head,
+  }]);
   const settings = '{"allow_merge_commit":true,"allow_squash_merge":false,"allow_rebase_merge":false}';
   const repositoryView = `{"nameWithOwner":"${REPOSITORY}","defaultBranchRef":{"name":"main"}}`;
   await mkdir(bin, { recursive: true });
@@ -100,11 +115,24 @@ async function installHost(repository: string, remote: string): Promise<{ bin: s
     'case "$1:$2" in',
     `  repo:view) printf '%s\\n' '${repositoryView}' ;;`,
     "  pr:ready) exit 0 ;;",
-    `  pr:list) printf '${listed}\\n' "$head" ;;`,
+    "  pr:list)",
+    ...(landed === null ? [] : [
+      '    case "$*" in',
+      `      *"--head ${predecessor?.ref ?? ""}"*) printf '%s\\n' '${landed}'; exit 0 ;;`,
+      "    esac",
+    ]),
+    `    printf '${listed}\\n' "$head" ;;`,
     "  pr:checks) echo 'no required checks reported' >&2; exit 1 ;;",
     `  api:repos/${REPOSITORY}) printf '%s\\n' '${settings}' ;;`,
     `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}) printf '${pull}\\n' "$head" ;;`,
     `  api:repos/${REPOSITORY}/branches/main) printf '%s\\n' '{}' ;;`,
+    ...(predecessor === null ? [] : [
+      `  api:repos/${REPOSITORY}/pulls/${String(predecessor.number)})`,
+      `    printf '%s\\n' '{"number":${String(predecessor.number)},"state":"closed","merged":true,"draft":false,`
+        + `"merge_commit_sha":"${predecessor.head}","mergeable":true,`
+        + `"head":{"ref":"${predecessor.ref}","sha":"${predecessor.head}","repo":{"full_name":"${REPOSITORY}"}},`
+        + `"base":{"ref":"main","repo":{"full_name":"${REPOSITORY}"}}}' ;;`,
+    ]),
     "  api:--paginate) printf '%s\\n' '[[]]' ;;",
     // Landing the change request really moves the base, so everything downstream of the merge reads a
     // repository in the state the host claims rather than a response with nothing behind it.
@@ -124,6 +152,10 @@ interface LandingFixture {
   readonly repository: string;
   readonly bin: string;
   readonly env: Record<string, string>;
+  /** The branch's first commit, which a bound delivery plan reads as the terminal member's base. */
+  readonly implementationHead: string;
+  /** The landed predecessor member's head, present only when the fixture built one. */
+  readonly predecessorHead: string | null;
 }
 
 /**
@@ -133,7 +165,7 @@ interface LandingFixture {
  * branch to have touched a path can have that arranged without disturbing the Candidate afterwards.
  */
 async function publishedAtLanding(
-  options: { readonly branchPaths?: readonly string[] } = {},
+  options: { readonly branchPaths?: readonly string[]; readonly predecessor?: boolean } = {},
 ): Promise<LandingFixture> {
   const repository = await createTempRepo("arc-integrate-movement-");
   cleanups.push(repository);
@@ -157,6 +189,25 @@ async function publishedAtLanding(
   await git(repository, ["config", `url.${remote}.insteadOf`, HOST_URL]);
   await git(repository, ["push", "origin", "main"]);
 
+  // A landed predecessor, built before the branch exists so the work unit's own Candidate never sees the base
+  // move. Its span is what the delivery arm excludes from the terminal member's residual.
+  let predecessorHead: string | null = null;
+  if (options.predecessor === true) {
+    await git(repository, ["checkout", "-b", PREDECESSOR_REF]);
+    await mkdir(join(repository, "src"), { recursive: true });
+    await writeFile(join(repository, "src", "member-one.ts"), "export const memberOne = true;\n");
+    await git(repository, ["add", "-A"]);
+    await git(repository, ["commit", "-m", "predecessor member"]);
+    predecessorHead = await git(repository, ["rev-parse", "HEAD"]);
+    await git(repository, ["push", "origin", PREDECESSOR_REF]);
+    await git(repository, ["checkout", "main"]);
+    await git(repository, [
+      "merge", "--no-ff", PREDECESSOR_REF,
+      "-m", `Merge pull request #${String(PULL_REQUEST - 1)} from ${PREDECESSOR_REF}`,
+    ]);
+    await git(repository, ["push", "origin", "main"]);
+  }
+
   await git(repository, ["checkout", "-b", HEAD_REF]);
   await mkdir(join(repository, ".arc", "active"), { recursive: true });
   await mkdir(join(repository, "src"), { recursive: true });
@@ -164,6 +215,7 @@ async function publishedAtLanding(
   await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
   await git(repository, ["add", "-A"]);
   await git(repository, ["commit", "-m", "implementation"]);
+  const implementationHead = await git(repository, ["rev-parse", "HEAD"]);
   if (options.branchPaths !== undefined) {
     await arrangeBranchSide({ cwd: repository, paths: options.branchPaths });
   }
@@ -173,7 +225,13 @@ async function publishedAtLanding(
   );
   await git(repository, ["add", `.arc/active/tasks-${WORK_UNIT}.md`]);
 
-  const host = await installHost(repository, remote);
+  const host = await installHost(
+    repository,
+    remote,
+    predecessorHead === null
+      ? null
+      : { ref: PREDECESSOR_REF, head: predecessorHead, number: PULL_REQUEST - 1 },
+  );
   const publishHead = async (): Promise<void> => {
     await writeFile(host.headFile, await git(repository, ["rev-parse", "HEAD"]));
   };
@@ -204,7 +262,68 @@ async function publishedAtLanding(
   await publishHead();
   await git(repository, ["push", "-u", "origin", HEAD_REF]);
 
-  return { repository, bin: host.bin, env };
+  return { repository, bin: host.bin, env, implementationHead, predecessorHead };
+}
+
+/**
+ * Bind a two-member delivery plan over the published work unit, with its branch as the terminal member.
+ *
+ * The predecessor's span is the branch's first commit; everything after it is the terminal member's residual,
+ * which is the partition the delivery arm classifies an advance against rather than the whole Candidate union.
+ */
+async function bindDeliveryPlan(fixture: LandingFixture): Promise<void> {
+  const plan = deliveryStackPlanForWorkUnitFixture(WORK_UNIT);
+  const predecessor = plan.members[0];
+  const terminal = plan.members.at(-1);
+  if (predecessor === undefined || terminal === undefined) throw new Error("the plan carries no members");
+  const treeOf = async (commit: string): Promise<string> =>
+    git(fixture.repository, ["rev-parse", `${commit}^{tree}`]);
+  const targetHead = await git(fixture.repository, ["rev-parse", "origin/main"]);
+  const head = await git(fixture.repository, ["rev-parse", "HEAD"]);
+  const predecessorHead = fixture.predecessorHead;
+  if (predecessorHead === null) throw new Error("the fixture built no predecessor member");
+  const predecessorBase = await git(fixture.repository, ["rev-parse", `${predecessorHead}^`]);
+
+  const state = DeliveryStateV1Schema.parse({
+    schemaVersion: 1,
+    semanticsVersion: "delivery-state/v1",
+    planId: plan.planId,
+    workUnitId: plan.workUnitId,
+    boundPlan: { planRevision: plan.planRevision, planDigest: plan.planDigest },
+    target: { ref: "refs/heads/main", coordinates: { head: targetHead, tree: await treeOf(targetHead) } },
+    members: [
+      {
+        deliverableId: predecessor.deliverableId,
+        ref: `refs/heads/${PREDECESSOR_REF}`,
+        changeRequest: { providerId: "github", changeRequestId: String(PULL_REQUEST - 1) },
+        coordinates: {
+          base: predecessorBase,
+          head: predecessorHead,
+          tree: await treeOf(predecessorHead),
+        },
+      },
+      {
+        deliverableId: terminal.deliverableId,
+        ref: `refs/heads/${HEAD_REF}`,
+        changeRequest: { providerId: "github", changeRequestId: String(PULL_REQUEST) },
+        coordinates: { base: predecessorHead, head, tree: await treeOf(head) },
+      },
+    ],
+    activeOperation: null,
+    pendingReviewFixVerification: null,
+  });
+
+  const root = join(fixture.repository, ".git", "arc", "delivery");
+  await mkdir(join(root, "plans"), { recursive: true });
+  await mkdir(join(root, "state"), { recursive: true });
+  await writeFile(join(root, "plans", `${plan.planId}.json`), `${JSON.stringify(plan)}\n`);
+  await writeFile(join(root, "state", `${plan.planId}.json`), `${JSON.stringify({
+    schemaVersion: 1,
+    semanticsVersion: "delivery-state-store/v1",
+    planId: plan.planId,
+    revision: 1,
+    value: state,
+  })}\n`);
 }
 
 async function runCheckpoint(
@@ -351,6 +470,69 @@ describe("the checkpoint's own base read", () => {
     expect(await takeContinuation(fixture, result)).toMatchObject({
       mode: "authoritative",
       verdict: "clean",
+    });
+  });
+});
+
+describe("the checkpoint's base read under a bound delivery plan", () => {
+  it("mints a handle for the top member when the base holds still", async () => {
+    const fixture = await publishedAtLanding({ predecessor: true });
+    await bindDeliveryPlan(fixture);
+
+    const result = await runCheckpoint(fixture);
+
+    // The plan decided this: the stack position and the discharge count are reachable only through the
+    // delivery arm, so they are what separates this baseline from the singleton one.
+    expect(result, JSON.stringify(result)).toMatchObject({
+      state: "ready",
+      nextAction: "request-approval",
+      payload: { mergeMethod: { stackPosition: "top" } },
+    });
+  });
+
+  it("offers a reconcile after an advance sharing no path with the branch", async () => {
+    const fixture = await publishedAtLanding({ predecessor: true });
+    await bindDeliveryPlan(fixture);
+    await advanceFor(fixture, "disjoint");
+
+    const result = await runCheckpoint(fixture);
+
+    expect(result, JSON.stringify(result)).toMatchObject({
+      state: "reconcile",
+      nextAction: "reconcile-base",
+      payload: { safety: { substantivePaths: [], regenerablePaths: [], safe: true } },
+    });
+  });
+
+  it("admits an advance over a reviewable path the top member alone changed", async () => {
+    const paths = movementPaths("overlapping-substantive", WORK_UNIT);
+    const fixture = await publishedAtLanding({ predecessor: true, branchPaths: paths.branch });
+    await bindDeliveryPlan(fixture);
+    await advanceFor(fixture, "overlapping-substantive");
+
+    const result = await runCheckpoint(fixture);
+
+    // The same overlap the singleton path refuses on. Scoping it to the top member's residual — the span
+    // no landed member contributed — is what turns the refusal into an offer.
+    expect(result, JSON.stringify(result)).toMatchObject({
+      state: "reconcile",
+      nextAction: "reconcile-base",
+      payload: { safety: { substantivePaths: [...paths.base], safe: true } },
+    });
+  });
+
+  it("offers a reconcile for an advance over the regenerable projection alone", async () => {
+    const paths = movementPaths("overlapping-regenerable-only", WORK_UNIT);
+    const fixture = await publishedAtLanding({ predecessor: true, branchPaths: paths.branch });
+    await bindDeliveryPlan(fixture);
+    await advanceFor(fixture, "overlapping-regenerable-only");
+
+    const result = await runCheckpoint(fixture);
+
+    expect(result, JSON.stringify(result)).toMatchObject({
+      state: "reconcile",
+      nextAction: "reconcile-base",
+      payload: { safety: { substantivePaths: [], regenerablePaths: [...paths.base], safe: true } },
     });
   });
 });

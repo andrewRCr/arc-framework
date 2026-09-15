@@ -302,33 +302,30 @@ delivery-member cells — and they share the cost of getting a repository that f
   clears on a plain retry the refusal never names. The rows are in
   `notes-concurrent-integration-characterization.md`.
 
-### `[ ]` **4.3 Probe the delivery-member landing cells**
+### `[x]` **4.3 Probe the delivery-member landing cells**
 
 - _Goal:_ Landing under a published delivery plan carries an observation for every cell Task 1.1.d leaves
   applicable, plus a control row, where the delivery path rather than the singleton path decides admissibility.
 
-- _Note:_ Expect fewer than five. The landing readiness projection states that protected-base movement is
-  deliberately absent from it, and the landing path carries the base only as a branch name — so the movement kinds
-  may well be indistinguishable here. Reaching any base decision at all also requires installing reviewed member
-  state first; the spawned path returns a not-ready refusal before it gets there.
+- _Outcome:_ Four cells, all observed on the spawned path — the predicted not-ready refusal turned out to be a
+  fixture gap rather than a seam gap, and closing it is the task's real cost: the plan's non-terminal member has
+  to be genuinely landed, so the fixture builds and merges a predecessor before the work unit's branch exists,
+  which also keeps the Candidate clear of the base move. The probes extend the singleton landing file, since the
+  boundary is the same verb with one more precondition. The shape narrows a refusal and never a tolerance: the
+  substantive cell, which the singleton path refuses, comes back safe with the shared path named, while the
+  disjoint and regenerable cells run the delivery arm and reach the singleton's own result. The register that
+  rides with the admitted result still asks for the base merge the decision just waived. Rows are in
+  `notes-concurrent-integration-characterization.md`.
 
-- _Approach:_ Establish delivery state the way the terminal-recovery probes already do — install the parsed state
-  record directly alongside synthetic heads pushed to the origin — rather than composing a plan through the
-  authoring verbs. That route is proven and keeps each probe inside the per-probe cost ceiling. Build it once and
-  let Task 4.4 re-use it.
-
-- _Note:_ The landing verbs are proven at the library seam — a unit file drives prepare and apply through to a
-  landed result across roughly twenty cases, and a member-lifecycle integration test drives both arms — but the
-  operator-facing spawned path reaches them only through refusals. Task 1.1.d settles what that means for these
-  cells; if the gap holds it is a seam gap, and its ledger row should say so rather than claim the mechanism is
-  unproven.
-
-### `[ ]` **4.4 Probe the delivery-member prepublication and closeout re-observation cells**
+### `[~]` **4.4 Probe the delivery-member prepublication and closeout re-observation cells**
 
 - _Goal:_ The two boundaries where the delivery path only re-observes carry their disjoint rows, so re-observation is
   distinguished in the record from admissibility.
 
-    - Re-use the delivery state Task 4.3 installed; neither cell needs a second plan.
+- _Outcome:_ No probe: both cells closed not-applicable at the seam confirmation, because neither delivery arm
+  performs a base read of its own, and the record already distinguishes re-observation from admissibility through
+  their closure rows. Each names the singleton row it collapses onto, and both of those are now observed, so the
+  closures rest on observations actually taken rather than on predictions.
 
 ## **Phase 5:** Off-spine lanes — public review, the Errand lifecycle, and read isolation
 

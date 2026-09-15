@@ -783,32 +783,65 @@ unit's close, not at seed time.
 **Member / singleton landing · control · delivery-member**
 
 - _Intent:_ Member-scope ceremony baseline; the delivery arm's own admissibility span.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "mints a handle for the top member when the base holds still"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `ready / request-approval`, at stack position `top` and over a requirement summary reporting every
+  derived delivery-member review discharged — neither reachable except through the delivery arm.
+- _Invocations:_ 1 — the checkpoint · _Stops:_ 1 — `request-approval` · _Fork:_ recommendation-bearing ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ — · _Fix at close:_ — ·
+  _Retention at close:_ —
+
+  The member baseline costs exactly what the singleton one costs; what differs is what decided it. Reaching it at
+  all needs a genuinely landed predecessor: every non-terminal member must resolve as merged at its exact bound
+  head before any ready composition is attempted, a precondition the singleton path has no analogue for.
 
 **Member / singleton landing · `disjoint` · delivery-member**
 
 - _Intent:_ Advance under a bound member; expect the delivery path to decide admissibility rather than re-observe.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "offers a reconcile after an advance sharing no path with the
+  branch" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base`, both path sets empty, `safe: true` — structurally identical to the
+  singleton result at the same window.
+- _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The delivery arm does decide this row — severing it turns the result into `blocked / delivery-terminal-blocked`
+  — but it decides the same way. With no substantive overlap there is nothing for the residual scope to narrow,
+  so the safety class never enters and the payload carries no trace of the shape.
 
 **Member / singleton landing · `overlapping-substantive` · delivery-member**
 
 - _Intent:_ Advance over shared paths under a bound member; expect the residual-contained safety class to move the
   cut the singleton row refuses on.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "admits an advance over a reviewable path the top member alone
+  changed" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base` carrying the shared path in `substantivePaths` with `safe: true` — the
+  same overlap the singleton row refuses on, admitted.
+- _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The cut moves as the seam read predicted, and a safe verdict over a non-empty substantive set is reachable no
+  other way. The finding is the register riding along with it: its text is composed from the partition alone, so
+  it reads "Merge the base before continuing edits on those paths" on the very result that just admitted those
+  paths. The decision and its advisory disagree, and only the decision knows about the residual. The same scoping
+  adds one stop the singleton shape has no analogue for — an advance intersecting a landed member's span refuses
+  as a predecessor overlap — which the matrix enumerates no cell for and this row records rather than probes.
 
 **Member / singleton landing · `overlapping-regenerable-only` · delivery-member**
 
 - _Intent:_ Advance over the regenerable projection under a bound member; expect the partition to reach the member
   payload.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "offers a reconcile for an advance over the regenerable
+  projection alone" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base`, the projection in `regenerablePaths`, `safe: true`, register `calm` —
+  identical to the singleton row.
+- _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  Two of this boundary's four member cells read identically to their singleton counterparts while genuinely
+  running the delivery arm. That is the shape's actual reach: it narrows a refusal and never a tolerance, so it
+  can only be seen where the singleton path would have stopped.
 
 **Exact-target read isolation · sibling build cannot parse · isolation**
 
