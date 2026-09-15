@@ -826,6 +826,14 @@ every pin in place.
 
 ## Success Criteria
 
+_Amended 2026-09-15 at the Owner's direction. Three criteria below bind at the integration boundary rather than
+at verification. Whether the heavy lanes ran on the pull request, and the per-CI-job budget rows read from that
+same run, have no source until a pull request exists — which this work unit reaches only after verification
+closes, so as written they could not be satisfied at the boundary that demanded them. They are not dropped:
+each names the run that settles it, and the integration ceremony is where they are answered. A criterion is
+tracked at the earliest boundary whose validator can see its evidence, and these three were tracked one
+boundary too early. The criteria themselves are unchanged._
+
 - `[x]` Every enumerated cell across the singleton, delivery-member, and isolation shapes holds either a probe in
   the suite or a ledger row marked not-applicable with its reason
 - `[x]` Every probe that does not pass on the current tree calls the shared pin helper with both its observed and
@@ -850,12 +858,13 @@ every pin in place.
   consolidated into `delivery-rebuild-continuity`, which is what the design's own rule directs —
   consolidate by mechanism rather than by boundary. Every named target is owned by a stub on disk, and
   `RELEASE-GATES.md` and `ROADMAP.md` name the same three.
-- `[ ]` The test-cost baselines are refreshed in a dedicated `perf(test-cost)` commit whose message states the
+- `[~]` The test-cost baselines are refreshed in a dedicated `perf(test-cost)` commit whose message states the
   measured delta, and no CI test-budget summary is left standing
 
-  _Not met:_ the first clause holds — the refresh landed in its own commit stating every measured delta.
-  The second cannot be settled at this boundary: the per-CI-job budget rows have no source but a
-  pull-request run, and no pull request exists yet.
+  _Deferred to the integration boundary._ The first clause holds — the refresh landed in its own commit stating
+  every measured delta. The second has no source but a pull-request run and is answered there. Expect
+  integration's summed file time, which grew 12.40% against a wall clock that moved under four percent because
+  twelve workers absorbed it, to surface in those rows at a single worker.
 - `[x]` Every probe retained at close guards a cell or isolation case no other test covers, every deleted probe's
   ledger row records its observation and the covering test, and the measured tier cost reflects only the retained set
 - `[x]` Every axis the second matrix names is either enumerated with a stated ceiling and probed to it, or closed
@@ -868,12 +877,13 @@ every pin in place.
   that is not a ledger row. The file-level evidence first recorded for this criterion was wrong, and the
   correction is appended in `notes-concurrent-integration-characterization.md` § Second-matrix
   confirmation.
-- `[ ]` The e2e and integration lanes ran on the pull request, not only locally
+- `[~]` The e2e and integration lanes ran on the pull request, not only locally
 
-  _Not met:_ no pull request exists yet, and the question is whether the legs ran rather than whether the
-  workflow went green — the e2e job is skipped when the change is classified light-weight, when
-  reconciliation is deferred, and when the lane is not the reviewed one.
+  _Deferred to the integration boundary._ Settled by the pull-request run and nothing else. Read the job list
+  rather than the badge: the question is whether the legs ran, and the e2e job is skipped when the change is
+  classified light-weight, when reconciliation is deferred, and when the lane is not the reviewed one.
 - `[x]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[~]` Ready for integration
 
-  _Not met:_ follows the two criteria above, both of which only a pull-request run settles.
+  _Deferred to the integration boundary._ Follows the two criteria above, both of which only a pull-request
+  run settles.
