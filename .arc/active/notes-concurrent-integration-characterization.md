@@ -1395,6 +1395,41 @@ invocation and one stop unless the row says otherwise.
   advance — but the source column is wrong, and the routed capture's own title names the index as the thing to
   preserve through recovery, so an implementer starting from it would look in the wrong place.
 
+**Public review · a write that is not a base advance · delivery-member**
+
+- _Intent:_ Preparing a member's local review while a correction sits staged on the top branch; expect the member
+  still admitted, since nothing about its reviewed contribution changed.
+- _Probe:_ `delivery-position-suite.ts` — "drives a registered review correction through superseded verification
+  to hosted review" · _Base OID:_ `cbf075da7` · _Observed:_ exit 1 carrying `unexpected-failure` and "Local
+  delivery-member review no longer has exact driver admission."; no reason field, no remedy, no next action. The
+  control is the same admission prepared moments earlier in the same chain, which returns `ready` and
+  `launch-review`.
+- _Invocations:_ 2 · _Stops:_ 0 — the result is an untyped failure rather than a typed stop · _Fork:_ bare ·
+  _Continuation:_ `none-offered` by the result, but the probe exercises an operator-side recovery that clears:
+  clearing the index and re-running admits the same admission unchanged, `ready` and `launch-review`.
+- _Classification:_ `fail-closed, correct` · _Owner:_ `review-protocol-alignment`, through the capture filed with
+  this row · _Fix at close:_ routed · _Retention at close:_ —
+
+  The observation rides an existing chain rather than standing up its own. Reaching a live member admission needs
+  the delivery and hosted state this test already drives to, and the admission cannot be constructed: preparation
+  re-resolves review status for the member and requires the admission to still equal, byte for byte, what status
+  projects at that moment. Four shorter routes were tried and each is refused by a real precondition — an
+  unresolved vehicle without an active work-unit context, an incomplete active record, and finally that exactness
+  check. The probe stages its correction, observes, then restores the tree, so the chain it rides continues
+  against the state it expects.
+
+  So this is a diagnosability defect rather than a capability one, and nothing here blocks a member from
+  shipping. The admission does not have to be re-derived and the chain does not have to be restarted — the
+  operator clears the index and retries, and the recovery is proven here rather than argued. What the result
+  never says is that the index is what it is reacting to, so an operator who does not already know reads an
+  untyped failure with no remedy at the point where a member is about to be reviewed.
+
+  The exactness check is also the mechanism. A staged path reaches the Candidate subject through the index, the
+  subject feeds what status projects, and the projection is what the admission is compared against — so an
+  operator's uncommitted correction on the top branch invalidates an admission minted for a member whose own
+  contribution did not move. The enumeration placed this cell on the operator's index and, unlike the session-init
+  cell above, that placement holds.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:

@@ -4116,6 +4116,66 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       .readOperation(localPreparation.payload.operationId);
     expect(persistedLocal.state).toMatchObject({ deliveryAdmission: localAdmission });
 
+    // Observe the same admission once a correction is staged on the top branch, then restore the tree so the
+    // rest of this chain runs against the state it expects.
+    await writeFile(join(fixture.repository, "top-correction.txt"), "staged correction\n");
+    await git(fixture.repository, ["add", "top-correction.txt"]);
+    const stagedPrepare = await runArcWithStdin(
+      ["review", "local", "prepare", "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "fresh-chunk-aggregate-reviewer",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+        deliveryAdmission: localAdmission,
+      })}\n`,
+      { env: fixture.env },
+    );
+    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(1);
+    expectPinnedObservation(JSON.parse(stagedPrepare.stdout), {
+      behavior: "A correction staged in the operator's index is not part of the member's reviewed contribution, "
+        + "so preparing that member's local review should still admit it rather than fail on an admission the "
+        + "driver minted moments earlier.",
+      observed: {
+        mode: "review-local-prepare",
+        error: {
+          code: "unexpected-failure",
+          message: "Local delivery-member review no longer has exact driver admission.",
+        },
+      },
+      target: { state: "ready" },
+    });
+    await git(fixture.repository, ["rm", "--cached", "-f", "top-correction.txt"]);
+    await unlink(join(fixture.repository, "top-correction.txt"));
+    const afterUnstage = await runArcWithStdin(
+      ["review", "local", "prepare", "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "fresh-chunk-aggregate-reviewer",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+        deliveryAdmission: localAdmission,
+      })}\n`,
+      { env: fixture.env },
+    );
+    // Clearing the index restores the admission the driver already minted, so the stop is recoverable without
+    // re-deriving anything — the operator just has to know that is what it wants, which the failure never says.
+    expect(afterUnstage.exitCode, `${afterUnstage.stderr}\n${afterUnstage.stdout}`).toBe(0);
+    expect(JSON.parse(afterUnstage.stdout)).toMatchObject({ state: "ready", nextAction: "launch-review" });
+
+
     const resumedLocal = await runArcWithStdin(
       ["review", "local", "resume", "-"],
       fixture.repository,

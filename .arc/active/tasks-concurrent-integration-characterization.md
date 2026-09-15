@@ -653,14 +653,21 @@ every pin in place.
 - _Goal:_ Observe what happens when a ceremony's own record writes move the head its preconditions were read
   against, with no base movement involved.
 
-    - `[ ]` **7.4.a Probe the two cells the enumeration placed on the operator's index**
+    - `[x]` **7.4.a Probe the two cells the enumeration placed on the operator's index**
 
         - Session-init and recovery observed, and the enumeration corrected: the operator's index is not the
           cause. An authorized merge landing the work unit's active record on the base leaves the checkout on the
           base while the record still names the work unit's branch, and the seed write then returns
           `seed-invalid` against a control that writes it. Running the identical merge conflicting and clean
           returns the same typed failure, which is what establishes the index as incidental rather than causal.
-          The row and the correction are in `notes-concurrent-integration-characterization.md`.
+          Public review holds the placement instead: a correction staged on the top branch invalidates an
+          admission minted for a member whose own contribution did not move, because preparation re-resolves the
+          member's review status and requires byte equality against it, and a staged path reaches that projection
+          through the Candidate subject. That cell rides an existing chain, four shorter routes to a live
+          admission each being refused by a real precondition. It is a diagnosability defect rather than a
+          capability one: clearing the index readmits the same admission unchanged, proven rather than argued, so
+          what is missing is a typed reason naming the index and not the ability to proceed. The rows and the
+          correction are in `notes-concurrent-integration-characterization.md`.
 
     - `[ ]` **7.4.b Probe the three cells whose writes are the verbs' own**
 
