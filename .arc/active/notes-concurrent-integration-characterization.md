@@ -599,9 +599,16 @@ unit's close, not at seed time.
 **Public review and checks · control · singleton**
 
 - _Intent:_ Ceremony baseline with the fetched base still contained in the reviewed head.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `review-status-base-movement.test.ts` — "reports the settled state the moved-base reading is measured
+  against" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `settled / continue-reconcile` over a non-null base revision; no reason, no remedy.
+- _Invocations:_ 1 — the status reading · _Stops:_ 0 — `continue-reconcile` continues without direction, which
+  is the convention's own test · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ — · _Fix at close:_ — ·
+  _Retention at close:_ —
+
+  The cheapest baseline on the spine, and the reason this boundary's two movement rows are both excess: every
+  stop recorded at it is added by the movement rather than carried by the ceremony.
 
 **Public review and checks · `disjoint` · singleton**
 
@@ -632,9 +639,20 @@ unit's close, not at seed time.
 
 - _Intent:_ Fail only the base fetch inside the composed status port; expect a null base object id and `blocked /
   status-unavailable`.
-- _Probe:_ — · _Base OID:_ — · _Observed:_ —
-- _Invocations:_ — · _Stops:_ — · _Fork:_ — · _Continuation:_ —
-- _Classification:_ — · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+- _Probe:_ `review-status-base-movement.test.ts` — "blocks on the unavailable base revision, and settles once the
+  read is restored" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `blocked / stop`, reason `status-unavailable`, detail "The current base revision is unavailable.",
+  over a null base revision.
+- _Invocations:_ 2 — the blocked reading and the re-run its remedy names, taken at the port rather than the
+  process boundary, which is the same reading in this lane · _Stops:_ 1 — the refusal ·
+  _Fork:_ recommendation-bearing · _Continuation:_ `cleared`
+- _Classification:_ `fail-closed, correct` · _Owner:_ — · _Fix at close:_ — · _Retention at close:_ —
+
+  The attribution survives, and only just: the failed fetch also collapses the routed obligation into a blocked
+  state carrying the raw transport error, and that arm produces the same reason one step later. What separates
+  them is the order — the null-base arm is read first, so the detail names the base rather than the error text.
+  Making the fetch best-effort, the way the closeout boundary's second leg already is, turns this row green
+  against a stale tracking ref instead.
 
 **Member / singleton landing · control · singleton**
 

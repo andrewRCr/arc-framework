@@ -17,7 +17,12 @@ import { handleAttest } from "../../src/handlers/lifecycle.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { createReviewStatusPort } from "../../src/scripts/review-gate/status-composition.js";
 import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
-import { advanceBase, movementPaths } from "../helpers/base-advance.js";
+import {
+  advanceBase,
+  movementPaths,
+  withUnavailableBaseRead,
+  type GitExecLike,
+} from "../helpers/base-advance.js";
 import { runHandlerAt } from "../helpers/handler.js";
 import {
   cleanupTempDir,
@@ -178,11 +183,20 @@ function machineContext() {
   return resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
 }
 
-/** Resolve review status through the production port, with the stub host on `PATH`. */
-async function statusThroughPort(fixture: { root: string; headSha: string; bin: string }) {
+/**
+ * Resolve review status through the production port, with the stub host on `PATH`.
+ *
+ * `wrap` reaches the port's own execution seam, which is the only place a single read can be failed: the
+ * observer collapses every failure into the same shape, so failing the process boundary instead would report an
+ * unavailable base for a host that was the thing to break.
+ */
+async function statusThroughPort(
+  fixture: { root: string; headSha: string; bin: string },
+  wrap: (exec: GitExecLike) => GitExecLike = (exec) => exec,
+) {
   return await withHost(fixture.bin, async () => resolveReviewStatus(
     { target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha } },
-    createReviewStatusPort({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+    createReviewStatusPort({ cwd: fixture.root, exec: wrap(makeGitExec(fixture.root)) }),
   ));
 }
 
@@ -242,6 +256,27 @@ describe("the checkpoint rerun a moved-base stop names", () => {
           safe: false,
         },
       },
+    });
+  });
+});
+
+describe("review status when the base read goes unavailable under it", () => {
+  it("blocks on the unavailable base revision, and settles once the read is restored", async () => {
+    const fixture = await singletonUnderReview();
+
+    const blocked = await statusThroughPort(fixture, (exec) => withUnavailableBaseRead(exec));
+
+    expect(blocked).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail: "The current base revision is unavailable.",
+      currentBaseOid: null,
+    });
+    // The remedy names a re-run of the same reading, and with the base read restored that is what it reports.
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
     });
   });
 });

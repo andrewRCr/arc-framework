@@ -337,17 +337,19 @@ _Exit criterion:_ Every enumerated cell across all three shapes holds either a p
 marked not-applicable with its reason; the full e2e and integration lanes run green with every pin in place, and no
 probe uses a skip, todo, or expected-failure marker.
 
-### `[ ]` **5.1 Complete the public-review and checks boundary's movement kinds and control row**
+### `[x]` **5.1 Complete the public-review and checks boundary's movement kinds and control row**
 
 - _Goal:_ Every applicable cell at the public-review boundary carries an observation taken at the handler seam,
   where review clearance binds to an exact head and reviewed path set.
 
-    - Cover every movement kind Task 1.1 left applicable that the pilot did not take, plus the control row.
-    - The harness attaches no remote of its own; the pilot's origin setup is the prerequisite here too.
-    - Advance a real base through the helper for each and observe it through the instrument Task 1.1.c settled;
-      the containment fact is never handed in.
-    - Take each kind's own continuation rather than carrying the pilot's result forward. Whether a rerun clears may
-      differ by movement kind, and that difference is close to what this boundary is being asked.
+- _Outcome:_ One cell remained after the pilot, and taking its own continuation was the point: where the moved-base
+  stop does not clear, the unavailable-read stop clears on the re-run its remedy names, so the two failures the
+  boundary reports are not the same kind of stop at all. The failure is injected at the port's execution seam
+  rather than the process boundary, because the observer collapses every error into one shape and only that seam
+  can fail a single read. The attribution then rests on arm order alone: the same fetch failure also blocks the
+  routed obligation with the raw transport error, and that arm would report the identical reason one step later.
+  The control row is filled from the pilot's measurement baseline at zero stops. Rows are in
+  `notes-concurrent-integration-characterization.md`.
 
 ### `[ ]` **5.2 Probe the Errand review and merge boundary**
 
