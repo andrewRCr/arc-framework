@@ -447,28 +447,32 @@ refreshed baselines reflect only it.
   so the mint runs at the verification boundary rather than as work on this branch. What lands here is the ledger's
   owner and fix-disposition columns.
 
-    - `[ ]` **6.3.a Resolve each named target against live work-unit state**
+    - `[x]` **6.3.a Resolve each named target against live work-unit state**
 
-        - Rebuild the CLI first. A base merge during this work unit can move source under the built bundle, and
-          the staleness guard then refuses every slug resolution — a refusal that reads like a defect and is not
-          one.
-        - Resolve by slug; never read a dependency edge or a directory listing for lifecycle state.
+        - Three of the four resolve `nonexistent` — they are capture targets, not stubs; only correction
+          convergence is planned. Slug resolution reads the invoking checkout's tree, so it also reported a work
+          unit that shipped after this branch was cut as nonexistent, which `origin/main` settled.
 
-    - `[ ]` **6.3.b Record owner and fix disposition per row**
+    - `[x]` **6.3.b Record owner and fix disposition per row**
 
-        - The generalized doctrine sentence takes a row of its own.
-        - A third new stub beyond the four named targets is a signal to consolidate by mechanism; surface it rather
-          than deciding it.
+        - Twenty-four open rows and seven ledger-only rows carry an owner and a fix; fifteen resolve to none,
+          the boundary's response needing no change. Two owners stay open and are surfaced rather than decided:
+          no surface yet owns the ceremony-repetition doctrine, and the approval-gate capture's own target is
+          still undecided, so neither is owned by the criterion's definition.
 
-    - `[ ]` **6.3.c Screen each consolidated mechanism for forward compatibility**
+    - `[x]` **6.3.c Screen each consolidated mechanism for forward compatibility**
 
-        - Run it once per mechanism, not once per row — the rows are already grouped by mechanism at this point.
-        - Evaluate the project strategies' own firing conditions and read only the ones that fire. Most will not:
-          the storage, knowledge, and PM-composition surfaces trigger on what a fix touches, not on this audit.
-        - Record what fired as a pointer in the capture, never as a design the owner has not made. Three of those
-          surfaces are marked in-development and one provisional, so nothing here becomes an acceptance condition.
+        - Seven mechanisms screened against the strategies' own firing conditions: the procedure surface fires on
+          three, storage on two, knowledge on two, and PM composition on none. One result reaches backwards —
+          that surface's target model puts judgment in minimal prose, which is where the judgment-bearing drift
+          gates already sit, so their no-fix disposition is the model's answer and not only this work unit's.
 
-    - `[ ]` **6.3.d Re-read the tree for prose-only gates and refresh their ledger-only rows**
+    - `[x]` **6.3.d Re-read the tree for prose-only gates and refresh their ledger-only rows**
+
+        - Five gates, not four: the Errand lane carries its own copy of the pre-hosted-pass advisory at Step 4,
+          which the first pass recorded only at the integration boundary. They split two ways — two dispatch a
+          typed verdict and nothing more, three turn on a judgment a verb would have to define first — and only
+          the first pair takes a fix.
 
     - `[ ]` **6.3.e Mint the routed owners at the verification boundary**
 
