@@ -148,6 +148,42 @@ left as recorded rather than edited to agree with the merge.
 - _Captured during:_ `plan-segmentation`, the first stacked delivery after
   `delivery-native-stack-composition`, 2026-09-09.
 
+### `[ ]` **Land the covered-input rule for ceremony repetition in a shared surface**
+
+- _Routed from:_ `concurrent-integration-characterization` ledger, § Characterization ledger — Doctrine ·
+  ceremony repetition turns on covered input. Routed at Task 6.7's close-out re-read, 2026-09-15, having been held
+  open at the routing for an Owner decision on its home.
+
+- _Observation:_ the review-admission sentence already shipped generalizes to every ceremony in the post-execution
+  tail — **a ceremony repeats only when a covered input changed, and head or base movement is never itself a
+  covered input.** Nothing states it. There is no probe for a doctrine sentence, so the characterization could
+  record the finding but not close it.
+
+- _Home fit:_ this work unit already depends on the rule three times without anything establishing it. Its own
+  purpose is that neither initial authoring nor a correction-time recut "forces a ceremony the covered inputs did
+  not change"; its evidence-applicability capture cites "the doctrine that evidence follows covered content rather
+  than head movement" as though settled; and that capture's first success criterion operationalizes it, requiring
+  disjoint base movement to reobserve eligibility without repeating member gates whose covered inputs are
+  unchanged. The rule has to be settled for this surface regardless, so stating it once costs a paragraph rather
+  than a phase.
+
+- _Constraint — where it lands:_ **not in this draft's body, and not in a delivery-scoped document.** The rule
+  spans every ceremony in the post-execution tail, while this work unit is one consumer of it. The
+  characterization's forward-compatibility screen fired `knowledge-evolution` on exactly this point, with the
+  pointer "placement of agent-facing guidance", so placement is the open question rather than wording. Land it in a
+  shared surface — a rule or strategy that non-delivery ceremonies reach — and let this work unit cite it like any
+  other consumer. A sentence buried in a delivery draft would satisfy the routing and lose the finding.
+
+- _Boundary:_ this owns stating the rule and choosing its surface. It does not own auditing every ceremony against
+  it, retrofitting the boundaries the characterization found repeating, or the separate refusal-remedy-accuracy
+  work, which is execute-bound and routed as an Errand.
+
+- _Why it matters more than one sentence suggests:_ the characterization's second matrix kept routing findings back
+  to this rule's absence. Refusal remedy accuracy reached four instances, three of them working remedies the
+  failing result never names and one a remedy that is named and provably cannot clear its own refusal. A result's
+  remedy field is load-bearing in both directions and nothing checks it in either — which is the same gap seen from
+  the far side, and it has no owner while the rule has no home.
+
 ### `[ ]` **Preserve evidence applicability throughout delivery prepublication**
 
 - _Routed from:_ `USER-INBOX § Work Unit`

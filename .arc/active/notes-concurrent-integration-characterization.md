@@ -1159,6 +1159,9 @@ carried.
   invalidates it, so the reconcile, fresh checkpoint, and fresh approval the earlier row recorded are all gone.
 - _Probe:_ `integrate-base-movement.e2e.test.ts` — "the window between a minted handle and the merge that consumes
   it > merges the approved head after an advance sharing no path with it" · _Base OID:_ `cbf075da7`
+- _Discharges:_ the earlier row's fix disposition — carry the partition into the merge window so a disjoint
+  advance does not re-ceremony the landing — is **met**. That row's `[open]` owner marker is therefore spent and
+  is not an unrouted finding; it is left in place because rows are never edited.
 
 **Member / singleton landing · `overlapping-substantive` · singleton** — _superseded_
 
@@ -1176,6 +1179,10 @@ carried.
   `reconcile-base`, and the result now carries a reason where the earlier one was bare.
 - _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's own base read > offers a reconcile for an
   advance over the regenerable projection alone" · _Base OID:_ `cbf075da7`
+- _Discharges:_ the earlier row's fix disposition — compose a next-step invocation for the one safe result at this
+  boundary — is **met**, which the observation above understates by naming only the reason. The result carries a
+  required remedy whose `argv` is executable without shell reconstruction, composed as
+  `arc base merge --expected-base … --expected-head … --json`. That row's `WU_Target` TBD marker is spent.
 
 **Member / singleton landing · `disjoint` · delivery-member** — _superseded_
 
@@ -1786,7 +1793,15 @@ boundary. The five split two ways, and only one half has a fix.
   tail — a ceremony repeats only when a covered input changed, and head or base movement is never itself a
   covered input. There is no probe for a doctrine sentence; it needs a home.
 - _Fix:_ land the generalized sentence in its own home. ·
-  _Owner:_ [open — no surface owns it yet; see the routing report]
+  _Owner:_ `delivery-rebuild-continuity`, through the capture routed to it at Task 6.7's close-out re-read, with
+  the constraint that the sentence lands in a shared surface rather than in that work unit's own draft
+
+  Held open at the routing for an Owner decision and resolved at close rather than left standing. The home is not
+  a nearest-fit: this work unit's purpose already states the rule for its own surface, its evidence-applicability
+  capture cites the doctrine as settled, and that capture's first success criterion operationalizes it — so the
+  rule has to be decided there regardless. The constraint is what keeps the routing honest, since the rule spans
+  every ceremony in the post-execution tail while its owner is one consumer of it; the forward-compatibility
+  screen fired `knowledge-evolution` on this exact point, pointing at placement rather than wording.
 
 ### Excess and bare stops
 
@@ -1920,6 +1935,38 @@ The doctrine's home has since gained weight rather than lost it. Refusal remedy 
 across the two matrices, and the fourth inverts the other three — a remedy that is named and provably cannot clear
 the refusal carrying it. That is a doctrine-shaped finding with no owner, which is the same gap seen from the other
 side.
+
+### Correction — the gap was misread, and a third entry was never audited
+
+Appended after the close-out re-read, with the reading above left standing so the mistake stays legible.
+
+**The two rows named as the criterion's gap had both already had their fixes met**, and the close did not check.
+Both were observed at `4f6b11568` and both carry a superseding row at `cbf075da7`:
+
+- The ceremony-repetition row asked that the partition be carried into the merge window so a disjoint advance
+  does not re-ceremony the landing. Its superseding row records `merged` — the reconcile, fresh checkpoint, and
+  fresh approval are gone.
+- The approval-gates row asked for a next-step invocation for the one safe result at that boundary. Its
+  superseding row mentions only a typed reason, which is why the close read it as still open; the source settles
+  it. The reconcile result is built through a strict schema whose `remedy` is required and whose `argv` is
+  "executable without shell reconstruction", and the checkpoint composes it as an
+  `arc base merge --expected-base … --expected-head … --json` invocation. The bare stop is no longer bare.
+
+The close counted open owner strings and never asked whether the superseding rows had already discharged them.
+That is the reading to distrust in this section: an owner field is not a statement about whether work remains
+once the row it sits on has been superseded.
+
+**A third entry was genuinely unowned and never entered the audit at all.** The § Characterization ledger doctrine
+row — ceremony repetition turns on covered input — carries `_Fix:_` rather than `_Fix at close:_`, and the audit
+filtered on the latter, so it fell out of the forty-five before any column was checked. It was the one real gap,
+and the one that had been accumulating weight: the second matrix kept routing findings back to its absence.
+
+It is now routed to `delivery-rebuild-continuity`, under the constraint that the sentence land in a shared surface
+rather than in that work unit's draft. With that, **every row and every ledger-only finding in this work unit has
+an owner**, and the criterion's gap is closed rather than merely described.
+
+One method note for the next close: auditing by column name silently excludes any entry that names its columns
+differently. The doctrine row was visible in the file and invisible to the check.
 
 ### The retained suite against the refreshed baselines
 

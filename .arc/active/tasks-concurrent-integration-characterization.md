@@ -600,6 +600,19 @@ unaffected and run in place._
   checkout. The two obligations the note names remain open at the verification boundary by design. The close is in
   `notes-concurrent-integration-characterization.md` § Ledger close.
 
+- _Amended 2026-09-15 at the Owner's direction, after a close-out re-read._ The gap this outcome reports was
+  misread and is now closed. Both rows it named had already had their fixes met by sibling work — the landing
+  window merges across a disjoint advance, and the one bare stop at that boundary carries a required remedy whose
+  argv is executable without shell reconstruction — and the close counted open owner strings without asking
+  whether the superseding rows had discharged them. The genuine gap was a third entry the audit never reached: the
+  doctrine row carries `_Fix:_` rather than `_Fix at close:_`, so filtering on the latter excluded it before any
+  column was checked. It is routed to `delivery-rebuild-continuity`, whose purpose already states the rule for its
+  own surface and whose evidence-applicability capture cites it as settled, under the constraint that the sentence
+  land in a shared surface rather than in that work unit's draft — the rule spanning every ceremony in the
+  post-execution tail while its owner is one consumer of it. **Every row and every ledger-only finding now has an
+  owner.** The correction is appended in `notes-concurrent-integration-characterization.md` § Ledger close with the
+  superseded reading left standing.
+
 ## **Phase 7:** Second matrix — the axes the failures actually move
 
 _Purpose:_ Close the span gap the routing exposed. D3 enumerates boundary × base-movement kind, and the recorded
