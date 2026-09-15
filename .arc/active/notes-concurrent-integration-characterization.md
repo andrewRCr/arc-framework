@@ -1308,6 +1308,8 @@ invocation and one stop unless the row says otherwise.
 - _Closure:_ unproducible here. Observing the loss at a boundary needs the delivery reroute path and the frontline
   review path composed in one tree, which the suite has no fixture for; D10 admits closing rather than forcing one.
   What replaces the observation is the mechanism, read from source so the owner does not re-derive it.
+- _Continuation:_ `not-applicable` — no stop was taken, the cell having produced no observation ·
+  _Classification:_ not applicable, for the same reason
 - _Owner:_ the capture holding this as an Errand with its own re-triage note · _Fix at close:_ routed ·
   _Retention at close:_ not applicable — no probe
 
@@ -1493,6 +1495,8 @@ invocation and one stop unless the row says otherwise.
   in-process command map that carries neither. Added to that map, `land prepare` over the nearest fixture refuses
   carrying no reason field at all, so the cell has no readable control, and a movement row without one is exactly
   what this ledger does not record. D10 admits closing rather than forcing the composition.
+- _Continuation:_ `not-applicable` — no stop was taken, the cell having produced no observation ·
+  _Classification:_ not applicable, for the same reason
 - _Owner:_ the capture holding this as an Errand, "Keep sequential landing review current through preparation and
   no-effect recovery" · _Fix at close:_ routed · _Retention at close:_ not applicable — no probe
 
@@ -1519,6 +1523,8 @@ invocation and one stop unless the row says otherwise.
   exists to make. The one suite that creates real approved dispositions produces Candidate-bound records, while
   this selection reads only records with no Candidate binding, and reaching two pending authorities needs an
   approve, re-attest, approve sequence no fixture performs.
+- _Continuation:_ `not-applicable` — no stop was taken, the cell having produced no observation ·
+  _Classification:_ not applicable, for the same reason
 - _Owner:_ `review-orchestration-right-sizing`, through the capture retiring superseded private Frontline
   response authority · _Fix at close:_ routed · _Retention at close:_ not applicable — no probe
 
@@ -1874,6 +1880,79 @@ One screen result reaches back into a disposition rather than forward into a cap
 model is deterministic logic in the CLI, structure in typed contracts, and **judgment in minimal prose** — which is
 the layer the three judgment-bearing drift gates already occupy. Their no-fix disposition is that model's own
 answer, arrived at independently, rather than only this work unit's reading of them.
+
+## Ledger close
+
+Taken at Task 6.7, against the Phase 6 exit criterion rather than the task goal, because the criterion names five
+recorded columns where the goal names four closing ones.
+
+### Every row carries every recorded column
+
+Forty-four rows plus the convention note that defines the column grammar. All five recorded columns — continuation,
+classification, owner, fix disposition, retention disposition — are present on every one.
+
+Three rows needed filling, and all three are the closed-unproducible cells. They had carried owner, fix and
+retention but neither continuation nor classification, which was not an oversight so much as an unstated reading:
+a cell that produced no observation has no stop to classify and no continuation to record. Both now say so in the
+ledger's own vocabulary — `not-applicable`, for the reason the row already gives — so the audit reads the same way
+from outside as it did from inside.
+
+### Where every row resolves
+
+| Resolution                                             | Rows |
+| ------------------------------------------------------ | ---- |
+| a `backlog/` stub — five distinct targets, all present | 15   |
+| a capture whose fate is Errand                         | 10   |
+| not applicable — controls, and rows needing no fix     | 17   |
+| **deliberately open**                                  | 2    |
+
+The five stubs were each confirmed present on disk rather than assumed from the slug:
+`delivery-post-landing-conflict-recovery`, `delivery-rebuild-continuity`, `delivery-correction-convergence`,
+`review-protocol-alignment`, `review-orchestration-right-sizing`.
+
+**Two rows do not resolve, and that is the criterion's one gap.** The ceremony-repetition doctrine has no home, and
+the approval-gates capture still carries `WU_Target: TBD`. Both were left open at the Owner's direction when the
+routing ran, so they are a held decision rather than an unfinished one — but the exit criterion asks every
+non-passing row to resolve, and these two do not. Named here so the gap is explicit at close instead of being
+discovered at verification.
+
+The doctrine's home has since gained weight rather than lost it. Refusal remedy accuracy reached four instances
+across the two matrices, and the fourth inverts the other three — a remedy that is named and provably cannot clear
+the refusal carrying it. That is a doctrine-shaped finding with no owner, which is the same gap seen from the other
+side.
+
+### The retained suite against the refreshed baselines
+
+One measurement per tier, after retention and after the refresh, read against the budgets this work unit just
+rewrote:
+
+| Tier          | Wall clock | Baseline | Budget  | Verdict  |
+| ------------- | ---------- | -------- | ------- | -------- |
+| `integration` | 44 043     | 46 553   | 51 209  | `within` |
+| `lane`        | 52 779     | 52 365   | 57 602  | `within` |
+| `e2e`         | 211 158    | 210 051  | 231 057 | `within` |
+
+All three within. Integration came in below its own refreshed baseline, which is the run-to-run spread the
+three-run median exists to absorb rather than a second improvement.
+
+### One stale statement corrected outside the tree
+
+`RELEASE-GATES.md` § Errand runway listed three Errands routed out of this ledger, one of which — dispatching the
+Errand lane's two mechanical base-drift gates from the typed verdict — Task 6.4 had already recorded as retired,
+its target met by sibling work and the two gates it named no longer present in the tree. The runway now carries two
+live Errands and records the third's retirement with its reason. The file is a personal artifact outside version
+control, so the correction travels with the checkout rather than with this commit.
+
+### Two obligations this task cannot close
+
+Both land at the verification boundary, as the task's own note states, and neither is optional.
+
+1. **Whether the e2e and integration legs ran** on the pull request — observable only once one exists, and the
+   question is whether the legs ran, not whether the workflow went green. The e2e job is skipped when the change is
+   classified light-weight, when reconciliation is deferred, and when the lane is not the reviewed one.
+2. **The per-CI-job budget rows**, whose only source is that same run. § Post-probe cost carries the number to
+   expect there: integration's summed file time rose over twelve percent while its wall clock moved under four,
+   and at `workerSizing: 1` there is no parallelism left to absorb the difference.
 
 ## Post-probe cost
 

@@ -570,7 +570,7 @@ unaffected and run in place._
   work added eight tests to it — stated rather than acted on. Figures are in
   `notes-concurrent-integration-characterization.md` § Post-probe cost.
 
-### `[ ]` **6.7 Close the ledger against the matrix** — validate exit criterion at segment scope
+### `[x]` **6.7 Close the ledger against the matrix** — validate exit criterion at segment scope
 
 - _Goal:_ Every ledger row is closed on all four closing columns, and the retained suite is green against the
   refreshed baselines.
@@ -581,6 +581,24 @@ unaffected and run in place._
   light-weight, when reconciliation is deferred, and when the lane is not the reviewed one. The same run is the only
   source for the per-CI-job budget rows, so reading its elapsed figures and landing a second budget refresh belongs
   there too. Neither is optional: the criterion forbids leaving a CI budget summary standing.
+
+- _Outcome:_ Closed against the phase's exit criterion rather than this task's goal, the criterion naming five
+  recorded columns where the goal names four. All forty-four rows now carry every one. Three needed filling and all
+  three are the closed-unproducible cells, which had owner, fix and retention but neither continuation nor
+  classification — not an oversight so much as an unstated reading, since a cell producing no observation has no
+  stop to classify; both now say so in the ledger's own vocabulary. Resolution: fifteen rows to five `backlog/`
+  stubs, each confirmed present on disk rather than assumed from its slug, ten to Errand-fate captures, seventeen
+  not applicable. **Two rows do not resolve, and that is the criterion's one gap** — the ceremony-repetition
+  doctrine has no home and the approval-gates capture still carries `WU_Target: TBD`, both held open at the Owner's
+  direction when the routing ran, so they are a held decision rather than unfinished work; named at close rather
+  than left to surface at verification. The doctrine's home has gained weight since, refusal remedy accuracy having
+  reached four instances with the fourth inverting the other three. The retained suite is green against the
+  refreshed baselines, one measurement per tier: integration 44 043 against a 51 209 budget, lane 52 779 against
+  57 602, e2e 211 158 against 231 057, all `within`. `RELEASE-GATES.md` § Errand runway is corrected — it still
+  listed the typed-drift-dispatch Errand that Task 6.4 recorded as retired, and now carries two live Errands and
+  that one's retirement with its reason; the file is outside version control, so the correction travels with the
+  checkout. The two obligations the note names remain open at the verification boundary by design. The close is in
+  `notes-concurrent-integration-characterization.md` § Ledger close.
 
 ## **Phase 7:** Second matrix — the axes the failures actually move
 
