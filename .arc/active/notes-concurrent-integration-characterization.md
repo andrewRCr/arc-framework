@@ -1505,6 +1505,60 @@ invocation and one stop unless the row says otherwise.
   As above, the coverage travels with the fix: that capture already requires covering entry with a stranded
   legacy record and a still-pending fix, which is the composition this cell could not build.
 
+**Eligibility window · base movement, disjoint · delivery-member**
+
+- _Intent:_ Closing an eligibility window whose gate run completed inside it, after the base advanced on a path no
+  member touches; expect the completed results consumed rather than a fresh preparation directed.
+- _Probe:_ `delivery-window-base-movement.test.ts` — "discards them when the base advances on a path no member
+  touches" · _Base OID:_ `cbf075da7` · _Observed:_ `refused`, reason `source-moved`, carrying
+  `nextAction: reprepare-delivery-eligibility` with the full argument set. The control is the same close over the
+  same snapshot with the base held, which returns `eligible` having consumed every gate result.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ argv-bearing — the next action names the verb and every argument ·
+  _Continuation:_ `cleared`, at a price the row's cost column does not hold: re-preparing is one call, but the
+  gates the fresh snapshot then requires are a full Tier 2 run per member.
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-rebuild-continuity`, whose evidence-applicability
+  capture records this seam and whose first success criterion commits to it · _Fix at close:_ routed ·
+  _Retention at close:_ —
+
+  The ordering is where the cost comes from. Gate results validate first, against member coordinates that did not
+  move; the plan, the lifecycle paths, the per-member contribution, the predecessor relation, and the normalized
+  completeness all then pass against the prepared snapshot. Only at the very end does the close re-observe the
+  refs the snapshot named, and `refs/heads/main` is one of them. So the entire window is proved intact and then
+  discarded on the one fact none of the checks in it depend on.
+
+  A third case establishes that the gates are not what is refused: the mechanical close, which takes no gate
+  results at all, returns a result byte-identical to the publication close that validated two passing ones. The
+  refusal is the base movement alone, and the work it discards is work the movement did not touch.
+
+**Materialization window · base movement, disjoint · delivery-member**
+
+- _Intent:_ Republishing a bound chain after the base advanced beneath it; expect the pass to reach the tip
+  observation that guards the same movement before the target is bound.
+- _Probe:_ `delivery-window-base-movement.test.ts` — "publishes the bound chain identically whether or not the
+  base advanced" · _Base OID:_ `cbf075da7` · _Observed:_ `materialized` over both a held base and an advanced one,
+  the two typed results equal field for field, with the member ref republished at its planned head in each. The
+  pass observes the member ref and never observes `refs/heads/main`.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ not applicable — no stop · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ `delivery-rebuild-continuity`, whose evidence-applicability capture
+  carries this seam as its publication-window edge · _Fix at close:_ routed as evidence, not as a defect ·
+  _Retention at close:_ —
+
+  **Recorded without a pin, deliberately.** The owning capture states the open question in terms that forbid one:
+  determine whether a bounded in-call recheck materially improves the retry, or whether later review gates are the
+  appropriate authority boundary, and do not treat either outcome as implicit. A pin would settle that by
+  assertion. What the probe supplies instead is the fact the decision needs, stated so that either resolution can
+  consume it.
+
+  That fact is where the guard stops applying. The tip observation exists and is reachable: a first pass over the
+  same advance refuses, having observed `refs/heads/main`. It lives inside the branch that binds the target, so
+  once the target is bound the pass no longer looks at the base at all — and each probe pass deletes the published
+  member ref first, so what is measured is a pass that writes rather than one that confirms and skips. The guard
+  therefore stops applying at exactly the moment the chain becomes publishable, which is the moment its own
+  capture says stale artifacts can be left behind without merge authority.
+
+  D7 is not violated by this. It requires a tip proof before the initial chain-base record, and that proof is the
+  first pass, which takes it. What the second pass writes is member refs.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:
