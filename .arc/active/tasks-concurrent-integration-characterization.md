@@ -883,13 +883,21 @@ boundary too early. The criteria themselves are unchanged._
   consolidated into `delivery-rebuild-continuity`, which is what the design's own rule directs —
   consolidate by mechanism rather than by boundary. Every named target is owned by a stub on disk, and
   `RELEASE-GATES.md` and `ROADMAP.md` name the same three.
-- `[~]` The test-cost baselines are refreshed in a dedicated `perf(test-cost)` commit whose message states the
+- `[x]` The test-cost baselines are refreshed in a dedicated `perf(test-cost)` commit whose message states the
   measured delta, and no CI test-budget summary is left standing
 
   _Deferred to the integration boundary._ The first clause holds — the refresh landed in its own commit stating
   every measured delta. The second has no source but a pull-request run and is answered there. Expect
   integration's summed file time, which grew 12.40% against a wall clock that moved under four percent because
   twelve workers absorbed it, to surface in those rows at a single worker.
+
+  _Settled at the integration boundary:_ the second clause took three pull-request runs to witness, because the
+  summary is emitted by a run rather than by the refresh. The tier-isolated rows landed in `4d8c09296` and the
+  per-CI-job rows followed in `34a424fd3` and `fe5f8de10`, each message stating its measured delta. Four rows
+  reported over on the first run at one worker — integration and e2e-1 through e2e-3 — which is the shape the
+  deferral predicted. `e2e-4` then went over on the second run from inside a 2.5% margin, so the three shard rows
+  were rebaselined on the spread of both runs rather than on a single observation. Every row reports within on
+  the final run and no summary is emitted.
 - `[x]` Every probe retained at close guards a cell or isolation case no other test covers, every deleted probe's
   ledger row records its observation and the covering test, and the measured tier cost reflects only the retained set
 - `[x]` Every axis the second matrix names is either enumerated with a stated ceiling and probed to it, or closed
@@ -909,13 +917,21 @@ boundary too early. The criteria themselves are unchanged._
   the named baseline entirely. The criterion still holds, and for a cleaner reason: against the baseline the claim
   names, the diff removed nothing when the claim was made and removes twenty-five lines now, every one a
   placeholder fill and none an observation field.
-- `[~]` The e2e and integration lanes ran on the pull request, not only locally
+- `[x]` The e2e and integration lanes ran on the pull request, not only locally
 
   _Deferred to the integration boundary._ Settled by the pull-request run and nothing else. Read the job list
   rather than the badge: the question is whether the legs ran, and the e2e job is skipped when the change is
   classified light-weight, when reconciliation is deferred, and when the lane is not the reviewed one.
+
+  _Settled at the integration boundary:_ read from the job list rather than the badge, as the deferral directed.
+  E2E ran as four shards and Integration as its own job on every pull-request run, with real elapsed times; the
+  change was not classified light-weight, so neither leg was skipped.
 - `[x]` All quality gates pass (tests, linting, type checking)
-- `[~]` Ready for integration
+- `[x]` Ready for integration
 
   _Deferred to the integration boundary._ Follows the two criteria above, both of which only a pull-request
   run settles.
+
+  _Settled at the integration boundary:_ follows the two criteria above, as its deferral states, and both are met
+  with every required check green on the integration head. Merge authorization remains with the integration
+  checkpoint and its interlock, which this criterion does not stand in for.
