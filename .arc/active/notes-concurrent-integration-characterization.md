@@ -1027,3 +1027,72 @@ merge and superseded at close. Owners resolve at this work unit's close.
   tail — a ceremony repeats only when a covered input changed, and head or base movement is never itself a
   covered input. There is no probe for a doctrine sentence; it needs a home.
 - _Fix:_ land the generalized sentence in its own home. · _Owner:_ — (at close)
+
+### Excess and bare stops
+
+Computed from the rows above: each movement row against its own boundary's control row, counting the continuation's
+own invocations. Counts are ledger observations taken from the runs, never assertions in the probes.
+
+| Boundary · shape                         | Control baseline |
+| ---------------------------------------- | ---------------- |
+| Whole-work-unit verification · singleton | 1 / 0            |
+| Candidate / prepublication · singleton   | 3 / 0            |
+| Public review and checks · singleton     | 1 / 0            |
+| Member / singleton landing · singleton   | 2 / 1            |
+| Post-landing closeout · singleton        | 1 / 0            |
+| Errand review / merge · singleton        | 1 / 0            |
+| Member / singleton landing · member      | 1 / 1            |
+
+Invocations / approval stops. Read isolation has no control row and no movement, so excess does not reach its three
+rows.
+
+| Boundary · shape                         | Movement row                   | Counts | Excess  | Landed |
+| ---------------------------------------- | ------------------------------ | ------ | ------- | ------ |
+| Whole-work-unit verification · singleton | `disjoint`                     | 1 / 0  | 0 / 0   | yes    |
+| Candidate / prepublication · singleton   | `disjoint`                     | 3 / 0  | 0 / 0   | yes    |
+| Public review and checks · singleton     | `disjoint`                     | 2 / 2  | +1 / +2 | no     |
+| Public review and checks · singleton     | `unknown`                      | 2 / 1  | +1 / +1 | yes    |
+| Member / singleton landing · singleton   | `disjoint`                     | 3 / 3  | +1 / +2 | no     |
+| Member / singleton landing · singleton   | `overlapping-substantive`      | 2 / 2  | 0 / +1  | no     |
+| Member / singleton landing · singleton   | `overlapping-regenerable-only` | 1 / 1  | −1 / 0  | no     |
+| Member / singleton landing · singleton   | `unknown`                      | 2 / 1  | 0 / 0   | no     |
+| Post-landing closeout · singleton        | `disjoint`                     | 1 / 0  | 0 / 0   | yes    |
+| Post-landing closeout · singleton        | `unknown`                      | 2 / 1  | +1 / +1 | yes    |
+| Errand review / merge · singleton        | `disjoint`                     | 1 / 0  | 0 / 0   | yes    |
+| Member / singleton landing · member      | `disjoint`                     | 1 / 1  | 0 / 0   | no     |
+| Member / singleton landing · member      | `overlapping-substantive`      | 1 / 1  | 0 / 0   | no     |
+| Member / singleton landing · member      | `overlapping-regenerable-only` | 1 / 1  | 0 / 0   | no     |
+
+`Landed` records whether the row reached the endpoint its control row reached, and it is what keeps the excess
+column honest. Excess is a raw difference, so a row that stops early reads low for the wrong reason: the landing
+boundary's regenerable-only row runs one fewer invocation than its control only because it never merges, its
+`unknown` row reads a flat zero while the continuation leaves the reader on a drift report, and all three
+delivery-member rows read zero at exactly the stops where no handle was minted. Eight of the fourteen movement
+rows did not land. Every figure here is read with that column beside it.
+
+Where the ceremony did complete, the cost is legible and small: two of the three `unknown` rows clear for one extra
+invocation and one extra stop and both land, and five of the seven `disjoint` rows cost nothing at all — the
+exceptions are the singleton landing and public review.
+
+**Bare stops.** Six stops name a next action with no composed invocation to reach it, and four of the six are the
+same typed result.
+
+| Stop                                   | Row                                                      |
+| -------------------------------------- | -------------------------------------------------------- |
+| `reconcile / reconcile-base`           | landing `overlapping-regenerable-only` · singleton       |
+| `reconcile / reconcile-base`           | landing `disjoint` · delivery-member                     |
+| `reconcile / reconcile-base`           | landing `overlapping-substantive` · delivery-member      |
+| `reconcile / reconcile-base`           | landing `overlapping-regenerable-only` · delivery-member |
+| `rejected`, authority ref unresolvable | closeout `unknown` · singleton                           |
+| `base-moved / rerun-checkpoint`        | public review `disjoint` · singleton                     |
+
+The bare ones are the safe ones. `reconcile-base` is the only recurring bare stop, and it is what the boundary
+returns once it has decided the movement is tolerable, while every refusal at the landing boundary carries a remedy.
+The closeout refusal is the exception in both directions: it is a refusal, it is bare, and it clears on a plain
+retry its own message never names. The public-review stop names an action but carries no argv for it.
+
+**Classification tally.** Eleven `tolerates`, three `mechanical block`, three `fail-closed, correct`, and seven
+control rows that classify no movement. **No row is `redundant ceremony`** — across six boundaries and both shapes,
+nothing in the post-execution tail re-ran a ceremony on base movement alone. Each `fail-closed, correct` rests on a
+continuation the probe exercised and that cleared, and each `mechanical block` on a refusal nothing is proven to
+clear, so every classification follows the continuation rather than a reading of how justified the refusal looks.

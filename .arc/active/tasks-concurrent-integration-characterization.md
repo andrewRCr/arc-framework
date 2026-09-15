@@ -417,19 +417,17 @@ refreshed baselines reflect only it.
   no row named; it is now cited the same way rather than left resting on prose. Accounting closes both ways: of
   fifty-one tests added, twenty-five are cited and twenty-six are the helpers' own.
 
-### `[ ]` **6.2 Classify every ledger row and record its recommendation and continuation columns**
+### `[x]` **6.2 Classify every ledger row and record its recommendation and continuation columns**
 
 - _Goal:_ Each observation carries one classification, a record of whether the typed result arrived with a
   recommendation or as a bare fork, and whether following that recommendation actually cleared the stop.
 
-- _Shape:_ Classification follows the continuation, not the reviewer's read of how justified a refusal looks.
-  Fail-closed and correct requires a continuation the probe exercised and that cleared; a refusal the baseline also
-  requires but which nothing is proven to clear is a mechanical block however defensible it is.
-
-    - Classify as tolerates, redundant ceremony, mechanical block, or fail-closed and correct.
-    - A bare "approve this?" with no composed recommendation is itself a defect; record it per stop.
-    - Compute each movement row's excess against its boundary's control row, counting the continuation's own
-      invocations; route non-concurrency excess in a control row rather than fixing it.
+- _Outcome:_ Classification, fork, and continuation were already per-row at probe time; what closed here is the
+  cross-row computation, in `notes-concurrent-integration-characterization.md` § Excess and bare stops. Every
+  classification follows its continuation, and no row is `redundant ceremony` — nothing in the post-execution tail
+  re-ran a ceremony on base movement alone. Excess sits beside a column recording whether the row landed, since a
+  raw difference reads low for the wrong reason: eight of fourteen movement rows never did. Six stops are bare,
+  four of them the same `reconcile-base` — the safe results are the bare ones while every refusal carries a remedy.
 
 ### `[ ]` **6.3 Route every row that needs an owner**
 
