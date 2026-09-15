@@ -653,6 +653,17 @@ every pin in place.
 - _Goal:_ Observe what happens when a ceremony's own record writes move the head its preconditions were read
   against, with no base movement involved.
 
+    - `[ ]` **7.4.a Probe the two cells the enumeration placed on the operator's index**
+
+        - Session-init and recovery observed, and the enumeration corrected: the operator's index is not the
+          cause. An authorized merge landing the work unit's active record on the base leaves the checkout on the
+          base while the record still names the work unit's branch, and the seed write then returns
+          `seed-invalid` against a control that writes it. Running the identical merge conflicting and clean
+          returns the same typed failure, which is what establishes the index as incidental rather than causal.
+          The row and the correction are in `notes-concurrent-integration-characterization.md`.
+
+    - `[ ]` **7.4.b Probe the three cells whose writes are the verbs' own**
+
 ### `[ ]` **7.5 Probe the boundaries outside the enumerated six**
 
 - _Goal:_ Observe base movement at the delivery authoring and rematerialization surfaces, which read a base the

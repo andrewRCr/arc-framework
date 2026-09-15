@@ -1370,6 +1370,31 @@ invocation and one stop unless the row says otherwise.
   where it becomes a stop — `delivery-terminal-blocked / drift-classification-unavailable`, offering only a
   retry — and that mapping is recorded by the owner rather than re-observed here.
 
+**Session-init and recovery · a write that is not a base advance · singleton**
+
+- _Intent:_ A session opening after an authorized merge lands a work unit's active record on the base branch;
+  expect the checkout it is in still resolved.
+- _Probe:_ `concurrent-write-preconditions.test.ts` — "cannot write its recovery seed once the merge has landed
+  the record on the base" · _Base OID:_ `cbf075da7` · _Observed:_ the seed write returns `failed`, reason
+  `seed-invalid`, message "Entering checkout facts are unresolved: <repository root>"; no remedy. The session
+  itself still exits zero, and its locus guidance reads `unavailable`, naming `topology-mismatch` — the observed
+  checkout topology does not corroborate the subject derived from the record. The control, the same project with
+  the record's own branch in hand, writes the seed.
+- _Invocations:_ 1 · _Stops:_ 0 — the session exits zero and still loads its context · _Fork:_ bare ·
+  _Continuation:_ `none-offered`
+- _Classification:_ `mechanical block` · _Owner:_ the capture holding this as an Errand · _Fix at close:_ routed ·
+  _Retention at close:_ —
+
+  _Recorded as a correction, appended rather than edited above:_ the enumeration placed this cell under the
+  operator's index, and the index is not the cause. A third case runs the identical merge twice, once conflicting
+  and once not, and both return the same typed failure — the conflicted tree leaves `src/shared.ts` unmerged while
+  the clean one leaves `git status` empty. What actually breaks the reading is that the merge carries the active
+  record onto the base branch, so the checkout is on the base while the record still names the work unit's branch.
+  The unmerged index was present when the failure was first recorded and was read as its cause; it is incidental.
+  The axis placement still holds under the amended D10 — a merge landing a record is a write that is not a base
+  advance — but the source column is wrong, and the routed capture's own title names the index as the thing to
+  preserve through recovery, so an implementer starting from it would look in the wrong place.
+
 ### Not-applicable rows
 
 Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:
