@@ -826,26 +826,54 @@ every pin in place.
 
 ## Success Criteria
 
-- `[ ]` Every enumerated cell across the singleton, delivery-member, and isolation shapes holds either a probe in
+- `[x]` Every enumerated cell across the singleton, delivery-member, and isolation shapes holds either a probe in
   the suite or a ledger row marked not-applicable with its reason
-- `[ ]` Every probe that does not pass on the current tree calls the shared pin helper with both its observed and
+- `[x]` Every probe that does not pass on the current tree calls the shared pin helper with both its observed and
   target shapes, the suite is green with those pins in place, and no probe uses a skip, todo, or expected-failure
   marker
-- `[ ]` The extended base-advance helper accepts a path set and all four movement kinds, and every new probe
+- `[x]` The extended base-advance helper accepts a path set and all four movement kinds, and every new probe
   advances the base through it
-- `[ ]` Every ledger row carries every recorded column, and every non-passing and ledger-only row's owner resolves
+- `[x]` Every ledger row carries every recorded column, and every non-passing and ledger-only row's owner resolves
   to a `backlog/` stub, a capture targeting an in-flight work unit, or a capture whose fate is Errand
-- `[ ]` Stubs minted beyond the four named stabilization targets number one or two
-- `[ ]` Each of the four named stabilization targets exists as a `backlog/` stub at close, the generalized doctrine
+- `[~]` Stubs minted beyond the four named stabilization targets number one or two
+
+  _Superseded:_ the routing produced **zero**. Every remaining row resolved to an owner that already
+  existed — a `backlog/` stub, an in-flight work unit's capture, or an Errand capture — so no unowned,
+  spec-worthy mechanism was left for one to be minted for. Minting a stub to reach the predicted count
+  would have invented unowned work; the intent this criterion serves is carried by the ownership
+  criterion above, which is met.
+- `[x]` Each of the four named stabilization targets exists as a `backlog/` stub at close, the generalized doctrine
   sentence has its own owned row, and `RELEASE-GATES.md` matches the routed ledger
+
+  _Deviation:_ three stubs rather than four. `delivery-authoring-rebuild` and
+  `delivery-prepublication-evidence-applicability` are one mechanism at two lifecycle positions and were
+  consolidated into `delivery-rebuild-continuity`, which is what the design's own rule directs —
+  consolidate by mechanism rather than by boundary. Every named target is owned by a stub on disk, and
+  `RELEASE-GATES.md` and `ROADMAP.md` name the same three.
 - `[ ]` The test-cost baselines are refreshed in a dedicated `perf(test-cost)` commit whose message states the
   measured delta, and no CI test-budget summary is left standing
-- `[ ]` Every probe retained at close guards a cell or isolation case no other test covers, every deleted probe's
+
+  _Not met:_ the first clause holds — the refresh landed in its own commit stating every measured delta.
+  The second cannot be settled at this boundary: the per-CI-job budget rows have no source but a
+  pull-request run, and no pull request exists yet.
+- `[x]` Every probe retained at close guards a cell or isolation case no other test covers, every deleted probe's
   ledger row records its observation and the covering test, and the measured tier cost reflects only the retained set
-- `[ ]` Every axis the second matrix names is either enumerated with a stated ceiling and probed to it, or closed
+- `[x]` Every axis the second matrix names is either enumerated with a stated ceiling and probed to it, or closed
   with a recorded reason it cannot be observed on this tree
-- `[ ]` No row recorded before the span widened is edited to agree with a later observation; every changed
+- `[x]` No row recorded before the span widened is edited to agree with a later observation; every changed
   observation appends against the base it was seen on
+
+  _Verified at close:_ re-checked against the rows rather than the file. No observation field has been
+  removed or rewritten since the widening — the changes are placeholder fields being filled and one table
+  that is not a ledger row. The file-level evidence first recorded for this criterion was wrong, and the
+  correction is appended in `notes-concurrent-integration-characterization.md` § Second-matrix
+  confirmation.
 - `[ ]` The e2e and integration lanes ran on the pull request, not only locally
-- `[ ]` All quality gates pass (tests, linting, type checking)
+
+  _Not met:_ no pull request exists yet, and the question is whether the legs ran rather than whether the
+  workflow went green — the e2e job is skipped when the change is classified light-weight, when
+  reconciliation is deferred, and when the lane is not the reviewed one.
+- `[x]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
+
+  _Not met:_ follows the two criteria above, both of which only a pull-request run settles.
