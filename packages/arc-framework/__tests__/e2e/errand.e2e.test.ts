@@ -1771,21 +1771,6 @@ describe("the Errand close boundary over a base that moves under it", () => {
     ];
   }
 
-  it("closes the Errand when the base holds still", async () => {
-    const slug = "close-base-still";
-    const host = await errandAwaitingClose(slug);
-    try {
-      const result = await runArcAnchoredSequence([closeArgs(slug)], tmpDir, { env: host.env });
-
-      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-      expect(result.results.at(-1)).toMatchObject({ outcome: "applied", operation: "errand-close" });
-      expect(await git(tmpDir, ["branch", "--list", `chore/${slug}`])).toBe("");
-    } finally {
-      await cleanupTempDir(host.ghDir);
-      await cleanupTempDir(host.remoteDir);
-    }
-  });
-
   it("closes the Errand after an advance sharing no path with it", async () => {
     const slug = "close-base-advanced";
     const host = await errandAwaitingClose(slug);

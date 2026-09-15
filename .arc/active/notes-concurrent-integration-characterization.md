@@ -708,7 +708,9 @@ unit's close, not at seed time.
   no remedy. Same fixture as this boundary's movement row, with the base held still.
 - _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this row's
-  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_ —
+  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_
+    deleted — `attest.e2e.test.ts` "writes and stages Candidate evidence while projecting Candidate preparation" already
+    tests the clean path
 
   The baseline is one invocation and no stops, so this boundary carries no non-concurrency excess to route. The
   `disjoint` row observes the same one and zero, putting its excess at the idiomatic zero: the advance costs the
@@ -726,7 +728,7 @@ unit's close, not at seed time.
   advance the boundary never saw.
 - _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
-  change · _Retention at close:_ —
+  change · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
 **Candidate / prepublication · control · singleton**
 
@@ -737,7 +739,9 @@ unit's close, not at seed time.
 - _Invocations:_ 3 — attest, the pre-publication settle, and the submit · _Stops:_ 0 · _Fork:_ none, no result in
   the window is a stop · _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this row's
-  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_ —
+  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_
+    deleted — `publication-spine.e2e.test.ts` "settles the boundary at pre-publication and submits on the first call"
+    already tests the clean path
 
   Three invocations reach the window's end with the base still, and none of them stops. The `disjoint` row
   observes the same three and zero, so the advance's excess here is the idiomatic zero.
@@ -753,7 +757,7 @@ unit's close, not at seed time.
 - _Invocations:_ 3 — attest, the pre-publication settle, and the submit · _Stops:_ 0 · _Fork:_ none, the result is
   not a stop · _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the row records what the tolerance
-  rests on · _Retention at close:_ —
+  rests on · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
   What the tolerance rests on is visible when it is removed: deriving the Candidate subject from the base tip
   rather than the fork point turns this same run into `rejected`, "the Candidate lineage is not current", carrying
@@ -769,7 +773,8 @@ unit's close, not at seed time.
 - _Invocations:_ 1 — the status reading · _Stops:_ 0 — `continue-reconcile` continues without direction, which
   is the convention's own test · _Fork:_ bare · _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
-  none — baseline count · _Retention at close:_ —
+  none — baseline count · _Retention at close:_ deleted — this boundary's `disjoint` row asserts the identical settled
+    projection, and the `unknown` row settles on its recovery leg
 
   The cheapest baseline on the spine, and the reason this boundary's two movement rows are both excess: every
   stop recorded at it is added by the movement rather than carried by the ceremony.
@@ -787,7 +792,8 @@ unit's close, not at seed time.
   continuation's refusal is recommendation-bearing · _Continuation:_ `did-not-clear`, taken in "does not clear
   the stop after an advance sharing no path with the branch"
 - _Classification:_ `mechanical block` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ name the cause the
-  refusal actually rests on, not the overlap its own payload reports empty · _Retention at close:_ —
+  refusal actually rests on, not the overlap its own payload reports empty · _Retention at close:_ kept — guards its
+    boundary × movement cell, which no other test exercises
 
   The continuation refuses with `blocked / unsafe-reconcile` while reporting an empty overlap and a mergeable
   host. Removing the integration-evidence term from the safety conjunction turns the same run into
@@ -813,7 +819,8 @@ unit's close, not at seed time.
   process boundary, which is the same reading in this lane · _Stops:_ 1 — the refusal ·
   _Fork:_ recommendation-bearing · _Continuation:_ `cleared`
 - _Classification:_ `fail-closed, correct` · _Owner:_ not applicable · _Fix at close:_ none — the row records that the
-  attribution rests on arm order · _Retention at close:_ —
+  attribution rests on arm order · _Retention at close:_ kept — guards its boundary × movement cell, which no other
+    test exercises
 
   The attribution survives, and only just: the failed fetch also collapses the routed obligation into a blocked
   state carrying the raw transport error, and that arm produces the same reason one step later. What separates
@@ -830,7 +837,8 @@ unit's close, not at seed time.
 - _Invocations:_ 2 — the checkpoint and the merge · _Stops:_ 1 — `request-approval`, the integration
   interlock · _Fork:_ recommendation-bearing · _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this row's
-  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_ —
+  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_
+    deleted — this boundary's `disjoint` row asserts the identical `merged` result over the same fixture
 
   `request-approval` is an approval stop by the convention's own test and is absent from the enumerated
   list, which was written before any landing run existed. The list is illustrative; the test is whether the
@@ -848,7 +856,8 @@ unit's close, not at seed time.
   `request-approval`, the invalidation, then `reconcile / reconcile-base` · _Fork:_ recommendation-bearing ·
   _Continuation:_ `did-not-clear`
 - _Classification:_ `mechanical block` · _Owner:_ [open — ceremony-repetition doctrine home] · _Fix at close:_ carry the
-  partition into the merge window so a disjoint advance does not re-ceremony the landing · _Retention at close:_ —
+  partition into the merge window so a disjoint advance does not re-ceremony the landing · _Retention at close:_ kept
+    — guards its boundary × movement cell, which no other test exercises
 
   Excess over the control row is one invocation and two stops. The continuation does not return a handle:
   the same invocation that minted one before now reads a moved base and asks for a reconcile first, so a
@@ -865,7 +874,7 @@ unit's close, not at seed time.
   _Fork:_ recommendation-bearing · _Continuation:_ `did-not-clear`
 - _Classification:_ `mechanical block` under the convention, though the refusal itself is correct ·
   _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ make the remedy's argv reach the step its prose
-  names · _Retention at close:_ —
+  names · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
   The refusal is right: a reviewable path changed on both sides is exactly what should stop a merge. What
   the probe records is the gap between the remedy's prose and its argv — the text asks for an append-only
@@ -886,7 +895,7 @@ unit's close, not at seed time.
 - _Classification:_ `tolerates` ·
   _Owner:_ capture — recommendations at approval gates (`WU_Target` still TBD) ·
   _Fix at close:_ compose a next-step invocation for the one safe result at this boundary ·
-  _Retention at close:_ —
+  _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
   The partition works: regenerable overlap does not block, and the register says so in plain terms. The
   finding is the fork — the one result here that is safe to act on is the only one that names a next action
@@ -901,7 +910,8 @@ unit's close, not at seed time.
 - _Invocations:_ 2 — the checkpoint and the reading its remedy names · _Stops:_ 1 — the refusal ·
   _Fork:_ recommendation-bearing · _Continuation:_ `cleared`
 - _Classification:_ `fail-closed, correct` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ return the
-  reader to the checkpoint rather than ending on a drift report · _Retention at close:_ —
+  reader to the checkpoint rather than ending on a drift report · _Retention at close:_ kept — guards its boundary ×
+    movement cell, which no other test exercises
 
   The continuation is a base reading rather than another checkpoint, and with the base read restored it
   reports a clean base. The refusal clears in one recommended step, which makes this friction rather than a
@@ -918,7 +928,8 @@ unit's close, not at seed time.
 - _Invocations:_ 1 — the cleanup verb · _Stops:_ 0 — the reap runs to completion unattended · _Fork:_ bare ·
   _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
-  none — baseline count · _Retention at close:_ —
+  none — baseline count · _Retention at close:_ deleted — this boundary's `disjoint` row asserts the identical four
+    expectations, the reaped branch among them
 
   Full protection is what puts a base read here at all: the shipped default resolves the proof target from the
   local base and never fetches, so on that setting the boundary has nothing for an advance to move.
@@ -933,7 +944,7 @@ unit's close, not at seed time.
   prune, no reason and no remedy.
 - _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the row records that the tolerance is
-  one predicate deep · _Retention at close:_ —
+  one predicate deep · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
   Excess is zero and the advance is real: at the boundary the local base sits one commit behind the remote, and
   the gate reads membership from the refetched tip, which still carries this work unit's archival. Landing shape
@@ -951,7 +962,7 @@ unit's close, not at seed time.
 - _Invocations:_ 2 — the refused cleanup and the one that follows it · _Stops:_ 1 — the refusal ·
   _Fork:_ **bare**, the refusal names no invocation · _Continuation:_ `cleared`
 - _Classification:_ `fail-closed, correct` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ name the plain
-  retry that clears it · _Retention at close:_ —
+  retry that clears it · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
   The refusal is attributable: it fires on the proof-target leg, ahead of the best-effort refresh that would have
   absorbed the same failure into a silent fall-back to the local ref. It also costs nothing to clear — a plain
@@ -967,7 +978,8 @@ unit's close, not at seed time.
   no remedy.
 - _Invocations:_ 1 — the close · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
-  none — baseline count · _Retention at close:_ —
+  none — baseline count · _Retention at close:_ deleted — `errand.e2e.test.ts` already closes an Errand twice on the
+    clean path, and this boundary's `disjoint` row closes one again
 
   Preservation here is proven from merged host truth, not from local containment: the Errand head is one commit
   ahead of the local base at close and the lane retires it anyway. Proving it from containment instead refuses
@@ -984,7 +996,8 @@ unit's close, not at seed time.
 - _Invocations:_ 1 — the close; the advance is fixture movement and does not count · _Stops:_ 0 · _Fork:_ bare ·
   _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ Errand — Errand-close base-pin coverage · _Fix at close:_ pin the structural
-  tolerance so a hardening of the base pin is caught · _Retention at close:_ —
+  tolerance so a hardening of the base pin is caught · _Retention at close:_ kept — guards its boundary × movement
+    cell, which no other test exercises
 
   Excess zero, and the tolerance is structural rather than decided: the base pin sits behind the no-op shortcut,
   which an Errand carrying a commit never enters, so the close reads no base at all. That is what the seam read
@@ -1002,7 +1015,8 @@ unit's close, not at seed time.
 - _Invocations:_ 1 — the checkpoint · _Stops:_ 1 — `request-approval` · _Fork:_ recommendation-bearing ·
   _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
-  none — baseline count · _Retention at close:_ —
+  none — baseline count · _Retention at close:_ deleted — this boundary's `disjoint` row asserts the identical `ready`
+    result, stack position included
 
   The member baseline costs exactly what the singleton one costs; what differs is what decided it. Reaching it at
   all needs a genuinely landed predecessor: every non-terminal member must resolve as merged at its exact bound
@@ -1017,7 +1031,7 @@ unit's close, not at seed time.
   singleton result at the same window.
 - _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
-  change · _Retention at close:_ —
+  change · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
   The delivery arm does decide this row — severing it turns the result into `blocked / delivery-terminal-blocked`
   — but it decides the same way. With no substantive overlap there is nothing for the residual scope to narrow,
@@ -1033,7 +1047,8 @@ unit's close, not at seed time.
   same overlap the singleton row refuses on, admitted.
 - _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
 - _Classification:_ `tolerates` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ compose the register from
-  the decision rather than from the overlap partition alone · _Retention at close:_ —
+  the decision rather than from the overlap partition alone · _Retention at close:_ kept — guards its boundary ×
+    movement cell, which no other test exercises
 
   The cut moves as the seam read predicted, and a safe verdict over a non-empty substantive set is reachable no
   other way. The finding is the register riding along with it: its text is composed from the partition alone, so
@@ -1052,7 +1067,7 @@ unit's close, not at seed time.
   identical to the singleton row.
 - _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
-  change · _Retention at close:_ —
+  change · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
 
   Two of this boundary's four member cells read identically to their singleton counterparts while genuinely
   running the delivery arm. That is the shape's actual reach: it narrows a refusal and never a tolerance, so it
@@ -1069,7 +1084,8 @@ unit's close, not at seed time.
   selected and its primary reads free.
 - _Invocations:_ 1 — the locus reading · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
-  change · _Retention at close:_ —
+  change · _Retention at close:_ kept — guards an exact-target isolation case, which D9 names alongside the movement
+    cells
 
   The isolation is real and asymmetric: the refusal stays with the checkout that owns the record — which cannot
   enter a session at all — while a reader next door gets a named diagnostic and keeps going. The record is only
@@ -1086,7 +1102,8 @@ unit's close, not at seed time.
   diagnostic sourced to lifecycle — "The marker-named work unit is owned by another identity".
 - _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
-  change · _Retention at close:_ —
+  change · _Retention at close:_ kept — guards an exact-target isolation case, which D9 names alongside the movement
+    cells
 
   Narrower than the row above, and deliberately so: ownership settles before the record is opened, so a foreign
   work unit never reaches the Candidate guard and its subject is never projected. A foreign owner's unreadable
@@ -1102,7 +1119,8 @@ unit's close, not at seed time.
   same file byte-identical and its worktree clean.
 - _Invocations:_ 1 — the reconcile · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
-  change · _Retention at close:_ —
+  change · _Retention at close:_ kept — guards an exact-target isolation case, which D9 names alongside the movement
+    cells
 
   The write direction of the same isolation, and the one the other two cannot show: a ceremony that rewrites a
   projection touches only the checkout that ran it. Fanning the rewrite out to every registered worktree — the
@@ -1216,7 +1234,8 @@ invocation and one stop unless the row says otherwise.
   stale and one that is absent are indistinguishable at this boundary.
 - _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered`
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
-  routed to that target, whose draft already records this locus · _Retention at close:_ —
+  routed to that target, whose draft already records this locus · _Retention at close:_ kept — pinned; the pin is the
+    handoff contract, and it falls under this rule once its fix lands
 
 **Post-landing closeout · control, head held · delivery-member**
 
@@ -1226,7 +1245,8 @@ invocation and one stop unless the row says otherwise.
   binds" · _Base OID:_ `cbf075da7` · _Observed:_ `closed-out`; no reason, no remedy.
 - _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
 - _Classification:_ not a movement row — its finding is its count · _Owner:_ not applicable · _Fix at close:_ none
-  — baseline count · _Retention at close:_ —
+  — baseline count · _Retention at close:_ **kept** — the only assertion anywhere that a terminal merged at the exact
+    head it binds closes out, so the clean path falls with it
 
   Recorded because the movement row below is unreadable without it. The first run of this fixture blocked on an
   invalid Git common directory, which would have read as the movement's own refusal had the control not failed
@@ -1243,7 +1263,7 @@ invocation and one stop unless the row says otherwise.
   the same three inputs, none of which reaches the binding the comparison actually reads.
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
   routed; this is the fourth locus that target's draft records, reproduced here against a synthetic host ·
-  _Retention at close:_ —
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
 
 **Landing · head movement, append-only · delivery-member**
 
@@ -1255,7 +1275,7 @@ invocation and one stop unless the row says otherwise.
   _Continuation:_ `did-not-clear` for the caller this failure was recorded from: the correction driver reads this
   refusal as no position at all and stops before its own terminal-rebind path.
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-correction-convergence` · _Fix at close:_ routed ·
-  _Retention at close:_ —
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
 
   The recognition mechanism is already built, which narrows the fix considerably. Five observation modes pass
   `terminalAuthoringMovement: allow-append-only`, and this verb is one of them — the allowance makes the movement
@@ -1273,7 +1293,8 @@ invocation and one stop unless the row says otherwise.
 - _Invocations:_ 1 · _Stops:_ 0 — the session still exits zero and loads its context · _Fork:_ bare ·
   _Continuation:_ `none-offered`
 - _Classification:_ `mechanical block` · _Owner:_ the execute-bound capture for append-only terminal movement in
-  session-init position · _Fix at close:_ routed · _Retention at close:_ —
+  session-init position · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff
+    contract, and it falls under this rule once its fix lands
 
   The session does not fail; it loses one orientation field and says so in a message naming no cause a reader can
   act on. The asymmetry behind it is the fix's shape: this derivation takes an observation mode, five of whose
@@ -1308,7 +1329,8 @@ invocation and one stop unless the row says otherwise.
   nothing in the result records that a choice between two ancestors was made.
 - _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
 - _Classification:_ `redundant ceremony` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
-  routed to that target, whose second locus records the same behavior in the field · _Retention at close:_ —
+  routed to that target, whose second locus records the same behavior in the field · _Retention at close:_ kept —
+    pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
 
   The reader is plain `merge-base` with no `--all`, so Git returns one of the two and the caller cannot tell it
   had a choice. Two companion cases carry the finding: the control over the same arrangement with a single merge
@@ -1327,7 +1349,8 @@ invocation and one stop unless the row says otherwise.
   `merge-base-ambiguous`, detail "Multiple baseline-to-current merge bases are available."; no remedy.
 - _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered`
 - _Classification:_ `redundant ceremony` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
-  routed; this is the typed half of that target's second locus · _Retention at close:_ —
+  routed; this is the typed half of that target's second locus · _Retention at close:_ kept — pinned; the pin is the
+    handoff contract, and it falls under this rule once its fix lands
 
   The same condition the row above passes through silently, refused here with a typed reason. Both readers are
   correct about the history and disagree about what follows from it, which is the finding: one boundary binds a
@@ -1345,7 +1368,8 @@ invocation and one stop unless the row says otherwise.
 - _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ recommendation-bearing — the result names a checkpoint rerun ·
   _Continuation:_ `did-not-clear` — the rerun reads the same history and reaches the same reading.
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
-  routed; a fourth locus on the seam that target's draft already holds three of · _Retention at close:_ —
+  routed; a fourth locus on the seam that target's draft already holds three of · _Retention at close:_ kept — pinned;
+    the pin is the handoff contract, and it falls under this rule once its fix lands
 
   The fourth vocabulary on one condition, and the only one that is not a refusal at all: the sole-base resolver's
   untyped message is caught and surfaced as a blocked obligation's `detail`, while the status itself reports the
@@ -1363,7 +1387,8 @@ invocation and one stop unless the row says otherwise.
 - _Invocations:_ 1 · _Stops:_ 0 — the drift read itself returns no next action · _Fork:_ none ·
   _Continuation:_ `not-applicable`
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
-  routed; the first locus that target's draft records · _Retention at close:_ —
+  routed; the first locus that target's draft records · _Retention at close:_ kept — pinned; the pin is the handoff
+    contract, and it falls under this rule once its fix lands
 
   The verdict is unchanged by the ambiguity and only the evidence under it degrades, which is what makes the
   consequence a classification failure rather than a drift failure. The checkpoint that consumes this reading is
@@ -1383,7 +1408,7 @@ invocation and one stop unless the row says otherwise.
 - _Invocations:_ 1 · _Stops:_ 0 — the session exits zero and still loads its context · _Fork:_ bare ·
   _Continuation:_ `none-offered`
 - _Classification:_ `mechanical block` · _Owner:_ the capture holding this as an Errand · _Fix at close:_ routed ·
-  _Retention at close:_ —
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
 
   _Recorded as a correction, appended rather than edited above:_ the enumeration placed this cell under the
   operator's index, and the index is not the cause. A third case runs the identical merge twice, once conflicting
@@ -1408,7 +1433,8 @@ invocation and one stop unless the row says otherwise.
   _Continuation:_ `none-offered` by the result, but the probe exercises an operator-side recovery that clears:
   clearing the index and re-running admits the same admission unchanged, `ready` and `launch-review`.
 - _Classification:_ `fail-closed, correct` · _Owner:_ `review-protocol-alignment`, through the capture filed with
-  this row · _Fix at close:_ routed · _Retention at close:_ —
+  this row · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff contract, and it
+    falls under this rule once its fix lands
 
   The observation rides an existing chain rather than standing up its own. Reaching a live member admission needs
   the delivery and hosted state this test already drives to, and the admission cannot be constructed: preparation
@@ -1443,7 +1469,7 @@ invocation and one stop unless the row says otherwise.
   `not-applicable`, the result being no stop to clear
 - _Classification:_ `redundant ceremony` · _Owner:_ `delivery-correction-convergence` · _Fix at close:_ routed to
   that target, whose draft already records persisting record-only applicability as moving the terminal head ·
-  _Retention at close:_ —
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
 
   The arrangement is the finding as much as the result. This file's terminal fixture always bound the terminal to
   the head its record write produced, so an advance made only of record writes could not arise in it at all; one
@@ -1518,7 +1544,7 @@ invocation and one stop unless the row says otherwise.
   gates the fresh snapshot then requires are a full Tier 2 run per member.
 - _Classification:_ `redundant ceremony` · _Owner:_ `delivery-rebuild-continuity`, whose evidence-applicability
   capture records this seam and whose first success criterion commits to it · _Fix at close:_ routed ·
-  _Retention at close:_ —
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
 
   The ordering is where the cost comes from. Gate results validate first, against member coordinates that did not
   move; the plan, the lifecycle paths, the per-member contribution, the predecessor relation, and the normalized
@@ -1541,7 +1567,8 @@ invocation and one stop unless the row says otherwise.
 - _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ not applicable — no stop · _Continuation:_ `not-applicable`
 - _Classification:_ `tolerates` · _Owner:_ `delivery-rebuild-continuity`, whose evidence-applicability capture
   carries this seam as its publication-window edge · _Fix at close:_ routed as evidence, not as a defect ·
-  _Retention at close:_ —
+  _Retention at close:_ kept — carries the evidence its owner's open question needs, and is deliberately unpinned so
+    neither resolution is prejudged
 
   **Recorded without a pin, deliberately.** The owning capture states the open question in terms that forbid one:
   determine whether a bounded in-call recheck materially improves the retry, or whether later review gates are the
@@ -1571,7 +1598,8 @@ invocation and one stop unless the row says otherwise.
   _Continuation:_ `none-offered` by the result; the control shows a recut on the top's base clears, which the
   refusal never names
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-rebuild-continuity`, whose authoring capture records
-  this exact field sequence · _Fix at close:_ routed · _Retention at close:_ —
+  this exact field sequence · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff
+    contract, and it falls under this rule once its fix lands
 
   Where the refusal lands is the finding, not that it refuses. Preparation validates member chaining, ancestry,
   emptiness and lifecycle contribution, and it holds every coordinate the completeness comparison needs — the
@@ -1594,7 +1622,8 @@ invocation and one stop unless the row says otherwise.
 - _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered` — the suffix rebuild the result
   requires has no verb, which is the capture's own observation
 - _Classification:_ `mechanical block` · _Owner:_ `delivery-rebuild-continuity`, through its bound-correction
-  capture · _Fix at close:_ routed · _Retention at close:_ —
+  capture · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff contract, and it
+    falls under this rule once its fix lands
 
   **This cell's typed result is identical to the authoring cell's, and a third case proves it** rather than
   leaving it to be noticed later: the two refusals compare equal, both being exactly
@@ -1620,7 +1649,8 @@ invocation and one stop unless the row says otherwise.
   resolving the listed paths and rerunning `arc delivery native land-status` · _Continuation:_ `did-not-clear`,
   and the probe proves it cannot: the directed action is not an input to the outcome
 - _Classification:_ `fail-closed, correct` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
-  routed · _Retention at close:_ —
+  routed · _Retention at close:_ kept — proves the named remedy does not clear the refusal, which no other test
+    asserts; unpinned because the refusal itself is correct
 
   The mechanism is read from source and then observed. The conflict is composed from three coordinates — the
   pinned predecessor as merge base, the pinned member, and the observed landed predecessor. The resolved member
@@ -1844,6 +1874,44 @@ One screen result reaches back into a disposition rather than forward into a cap
 model is deterministic logic in the CLI, structure in typed contracts, and **judgment in minimal prose** — which is
 the layer the three judgment-bearing drift gates already occupy. Their no-fix disposition is that model's own
 answer, arrived at independently, rather than only this work unit's reading of them.
+
+## Retention at close
+
+D9 applied at Task 6.5, once per probe. Forty-four rows carry a disposition; three of them name no probe because
+their cell closed. The suite loses seven tests and keeps thirty-four.
+
+| Disposition                                    | Rows |
+| ---------------------------------------------- | ---- |
+| deleted — the cell is already covered          | 7    |
+| kept — pinned, the pin being the handoff       | 14   |
+| kept — guards a boundary × movement cell       | 14   |
+| kept — guards an exact-target isolation case   | 3    |
+| kept — unpinned evidence for an open question  | 2    |
+| kept — a control nothing else covers           | 1    |
+| not applicable — the cell closed with no probe | 3    |
+
+**Every deletion is a control, and one control survives.** That is close to what D9 predicted: controls exist for
+the baseline count and fall wherever the clean path is already tested. Two fell to tests that predate this work
+unit. Four fell to their own boundary's `disjoint` row, which asserts the identical successful result over the same
+fixture — the movement row turns out to be a strict superset of the control it was measured against, so keeping
+both was counting the clean path twice. One, the Errand close, was covered on both sides at once.
+
+The survivor is the exception worth naming. Post-landing closeout's head-held control is the **only** assertion
+anywhere in the suite that a terminal merged at the exact head it binds closes out. Its movement row retires the
+terminal instead, so the clean path has no other witness; deleting it would have removed coverage rather than
+duplication. It is also the control that failed first on its own fixture, which is what made the movement readable
+in the first place.
+
+Nothing pinned was deleted. No fix has landed — this work unit ships none — so every pin is still a live handoff
+contract, and each falls under this same rule once its fix lands.
+
+Two probes are kept without pins on purpose, and the reason is the same in both: their owner's captures leave the
+verdict open. The materialization window carries the evidence that decision needs; post-land settlement proves the
+named remedy does not clear the refusal it is attached to. Pinning either would have settled by assertion a
+question its owner reserved, so they are retained as evidence rather than as holds.
+
+**What the deletions cost.** Integration drops one test and e2e six, measured after the change: 1,488 and 568,
+against 1,489 and 574 before. Both lanes green.
 
 ## Second-matrix confirmation
 

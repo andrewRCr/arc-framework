@@ -212,17 +212,6 @@ async function statusThroughPort(
   ));
 }
 
-describe("review status over a base the work unit contains", () => {
-  it("reports the settled state the moved-base reading is measured against", async () => {
-    const fixture = await singletonUnderReview();
-
-    const status = await statusThroughPort(fixture);
-
-    expect(status).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
-    expect(status.currentBaseOid).not.toBeNull();
-  });
-});
-
 describe("review status over a base advanced under the work unit", () => {
   it("settles after an advance sharing no path with the branch", async () => {
     const fixture = await singletonUnderReview();

@@ -400,15 +400,6 @@ async function advanceFor(
 }
 
 describe("the window between a minted handle and the merge that consumes it", () => {
-  it("merges the approved head when the base holds still", async () => {
-    const fixture = await publishedAtLanding();
-    const handle = await mintHandle(fixture);
-
-    const result = await runMerge(fixture, handle);
-
-    expect(result, JSON.stringify(result)).toMatchObject({ state: "merged" });
-  });
-
   it("merges the approved head after an advance sharing no path with it", async () => {
     const fixture = await publishedAtLanding();
     const handle = await mintHandle(fixture);
@@ -492,21 +483,6 @@ describe("the checkpoint's own base read", () => {
 });
 
 describe("the checkpoint's base read under a bound delivery plan", () => {
-  it("mints a handle for the top member when the base holds still", async () => {
-    const fixture = await publishedAtLanding({ predecessor: true });
-    await bindDeliveryPlan(fixture);
-
-    const result = await runCheckpoint(fixture);
-
-    // The plan decided this: the stack position and the discharge count are reachable only through the
-    // delivery arm, so they are what separates this baseline from the singleton one.
-    expect(result, JSON.stringify(result)).toMatchObject({
-      state: "ready",
-      nextAction: "request-approval",
-      payload: { mergeMethod: { stackPosition: "top" } },
-    });
-  });
-
   it("mints a handle after an advance sharing no path with the branch", async () => {
     const fixture = await publishedAtLanding({ predecessor: true });
     await bindDeliveryPlan(fixture);

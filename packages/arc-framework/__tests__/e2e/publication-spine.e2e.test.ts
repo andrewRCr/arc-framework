@@ -150,20 +150,6 @@ describe("the settle-to-submit window over a live base", () => {
     repository = null;
   });
 
-  it("submits the settled Candidate with the base held still", async () => {
-    repository = await createAttestableRepo();
-    await attachLiveBase(repository);
-    const candidateId = await settleForPublication(repository);
-
-    const submitted = await submit(repository);
-
-    expect(submitted.exitCode, JSON.stringify(submitted)).toBe(0);
-    expect(JSON.parse(submitted.stdout)).toMatchObject({
-      status: "published",
-      boundary: { locus: "publication-pending", candidateId },
-    });
-  });
-
   it("submits the same settled Candidate after an advance sharing none of its paths", async () => {
     repository = await createAttestableRepo();
     await attachLiveBase(repository);

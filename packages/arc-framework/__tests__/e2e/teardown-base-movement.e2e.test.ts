@@ -105,19 +105,6 @@ async function remoteHeadPresent(repository: string): Promise<boolean> {
   return (await git(repository, ["ls-remote", "--heads", "origin", HEAD_REF])) !== "";
 }
 
-describe("cleanup over a base the archival already reached", () => {
-  it("reaps the branch when the base holds still", async () => {
-    const repository = await shippedWithLiveBase();
-
-    const result = await runTeardown(repository);
-
-    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-    expect(result.stdout + result.stderr).toMatch(/Torn down/iu);
-    expect(await branchPresent(repository)).toBe(false);
-    expect(await remoteHeadPresent(repository)).toBe(false);
-  });
-});
-
 describe("cleanup over a base advanced after the archival landed", () => {
   it("reaps the branch after an advance sharing no path with it", async () => {
     const repository = await shippedWithLiveBase();

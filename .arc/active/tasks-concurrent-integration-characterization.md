@@ -507,13 +507,29 @@ unaffected and run in place._
   checkpoint now demands host evidence the stubs never supplied, and both control rows failing first is what
   separated a stale fixture from a changed boundary.
 
-### `[ ]` **6.5 Apply the retention rule and record each probe's disposition**
+### `[x]` **6.5 Apply the retention rule and record each probe's disposition**
 
 - _Goal:_ The suite keeps only probes guarding a cell no other test covers, and every deleted probe's row keeps its
   observation and names the test that covers its cell.
 
     - Control rows are expected to fall wherever the clean path is already tested.
     - Pinned probes are kept until their fix lands — the pin is the handoff contract — then fall under the same rule.
+
+- _Outcome:_ Seven tests deleted, thirty-four kept, and all forty-four rows carry a disposition with every deleted
+  row keeping its observation and naming what covers its cell. Every deletion is a control, which is what D9
+  predicted, but the reason four of them fell was not: a boundary's `disjoint` row asserts the identical successful
+  result over the same fixture, so the movement row is a strict superset of the control it was measured against and
+  keeping both counted the clean path twice. Two fell to tests predating this work unit and one was covered on both
+  sides. One control survives and is the finding worth keeping — post-landing closeout's head-held case is the only
+  assertion anywhere that a terminal merged at the exact head it binds closes out, since its own movement row
+  retires the terminal instead, so deleting it would have removed coverage rather than duplication; it is also the
+  control that failed first on its own fixture, which is what made that movement readable. Nothing pinned was
+  deleted, no fix having landed. Two probes are retained deliberately unpinned, both because their owner's capture
+  leaves the verdict open and a pin would settle by assertion a question its owner reserved. Pinned status was
+  derived by scanning every test body in the suite rather than read off the rows, which caught fourteen and
+  corrected a first pass that had matched none. Lanes after the change: integration 1,488 and e2e 568, against
+  1,489 and 574 before. Dispositions and the summary are in
+  `notes-concurrent-integration-characterization.md` § Retention at close.
 
 ### `[ ]` **6.6 Refresh the test-cost baselines and re-read e2e shard balance**
 
