@@ -39,3 +39,23 @@ the same exact record-only segment. Neither carry may represent a behavioral sou
 operational refusals must remain distinguishable from unexpected executor failures.
 
 ---
+
+## Pinned probes waiting on this work
+
+`concurrent-integration-characterization` left two probes holding this boundary's behavior as it stands. They
+**pass today** and the suite is green; each fails the moment the behavior changes, printing the sentence that
+names what the probe was waiting for and the exact replacement:
+
+> This now produces the result it was waiting for, so the hold is spent: replace this call with a plain
+> assertion on `<result>`.
+
+Retiring them is part of this work's scope rather than a regression — a fix here cannot merge while one is red,
+and each is a single `expectPinnedObservation` call to replace. They retire independently, one per boundary.
+
+- `delivery-position.test.ts` — "resumes the bound chain at a terminal top that advanced by an append-only commit"
+- `delivery-terminal-recovery.e2e.test.ts` — "routes a record-only advance past the head the terminal binds"
+
+A probe that instead reports "the held result no longer describes what happens, and the awaited one has not
+arrived either" has found behavior neither shape names. That is a finding, not a retirement. The recorded
+observations and the reasoning behind each awaited result are in
+`notes-concurrent-integration-characterization.md` § Characterization ledger.

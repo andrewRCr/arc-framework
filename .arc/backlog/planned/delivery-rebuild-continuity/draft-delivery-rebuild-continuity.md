@@ -315,3 +315,26 @@ probed, and head movement, merge-base cardinality, and ceremony-concurrent write
 second matrix covering those axes was added to that work unit after this stub was written; read its ledger rows in
 `notes-concurrent-integration-characterization.md` before starting design, rather than treating the first matrix's
 `tolerates` verdicts as coverage of this surface.
+
+## Pinned probes waiting on this work
+
+`concurrent-integration-characterization` left three probes holding this boundary's behavior as it stands. They
+**pass today** and the suite is green; each fails the moment the behavior changes, printing the sentence that
+names what the probe was waiting for and the exact replacement:
+
+> This now produces the result it was waiting for, so the hold is spent: replace this call with a plain
+> assertion on `<result>`.
+
+Retiring them is part of this work's scope rather than a regression — a fix here cannot merge while one is red,
+and each is a single `expectPinnedObservation` call to replace. They retire independently, one per boundary.
+
+- `delivery-window-base-movement.test.ts` — "discards them when the base advances on a path no member touches"
+- `delivery-rebuild-base-movement.test.ts`
+  "admits a chain recut on the moved base, then refuses it after the gates would have run"
+- `delivery-rebuild-base-movement.test.ts`
+  "refuses the unchanged private candidates once the correction lands on the top"
+
+A probe that instead reports "the held result no longer describes what happens, and the awaited one has not
+arrived either" has found behavior neither shape names. That is a finding, not a retirement. The recorded
+observations and the reasoning behind each awaited result are in
+`notes-concurrent-integration-characterization.md` § Characterization ledger.

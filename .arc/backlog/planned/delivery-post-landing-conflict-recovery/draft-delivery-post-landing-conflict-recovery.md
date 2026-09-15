@@ -191,3 +191,29 @@ outside it, and those are where the loci above actually live. A second matrix co
 work unit after this stub was written; read its ledger rows in
 `notes-concurrent-integration-characterization.md` before starting design, rather than treating the first matrix's
 `tolerates` verdicts as coverage of this surface.
+
+## Pinned probes waiting on this work
+
+`concurrent-integration-characterization` left six probes holding this boundary's behavior as it stands. They
+**pass today** and the suite is green; each fails the moment the behavior changes, printing the sentence that
+names what the probe was waiting for and the exact replacement:
+
+> This now produces the result it was waiting for, so the hold is spent: replace this call with a plain
+> assertion on `<result>`.
+
+Retiring them is part of this work's scope rather than a regression — a fix here cannot merge while one is red,
+and each is a single `expectPinnedObservation` call to replace. They retire independently, one per boundary.
+
+- `review-readiness-delivery-binding.test.ts`
+  "reports nothing bound when a member's head advanced without changing its contribution"
+- `delivery-binding-head-movement.test.ts`
+  "reports a terminal unsettled when the host merged it past the head it binds"
+- `history-shape-ambiguity.test.ts` — "reports the base's own change as the contribution when two merge bases exist"
+- `history-shape-ambiguity.test.ts` — "refuses with a typed reason rather than choosing one of the two bases"
+- `history-shape-ambiguity.test.ts` — "reports the overlap unavailable rather than proving it from one of the two bases"
+- `review-status-base-movement.test.ts` — "directs a checkpoint rerun on a base that moved only in shape"
+
+A probe that instead reports "the held result no longer describes what happens, and the awaited one has not
+arrived either" has found behavior neither shape names. That is a finding, not a retirement. The recorded
+observations and the reasoning behind each awaited result are in
+`notes-concurrent-integration-characterization.md` § Characterization ledger.
