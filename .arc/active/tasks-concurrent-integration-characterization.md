@@ -566,19 +566,21 @@ _Exit criterion:_ Every cell the second matrix enumerates holds either a probe i
 with its reason; no row recorded before the widening is edited; the full e2e and integration lanes run green with
 every pin in place.
 
-### `[ ]` **7.1 Derive the second matrix from the recorded failures**
+### `[x]` **7.1 Derive the second matrix from the recorded failures**
 
 - _Goal:_ Each axis D10 names is enumerated against the boundaries, carries a stated ceiling, and resolves to a
   go or no-go before any probe is written.
 
-- _Note:_ This is the task that was missing at Task 1.1, and it is a decision gate rather than preparation. An
-  axis that cannot be observed on this tree closes here with its reason. A combined ceiling above roughly
-  twenty-five cells is the signal to cut the phase rather than to proceed with it.
-
-    - Read the recorded failures themselves — the inbox captures, the steering map's incident notes, and the
-      four loci of the multi-base capture — and record what actually moved in each.
-    - Enumerate axis × boundary, apply the applicability rule, and state the surviving cell count per axis.
-    - Name the fixture each surviving axis needs, and which existing helper it composes from.
+- _Outcome:_ Four axes, all go. Ceiling twenty-seven against a stated cut signal of roughly twenty-five, with
+  nineteen cells surviving applicability — recorded plainly rather than settled by choosing the flattering number.
+  Eighteen recorded failures are tabulated by what actually moved, and every surviving cell traces to one of them.
+  The applicability closures are the finding worth keeping: head movement under the Candidate binding, and at the
+  terminal-rebind verb itself, is already probed and already tolerant — so what survives is narrower and sharper,
+  the verbs that read a binding without offering the rebind. One new fixture in all, an ambiguous-merge-base
+  topology; the other three axes compose helpers that exist. Two sub-cases close, one unobservable on this tree and
+  one underived, and two failures fit only once the ceremony-write axis widens to the operator index, which D10 now
+  carries by forward amendment. Enumeration in `notes-concurrent-integration-characterization.md`
+  § Second matrix.
 
 ### `[ ]` **7.2 Probe the head-movement axis**
 

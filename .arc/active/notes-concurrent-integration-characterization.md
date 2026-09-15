@@ -402,6 +402,162 @@ Twenty-four applicable cells and sixteen not-applicable, against the enumerated 
 singleton and Errand cells, four of seven delivery-member cells, and all three isolation cells. Four prose-only
 gates take ledger-only rows on top.
 
+## Second matrix
+
+D3 spans boundary × base-movement kind. D10 widens the span to four axes derived from failures already on file,
+because that first span independently re-finds none of them. This section is the derivation and the enumeration;
+the rows these cells produce append under § Open probe rows like every other row, and nothing recorded before the
+widening is edited.
+
+### What actually moved in each recorded failure
+
+The evidence every axis below stands on, read from the routed captures, the two `backlog/` drafts minted at the
+close-out, and the steering map. The result column is the typed result as returned, not a paraphrase. A failure
+appears once, under the thing whose change is what the refusing comparison actually reads.
+
+| #  | Recorded failure                                   | What moved                                       | Boundary                | Observed result                                                                 |
+| -- | -------------------------------------------------- | ------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------- |
+| 1  | Frontline no-material follow-up lost (09-12)       | bound head — rerouting selects a new exact head  | prepublication          | typed `stop / no-approved-material-fix` discarded; whole pass repeats           |
+| 2  | Review readiness vs moved terminal top (09-14)     | bound head — post-archive `841ddb632`            | public review           | `delivery-member-unbound`                                                       |
+| 3  | Review-fix continuation unreachable (09-14)        | bound head — revision 32 vs append-only head     | landing                 | `review-fix-position-unavailable`, via `review-fix-routing-required`            |
+| 4  | Closeout vs the merged host head (09-14)           | bound head — retained binding `57ce62b1d`        | closeout                | `terminal-unsettled`                                                            |
+| 5  | False delivery-position mismatch (09-05)           | bound head — append-only terminal advance        | session-init            | delivery-position mismatch on an exact chain                                    |
+| 6  | Errand pass ceiling resets (09-13)                 | bound head — a finding fix mints a new head      | Errand review           | `standard_max_passes` count resets                                              |
+| 7  | Checkpoint vs two best bases (09-14)               | history shape — merge-base cardinality two       | landing                 | `overlap: unavailable / merge-base-failed` → `drift-classification-unavailable` |
+| 8  | Applicability vs the same ambiguity (09-14)        | history shape — merge-base cardinality two       | prepublication          | `classification-unavailable / merge-base-ambiguous`; attest demands a new root  |
+| 9  | Sequential prepare blocks its own apply (09-14)    | the ceremony's own write — its reservation       | landing                 | `review-readiness-refused / review-unsettled`; reconcile advances state again   |
+| 10 | Record-only rebind mints a fix task (09-13)        | the ceremony's own write — a Candidate re-root   | landing (terminal)      | `pendingReviewFixVerification` with no authored fix                             |
+| 11 | Superseded Frontline authority live (09-13)        | the ceremony's own write — a later attested root | prepublication → entry  | `review-fix-response-invalid`, then `review-fix-response-ambiguous`             |
+| 12 | Staged top flips observable status (09-14)         | the operator's index — no commit at all          | public review           | `review-local-prepare` becomes `status-unavailable`                             |
+| 13 | Unmerged index during an authorized merge (09-13)  | the operator's index — conflicted blobs          | session-init / recovery | `seed-invalid`, then `locus-unresolved`                                         |
+| 14 | Initial stack authoring unrebuildable (09-13)      | the base, disjoint                               | delivery authoring      | `completeness-mismatched`; recutting on the top's base closed `eligible`        |
+| 15 | Bound correction cannot rebuild its suffix (09-09) | the base, under a bound plan                     | rematerialization       | `completeness-mismatched`                                                       |
+| 16 | Eligibility's two observation windows (09-12)      | the base, between prepare and close              | eligibility window      | completed gate results discarded, another run directed                          |
+| 17 | Publication window past the tip check (09-13)      | the base, after the target is bound              | materialization window  | the observed-tip check is skipped; stale artifacts, no merge authority          |
+| 18 | Post-land suffix replay conflicts (09-13)          | the base, under a pinned pre-landing replay      | post-land settlement    | `contribution-conflicted`, with no completing input                             |
+
+Two failures read as movement and are not. The registered-native route accepted as a sequential landing (09-14) is
+a dispatch defect with nothing moving, and exact-head CI readiness (09-05) is a missing projection. Neither is
+enumerated here.
+
+### The column set, and the rule that places a failure in it
+
+The axis is **what moved**; the boundary is a column. D3's six columns stand, and Axis D introduces five more —
+delivery authoring, rematerialization, the eligibility prepare-to-close window, the materialization window, and
+post-land suffix settlement — plus session-init, which the recorded failures reach twice. New columns are shared by
+every axis that reaches them, so failure 5 is head movement at a new column rather than an Axis D cell, and failure
+13 likewise. Axis D is base movement specifically, per its own definition.
+
+_Recorded as a widening:_ Axis C's D10 definition is a ceremony's own records invalidating the preconditions it was
+admitted on. Failures 12 and 13 are the operator's index, not a ceremony's write, and they fit no other axis — the
+base did not move, no head moved, and no merge base is involved. They are enumerated under C as a second source
+rather than filed silently or dropped, and D10 was amended forward at this task to carry the wider definition:
+any write that is not a base advance.
+
+### Axis A — head movement under a bound record
+
+_Ceiling:_ eight, one per column where a durable record binds a head. _Surviving after applicability:_ **five**.
+
+| Column                          | Disposition    | Evidence                                                                                                                                                                                                                                                                                                   |
+| ------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whole-WU verification           | not-applicable | The subject is computed from the merge base of head and base, so head movement that leaves it byte-identical returns an identical result — D3's own amendment, and `publication-spine.e2e.test.ts` "preserves advanced review authority when an unchanged Candidate is re-attested"                        |
+| Prepublication, Candidate bind  | not-applicable | Three probes already observe it and all tolerate: "submits over a boundary an operational-only commit advanced the head past", "preserves advanced review authority when an unchanged Candidate is re-attested", "rebinds a carried reservation after an approved Candidate response advances the subject" |
+| Prepublication, Frontline bind  | **probe**      | Failure 1. A different binding from the Candidate's, and nothing observes it                                                                                                                                                                                                                               |
+| Public review                   | **probe**      | Failure 2                                                                                                                                                                                                                                                                                                  |
+| Landing, the rebind verb itself | not-applicable | `delivery-terminal-recovery.e2e.test.ts` observes it four ways, including "rebinds stale terminal coordinates to the independently settled current Candidate" and "renews verification for substantive movement past a settled record-only terminal"                                                       |
+| Landing, the binding's readers  | **probe**      | Failure 3. The rebind verb is covered; the verbs that read the binding without offering it are not — which is why every recorded failure survived that coverage                                                                                                                                            |
+| Closeout                        | **probe**      | Failure 4                                                                                                                                                                                                                                                                                                  |
+| Session-init                    | **probe**      | Failure 5                                                                                                                                                                                                                                                                                                  |
+| Errand review                   | unobservable   | Failure 6's cumulative accounting is held pending `review-signal-convergence`; the lineage conventions it would count across are not on the base                                                                                                                                                           |
+
+A divergent — non-append-only — head is enumerated and closed. Every capture asks for append-only movement to be
+recognized and for divergence to stay fail-closed, and none reports divergence being wrongly admitted. Probing it
+would be imagined rather than derived.
+
+### Axis B — history shape, where merge-base cardinality is not one
+
+_Ceiling:_ six, one per column that computes a merge base. _Surviving after applicability:_ **four**.
+
+Three different handlings of the same condition already exist in source, which is what makes the cells distinct
+rather than repeats of one observation. Source reading decides what is worth probing here; it does not substitute
+for the observation.
+
+| Column                | Reader                                                  | Handling                                         | Disposition    |
+| --------------------- | ------------------------------------------------------- | ------------------------------------------------ | -------------- |
+| Whole-WU verification | Candidate subject collection, plain `merge-base`        | silently picks one of the two; no refusal at all | **probe**      |
+| Prepublication        | Candidate applicability, `merge-base --all`             | typed `merge-base-ambiguous`                     | **probe**      |
+| Public review         | the sole-base resolver, reached from status composition | **throws**, untyped, rather than refusing        | **probe**      |
+| Landing               | the overlap analyzer, `merge-base --all`                | `unavailable / merge-base-failed`                | **probe**      |
+| Closeout              | retirement containment, `merge-base --is-ancestor`      | cardinality cannot change a containment answer   | not-applicable |
+| Errand review / merge | a common tip, and a close path that pins a remote head  | no overlap analysis at the close path at all     | not-applicable |
+
+The public-review cell is derived rather than imagined: the post-landing draft's own reading is that three of its
+four loci are one ambiguity surfacing at three verbs with three refusal vocabularies. This is the fourth verb on
+that seam, and its handling is a fourth vocabulary — an untyped throw where the others refuse.
+
+A base with no common ancestor at all is enumerated and closed: no recorded failure reaches it, and the analyzer
+already gives it its own `unrelated` status distinct from the ambiguity above.
+
+### Axis C — a write that is not a base advance invalidates a precondition
+
+_Ceiling:_ eight. _Surviving after applicability:_ **five**.
+
+| Column                  | Source               | Disposition    | Evidence                                                                                                                                                                         |
+| ----------------------- | -------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Landing                 | the ceremony's own   | **probe**      | Failure 9 — the strongest on the axis: preparation's own reservation moves the state its apply revalidates against, and the no-effect recovery advances it again                 |
+| Landing, terminal       | the ceremony's own   | **probe**      | Failure 10. The covered probe renews verification for _substantive_ movement past a record-only terminal; this is record-only movement being treated as substantive              |
+| Prepublication → entry  | the ceremony's own   | **probe**      | Failure 11, twice, at two different revisions                                                                                                                                    |
+| Public review           | the operator's index | **probe**      | Failure 12                                                                                                                                                                       |
+| Session-init / recovery | the operator's index | **probe**      | Failure 13                                                                                                                                                                       |
+| Whole-WU verification   | the ceremony's own   | not-applicable | Nothing on file; attest's own writes reaching its own preconditions is imagined rather than derived                                                                              |
+| Closeout                | the ceremony's own   | not-applicable | Failures 2 and 4 got their moved head from archive composition's writes, but the comparison that refuses reads head against binding — the same cell already counted under Axis A |
+| Errand review / merge   | either               | not-applicable | Nothing on file                                                                                                                                                                  |
+
+### Axis D — base movement at boundaries outside the enumerated six
+
+_Ceiling:_ five, one per new column. _Surviving after applicability:_ **five**. Nothing closes: each column is a
+distinct seam with its own recorded failure, and none of the six enumerated boundaries reads the base the way any
+of these do.
+
+| Column                 | Seam                                                     | Evidence   |
+| ---------------------- | -------------------------------------------------------- | ---------- |
+| Delivery authoring     | the read-only locator, with no typed constructor         | Failure 14 |
+| Rematerialization      | the bound review-fix authoring route                     | Failure 15 |
+| Eligibility window     | prepare and close as two observation windows             | Failure 16 |
+| Materialization window | the bound chain past its observed-tip check              | Failure 17 |
+| Post-land settlement   | a pinned pre-landing replay against a landed predecessor | Failure 18 |
+
+### Verdict
+
+**Four axes, all go.** Ceiling twenty-seven; nineteen cells survive applicability; two sub-cases close as
+unobservable or underived and are recorded above with their reasons.
+
+The stated cut signal is a combined ceiling above roughly twenty-five, and twenty-seven is above it. Recorded
+plainly rather than resolved by choosing the flattering number: the surviving count is nineteen, every cell traces
+to a numbered recorded failure, and the applicability closures are citations to probes that already exist rather
+than judgments. The signal exists to stop an unbounded phase, and this enumeration is bounded by a fixed list of
+failures that cannot grow during execution.
+
+Lane matters more than count here. Axis A's bindings, Axis C's handler seams, and all five of Axis D's columns are
+reachable in-process, so the bulk of the second matrix lands in the integration lane rather than the end-to-end
+one, and the tier this widening moves most is the cheaper of the two.
+
+### Fixtures, and what each composes from
+
+- **Axis A** — no new fixture. `arrangeBranchSide` moves the branch-side head on its own without touching the base,
+  which is exactly this axis. The bindings come from `delivery-position-suite.ts` (bound Delivery State plus the
+  fake host binary) and `candidate-lineage-suite.ts`; session-init composes `multi-clone.ts`.
+- **Axis B** — **one new arrangement**, an ambiguous-merge-base topology, which nothing in the suite builds. Two
+  `commit-tree` calls with swapped parents were spiked at this task and yield exactly two best merge bases, with
+  plain `merge-base` picking one silently. It belongs in `base-advance.ts` beside `advanceBase`, in the same
+  plumbing style — temporary index, `commit-tree`, push — and with the same type-only import of `src`, so it stays
+  reachable from both lanes.
+- **Axis C** — no fixture. The writes are the verbs' own, so the ceremony cells compose `runArcAnchoredSequence`;
+  the two operator-index cells need a plain `git add` and nothing else.
+- **Axis D** — no new fixture. `delivery-disjoint-eligibility.test.ts` already scaffolds a bound plan and drives
+  eligibility preparation through close, `delivery-materialization.test.ts` drives the bound chain directly, and
+  the base side of every column is `advanceBase`.
+
 ## Pre-probe cost baseline
 
 Taken on a tree carrying no new test file, before the helper and pin work of Tasks 1.4 and 1.5, so the delta

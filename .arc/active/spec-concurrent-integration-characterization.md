@@ -192,6 +192,11 @@ _Recorded with it: the span check was answerable at the first task, from the sam
 design recorded "no exhaustive state cross-product" as a scope decision, which was legitimate; what was missing is
 that nothing tested that decision against the failures already on file._
 
+_Amended 2026-09-14 — the ceremony-concurrent-write axis widens from a ceremony's own records to any write that is not
+a base advance, so the operator's index joins it — prompted by two recorded failures the first enumeration could place
+on no axis: a staged top-branch correction reclassifying which member's review status is observable, and a conflicted
+index during an authorized merge stopping both session-init seeding and recovery._
+
 **Boundary and Class (sticky from the draft).** `Class: Heavy` — the probe matrix, record contract, and routing
 posture had to be authored before an engineer could start, and nothing is invented. Boundary fit: **stays one WU**
 — the helper, probes, ledger, and routing are one concern with one review surface; the fixes are routed out by D5.
