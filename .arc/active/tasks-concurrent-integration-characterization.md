@@ -617,6 +617,23 @@ every pin in place.
 - _Goal:_ Observe what each reached boundary returns when merge-base cardinality is not one and overlap cannot be
   classified at all.
 
+    - `[x]` **7.3.a Arrange the ambiguous merge base and prove the topology**
+
+        - `arrangeAmbiguousMergeBase` puts both heads on the same two ancestors in opposite parent orders, the
+          one shape leaving two best common ancestors with neither reachable from the other. The base side stays
+          plumbing like every other base move here; the branch side is a real commit and a real merge, because
+          the caller's HEAD, index, and working tree have to agree afterwards. Both heads carry the same tree
+          deliberately, which is what makes the condition legible: a reader picking one of the two bases is
+          choosing which half of the history it sees, not which half exists, and the proof asserts each base
+          reports a disjoint path set for the same branch. The opposite parent order is also what keeps the two
+          merges distinct commits at all, since they share a tree, a parent set, and an author.
+          `writeTreeOverParent` is extracted so both arrangements build through an index that is never the
+          caller's. Reading the four readers settled that none of the cells collapse: the sole-base resolver that
+          throws is not on the prepublication path, which reaches applicability directly, and the overlap
+          analyzer is reached only from base distance rather than from checkpoint composition.
+
+    - `[ ]` **7.3.b Probe the four boundaries that read a merge base**
+
 ### `[ ]` **7.4 Probe the ceremony-concurrent-write axis**
 
 - _Goal:_ Observe what happens when a ceremony's own record writes move the head its preconditions were read

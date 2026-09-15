@@ -104,6 +104,26 @@ export interface BaseAdvanceResult {
   readonly paths: readonly string[];
 }
 
+/** One criss-cross arrangement over an explicit pair of paths. */
+export interface AmbiguousMergeBaseOptions extends BaseCoordinates {
+  /** The path the base-side ancestor changes; disjoint from the branch side so neither conflicts. */
+  readonly basePath?: string;
+  /** The path the branch-side ancestor changes. */
+  readonly branchPath?: string;
+  readonly message?: string;
+}
+
+/** The two heads a criss-cross leaves, and the two ancestors that make it ambiguous. */
+export interface AmbiguousMergeBaseResult {
+  /** The advanced base head, holding both ancestors in one parent order. */
+  readonly base: string;
+  /** The branch head, holding the same two ancestors in the other order. */
+  readonly head: string;
+  /** Both best merge bases, base-side ancestor first. */
+  readonly bases: readonly [string, string];
+  readonly paths: MovementPathSets;
+}
+
 /**
  * Resolve the path sets that realize one movement kind for one work unit.
  *
@@ -186,6 +206,40 @@ async function landMergeCommit(input: {
 }
 
 /**
+ * Build a tree from one parent plus a path set, through an index of its own.
+ *
+ * Never the caller's index: building through the real one would carry whatever they had staged
+ * into the commit and leave the checkout dirty.
+ */
+async function writeTreeOverParent(input: {
+  readonly cwd: string;
+  readonly parent: string;
+  readonly paths: readonly string[];
+  readonly message: string;
+  readonly generation: number;
+}): Promise<string> {
+  const indexFile = join(
+    await makeScratchDirectory(input.cwd),
+    `advance-index-${input.generation}-${process.pid}`,
+  );
+  const indexEnvironment = { GIT_INDEX_FILE: indexFile };
+  await git(input.cwd, ["read-tree", input.parent], indexEnvironment);
+  for (const path of input.paths) {
+    const blob = (await gitWithInput(
+      input.cwd,
+      ["hash-object", "-w", "--stdin"],
+      `base side\n${input.message}\ngeneration ${input.generation}\n${path}\n`,
+    )).trim();
+    await git(
+      input.cwd,
+      ["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`],
+      indexEnvironment,
+    );
+  }
+  return (await git(input.cwd, ["write-tree"], indexEnvironment)).trim();
+}
+
+/**
  * Advance the remote base over a path set without touching the caller's checkout.
  *
  * @param options - The checkout, base coordinates, and paths the advance should change.
@@ -202,25 +256,13 @@ export async function advanceBase(options: BaseAdvanceOptions): Promise<BaseAdva
   await git(options.cwd, ["fetch", remote, base]);
   const parent = (await git(options.cwd, ["rev-parse", "--verify", `refs/remotes/${remote}/${base}`])).trim();
 
-  const indexFile = join(
-    await makeScratchDirectory(options.cwd),
-    `advance-index-${generation}-${process.pid}`,
-  );
-  const indexEnvironment = { GIT_INDEX_FILE: indexFile };
-  await git(options.cwd, ["read-tree", parent], indexEnvironment);
-  for (const path of options.paths) {
-    const blob = (await gitWithInput(
-      options.cwd,
-      ["hash-object", "-w", "--stdin"],
-      `base side\n${message}\ngeneration ${generation}\n${path}\n`,
-    )).trim();
-    await git(
-      options.cwd,
-      ["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`],
-      indexEnvironment,
-    );
-  }
-  const tree = (await git(options.cwd, ["write-tree"], indexEnvironment)).trim();
+  const tree = await writeTreeOverParent({
+    cwd: options.cwd,
+    parent,
+    paths: options.paths,
+    message,
+    generation,
+  });
   const head = options.landing === "merge"
     ? await landMergeCommit({ cwd: options.cwd, tree, parent, message, generation, ...(
         options.pullRequest === undefined ? {} : { pullRequest: options.pullRequest }
@@ -247,6 +289,90 @@ export async function advanceBase(options: BaseAdvanceOptions): Promise<BaseAdva
   }
 
   return { head, paths: [...options.paths] };
+}
+
+/**
+ * Arrange the branch and its base so the two have more than one best merge base.
+ *
+ * Both heads merge the same two ancestors in opposite parent orders, which is the one shape that
+ * leaves a pair of best common ancestors with neither reachable from the other. Merge-base
+ * cardinality is a property of the history's *shape* rather than of any advance, so this is a
+ * separate arrangement from {@link advanceBase} and its movement kinds rather than a fifth kind.
+ *
+ * The base-side ancestor is plumbing, like every other base move here. The branch side is a real
+ * commit and a real merge, because the caller's HEAD, index, and working tree have to agree
+ * afterwards — a plumbing head move would leave the checkout dirty.
+ *
+ * Both heads carry the same tree, so neither side holds content the other lacks and a reader that
+ * picks one of the two bases is choosing which half of the history it sees, not which half exists.
+ *
+ * @param options - The checkout, base coordinates, and the path each ancestor changes.
+ * @returns Both heads, both merge bases, and the paths each side changed.
+ */
+export async function arrangeAmbiguousMergeBase(
+  options: AmbiguousMergeBaseOptions,
+): Promise<AmbiguousMergeBaseResult> {
+  const remote = options.remote ?? DEFAULT_REMOTE;
+  const base = options.base ?? DEFAULT_BASE;
+  const message = options.message ?? "ambiguous merge base";
+  const basePath = options.basePath ?? "src/criss-cross-base-side.ts";
+  const branchPath = options.branchPath ?? "src/criss-cross-branch-side.ts";
+
+  await git(options.cwd, ["fetch", remote, base]);
+  const ancestor = (await git(options.cwd, ["rev-parse", "--verify", `refs/remotes/${remote}/${base}`])).trim();
+
+  const baseSide = (await git(
+    options.cwd,
+    [
+      "commit-tree",
+      await writeTreeOverParent({
+        cwd: options.cwd,
+        parent: ancestor,
+        paths: [basePath],
+        message,
+        generation: 0,
+      }),
+      "-p", ancestor,
+      "-m", `${message} base ancestor`,
+    ],
+    authorEnvironment(),
+  )).trim();
+
+  await arrangeBranchSide({
+    cwd: options.cwd,
+    paths: [branchPath],
+    message: `${message} branch ancestor`,
+  });
+  const branchSide = (await git(options.cwd, ["rev-parse", "HEAD"])).trim();
+  await git(
+    options.cwd,
+    ["-c", "core.hooksPath=/dev/null", "merge", "--no-ff", "-m", `${message} branch merge`, baseSide],
+    authorEnvironment(),
+  );
+  const head = (await git(options.cwd, ["rev-parse", "HEAD"])).trim();
+
+  // The opposite parent order is what keeps the two merges distinct commits: they share a tree, a
+  // set of parents, and an author, so the order is the only field left to tell them apart.
+  const advanced = (await git(
+    options.cwd,
+    [
+      "commit-tree", `${head}^{tree}`,
+      "-p", baseSide,
+      "-p", branchSide,
+      "-m", `${message} base merge`,
+    ],
+    authorEnvironment(),
+  )).trim();
+  await git(options.cwd, [
+    "-c", "core.hooksPath=/dev/null", "push", remote, `${advanced}:refs/heads/${base}`,
+  ]);
+
+  return {
+    base: advanced,
+    head,
+    bases: [baseSide, branchSide],
+    paths: { branch: [branchPath], base: [basePath] },
+  };
 }
 
 /**

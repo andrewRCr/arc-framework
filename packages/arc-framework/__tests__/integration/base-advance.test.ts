@@ -18,6 +18,7 @@ import { makeGitExec } from "../helpers/integration.js";
 import { setupMultiClone, setupWorktreeSiblings } from "../helpers/multi-clone.js";
 import {
   advanceBase,
+  arrangeAmbiguousMergeBase,
   arrangeBranchSide,
   movementPaths,
   withUnavailableBaseRead,
@@ -255,5 +256,47 @@ describe("the shape of the advancing commit, as the shipped evidence scan reads 
       limitations: [],
       events: [{ proof: "topology" }],
     });
+  });
+});
+
+describe("an ambiguous merge base", () => {
+  it("leaves exactly two best merge bases between the branch and its base", async () => {
+    const { cwd } = await checkoutOnWorkUnitBranch();
+
+    const arrangement = await arrangeAmbiguousMergeBase({ cwd });
+
+    const reported = await git(cwd, ["merge-base", "--all", arrangement.head, arrangement.base]);
+    expect(reported.split("\n").sort()).toEqual([...arrangement.bases].sort());
+  });
+
+  it("leaves plain merge-base picking one of the two without reporting the other", async () => {
+    const { cwd } = await checkoutOnWorkUnitBranch();
+
+    const arrangement = await arrangeAmbiguousMergeBase({ cwd });
+
+    const picked = await git(cwd, ["merge-base", arrangement.head, arrangement.base]);
+    expect(picked.split("\n")).toHaveLength(1);
+    expect(arrangement.bases).toContain(picked);
+  });
+
+  it("leaves each merge base seeing a different half of the branch's own history", async () => {
+    const { cwd } = await checkoutOnWorkUnitBranch();
+
+    const arrangement = await arrangeAmbiguousMergeBase({ cwd });
+
+    const changedFrom = async (base: string): Promise<string> =>
+      await git(cwd, ["diff", "--name-only", base, arrangement.head]);
+    expect(await changedFrom(arrangement.bases[0])).toBe(arrangement.paths.branch[0]);
+    expect(await changedFrom(arrangement.bases[1])).toBe(arrangement.paths.base[0]);
+  });
+
+  it("advances the remote base ref and leaves the caller's checkout clean at the branch head", async () => {
+    const { cwd, origin } = await checkoutOnWorkUnitBranch();
+
+    const arrangement = await arrangeAmbiguousMergeBase({ cwd });
+
+    expect(await git(origin, ["rev-parse", "refs/heads/main"])).toBe(arrangement.base);
+    expect(await git(cwd, ["rev-parse", "HEAD"])).toBe(arrangement.head);
+    expect(await git(cwd, ["status", "--porcelain"])).toBe("");
   });
 });
