@@ -4137,7 +4137,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })}\n`,
       { env: fixture.env },
     );
-    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(1);
+    // The exit code is read after the hold. It is part of the result being held, so asserting it first would
+    // kill a run that reached the awaited result before the hold could say it was spent.
     expectPinnedObservation(JSON.parse(stagedPrepare.stdout), {
       behavior: "A correction staged in the operator's index is not part of the member's reviewed contribution, "
         + "so preparing that member's local review should still admit it rather than fail on an admission the "
@@ -4151,6 +4152,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       },
       target: { state: "ready" },
     });
+    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(1);
     await git(fixture.repository, ["rm", "--cached", "-f", "top-correction.txt"]);
     await unlink(join(fixture.repository, "top-correction.txt"));
     const afterUnstage = await runArcWithStdin(
@@ -4771,7 +4773,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       { env: fixture.env },
     );
 
-    expect(positioned.exitCode, `${positioned.stderr}\n${positioned.stdout}`).toBe(1);
+    // Read after the hold, for the same reason: the awaited result comes with a zero exit code.
     expectPinnedObservation(JSON.parse(positioned.stdout), {
       behavior:
         "A terminal top that advanced by an append-only commit is still the bound chain, so position " +
@@ -4779,6 +4781,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       observed: { status: "refused", reason: "review-fix-routing-required", nextAction: "plan-review-fix" },
       target: { status: "observed" },
     });
+    expect(positioned.exitCode, `${positioned.stderr}\n${positioned.stdout}`).toBe(1);
   });
 
   it("opens a session over a terminal top that advanced by an append-only commit", async () => {

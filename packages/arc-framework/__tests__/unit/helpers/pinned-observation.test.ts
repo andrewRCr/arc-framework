@@ -121,3 +121,141 @@ describe("shapes that cannot hold anything", () => {
     ).toThrow(/object id/u);
   });
 });
+
+describe("shapes that name no fields", () => {
+  // An empty shape is satisfied by every object, so a call carrying one reads as a hold while asserting
+  // nothing at all. It is refused on either side rather than left to pass or to claim a spurious retirement.
+  it("refuses a held shape naming no fields", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "anything at all", state: "unrelated" },
+        { behavior: BEHAVIOR, observed: {}, target: { verdict: "clean" } },
+      ),
+    ).toThrow(/`observed` shape names no fields/u);
+  });
+
+  it("refuses an awaited shape naming no fields", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile" },
+        { behavior: BEHAVIOR, observed: { verdict: "reconcile" }, target: {} },
+      ),
+    ).toThrow(/`target` shape names no fields/u);
+  });
+
+  it("refuses a nested shape naming no fields", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile", overlap: { status: "available" } },
+        { behavior: BEHAVIOR, observed: { verdict: "reconcile", overlap: {} }, target: { verdict: "clean" } },
+      ),
+    ).toThrow(/`observed` shape names no fields/u);
+  });
+});
+
+describe("an object id carried inside a longer value", () => {
+  it("refuses a sentence that quotes one", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile", detail: "the base moved to 05594cf3 while the window was open" },
+        {
+          behavior: BEHAVIOR,
+          observed: { verdict: "reconcile", detail: "the base moved to 05594cf3 while the window was open" },
+          target: { verdict: "clean" },
+        },
+      ),
+    ).toThrow(/object id/u);
+  });
+
+  it("refuses one carried in a path list", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile", paths: ["src/a.ts"] },
+        {
+          behavior: BEHAVIOR,
+          observed: { verdict: "reconcile", paths: ["05594cf3abc1"] },
+          target: { verdict: "clean" },
+        },
+      ),
+    ).toThrow(/object id/u);
+  });
+
+  it("refuses one named only by the awaited shape", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile" },
+        { behavior: BEHAVIOR, observed: { verdict: "reconcile" }, target: { verdict: "d".repeat(40) } },
+      ),
+    ).toThrow(/object id/u);
+  });
+
+  // A run of hex spelled only from `a` to `f` is an ordinary word far more often than an object id, so a
+  // sentence carrying one is left alone rather than refused on a coincidence.
+  it("accepts a sentence whose only hex-shaped run spells a word", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile", detail: "the regenerable surface was defaced by the advance" },
+        {
+          behavior: BEHAVIOR,
+          observed: { verdict: "reconcile", detail: "the regenerable surface was defaced by the advance" },
+          target: { verdict: "clean" },
+        },
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe("comparing list-valued and non-object results", () => {
+  it("rejects a list of a different length", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile", paths: ["src/a.ts", "src/b.ts"] },
+        {
+          behavior: BEHAVIOR,
+          observed: { verdict: "reconcile", paths: ["src/a.ts"] },
+          target: { verdict: "clean" },
+        },
+      ),
+    ).toThrow(/no longer describes what happens/u);
+  });
+
+  it("rejects a list whose entries differ", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile", paths: ["src/b.ts"] },
+        {
+          behavior: BEHAVIOR,
+          observed: { verdict: "reconcile", paths: ["src/a.ts"] },
+          target: { verdict: "clean" },
+        },
+      ),
+    ).toThrow(/no longer describes what happens/u);
+  });
+
+  it("refuses a hold and an awaited result carrying equal lists", () => {
+    expect(() =>
+      expectPinnedObservation(
+        { verdict: "reconcile", paths: ["src/a.ts"] },
+        {
+          behavior: BEHAVIOR,
+          observed: { verdict: "clean", paths: ["src/a.ts"] },
+          target: { verdict: "clean", paths: ["src/a.ts"] },
+        },
+      ),
+    ).toThrow(/holds and awaits the same result/u);
+  });
+
+  it.each([
+    ["nothing", null],
+    ["a bare string", "reconcile"],
+    ["a list", ["reconcile"]],
+  ])("rejects a result that is %s rather than an object", (_kind, actual) => {
+    expect(() =>
+      expectPinnedObservation(actual, {
+        behavior: BEHAVIOR,
+        observed: { verdict: "reconcile" },
+        target: { verdict: "clean" },
+      }),
+    ).toThrow(/no longer describes what happens/u);
+  });
+});

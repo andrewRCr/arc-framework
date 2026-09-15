@@ -144,7 +144,7 @@ describe("delivery closeout against a terminal head that advanced under its bind
     expect(await closeoutAgainstMergedHead(fixture, fixture.bound)).toEqual({ status: "closed-out" });
   });
 
-  it("retires a terminal the host merged at a descendant of the head it binds", async () => {
+  it("reports a terminal unsettled when the host merged it past the head it binds", async () => {
     const fixture = await boundTerminal();
 
     expectPinnedObservation(await closeoutAgainstMergedHead(fixture, fixture.advanced), {

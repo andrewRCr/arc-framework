@@ -260,14 +260,15 @@ function outcome(result: { state: string; diagnostics: { code: string }[] }): {
 }
 
 describe("readiness against a member head that advanced under its binding", () => {
-  it("admits a member whose head advanced without changing its contribution", async () => {
+  it("reports nothing bound when a member's head advanced without changing its contribution", async () => {
     const { cwd, advanced } = await staleBoundRepository();
     const unbound = await unboundRepository();
 
     const stale = outcome(await runReadinessHandler(cwd, cwd, advanced));
     const absent = outcome(await runReadinessHandler(unbound, unbound, advanced));
 
-    expect(stale).toEqual(absent);
+    // Held first, so a run that reaches the awaited result says the hold is spent rather than dying on
+    // the equality below with a bare object diff.
     expectPinnedObservation(stale, {
       behavior:
         "A delivery member whose bound head advanced by a commit changing nothing is still the " +
@@ -275,5 +276,6 @@ describe("readiness against a member head that advanced under its binding", () =
       observed: { state: "invalid", diagnostics: ["delivery-member-unbound"] },
       target: { state: "ready" },
     });
+    expect(stale).toEqual(absent);
   });
 });

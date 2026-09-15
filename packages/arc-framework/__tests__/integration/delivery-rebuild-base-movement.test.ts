@@ -22,6 +22,7 @@ import {
   advanceProtectedBase,
   arrangeCandidateChain,
   prepareWindow,
+  prepareWindowResult,
   SHARED_PATH,
   type CandidateChainArrangement,
 } from "../helpers/delivery-eligibility-arrangement.js";
@@ -126,10 +127,15 @@ async function prepareThenClose(
   arrangement: CandidateChainArrangement,
   candidates: readonly { readonly deliverableId: string; readonly ref: string }[],
 ): Promise<Record<string, unknown>> {
-  const snapshot = await prepareWindow(arrangement, { candidates, topRef: ORIGINATING_TOP });
-  const closed = await closeDeliveryEligibility(snapshot, arrangement.deps);
+  const prepared = await prepareWindowResult(arrangement, { candidates, topRef: ORIGINATING_TOP });
+  if (prepared.status !== "prepared") {
+    // Reported rather than thrown: preparation refusing is the outcome this pair is held against, and a
+    // throw here would kill the run before the assertion could say the hold is spent.
+    return { preparation: prepared.status, close: "not-reached", closeReason: null };
+  }
+  const closed = await closeDeliveryEligibility(prepared.snapshot, arrangement.deps);
   return {
-    preparation: "prepared",
+    preparation: prepared.status,
     close: closed.status,
     closeReason: closed.status === "refused" ? closed.reason : null,
   };

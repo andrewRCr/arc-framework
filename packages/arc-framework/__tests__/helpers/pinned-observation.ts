@@ -69,8 +69,21 @@ function requireBehaviorSentence(behavior: string): void {
 /**
  * The one run-varying value the field types cannot keep out, since it arrives as an ordinary string. A shape
  * naming one stops describing the behavior and starts describing the tree it happened to run against.
+ *
+ * A value that is entirely an object id is refused whatever it spells. One that carries an object id inside a
+ * longer sentence is refused when the run of hex holds a digit: at seven characters a real object id all but
+ * always does, and the English words spelled from `a` to `f` alone do not.
  */
 const OBJECT_ID = /^[0-9a-f]{7,40}$/u;
+const HEX_RUN = /\b[0-9a-f]{7,40}\b/gu;
+
+function namedObjectId(value: string): string | null {
+  if (OBJECT_ID.test(value)) return value;
+  for (const [run] of value.matchAll(HEX_RUN)) {
+    if (/\d/u.test(run)) return run;
+  }
+  return null;
+}
 
 function requireIdentityValues(shape: ResultShape): void {
   for (const [field, value] of Object.entries(shape)) {
@@ -80,12 +93,32 @@ function requireIdentityValues(shape: ResultShape): void {
     }
     const values = Array.isArray(value) ? value : [value];
     for (const element of values) {
-      if (typeof element !== "string" || !OBJECT_ID.test(element)) continue;
+      if (typeof element !== "string") continue;
+      const objectId = namedObjectId(element);
+      if (objectId === null) continue;
       throw new Error(
-        `A shape cannot name an object id: \`${field}\` holds ${element}, which changes whenever the ` +
+        `A shape cannot name an object id: \`${field}\` holds ${objectId}, which changes whenever the ` +
           `base moves. Name the fields that carry the result's identity instead.`,
       );
     }
+  }
+}
+
+/**
+ * A shape naming no fields is satisfied by every object, so it would read as a hold while asserting nothing.
+ *
+ * @param shape - The shape to check, at every depth.
+ * @param side - Which half of the pin is being checked, so the message names it.
+ */
+function requireDescribableShape(shape: ResultShape, side: string): void {
+  if (Object.keys(shape).length === 0) {
+    throw new Error(
+      `The \`${side}\` shape names no fields, so every result satisfies it and this assertion holds ` +
+        `nothing. Name the fields that carry the result's identity.`,
+    );
+  }
+  for (const value of Object.values(shape)) {
+    if (isShape(value)) requireDescribableShape(value, side);
   }
 }
 
@@ -117,6 +150,8 @@ function render(value: unknown): string {
  */
 export function expectPinnedObservation(actual: unknown, pin: PinnedObservation): void {
   requireBehaviorSentence(pin.behavior);
+  requireDescribableShape(pin.observed, "observed");
+  requireDescribableShape(pin.target, "target");
   requireIdentityValues(pin.observed);
   requireIdentityValues(pin.target);
   if (shapesAgree(pin.observed, pin.target)) {

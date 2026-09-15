@@ -1727,7 +1727,7 @@ describe("arc errand promote", () => {
   });
 });
 
-describe("the Errand close boundary over a base that moves under it", () => {
+describe("the Errand close boundary after the base advances", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
@@ -1776,8 +1776,9 @@ describe("the Errand close boundary over a base that moves under it", () => {
     const host = await errandAwaitingClose(slug);
     const before = await git(tmpDir, ["rev-parse", "refs/remotes/origin/main"]);
     try {
-      // The advance rides inside the anchored sequence, between the close's precondition and the close
-      // itself — the only place it can land, since the lane closes under one shell.
+      // The advance is its own step ahead of the close. The sequence joins steps with `&&`, so it completes
+      // before the close begins rather than interleaving with it — the close reads its precondition inside
+      // itself, and the lane runs under one shell, so this is the closest the arrangement reaches.
       const result = await runArcAnchoredSequence([
         advanceBaseStep({ cwd: tmpDir, paths: movementPaths("disjoint", slug).base }),
         closeArgs(slug),

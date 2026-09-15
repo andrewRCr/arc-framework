@@ -69,7 +69,13 @@ export interface BaseCoordinates {
 export interface BaseAdvanceOptions extends BaseCoordinates {
   readonly paths: readonly string[];
   readonly message?: string;
-  /** Distinguishes successive advances so each writes different content. */
+  /**
+   * Distinguishes successive advances, which otherwise write identical content.
+   *
+   * The written content embeds this number and it defaults to zero, so two advances over the same paths
+   * with the same message produce the same tree and the second commits no change at all. Supply it — or a
+   * distinct `message` — whenever one test advances the base more than once over the same paths.
+   */
   readonly generation?: number;
   /**
    * How the advancing commit reached the base.
@@ -480,12 +486,22 @@ export async function writeUnavailableBaseReadShim(options: {
   };
 }
 
-/** True when this argv is the fetch that materializes the configured base. */
+/**
+ * True when this argv is the fetch that materializes the configured base.
+ *
+ * The three argument shapes accepted here are the three the spawned shim's `case` matches. A fetch either
+ * lane recognizes and the other does not would make the same verb observable one way in process and another
+ * way through a subprocess, which is the difference the two forms exist to rule out.
+ */
 function isBaseFetch(args: readonly string[], remote: string, base: string): boolean {
   if (args[0] !== "fetch") return false;
   const rest = args.slice(1);
   if (!rest.includes(remote)) return false;
-  return rest.some((argument) => argument === base || argument.includes(`refs/heads/${base}`));
+  return rest.some((argument) => (
+    argument === base
+    || argument.includes(`refs/heads/${base}`)
+    || argument.includes(`${remote}/${base}`)
+  ));
 }
 
 async function makeScratchDirectory(cwd: string): Promise<string> {
@@ -534,7 +550,13 @@ function gitWithInput(cwd: string, args: readonly string[], input: string): Prom
         else resolve(stdout);
       },
     );
-    child.stdin?.end(input);
+    if (child.stdin === null) {
+      // Skipping the write would leave `git hash-object --stdin` waiting on an end-of-file that never
+      // arrives, and this promise would never settle — a hung run rather than a failed one.
+      reject(new Error("git was spawned without a writable stdin, so its input could not be supplied"));
+      return;
+    }
+    child.stdin.end(input);
   });
 }
 

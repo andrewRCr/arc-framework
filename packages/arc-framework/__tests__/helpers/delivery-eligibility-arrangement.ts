@@ -1,9 +1,14 @@
 /**
  * A two-member candidate chain, its eligibility dependencies, and the base movement under it.
  *
- * The dependency set mirrors what `delivery-execution.ts` composes for the real verbs, including the
- * completeness precedence — dropped, then invented, then mismatched — because which reason a moved base
- * produces is the observation several probes here are taking.
+ * Every dependency that reads the repository is the one `delivery-execution.ts` composes for the real verbs,
+ * and the completeness precedence — dropped, then invented, then mismatched — is reproduced exactly, because
+ * which reason a moved base produces is the observation several probes here are taking.
+ *
+ * Two dependencies are constants rather than readers, and they bound what this arrangement can observe:
+ * `resolveMember` answers that no member is bound, and `resolveLifecyclePaths` answers with the one path the
+ * chain regenerates. A close cannot reach `head-already-bound` or `lifecycle-paths-moved` through them, so a
+ * probe needing either refusal has to widen this set rather than assume it is already faithful there.
  */
 
 import { execFile } from "node:child_process";
@@ -37,7 +42,7 @@ import { createTempRepoCore } from "../helpers/temp-repo.js";
 const execFileAsync = promisify(execFile);
 
 /** The lifecycle path the arrangement regenerates on the base, as the disjoint fixture does. */
-export const LIFECYCLE_PATH = ".arc/backlog/ROADMAP.md";
+const LIFECYCLE_PATH = ".arc/backlog/ROADMAP.md";
 /** A tracked path present from the chain base onwards, so a base change to it can collide. */
 export const SHARED_PATH = "shared.txt";
 
@@ -53,7 +58,6 @@ export interface CandidateChainArrangement {
   readonly observedRefs: string[];
   readonly stateStore: RepositoryDeliveryStateStore;
   readonly chainBase: string;
-  readonly observedTip: string;
 }
 
 /**
@@ -96,7 +100,6 @@ export async function arrangeCandidateChain(prefix: string): Promise<CandidateCh
   await writeFile(join(repository, LIFECYCLE_PATH), "advanced readiness\n", "utf8");
   await git(["add", LIFECYCLE_PATH]);
   await git(["commit", "-m", "regenerate readiness"]);
-  const observedTip = await git(["rev-parse", "HEAD"]);
   await git(["config", "merge.arc-roadmap.driver", "false"]);
 
   const plan = deliveryStackPlanFixture();
@@ -110,11 +113,17 @@ export async function arrangeCandidateChain(prefix: string): Promise<CandidateCh
   const refs: DeliveryMaterializationRefPort = {
     observe: async (ref: string) => {
       observedRefs.push(ref);
+      let head: string;
       try {
-        return { status: "observed" as const, head: await git(["rev-parse", "--verify", ref]) };
-      } catch {
-        return { status: "absent" as const };
+        // `--quiet` makes a ref that simply is not there exit 1 with no output. Every other failure — a
+        // broken object store, a malformed ref — still exits 128, and answering "absent" to one of those
+        // would hand production a reason the repository never gave.
+        head = await git(["rev-parse", "--verify", "--quiet", ref]);
+      } catch (error) {
+        if ((error as { code?: unknown }).code === 1) return { status: "absent" as const };
+        throw error;
       }
+      return { status: "observed" as const, head };
     },
     publish: async (ref: string, head: string) => {
       await git(["update-ref", ref, head]);
@@ -123,7 +132,7 @@ export async function arrangeCandidateChain(prefix: string): Promise<CandidateCh
   };
 
   return {
-    repository, git, exec, plan, candidates, refs, observedRefs, chainBase, observedTip,
+    repository, git, exec, plan, candidates, refs, observedRefs, chainBase,
     deps: eligibilityDependencies(exec, plan),
     stateStore: new RepositoryDeliveryStateStore(publisher),
   };
@@ -176,6 +185,13 @@ export async function advanceProtectedBase(
   arrangement: CandidateChainArrangement,
   paths: Readonly<Record<string, string>> = { "unrelated.txt": "independent checkout landed\n" },
 ): Promise<string> {
+  // Checked rather than assumed: the commit below lands on whatever branch the checkout is on, while the
+  // head returned is read from main. On another branch the two come apart silently and a probe compares
+  // against a base that never moved.
+  const branch = await arrangement.git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (branch !== "main") {
+    throw new Error(`advanceProtectedBase writes the protected base, so it runs on main; found ${branch}.`);
+  }
   for (const [path, contents] of Object.entries(paths)) {
     await writeFile(join(arrangement.repository, path), contents, "utf8");
   }
@@ -184,21 +200,42 @@ export async function advanceProtectedBase(
   return arrangement.git(["rev-parse", "main"]);
 }
 
-/** Prepare the eligibility window over the arranged chain, failing loudly if it refuses. */
-export async function prepareWindow(
+/** Overrides a caller may apply to the arranged chain's eligibility window. */
+export interface WindowOverrides {
+  readonly topRef?: string;
+  readonly candidates?: readonly { readonly deliverableId: string; readonly ref: string }[];
+}
+
+/**
+ * Prepare the eligibility window and return whatever preparation decided, refusals included.
+ *
+ * A probe reading whether preparation admits a chain needs the refusal as a value rather than as a thrown
+ * error, so the two-shape assertion can report it. {@link prepareWindow} is the arrange-time form that
+ * insists on success.
+ *
+ * @param arrangement - The chain the window is opened over.
+ * @param overrides - The originating top and candidate set, when they differ from the arrangement's own.
+ * @returns Preparation's typed result.
+ */
+export async function prepareWindowResult(
   arrangement: CandidateChainArrangement,
-  overrides: {
-    readonly topRef?: string;
-    readonly candidates?: readonly { readonly deliverableId: string; readonly ref: string }[];
-  } = {},
-): Promise<DeliveryEligibilitySnapshot> {
-  const prepared = await prepareDeliveryEligibility({
+  overrides: WindowOverrides = {},
+): Promise<Awaited<ReturnType<typeof prepareDeliveryEligibility>>> {
+  return prepareDeliveryEligibility({
     plan: arrangement.plan,
     protectedBaseRef: "refs/heads/main",
     topRef: overrides.topRef ?? "refs/heads/candidate/top",
     candidates: overrides.candidates ?? arrangement.candidates,
     lifecyclePaths: [LIFECYCLE_PATH],
   }, arrangement.deps);
+}
+
+/** Prepare the eligibility window over the arranged chain, failing loudly if it refuses. */
+export async function prepareWindow(
+  arrangement: CandidateChainArrangement,
+  overrides: WindowOverrides = {},
+): Promise<DeliveryEligibilitySnapshot> {
+  const prepared = await prepareWindowResult(arrangement, overrides);
   if (prepared.status !== "prepared") {
     throw new Error(`eligibility preparation refused: ${JSON.stringify(prepared)}`);
   }

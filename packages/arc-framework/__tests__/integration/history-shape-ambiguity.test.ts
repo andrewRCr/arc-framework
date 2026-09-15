@@ -33,6 +33,12 @@ const WORK_UNIT = "sample-unit";
 const BRANCH_PATH = "src/criss-cross-branch-side.ts";
 const BASE_PATH = "src/criss-cross-base-side.ts";
 
+// The criss-cross arrangement derives its commit messages from one root, and the content each side writes
+// embeds that message. A control meant to isolate the history's shape has to reuse them, or its blobs differ
+// from the ambiguous arm's and the comparison moves for a reason that has nothing to do with merge bases.
+const ARRANGEMENT_MESSAGE = "ambiguous merge base";
+const BRANCH_SIDE_MESSAGE = `${ARRANGEMENT_MESSAGE} branch ancestor`;
+
 const cleanups: (() => Promise<void>)[] = [];
 
 afterEach(async () => {
@@ -93,10 +99,12 @@ describe("the subject a work unit's own verification binds", () => {
 
   it("digests a subject that differs from the one the same branch work produces unambiguously", async () => {
     const ambiguous = await checkoutOnWorkUnitBranch();
-    const arrangement = await arrangeAmbiguousMergeBase({ cwd: ambiguous });
+    const arrangement = await arrangeAmbiguousMergeBase({ cwd: ambiguous, message: ARRANGEMENT_MESSAGE });
     const unambiguous = await checkoutOnWorkUnitBranch();
-    await arrangeBranchSide({ cwd: unambiguous, paths: [BRANCH_PATH] });
-    const advance = await advanceBase({ cwd: unambiguous, paths: [BASE_PATH] });
+    await arrangeBranchSide({ cwd: unambiguous, paths: [BRANCH_PATH], message: BRANCH_SIDE_MESSAGE });
+    const advance = await advanceBase({
+      cwd: unambiguous, paths: [BASE_PATH], message: ARRANGEMENT_MESSAGE,
+    });
 
     const digest = async (cwd: string, revision: string, base: string): Promise<string> => (
       await collectGitCandidateTarget({

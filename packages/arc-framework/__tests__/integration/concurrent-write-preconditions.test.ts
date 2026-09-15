@@ -159,6 +159,10 @@ describe("a session opening after an authorized merge lands a work unit's active
       const { status, reason } = write as { status: string; reason?: string };
       return { status, reason };
     };
-    expect(typed(await seedWriteOpening(conflicted))).toEqual(typed(await seedWriteOpening(clean)));
+    const conflictedWrite = typed(await seedWriteOpening(conflicted));
+    expect(conflictedWrite).toEqual(typed(await seedWriteOpening(clean)));
+    // Named rather than left to the equality alone, which two succeeding arms would satisfy just as well
+    // while making this test's own name false.
+    expect(conflictedWrite).toEqual({ status: "failed", reason: "seed-invalid" });
   });
 });

@@ -1069,7 +1069,8 @@ describe("delivery terminal recovery", () => {
       observed: { status: "rebound", nextAction: "verify-review-fix" },
       target: { nextAction: "read-position" },
     });
-    // The task is not merely signalled, it is persisted against a member, which is what a later step reads.
+    // Part of the held result rather than a property worth keeping: the task is not merely signalled, it is
+    // persisted against a member, so whatever retires the hold above has to clear this record as well.
     expect(JSON.parse(result.stdout)).toMatchObject({
       state: {
         value: {

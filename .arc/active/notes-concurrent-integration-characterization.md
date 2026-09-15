@@ -5,8 +5,14 @@
 - [Source loci by decision](#source-loci-by-decision)
 - [Alternatives retired at design](#alternatives-retired-at-design)
 - [Cell matrix](#cell-matrix)
+- [Second matrix](#second-matrix)
 - [Pre-probe cost baseline](#pre-probe-cost-baseline)
+- [Movement shape](#movement-shape)
 - [Characterization ledger](#characterization-ledger)
+- [Ledger close](#ledger-close)
+- [Post-probe cost](#post-probe-cost)
+- [Retention at close](#retention-at-close)
+- [Second-matrix confirmation](#second-matrix-confirmation)
 
 ## Fixture inventory
 
@@ -2210,3 +2216,32 @@ named and does not exist.
 
 That asymmetry is why this belongs in the ceremony-repetition doctrine's home rather than in any single capture:
 a result's remedy field is load-bearing in both directions, and nothing currently checks it in either.
+
+### Correction — the append-only check was scoped wrong, and its number was wrong when written
+
+The subsection above reports that diffing this file against its state immediately before the widening returns
+**zero removed or changed lines**. It does not. At the commit that wrote that sentence the diff already returned
+nine; it returns **thirty-four** now. The original reading is left standing because rows are never edited, and
+what follows is what the diff actually contains.
+
+| What changed                                               | Lines | When                                     |
+| ---------------------------------------------------------- | ----- | ---------------------------------------- |
+| `_Retention at close:_ —` placeholders filled              | 24    | the retention pass, after the sentence   |
+| `_Owner:_ [open …]` placeholder resolved                   | 1     | the doctrine routing, after the sentence |
+| Forward-compatibility screen table — two labels, alignment | 9     | the stub mint, **before** the sentence   |
+
+**The heading still holds; the evidence under it did not.** No observation field was removed or rewritten
+anywhere in that diff — not one `_Observed:_`, `_Invocations:_`, `_Stops:_`, `_Fork:_`, `_Continuation:_`,
+`_Classification:_`, `_Intent:_`, `_Probe:_`, `_Base OID:_`, or `_Closure:_` line. Every one of the twenty-four
+retention fills preserves its row's entire preceding text verbatim and replaces only the `—`, which is the
+completion mechanism § Row shape defines: a field reads `—` until it is filled, and a row is complete when no `—`
+remains. Filling a placeholder is not editing a recorded observation. The single owner fill is the same class.
+The nine table lines are not a ledger row at all: the forward-compatibility screen exchanged two descriptive
+mechanism labels for the stub slugs that now own them, and re-aligned the columns.
+
+So the convention held and the criterion it serves is met. What failed is the check that was reported as proving
+it — a file-level diff cited as evidence for a row-level claim, run once and not re-run after two later passes
+touched the file. The same failure mode as the close-out audit that missed the doctrine row by filtering on a
+column name: **the check's scope did not match the sentence it was asked to support.** A row-level claim needs a
+row-level check, and any check quoted as evidence has to be re-run at the boundary that quotes it, not at the
+boundary that first ran it.

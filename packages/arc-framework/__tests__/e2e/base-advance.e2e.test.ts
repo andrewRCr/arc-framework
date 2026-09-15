@@ -85,13 +85,19 @@ describe("advancing the base from inside an anchored sequence", () => {
   });
 
   it("leaves the checkout on its own branch after the step runs", async () => {
-    const { repo } = await fixture();
+    const { repo, remote } = await fixture();
+    const before = await git(remote, ["rev-parse", "refs/heads/main"]);
 
-    await runArcAnchoredSequence(
+    const sequence = await runArcAnchoredSequence(
       [advanceBaseStep({ cwd: repo, paths: ["src/base-only-surface.ts"] })],
       repo,
     );
 
+    // Established before the branch is read. The runner reports a failed step by exit code rather than by
+    // throwing, so a step that never ran would leave the checkout on its branch and clean for no reason at
+    // all, and the assertions below would report that as the property holding.
+    expect(sequence.exitCode, `${sequence.stderr}\n${sequence.stdout}`).toBe(0);
+    expect(await git(remote, ["rev-parse", "refs/heads/main"])).not.toBe(before);
     expect(await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/sample-unit");
     expect(await git(repo, ["status", "--porcelain"])).toBe("");
   });

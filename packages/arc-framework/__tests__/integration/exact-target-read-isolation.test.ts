@@ -202,6 +202,8 @@ describe("a sibling under this checkout's own reconcile ceremony", () => {
     await git(harness.sibling, ["merge", "--ff-only", "main"]);
     const siblingMeta = join(harness.sibling, ".arc", "active", "meta-dependent.md");
     const before = await readFile(siblingMeta, "utf8");
+    const primaryMeta = join(harness.primary, ".arc", "active", "meta-dependent.md");
+    const primaryBefore = await readFile(primaryMeta, "utf8");
 
     const result = await runHandlerAt(harness.primary, async () => {
       await handleWuReconcile("dependent", { apply: true, json: true }, resolveProcessInteractionContext({
@@ -212,6 +214,9 @@ describe("a sibling under this checkout's own reconcile ceremony", () => {
     });
 
     expect(JSON.parse(result.stdout), result.stdout + result.stderr).toMatchObject({ status: "applied" });
+    // The ceremony has to have written for the sibling's stillness to carry any weight: an apply that
+    // reported success while staging nothing would leave both checkouts untouched and read here as isolation.
+    expect(await readFile(primaryMeta, "utf8")).not.toBe(primaryBefore);
     expect(await readFile(siblingMeta, "utf8")).toBe(before);
     expect(await git(harness.sibling, ["status", "--porcelain"])).toBe("");
   });

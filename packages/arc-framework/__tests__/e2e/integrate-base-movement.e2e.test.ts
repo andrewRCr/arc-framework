@@ -405,10 +405,17 @@ describe("the window between a minted handle and the merge that consumes it", ()
     const handle = await mintHandle(fixture);
     await advanceFor(fixture, "disjoint");
 
+    const remote = join(fixture.repository, ".arc-fixture", "origin.git");
+    const baseBefore = await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]);
+
     const result = await runMerge(fixture, handle);
 
     // The handle survives movement that shares no path with the branch: the window costs the advance nothing.
     expect(result, JSON.stringify(result)).toMatchObject({ state: "merged" });
+    // Read from the remote rather than from the host's own answer, so a reported merge has to be one the
+    // base actually carries.
+    expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
+      .not.toBe(baseBefore);
   });
 });
 
