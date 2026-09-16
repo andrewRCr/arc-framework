@@ -48,6 +48,10 @@ import {
   deliveryEntryCommandInputRegistration,
 } from "./handlers/delivery-entry.js";
 import {
+  deliveryMemberChecksCommandInputPolicyDeclarations,
+  deliveryMemberChecksCommandInputRegistration,
+} from "./handlers/delivery-member-checks.js";
+import {
   deliveryTransferCommandInputPolicyDeclarations,
   deliveryTransferCommandInputRegistrations,
 } from "./handlers/delivery-transfer.js";
@@ -106,6 +110,7 @@ export const commandInputRegistrations = [
   ...deliveryCommandInputRegistrations,
   ...deliveryExecutionCommandInputRegistrations,
   deliveryEntryCommandInputRegistration,
+  deliveryMemberChecksCommandInputRegistration,
   ...deliveryTransferCommandInputRegistrations,
   wuReconcileCommandInputRegistration,
   recoverCommandInputRegistration,
@@ -142,6 +147,7 @@ export const commandInputPolicyDeclarations = [
   ...deliveryCommandInputPolicyDeclarations,
   ...deliveryExecutionCommandInputPolicyDeclarations,
   ...deliveryEntryCommandInputPolicyDeclarations,
+  ...deliveryMemberChecksCommandInputPolicyDeclarations,
   ...deliveryTransferCommandInputPolicyDeclarations,
   ...wuReconcileCommandInputPolicyDeclarations,
   ...recoverCommandInputPolicyDeclarations,
