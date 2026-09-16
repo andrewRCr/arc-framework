@@ -189,6 +189,16 @@ Decline is the only structural item left, and it is the one nothing upstream con
   `advanced` collapsed together. Two ordered-pair relations in one subsystem need one vocabulary, and the
   adopted controlled-vocabulary constraint decides which way.
 
+    **The analog to test against is Git's own vocabulary, not Gerrit's.** This is an ordered-pair ancestry
+    relation, and Git already names every arm of one — ancestor, descendant, fast-forward, diverged, unrelated
+    histories — with exact meanings a reader arrives holding and `merge-base --is-ancestor` as the primitive
+    underneath. Gerrit's change kinds are the wrong shelf to reach for here: they classify _a change against its
+    predecessor_ under a review model, not _two revisions against each other_. Settle the names against Git's
+    terms first and invent only what Git leaves unnamed, which is chiefly the rewound direction. Note the pull
+    the other way before choosing: § Established practice records why the applicability proofs deliberately do
+    **not** borrow external labels, and the deciding difference is that those name a proof while these name a
+    topology Git already has words for.
+
 ### Next
 
 **Take the decline route next — it is the last structural item.** It did not settle with the cluster: the
@@ -735,6 +745,20 @@ all pass silently — and reaches for a person only where discrimination fails, 
 preserves the patch survives and a conflict-resolved one does not. That is functionally this design's
 `tree-equality` / `mechanical-reapply` fast paths reached independently, which is corroboration for the
 classifier rather than something to adopt.
+
+**Why the names diverge, recorded so the divergence reads as considered.** ARC's `subject-equality` /
+`tree-equality` / `mechanical-reapply` and Gerrit's `NO_CHANGE` / `NO_CODE_CHANGE` / `TRIVIAL_REBASE` coincide
+case for case, and they are still not the same vocabulary: ARC's values name **the proof that was found**,
+Gerrit's name **the kind of change observed**. The distinction is not cosmetic here, because every neighbouring
+value in this subsystem is proof-shaped — the contribution proof, the residual proof, the relation's own reader
+result — so a classification-shaped name would misdescribe what the value is and what produced it. Gerrit's set
+also carries two commitments worth declining: `REWORK` is documented as equivalent to `is:ANY`, a catch-all
+rather than a classification, and `TRIVIAL_REBASE_WITH_MESSAGE_UPDATE` and `MERGE_FIRST_PARENT_UPDATE` presuppose
+patch sets and commit messages as the review unit where ARC's unit is a Candidate subject.
+
+What ARC does take from Gerrit is the part that carries: its **definition** of the boundary — a rebase that
+required Git to resolve a conflict is not trivial — which this design reuses verbatim as the meaning of _not
+mechanically derivable_. Borrow the predicate, decline the labels.
 
 ### Axis D: the refusal is the industry boundary
 
