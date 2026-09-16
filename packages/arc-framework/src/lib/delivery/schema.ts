@@ -60,17 +60,26 @@ const DeliveryPlanAuthoringTaskParentV1Schema = z.strictObject({
   role: DeliveryTaskRoleV1Schema,
 });
 
-const AuthoredDeliveryPlanMemberShape = {
+const DeliveryPlanMemberIntentShape = {
   chunkKey: SlugSchema,
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
   taskIds: z.array(ParentTaskIdSchema),
   designElementIds: z.array(DeliveryOpaqueIdSchema),
+};
+
+const AuthoredDeliveryPlanMemberShape = {
+  ...DeliveryPlanMemberIntentShape,
+  mainlineLandability: z.literal("independently-landable"),
+};
+
+const PersistedDeliveryPlanMemberShape = {
+  ...DeliveryPlanMemberIntentShape,
   mainlineLandability: z.enum(["independently-landable", "integration-only"]),
 };
 
 const DeliveryPlanMemberShape = {
-  ...AuthoredDeliveryPlanMemberShape,
+  ...PersistedDeliveryPlanMemberShape,
   deliverableId: DeliveryCanonicalDigestSchema,
   semanticFingerprint: DeliveryCanonicalDigestSchema,
 };
@@ -142,10 +151,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
     parents: z.array(DeliveryPlanAuthoringTaskParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
-  projection: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("wu-integration-target") }),
-    z.strictObject({ kind: z.literal("stack-to-main") }),
-  ]),
+  projection: z.strictObject({ kind: z.literal("stack-to-main") }),
   members: z.array(z.strictObject(AuthoredDeliveryPlanMemberShape)).min(1),
   seams: z.array(z.strictObject({
     seamKey: SlugSchema,

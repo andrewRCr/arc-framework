@@ -78,7 +78,7 @@ function validAuthoringInput(): Record<string, unknown> {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [{
       chunkKey: "record-substrate",
       title: "Record substrate",
@@ -222,6 +222,19 @@ describe("DeliveryPlanV1Schema", () => {
 });
 
 describe("DeliveryPlanAuthoringInputV1Schema", () => {
+  it("keeps retired projections readable but refuses them for new authoring", () => {
+    expect(DeliveryPlanV1Schema.safeParse(validPlan()).success).toBe(true);
+
+    const retired = validAuthoringInput();
+    retired.projection = { kind: "wu-integration-target" };
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(retired).success).toBe(false);
+
+    const integrationOnly = validAuthoringInput();
+    const [member] = integrationOnly.members as Array<Record<string, unknown>>;
+    member!.mainlineLandability = "integration-only";
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(integrationOnly).success).toBe(false);
+  });
+
   it("refuses every derived identity, owner, fingerprint, and digest", () => {
     const derivedFields: Array<readonly [readonly (string | number)[], unknown]> = [
       [["planId"], "123e4567-e89b-42d3-a456-426614174000"],

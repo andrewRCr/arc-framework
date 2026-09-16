@@ -1307,7 +1307,7 @@ describe("arc delivery", () => {
     expect(map).toContain('".arc/active/meta-demo.md"');
     expect(map).toContain('"boundary": null');
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: {
         kind: "explicit",
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
@@ -1317,7 +1317,7 @@ describe("arc delivery", () => {
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1389,7 +1389,7 @@ describe("arc delivery", () => {
       expectedCurrentPlanDigest: initialPlan.planDigest,
     });
     await fillSlots(join(authoring, successorMap), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: {
         kind: "explicit",
         segments: [{ chunkKey: "branch", sourceIds: [head] }],
@@ -1399,7 +1399,7 @@ describe("arc delivery", () => {
         title: "Branch contribution",
         contract: "Publish the inspected branch contribution",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1506,14 +1506,14 @@ describe("arc delivery", () => {
     expect(mapName).toBeDefined();
     if (mapName === undefined) return;
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1564,14 +1564,14 @@ describe("arc delivery", () => {
       expectedCurrentPlanDigest: initialPlan.planDigest,
     });
     await fillSlots(join(authoring, successorMap), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1603,14 +1603,14 @@ describe("arc delivery", () => {
     expect(mapName).toBeDefined();
     if (mapName === undefined) return;
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1660,20 +1660,20 @@ describe("arc delivery", () => {
     expect(mapName).toBeDefined();
     if (mapName === undefined) return;
     await fillSlots(join(authoring, mapName), {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: { kind: "phase-aligned" },
       members: [{
         chunkKey: "implementation",
         title: "Implementation",
         contract: "Publish the implementation contract",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }, {
         chunkKey: "companion",
         title: "Companion",
         contract: "Publish the companion contract",
         designElementIds: [],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     });
@@ -1708,13 +1708,13 @@ describe("arc delivery", () => {
     expect(firstMap).toBeDefined();
     if (firstMap === undefined) return;
     const baseSlots = {
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       members: [{
         chunkKey: "partial",
         title: "Partial member",
         contract: "Publish part of the implementation",
         designElementIds: ["detailed:deliverable-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       }],
       seams: [],
     } as const;

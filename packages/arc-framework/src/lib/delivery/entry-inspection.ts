@@ -145,6 +145,15 @@ export type DeliveryEntryInspectionResult =
       readonly recommendedActionText: string;
     }
   | {
+      readonly status: "repair-required";
+      readonly nextAction: "reauthor-plan";
+      readonly reason: "unsupported-projection";
+      readonly planId: string;
+      readonly planRevision: number;
+      readonly entry: "from-tasks" | "from-branch";
+      readonly recommendedActionText: string;
+    }
+  | {
       readonly status: "resume-bound";
       readonly nextAction: "read-position-and-reconcile";
       readonly planId: string;
@@ -280,6 +289,12 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
     status: z.literal("validate-canonical"), nextAction: z.literal("validate-eligibility"),
     planId: DeliveryPlanIdSchema, planRevision: z.number().int().positive(),
     planDigest: DeliveryCanonicalDigestSchema, recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("repair-required"), nextAction: z.literal("reauthor-plan"),
+    reason: z.literal("unsupported-projection"), planId: DeliveryPlanIdSchema,
+    planRevision: z.number().int().positive(), entry: z.enum(["from-tasks", "from-branch"]),
+    recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
     status: z.literal("resume-bound"), nextAction: z.literal("read-position-and-reconcile"),
@@ -786,6 +801,19 @@ export async function inspectDeliveryEntry(
     return locus.status === "canonical-unmatched"
       ? refused("canonical-projection-mismatch")
       : refused("evidence-conflict");
+  }
+  if (plan.projection.kind !== "stack-to-main" && !reopening && !recoverCanonicalPublication) {
+    return {
+      status: "repair-required",
+      nextAction: "reauthor-plan",
+      reason: "unsupported-projection",
+      planId: plan.planId,
+      planRevision: plan.planRevision,
+      entry: plan.entry,
+      recommendedActionText: "Re-author the canonical Delivery Plan through its recorded entry path with "
+        + "`stack-to-main` and every member `independently-landable`, compose the replacement revision, then "
+        + "retry delivery entry.",
+    };
   }
 
   const state = await dependencies.readState(plan.planId);

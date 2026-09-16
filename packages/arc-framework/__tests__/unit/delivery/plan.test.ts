@@ -37,7 +37,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [
       {
         chunkKey: "first",
@@ -53,7 +53,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the second contract.",
         taskIds: ["1.3", "1.4"],
         designElementIds: ["detailed:R2"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
     ],
     seams: [],
@@ -211,6 +211,39 @@ describe("constructDeliveryPlanRevision", () => {
     });
   });
 
+  it("replaces a readable retired projection with a supported successor revision", () => {
+    const supported = authoringInput();
+    const retired = {
+      ...structuredClone(supported),
+      projection: { kind: "wu-integration-target" },
+      members: supported.members.map((member) => ({
+        ...member,
+        mainlineLandability: "integration-only",
+      })),
+    } as unknown as DeliveryPlanAuthoringInputV1;
+    const first = constructDeliveryPlanRevision(constructionInput({ authoring: retired }));
+    expect(first.status).toBe("constructed");
+    if (first.status !== "constructed") return;
+
+    const replacement = constructDeliveryPlanRevision(constructionInput({
+      authoring: supported,
+      predecessor: first.plan,
+    }));
+    expect(replacement).toMatchObject({
+      status: "constructed",
+      plan: {
+        planId: first.plan.planId,
+        planRevision: 2,
+        previousPlanDigest: first.plan.planDigest,
+        projection: { kind: "stack-to-main" },
+        members: [
+          { mainlineLandability: "independently-landable" },
+          { mainlineLandability: "independently-landable" },
+        ],
+      },
+    });
+  });
+
   it("refuses a member whose final assigned task is not a member verifier", () => {
     const input = constructionInput();
     const authoredTask = input.authoring.tasks.parents.find((task) => task.taskId === "1.2");
@@ -323,7 +356,7 @@ describe("validateDeliveryPlanRevision", () => {
       .toMatchObject({ status: "valid" });
 
     const notLandable = structuredClone(constructedPlan());
-    notLandable.projection = { kind: "stack-to-main" };
+    notLandable.members[1]!.mainlineLandability = "integration-only";
     expectIssue(redigest(notLandable), "stack-member-not-landable");
   });
 
