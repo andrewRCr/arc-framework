@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "require-recoverable-refusal-paths",
+  "claimId": "1d45f1a91826d0493dde8bb5d0b859c0",
+  "createdAt": "2026-09-16T15:06:34.617Z",
+  "updatedAt": "2026-09-16T15:06:34.617Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Require recoverable operational refusals to preserve and verify an actionable continuation path.",
+  "branch": "chore/require-recoverable-refusal-paths",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
