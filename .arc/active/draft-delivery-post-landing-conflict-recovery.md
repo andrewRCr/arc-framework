@@ -12,7 +12,8 @@
 - **Readiness:** `rough`, and converging. Four adversarial passes (2026-09-16); the fourth broke the recovery
   half on a selection referent the native landing path does not have. Settling that referent dissolved it — the
   landing readiness gate already encumbers a hand-resolved head, so the waiver needs no obligation, no discharge,
-  and no referent. Five items remain open, two of them structural, and a certifying pass is owed.
+  and no referent. The movement substrate settled the same day by dissolving in the same way. Four items
+  remain open, one of them structural, and a certifying pass is owed.
 
 ---
 
@@ -101,15 +102,31 @@ generic slot for what is owed, and a native landing has no selection to write in
 - **Adoption is request-side.** What the native path needs is the conflict collection, the disclosure, and a
   scope discriminant on the `native-land-status` request — not a state-schema change.
 
+### Resolved — the movement substrate
+
+Settled 2026-09-16 by source read. Not pass-certified, so a later pass attacks it on the same footing as the
+recovery record rather than on the frozen set's.
+
+- **The question was posed against the wrong object.** `terminalAuthoringMovement` is an admission option, a
+  lease-proof fact, and a durable operation field — three things under one name, and none of them a movement
+  classification. § The movement substrate.
+- **The relation sits beneath it, at `readAncestry`'s layer** — which § Shape already assigns to the thin reader,
+  one direction per call. Relation and option are different axes: one says what the movement is, the other whether
+  this observation mode admits it. None of the three postures holds, and folding the policy into the relation is
+  the error the question invited.
+- **Axis A unifies on the relation, and this is not its vehicle.** The frozen consumer set of three stands.
+  `terminalAuthoringMovement`'s own reads are not converted: they keep `unchanged` and `advanced` and collapse
+  everything else into one refusal, so conversion would add only a reason for that refusal — which is routed
+  out rather than owed here.
+- **The in-flight session-init Errand is not downstream after all.** Neither the option nor the fact changes
+  shape, so it ships in either order. Its capture now carries the `position` verb's routing precedent in place of
+  a dependency. § Errands in flight.
+
 ### Open
 
-Five. Two left this list settled — the selection referent and the waiver's discharge, both dissolved by the
-finding that the landing readiness gate already encumbers a hand-resolved head. Two remain structural.
+Four. Three have left this list settled — the selection referent, the waiver's discharge, and now the movement
+substrate. One remains structural.
 
-- **Whether the movement substrate unifies Axis A.** Carried from § Substrate, which names it as the first open
-  question. `terminalAuthoringMovement` is a two-value option at two call sites; whether the relation replaces
-  it, sits beside it, or takes it as a policy layer is three materially different designs, and an in-flight
-  Errand is declared downstream of the answer.
 - **Which lookup route the readiness inversion takes.** Three exist and are non-equivalent, and the choice
   decides whether `absent` means _no member_ or _no hosted member_ — the meaning of one variant, and so the
   remedy it dispatches. **Check `sameDeliveryReviewMemberIdentity` before designing a fourth route**: it is
@@ -123,19 +140,24 @@ finding that the landing readiness gate already encumbers a hand-resolved head. 
   the disclosure on at least one `reviewable` path is the proposal; the subset's reachability is unmeasured.
 - **The word for the rewound variant, and whether the variant union is flat.** Two of the six are not relations —
   one a lookup outcome, one a read-availability outcome. Detail-design; the distinctions stand either way.
+  **`predecessorRelation` makes this a collision rather than a preference**: `lib/delivery/predecessor-relation.ts`
+  already types an ordered-pair relation as `exact | disjoint-ahead | overlapping-ahead | unrelated`, whose
+  `exact` arm is this design's `unchanged` and `advanced` collapsed together. Two relations over ordered pairs in
+  one subsystem need one vocabulary, and the adopted controlled-vocabulary constraint decides which way.
 
 ### Next
 
-**Take the substrate question next.** It is the older of the two structural items, § Substrate already names it
-as first, and an in-flight Errand is declared downstream of the answer — so it is the one whose delay costs
-something outside this work unit.
+**Take the readiness lookup route next.** It is the one structural item left, and it decides the meaning of a
+variant rather than a detail of its name: whether `absent` means _no member_ or _no hosted member_ settles the
+remedy that variant dispatches. § Readiness reads its key backwards isolates the three candidate routes; check
+`sameDeliveryReviewMemberIdentity` before designing a fourth.
 
 **The ledger-diff check, which is now standing procedure here.** Before any commit that rewrites § Continuity,
-diff the pre-rewrite § Open against the post-rewrite one and account for every item that left. Run on this
-change: two items left, both settled rather than dropped, and both recorded in § What the record may carry. The
-check exists because a wholesale rewrite lost an open item twice — pass three found four retracted claims left
-standing beside their replacements, and pass four found an open question deleted beneath a "none structural"
-claim.
+diff the pre-rewrite § Open against the post-rewrite one and account for every item that left. The check exists
+because a wholesale rewrite lost an open item twice — pass three found four retracted claims left standing beside
+their replacements, and pass four found an open question deleted beneath a "none structural" claim. Run on this
+change: one item left, settled into § Resolved — the movement substrate, and one was extended rather than
+removed.
 
 **A whole-artifact certifying pass is owed.** Pass four ran the full rubric and returned not-ready, so the next
 pass inherits its findings as `prior-findings` rather than starting clean.
@@ -396,30 +418,72 @@ take a base _set_ — reading tree entries needs one ref and rematerialization n
 base-set arm is dead and the coordinate readers refuse. Only Candidate applicability carries cardinality onward,
 as a field on the diverged variant, because it alone consumes the relation rather than a coordinate.
 
-`lib/git/ancestry.ts` is the existing ancestry-helper module and already wraps `merge-base --independent`, so
-both primitives have a home rather than needing one invented.
+`lib/git/ancestry.ts` is the correctly-named home and already wraps `merge-base --independent` — but it holds
+only candidate-set reduction (`filterCommitsReachableFromHead`, `reduceCommitsToCausallyMaximal`) and no
+ordered-pair read at all. The `--is-ancestor` primitive lives in
+`lib/work-unit/git-decomposition-object-readers.ts` and is re-rolled eighteen places beside it. Placing both
+primitives there is a move, not an extension.
 
 **Scope line on the repetition.** The readers carrying this work unit's rows have observed failures behind them
 and are in scope. The two decomposition call sites do not; unifying them would be symmetry rather than a traced
 need, so the shared primitives should be _available_ to them without this work unit retrofitting them.
 
-## Substrate: one observation mode, three postures
+## The movement substrate — three things under one name
 
-`terminalAuthoringMovement` already exists and is the nearest thing ARC has to a typed movement classification.
-Source-verified 2026-09-16: the _option_ is a two-value union — `allow-append-only` and
-`allow-append-only-frozen-request` — set at two handler call sites, while the _fact_ it produces is a record
-carrying the deliverable, before and after coordinates, and a publication lease head. The ledger's count of five
-observation modes passing the allowance is recorded there and is not re-derived here.
+Settled 2026-09-16 against source. § Continuity carried this as _whether the relation replaces
+`terminalAuthoringMovement`, sits beside it, or takes it as a policy layer_, and all three readings share a
+premise source does not support: that the thing is a movement classification. It is not one. The name covers
+three separate things.
 
-The characterization records that its consumers disagree:
+| The name covers       | Where                                | What it is                                           |
+| --------------------- | ------------------------------------ | ---------------------------------------------------- |
+| an observation option | `delivery-position-facts.ts:56`      | admission policy — two values, set at two call sites |
+| a produced fact       | `schema.ts:195-200`                  | a lease proof, carrying `publicationLeaseHead`       |
+| an operation field    | `schema.ts:323` / `operation.ts:206` | durable state on the `rewrite` arm                   |
 
-- the position verb passes one value — the allowance makes the movement an observable **fact** rather than
-  admitting it, and the verb then refuses on that fact's presence;
-- session-init passes none, so the strictest posture is the default for the surface that only reads;
-- review readiness and closeout read head equality with no ancestry term at all, so the fact never reaches them.
+The option is set at `delivery-execution.ts:4248,4251`, keyed on the observation `mode`: `terminal-remedy` takes
+`allow-append-only-frozen-request`, the four review-fix modes take `allow-append-only`, and every other mode
+passes nothing. The fact is produced only at the terminal index and only when the option is present, and its
+distinguishing content is `publicationLeaseHead` — the intermediate published head. No ancestry relation carries
+that, and none should.
 
-Three consumers, three postures, three recorded failures. Whether this is the unifying substrate for Axis A — or
-for the whole family — is the first open question in § Continuity.
+**What classifies sits one layer down.** `observeTarget` and `observeMember` reach `readAncestry` three times,
+and that call — `merge-base --is-ancestor`, returning `ancestor` / `not-ancestor` / `unresolvable` — is the whole
+of the classification the option gates. So the relation belongs beneath `terminalAuthoringMovement`, at the layer
+§ Shape already assigns to the thin reader: one direction per call, classifier above.
+
+**Relation and option are different axes, and folding them is the error the question invited.** The relation says
+what the movement is; the option says whether this observation mode admits it. `terminalAuthoringMovement` is
+therefore a consumer rather than a peer, and the three postures collapse together — nothing replaces it, nothing
+layers over it, and the admission policy stays exactly where it is.
+
+**Axis A unifies on the relation, and this is not its vehicle.** Review readiness and closeout have no exactness
+gate and no option to set; they compare heads and want the ancestry term, which they take from the relation
+directly. § Resolver or relation's three relation readers therefore stand unchanged, and
+`terminalAuthoringMovement`'s own reads are not converted here. Those reads keep `unchanged` and `advanced` —
+`observeTarget` answers `"exact"` and `"append-only"` — and turn everything else into one refusal, so the only
+thing conversion would add is a reason for that refusal. That is precisely the defect routed out below, not a
+distinction this design owes.
+
+### Three consumers, three postures — and what each actually reads
+
+The characterization's recorded disagreement is real; what changes is its explanation.
+
+- **The position verb** passes `allow-append-only`, then refuses on the fact's presence with
+  `review-fix-routing-required` / `nextAction: "plan-review-fix"`. That is a routing signal rather than a stop,
+  and it is the shape the other two surfaces want.
+- **Session-init** passes no options at all — `status.ts:1100` calls the observer with dependencies and no policy
+  argument, so the strictest posture is the default for the surface that only reads. An in-flight Errand owns
+  that call site.
+- **Review readiness and closeout** read head equality with no ancestry term, so neither the option nor the fact
+  ever reaches them. They are the Axis A rows, and the relation is what they are missing.
+
+**One defect surfaced under this read and is routed out rather than taken.** `DeliveryPositionObservation`'s
+refused arm is `{ status: "refused" }` with no reason field, so every internal refusal in `observeMember` and
+`observeFacts` reaches `readDeliveryPositionView` as the single reason `observation-unavailable` — a proven
+terminal rewrite, an ancestry read Git could not answer, an unreachable host, and a benign append-only advance
+all arrive as one word. It is the Axis A collapse one layer out, it carries no probe row here, and
+`operational-advisory-registers` owns richer diagnostics at that boundary already.
 
 ---
 
@@ -583,13 +647,27 @@ ARC-internal precedent as well as Git's, and the work here is extraction rather 
 family already recorded the other half of that: retirement containment compares by ancestry while delivery
 terminal settlement compares by equality.
 
-**Extraction is also the only available composition.** Ten-odd ancestry helpers are hand-rolled across the
-codebase and no two agree on a return shape — `boolean` in `from-branch.ts`, `branch-bounded-notes-export.ts`,
-and `in-flight-derivation.ts`; `"ancestor" | "not-ancestor" | "unavailable"` in `chain-containment.ts`;
-`"ancestor" | "not-ancestor" | null` in `git-contribution-proof.ts`; an injected predicate port in
-`scripts/base/merge.ts`. They also split across three executor shapes: `GitExec`, `RawGitExec` with
-`objectAccess: "local-only"`, and the review gate's own injected ports. No existing helper is consumable by all
-three relation readers, which is what makes a shared primitive composition rather than new mechanism.
+**Extraction is also the only available composition.** A non-test sweep returns nineteen `--is-ancestor`
+invocation sites across eighteen files, each behind its own helper, and no two agree on a return shape —
+`boolean` in `from-branch.ts`, `branch-bounded-notes-export.ts`, and `in-flight-derivation.ts`;
+`"ancestor" | "not-ancestor" | "unavailable"` in `chain-containment.ts`; `"ancestor" | "not-ancestor" | null` in
+`git-contribution-proof.ts`; an injected predicate port in `scripts/base/merge.ts`.
+
+```sh
+grep -rn -- '--is-ancestor' packages/arc-framework/src --include=*.ts \
+  | grep -v __tests__ | grep -v 'command: "git", args:'
+```
+
+They also split across three executor shapes: `GitExec`, `RawGitExec` with `objectAccess: "local-only"`, and the
+review gate's own injected ports. No existing helper is consumable by all three relation readers, which is what
+makes a shared primitive composition rather than new mechanism.
+
+**The third value is the measured defect, and it is worse than "several".** Exactly one of the nineteen names a
+third value in its own type — `git-decomposition-object-readers.ts`'s `GitAncestryResult`. Eight collapse an
+operational failure into "not an ancestor" through a bare `catch`, so a read Git could not answer becomes a
+verdict. The remaining ten each invent a local third channel — a `null`, a rethrow, a fallback branch — and no
+two agree on which. That is § The variants' `unknown` argument counted rather than asserted; three of the eight
+were re-read by hand to confirm the classifier.
 
 **Four sites already read both directions and derive this relation by hand**, each under its own return type
 and vocabulary: `scripts/base/merge.ts` to decide whether a base merge is needed, `in-flight-derivation.ts` to
@@ -597,6 +675,15 @@ order two candidates, `push-fetch.ts` to choose between fast-forward and refusal
 `sync-status.ts` to classify a local ref against its fetched remote. None of them names the thing it computes.
 Four independent derivations of one relation is the repetition this design ends, and it is a stronger warrant
 than the single-site precedent alone.
+
+**Two more derive it partially, and both lose `rewound` doing it.** Both are inside delivery. `observeTarget`
+(`delivery-position-facts.ts:122-139`) takes equality plus one direction and answers `"exact"` / `"append-only"` /
+`null`, so a rewound target, a diverged target, and an object Git could not read are one value.
+`predecessorRelation` (`lib/delivery/predecessor-relation.ts`) takes one direction plus path overlap and answers
+`exact | disjoint-ahead | overlapping-ahead | unrelated`, collapsing `unchanged` and `advanced` into `exact` and
+refining the other side by overlap instead of by ancestry. Neither is a competitor: each wants the relation
+underneath it and keeps its own refinement above. `predecessorRelation` is also the vocabulary collision
+§ Continuity's open item now carries.
 
 ### The variants
 
@@ -1289,8 +1376,10 @@ work unit reaches finds two instances already speaking one language. Capture the
   lands first and gives this design a corrected baseline. It must not invent the missing post-landing transition.
   **Consequence for this draft:** every refusal string quoted above is pre-Errand. Design against the decision each
   verb reaches, not against its current prose.
-- **Append-only terminal movement in session-init delivery position** (`execute-bound`). The third consumer of the
-  substrate above. Reader-level, and downstream of whatever binding relation this design settles.
+- **Append-only terminal movement in session-init delivery position** (`execute-bound`). Owns the
+  `status.ts:1100` call site, which passes no observation options today. **Not downstream of this design** —
+  settling the substrate showed that neither the admission option nor the movement fact changes shape, so it
+  ships in either order. Its capture carries the `position` verb's routing precedent for the fix.
 - **Checkout identity through an authorized integration operation** (`execute-bound`). Adjacent; durable
   authorization and resumable-frame design are reserved to `recovery-hardening`.
 - **Two EA-landing Errands** — registered-native route selection, and sequential prepare-to-apply readiness. Same
@@ -1391,5 +1480,7 @@ citation.
 § The relation rests on source read 2026-09-16 rather than on survey: `scripts/base/merge.ts`'s two directional
 reads and their states, the ancestry helpers' return shapes and executor split, `DeliveryMemberSelector` and
 `stateMemberMatches`, the absence of any production constructor for the `ref` arm, and the integration test that
-pins its conjunction. The count of roughly ten hand-rolled helpers is approximate and deliberately so — it bounds
-a repetition rather than enumerating a work list, and § The relation's scope guard converts none of them.
+pins its conjunction. The hand-rolled-helper count is measured rather than bounded as of 2026-09-16 —
+nineteen `--is-ancestor` invocation sites across eighteen files, sweep command recorded in § The relation,
+third-value split spot-verified at three sites. It still bounds a repetition rather than enumerating a work
+list: § The relation's scope guard converts none of them.
