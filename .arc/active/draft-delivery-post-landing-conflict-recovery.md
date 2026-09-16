@@ -52,6 +52,13 @@
   derived, and binds to exact coordinates as a validity predicate so staleness fails closed. Settled against the
   Owner's criterion: durability is warranted where its absence would make ARC wrong rather than uninformed.
   § The relation — Where the unresolved condition lives.
+- **The subject's path set is commit-derived, and the merge-diff mode is load-bearing.** Net has no
+  cardinality-safe construction, so this is availability rather than preference; touched is also the less
+  movement-sensitive of the two, inverting the trade as it was recorded. Git's default suppresses a merge's own
+  diff, which would reintroduce the omission vulnerability this reframe exists to close — and base merges are
+  now the named cardinality remedy, so merges are on the path rather than at its edge. `--cc` is the only mode
+  that catches a merge-introduced change without inheriting the merged-in base's changes. Verified in a scratch
+  repository. § The relation — The subject's path set.
 - **What the record carries is settled, and the asymmetry lives in the binding rather than a policy.** Three
   classes: an identity-bound obligation that survives arbitrary movement, an immutable disclosure of what the
   operator was shown, and a disclosure-bound decision that dies exactly when its subject stops being what is
@@ -109,19 +116,14 @@
   the nearest candidates are Git's porcelain vocabulary and `merge.ts`'s existing state names. These are
   controlled vocabulary rather than taste — load-bearing terms owing a definition before use, derived from the
   type rather than restated beside it.
-- **Whether the subject's path set should be what its commits touched or what they net to.** The reframing in
-  § Reader inventory creates this rather than removing it. Touched is safe for overlap in the fail-closed
-  direction, but for the subject it admits paths whose content is unchanged, which trades directly against how
-  sensitive Candidate currentness is to movement — the sensitivity this work exists to reduce.
 
 ### Next
 
-Two trades remain, both detail-design: touched-versus-net for the subject's path set, and variant naming with
-its definition home. Then the readiness boundary, where `adversarial-review` is recommended — and this draft is
-squarely the shape that pass attacks well, being externally-derived reasoning folded across several sessions
-with several claims corrected only because something prompted a re-check. Two items owe confirmation before
-anything emits them: the base-merge remedy's per-reader applicability, and whether a merge queue's landed head
-reaches closeout as the request head.
+One item remains: variant naming and where its definition lives. Then the readiness boundary, where
+`adversarial-review` is recommended — and this draft is squarely the shape that pass attacks well, being
+externally-derived reasoning folded across several sessions with several claims corrected only because
+something prompted a re-check. Two items owe confirmation before anything emits them: the base-merge remedy's
+per-reader applicability, and whether a merge queue's landed head reaches closeout as the request head.
 
 ---
 
@@ -309,11 +311,10 @@ changed paths are instead derivable from the commits reachable from it and not f
 `--all` form Git already uses for membership — so the selection becomes cardinality-independent and the ambiguity
 never reaches them.
 
-**One caveat, recorded rather than glossed.** Paths touched by a branch's own commits are not the same set as its
-net diff: a path changed and then reverted within the branch appears in the commit-derived set and not in the net
-diff. For the overlap question that errs toward reporting overlap, which is the fail-closed direction and
-therefore safe. For the subject it admits paths whose content is unchanged, which trades against the digest's
-sensitivity and is **not** settled here.
+**One difference, since settled.** Paths touched by a branch's own commits are not the same set as its net
+diff: a path changed and then reverted within the branch appears in the commit-derived set and not in the net
+one. For overlap that errs toward reporting overlap, the fail-closed direction. For the subject it is settled in
+§ The relation — The subject's path set, which also records why the merge-diff mode is part of the design.
 
 **Three readers want the relation itself** and are the resolver's real consumers — though review readiness
 cannot compute one until its lookup is inverted, for the reason recorded in § The relation. The fourth,
@@ -637,6 +638,51 @@ already recorded in § Established practice: no positive approval survives a rew
 score does. Applied here that reads as an approval which does not outlive the contribution it approved, and a
 refusal that persists until answered — which is the same question as the new-contribution path's inheritance,
 not a second one.
+
+### The subject's path set — touched, and the merge-diff mode is load-bearing
+
+Settled 2026-09-16, empirically. § Reader inventory left this open and framed it as a trade between a safe but
+noisier set and a precise but movement-sensitive one. **Both halves of that framing were wrong.**
+
+**Net has no cardinality-safe construction, so it is not an available option.** A net path set is the diff
+between a base and the head, which requires exactly one base — the fragile form Git documents and the condition
+Axis B is about. The two ways to get a net set without picking arbitrarily are already eliminated in
+§ Established practice: agreement across all bases refuses in essentially every real criss-cross, and a
+synthesized virtual base commits to an answer a read-only classification must not. Touched is commit-relative
+and needs no base at all, being Git's own cardinality-independent membership form. The choice is availability,
+not preference.
+
+**Touched is also the less movement-sensitive of the two, which inverts the recorded trade.** Under append-only
+movement the touched set only grows — a path entering it never leaves — so a change-and-revert pair moves the
+subject digest once. A net set flips the same path in and then back out, moving the digest twice. Confirmed in a
+scratch repository: after adding and reverting a path, the commit-derived set retains it and the base-relative
+diff drops it. The residual over-inclusion is real but bounded and monotone, and over-inclusion is the
+fail-closed direction for a currentness comparison.
+
+**The merge-diff mode is part of the design, not an implementation detail.** Git's default suppresses a merge
+commit's own diff, so a change introduced _by_ a merge and present in neither parent is invisible to the plain
+commit-derived read. That is the Azure and GitLab vulnerability class this draft already names — changes present
+in the branch and absent from the evidence surface — reintroduced by the naive form of the very reframe meant to
+close it. It is not theoretical here: this design now names merging the base in as the remedy for cardinality
+above one, so branches carrying merges are the path it creates rather than an edge case.
+
+Four modes, measured against both failures:
+
+| Mode               | Catches a merge-introduced change | Keeps the merged-in base's changes out |
+| ------------------ | --------------------------------- | -------------------------------------- |
+| default            | no                                | yes                                    |
+| `-m`               | yes                               | no                                     |
+| `--diff-merges=on` | yes                               | no                                     |
+| `--cc`             | yes                               | yes                                    |
+
+`--cc` is the only one that passes both, because it reports a merge's changes only where they differ from
+_every_ parent — which is exactly "content the merge itself introduced" rather than content inherited from the
+side that was merged in. `-m` diffs against each parent separately, so merging the base in makes every base
+change look like the branch's own contribution, which would corrupt the subject in the ordinary case rather
+than a hostile one.
+
+Record the mode with the reason. A later reader simplifying this call to a plain path listing would silently
+restore the omission, and no test that does not construct a merge would notice.
 
 ### What the record may carry
 
