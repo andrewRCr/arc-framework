@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "fence-retired-delivery-projections",
+  "claimId": "a3e28e881de201bb23d42cce7de1de2c",
+  "createdAt": "2026-09-16T16:53:20.788Z",
+  "updatedAt": "2026-09-16T16:53:20.788Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "fence-retired-delivery-projections",
+  "branch": "chore/fence-retired-delivery-projections",
+  "origin": "inbox",
+  "originEntry": "Fence retired delivery projections at authoring and prepublication",
+  "originEntrySourceDigest": "sha256:a206b0a53ec871b5a952fee92fc1c4bb09c4c7ae89ef9b6774216991aa13e7c1",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
