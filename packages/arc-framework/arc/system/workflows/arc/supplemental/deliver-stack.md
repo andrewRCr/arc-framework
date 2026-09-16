@@ -645,6 +645,8 @@ selector reconstructed in prose.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
   status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
   provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
+- `repair-required / reauthor-plan` re-enters the returned `entry` authoring path, composes a supported replacement,
+  then re-enters this continuation before correction work resumes.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
