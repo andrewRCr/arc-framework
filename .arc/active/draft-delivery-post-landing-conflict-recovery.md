@@ -9,157 +9,93 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `rough` — two adversarial passes have run (2026-09-16). Pass one broke a premature
-  `formalization-ready` call; pass two found that one of its repairs had moved the problem rather than closing
-  it, and falsified the commit-derived path set on the design's own remedy path. The relation core, its Git
-  footing, and the proportionality verdict have withstood both. What has moved twice is the recovery record and
-  the subject's path selection, so readiness stays here until a pass converges.
+- **Readiness:** `rough`, and unevenly so — three adversarial passes (2026-09-16) have certified one half and
+  broken the other in each round. The relation, the sole-base resolver, the base-merge remedy and the
+  proportionality verdict withstood all three and are frozen below. Every surviving blocker is in the recovery
+  record, and each pass's blocker sat inside the previous pass's repair. Drafting re-enters on that half alone.
 
 ---
 
 ## Continuity
 
-### Resolved
+### Resolved — frozen
 
-- **The two routed captures are integrated.** Both entered the body below; § Retained capture detail keeps the
-  success criteria, boundaries, and file pointers that the body does not restate. Nothing from either was dropped.
-- **Seven probe rows are owned here**, distributed across three of the characterization's four axes — not the four
-  loci the origin captures described. § The failure family carries them.
-- **The boundary with `delivery-correction-convergence` is settled on evidence** rather than on the steering map's
-  base-unmoved criterion, which does not separate the two adjacent rows. § Boundaries.
+**Certified by three independent adversarial passes** (2026-09-16), each verifying these against source and, where
+empirical, against a scratch repository. Each appears in every pass's `withstood` list. They are frozen: a later
+pass attacks them again only on new evidence, not on re-reading.
+
+- **Seven probe rows are owned here**, across three of the characterization's four axes — not the four loci the
+  origin captures described. § The failure family.
 - **The ambiguity seam has four verbs, not three**, and the fourth returns a wrong answer instead of refusing.
 - **The rebind verb already works.** What is missing is a route to it from the verbs that read the binding.
 - **The post-land refusal is correct.** Its defect is the guidance wrapped around it one layer up.
-- **Boundary: stays one WU, and not a delivery-plan candidate.** `assess-boundary-fit`, 2026-09-16. The three
-  conditions are separable as conditions but not as concerns: public review is a reader in both Axis A and Axis B
-  and their fixes must agree there, the purpose above already names all three as one lost route, and the gate this
-  work is measured against is satisfied only when all three land — so a cut adds cross-unit coordination and buys
-  nothing on the critical path. Axis D alone also sits below the WU-warrant rail; it is a phase, not a sibling. The
-  delivery-plan arm is declined for a reason specific to this work unit rather than on sizing: a plan means a
-  stacked landing, and this work unit is the shipped post-landing recovery path that the risk gate requires
-  _before_ such a landing. Stacking it would run the unfixed machinery to fix the unfixed machinery, with Axis D as
-  the failure mode and no route back. Land it single-branch. Re-raise only on a material evidence delta; choosing
-  the resolver below is that delta.
-- **The resolver fork is settled: one relation-typed read, not two primitives.** Base cardinality above one is
-  reachable only when neither revision reaches the other, so Axis B's condition lives inside Axis A's diverged
-  outcome. Verified from the definition and confirmed empirically — § Established practice.
-- **Axis D's completing input is settled in shape.** No surveyed system feeds a hand resolution back into a
-  pinned replay; the resolved suffix becomes a new contribution that re-enters verification.
-- **The row set is majority singleton, and the singleton closeout path already compares by ancestry.** Four of
-  seven rows are singleton-shaped; the relation is a concept the codebase already has in one place and lacks in
-  the other. Adopt it by reader, never by shape. § The failure family — Shape coverage.
-- **The unresolved condition is a pending-obligation record, not a phase and not a transition.**
-  `pendingReviewFixVerification` is the precedent and the state schema already refuses it unless the delivery is
-  idle, so idle-but-owing is a first-class state with a validator behind it. It stores the obligation and nothing
-  derived, and binds to exact coordinates as a validity predicate so staleness fails closed. Settled against the
-  Owner's criterion: durability is warranted where its absence would make ARC wrong rather than uninformed.
-  § The relation — Where the unresolved condition lives.
-- **The variant names are minted, ordered-pair relative, and defined by the type.** Neither existing vocabulary
-  is adoptable: `merge.ts`'s are caller-outcome names, and Git's porcelain names are viewpoint-relative in a
-  design whose viewpoint varies by reader. Naming the relation over `(reference, subject)` fixes the direction
-  positionally so no variant flips meaning between call sites. The definition derives from the type rather than
-  a prose glossary, and does not join the briefs' vocabulary because each variant carries a typed remedy the
-  actor dispatches instead of a word it must look up. § The relation — Naming the variants.
-- **The reframe that removed the base was itself wrong, and the correction removes machinery.** Pass two showed
-  a commit-derived path set cannot see a branch retaining its own side of a base-changed path across a base
-  merge — the omission class, on the path this design's own cardinality remedy creates — and that the digest
-  being content-inclusive inverts the movement-sensitivity claim, since a commit-derived set leaves a permanent
-  no-op entry where a base-relative one clears. The subject is base-relative after all; what it lacked was
-  cardinality handling, not a different question. Drops the merge-diff mode selection, the touched-versus-net
-  analysis, and the one-sided-range correction with it. § Reader inventory — Resolver or relation.
+- **Cardinality is a refinement of divergence, and the resolver fork follows.** One relation-typed read answers
+  both; cardinality is a field on the diverged variant, not a variant, and applicability is its only consumer.
+- **The relation is extraction, not invention, and it is proportionate.** Four sites already derive it by hand
+  under four return types. `assess-design-proportionality` returned `proportionate` with its scope guard.
+- **The relation carries six variants over an ordered pair, split into a pure classifier and a thin reader per
+  executor.** The reader produces the unavailable outcome, which is where the hand-rolled helpers collapse it.
 - **Three readers want the shared base resolver; three want the relation.** Read-all, refuse-on-more-than-one,
-  then diff or record from the single base — the shape two readers already implement separately and the
-  decomposition call sites reached independently. The staged arm of the subject collector takes the same rule;
-  its probe is owed.
-- **Two reframed readers carry residues the reframe does not reach, found by pass one.** The subject collector's
-  staged arm compares the index against a picked base and has no commits to derive from — live, feeding
-  currentness, and not covered by the pinned probe; it resolves as `diff --cached HEAD` unioned with the
-  commit-derived set, needing no base. The overlap analyzer still publishes a single base coordinate consumed
-  downstream as a ref. That forces the coordinate disjunction settled: no consumer can take a base _set_, so
-  coordinate readers refuse typed, and both compare `(head, base)` so the base-merge remedy reaches them.
-- **The subject's path set is commit-derived, and the merge-diff mode is load-bearing.** Net has no
-  cardinality-safe construction, so this is availability rather than preference; touched is also the less
-  movement-sensitive of the two, inverting the trade as it was recorded. Git's default suppresses a merge's own
-  diff, which would reintroduce the omission vulnerability this reframe exists to close — and base merges are
-  now the named cardinality remedy, so merges are on the path rather than at its edge. `--cc` is the only mode
-  that catches a merge-introduced change without inheriting the merged-in base's changes. Verified in a scratch
-  repository. § The relation — The subject's path set.
-- **The resolved suffix arrives through the existing rewrite operation under a new mode.** That arm already
-  carries four modes for a member's content changing in flight, so a second operation would duplicate it and
-  split the idleness invariant. Obligation blocks while idle; rewrite discharges it while running.
-- **What the record carries: three classes, with the asymmetry in the binding rather than a policy.** An
-  identity-bound obligation surviving arbitrary movement, an immutable disclosure of what the operator was
-  shown, and a decision bound to that disclosure. Nothing derived. A resolved suffix inherits nothing positive
-  and needs nothing. **Corrected after pass one:** validity is content equality on the _disclosed paths_ at
-  every disclosed coordinate — not head ancestry, which a restack breaks on every cycle, and not the whole
-  tree. The relation reports the failure rather than deciding it, and the disclosure pins the _resolved_ state
-  so the operator's own resolution cannot invalidate its own authorization.
-- **Discharge follows the existing supersession pattern.** The schema's idleness exclusion would otherwise
-  deadlock an obligation against the operation that clears it. Review-fix verification already solved this with
-  an explicit, mode-validated supersession flag applied in the same reservation that opens the operation; mirror
-  it, and state the abort-restore rule the existing path leaves implicit.
-- **Gerrit's asymmetry and ARC's own standing acceptance rule agree once movement is distinguished from
-  change.** The recorded failure — an approved fix revoking the acceptance that authorized it by advancing the
-  Candidate — is the Axis A defect one layer up, on a surface carrying an Owner's authority rather than a
-  coordinate.
-- **The design clears the recoverable-refusal rule, with one scope addition and one remedy it had not named.**
-  Closeout's eight-term conjunction owes a reason per term: the relation makes its comparison correct while the
-  refusal still cannot report which term failed, and that clause is not separable from the ancestry fix. And
-  merging the base in collapses merge-base cardinality to one — a corollary of the dominance proof this draft
-  already carries — which turns two of Axis B's refusals from correct-but-terminal into recoverable. **Corrected
-  after pass one:** it does _not_ reach Candidate applicability, which compares a pinned baseline the merge does
-  not move; that reader's route is re-baselining, which is expensive and must be named honestly rather than
-  gestured at. § Refusal-recoverability audit.
-- **The settled fundamentals clear the four project check-docs and two unbuilt designs.** No conflict; three
-  constraints adopted — each variant carries a typed remedy action rather than prose, the encumbrance predicate
-  feeds the planned typed resume slot rather than paralleling it, and the variant names are controlled
-  vocabulary with a definition obligation. § Forward-compatibility check.
-- **Native restacking is why the validity predicate needs the relation.** The storage target permits end-to-end
-  restacking once identity decouples from branch SHAs; under equality every restack would invalidate every held
-  decision, turning redundant ceremony from an incident into a cadence.
-- **The obligation composes at the predicate, not the payload.** The two records differ in content and
-  staleness semantics and are not established as mutually exclusive, so a single discriminated field would
-  impose an exclusion nothing supports. What is genuinely shared is the encumbrance check — already
-  hand-enumerated in the same order in `compose.ts` and `retirement.ts` — where a third term added site by site
-  would let a missed site report a delivery unencumbered while something is owed.
-- **The two halves of the design meet at that predicate.** Checking whether a held decision still applies is a
-  bound-versus-observed comparison, which is the relation — so the relation serves the recovery record, not only
-  the readers that motivated it.
-- **The relation carries six variants, and `rewound` is one of them.** A bound head that descends the observed
-  one is Git's _behind_ and `merge.ts`'s `head-contained-by-base`. Fail-closed consumers reach the same verdict
-  whether or not it is separated, but the remedy differs — and ARC's one existing hand-derivation already gives
-  it a distinct `nextAction`, which is evidence the distinction is load-bearing rather than symmetric.
-- **The relation splits into a pure classifier and a thin reader per executor.** Its three consumers share no
-  executor shape, and this dissolves the split rather than electing one: the variant logic takes two directional
-  answers plus cardinality and is testable without Git, while each consumer supplies a small reader over the
-  executor it already has.
-- **The relation is extraction, not invention, and it is proportionate.** `scripts/base/merge.ts` already
-  derives it by hand in the prescribed layering, separating three of the needed distinctions by remedy.
-  `assess-design-proportionality` returned `proportionate` with a scope guard, 2026-09-16. § The relation.
-- **Review readiness misses rather than mismatches.** Its member lookup is keyed on the exact observed head, so
-  a moved head finds no member and there is no bound coordinate to compare — the relation alone cannot reach
-  this reader. The fix is to resolve by the deliverable identity the reader already holds and compare second.
-- **Cardinality is a field on the diverged variant, not a variant of its own.** It is reachable only inside
-  divergence, and applicability is its only consumer.
-- **The six readers are classified, and two of them stop having the problem.** The subject collector and the
-  overlap analyzer ask membership questions and answer them with a base-anchored diff; deriving their paths from
-  the branch's own commits removes the ambiguity rather than handling it. Three readers want the relation itself.
-  § Reader inventory — Resolver or relation.
+  then diff or record from the single base. The staged arm of the subject collector takes the same rule; its
+  probe is owed. § Reader inventory — Resolver or relation.
+- **The subject's path set is base-relative, with cardinality refused rather than picked.** The commit-derived
+  answer was falsified twice over: it cannot see a branch retaining its own side of a base-changed path across a
+  base merge, and the content-inclusive digest inverts its movement-sensitivity claim. § The subject's path set.
+- **Review readiness misses rather than mismatches**, because its lookup is keyed on the observed head. Resolve
+  by the deliverable identity the reader already holds and compare second.
+- **Merging the base in collapses cardinality, per coordinate pair.** It reaches the sites comparing a head
+  against a base; it does not reach the two comparing a pinned durable baseline, whose route is re-baselining.
+- **Closeout's conjunction owes a reason per term** — taken into scope by the Owner, 2026-09-16.
+- **The settled fundamentals clear the four project check-docs and two unbuilt designs**, with three constraints
+  adopted. § Forward-compatibility check.
+- **The boundary holds: one work unit**, and the boundary with `delivery-correction-convergence` is settled on
+  evidence. Re-raised and re-affirmed after pass three concentrated its findings in one half. § Boundaries.
+- **The two routed captures are integrated.** § Retained capture detail keeps what the body does not restate.
+
+### Resolved — recovery record
+
+Settled, but in the half that has moved in every pass. Not frozen.
+
+- **The record carries three classes with three binding semantics and nothing derived**: an identity-bound
+  obligation, an immutable disclosure of what the operator was shown, and a decision bound to that disclosure.
+  A resolved suffix inherits nothing positive.
+- **Validity is content equality on the disclosed paths**, not head ancestry and not the whole tree; the
+  relation reports the failure rather than deciding it. **Where each coordinate is read at check time is open.**
+- **The disclosure pins the resolved state**, so the operator's own resolution cannot invalidate its own
+  authorization, and that state must exist as a ref before the decision is recorded.
+- **Gerrit's asymmetry and ARC's standing acceptance rule agree** once movement is distinguished from change.
+- **The obligation composes at the predicate, not the payload** — though pass three refuted the stated evidence
+  for their co-occurrence and narrowed the argument to a different route. § What composes.
 
 ### Open
 
-- **What clears the suffix obligation when its discharging rewrite aborts.** It is no longer superseded at
-  reservation, so nothing is dropped at open — but the completion path that clears it needs a stated behaviour
-  when the rewrite fails partway.
-- **The word for the rewound variant.** Its structure and home are settled; the word faintly implies a cause
-  the relation does not assert, since the same shape holds for a record binding something never published.
+All four sit in the recovery record. The frozen set above carries no open items.
+
+- **How the resolved suffix arrives.** Two answers have been falsified. The binding constraint is that the
+  conflict is observable only under a held native land reservation, which a second reservation cannot displace.
+  The in-landing rewrite-or-adopt dependency is the leading candidate. § What the record may carry.
+- **What the validity predicate reads at check time.** Recorded coordinates make it a tautology; re-resolved
+  roles make it work, but nothing says how a role resolves, and the candidates are the recorded head and the
+  observed ref. § Where the unresolved condition lives.
+- **Where the encumbrance term sits, and what clears the obligation on abort.** Both are downstream of the
+  arrival question and cannot be settled before it. The confirmed site set is wider than first recorded, and
+  whether the reservation path carries the term is the same question as arrival.
+- **The word for the rewound variant, and whether the variant union is flat.** Two of the six are not relations
+  — one is a lookup outcome, one a read-availability outcome — so the contract may be a four-variant relation
+  inside a result rather than a flat six. Detail-design; the distinctions stand either way.
 
 ### Next
 
-Pass three of `adversarial-review`, authorized by the Owner past the `Heavy` cap at the stage interlock,
-carrying both prior passes and these repairs. Two of the changes it must attack are structural — the subject
-returning to a base-relative diff, and the suffix obligation not inheriting the idleness exclusion — and
-§ Forward-compatibility check and § Refusal-recoverability audit both lean on claims those moved.
+**Re-enter drafting on the recovery record only**, with the frozen set above held fixed. Three passes put every
+surviving blocker in that half while certifying the other, so the attention goes where the failures are. Start
+from the arrival question, since the predicate's read site, the encumbrance placement, and the abort rule all
+resolve downstream of it, and read the landing path's existing suffix reconciliation before proposing anything —
+each previous answer failed by not checking what the landing operation already holds.
+
+The adversarial ceiling is reset for that concern, by the Owner's direction at the stage interlock. Two things
+that scoping does not change: findings against the frozen set are still findings if new evidence produces them,
+and **a whole-artifact certifying pass is still owed at the readiness gate**, because a concern-scoped pass
+cannot certify the artifact it did not read.
 
 ---
 
@@ -597,8 +533,16 @@ inside. Applicability is its only consumer; the other readers neither ask nor br
 
 **`unknown` never collapses.** Git keeps a ref that is missing from a ref at an unexpected value; ARC's
 addition is that an ancestry read which failed operationally is a third thing again. The hand-rolled helpers
-disagree here specifically — two of them return `false` for a failed read, which reads as "not an ancestor"
-and is how an operational failure becomes a verdict.
+disagree here specifically — several return `false` for a failed read, which reads as "not an ancestor" and is
+how an operational failure becomes a verdict.
+
+**Two of the six are not relations, and the typing should say so.** Two directional ancestry answers span
+exactly four states, which are `unchanged`, `advanced`, `rewound`, and `diverged`. `absent` has no bound
+revision to compare, so the classifier cannot even be called — § Readiness reads its key backwards makes that
+explicit, since a moved head finds no member and the relation cannot be computed there at all. `unknown` is a
+read-availability outcome produced by the reader. Whether the contract is a flat six-variant union or a
+four-variant relation wrapped in a resolved / absent / unknown result is therefore a live typing choice rather
+than settled, and it propagates into every typed remedy dispatch. The distinctions stand either way.
 
 ### Shape
 
@@ -639,8 +583,20 @@ comparison that never runs would change nothing.
 The fix is an inversion the reader already has the inputs for. Its vehicle carries `planId`, `deliverableId`,
 and `workUnitSlug`, and the code resolves by head and then _validates_ those three against the result. Resolve
 by the identity it already holds, then compare the recorded head against the observed one with the relation:
-the same two facts, in the order that can tell a stale binding from an absent one. No new selector arm, no
-store change, and the existing `delivery-member-mismatch` facts keep their meaning.
+the same two facts, in the order that can tell a stale binding from an absent one.
+
+**It is not free, and an earlier pass of this draft said it was.** `DeliveryMemberLookup` exposes exactly one
+method and it is head-keyed, and neither `DeliveryMemberSelector` arm keys on the deliverable — so the inversion
+needs a lookup route that does not exist today. Three are available and they are not equivalent: add a
+deliverable-keyed arm and method; reuse the discharge-target lookup, which enumerates bound members by work unit
+but requires a bound change request, so its coverage is narrower; or route through the terminal-record lookup.
+The difference decides whether `absent` means _no member_ or _no hosted member_, which is exactly the
+distinction this reader is being fixed to make. Choosing among them is detail-design, but the claim that the
+inversion costs nothing was wrong and fed the proportionality trace.
+
+The three `delivery-member-mismatch` facts also do not survive unchanged: under identity resolution the member
+is found _by_ those fields, so the comparisons become tautological and a head bound elsewhere surfaces through
+the relation instead. The property is kept; the fact that reports it changes name.
 
 Closeout needs no such inversion — `verifyDeliveryTerminalSettlement` already holds the terminal member and
 compares its recorded head directly. Its defect is the bare equality inside the eight-term conjunction, which
@@ -694,9 +650,18 @@ would invalidate every held decision at exactly the cadence § Forward-compatibi
 relation supplies is the _report_ — when the predicate fails, the refusal says which coordinate moved and how,
 in the vocabulary the rest of this design already uses.
 
-`readEntries(exec, ref, paths)` in `git-lifecycle-contribution.ts` is the primitive: it already returns a
-path-to-tree-entry map for an explicit path set at an explicit ref, so the disclosure records a blob identity
-per disclosed path per coordinate and nothing new is invented to check it.
+`readEntries(exec, ref, paths)` in `git-lifecycle-contribution.ts` is the shape of the primitive: it returns a
+path-to-tree-entry map for an explicit path set at an explicit ref, so the disclosure can record a blob identity
+per disclosed path per coordinate.
+
+**What the predicate reads _at check time_ is open, and the two readings differ in whether it can ever fail.**
+Read at the recorded coordinates, which are immutable commit objects, the comparison is a tautology and the
+staleness guard does not exist. Read as re-resolved roles — this member's head, this predecessor's head, as they
+are now — it fails closed as intended, but the design does not say how a role re-resolves, and the two
+candidates are the delivery state's recorded head and the observed Git ref: the very divergence § Readiness
+reads its key backwards is about. Whether the disclosure pins a ref _name_ or a ref _object id_ is the same
+question in smaller form. Head ancestry is excluded from the test, so nothing else in the design supplies the
+resolution. This is the second question the next drafting pass owns.
 
 **The disclosure captures the resolved state, not the conflicted one.** Recorded as a guard because the
 alternative is circular: were the disclosure to pin the pre-resolution content, the operator's own resolution
@@ -837,39 +802,29 @@ discharges it. This is the minimal shape rather than a chosen one: the alternati
 re-asking the operator on resumption, which is exactly the redundant ceremony this work unit exists to remove,
 and the alternative that carries more would have the artifact inherit a verification it did not earn.
 
-**How the resolved suffix arrives is the existing rewrite operation under a new mode**, not a new operation.
-`activeOperation`'s rewrite arm already carries `review-fix`, `selected-change`, `provider-adoption`, and
-`provider-refresh` — it is the established substrate for a member's content changing under an operation in
-flight, and it already composes with the movement-allowance option § Substrate describes. Minting a second
-operation for the same shape would duplicate that machinery and split the idleness invariant across two homes.
+**How the resolved suffix arrives is open, and the two previous answers were both wrong.** Recorded rather than
+patched, because this is the question the next drafting pass owns.
 
-**Discharge does not inherit the idleness exclusion, and that is a decision rather than an omission.** The
-first attempt here mirrored `pendingReviewFixVerification` wholesale, including the schema rule that refuses it
-beside an active operation. An adversarial pass showed that mirror deadlocks: the refusal is unconditional on
-operation kind, so with both obligations owed neither can be discharged, and the co-occurrence § What composes
-relies on becomes structurally unreachable. Generalising supersession to consume both was the obvious repair and
-is wrong for a plainer reason — to supersede an obligation is to say _this operation discharges it_, and a
-suffix rewrite does not discharge a review-fix verification, which is still owed afterwards. That repair would
-drop a real obligation on the floor.
+The first answer was a new operation; the second was the existing rewrite arm under a new mode, on the reasoning
+that a second operation would duplicate machinery. Pass three falsified both by locating the constraint neither
+had checked: **the suffix conflict is observable only while a native land reservation is held.** The
+reconciliation that emits it proceeds only when the active operation is a native landing, and the active
+operation is a single slot whose reservation refuses unconditionally while one is held. So a discharging rewrite
+cannot open at the only point the conflict exists. The problem moved three times — first under the idleness
+exclusion, then out of it, and each time past the term that actually blocks discharge.
 
-**The two obligations guard different things, so they take different exclusions.** Review-fix verification
-guards member content against further mutation until it is verified, and requiring an idle state is exactly
-right for that. Suffix resolution guards the delivery against _landing or closing_ with an unresolved conflict;
-it has no reason to block mutation, because mutation is how it resolves. The suffix obligation is therefore an
-encumbrance term for the landing and closeout callers, not a bar on opening an operation. The discharging
-rewrite opens normally and clears the obligation on completion.
+What the passes did surface is the substrate the reasoning never evaluated: the same landing path already carries
+a local-ref rewrite-or-adopt dependency that runs under the held reservation. An in-landing arm consuming a
+disclosed-and-decided resolution is therefore a candidate that needs no second reservation and keeps the
+retained capture's no-duplicate-submission boundary by construction — and the production guidance on every
+sibling arm already says to keep the reservation. It is a candidate, not a settlement: the alternatives are
+clearing and re-reserving, which contradicts that guidance and re-runs the submission path, or exempting one
+rewrite mode from the reservation bar, which is the per-arm rule this draft names as fatal elsewhere.
 
-**Co-occurrence then resolves by sequencing rather than by supersession.** Verification is not an operation —
-the acknowledgement path clears its obligation with a revision-checked write on an idle state, so an active
-operation never blocks it — which means a pending verification can be discharged first and the suffix rewrite
-opened after. Landing does not consume the verification obligation either; it carries it forward into a
-re-reservation, so the co-occurring case is real rather than hypothetical and this sequencing is what makes it
-dischargeable.
-
-This forfeits the earlier warrant that the validator already existed for this shape. That warrant was for the
-wrong property. What it buys instead is a third and independent reason the payloads must not be unified, beside
-their differing content and their differing staleness semantics: they do not share an exclusion, so one field
-could not carry both without carrying a per-arm rule about when it blocks.
+**Discharge, abort, and the encumbrance term's placement all sit downstream of that choice** and cannot be
+settled ahead of it. What survives from the pass-two work is narrower and still holds: the two obligations guard
+different things, so the suffix obligation takes no idleness bar of its own, and co-occurrence resolves by
+sequencing because verification clears its obligation without opening an operation.
 
 **The resolved content must exist as a ref before the decision is recorded.** The predicate reads tree entries
 at an explicit ref and cannot see a working tree, so a resolution living only in a checkout is unevaluable on
@@ -908,20 +863,30 @@ if (state.activeOperation !== null)                return refused("operation-act
 if (state.pendingReviewFixVerification !== null)   return refused("pending-review-fix-verification");
 ```
 
-That exact pair appears in `compose.ts` and again in `retirement.ts`, in the same order with the same two
-terms, while `entry-inspection.ts` reads the second term to _route_ to a continuation rather than refuse. A
-third obligation means every such site grows a third term, and a site that grows only two keeps reporting a
-delivery unencumbered while something is owed. That is the failure the Owner's criterion rules out by name:
-not a stale fact, but bookkeeping that lets ARC report wrong.
+That exact pair appears in `compose.ts`, in `retirement.ts`, and twice in `terminal-integration.ts`, in the
+same order with the same two terms; `entry-inspection.ts` reads both to _route_ to a continuation rather than
+refuse, and further sites carry them in other shapes. A third obligation means every such site grows a third
+term, and a site that grows only two keeps reporting a delivery unencumbered while something is owed. That is
+the failure the Owner's criterion rules out by name: not a stale fact, but bookkeeping that lets ARC report
+wrong.
+
+**Pass three corrected this list, and the correction matters more than the count.** An earlier version named
+`landing.ts`, which carries neither term — its only mention is the abort selector that restores a supersession
+payload for a retried rewrite. Landing's actual encumbrance gate is the reservation itself. Meanwhile
+`terminal-integration.ts` was missing from the list, and that is the integration-checkpoint and
+terminal-absorption reader — the closeout boundary the suffix obligation exists to guard. Wired to the earlier
+list, the design would have shipped exactly the failure it is written to prevent.
 
 So extract the predicate, not the payloads — one reader over the state answering what encumbers it, with each
 obligation contributing a term and each caller keeping its own policy over the answer. Refusing sites keep
 refusing, the routing site keeps routing, and adding a fourth obligation later touches one place.
 
-**This stays inside the change rather than beside it.** The extraction's sites — `compose.ts`, `retirement.ts`,
-`entry-inspection.ts`, `landing.ts` — are already this work unit's, named in § Retained capture detail's file
-list, and the third term is one this work unit introduces. Finishing that is completion. What it does not
-license is converting the twenty payload reads, which remain untraced.
+**This stays inside the change rather than beside it**, but the site set is wider than first recorded and is
+not yet enumerated to a close. `compose.ts`, `retirement.ts`, `terminal-integration.ts`, and
+`entry-inspection.ts` are confirmed; the reservation path is a distinct question carried in § Continuity, since
+placing the term there is a bar on opening an operation and that is what the recovery half is still settling.
+The payload reads — more numerous than the rough count first given, which understated in the direction that
+strengthens the argument — remain untraced and unconverted.
 
 ### Proportionality
 
@@ -1051,7 +1016,12 @@ So the conjunction owes a reason per term. **Taken into scope by the Owner, 2026
 that would give only the relation's term a distinct reason and leave the other seven collapsed: that arm fixes
 the ancestry row while leaving the rule's second clause unsatisfiable everywhere else. It is also the smaller
 change than it looks — the relation supplies the vocabulary for the one term that was ancestry-blind, and the
-other seven need only stop sharing a word.
+other terms need only stop sharing a word.
+
+**The sizing was taken on a short count.** That one reason is reachable three ways, not one: a five-condition
+pre-guard before the conjunction is built, an unobserved host request, and the conjunction itself. Fourteen
+conditions reach one word rather than eight. The direction is unchanged and the extra conditions sit in the
+same function, but the claim that this is smaller than it looks was made against the wrong number.
 
 ### The remedy the design should name — merging the base in collapses cardinality
 
