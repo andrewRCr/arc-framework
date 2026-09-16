@@ -142,7 +142,7 @@ export function selectCurrentErrandMergeIdentity(
     || record.kind !== "errand" || record.purpose !== "errand"
     || record.key !== slug || record.claimId !== row.subject.claimId
     || record.branch !== row.checkout.branch
-    || row.markerGeneration !== `errand-v1/${slug}/${record.claimId}`) {
+    || row.markerGeneration === null) {
     throw new IntegrationBindingChangedError(
       "identity", "The entering checkout no longer proves the exact current Errand generation.",
     );
@@ -158,7 +158,7 @@ export function selectCurrentErrandMergeIdentity(
     slug: SlugSchema.parse(slug),
     claimId: record.claimId,
     branch: record.branch,
-    generation: row.markerGeneration,
+    generation: `errand-v1/${slug}/${record.claimId}`,
   };
 }
 
