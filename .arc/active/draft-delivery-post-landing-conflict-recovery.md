@@ -52,6 +52,12 @@
   derived, and binds to exact coordinates as a validity predicate so staleness fails closed. Settled against the
   Owner's criterion: durability is warranted where its absence would make ARC wrong rather than uninformed.
   § The relation — Where the unresolved condition lives.
+- **The variant names are minted, ordered-pair relative, and defined by the type.** Neither existing vocabulary
+  is adoptable: `merge.ts`'s are caller-outcome names, and Git's porcelain names are viewpoint-relative in a
+  design whose viewpoint varies by reader. Naming the relation over `(reference, subject)` fixes the direction
+  positionally so no variant flips meaning between call sites. The definition derives from the type rather than
+  a prose glossary, and does not join the briefs' vocabulary because each variant carries a typed remedy the
+  actor dispatches instead of a word it must look up. § The relation — Naming the variants.
 - **The subject's path set is commit-derived, and the merge-diff mode is load-bearing.** Net has no
   cardinality-safe construction, so this is availability rather than preference; touched is also the less
   movement-sensitive of the two, inverting the trade as it was recorded. Git's default suppresses a merge's own
@@ -59,6 +65,9 @@
   now the named cardinality remedy, so merges are on the path rather than at its edge. `--cc` is the only mode
   that catches a merge-introduced change without inheriting the merged-in base's changes. Verified in a scratch
   repository. § The relation — The subject's path set.
+- **The resolved suffix arrives through the existing rewrite operation under a new mode.** That arm already
+  carries four modes for a member's content changing in flight, so a second operation would duplicate it and
+  split the idleness invariant. Obligation blocks while idle; rewrite discharges it while running.
 - **What the record carries is settled, and the asymmetry lives in the binding rather than a policy.** Three
   classes: an identity-bound obligation that survives arbitrary movement, an immutable disclosure of what the
   operator was shown, and a disclosure-bound decision that dies exactly when its subject stops being what is
@@ -112,10 +121,8 @@
 
 ### Open
 
-- **Variant naming, and where the definition lives.** The six distinctions are settled and their names are not;
-  the nearest candidates are Git's porcelain vocabulary and `merge.ts`'s existing state names. These are
-  controlled vocabulary rather than taste — load-bearing terms owing a definition before use, derived from the
-  type rather than restated beside it.
+- **The word for the rewound variant.** Its structure and home are settled; the word faintly implies a cause
+  the relation does not assert, since the same shape holds for a record binding something never published.
 
 ### Next
 
@@ -639,6 +646,47 @@ score does. Applied here that reads as an approval which does not outlive the co
 refusal that persists until answered — which is the same question as the new-contribution path's inheritance,
 not a second one.
 
+### Naming the variants, and where the definition lives
+
+Settled 2026-09-16 on the two parts that carry consequences; the word choice itself is recorded as proposed.
+
+**Neither existing vocabulary can be adopted, for opposite reasons.**
+
+`merge.ts`'s names — `skipped-clean`, `head-contained-by-base` — are _caller-outcome_ names: they say what that
+one caller does about the relation, not what is true of the two revisions. A shared primitive has three callers
+who do different things with the same fact, so outcome names cannot be the shared vocabulary. That is not an
+objection to the precedent; it is the clearest statement of why extraction is needed at all.
+
+Git's porcelain names — ahead, behind, ahead and behind — are _viewpoint-relative_. Git's viewpoint is fixed
+(local against upstream) and ARC's is not: this design compares a bound coordinate against an observed one at
+two readers and a baseline against a current base at a third. "Ahead" would mean opposite things at different
+call sites, and reversing it is a silent defect rather than a type error. Adopt the distinctions, which
+§ Established practice already does; do not adopt the words.
+
+**The relation is over an ordered pair, and the order carries the direction.** Name it `(reference, subject)`
+and define every variant as a statement about the subject relative to the reference, exactly as
+`merge-base --is-ancestor <ancestor> <descendant>` is positional rather than semantic. Each caller then declares
+which of its revisions is which, and no variant flips meaning between call sites. This is the part the two
+rejected vocabularies get wrong, and it is settled independently of what the variants are called.
+
+**Proposed words**, from the subject's side of that pair: `unchanged`, `advanced`, `rewound`, `diverged`,
+`absent`, `unknown`. `diverged` is Git's own concept and `merge.ts`'s fall-through; `absent` is preferred over
+Git's `gone`, which implies something was once there; `unknown` is ARC's addition and has no Git counterpart
+because Git throws where this must classify. `rewound` is the least settled — it names the shape correctly but
+faintly implies a cause, when the same relation also holds for a record binding something never published.
+
+**The definition lives in the type.** `strategy-procedure-evolution` Principle 4 holds that contract surfaces
+derive from the TypeScript types rather than being hand-authored a second time, and this is such a surface: a
+closed variant set consumed by typed readers and carried in a versioned record schema. A prose glossary beside
+it would be the second copy that principle exists to prevent.
+
+**It does not join the briefs' vocabulary, and the reason is a constraint already adopted.** Principle 7's
+briefs tier carries terms an agent must know in order to _operate_ — `Class`, errand, interlock, review
+increment. These variants appear in emitted results rather than in instructions, and § Forward-compatibility
+check already requires each variant to carry a typed remedy action rather than prose. An actor therefore
+dispatches the action instead of interpreting the word, so the name has no always-loaded miss-cost to justify a
+slot. Where a variant does reach a durable record, the record's own schema is its definition.
+
 ### The subject's path set — touched, and the merge-diff mode is load-bearing
 
 Settled 2026-09-16, empirically. § Reader inventory left this open and framed it as a trade between a safe but
@@ -736,6 +784,15 @@ to be inherited by the artifact because the record carries it. The obligation st
 discharges it. This is the minimal shape rather than a chosen one: the alternative that carries less is
 re-asking the operator on resumption, which is exactly the redundant ceremony this work unit exists to remove,
 and the alternative that carries more would have the artifact inherit a verification it did not earn.
+
+**How the resolved suffix arrives is the existing rewrite operation under a new mode**, not a new operation.
+`activeOperation`'s rewrite arm already carries `review-fix`, `selected-change`, `provider-adoption`, and
+`provider-refresh` — it is the established substrate for a member's content changing under an operation in
+flight, and it already composes with the movement-allowance option § Substrate describes. Minting a second
+operation for the same shape would duplicate that machinery and split the idleness invariant across two homes.
+The division of labour follows from where each thing lives: the **obligation** is idle-but-owing and blocks, the
+**rewrite** is the in-flight operation that discharges it, and the schema's existing exclusion between the two
+is what keeps a days-long wait from being modelled as a running operation.
 
 **The refusal this creates answers the recoverability rule.** When the disclosure no longer describes observed
 state, the record must report which coordinate moved and how — the relation is the vocabulary — and route to the
