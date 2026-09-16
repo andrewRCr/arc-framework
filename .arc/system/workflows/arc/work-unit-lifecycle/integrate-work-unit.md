@@ -479,18 +479,6 @@ See [DEV-RULES.ARC][dev-rules-arc] § Commit format and the [`commit-footer` met
 
 ### 8) Cadence dispatch — `archive.cadence`
 
-Before reading or dispatching the cadence, invoke the checkpoint while the active meta and its pre-publication
-remedies remain reachable:
-
-```bash
-arc integrate checkpoint {name} --json
-```
-
-Treat this invocation only as a pre-sweep reachability probe. `ready / request-approval` continues without carrying
-its checkpoint handle or evidence. Every other typed result renders its state, next action, and supplied presentation
-or remedy, then stops before archival; dispatch nothing from the probe. Step 10 remains the authoritative checkpoint
-after the final push, and no probe clearance carries into it.
-
 Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 - **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. Its `arc archive`
