@@ -92,6 +92,12 @@ expectation, observe fresh external state, refuse mismatches, and disclose any r
 capability merely because the platform cannot enforce a guarantee ARC does not require at comparable seams. This does
 not relax distrust of agent self-attestation or exactness over ARC-owned single-writer records.
 
+**Recovery-complete refusals:** An operational refusal is incomplete unless it distinguishes terminal failure from a
+recoverable stop. A recoverable refusal must preserve a safe retry or restart route, report the observed condition,
+name an actionable remedy, and keep the normal success path reachable after repair. At material boundaries,
+verification must cover both the refusal and successful continuation after the condition is repaired. Do not add
+guard-only dead ends.
+
 **TypeScript standards:**
 
 - Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries
