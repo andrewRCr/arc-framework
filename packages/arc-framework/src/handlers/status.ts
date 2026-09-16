@@ -1123,7 +1123,7 @@ export async function handleStatus(
                   exec: createRawGitExec(cwd),
                   ...projectDeliveryContributionEndpoints(endpoints),
                 }),
-              });
+              }, { terminalAuthoringMovement: "allow-append-only" });
           },
         });
         if (result.status === "refused") {
