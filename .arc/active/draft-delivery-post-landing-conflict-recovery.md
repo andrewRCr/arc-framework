@@ -42,6 +42,9 @@
   outcome. Verified from the definition and confirmed empirically — § Established practice.
 - **Axis D's completing input is settled in shape.** No surveyed system feeds a hand resolution back into a
   pinned replay; the resolved suffix becomes a new contribution that re-enters verification.
+- **The row set is majority singleton, and the singleton closeout path already compares by ancestry.** Four of
+  seven rows are singleton-shaped; the relation is a concept the codebase already has in one place and lacks in
+  the other. Adopt it by reader, never by shape. § The failure family — Shape coverage.
 - **The six readers are classified, and two of them stop having the problem.** The subject collector and the
   overlap analyzer ask membership questions and answer them with a base-anchored diff; deriving their paths from
   the branch's own commits removes the ambiguity rather than handling it. Three readers want the relation itself.
@@ -91,6 +94,32 @@ post-execution boundaries by base-movement kind — re-finds none of these failu
 the shape of the history, or a ceremony's own writes, not the base. Seven of its rows resolve here.
 
 Each row below is a recorded observation against base `cbf075da7`, not a claim.
+
+### Shape coverage
+
+This work unit's name skews delivery; its row set does not. **Four of the seven rows are recorded against a
+`singleton`** — an ordinary single-request work unit with no delivery plan — and all four are Axis B. Only Axis
+A's two rows and Axis D's one are `delivery-member`.
+
+The distribution is not incidental. Axis B's condition is the shape of the history, which a singleton reaches
+exactly as readily as a stack, and the most severe row here — the silent base pick — is a singleton row. Two of
+the four readers it runs through, the subject collector and the overlap analyzer, serve both shapes, so the
+majority of this work unit's value lands on the ordinary case rather than the stacked one.
+
+**Axis A has no singleton row because the singleton path already gets it right.** Retirement containment compares
+by ancestry, with `merge-base --is-ancestor` against the pinned base. Delivery terminal settlement asks the same
+lifecycle question and compares `request.headSha === terminal.coordinates.head` — raw equality, no ancestry term.
+One question, two implementations, and the older one is correct. The relation this design introduces is therefore
+not a new concept for the codebase: it is the concept the singleton path already uses, which the delivery path
+re-implemented worse.
+
+That equality also sits inside an eight-term conjunction collapsing to a single `terminal-unsettled` reason, so
+the refusal is cause-blind as well as ancestry-blind — which is why its remedy can only name a rerun over inputs
+that never reach the term that actually failed.
+
+**The risk this creates is in the fix, not the evidence.** Adopt the relation by reader, never by shape. A
+delivery-scoped rollout would leave the singleton readers on whichever comparison they happen to carry, which is
+how the two implementations diverged in the first place.
 
 ### Axis A — a reader compares a bound head with no ancestry term
 
@@ -532,3 +561,10 @@ The recorded observations and the reasoning behind each awaited result are in
 eighteen-failure table each cell traces to, and § Second-matrix probe rows for the readings above. Read those
 rather than the first matrix, whose `tolerates` verdicts cover base movement only and are not coverage of this
 surface.
+
+§ Established practice rests on a bounded survey rather than an exhaustive one, and its footing is uneven. Read
+from primary sources: Git's revision grammar and diff definitions, and Gerrit's change-kind, copy-condition, and
+shipped label config. Derived and then confirmed empirically here: cardinality above one implying divergence.
+Weaker, and worth re-checking before anything load-bearing rests on it: Mercurial's bid-merge rationale comes from
+a wiki page of roughly 3.0 vintage, and "no system refuses on cross-base disagreement" is an absence rather than a
+citation.
