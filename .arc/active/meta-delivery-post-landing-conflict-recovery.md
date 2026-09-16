@@ -13,11 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft-design — formalization-ready after seven adversarial passes
+- **Last Completed:** create-spec — `spec-*` + `notes-*` authored, approved at Gate 1, four adversarial passes folded
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** create-spec Gate 2 — independently verify the pass-four repairs (unreviewed), then finalize:
+  retire the draft, persist `Class`, commit.
 
 - **PR URL:** [none]
 - **Completed:** [none]
