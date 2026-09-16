@@ -343,11 +343,6 @@ describe("emitCompactionSeed", () => {
       snapshotBranch: "main",
       envelope: {
         derivedLocusState: { ok: true, value: unresolvedWorkUnitFrame() },
-        active: {
-          ok: true,
-          value: { path: null, sessionType: null, currentWorkflow: null },
-        },
-        taskCursor: { ok: true, value: { status: "no-open-task" } },
       },
     });
 
@@ -359,6 +354,14 @@ describe("emitCompactionSeed", () => {
       expect(result.seed.sessionType).toBeNull();
       expect(result.seed.currentWorkflow).toBeNull();
       expect(result.seed.taskCursor).toBeNull();
+      expect(result.seed.metaPath).toBeNull();
+      expect(result.seed.loadSet.entries).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md" }),
+        expect.objectContaining({ path: ".arc/user/andrew/WORKING-MEMORY.md" }),
+      ]));
+      expect(result.seed.loadSet.entries).not.toContainEqual(
+        expect.objectContaining({ path: ".arc/active/tasks-compaction-recovery.md" }),
+      );
     }
   });
 

@@ -613,6 +613,25 @@ describe("auditRecoveryState", () => {
     });
   });
 
+  it("preserves the physical locus when recovery-frame projection fails", async () => {
+    const result = await run({
+      recover: recover({
+        recoveryFrame: {
+          ok: false,
+          error: { kind: "runtime", message: "cannot project recovery context" },
+        },
+      }),
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "locus-unresolved" }));
+    expect(result.locusHint).toEqual({
+      expected: { checkoutPath: "/repo", parentCheckoutPath: null },
+      actual: { checkoutPath: "/repo", parentCheckoutPath: null },
+      match: false,
+    });
+  });
+
   it("ignores malformed siblings when the exact entering row remains healthy", async () => {
     const healthy = workUnitRow();
     const malformed = workUnitRow({

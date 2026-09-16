@@ -345,7 +345,7 @@ function auditLocusHint(
       message: options.recover.recoveryFrame.error.message,
       detail: options.recover.recoveryFrame.error,
     });
-    return { expected, actual: null, match: false };
+    return { expected, actual, match: false };
   }
 
   const frame = options.recover.recoveryFrame.value;
