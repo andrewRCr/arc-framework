@@ -9,9 +9,11 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `maturing` — the fundamentals are settled: what the relation is, who consumes it, where the
-  unresolved condition lives, and what the recovery shape is. The open items are detail-design within those —
-  variant naming, one path-set trade, and how much verification a resolved suffix inherits.
+- **Readiness:** `rough` — an adversarial pass (2026-09-16, pass one) broke a premature `formalization-ready`
+  call. The relation core, its Git footing, and the reader inventory withstood attack, but the recovery record's
+  validity predicate was a masked decision asserted two incompatible ways and its discharge lifecycle
+  deadlocked against the schema's idleness exclusion. Both are fundamentals of the recovery half, now
+  re-authored and awaiting a second pass.
 
 ---
 
@@ -58,6 +60,12 @@
   positionally so no variant flips meaning between call sites. The definition derives from the type rather than
   a prose glossary, and does not join the briefs' vocabulary because each variant carries a typed remedy the
   actor dispatches instead of a word it must look up. § The relation — Naming the variants.
+- **Two reframed readers carry residues the reframe does not reach, found by pass one.** The subject collector's
+  staged arm compares the index against a picked base and has no commits to derive from — live, feeding
+  currentness, and not covered by the pinned probe; it resolves as `diff --cached HEAD` unioned with the
+  commit-derived set, needing no base. The overlap analyzer still publishes a single base coordinate consumed
+  downstream as a ref. That forces the coordinate disjunction settled: no consumer can take a base _set_, so
+  coordinate readers refuse typed, and both compare `(head, base)` so the base-merge remedy reaches them.
 - **The subject's path set is commit-derived, and the merge-diff mode is load-bearing.** Net has no
   cardinality-safe construction, so this is availability rather than preference; touched is also the less
   movement-sensitive of the two, inverting the trade as it was recorded. Git's default suppresses a merge's own
@@ -68,11 +76,17 @@
 - **The resolved suffix arrives through the existing rewrite operation under a new mode.** That arm already
   carries four modes for a member's content changing in flight, so a second operation would duplicate it and
   split the idleness invariant. Obligation blocks while idle; rewrite discharges it while running.
-- **What the record carries is settled, and the asymmetry lives in the binding rather than a policy.** Three
-  classes: an identity-bound obligation that survives arbitrary movement, an immutable disclosure of what the
-  operator was shown, and a disclosure-bound decision that dies exactly when its subject stops being what is
-  there. Nothing derived. A resolved suffix inherits nothing positive and needs nothing — mechanical proof
-  re-derives and the record carries the judgment. § The relation — What the record may carry.
+- **What the record carries: three classes, with the asymmetry in the binding rather than a policy.** An
+  identity-bound obligation surviving arbitrary movement, an immutable disclosure of what the operator was
+  shown, and a decision bound to that disclosure. Nothing derived. A resolved suffix inherits nothing positive
+  and needs nothing. **Corrected after pass one:** validity is content equality on the _disclosed paths_ at
+  every disclosed coordinate — not head ancestry, which a restack breaks on every cycle, and not the whole
+  tree. The relation reports the failure rather than deciding it, and the disclosure pins the _resolved_ state
+  so the operator's own resolution cannot invalidate its own authorization.
+- **Discharge follows the existing supersession pattern.** The schema's idleness exclusion would otherwise
+  deadlock an obligation against the operation that clears it. Review-fix verification already solved this with
+  an explicit, mode-validated supersession flag applied in the same reservation that opens the operation; mirror
+  it, and state the abort-restore rule the existing path leaves implicit.
 - **Gerrit's asymmetry and ARC's own standing acceptance rule agree once movement is distinguished from
   change.** The recorded failure — an approved fix revoking the acceptance that authorized it by advancing the
   Candidate — is the Axis A defect one layer up, on a surface carrying an Owner's authority rather than a
@@ -81,8 +95,10 @@
   Closeout's eight-term conjunction owes a reason per term: the relation makes its comparison correct while the
   refusal still cannot report which term failed, and that clause is not separable from the ancestry fix. And
   merging the base in collapses merge-base cardinality to one — a corollary of the dominance proof this draft
-  already carries — which turns Axis B's refusals from correct-but-terminal into recoverable by an operation ARC
-  already mandates. § Refusal-recoverability audit.
+  already carries — which turns two of Axis B's refusals from correct-but-terminal into recoverable. **Corrected
+  after pass one:** it does _not_ reach Candidate applicability, which compares a pinned baseline the merge does
+  not move; that reader's route is re-baselining, which is expensive and must be named honestly rather than
+  gestured at. § Refusal-recoverability audit.
 - **The settled fundamentals clear the four project check-docs and two unbuilt designs.** No conflict; three
   constraints adopted — each variant carries a typed remedy action rather than prose, the encumbrance predicate
   feeds the planned typed resume slot rather than paralleling it, and the variant names are controlled
@@ -121,16 +137,17 @@
 
 ### Open
 
+- **The abort-restore rule for a superseded obligation.** The pattern to follow is settled; what restores the
+  record when the discharging rewrite opens and then fails is not, and the existing review-fix path leaves it
+  implicit rather than answering it.
 - **The word for the rewound variant.** Its structure and home are settled; the word faintly implies a cause
   the relation does not assert, since the same shape holds for a record binding something never published.
 
 ### Next
 
-One item remains: variant naming and where its definition lives. Then the readiness boundary, where
-`adversarial-review` is recommended — and this draft is squarely the shape that pass attacks well, being
-externally-derived reasoning folded across several sessions with several claims corrected only because
-something prompted a re-check. Two items owe confirmation before anything emits them: the base-merge remedy's
-per-reader applicability, and whether a merge queue's landed head reaches closeout as the request head.
+Pass two of `adversarial-review` — the last at `Heavy` — re-attacking the whole artifact with pass one's
+findings and these fixes supplied. A live `major` or above at that point goes to the stage interlock for the
+Owner's call rather than a third pass. The two remaining open items are small beside that.
 
 ---
 
@@ -311,12 +328,36 @@ practice.
 | review readiness                    | is the bound head still the observed one | lookup, then relation  |
 | closeout                            | is the bound head still the observed one | relation               |
 
-**Two readers stop having the problem.** `git-candidate-subject.ts` selects paths with
-`diff --name-only <picked-base> <head>`, and `base-overlap.ts` diffs both sides from one picked base before
-intersecting. Both therefore select paths that are an artifact of which ancestor got chosen. A branch's own
-changed paths are instead derivable from the commits reachable from it and not from _any_ merge base — the
-`--all` form Git already uses for membership — so the selection becomes cardinality-independent and the ambiguity
-never reaches them.
+**Two readers lose the ambiguity from _path selection_ — and neither is thereby fully fixed.**
+`git-candidate-subject.ts` selects paths with `diff --name-only <picked-base> <head>`, and `base-overlap.ts`
+diffs both sides from one picked base before intersecting, so both select paths that are an artifact of which
+ancestor got chosen. A branch's own changed paths are instead derivable from the commits reachable from it and
+not from any merge base — the `--all` form Git already uses for membership — which makes the selection
+cardinality-independent. Two residues survive that reframe, and an earlier pass of this draft wrongly recorded
+both readers as fully resolved by it.
+
+**The subject collector has a second arm the reframe does not reach.** When no revision is supplied it compares
+the _index_ against the picked base — `diff --cached --name-only <base>` — and an index has no commits to derive
+membership from. That arm is live: `git-candidate-effective-target.ts` takes it whenever no target is supplied,
+and feeds the result straight into Candidate currentness, which is the digest path the severe row is about. The
+pinned probe passes a revision explicitly, so it exercises only the committed arm and would retire green over an
+untouched silent pick. The arm's real question is what the index changes relative to `HEAD`, which needs no
+merge base at all: derive it as `diff --cached --name-only HEAD` and union it with the commit-derived set. A
+second probe is owed for the staged arm; the existing one is not re-scoped, because its committed-arm coverage
+is still wanted.
+
+**The overlap analyzer still owes a single base coordinate.** Its available result publishes the merge base
+alongside the overlap, and that coordinate is not internal: it becomes `chainBase` on the predecessor relation,
+is read as a ref to baseline regenerable paths, and serves as the suffix chain's first predecessor. Deriving
+paths from commits removes the ambiguity from selection only — the contract still owes one base, and under
+cardinality above one none exists.
+
+**That settles the disjunction left open for `git-candidate-effective-target.ts`.** No consumer can use a _set_
+of bases: reading tree entries needs one ref and rematerialization needs one predecessor. The base-set arm is
+therefore dead, and both coordinate readers refuse typed under cardinality above one. Both compare a
+`(head, base)` pair, so the base-merge remedy in § Refusal-recoverability audit does reach them: their refusals
+are recoverable rather than terminal. Only Candidate applicability carries cardinality as a field on the
+diverged variant, because it alone consumes the relation rather than a coordinate.
 
 **One difference, since settled.** Paths touched by a branch's own commits are not the same set as its net
 diff: a path changed and then reverted within the branch appears in the commit-derived set and not in the net
@@ -377,7 +418,11 @@ would each have to re-derive the same reachability to know whether the second ev
 ### Git already draws the line this design needs, and ARC is on the wrong side of it
 
 `git log A...B` is defined as `r1 r2 --not $(git merge-base --all r1 r2)` — commit-set membership computed
-against every base, cardinality-independent by construction. `git diff A...B` is defined as
+against every base, cardinality-independent by construction. Note the symmetry: that form is the _symmetric
+difference_ and includes the base side's own commits, so the one-sided form this design needs is
+`B --not $(git merge-base --all A B)`. What is being adopted is the cardinality-independent `--not` against
+every base, not the two-sided range; using the range literally would readmit base-side paths, which is the
+failure the reframe exists to close. `git diff A...B` is defined as
 `git diff $(git merge-base A B) B` — a tree diff against one arbitrary base, cardinality-fragile. Git answers
 "which commits are mine" safely and "what content changed" fragilely, and documents both.
 
@@ -477,12 +522,19 @@ consulted only inside Git's own three-way merge; no server-side queue reads it. 
 inapplicable rather than unexamined. Jujutsu's structural conflict propagation is the same note from the other
 side: real prior art, single-repository, with no review or landing system built on it.
 
-### Merge-queue composition, confirmed
+### Merge-queue composition — the mechanism, and what does not follow from it
 
-GitHub's merge queue builds a temporary branch carrying the base plus every queued request ahead of the subject,
-and lands that. The landed commit is structurally not the request's own head — which confirms the constraint in
-§ Boundaries: under the current equality comparison, a project running that queue would meet
-`delivery-member-unbound` on every landing rather than occasionally.
+GitHub's merge queue builds a temporary branch carrying the base plus every queued request ahead of the
+subject, and lands that. The landed commit is structurally not the request's own head.
+
+**The stronger reading of that fact does not survive source.** Both affected readers compare a _change-request_
+head rather than the landed commit — `retirement.ts` tests `request.headSha === terminal.coordinates.head`, and
+review readiness reads `request.pullRequest.headSha` — so a queue that leaves the request's own head alone is
+orthogonal to this comparison, and it does not follow that such a project would meet `delivery-member-unbound`
+on every landing. What remains true is the constraint in § Boundaries: whatever replaces the equality comparison
+must not assume the landed head is the head ARC bound, because a rebase-style submit strategy does move the
+request head. Whether any given queue configuration does so is unverified, and no probe covers an external
+mover.
 
 ## The relation
 
@@ -632,11 +684,23 @@ applies. `boundPlan`'s `planRevision` and `planDigest` are the same predicate in
 record whose coordinates no longer match does not mislead and does not silently proceed; it reports that the
 decision it holds was made against something else.
 
-**This is where the two halves of the design meet.** That predicate is a comparison of a bound coordinate
-against an observed one — which is the relation, and which under today's equality check would read a compatible
-advance as a mismatch and send the operator back to a decision they already made. The relation is not only
-fixing the readers in § The failure family; it is the mechanism this record needs to tell _moved compatibly_
-from _no longer applies_.
+**The predicate is content, and the relation is what the refusal reports.** These are two roles, and conflating
+them was a live defect in an earlier pass of this draft. Validity is **content equality restricted to the
+disclosed paths**, evaluated at every disclosed coordinate rather than the member alone — a predecessor's
+content on a disclosed path can move too. Head ancestry is not part of the test: a restack rewrites, so the
+relation reads `diverged` on a movement that may not have touched a disclosed path at all, and testing on it
+would invalidate every held decision at exactly the cadence § Forward-compatibility check warns about. What the
+relation supplies is the _report_ — when the predicate fails, the refusal says which coordinate moved and how,
+in the vocabulary the rest of this design already uses.
+
+`readEntries(exec, ref, paths)` in `git-lifecycle-contribution.ts` is the primitive: it already returns a
+path-to-tree-entry map for an explicit path set at an explicit ref, so the disclosure records a blob identity
+per disclosed path per coordinate and nothing new is invented to check it.
+
+**The disclosure captures the resolved state, not the conflicted one.** Recorded as a guard because the
+alternative is circular: were the disclosure to pin the pre-resolution content, the operator's own resolution
+would change those paths and invalidate the decision that authorized it — precisely the failure ARC already
+recorded when an approved fix revoked its own authorizing acceptance by advancing the Candidate.
 
 **What stays open is how much the record may carry**, and it is the sharp end rather than a detail. Holding the
 obligation is safe. Holding the operator's semantic approval is a durable human decision, and ARC has been bitten
@@ -753,11 +817,11 @@ satisfied by binding each thing to what it is actually about.
 
 **Three classes, three binding semantics, nothing derived.**
 
-| Class          | Binds to                                           | Survives                                                    |
-| -------------- | -------------------------------------------------- | ----------------------------------------------------------- |
-| The obligation | member identity                                    | arbitrary movement; discharged only by being met            |
-| The disclosure | exact coordinates, trees, and conflict paths shown | immutable once written                                      |
-| The decision   | the disclosure                                     | exactly while the disclosure still describes observed state |
+| Class          | Binds to                                           | Survives                                                      |
+| -------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| The obligation | member identity                                    | arbitrary movement; discharged only by being met              |
+| The disclosure | exact coordinates, trees, and conflict paths shown | immutable once written                                        |
+| The decision   | the disclosure                                     | exactly while the disclosed paths carry the disclosed content |
 
 **The asymmetry lives in the binding, not in a policy.** The obligation is identity-bound, so no movement
 retires it — it is owed until something discharges it, which is the fail-closed signal Gerrit keeps across
@@ -790,14 +854,28 @@ and the alternative that carries more would have the artifact inherit a verifica
 `provider-refresh` — it is the established substrate for a member's content changing under an operation in
 flight, and it already composes with the movement-allowance option § Substrate describes. Minting a second
 operation for the same shape would duplicate that machinery and split the idleness invariant across two homes.
-The division of labour follows from where each thing lives: the **obligation** is idle-but-owing and blocks, the
-**rewrite** is the in-flight operation that discharges it, and the schema's existing exclusion between the two
-is what keeps a days-long wait from being modelled as a running operation.
 
-**The refusal this creates answers the recoverability rule.** When the disclosure no longer describes observed
-state, the record must report which coordinate moved and how — the relation is the vocabulary — and route to the
-new-contribution path, re-asking with a fresh disclosure. Re-asking there is correct rather than redundant: the
-content genuinely changed. The ceremony being eliminated is re-asking when nothing relevant did.
+**Discharge follows the supersession pattern the existing obligation already uses**, which resolves what would
+otherwise be a deadlock. The state schema refuses a pending obligation beside an active operation, so an
+obligation cannot simply sit while the operation that clears it runs. `operation.ts` solves this for review-fix
+verification with an explicit `supersedePendingReviewFixVerification` flag on the rewrite request — validated
+to be accepted only on a `review-fix` rewrite that actually has a pending verification, and applied by nulling
+the obligation in the same reservation that opens the operation. The discharging operation therefore _declares
+it consumes_ the obligation rather than being blocked by it, and the exclusion stays intact with no relaxation
+invented for this design.
+
+Mirror that for the suffix obligation, with one thing the review-fix path leaves implicit made explicit here:
+**what restores the obligation if the discharging rewrite aborts.** A reservation that supersedes an obligation
+and then fails would otherwise lose the record of what was owed, which is the bookkeeping failure the Owner's
+criterion rules out by name. This also settles the co-occurrence § What composes relies on — two obligations
+may be owed at once, and each is superseded by the operation that discharges it rather than by the other.
+
+**The refusal this creates answers the recoverability rule.** When a disclosed path no longer carries its
+disclosed content, the record reports which coordinate moved and how — the relation is the vocabulary — and
+routes to the new-contribution path, re-asking with a fresh disclosure. Re-asking there is correct rather than
+redundant: the content the decision was about genuinely changed. The ceremony being eliminated is re-asking
+when nothing the decision was about did, which is why the predicate is scoped to the disclosed paths rather
+than the whole tree.
 
 ### What composes with the existing obligation, and what only rhymes
 
@@ -910,13 +988,14 @@ materializes off-branch and identity no longer couples to branch SHAs, delivery 
 projection with ordinary interior-ref members and **permits native restacking end to end**, while preserving the
 terminal-authorization arm and member-boundary verification as substrate-independent contracts.
 
-Routine restacking moves member heads as a matter of course. A held decision bound to exact coordinates and
-checked by equality would be invalidated by every restack — the redundant-ceremony failure arriving at a cadence
-rather than an incident. Checked by the relation it behaves correctly: an append-only advance reads `advanced`
-and the decision still applies, while a true rewrite reads `diverged` or `rewound` and the decision genuinely
-should not survive, which is the Gerrit asymmetry again. So the relation is not only this work unit's fix; it is
-the precondition for the restacking that target intends. The preserved contracts are safe here — this design
-adds reachability above the write boundary and relaxes nothing at it.
+Routine restacking rewrites member heads as a matter of course, so any predicate reading head identity or head
+ancestry would invalidate every held decision on every restack — the redundant-ceremony failure arriving at a
+cadence rather than an incident. That is the reason § The relation scopes the validity predicate to content on
+the disclosed paths: a restack that does not touch them preserves the decision, and one that does kills it,
+which is the Gerrit asymmetry expressed against the only thing the decision was ever about. The relation still
+does the reporting, and remains the precondition for the readers that genuinely ask about reachability. The
+preserved contracts are safe — this design adds reachability above the write boundary and relaxes nothing at
+it.
 
 ### Checked and not firing
 
@@ -945,10 +1024,10 @@ had not named.
 | --------------------- | --------------------------- | ------------------------------------------------------ |
 | Review readiness      | condition, remedy, retry    | inverted lookup, then the relation; rebind is the verb |
 | Closeout              | condition, remedy, retry    | relation in place — **condition still unmet, below**   |
-| Whole-WU verification | reports no condition at all | membership derivation; the refusal never arises        |
-| Prepublication        | remedy, success path        | typed relation, plus the base-merge remedy below       |
-| Public review target  | condition, remedy, retry    | typed result rather than a throw; same remedy          |
-| Landing overlap       | remedy, success path        | membership derivation; the refusal never arises        |
+| Whole-WU verification | reports no condition at all | membership derivation, both arms; refusal never arises |
+| Prepublication        | remedy, success path        | typed relation; **remedy is re-baselining, below**     |
+| Public review target  | condition, remedy, retry    | typed result rather than a throw; base-merge remedy    |
+| Landing overlap       | remedy, success path        | paths derived; coordinate refuses typed, base-merge    |
 | Post-land replay      | all four                    | the obligation record and the new-contribution path    |
 
 ### The gap — the relation fixes the comparison, not the cause-blindness
@@ -978,20 +1057,36 @@ That converts Axis B's refusals from correct-but-terminal into recoverable, and 
 mandated way to absorb base movement — merge the base in rather than rebase a published branch. It is idiomatic,
 available, and non-destructive, which is what clauses three and four ask for.
 
-Two honest limits. Which merge clears which reader is per-reader: each compares its own pair, and the merge has
-to relate that pair rather than merely be some merge. And the remedy is unavailable where an append-only merge
-is not permitted, in which case the refusal stands and clause one is satisfied by the restart route instead —
-which the obligation record already supplies. Confirm the per-reader applicability before the remedy is named in
-any emitted text.
+**Per-reader applicability, checked rather than deferred.** The remedy reaches a reader only if the merge
+relates the exact pair that reader compares. Two readers compare a `(head, base)` pair — the sole-base resolver
+and the overlap analyzer — so merging the base in does collapse their cardinality and their refusals are
+recoverable.
+
+**Candidate applicability is a refutation, not a pending confirmation.** It compares the _pinned_ baseline
+target against the current base, and that baseline is reduced from the Candidate's durable managed record.
+Merging the base into the branch advances the Candidate head and changes neither element of that pair, so the
+topology between them is untouched and the ambiguous refusal stands. The remedy does not reach this reader at
+all.
+
+Its actual route is to re-pin the baseline, which happens through a fresh authority transition on the record —
+that is, re-attestation. That is a real success path, so clause four is satisfiable, but it is expensive, and
+this draft elsewhere classifies exactly that demand as the redundant ceremony this work exists to reduce. The
+honest statement is a distinction rather than a remedy: a criss-cross **manufactured by the silent pick** is
+redundant ceremony and this design removes its cause, while a **genuine criss-cross under a pinned baseline** is
+the cost of the history's shape, and re-baselining is the price of clearing it. Name re-baselining there rather
+than gesturing at a route that does not exist.
+
+Where an append-only merge is not permitted at all, the refusal stands and clause one is satisfied by the
+restart route instead.
 
 ### The design's own refusals, held to the same rule
 
 Two are introduced here and both must answer it.
 
-- **A stale validity predicate.** When the coordinates a held decision was made against no longer relate to the
-  observed ones, the record must report which coordinate moved and how — the relation is already the vocabulary
-  for that — and route to the new-contribution path rather than merely declining. The restart route is the point
-  of the record; a refusal that does not name it would reintroduce the dead end one layer up.
+- **A stale validity predicate.** When a disclosed path no longer carries its disclosed content at some
+  disclosed coordinate, the record must name which coordinate moved and how — the relation is the vocabulary for
+  that — and route to the new-contribution path rather than merely declining. The restart route is the point of
+  the record; a refusal that does not name it would reintroduce the dead end one layer up.
 - **`unknown`.** An ancestry read that did not establish an answer is retryable by construction, and the clause
   it most easily fails is the third: it must say the read failed rather than implying a verdict about history.
   This is the variant's whole purpose, and it is why the reader rather than the classifier produces it.
@@ -1031,11 +1126,11 @@ Adopting a merge queue is a recorded non-goal, retired at the characterization's
 ARC-only re-ceremony". That stands. What does not follow from it is indifference to a project that runs one.
 
 A merge queue is a head-mover. Its landed commit is generally not the head the change was reviewed at — a
-speculative integration branch produces a new commit, and rebase-style submit strategies rewrite on the way in
-(each mechanism pending confirmation from the practice survey). Under this work unit's Axis A defect — a binding
-compared by head equality with no ancestry term — every such landing reads as `delivery-member-unbound` or
-`terminal-unsettled`. Merge-queue compatibility is therefore not separate work layered on this design; it is the
-same comparison, stated against an external head-mover rather than an internal one.
+speculative integration branch produces a new commit, and rebase-style submit strategies rewrite on the way in.
+Whether that reaches ARC's readers depends on a detail source settles against the stronger claim: both compare a
+change-request head rather than the landed commit, so a queue that leaves the request head alone is orthogonal
+to this comparison. A rebase-style strategy that moves the request head is not, and that is the case the
+constraint below covers.
 
 Carry it as a constraint, not a feature: whatever replaces the equality comparison must not assume the landed head
 is the head ARC bound. Current compatibility is **unverified** — every enumerated row moves the head from inside
@@ -1118,7 +1213,12 @@ and each is a single `expectPinnedObservation` call to replace. They retire inde
   bases"
 - `review-status-base-movement.test.ts` — "directs a checkpoint rerun on a base that moved only in shape"
 
-A seventh row is owned here and **deliberately unpinned**: `delivery-rebuild-base-movement.test.ts` — "returns the
+**A seventh pin is owed, not yet written.** The staged arm of the subject collector reaches the same silent
+base pick as the pinned committed arm, and no probe covers it — so the existing pin would retire green over an
+untouched defect. Add a staged-arm probe rather than re-scoping the committed one, whose coverage is still
+wanted.
+
+An eighth row is owned here and **deliberately unpinned**: `delivery-rebuild-base-movement.test.ts` — "returns the
 identical refusal after the operator resolves the conflicted path". It proves the named remedy does not clear the
 refusal, which no other test asserts, and the refusal itself is correct.
 
