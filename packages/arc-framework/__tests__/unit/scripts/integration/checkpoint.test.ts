@@ -587,6 +587,13 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "drift-unavailable",
+        remedy: {
+          invariant: "The checkpoint requires an authoritative base-drift read.",
+          text: expect.stringContaining(
+            "Resolve the reported authoritative drift failure, then re-run the checkpoint",
+          ),
+          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+        },
         payload: {
           drift: { verdict: "unavailable", unavailableReason: "fetch-failed" },
         },
