@@ -6,10 +6,16 @@
  * refuses with a typed reason, and one reports its evidence unavailable. Each case observes the
  * reader the boundary actually runs, over a real repository, against a control on the same
  * arrangement with an unambiguous history.
+ *
+ * The subject collector is read twice, because it has two arms over one base read: the committed arm
+ * diffs a named revision against the base, and the staged arm diffs the index. A fix applied to one
+ * leaves the other picking silently, so neither arm's coverage stands in for the other's.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import type { RawGitExec } from "../../src/lib/change-facts.js";
@@ -32,6 +38,7 @@ const execFileAsync = promisify(execFile);
 const WORK_UNIT = "sample-unit";
 const BRANCH_PATH = "src/criss-cross-branch-side.ts";
 const BASE_PATH = "src/criss-cross-base-side.ts";
+const STAGED_PATH = "src/staged-work.ts";
 
 // The criss-cross arrangement derives its commit messages from one root, and the content each side writes
 // embeds that message. A control meant to isolate the history's shape has to reuse them, or its blobs differ
@@ -69,6 +76,50 @@ async function subjectPaths(cwd: string, revision: string, baseRevision: string)
     exec: makeGitExec(cwd),
   });
   return target.subject.entries.map((entry) => entry.path);
+}
+
+/** Put one path in the index and leave it out of every commit, so the staged arm has something to read. */
+async function stageWork(cwd: string, path: string): Promise<void> {
+  await mkdir(join(cwd, dirname(path)), { recursive: true });
+  await writeFile(join(cwd, path), `staged work\n${path}\n`, "utf-8");
+  await git(cwd, ["add", "--", path]);
+}
+
+/**
+ * What the staged arm does, distinguishing a collected path set from declining to collect one.
+ *
+ * Supplying no revision selects the arm whose subject is the index, and an ambiguous history should
+ * reach a refusal there rather than a path set diffed from one arbitrarily chosen ancestor. The two
+ * are held apart as outcomes because the refusal has no path set to compare against.
+ *
+ * The paths are re-sorted by path. A subject orders its entries by their canonical bytes, which puts
+ * them in digest order, so asserting the collector's own order would bind this to the fixture's blob
+ * content rather than to which paths the subject carries.
+ *
+ * They are reported for the unambiguous case only. `git merge-base` without `--all` returns one best
+ * common ancestor and does not say which, so over two equally good ones the collected path set is
+ * whichever half that choice exposes — observed to differ between runs of this very suite. The
+ * ambiguous case therefore holds the outcome rather than the paths: what is wrong there is that a
+ * subject is collected at all, not which of the two halves it happened to show.
+ */
+async function stagedSubject(cwd: string, baseRevision: string): Promise<Record<string, unknown>> {
+  try {
+    const target = await collectGitCandidateTarget({
+      cwd,
+      name: WORK_UNIT,
+      baseBranch: "main",
+      baseRevision,
+      exec: makeGitExec(cwd),
+    });
+    const paths = target.subject.entries.map((entry) => entry.path);
+    return { outcome: "collected", paths: [...paths].sort() };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Only a refusal about the base's cardinality is the awaited outcome. Any other throw is a
+    // different failure, and reading it as the awaited one would retire this hold over a broken fixture.
+    if (!/ambiguous|multiple .*base|sole base/iu.test(message)) throw error;
+    return { outcome: "refused" };
+  }
 }
 
 describe("the subject a work unit's own verification binds", () => {
@@ -126,6 +177,39 @@ describe("the subject a work unit's own verification binds", () => {
         + "does rather than to whichever side one silently chosen ancestor exposes.",
       observed: { differs: true },
       target: { differs: false },
+    });
+  });
+
+  it("reports the branch's own contribution and its staged work when one merge base is the only one",
+    async () => {
+      const cwd = await checkoutOnWorkUnitBranch();
+      await arrangeBranchSide({ cwd, paths: [BRANCH_PATH] });
+      const advance = await advanceBase({ cwd, paths: [BASE_PATH] });
+      await stageWork(cwd, STAGED_PATH);
+
+      const outcome = await stagedSubject(cwd, advance.head);
+
+      expect(outcome).toEqual({ outcome: "collected", paths: [BRANCH_PATH, STAGED_PATH] });
+    });
+
+  it("collects a staged subject from one chosen ancestor when two merge bases exist", async () => {
+    const cwd = await checkoutOnWorkUnitBranch();
+    const arrangement = await arrangeAmbiguousMergeBase({ cwd });
+    await stageWork(cwd, STAGED_PATH);
+
+    const outcome = await stagedSubject(cwd, arrangement.base);
+
+    // Stable whichever ancestor the pick lands on: neither carries the staged path, so it reaches the
+    // subject either way. This is what makes the case a reading of the staged arm rather than the
+    // committed one.
+    expect(outcome["paths"]).toContain(STAGED_PATH);
+
+    expectPinnedObservation(outcome, {
+      behavior: "The staged subject is the index read against one base, so a history leaving two equally "
+        + "good merge bases should refuse to collect it rather than diff the index against an ancestor "
+        + "chosen without saying so.",
+      observed: { outcome: "collected" },
+      target: { outcome: "refused" },
     });
   });
 });
