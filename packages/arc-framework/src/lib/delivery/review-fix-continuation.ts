@@ -755,6 +755,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       recommendedActionText: entry.recommendedActionText,
     };
   }
+  if (entry.status === "repair-required") return entry;
   if (entry.status === "refused") return entry;
   return {
     status: "idle" as const,
