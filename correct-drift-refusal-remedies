@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "correct-drift-refusal-remedies",
+  "claimId": "9acc599e8366c0488ba33dc8cc6c8b1e",
+  "createdAt": "2026-09-16T12:45:08.380Z",
+  "updatedAt": "2026-09-16T12:45:08.380Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make each drift refusal's remedy name the cause its own payload reports",
+  "branch": "chore/correct-drift-refusal-remedies",
+  "origin": "inbox",
+  "originEntry": "Make each drift refusal's remedy name the cause its own payload reports",
+  "originEntrySourceDigest": "sha256:decaf7b5b63bee1d864297d6853e9f6caed4dfe1fd506c26d91d20e3ad90d62e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
