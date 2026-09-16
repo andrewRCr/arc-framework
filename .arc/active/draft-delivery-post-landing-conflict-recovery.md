@@ -27,24 +27,41 @@
 - **The ambiguity seam has four verbs, not three**, and the fourth returns a wrong answer instead of refusing.
 - **The rebind verb already works.** What is missing is a route to it from the verbs that read the binding.
 - **The post-land refusal is correct.** Its defect is the guidance wrapped around it one layer up.
+- **Boundary: stays one WU, and not a delivery-plan candidate.** `assess-boundary-fit`, 2026-09-16. The three
+  conditions are separable as conditions but not as concerns: public review is a reader in both Axis A and Axis B
+  and their fixes must agree there, the purpose above already names all three as one lost route, and the gate this
+  work is measured against is satisfied only when all three land — so a cut adds cross-unit coordination and buys
+  nothing on the critical path. Axis D alone also sits below the WU-warrant rail; it is a phase, not a sibling. The
+  delivery-plan arm is declined for a reason specific to this work unit rather than on sizing: a plan means a
+  stacked landing, and this work unit is the shipped post-landing recovery path that the risk gate requires
+  _before_ such a landing. Stacking it would run the unfixed machinery to fix the unfixed machinery, with Axis D as
+  the failure mode and no route back. Land it single-branch. Re-raise only on a material evidence delta; choosing
+  the resolver below is that delta.
+- **The resolver fork is settled: one relation-typed read, not two primitives.** Base cardinality above one is
+  reachable only when neither revision reaches the other, so Axis B's condition lives inside Axis A's diverged
+  outcome. Verified from the definition and confirmed empirically — § Established practice.
+- **Axis D's completing input is settled in shape.** No surveyed system feeds a hand resolution back into a
+  pinned replay; the resolved suffix becomes a new contribution that re-enters verification.
 
 ### Open
 
-- **Scope and cut.** Axis B (one condition, four disagreeing readers) and Axis A (readers with no ancestry term)
-  may be one mechanism or two separable ones. Run `assess-boundary-fit` against the scope draft before committing.
-- **Whether `terminalAuthoringMovement` is the unifying substrate** or only the Axis A half of it. § Substrate.
-- **What the Axis B readers should agree on** — a shared cardinality-aware resolver, a typed refusal every reader
-  emits identically, or a conservative multi-base overlap proof that admits the ordinary checkpoint.
-- **What completes the post-land settlement.** The refusal is correct and the resolved member head cannot reach it;
-  an attended resolution route is still owed and its shape is unchosen.
+- **Which readers ask a membership question rather than a content one.** Git answers membership
+  cardinality-independently and content fragilely; readers on the membership side stop having the problem instead
+  of needing it handled. This is the first thing to establish, and it may shrink the work materially.
+- **The relation's result type and its variants** — the distinctions are settled (unchanged, advanced compatibly,
+  diverged, absent, unknown) but their naming and the shape of the diverged variant's cardinality field are not.
+  No canonical name exists to adopt.
+- **What the new-contribution path looks like for a resolved suffix**, and how much prior verification it
+  inherits. Gerrit's change-kind model is the precedent; the default there is none.
 - **Whether a durable `landed-awaiting-suffix-resolution` phase or a reservation-local transition composes better**
   with the existing provider-adoption conflict machinery. Carried unresolved from the origin capture.
 
 ### Next
 
-Work the scope question: decide whether Axis A and Axis B are one mechanism, firing `assess-boundary-fit` on the
-result. `assess-design-proportionality` fires when the first candidate mechanism is on the table, ahead of
-elaborating it.
+Classify the six readers by whether each asks a membership or a content question — the survey's highest-value
+unlock, and the input the relation's shape depends on. Then author the relation type against Git's layering
+(equality preserved at the write boundary, reachability added above it) and fire
+`assess-design-proportionality` before elaborating it.
 
 ---
 
@@ -163,10 +180,44 @@ Recorded so an implementer starting from the origin captures does not inherit th
 
 ---
 
+## Reader inventory — source-verified
+
+Read from source 2026-09-16, and the arithmetic behind the resolver fork in § Continuity. Every reader resolves its
+merge base independently; there is no shared primitive today.
+
+| Locus                                  | Call                   | Disposition                            |
+| -------------------------------------- | ---------------------- | -------------------------------------- |
+| `git-candidate-subject.ts`             | `merge-base` (no flag) | silent pick — Axis B's wrong answer    |
+| `git-candidate-applicability.ts`       | `merge-base --all`     | typed `merge-base-ambiguous`           |
+| `git-candidate-effective-target.ts`    | `merge-base --all`     | untyped `throw` — Axis B's fourth verb |
+| `base-overlap.ts`                      | `merge-base --all`     | `unavailable / merge-base-failed`      |
+| `git-decompose-v3-repository-plan.ts`  | `merge-base --all`     | typed `ambiguous-merge-base`           |
+| `git-decompose-v3-retirement-delta.ts` | `merge-base --all`     | typed `ambiguous-merge-base`           |
+
+The untyped throw carries "The Candidate target has no sole base coordinate." — the same string the ledger records
+as a blocked obligation's `detail`, confirming the surfaced message is an exception text rather than a result.
+
+The last two rows are outside this work unit's probe rows and are recorded because they change the fork's
+arithmetic: the decomposition subsystem independently reached the same read-all-then-refuse shape under a **third**
+spelling of the reason code. Six call sites, four dispositions, three spellings of one condition. Whatever is
+settled here is settling a repetition ARC already carries, not introducing an abstraction it lacks.
+
+`lib/git/ancestry.ts` is the existing ancestry-helper module and already wraps `merge-base --independent`, so a
+shared resolver would have a home rather than needing one invented.
+
+**Scope line on the repetition.** The four readers carrying this work unit's rows have observed failures behind
+them and are in scope. The two decomposition call sites do not; unifying them would be symmetry rather than a
+traced need, so the shared primitive should be _available_ to them without this work unit retrofitting them.
+
 ## Substrate: one observation mode, three postures
 
-`terminalAuthoringMovement: allow-append-only` already exists, and five observation modes pass it. The
-characterization records that its consumers disagree:
+`terminalAuthoringMovement` already exists and is the nearest thing ARC has to a typed movement classification.
+Source-verified 2026-09-16: the _option_ is a two-value union — `allow-append-only` and
+`allow-append-only-frozen-request` — set at two handler call sites, while the _fact_ it produces is a record
+carrying the deliverable, before and after coordinates, and a publication lease head. The ledger's count of five
+observation modes passing the allowance is recorded there and is not re-derived here.
+
+The characterization records that its consumers disagree:
 
 - the position verb passes one value — the allowance makes the movement an observable **fact** rather than
   admitting it, and the verb then refuses on that fact's presence;
@@ -177,6 +228,108 @@ Three consumers, three postures, three recorded failures. Whether this is the un
 for the whole family — is the first open question in § Continuity.
 
 ---
+
+## Established practice
+
+Surveyed 2026-09-16 against three questions this design turns on, primary sources preferred. Two results are
+decisive, one closes an open question, and two candidate arms are eliminated.
+
+### Cardinality is a refinement of divergence, not a second axis
+
+Verified here rather than taken on report. If X is an ancestor of Y then X is itself a common ancestor of the
+pair, and every other common ancestor is an ancestor of X — so X uniquely dominates and `merge-base --all`
+returns exactly one. Cardinality above one therefore implies neither revision reaches the other. Confirmed
+empirically: an ancestor/descendant pair returns one base, a criss-cross returns two with neither side an
+ancestor of the other.
+
+**This settles the resolver fork.** Axis B's condition is reachable only inside Axis A's diverged outcome, so the
+two are not parallel mechanisms waiting to be unified by preference. One relation-typed read answers both,
+carrying base cardinality and its consequences as fields on the diverged variant. Two independent primitives
+would each have to re-derive the same reachability to know whether the second even applies.
+
+### Git already draws the line this design needs, and ARC is on the wrong side of it
+
+`git log A...B` is defined as `r1 r2 --not $(git merge-base --all r1 r2)` — commit-set membership computed
+against every base, cardinality-independent by construction. `git diff A...B` is defined as
+`git diff $(git merge-base A B) B` — a tree diff against one arbitrary base, cardinality-fragile. Git answers
+"which commits are mine" safely and "what content changed" fragilely, and documents both.
+
+`git-candidate-subject.ts` asks a contribution question and answers it the fragile way. Before designing a
+cardinality-aware content path, establish which readers are really asking membership questions — those stop
+having the problem rather than needing it handled.
+
+### The silent pick is a recognized vulnerability class, not a rough edge
+
+Azure DevOps detects multiple merge bases per pull request and surfaces "Multiple merge bases detected. The list
+of commits displayed might be incomplete", framing it as security awareness: the single-base diff can be abused
+so that changes present in the branch are absent from the review surface, creating "treacherous logic gaps".
+GitLab carries an open issue for the same defect, where its diff view and its code-owner-approval calculation can
+pick different bases.
+
+ARC's exposure is the same shape and lands on evidence rather than a UI: the subject digest feeds Candidate
+currentness and review applicability, so a silently-chosen base produces review evidence that omits changes. That
+raises the whole-WU verification row above the other three rather than leaving it one of four.
+
+### Arms eliminated
+
+- **Union or intersection of changed paths across all bases** — no precedent, and the arithmetic defeats it. The
+  diff from one base necessarily contains the other base's own changes, so requiring agreement refuses in
+  essentially every real criss-cross. It is "refuse whenever cardinality exceeds one" in a selective-looking
+  disguise.
+- **A synthesized virtual base** — Git's own merge strategy, but merge-producing: it commits to an answer.
+  Mercurial rejected it deliberately in favour of bid merge, recording that a virtual ancestor can make
+  already-resolved conflicts reappear and reversed changes oscillate. It does not fit a read-only classification.
+- **Refusing on disagreement across all bases** — defensible, but not idiom. Mercurial's bid merge prefers
+  unanimity and degrades to majority; Azure and GitLab disclose rather than refuse. Prepublication may keep this
+  as a deliberately stricter local policy, provided it is not claimed as established practice.
+
+### Comparing a bound coordinate: add a term, never relax the lock
+
+Git keeps exact equality at the layer that must not weaken — `update-ref`'s `old-oid` precondition — and adds
+reachability above it. Its transaction outcomes stay textually distinct for a ref that already exists, a ref
+missing but expected, and a ref at an unexpected value. Git does not collapse absent into changed at any layer.
+This work unit's readiness reader does.
+
+`--force-if-includes` is the nearest precedent: Git had an equality lease, found it defeated by a compatible
+advance it could not see through, and closed the gap by adding a reachability check **on top of** the lease
+rather than loosening it. `%(upstream:track)` then carries the vocabulary in porcelain — up to date, ahead,
+behind, ahead and behind, upstream gone, and no upstream configured — the distinctions needed here, already
+shipped and already separate from the write-time check.
+
+There is no canonical name for the combined result type. The nearest named vocabulary is Git's own
+fast-forward / non-fast-forward and the version-vector lineage's _descends_ versus _concurrent_, which Dynamo
+splits as syntactic against semantic reconciliation. Adopt the shape and the layering; the type is ours to name.
+
+### Gerrit types what ARC hand-rolls
+
+Gerrit classifies each new patch set by `ChangeKind` — `TRIVIAL_REBASE`, `NO_CODE_CHANGE`, and `REWORK` among
+them — and `copyCondition` is the per-label policy deciding which kinds carry prior approvals forward, rework
+carrying none by default. That is a first-class typed classification with an explicit policy layer where ARC has
+an observation-mode flag three consumers read three ways. The fail-closed default matches ARC's posture; what is
+missing here is the typing, not the intent.
+
+### Axis D: the refusal is the industry boundary
+
+No surveyed system — GitHub, Gerrit, Graphite, Zuul, bors, or Google's tooling — consumes an operator's
+out-of-band conflict resolution back into a pinned mechanical replay. The universal pattern is to stop, evict,
+and require a new artifact that re-enters verification; Gerrit's most conflict-tolerant primitive still
+terminates in a new patch set classified as rework. The pinned replay's byte-identical refusal is therefore the
+standard boundary rather than a defect, and the remaining question is not whether to consume the resolution but
+what this work unit's new-contribution path looks like. Gerrit's change-kind model is the most fully specified
+precedent for how much prior verification such a contribution inherits: none, by default.
+
+`git rerere` is the one mechanism that carries a resolution across a moved base — it fingerprints normalized
+conflict hunks rather than commit identity, so it is base-agnostic by construction. It is also local, opt-in, and
+consulted only inside Git's own three-way merge; no server-side queue reads it. Recorded as considered and
+inapplicable rather than unexamined. Jujutsu's structural conflict propagation is the same note from the other
+side: real prior art, single-repository, with no review or landing system built on it.
+
+### Merge-queue composition, confirmed
+
+GitHub's merge queue builds a temporary branch carrying the base plus every queued request ahead of the subject,
+and lands that. The landed commit is structurally not the request's own head — which confirms the constraint in
+§ Boundaries: under the current equality comparison, a project running that queue would meet
+`delivery-member-unbound` on every landing rather than occasionally.
 
 ## Boundaries with neighbouring work
 
@@ -206,6 +359,22 @@ not in any delivery-scoped document. The two rows classified `redundant ceremony
 seen from this side, so cite it once it lands rather than restating it here. Its capture disowns
 refusal-remedy-accuracy work, which is the execute-bound Errand's, and that Errand's sites do not include
 `native-landing.ts` — so the guidance defect in § Axis D sits below both and stays here.
+
+### Merge queues — compose with, do not adopt
+
+Adopting a merge queue is a recorded non-goal, retired at the characterization's design as "not the remedy for
+ARC-only re-ceremony". That stands. What does not follow from it is indifference to a project that runs one.
+
+A merge queue is a head-mover. Its landed commit is generally not the head the change was reviewed at — a
+speculative integration branch produces a new commit, and rebase-style submit strategies rewrite on the way in
+(each mechanism pending confirmation from the practice survey). Under this work unit's Axis A defect — a binding
+compared by head equality with no ancestry term — every such landing reads as `delivery-member-unbound` or
+`terminal-unsettled`. Merge-queue compatibility is therefore not separate work layered on this design; it is the
+same comparison, stated against an external head-mover rather than an internal one.
+
+Carry it as a constraint, not a feature: whatever replaces the equality comparison must not assume the landed head
+is the head ARC bound. Current compatibility is **unverified** — every enumerated row moves the head from inside
+ARC, and no probe covers an external mover.
 
 ### Errands in flight
 
