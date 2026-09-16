@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "probe-integration-checkpoint-before-archive",
+  "claimId": "5e863b90a394b7c1cf9ab4cd42ae1683",
+  "createdAt": "2026-09-16T16:17:41.309Z",
+  "updatedAt": "2026-09-16T16:17:41.309Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "probe-integration-checkpoint-before-archive",
+  "branch": "chore/probe-integration-checkpoint-before-archive",
+  "origin": "inbox",
+  "originEntry": "Probe the integration checkpoint before the archive sweep removes its remedy",
+  "originEntrySourceDigest": "sha256:6f7397ff2c87f9ff08813938fcdbe674edde95ba80bb8f5bc0835b94cbca781a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
