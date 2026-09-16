@@ -147,8 +147,8 @@ dispatch** is the second, reachable because the currentness projection passes an
 through; its result schema forbids an `applicable` payload and demands a resolution selector on
 `decision-required`. That selection is the acceptance: an `applicability-selection` transition, which already
 carries the disclosure, the accepting identity, and a binding that dies when the content is rewritten. Reusing
-the `review-terminus/v1` family was considered and rejected on source: its five readers all match on the vehicle
-without inspecting `kind`, so a second `kind` there would discharge hosted review for an unreviewed head.
+the `review-terminus/v1` family was considered and rejected on source: its discharge reader matches on the
+vehicle without inspecting `kind`, so a second `kind` there would discharge hosted review for an unreviewed head.
 § The waiver record.
 
 **The absorption arm is Axis D's twin on composition, and carries a live untyped adoption route** `[probed]`. Its
@@ -216,7 +216,7 @@ waiting for.
 
     **One direction touches a request contract, and the project's posture discharges it.**
     `PredecessorRelationSchema` is not internal: it sits in `EligibilitySnapshotSchema`, which sits in
-    `CloseSchema` — the strict-JSON request the close verb parses — and the same snapshot is emitted as a
+    `CloseSchema` — the strict-JSON request `eligibility-close` parses — and the same snapshot is emitted as a
     result, so those literals are written by one verb and read back by another. Renaming its arms is therefore
     a request-contract change rather than a local rename. `DEV-RULES.PROJECT` § Engineering Standards settles
     what that costs: until the first public release, unpublished project-owned contracts may change in place
@@ -1945,7 +1945,7 @@ and each is a single `expectPinnedObservation` call to replace. They retire inde
   bases"
 - `review-status-base-movement.test.ts` — "directs a checkpoint rerun on a base that moved only in shape"
 
-**The seventh pin landed 2026-09-16, and it is shaped differently from its siblings on purpose.** It holds an
+**The staged-arm pin landed 2026-09-16, and it is shaped differently from its siblings on purpose.** It holds an
 _outcome_ — collected, where the settled rule says refused — rather than a path set, because closing it surfaced
 that a path set is not a stable observable over an ambiguous history. `git merge-base` without `--all` returns one
 best common ancestor and does not say which, so the collected paths are whichever half that choice exposes.
@@ -1977,13 +1977,13 @@ rest as ordinary regression coverage. Its value now is that the cluster's load-b
 than reasoned — including the two that came back other than expected.
 
 **A second planning probe settles the checkpoint's trigger**, written 2026-09-16 after the sixth pass found the
-gate attributed to a verb that never runs here. In
-`delivery-public-review-continuation-git.test.ts`, "produces no advance proof for an operator-absorbed top the
-Candidate does not reach" builds a real absorption — a two-parent commit over the recorded parent pair whose tree
-is neither parent's, because a person chose its content — records it in the terminal coordinate exactly, and
-asserts that `projectGitDeliveryTerminalCoordinateAdvance` still returns no proof. The recorded-tree check passes
-and the ancestry term is what refuses, which is the link the draft had been asserting rather than measuring. It
-holds behaviour this design keeps, so it is ordinary regression coverage rather than a pin.
+gate attributed to a verb that never runs here. In `delivery-public-review-continuation-git.test.ts`, "produces
+no advance proof for an operator-absorbed top the Candidate does not reach" builds a real absorption — a
+two-parent commit over the recorded parent pair whose tree is neither parent's, because a person chose its
+content — records it in the terminal coordinate exactly, and asserts that
+`projectGitDeliveryTerminalCoordinateAdvance` still returns no proof. The recorded-tree check passes and the
+ancestry term is what refuses, which is the link the draft had been asserting rather than measuring. It holds
+behaviour this design keeps, so it is ordinary regression coverage rather than a pin.
 
 ---
 
