@@ -9,11 +9,10 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `rough`, and converging. Four adversarial passes (2026-09-16); the fourth broke the recovery
-  half on a selection referent the native landing path does not have. Settling that referent dissolved it — the
-  landing readiness gate already encumbers a hand-resolved head, so the waiver needs no obligation, no discharge,
-  and no referent. The movement substrate settled the same day by dissolving in the same way. Four items
-  remain open, one of them structural, and a certifying pass is owed.
+- **Readiness:** `maturing`. Four adversarial passes (2026-09-16); the fourth broke the recovery half on a
+  selection referent the native landing path does not have. Settling that referent dissolved it, and the two
+  structural items that followed dissolved the same way — each was a question about the wrong object. Scope is
+  known and the three remaining items are detail-design. A certifying pass is owed.
 
 ---
 
@@ -102,10 +101,12 @@ generic slot for what is owed, and a native landing has no selection to write in
 - **Adoption is request-side.** What the native path needs is the conflict collection, the disclosure, and a
   scope discriminant on the `native-land-status` request — not a state-schema change.
 
-### Resolved — the movement substrate
+### Resolved — settled after pass four
 
-Settled 2026-09-16 by source read. Not pass-certified, so a later pass attacks it on the same footing as the
-recovery record rather than on the frozen set's.
+Settled 2026-09-16 by source read, after the fourth pass returned not-ready. Not pass-certified, so a later
+pass attacks these on the same footing as the recovery record rather than on the frozen set's.
+
+**The movement substrate.**
 
 - **The question was posed against the wrong object.** `terminalAuthoringMovement` is an admission option, a
   lease-proof fact, and a durable operation field — three things under one name, and none of them a movement
@@ -122,15 +123,37 @@ recovery record rather than on the frozen set's.
   shape, so it ships in either order. Its capture now carries the `position` verb's routing precedent in place of
   a dependency. § Errands in flight.
 
+**The readiness lookup route.**
+
+- **One of the three is eliminated, and it reproduces the defect rather than narrowing it.**
+  `resolveDischargeTargets` refuses `unavailable` for the whole enumeration when any member carries a null
+  `changeRequest` or null `coordinates` — not only the member asked about. It turns _this member is not bound_
+  into _delivery state is unavailable_, which is the Axis A conflation relocated.
+- **The other two converge, and the interface boundary decides between them.** `resolveTerminalRecords` already
+  performs the plan read, state read, and coherence check a deliverable-keyed method's body needs, so the
+  deliverable-keyed route is that body behind a named method with a typed result. Take it as a fifth interface
+  beside the four in `core/delivery-member-lookup.ts`, leaving `DeliveryMemberLookup` single-method. The
+  terminal-record route's fault is narrow but sufficient: it widens that method's contract by use rather than by
+  design.
+- **`absent` means _no member_, and the route no longer decides it.** Both surviving routes agree; only the
+  eliminated one would have made it mean _no hosted member_. That distinction is what made this item structural,
+  so settling it settles the item.
+- **Identity lookup reaches a member head lookup structurally cannot.** `stateMemberMatches` opens with
+  `if (member.coordinates === null) return false`, a guard shared by both existing arms, and `coordinates` is
+  independently nullable in the state schema. The result therefore carries four arms — not-in-plan,
+  in-plan-unbound, bound, unavailable — and in-plan-unbound is `absent` while not-in-plan is an identity error
+  carrying its own remedy.
+- **The inversion conforms readiness rather than introducing a pattern.** `sameDeliveryReviewMemberVehicle` is
+  `sameDeliveryReviewMemberIdentity(…) && expected.head === actual.head` — identity first, head second, and that
+  head term is the one equality this design replaces with the relation everywhere else. `status.ts` and
+  `hosted-reservation-admission.ts` already resolve identity-first across head movement; readiness is the outlier.
+
 ### Open
 
-Four. Three have left this list settled — the selection referent, the waiver's discharge, and now the movement
-substrate. One remains structural.
+Three, and **none of them structural**. Four have left this list settled — the selection referent, the waiver's
+discharge, the movement substrate, and the readiness lookup route. The last three dissolved the same way: each
+asked about the wrong object, and naming the right one answered it.
 
-- **Which lookup route the readiness inversion takes.** Three exist and are non-equivalent, and the choice
-  decides whether `absent` means _no member_ or _no hosted member_ — the meaning of one variant, and so the
-  remedy it dispatches. **Check `sameDeliveryReviewMemberIdentity` before designing a fourth route**: it is
-  already resolve-by-identity-then-compare-head, and whether the review-gate reader can reach it is unverified.
 - **What abort means once the predecessor has landed.** Narrowed but not closed: with no obligation written there
   is nothing in state to clear, so the question is about refs alone. Restoring suffix refs to their pre-landing
   heads would re-base them on a predecessor the target no longer carries, and the retarget does not revert — so
@@ -147,20 +170,22 @@ substrate. One remains structural.
 
 ### Next
 
-**Take the readiness lookup route next.** It is the one structural item left, and it decides the meaning of a
-variant rather than a detail of its name: whether `absent` means _no member_ or _no hosted member_ settles the
-remedy that variant dispatches. § Readiness reads its key backwards isolates the three candidate routes; check
-`sameDeliveryReviewMemberIdentity` before designing a fourth.
+**Run the certifying pass next.** No structural item remains to settle first, and the three that are open are
+detail-design a whole-artifact pass can attack alongside everything else. Pass four ran the full rubric and
+returned not-ready, so the next pass inherits its findings as `prior-findings` rather than starting clean.
 
 **The ledger-diff check, which is now standing procedure here.** Before any commit that rewrites § Continuity,
 diff the pre-rewrite § Open against the post-rewrite one and account for every item that left. The check exists
 because a wholesale rewrite lost an open item twice — pass three found four retracted claims left standing beside
 their replacements, and pass four found an open question deleted beneath a "none structural" claim. Run on this
-change: one item left, settled into § Resolved — the movement substrate, and one was extended rather than
-removed.
+change: one item left — the readiness lookup route — settled into § Resolved — settled after pass four, and no
+item was silently dropped or reworded out of existence.
 
-**A whole-artifact certifying pass is owed.** Pass four ran the full rubric and returned not-ready, so the next
-pass inherits its findings as `prior-findings` rather than starting clean.
+**Three items stay open across that pass, and each is detail-design for a stated reason.** Abort semantics
+after the predecessor lands is a choice about which refs to restore, with no state left to clear. The
+all-neutral conflict-set gate has its proposal written and wants a reachability measurement, not a design.
+The rewound variant's name, the union's shape, and the `predecessorRelation` collision are vocabulary, and the
+distinctions they name stand either way.
 
 ---
 
@@ -760,22 +785,53 @@ and `workUnitSlug`, and the code resolves by head and then _validates_ those thr
 by the identity it already holds, then compare the recorded head against the observed one with the relation:
 the same two facts, in the order that can tell a stale binding from an absent one.
 
+**That order is the review gate's own, and readiness is its outlier.** `sameDeliveryReviewMemberVehicle` is
+`sameDeliveryReviewMemberIdentity(…) && expected.head === actual.head` — identity first, head second — and
+`status.ts` and `hosted-reservation-admission.ts` both resolve that way across head movement. Its head term is
+the one equality this design replaces with the relation everywhere else, so the inversion conforms readiness to
+an established in-subsystem shape rather than introducing one.
+
 **It is not free, and an earlier pass of this draft said it was.** `DeliveryMemberLookup` exposes exactly one
 method and it is head-keyed, and neither `DeliveryMemberSelector` arm keys on the deliverable — so the inversion
-needs a lookup route that does not exist today. Three are available and they are not equivalent: add a
-deliverable-keyed arm and method; reuse the discharge-target lookup, which enumerates bound members by work unit
-but requires a bound change request, so its coverage is narrower; or route through the terminal-record lookup.
-The difference decides whether `absent` means _no member_ or _no hosted member_, which is exactly the
-distinction this reader is being fixed to make — and therefore which remedy the variant dispatches, since
-§ Forward-compatibility requires each variant to carry a typed remedy action. **That makes it a design decision,
-not detail-design**, and an earlier version of this passage called it detail-design in the same breath as
-conceding it selects a variant's meaning. Two engineers handed this draft build readers that report and remediate
-differently on identical repository state. Carried in § Continuity; the claim that the inversion costs nothing
-was wrong and fed the proportionality trace.
+needs a lookup route that does not exist today. Three were available; the route is now settled, and the reasoning
+matters more than the choice.
 
-The three `delivery-member-mismatch` facts also do not survive unchanged: under identity resolution the member
-is found _by_ those fields, so the comparisons become tautological and a head bound elsewhere surfaces through
-the relation instead. The property is kept; the fact that reports it changes name.
+**`resolveDischargeTargets` is eliminated because it relocates the defect.** Its loop refuses `unavailable` for
+the whole enumeration when any member carries a null `changeRequest` or null `coordinates` — not only the member
+asked about — so on a stack whose third member is not yet hosted, a question about the first fails, and fails as
+_could not establish_ rather than _not bound_. That is the Axis A conflation moved one reader over.
+
+**The other two converge, so the choice is the result type rather than the mechanism.** `resolveTerminalRecords`
+already performs the plan read, state read, and coherence check that a deliverable-keyed method's body needs; the
+deliverable-keyed route is that body behind a named method with a typed result. The design takes the named
+method, as a fifth interface beside the four already in `core/delivery-member-lookup.ts`, leaving
+`DeliveryMemberLookup` single-method — the structure that file already uses. Routing through
+`resolveTerminalRecords` instead would widen a method named for terminal integration by use rather than by
+design, which is a narrow fault but a sufficient one.
+
+**The selector carries `planId` beside `deliverableId`.** `resolveMember` scans every plan's state in the
+namespace and refuses `ambiguous-match` on more than one hit, and the readiness vehicle holds both fields
+already. It spells the third one `workUnitSlug` where `DeliveryReviewMemberVehicle` spells it `workUnitId`, so
+the call is a conversion rather than a direct hand-off.
+
+**Identity lookup reaches a member head lookup structurally cannot, and that sets the result's arity.**
+`stateMemberMatches` opens with `if (member.coordinates === null) return false`, a guard shared by both existing
+arms, and `coordinates` is independently nullable in the state schema. Admitting the identity arm therefore means
+moving that guard into the two coordinate-keyed arms, which is a change to a shared predicate rather than an
+added case. The result carries four arms — not-in-plan, in-plan-unbound, bound, unavailable. **In-plan-unbound is
+`absent`**, by § The variants' reading of a subject nothing binds; **not-in-plan is an identity error**, not a
+relation variant, and § Forward-compatibility gives it its own remedy rather than the variant's.
+
+**What the route no longer decides.** Both surviving routes agree that `absent` means _no member_ rather than _no
+hosted member_, so the variant's meaning does not turn on the choice — only the eliminated route would have made
+it mean the other thing. That is why this settles rather than staying structural, and it is the second thing the
+"costs nothing" estimate missed; the first was that no lookup route existed at all.
+
+**Two of the three `delivery-member-mismatch` facts become tautological, and one does not.** Under identity
+resolution the member is found _by_ plan and work unit, so those two comparisons cannot fail; a head bound
+elsewhere surfaces through the relation instead. The deliverable comparison survives as a real outcome — a
+deliverable absent from this plan is the lookup's not-in-plan arm, a miss rather than a tautology. The
+properties are kept; two of the facts that report them go away, and the third changes name.
 
 Closeout needs no such inversion — `verifyDeliveryTerminalSettlement` already holds the terminal member and
 compares its recorded head directly. Its defect is the bare equality inside the eight-term conjunction, which
