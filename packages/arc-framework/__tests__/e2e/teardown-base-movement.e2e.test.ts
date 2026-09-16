@@ -132,8 +132,9 @@ describe("cleanup when the base read goes unavailable under it", () => {
 
     expect(refused.exitCode).toBe(1);
     expect(refused.stdout + refused.stderr).toMatch(/lifecycle authority ref/iu);
+    expect(refused.stdout + refused.stderr).toMatch(/retry the same teardown command/iu);
     expect(await branchPresent(repository)).toBe(true);
-    // The refusal names no invocation to run, so the only continuation on offer is the same one again.
+    // The refusal names the same invocation as the retry once authority access is restored.
     const retried = await runTeardown(repository);
     expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
     expect(await branchPresent(repository)).toBe(false);

@@ -480,6 +480,7 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/could not resolve lifecycle authority ref `origin\/main`/i);
+    expect(result.reason).toMatch(/retry the same teardown command/i);
     expect(calls).not.toContainEqual(expect.arrayContaining(["for-each-ref"]));
   });
 
@@ -497,7 +498,9 @@ describe("runTeardown — arc-state authority gate", () => {
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/could not resolve lifecycle authority ref `origin\/main`/i),
+      reason: expect.stringMatching(
+        /could not resolve lifecycle authority ref `origin\/main`.*retry the same teardown command/i,
+      ),
     });
     expect(calls).not.toContainEqual(expect.arrayContaining(["ls-tree"]));
   });

@@ -1305,7 +1305,8 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     } catch {
       return {
         status: "rejected",
-        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
+        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown. `
+          + "Restore access to that ref, then retry the same teardown command.",
       };
     }
     shipped = (await readShippedWorkUnitsFromRef(exec, proofTarget.head)).has(name);
