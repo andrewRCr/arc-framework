@@ -485,10 +485,10 @@ export const CHECKPOINT_BLOCKED_REASONS: readonly CheckpointBlockedReason[] =
 type CheckpointRemedyReason = Exclude<CheckpointBlockedReason, "candidate-convergence-pending">;
 
 const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => SpineRemedy> = {
-  "drift-unavailable": () => spineRemedy(
+  "drift-unavailable": (workUnit) => spineRemedy(
     "The checkpoint requires an authoritative base-drift read.",
-    "Restore remote access, then re-read drift",
-    ["arc", "base", "drift", "--json"],
+    "Resolve the reported authoritative drift failure, then re-run the checkpoint",
+    checkpointResumeArgv(workUnit),
   ),
   "unsafe-reconcile": (workUnit) => spineRemedy(
     "Checkpoint movement, feasibility, admission, and integration evidence must authorize one continuation.",

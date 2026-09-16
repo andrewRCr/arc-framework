@@ -480,11 +480,10 @@ describe("the checkpoint's own base read", () => {
       state: "blocked",
       reason: "drift-unavailable",
     });
-    // The step it names is a base reading rather than another checkpoint, and with the base read restored it
-    // reports a clean base. The refusal clears, but the reader is left to return to the checkpoint themselves.
+    // The continuation re-enters the checkpoint, whose own authoritative drift read observes the restored base.
     expect(await takeContinuation(fixture, result)).toMatchObject({
-      mode: "authoritative",
-      verdict: "clean",
+      state: "ready",
+      nextAction: "request-approval",
     });
   });
 });

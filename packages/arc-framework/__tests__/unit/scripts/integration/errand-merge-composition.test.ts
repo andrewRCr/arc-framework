@@ -6,6 +6,7 @@ import { composeErrandFinalPlan, selectCurrentErrandMergeIdentity } from
   "../../../../src/scripts/integration/errand-merge-composition.js";
 
 const oid = (character: string): string => character.repeat(40);
+const markerDigest = `sha256:${"d".repeat(64)}`;
 const target = {
   repository: "owner/repo",
   pullRequest: 42,
@@ -145,7 +146,7 @@ function currentErrandFrame(): IdentityFrame {
       detached: false,
       primary: false,
     },
-    markerGeneration: `errand-v1/repair/${claimId}`,
+    markerGeneration: markerDigest,
     parentCheckoutPath: "/repo",
     origin: null,
     identity: {
@@ -174,13 +175,24 @@ function currentErrandFrame(): IdentityFrame {
 }
 
 describe("Errand terminal identity composition", () => {
-  it("accepts one exact current claim from complete shared discovery", () => {
+  it("derives the logical Errand generation from one current claim with a live marker digest", () => {
     expect(selectCurrentErrandMergeIdentity(currentErrandFrame(), "repair")).toEqual({
       slug: "repair",
       claimId: "a".repeat(32),
       branch: "chore/repair",
       generation: `errand-v1/repair/${"a".repeat(32)}`,
     });
+  });
+
+  it("refuses a current claim without marker occupancy evidence", () => {
+    const frame = currentErrandFrame();
+    if (frame.entering.kind !== "selected") throw new Error("fixture must select an entering row");
+    const row = { ...frame.entering.row, markerGeneration: null };
+    expect(() => selectCurrentErrandMergeIdentity({
+      ...frame,
+      roster: [row],
+      entering: { kind: "selected", row },
+    }, "repair")).toThrow("no longer proves the exact current Errand generation");
   });
 
   it.each(["incomplete", "diagnostic", "duplicate"] as const)(
