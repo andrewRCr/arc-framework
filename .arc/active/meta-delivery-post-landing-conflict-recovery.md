@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
-- **Last Completed:** Certifying adversarial pass (fifth) — findings verified and applied
+- **Current Workflow:** `create-spec`
+- **Last Completed:** Draft-design — formalization-ready after seven adversarial passes
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Settle the terminal-member cluster — the three structural items in
-  `draft-delivery-post-landing-conflict-recovery.md` § Continuity, per its § Next
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
