@@ -9,10 +9,11 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `maturing`. Three adversarial passes (2026-09-16) certified one half and broke the other in each
-  round; a fourth re-entry found why. The recovery half was being designed from scratch against a protocol ARC
-  already implements on the sibling provider path, so its open questions closed against existing mechanism rather
-  than new design. Both halves now rest on extraction. A certifying pass is owed before formalization.
+- **Readiness:** `rough`. Four adversarial passes (2026-09-16). The fourth ran the full rubric after the recovery
+  half was re-settled on an existing protocol, and broke it again: adoption is not the straight lift the draft
+  claimed, because the built protocol is coupled to a selection referent the native landing path does not have.
+  Two blockers, four majors, all confirmed against source. The frozen half's mechanism claims held; its call-site
+  inventory did not.
 
 ---
 
@@ -52,61 +53,89 @@ pass attacks them again only on new evidence, not on re-reading.
   evidence. Re-raised and re-affirmed after pass three concentrated its findings in one half. § Boundaries.
 - **The two routed captures are integrated.** § Retained capture detail keeps what the body does not restate.
 
-**One correction has landed against this set** (2026-09-16, fourth re-entry): the inventory's call-site arithmetic
-was short by one, and `git-contribution-proof.ts` resolves a merge base under a disposition no row carried. The
-resolver fork's conclusion is unchanged and strengthened; the count and the `source-verified` claim were not.
+**Two corrections have landed against this set**, both to evidence rather than to conclusions.
+
+- **The call-site inventory was short twice.** A full sweep finds **fifteen distinct base-resolving call sites,
+  seven of which pick silently**; the table carried seven sites and one silent pick. § Reader inventory now
+  records the sweep command so a later pass can re-run it rather than re-eyeball it.
+- **The silent pick is not unique to the Candidate subject collector.** `repository-target.ts` picks silently on
+  the local review host's diff base — the review-evidence surface this draft's own argument is about.
+
+The resolver fork's conclusion is unchanged and strengthened by both. What was wrong was the arithmetic, the
+uniqueness claim, and the `source-verified` label.
 
 ### Resolved — recovery record
 
-Re-settled 2026-09-16 after reading the landing path's own suffix reconciliation and the provider path's
-conflict-resolution protocol. Three conclusions in this half were retracted; what replaced them is existing
-mechanism rather than new design.
+Re-settled 2026-09-16, then **half-broken by the fourth pass**. The split below is the point: the protocol's
+_input_ side survived source verification intact, and its _output_ side did not.
 
-- **ARC already implements this protocol, on the sibling provider path.** `adoptExternalDeliverySuffixRefresh`
-  collects the complete conflict set, returns `conflict-resolution-required` carrying a resubmittable disclosure
-  and the exact lease coordinates to undo the movement, and waives proof for precisely the approved members. The
-  native landing path has none of it. § What the record may carry.
+**The input side stands** — disclosure, resubmission, and the predicate.
+
+- **ARC already implements the disclose-and-resubmit protocol**, on the sibling provider path.
+  `adoptExternalDeliverySuffixRefresh` collects the complete conflict set, returns `conflict-resolution-required`
+  carrying a resubmittable disclosure, and waives proof for precisely the approved members.
 - **The decision is a resubmitted disclosure, not a stored record.** ARC persists nothing on the input side, so
   nothing can go stale. What survives the wait is the reservation already durable in `activeOperation`. Retracts
   the pending-obligation record, the content-equality predicate, and `readEntries` as its primitive.
 - **Arrival needs no new operation and no state-schema change.** The native path consumes the resubmitted
-  disclosure in the same `land-status` call that settles, because its reservation is already held — the provider
-  path carries decision fields on its operation only to bridge a reserve-then-settle gap the native path lacks.
-- **The obligation is `pendingReviewFixVerification`, which the settlement writes.** It is the protocol's output,
-  not a sibling of the decision. Retracts the sibling-field conclusion.
-- **Abort is `externalRefRestorations`** — restore every listed ref by exact lease. Closes the open abort item.
-- **Gerrit's asymmetry and ARC's standing acceptance rule agree** once movement is distinguished from change, and
-  the built protocol already works that way: an approval binds to one disclosed movement and does not outlive it.
+  disclosure in the same `land-status` call that settles, because its reservation is already held. Verified: the
+  landing projection is passed unpersisted at the same revision, and every conflict refusal returns before the
+  single state write.
 - **The approval fires on genuine collisions only.** Identical trees take the `tree-equality` fast path and clean
   reapplies take `mechanical-reapply`, both silent. Movement alone never asks anyone anything.
+- **Gerrit's asymmetry and ARC's standing acceptance rule agree** once movement is distinguished from change.
+
+**The output side does not, and the cause is one referent.** The built protocol is gated end to end on a
+`selectedDeliverableId` that the native landing case has no defined value for — it is required by the pending
+schema, required by the state refinement to resolve to a plan-ordered state member, and it is the discriminator
+on the disclosure's own `scope`. Adoption is therefore not a lift. Three consequences, all now open below: what
+the selection referent is, what discharges the obligation, and what abort means.
 
 ### Open
 
-Three, none structural — arrival, the predicate, abort, and the obligation's home all closed against existing
-mechanism.
+Seven. Three are structural, and one of those was dropped from this list by a previous rewrite of it — see § Next
+for the process fix that follows.
 
-- **Whether an all-neutral conflict set should settle without asking.** ARC already classifies paths
-  `reviewable` / `evidence-neutral` / `regenerable`, and a collision confined to lifecycle projections carries no
-  judgment to exercise. Gating the disclosure on at least one `reviewable` path is the proposal; what is
-  unmeasured is whether that subset is reachable often enough to earn the term. § What the record may carry.
-- **The exact seam of the shared settle spine.** Maximal composition is the Owner's call, bounded at the front —
-  the two reservation-and-observation preambles stay separate. Which helpers move, and what the normalized
-  movement list carries, is detail-design; the boundary is not.
+- **The selection referent, and whether one exists.** The built protocol is gated on `selectedDeliverableId`;
+  the native landing case defines none. Three candidates and no lean: the **landed member** (just absorbed into
+  the target), the **first conflicted suffix member**, or a **native arm on the pending record** that carries no
+  selection at all. The schema constrains but does not decide — the referent must resolve to a state member and
+  sit inside a plan-ordered `memberDeliverableIds`. § What the record may carry.
+- **What discharges the waiver, and whether `pendingReviewFixVerification` can carry it.** Its projection emits a
+  Tier-1 gate over the **terminal** tree with `coveredInputs: "unchanged"` — a check-reuse obligation. The
+  retained capture requires new member heads to receive _fresh_ applicability, review, and checks. The field
+  works as the closeout encumbrance and does not, as built, carry that success signal.
+- **What abort means once the predecessor has landed.** The provider path's decline route restores refs to a
+  coherent pre-decision state. On the native path the host merge has already happened, so there is no
+  pre-decision state to return to — restoring suffix refs would re-base them on a predecessor the target no
+  longer has, and the retarget does not revert. The semantics are unsettled, not merely unbuilt.
+- **Whether the movement substrate unifies Axis A.** Carried from § Substrate, which names it as the first open
+  question and which a previous rewrite of this list silently dropped. `terminalAuthoringMovement` is a two-value
+  option at two call sites; whether the relation replaces it, sits beside it, or takes it as a policy layer is
+  three materially different designs, and an in-flight Errand is declared downstream of the answer.
+- **Which lookup route the readiness inversion takes.** Three exist and are non-equivalent, and the choice decides
+  whether `absent` means _no member_ or _no hosted member_ — the meaning of one of the six variants, and so the
+  remedy it dispatches. Previously labelled detail-design; that was wrong by the draft's own sentence.
+- **Whether an all-neutral conflict set should settle without asking.** ARC classifies paths `reviewable` /
+  `evidence-neutral` / `regenerable`; a collision confined to lifecycle projections carries no judgment. Gating
+  the disclosure on at least one `reviewable` path is the proposal; the subset's reachability is unmeasured.
 - **The word for the rewound variant, and whether the variant union is flat.** Two of the six are not relations —
-  one is a lookup outcome, one a read-availability outcome — so the contract may be a four-variant relation
-  inside a result rather than a flat six. Detail-design; the distinctions stand either way.
+  one a lookup outcome, one a read-availability outcome. Detail-design; the distinctions stand either way.
 
 ### Next
 
-**Run the reset pass on the recovery record**, whose content is now an adoption claim rather than a proposal — so
-the pass's job is to check the claim against the code it says it adopts, not to attack a design. The sharpest
-attacks available: whether the native path's observation preamble can really hand a shared spine a normalized
-movement list, and whether any closeout reader can report an unencumbered delivery while a waiver is outstanding.
+**Settle the selection referent first.** The discharge question and the abort question are both downstream of it,
+and the fourth pass showed that reasoning about the protocol without pinning that referent reproduces the same
+error at a new layer.
 
-Two things the concern-scoping does not change: findings against the frozen set are still findings when new
-evidence produces them — one already landed, and § Reader inventory carries it — and **a whole-artifact
-certifying pass is still owed at the readiness gate**, because a concern-scoped pass cannot certify the artifact
-it did not read.
+**A process fix, written here because it has now failed twice.** Both times § Continuity was rewritten wholesale,
+an open item was lost — pass three caught four retracted claims left standing beside their replacements, and pass
+four caught an open question deleted beneath an explicit "none structural". Before any commit that rewrites this
+section, **diff the pre-rewrite § Open against the post-rewrite one and account for every item that left**. This
+is bookkeeping, not design, and it is the failure most likely to reach the certifying pass.
+
+**A whole-artifact certifying pass is still owed.** Pass four ran the full rubric and returned not-ready, so the
+next pass inherits its findings as `prior-findings` rather than starting clean.
 
 ---
 
@@ -236,12 +265,17 @@ the pre-landing predecessor as merge base, the landed predecessor, and the pre-l
 member head reaches only the tree comparison that runs _after_ a clean composition. The invariance is structural,
 not incidental: no act of the operator is an input to the composition that refuses them.
 
-**The completing input has a name, and ARC already built it.** It is not the operator's resolution — it is the
-operator's **acceptance** of a movement ARC cannot prove, which is exactly what the provider path obtains through
-`conflict-resolution-required`. § What the record may carry reads that protocol from source.
+**The completing input has a name, and ARC has built half of it.** It is not the operator's resolution — it is
+the operator's **acceptance** of a movement ARC cannot prove, which is exactly what the provider path obtains
+through `conflict-resolution-required`. The obtaining half is adoptable as it stands; the discharging half is
+gated on a selection referent this path does not have. § What the record may carry reads both from source.
 
-The same guidance line is wrong a second way. Of this function's refusal arms it is the only one that omits
-"Keep the reservation", and it is the arm that sends the operator away longest.
+The same guidance line is wrong a second way, and the fix is one arm wider than first recorded. Four of this
+function's refusal arms omit "Keep the reservation", and **two of them share the shape**: the suffix-proof arm
+above, and the terminal-absorption arm, which emits "Resolve the listed top absorption paths, then rerun" on a
+`content-conflict` from `absorbTop`. An implementer taking the earlier wording literally would fix one and leave
+its twin. Whether the absorption arm carries the same invariance is **not established** — its composition inputs
+are untraced, and a probe is owed before it is claimed either way.
 
 ---
 
@@ -262,39 +296,56 @@ Recorded so an implementer starting from the origin captures does not inherit th
 
 ---
 
-## Reader inventory — source-verified
+## Reader inventory — derived by sweep
 
-Read from source 2026-09-16, and the arithmetic behind the resolver fork in § Continuity. Every reader resolves its
-merge base independently; there is no shared primitive today.
+Re-derived 2026-09-16 after two successive undercounts. The label changed deliberately: `source-verified` was
+claimed twice over a table that was short both times, so the method is recorded instead of the assurance.
 
-| Locus                                  | Call                   | Disposition                            |
-| -------------------------------------- | ---------------------- | -------------------------------------- |
-| `git-candidate-subject.ts`             | `merge-base` (no flag) | silent pick — Axis B's wrong answer    |
-| `git-candidate-applicability.ts`       | `merge-base --all`     | typed `merge-base-ambiguous`           |
-| `git-candidate-effective-target.ts`    | `merge-base --all`     | untyped `throw` — Axis B's fourth verb |
-| `base-overlap.ts`                      | `merge-base --all`     | `unavailable / merge-base-failed`      |
-| `git-contribution-proof.ts`            | `merge-base --all`     | `null` — endpoints-unverified          |
-| `git-decompose-v3-repository-plan.ts`  | `merge-base --all`     | typed `ambiguous-merge-base`           |
-| `git-decompose-v3-retirement-delta.ts` | `merge-base --all`     | typed `ambiguous-merge-base`           |
+```sh
+grep -rn '"merge-base"' packages/arc-framework/src --include=*.ts \
+  | grep -v __tests__ | grep -v is-ancestor | grep -v independent
+```
+
+That returns sixteen hits at **fifteen distinct call sites** (one site contributes both its invocation and its
+error-reporting args). **Seven pick silently** — no `--all`, one of N bases taken as the answer. Every reader
+resolves its base independently; there is no shared primitive today.
+
+| Locus                                      | Call                   | Disposition                            |
+| ------------------------------------------ | ---------------------- | -------------------------------------- |
+| `git-candidate-subject.ts`                 | `merge-base` (no flag) | silent pick — Axis B's wrong answer    |
+| `repository-target.ts`                     | `merge-base` (no flag) | silent pick — review diff base         |
+| `git-candidate-applicability.ts`           | `merge-base --all`     | typed `merge-base-ambiguous`           |
+| `git-candidate-effective-target.ts`        | `merge-base --all`     | untyped `throw` — Axis B's fourth verb |
+| `base-overlap.ts`                          | `merge-base --all`     | `unavailable / merge-base-failed`      |
+| `git-contribution-proof.ts`                | `merge-base --all`     | `null` — endpoints-unverified          |
+| `git-review-contribution-applicability.ts` | `merge-base --all`     | typed `merge-base-ambiguous`           |
+| `git-decompose-v3-repository-plan.ts`      | `merge-base --all`     | typed `ambiguous-merge-base`           |
+| `git-decompose-v3-retirement-delta.ts`     | `merge-base --all`     | typed `ambiguous-merge-base`           |
+
+Five further silent picks sit outside this work unit's concerns and are listed for the sweep's completeness
+rather than for treatment: `identity-transaction.ts`, `from-branch.ts`, `github-refresh.ts` (one of its two),
+`committed-progress.ts`, and `hosted-reservation-discharge.ts`. `github-refresh.ts` also carries an `--all` site.
 
 The untyped throw carries "The Candidate target has no sole base coordinate." — the same string the ledger records
 as a blocked obligation's `detail`, confirming the surfaced message is an exception text rather than a result.
 
-**The fifth row was missed until the recovery half was re-entered, and it is the closest of all of them to this
-work unit.** `uniquePhysicalPredecessor` in `git-contribution-proof.ts` resolves a physical predecessor for a
-member whose recorded predecessor is no longer its ancestor, and returns `null` on any cardinality other than
-one — which its caller reports as `contribution-endpoints-unverified`, a refusal that never names the base
-condition at all. It sits on the delivery contribution proof, which is Axis D's own gate, so it is in scope
-rather than adjacent, and it is the one row where the ambiguity is invisible in the reported reason. It asks
-which single base coordinate it may replay from, so it wants the resolver; § Resolver or relation classifies
-readers by question and does not yet carry it, which is the shape of the correction rather than a change to the
-fork's arithmetic.
+**`repository-target.ts` is taken into scope, and it is the strongest trace in the table.** Its silently picked
+base becomes `diffBaseSha` and `diffBaseTree` — the local review host's diff base. That value is review-target
+_identity_: it is asserted in the gate's identity module, compared on admission, and the reviewed change set is
+computed as `base..head` from it. So a silent pick here means the review examined the wrong change set, which is
+this draft's own central argument about silent picks landing on the review-evidence surface itself. It carries no
+probe row, which is why the earlier scope line excluded it; the Owner scoped it in on the argument instead,
+2026-09-16. Its refusal channel already exists — the function throws a closed-union derivation error on this
+line today — and the base-merge remedy reaches it, because it compares a `(head, base)` pair.
 
-The last two rows are outside this work unit's probe rows and are recorded because they change the fork's
-arithmetic: the decomposition subsystem independently reached the same read-all-then-refuse shape under a third
-spelling of the reason code. Seven call sites, five dispositions, three spellings of the reason and one refusal
-that never mentions it. Whatever is settled here is settling a repetition ARC already carries, not introducing an
-abstraction it lacks.
+**`git-review-contribution-applicability.ts` is a near-twin of Candidate applicability**, asking the same
+"how has the base moved under my pinned prior" question over `(priorHead, currentBase)` under the same typed
+reason. § Resolver or relation classifies readers by question and does not yet carry it, or the proof gate.
+
+The two decomposition sites remain outside: they reached the same read-all-then-refuse shape independently, under
+a third spelling of the reason code, with no observed failure behind either. Fifteen call sites, five
+dispositions, three spellings of the reason and one refusal that never names it. Whatever is settled here is
+settling a repetition ARC already carries, not introducing an abstraction it lacks.
 
 ### Resolver or relation
 
@@ -625,8 +676,12 @@ needs a lookup route that does not exist today. Three are available and they are
 deliverable-keyed arm and method; reuse the discharge-target lookup, which enumerates bound members by work unit
 but requires a bound change request, so its coverage is narrower; or route through the terminal-record lookup.
 The difference decides whether `absent` means _no member_ or _no hosted member_, which is exactly the
-distinction this reader is being fixed to make. Choosing among them is detail-design, but the claim that the
-inversion costs nothing was wrong and fed the proportionality trace.
+distinction this reader is being fixed to make — and therefore which remedy the variant dispatches, since
+§ Forward-compatibility requires each variant to carry a typed remedy action. **That makes it a design decision,
+not detail-design**, and an earlier version of this passage called it detail-design in the same breath as
+conceding it selects a variant's meaning. Two engineers handed this draft build readers that report and remediate
+differently on identical repository state. Carried in § Continuity; the claim that the inversion costs nothing
+was wrong and fed the proportionality trace.
 
 The three `delivery-member-mismatch` facts also do not survive unchanged: under identity resolution the member
 is found _by_ those fields, so the comparisons become tautological and a head bound elsewhere surfaces through
@@ -784,38 +839,49 @@ continue mechanical proof for every other movement". That is `resolutionInput` a
 for term. The capture also attributed suffix reconciliation to `native-landing.ts`; the protocol it describes
 lives in `suffix-reconciliation.ts`, which is why it read as unbuilt.
 
-**The three classes were right; their homes were wrong.** The obligation is `pendingReviewFixVerification`, which
-the settlement _emits_ — not a sibling field beside it. The disclosure is the `resolutionInput`. The decision is
-that same blob resubmitted. Nothing new is stored and nothing derived is retained, which is the principle this
-section already ran on — satisfied by mechanism rather than by design.
+**The three classes were right; two of their homes were wrong, and the fourth pass found the cause.** The
+disclosure is the `resolutionInput`, and the decision is that same blob resubmitted — both confirmed against
+source. The obligation was recorded as `pendingReviewFixVerification`, which the settlement emits, and that is
+where adoption stops being a lift.
 
-**Arrival, which was the open question, needs no new operation.** The provider path carries
-`reviewFixSelectedDeliverableId` and `reviewFixVerificationDeliverableIds` on its operation only because it
-reserves _after_ the decision arrives and must bridge reserve-to-settle. The native path has no such gap: its
-reservation is already held, so `land-status` can consume the resubmitted disclosure in the same call that
-settles. The constraint that falsified both earlier answers — the conflict is observable only under a held native
-land reservation, which a second reservation cannot displace — is satisfied by construction rather than by
-argument. The `land` arm of `DeliveryActiveOperationV1Schema` carries no decision fields and needs none; what
-extends is the `native-land-status` **request**, which is where every sibling verb already takes its input.
+**The whole protocol is gated on a selection referent the native path does not have.** Verified across four loci:
+`DeliveryPendingReviewFixVerificationV1Schema` requires `selectedDeliverableId`; the state refinement requires it
+to resolve to a state member and to sit inside a plan-ordered `memberDeliverableIds`; the disclosure's own `scope`
+is `{ kind: "dependent-suffix", selectedDeliverableId }`; and `adoptExternalDeliverySuffixRefresh` runs the
+collect-disclose-resubmit arm only when `selectedDeliverableId !== undefined`, proving movement-by-movement
+otherwise. On the provider path that referent is the republished member whose head has not reached its dependents.
+A native landing has no such member: the analogous one has just been merged into the target.
 
-**Abort is already built.** `externalRefRestorations` is the decline route, and it is exact-lease rather than
-best-effort. Aborting the landing reservation discards nothing that needed keeping, because nothing was kept.
+**Three candidates, no lean, all open.** The **landed member** — defined, still present in state, but absorbed
+into the target, so an obligation naming it reads oddly. The **first conflicted suffix member** — the thing
+actually at issue, but selected by the conflict rather than by an operator, which is not what the field means
+anywhere else. Or a **native arm on the pending record** carrying no selection at all — which an earlier version
+of this section foreclosed by asserting the design "adds no field at all". That assertion predates the referent
+problem and does not survive it. `installDeliveryReviewFixVerification` is a shared installer, so a write path
+composes once the referent is settled; the gap is meaning, not mechanism.
 
-**What the resolved suffix inherits: nothing positive, and it needs nothing.** The survey established that no
-system feeds a hand resolution into a pinned replay, and the protocol agrees — waived members carry a
-verification obligation forward rather than a credit. Mechanical proof continues for every member outside the
-approved set, structurally rather than by a check someone must remember.
+**The obligation as built does not carry this design's success signal.**
+`projectDeliveryReviewFixVerificationContinuation` emits `nextAction: "verify-review-fix"` with `tier1Required`
+over the **terminal** head and tree, under `tier1Reuse: { kind: "exact-tree", requiredResult: "passed",
+coveredInputs: "unchanged" }`. That is a check-reuse obligation. § Retained capture detail requires that new
+member heads receive **fresh** applicability, review, and checks before landing. So the field is correct as the
+closeout encumbrance — every encumbrance reader already checks it — and insufficient as the discharge. Both roles
+were previously claimed for it.
 
-**Why persisting the decision is safe** reduces to two properties the protocol already has, plus one this design
-must keep:
+**Abort is not merely unbuilt; its meaning does not transfer.** `externalRefRestorations` has four references in
+source — the interface field, its composition, its return, and a result-schema declaration. Nothing consumes it
+and no restoration is performed, so "already built" was wrong. The deeper problem is semantic: on the provider
+path the movement being undone is an unadopted external refresh, so restoring returns the delivery to a coherent
+pre-decision state. After a native landing the host merge has already happened. Restoring suffix refs to their
+pre-landing heads would re-base them on a predecessor the target no longer carries, and the provider's retarget
+does not revert. **There is no pre-decision state to return to**, so what abort means here is an open design
+question rather than a missing executor.
 
-- It is scoped to the disclosed members only, and the settle step re-derives the conflict set and refuses on any
-  drift, so an approval cannot widen to cover a movement it never saw.
-- It authorizes a conflict resolution and nothing further. Merge to integration remains its own explicit
-  authorization and is not reachable from here · `[invariant]`.
-- The disclosure is composed from what ARC observed, at the moment the operator is asked. A record ARC composed
-  afterwards asserting that an approval had happened would be ARC attesting its own output; the disclosure is
-  what makes a person the witness instead.
+**What still stands, and it is the larger half.** The disclosure is regenerated rather than stored; the
+resubmission is compared by canonical form against a freshly derived one; arrival needs no new operation, no
+second reservation, and no state-schema change, because the reservation is already held and the landing
+projection is passed unpersisted at the same revision. Each was checked against source by the fourth pass and
+held. The input side of the protocol is adoptable as it stands.
 
 **How often the gate fires, because that is what decides whether it is friction.** It fires only when `merge-tree`
 cannot compose a member's pre-landing content across its predecessor's landing — a genuine content collision
@@ -871,34 +937,63 @@ for **every** waived member, because that write is the only thing standing betwe
 closeout reader reporting the delivery clean. A waiver that settles without it would satisfy the recoverability
 rule's fourth clause in the worst available sense — the success path reachable while something is owed.
 
-**The composition that is traced is the settle spine.** `settleReservedDeliverySuffixRefresh` and
-`reconcileLinkedNativeDeliverySuffix` each carry their own copy of collect-or-prove, the local-ref rewrite loop,
-terminal absorption and publication, and the single state write — and they have already diverged inside it, one
-collecting the complete conflict set and the other returning on the first refusal. **That divergence is Axis D.**
-The duplication is therefore not aesthetic: it produced the defect.
+**The spine extraction had a causal justification and source refuted it.** An earlier version here said the two
+settle functions had diverged — one collecting the complete conflict set, the other returning on the first
+refusal — and that the divergence _was_ Axis D. It is not a divergence. Both provider functions carry the same
+fork: `adoptExternalDeliverySuffixRefresh` runs `collectDeliveryProviderRefreshConflicts` when a selection is
+present and `proveDeliveryProviderRefreshMovements`, which returns on the first refusal, when it is not;
+`settleReservedDeliverySuffixRefresh` carries the identical fork keyed on the approved id set. **The
+complete-conflict-set behaviour is gated on selection, not drifted between copies** — the same referent that
+§ What the record may carry now records as open.
 
-Extract the spine; leave the fronts alone. One front validates a rewrite reservation against a pinned snapshot
-with append-only target normalization; the other validates a land reservation against the plan suffix with live
-request observation and member-ref checkout checks. Those are different subjects, and unifying them is how an
-abstraction gets its shape wrong. The seam is where each front hands the spine a normalized movement list.
+**So the least elaborate credible route is the one to take.** Both helpers are already module-level exports. The
+native loop can build `DeliveryProviderRefreshMovement` values directly — it already constructs exactly that
+shape in its observed-member list — supply a predecessor-pair map so the arbiter closure can form contribution
+endpoints, and take the resubmitted disclosure through the `native-land-status` request. That delivers Axis D's
+fix without touching the provider path at all.
+
+**What extraction would actually buy is smaller than claimed.** An earlier estimate here put the duplication at
+roughly a hundred and fifty lines; reading both tails, the genuinely common core is the local-ref rewrite loop
+plus a structurally similar absorb-then-publish sequence, and the surrounding steps diverge on both sides — the
+native tail alone observes member-ref checkouts, while the provider tail alone composes a terminal conflict
+preparation, threads a publication lease head, cleans up prepared candidates, and projects a verification
+continuation. The estimate was soft and should not carry weight on its own; the refuted causal claim is what
+decides this.
+
+**And the seam would sit in the wrong place.** The one fork a shared spine must carry is the selection gate — the
+single thing that genuinely differs between the two paths. Abstracting over the least-alike element is the
+signature of a premature abstraction, which is the failure this section already names on the payload side.
+§ Proportionality's rule closes it: compose existing substrate, and never build on symmetry.
+
+**Recorded as a reversal rather than a silent change.** The Owner chose maximal composition on the strength of
+the divergence claim; that claim is refuted, so the decision was re-put with the correction in hand and settled
+on the narrower route, 2026-09-16. The duplication that remains is real and untraced to any defect, which makes
+it a capture rather than scope — the same line drawn for the decomposition call sites.
 
 ### Proportionality
 
-`assess-design-proportionality`, 2026-09-16 — **`proportionate`**, with one scope guard.
+`assess-design-proportionality`, 2026-09-16 — **`proportionate` for the relation half; re-run and narrowed for
+the recovery half after the fourth pass returned `missed-composition` against it.**
 
-The trace: the relation's existence is required by the two Axis A rows and the four Axis B ones; each variant
-beyond a boolean buys one distinct remedy, and remedy accuracy is the defect the in-flight Errand is already
-correcting, so variant granularity is traced rather than symmetric. Rigor stays where consequence is — the
-write boundary keeps its exact preconditions (`update-ref`'s old-oid, revision-checked state writes,
+The relation's trace is unchanged: its existence is required by the two Axis A rows and the four Axis B ones;
+each variant beyond a boolean buys one distinct remedy, and remedy accuracy is the defect the in-flight Errand is
+already correcting, so variant granularity is traced rather than symmetric. Rigor stays where consequence is —
+the write boundary keeps its exact preconditions (`update-ref`'s old-oid, revision-checked state writes,
 lease-checked publication) and the relation is added above it, read-only. The minimal alternative — add an
-ancestry term at the two Axis A readers and leave the rest — is rejected by the draft's own recorded
-constraint: reader-by-reader adoption is how the two implementations diverged, and it leaves Axis B's four
-vocabularies standing. Cardinality and divergence are intrinsic to Git history, not states this solution
-creates.
+ancestry term at the two Axis A readers and leave the rest — is rejected by the draft's own recorded constraint:
+reader-by-reader adoption is how the implementations diverged, and it leaves Axis B's vocabularies standing.
+Cardinality and divergence are intrinsic to Git history, not states this solution creates.
 
-**The guard is scope.** Twenty `--is-ancestor` call sites carry no observed failure between them; retrofitting
-them is symmetry, not traced need. The primitive is _available_ to them and this work unit converts none —
-the same line § Reader inventory already draws for the two decomposition call sites.
+**The recovery half's verdict did not survive its own trace.** The settle-spine extraction was justified by a
+causal claim source refutes, and a less elaborate route reaching the same outcome existed unevaluated — which is
+`missed-composition` by definition. The narrowed answer stands on the remaining trace: Axis D needs the complete
+conflict set and a waiver, and two already-exported helpers supply both. § What composes.
+
+**The scope guard, now with one addition.** Twenty `--is-ancestor` call sites carry no observed failure between
+them; retrofitting them is symmetry, not traced need, and this work unit converts none. The same line holds for
+the two decomposition call sites and for the five silent picks outside this work unit's concerns.
+`repository-target.ts` crossed it in the other direction — scoped in by the Owner on the strength of its trace
+rather than on symmetry, because its silently picked base is review-target identity. § Reader inventory.
 
 ## Forward-compatibility check
 
@@ -986,10 +1081,10 @@ aesthetics, which independently confirms § What composes: the predicate has thr
 have one built and one unauthored. `strategy-pm-composition-evolution` finds no new external-authority surface —
 the change-request binding is untouched, and resolving a member by deliverable identity rather than by head
 object id moves toward its Principle 5 and `strategy-storage-evolution`'s Principle 5, both of which hold work
-unit identity independent of any single repository's branch state. Storage Principles 2 and 3 are satisfied
-rather than strained: the record is plain schema data in the delivery state namespace, carries no tracked-tree
-assumption, and its validity predicate is a version-checked write precondition of exactly the kind Principle 3
-requires.
+unit identity independent of any single repository's branch state. Storage Principles 2 and 3 want re-checking rather than
+carrying forward: the clearance was written over a stored record the re-settlement retracted. What replaces it
+stores nothing on the input side, so Principle 2's tracked-tree question does not arise there — but the output
+side is unsettled (§ Open), and its clearance is owed once the obligation's shape is known.
 
 ## Refusal-recoverability audit
 
@@ -1010,7 +1105,7 @@ had not named.
 | Prepublication        | remedy, success path        | typed relation; **remedy is re-baselining, below**     |
 | Public review target  | condition, remedy, retry    | typed result rather than a throw; base-merge remedy    |
 | Landing overlap       | remedy, success path        | refuses typed; base-merge except the checkpoint pair   |
-| Post-land replay      | all four                    | adopt the provider path's conflict-resolution protocol |
+| Post-land replay      | all four                    | protocol adopted for clauses 2 and 3; **1 and 4 open** |
 
 ### The gap — the relation fixes the comparison, not the cause-blindness
 
