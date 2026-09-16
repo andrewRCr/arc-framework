@@ -136,14 +136,19 @@ heads into state coordinates and the next landing cycle refuses any member that 
 its exact head. The encumbrance-predicate extraction therefore stays captured rather than scoped — there is no
 third obligation term, and an audit fact is not an encumbrance.
 
-**The terminal member is gated by the Candidate, not by delivery** `[probed]`. The per-head readiness gate never
-runs for it — `deriveNativeDeliveryRegisteredRemainder` slices it off — so reading for a delivery-side marker
-finds nothing. Its coordinate cannot advance to an unproved head without `rebindDeliveryTerminalCoordinates`
-refusing `candidate-coordinate-mismatch`, and recognizing that head requires either a machine proof or a recorded
-authority selection. The acceptance is therefore the Candidate `applicability-selection` transition, which
-already carries the disclosure, the accepting identity, and a binding that dies when the content is rewritten.
-Reusing the `review-terminus/v1` family was considered and rejected on source: its only reader matches on the
-vehicle without inspecting `kind`, so a second `kind` there would discharge hosted review for an unreviewed head.
+**The terminal member is gated by the Candidate at the integration checkpoint, not by delivery** `[probed]`. The
+per-head readiness gate never runs for it — `deriveNativeDeliveryRegisteredRemainder` slices it off — so reading
+for a delivery-side marker finds nothing. Two checkpoint mechanisms hold it, and the rebind verb is neither:
+that verb has one production call site, inside `arc delivery reconcile`, so it never runs on a native landing.
+The **terminal coordinate advance proof** reads the absorbed head and withholds a proof, because the Candidate's
+recognized target does not reach that commit — measured, not reasoned — which leaves the public review
+continuation unable to read current and the checkpoint refusing `refresh-required`. The **Candidate applicability
+dispatch** is the second, reachable because the currentness projection passes an applicability result straight
+through; its result schema forbids an `applicable` payload and demands a resolution selector on
+`decision-required`. That selection is the acceptance: an `applicability-selection` transition, which already
+carries the disclosure, the accepting identity, and a binding that dies when the content is rewritten. Reusing
+the `review-terminus/v1` family was considered and rejected on source: its five readers all match on the vehicle
+without inspecting `kind`, so a second `kind` there would discharge hosted review for an unreviewed head.
 § The waiver record.
 
 **The absorption arm is Axis D's twin on composition, and carries a live untyped adoption route** `[probed]`. Its
@@ -208,6 +213,15 @@ waiting for.
     the other way before choosing: § Established practice records why the applicability proofs deliberately do
     **not** borrow external labels, and the deciding difference is that those name a proof while these name a
     topology Git already has words for.
+
+    **One direction touches a request contract, and the project's posture discharges it.**
+    `PredecessorRelationSchema` is not internal: it sits in `EligibilitySnapshotSchema`, which sits in
+    `CloseSchema` — the strict-JSON request the close verb parses — and the same snapshot is emitted as a
+    result, so those literals are written by one verb and read back by another. Renaming its arms is therefore
+    a request-contract change rather than a local rename. `DEV-RULES.PROJECT` § Engineering Standards settles
+    what that costs: until the first public release, unpublished project-owned contracts may change in place
+    and no compatibility alias is owed. The item stays a naming call — on that ground, rather than on not
+    having looked.
 
 - **How the flaky committed-arm hold is repaired.** Scoped 2026-09-16 by the Owner; the repair itself open. That
   hold binds to which of two equally good ancestors `git merge-base` returns, which Git does not contract, so it
@@ -451,9 +465,11 @@ needs — `highestMember.head` — is never disclosed by the refusal at all.
 
 **What it costs is the marker this design was hunting.** The adopted tree is never proved anywhere downstream —
 the integration checkpoint's residual proof takes the Candidate as both of its member endpoints, so the absorbed
-commit is not one of its subjects. The terminal member therefore already carries an untyped, unrecorded
-acceptance channel. That reframes the open structural item: the question is not how to invent a waiver for the
-terminal member, but how to type the acceptance that already happens.
+commit is not one of its subjects. That is the residual proof only: the checkpoint's other two readers do reach
+the absorbed head, and both refuse it — § Continuity carries them. What the terminal member lacks is not a gate
+but a _record_: the acceptance channel it already carries is untyped and unrecorded. That reframed the structural
+item then open: the question was never how to invent a waiver for the terminal member, but how to type the
+acceptance that already happens.
 
 ---
 
@@ -1066,6 +1082,11 @@ settlement means resubmitting the same disclosure — one command, an identical 
 second time. ARC reports what is owed and re-derives the rest, which is the acceptable side of the criterion; it
 never acts on a cached fact, because it caches none.
 
+**That is the input side, and the terminal acceptance is deliberately the other way.** An `applicability-selection`
+transition is durable on the Candidate's own record and is never re-asked once taken. The two are consistent
+because they hold different things: nothing needs caching about a disclosure that recomputes identically, while an
+authority decision is precisely the thing that must survive. § The waiver record.
+
 **The predicate is the resubmitted disclosure itself.** `adoptExternalDeliverySuffixRefresh` composes
 `{ planId, scope, expectedStateRevision, observedSuffixDigest, conflicts }` and refuses
 `conflict-resolution-mismatch` unless a resubmission canonicalizes identically against a freshly derived one.
@@ -1256,9 +1277,9 @@ mismatch instead. Either way it refuses, so the fix and the waiver compose witho
 **The loop-back, stated once.** This draft proposed a sibling obligation field, retracted it on the reading that
 the protocol emits `pendingReviewFixVerification`, and source says that field belongs to another flow. The
 original instinct was right for a reason neither version had — and the answer is still not a sibling field.
-For non-terminal members no obligation field is needed at all; for the terminal member what is needed is open,
-and a sibling field remains the wrong shape for it because the problem there is which reader looks, not which
-slot holds.
+For non-terminal members no obligation field is needed at all; for the terminal member the gate is the
+Candidate's, at the integration checkpoint, and a sibling field was always the wrong shape for it because the
+problem there is which reader looks, not which slot holds.
 
 **Abort narrows with it.** With nothing written to state, declining a waiver leaves no obligation to clear, which
 reduces it to a question about refs alone. Settled 2026-09-16: the provider path's ref-restoration semantics do
@@ -1411,10 +1432,11 @@ readiness refusal at all.
 
 For every non-terminal member the substitute gate holds and nothing is owed past it. **The terminal member's
 marker is the Candidate applicability selection**, settled 2026-09-16 — a different gate on a different surface,
-which is why reading for a delivery-side one found nothing. Its coordinate cannot advance to an unproved head
-without `rebindDeliveryTerminalCoordinates` refusing `candidate-coordinate-mismatch`, and recognizing that head
-requires either a machine proof or a recorded authority selection. § The waiver record reads the mechanism from
-source and probe.
+which is why reading for a delivery-side one found nothing. The gate sits at the integration checkpoint, in two
+mechanisms: the terminal coordinate advance proof, which withholds a proof for a head the Candidate's recognized
+target does not reach, and the Candidate applicability dispatch, whose result schema will not accept an
+`applicable` payload and demands a resolution selector on `decision-required`. § The waiver record reads both
+from source and probe.
 
 **What is genuinely missing is narrower, and it is a hole rather than an absence.** The adoption branch above the
 composition accepts an operator's merge on its parent pair alone, so a hand-resolved tree can enter the terminal
@@ -1900,7 +1922,7 @@ other five findings were depth no earlier pass had reached.
 
 ## Pinned probes
 
-Seven probes hold this boundary's behaviour as it stands. They **pass today**; each fails the moment the behaviour
+Eight probes hold this boundary's behaviour as it stands. They **pass today**; each fails the moment the behaviour
 changes, printing the sentence that names what it was waiting for and the exact replacement:
 
 > This now produces the result it was waiting for, so the hold is spent: replace this call with a plain
@@ -1914,6 +1936,8 @@ and each is a single `expectPinnedObservation` call to replace. They retire inde
 - `delivery-binding-head-movement.test.ts` — "reports a terminal unsettled when the host merged it past the head
   it binds"
 - `history-shape-ambiguity.test.ts` — "reports the base's own change as the contribution when two merge bases exist"
+- `history-shape-ambiguity.test.ts` — "reads the ambiguous subject against the one the same branch work produces
+  unambiguously"
 - `history-shape-ambiguity.test.ts` — "refuses with a typed reason rather than choosing one of the two bases"
 - `history-shape-ambiguity.test.ts` — "collects a staged subject from one chosen ancestor when two merge bases
   exist"
@@ -1932,7 +1956,7 @@ as _spent_, which is a false retirement rather than a fix. **Repairing it is in 
 without a fix is not evidence. Which repair is § Open's. Until it lands, do not read a green run of that pin as
 evidence of anything.
 
-An eighth row is owned here and **deliberately unpinned**: `delivery-rebuild-base-movement.test.ts` — "returns the
+A ninth row is owned here and **deliberately unpinned**: `delivery-rebuild-base-movement.test.ts` — "returns the
 identical refusal after the operator resolves the conflicted path". It proves the named remedy does not clear the
 refusal, which no other test asserts, and the refusal itself is correct.
 
@@ -1951,6 +1975,15 @@ behaviour this design intends to change, while the applicability and derivation 
 intends to keep and build on. Convert the adoption assertions to a pin when the admission route lands; keep the
 rest as ordinary regression coverage. Its value now is that the cluster's load-bearing claims are measured rather
 than reasoned — including the two that came back other than expected.
+
+**A second planning probe settles the checkpoint's trigger**, written 2026-09-16 after the sixth pass found the
+gate attributed to a verb that never runs here. In
+`delivery-public-review-continuation-git.test.ts`, "produces no advance proof for an operator-absorbed top the
+Candidate does not reach" builds a real absorption — a two-parent commit over the recorded parent pair whose tree
+is neither parent's, because a person chose its content — records it in the terminal coordinate exactly, and
+asserts that `projectGitDeliveryTerminalCoordinateAdvance` still returns no proof. The recorded-tree check passes
+and the ancestry term is what refuses, which is the link the draft had been asserting rather than measuring. It
+holds behaviour this design keeps, so it is ordinary regression coverage rather than a pin.
 
 ---
 

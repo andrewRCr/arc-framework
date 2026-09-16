@@ -145,6 +145,100 @@ describe("delivery public-review continuation Git proof", () => {
     })).resolves.toBeUndefined();
   });
 
+  it("produces no advance proof for an operator-absorbed top the Candidate does not reach", async () => {
+    const cwd = await createTempRepo("arc-delivery-public-review-absorbed-");
+    roots.push(cwd);
+    const exec = makeGitExec(cwd);
+    await mkdir(join(cwd, ".arc", "system", ".internal", "candidates"), { recursive: true });
+    await mkdir(join(cwd, ".arc", "active"), { recursive: true });
+    await writeFile(join(cwd, "README.md"), "base\n", "utf8");
+    await writeFile(join(cwd, "shared.txt"), "base\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "base"]);
+    const baseHead = await git(cwd, ["rev-parse", "HEAD"]);
+
+    await writeFile(join(cwd, "implementation.ts"), "export const value = 1;\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "candidate baseline"]);
+    const baselineHead = await git(cwd, ["rev-parse", "HEAD"]);
+    await writeFile(join(cwd, "implementation.ts"), "export const value = 2;\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "candidate current"]);
+    const currentHead = await git(cwd, ["rev-parse", "HEAD"]);
+
+    // The delivery top line runs beside the work unit's own branch: a prior top and a refreshed
+    // member that touch the same path, which is the collision an absorption has to resolve.
+    await git(cwd, ["checkout", "-b", "prior-top", baseHead]);
+    await writeFile(join(cwd, "shared.txt"), "top side\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "prior top"]);
+    const priorTop = await git(cwd, ["rev-parse", "HEAD"]);
+    await git(cwd, ["checkout", "-b", "refreshed-member", baseHead]);
+    await writeFile(join(cwd, "shared.txt"), "member side\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "refreshed member"]);
+    const refreshedMember = await git(cwd, ["rev-parse", "HEAD"]);
+
+    // The operator resolves it by hand and commits the merge, which is the shape the settlement
+    // adopts on its parent pair alone.
+    await git(cwd, ["checkout", "prior-top"]);
+    await writeFile(join(cwd, "shared.txt"), "resolved by hand\n", "utf8");
+    await git(cwd, ["add", "."]);
+    const resolvedTree = await git(cwd, ["write-tree"]);
+    const absorbedTop = await git(cwd, [
+      "commit-tree", resolvedTree, "-p", priorTop, "-p", refreshedMember, "-m", "absorb refreshed member",
+    ]);
+    // `write-tree` reads the index and leaves the resolution in the worktree; the commit object is
+    // already written, so discard it rather than carrying it onto the branch under test.
+    await git(cwd, ["checkout", "-f", "main"]);
+
+    // It is genuinely an absorption rather than a replay: the recorded parent pair, and a tree that
+    // is neither parent's because a person chose its content.
+    expect(await git(cwd, ["rev-list", "--parents", "-n", "1", absorbedTop]))
+      .toBe(`${absorbedTop} ${priorTop} ${refreshedMember}`);
+    expect(resolvedTree).not.toBe(await git(cwd, ["rev-parse", `${priorTop}^{tree}`]));
+    expect(resolvedTree).not.toBe(await git(cwd, ["rev-parse", `${refreshedMember}^{tree}`]));
+
+    const [baseline, current] = await Promise.all([
+      collectGitCandidateTarget({
+        cwd, name: "example", baseBranch: "main", baseRevision: baseHead, revision: baselineHead, exec,
+      }),
+      collectGitCandidateTarget({
+        cwd, name: "example", baseBranch: "main", baseRevision: baseHead, revision: currentHead, exec,
+      }),
+    ]);
+    const candidate: CandidateEffectiveCurrentProjection = {
+      schemaVersion: 1,
+      mode: "candidate-effective-target",
+      state: "current",
+      nextAction: "continue",
+      candidateId: `sha256:${"a".repeat(64)}`,
+      durableBaselineTarget: baseline,
+      recognizedTarget: current,
+      recognition: {
+        kind: "machine",
+        proof: "subject-equality",
+        projectionDigest: `sha256:${"b".repeat(64)}`,
+        residualDigest: `sha256:${"c".repeat(64)}`,
+      },
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    };
+
+    // The terminal coordinate records the absorbed top exactly, so the recorded-tree check cannot
+    // catch it. What withholds the proof is that the Candidate's recognized target does not reach
+    // this commit — which is what leaves the public-review continuation unable to read current.
+    await expect(projectGitDeliveryTerminalCoordinateAdvance({
+      cwd,
+      exec,
+      candidate,
+      workUnitId: "example",
+      baseBranch: "main",
+      terminalCoordinates: { base: baseHead, head: absorbedTop, tree: resolvedTree },
+    })).resolves.toBeUndefined();
+  });
+
   it("preserves a state-bound terminal coordinate below a Candidate-represented commit suffix", async () => {
     const cwd = await createTempRepo("arc-delivery-public-review-continuation-");
     roots.push(cwd);
