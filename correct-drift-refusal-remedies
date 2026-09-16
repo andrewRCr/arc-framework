@@ -3,7 +3,7 @@
   "slug": "correct-drift-refusal-remedies",
   "claimId": "9acc599e8366c0488ba33dc8cc6c8b1e",
   "createdAt": "2026-09-16T12:45:08.380Z",
-  "updatedAt": "2026-09-16T12:45:08.380Z",
+  "updatedAt": "2026-09-16T13:33:31.743Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make each drift refusal's remedy name the cause its own payload reports",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make each drift refusal's remedy name the cause its own payload reports",
   "originEntrySourceDigest": "sha256:decaf7b5b63bee1d864297d6853e9f6caed4dfe1fd506c26d91d20e3ad90d62e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/correct-drift-refusal-remedies",
+    "headSha": "289b4019b19f2eba109b12b0fd5a3109c64d0ebb"
+  }
 }
