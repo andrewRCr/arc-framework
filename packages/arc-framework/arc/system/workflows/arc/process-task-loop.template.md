@@ -37,6 +37,10 @@ execution-entry contract violation.
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
 
+- **Review vocabulary:** In this workflow, "review increment" and "deferred review" name task-interlock scope.
+  Any evaluator review run before Candidate preparation is working review: it binds to no Candidate target and
+  discharges neither the frontline nor standard lane. Candidate preparation starts those review lanes.
+
 - **Co-development awareness:** The developer may be editing files or making commits alongside you.
   Treat parallel changes as expected context, not interruptions. If changes conflict with your
   current task, flag the conflict and ask how to proceed.
@@ -133,6 +137,8 @@ execution-entry contract violation.
      **Deferred-review policy for item 4:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
+     The deferral changes only item 4's task-interlock cadence. Delivery-member and work-unit verification methods,
+     including any advisory companions they invoke, still fire at their ordinary boundaries.
      Complete only the specified work — update the task list and run quality gates after each
      task, but continue to the next without waiting for approval. Leave the task list updated,
      quality gates passing, and changes uncommitted (user decides commit boundaries when they
