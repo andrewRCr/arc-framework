@@ -157,6 +157,14 @@ export async function emitCompactionSeed(
   } catch (err) {
     return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };
   }
+  const currentLocusHint = deriveCompactionSeedLocusHint(options.envelope.derivedLocusState);
+  if (currentLocusHint === null) {
+    return {
+      status: "failed",
+      reason: "seed-invalid",
+      message: "entering checkout recovery facts are unavailable",
+    };
+  }
 
   let metaPath = options.envelope.active.ok ? options.envelope.active.value.path : null;
   let currentWorkflow = options.envelope.active.ok
@@ -172,7 +180,9 @@ export async function emitCompactionSeed(
       : null;
   let loadSet = options.envelope.loadSet.value;
   let sessionType = options.envelope.active.ok ? options.envelope.active.value.sessionType : null;
-  if (options.envelope.derivedLocusState.ok) {
+  if (options.envelope.derivedLocusState.ok
+    && options.envelope.derivedLocusState.value.entering.kind === "selected"
+    && options.envelope.derivedLocusState.value.entering.row.kind !== "unresolved-checkout") {
     try {
       const recovery = deriveRecoveryLocusContext({
         state: options.envelope.derivedLocusState.value,
@@ -193,15 +203,6 @@ export async function emitCompactionSeed(
       return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
     }
   }
-  const currentLocusHint = deriveCompactionSeedLocusHint(options.envelope.derivedLocusState);
-  if (currentLocusHint === null) {
-    return {
-      status: "failed",
-      reason: "seed-invalid",
-      message: "entering checkout recovery facts are unavailable",
-    };
-  }
-
   const seed: CompactionSeed = {
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
     emittedAt: (options.now ?? (() => new Date()))().toISOString(),

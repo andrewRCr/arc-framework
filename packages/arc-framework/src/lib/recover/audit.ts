@@ -319,6 +319,26 @@ function auditLocusHint(
     });
     return { expected, actual: null, match: false };
   }
+  const actual = deriveCompactionSeedLocusHint({ ok: true, value: options.recover.derivedLocusState.value });
+  if (actual === null) {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: "fresh entering checkout does not resolve recovery facts",
+    });
+    return { expected, actual: null, match: false };
+  }
+  const entering = options.recover.derivedLocusState.value.entering;
+  if (entering.kind === "selected" && entering.row.kind === "unresolved-checkout") {
+    stopReasons.push({
+      kind: "locus-unresolved",
+      message: `Entering checkout facts remain unresolved: ${entering.row.checkout.path}`,
+      detail: {
+        checkoutPath: entering.row.checkout.path,
+        diagnostics: entering.row.diagnostics,
+      },
+    });
+    return { expected, actual, match: false };
+  }
   if (!options.recover.recoveryFrame.ok) {
     stopReasons.push({
       kind: "locus-unresolved",
@@ -329,14 +349,6 @@ function auditLocusHint(
   }
 
   const frame = options.recover.recoveryFrame.value;
-  const actual = deriveCompactionSeedLocusHint({ ok: true, value: options.recover.derivedLocusState.value });
-  if (actual === null) {
-    stopReasons.push({
-      kind: "locus-unresolved",
-      message: "fresh entering checkout does not resolve recovery facts",
-    });
-    return { expected, actual: null, match: false };
-  }
 
   if (frame.checkoutPath !== actual.checkoutPath
     || frame.parentCheckoutPath !== actual.parentCheckoutPath) {

@@ -583,6 +583,36 @@ describe("auditRecoveryState", () => {
     expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "locus-unresolved" }));
   });
 
+  it("preserves the physical locus while refusing an unresolved selected subject", async () => {
+    const unresolved = workUnitRow({
+      kind: "unresolved-checkout",
+      context: null,
+      diagnostics: [{
+        code: "topology-mismatch",
+        message: "Observed checkout topology does not corroborate the authority-derived subject",
+      }],
+    });
+    const frame = derivedFrame({
+      roster: [unresolved],
+      entering: { kind: "selected", row: unresolved },
+      active: null,
+    });
+    const result = await run({
+      recover: recover({
+        derivedLocusState: ok(frame),
+        recoveryFrame: ok(recoveryFrame()),
+      }),
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual(expect.objectContaining({ kind: "locus-unresolved" }));
+    expect(result.locusHint).toEqual({
+      expected: { checkoutPath: "/repo", parentCheckoutPath: null },
+      actual: { checkoutPath: "/repo", parentCheckoutPath: null },
+      match: false,
+    });
+  });
+
   it("ignores malformed siblings when the exact entering row remains healthy", async () => {
     const healthy = workUnitRow();
     const malformed = workUnitRow({
