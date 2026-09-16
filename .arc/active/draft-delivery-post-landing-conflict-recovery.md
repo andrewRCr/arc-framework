@@ -42,26 +42,31 @@
   outcome. Verified from the definition and confirmed empirically — § Established practice.
 - **Axis D's completing input is settled in shape.** No surveyed system feeds a hand resolution back into a
   pinned replay; the resolved suffix becomes a new contribution that re-enters verification.
+- **The six readers are classified, and two of them stop having the problem.** The subject collector and the
+  overlap analyzer ask membership questions and answer them with a base-anchored diff; deriving their paths from
+  the branch's own commits removes the ambiguity rather than handling it. Three readers want the relation itself.
+  § Reader inventory — Membership or content.
 
 ### Open
 
-- **Which readers ask a membership question rather than a content one.** Git answers membership
-  cardinality-independently and content fragilely; readers on the membership side stop having the problem instead
-  of needing it handled. This is the first thing to establish, and it may shrink the work materially.
 - **The relation's result type and its variants** — the distinctions are settled (unchanged, advanced compatibly,
   diverged, absent, unknown) but their naming and the shape of the diverged variant's cardinality field are not.
   No canonical name exists to adopt.
 - **What the new-contribution path looks like for a resolved suffix**, and how much prior verification it
-  inherits. Gerrit's change-kind model is the precedent; the default there is none.
+  inherits. Gerrit's change-kind and copy-condition model is the precedent, and its shape is an asymmetry: no
+  positive review survives a rework, while a standing minimum score does.
+- **Whether the subject's path set should be what its commits touched or what they net to.** The reframing in
+  § Reader inventory creates this rather than removing it. Touched is safe for overlap in the fail-closed
+  direction, but for the subject it admits paths whose content is unchanged, which trades directly against how
+  sensitive Candidate currentness is to movement — the sensitivity this work exists to reduce.
 - **Whether a durable `landed-awaiting-suffix-resolution` phase or a reservation-local transition composes better**
   with the existing provider-adoption conflict machinery. Carried unresolved from the origin capture.
 
 ### Next
 
-Classify the six readers by whether each asks a membership or a content question — the survey's highest-value
-unlock, and the input the relation's shape depends on. Then author the relation type against Git's layering
-(equality preserved at the write boundary, reachability added above it) and fire
-`assess-design-proportionality` before elaborating it.
+Author the relation type against Git's layering — equality preserved at the write boundary, reachability added
+above it — with the classification above fixing who consumes it, and the asymmetry Gerrit demonstrates as the
+model for what survives movement. Fire `assess-design-proportionality` before elaborating the mechanism.
 
 ---
 
@@ -202,6 +207,38 @@ arithmetic: the decomposition subsystem independently reached the same read-all-
 spelling of the reason code. Six call sites, four dispositions, three spellings of one condition. Whatever is
 settled here is settling a repetition ARC already carries, not introducing an abstraction it lacks.
 
+### Membership or content
+
+Classified 2026-09-16 by reading each reader's actual question against the line Git draws in § Established
+practice.
+
+| Reader                              | Question it asks                         | Shape                  |
+| ----------------------------------- | ---------------------------------------- | ---------------------- |
+| `git-candidate-subject.ts`          | which changes are mine                   | membership, as content |
+| `base-overlap.ts`                   | do both sides touch the same paths       | membership, as content |
+| `git-candidate-effective-target.ts` | which single base coordinate do I record | coordinate identity    |
+| `git-candidate-applicability.ts`    | how has the base moved under my baseline | relation               |
+| review readiness                    | is the bound head still the observed one | relation               |
+| closeout                            | is the bound head still the observed one | relation               |
+
+**Two readers stop having the problem.** `git-candidate-subject.ts` selects paths with
+`diff --name-only <picked-base> <head>`, and `base-overlap.ts` diffs both sides from one picked base before
+intersecting. Both therefore select paths that are an artifact of which ancestor got chosen. A branch's own
+changed paths are instead derivable from the commits reachable from it and not from _any_ merge base — the
+`--all` form Git already uses for membership — so the selection becomes cardinality-independent and the ambiguity
+never reaches them.
+
+**One caveat, recorded rather than glossed.** Paths touched by a branch's own commits are not the same set as its
+net diff: a path changed and then reverted within the branch appears in the commit-derived set and not in the net
+diff. For the overlap question that errs toward reporting overlap, which is the fail-closed direction and
+therefore safe. For the subject it admits paths whose content is unchanged, which trades against the digest's
+sensitivity and is **not** settled here.
+
+**Three readers want the relation itself** and are the resolver's real consumers. The fourth,
+`git-candidate-effective-target.ts`, wants a single coordinate to record — and under cardinality above one no such
+coordinate exists, so it has to carry the base set or the relation rather than throw for the absence of a
+singleton.
+
 `lib/git/ancestry.ts` is the existing ancestry-helper module and already wraps `merge-base --independent`, so a
 shared resolver would have a home rather than needing one invented.
 
@@ -302,21 +339,47 @@ splits as syntactic against semantic reconciliation. Adopt the shape and the lay
 
 ### Gerrit types what ARC hand-rolls
 
-Gerrit classifies each new patch set by `ChangeKind` — `TRIVIAL_REBASE`, `NO_CODE_CHANGE`, and `REWORK` among
-them — and `copyCondition` is the per-label policy deciding which kinds carry prior approvals forward, rework
-carrying none by default. That is a first-class typed classification with an explicit policy layer where ARC has
-an observation-mode flag three consumers read three ways. The fail-closed default matches ARC's posture; what is
-missing here is the typing, not the intent.
+Verified against Gerrit's own source and current documentation 2026-09-16.
+
+Gerrit classifies every new patch set by `ChangeKind`, which carries six values: `NO_CHANGE`, `NO_CODE_CHANGE`,
+`TRIVIAL_REBASE`, `TRIVIAL_REBASE_WITH_MESSAGE_UPDATE`, `MERGE_FIRST_PARENT_UPDATE`, and `REWORK`. They form a
+hierarchy — a more trivial kind also satisfies a query for a less trivial one — and `changekind:REWORK` is
+documented as equivalent to `is:ANY`, making it the catch-all rather than a selective filter. The kind is computed
+by comparing the new tree against what cherry-picking the prior commit onto the new parent would produce, with a
+separate delta check and a commit-message comparison. The repository's merge strategy is an input, so it is
+deterministic given fixed commits _and_ fixed configuration, not from commit content alone.
+
+`copyCondition` is the per-label query deciding which approvals survive a new patch set. Two defaults matter, and
+they are different things:
+
+- **Gerrit core with no `copyCondition` configured** — nothing is copied, for any change kind; the evaluation is
+  skipped outright.
+- **A stock install's own project config** — Code-Review carries
+  `changekind:NO_CHANGE OR changekind:TRIVIAL_REBASE OR is:MIN`, and Verified carries
+  `changekind:NO_CHANGE OR changekind:NO_CODE_CHANGE`.
+
+So a rework inherits no positive review, **but a standing minimum score survives it**, because `is:MIN` is
+change-kind-agnostic. That asymmetry is the precedent worth taking, and it is a sharper one than a blanket
+"nothing carries": the signal that survives arbitrary movement is the fail-closed one, and only that one. A veto
+persists until it is answered; an approval does not outlive the thing it approved.
+
+What ARC has in place of this is an observation-mode flag three consumers read three ways. The intent matches;
+the typing and the explicit policy layer are what is missing.
 
 ### Axis D: the refusal is the industry boundary
 
 No surveyed system — GitHub, Gerrit, Graphite, Zuul, bors, or Google's tooling — consumes an operator's
 out-of-band conflict resolution back into a pinned mechanical replay. The universal pattern is to stop, evict,
-and require a new artifact that re-enters verification; Gerrit's most conflict-tolerant primitive still
-terminates in a new patch set classified as rework. The pinned replay's byte-identical refusal is therefore the
-standard boundary rather than a defect, and the remaining question is not whether to consume the resolution but
-what this work unit's new-contribution path looks like. Gerrit's change-kind model is the most fully specified
-precedent for how much prior verification such a contribution inherits: none, by default.
+and require a new artifact that re-enters verification. Gerrit's most conflict-tolerant primitive is its rebase
+with conflicts allowed, which produces a patch set whose files carry Git conflict markers and reports that fact
+back through `containsGitConflicts`; a human still has to resolve the markers in a further patch set, and it
+cannot be combined with rebasing on behalf of the uploader, precisely so unseen conflict edits are never treated
+as approved. The pinned replay's byte-identical refusal is therefore the standard boundary rather than a defect,
+and the remaining question is not whether to consume the resolution but what this work unit's new-contribution
+path looks like. Gerrit's change-kind and copy-condition model is the fullest precedent for how much prior
+verification such a contribution inherits — no positive review, with a standing veto surviving. That a conflicted
+patch set classifies as `REWORK` follows from the two mechanisms but is not documented as such; treat it as
+derived.
 
 `git rerere` is the one mechanism that carries a resolution across a moved base — it fingerprints normalized
 conflict hunks rather than commit identity, so it is base-agnostic by construction. It is also local, opt-in, and
