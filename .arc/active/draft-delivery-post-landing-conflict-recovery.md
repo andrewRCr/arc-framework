@@ -9,8 +9,9 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `rough` — the failure family is fully characterized and its boundaries are settled; no mechanism
-  has been chosen yet.
+- **Readiness:** `rough` — the failure family is characterized, its boundaries are settled, and the first
+  mechanism is authored and assessed proportionate. What holds it below `maturing` is the phase-model
+  question in § Continuity, which is fundamentals rather than detail-design.
 
 ---
 
@@ -45,6 +46,22 @@
 - **The row set is majority singleton, and the singleton closeout path already compares by ancestry.** Four of
   seven rows are singleton-shaped; the relation is a concept the codebase already has in one place and lacks in
   the other. Adopt it by reader, never by shape. § The failure family — Shape coverage.
+- **The relation carries six variants, and `rewound` is one of them.** A bound head that descends the observed
+  one is Git's _behind_ and `merge.ts`'s `head-contained-by-base`. Fail-closed consumers reach the same verdict
+  whether or not it is separated, but the remedy differs — and ARC's one existing hand-derivation already gives
+  it a distinct `nextAction`, which is evidence the distinction is load-bearing rather than symmetric.
+- **The relation splits into a pure classifier and a thin reader per executor.** Its three consumers share no
+  executor shape, and this dissolves the split rather than electing one: the variant logic takes two directional
+  answers plus cardinality and is testable without Git, while each consumer supplies a small reader over the
+  executor it already has.
+- **The relation is extraction, not invention, and it is proportionate.** `scripts/base/merge.ts` already
+  derives it by hand in the prescribed layering, separating three of the needed distinctions by remedy.
+  `assess-design-proportionality` returned `proportionate` with a scope guard, 2026-09-16. § The relation.
+- **Review readiness misses rather than mismatches.** Its member lookup is keyed on the exact observed head, so
+  a moved head finds no member and there is no bound coordinate to compare — the relation alone cannot reach
+  this reader. The fix is to resolve by the deliverable identity the reader already holds and compare second.
+- **Cardinality is a field on the diverged variant, not a variant of its own.** It is reachable only inside
+  divergence, and applicability is its only consumer.
 - **The six readers are classified, and two of them stop having the problem.** The subject collector and the
   overlap analyzer ask membership questions and answer them with a base-anchored diff; deriving their paths from
   the branch's own commits removes the ambiguity rather than handling it. Three readers want the relation itself.
@@ -52,9 +69,8 @@
 
 ### Open
 
-- **The relation's result type and its variants** — the distinctions are settled (unchanged, advanced compatibly,
-  diverged, absent, unknown) but their naming and the shape of the diverged variant's cardinality field are not.
-  No canonical name exists to adopt.
+- **Variant naming.** The six distinctions are settled and their names are not; no canonical name exists to
+  adopt, and the nearest candidates are Git's porcelain vocabulary and `merge.ts`'s existing state names.
 - **What the new-contribution path looks like for a resolved suffix**, and how much prior verification it
   inherits. Gerrit's change-kind and copy-condition model is the precedent, and its shape is an asymmetry: no
   positive review survives a rework, while a standing minimum score does.
@@ -67,9 +83,12 @@
 
 ### Next
 
-Author the relation type against Git's layering — equality preserved at the write boundary, reachability added
-above it — with the classification above fixing who consumes it, and the asymmetry Gerrit demonstrates as the
-model for what survives movement. Fire `assess-design-proportionality` before elaborating the mechanism.
+Work the phase-model question — a durable `landed-awaiting-suffix-resolution` phase against a
+reservation-local transition. It is the one open item that is still fundamentals rather than detail-design, so
+it gates `maturing` while the remaining items do not. Take the new-contribution path for a resolved suffix
+alongside it, since what that path produces is what either phase model has to accept; Gerrit's asymmetry is the
+model for how much prior verification it inherits. Variant naming settles last, against whatever vocabulary
+those two leave in place.
 
 ---
 
@@ -247,7 +266,7 @@ practice.
 | `base-overlap.ts`                   | do both sides touch the same paths       | membership, as content |
 | `git-candidate-effective-target.ts` | which single base coordinate do I record | coordinate identity    |
 | `git-candidate-applicability.ts`    | how has the base moved under my baseline | relation               |
-| review readiness                    | is the bound head still the observed one | relation               |
+| review readiness                    | is the bound head still the observed one | lookup, then relation  |
 | closeout                            | is the bound head still the observed one | relation               |
 
 **Two readers stop having the problem.** `git-candidate-subject.ts` selects paths with
@@ -263,7 +282,8 @@ diff. For the overlap question that errs toward reporting overlap, which is the 
 therefore safe. For the subject it admits paths whose content is unchanged, which trades against the digest's
 sensitivity and is **not** settled here.
 
-**Three readers want the relation itself** and are the resolver's real consumers. The fourth,
+**Three readers want the relation itself** and are the resolver's real consumers — though review readiness
+cannot compute one until its lookup is inverted, for the reason recorded in § The relation. The fourth,
 `git-candidate-effective-target.ts`, wants a single coordinate to record — and under cardinality above one no such
 coordinate exists, so it has to carry the base set or the relation rather than throw for the absence of a
 singleton.
@@ -423,6 +443,120 @@ and lands that. The landed commit is structurally not the request's own head —
 § Boundaries: under the current equality comparison, a project running that queue would meet
 `delivery-member-unbound` on every landing rather than occasionally.
 
+## The relation
+
+Authored 2026-09-16 against the layering § Established practice establishes: exact equality preserved at the
+write boundary, reachability added above it.
+
+### ARC already computes this, once, by hand
+
+`scripts/base/merge.ts` derives the relation inline, in exactly that layering. `endpointMovement` holds the
+equality check first; two directional `merge-base --is-ancestor` reads then add reachability above it, and the
+two directions select three outcomes that already carry distinct next actions:
+
+| Directional read                | State                    | Next action          |
+| ------------------------------- | ------------------------ | -------------------- |
+| bound base reaches the head     | `skipped-clean`          | `continue-reconcile` |
+| the head reaches the bound base | `head-contained-by-base` | `rerun-checkpoint`   |
+| neither                         | falls through to merge   | —                    |
+
+Three of the distinctions this design needs, already computed, already separated by remedy. The relation is
+ARC-internal precedent as well as Git's, and the work here is extraction rather than invention. § The failure
+family already recorded the other half of that: retirement containment compares by ancestry while delivery
+terminal settlement compares by equality.
+
+**Extraction is also the only available composition.** Ten-odd ancestry helpers are hand-rolled across the
+codebase and no two agree on a return shape — `boolean` in `from-branch.ts`, `branch-bounded-notes-export.ts`,
+and `in-flight-derivation.ts`; `"ancestor" | "not-ancestor" | "unavailable"` in `chain-containment.ts`;
+`"ancestor" | "not-ancestor" | null` in `git-contribution-proof.ts`; an injected predicate port in
+`scripts/base/merge.ts`. They also split across three executor shapes: `GitExec`, `RawGitExec` with
+`objectAccess: "local-only"`, and the review gate's own injected ports. No existing helper is consumable by all
+three relation readers, which is what makes a shared primitive composition rather than new mechanism.
+
+`in-flight-derivation.ts` reads both directions at one site already, to order two candidates — so the
+two-read shape is established here too, under a third return type.
+
+### The variants
+
+Anchored on `%(upstream:track)`'s shipped vocabulary and on `merge.ts`'s existing state names. **The naming is
+proposed, not settled**; the six distinctions are.
+
+| Variant     | Holds when                               | Git's name       | Consumer consequence                        |
+| ----------- | ---------------------------------------- | ---------------- | ------------------------------------------- |
+| `unchanged` | observed head equals the bound head      | up to date       | proceed — today's equality check, preserved |
+| `advanced`  | the bound head reaches the observed head | ahead            | the movement Axis A must admit              |
+| `rewound`   | the observed head reaches the bound head | behind           | the record is ahead of reality              |
+| `diverged`  | neither reaches the other                | ahead and behind | fail-closed; carries base cardinality       |
+| `absent`    | no record binds this subject at all      | gone             | today's answer for a stale binding          |
+| `unknown`   | the ancestry read did not establish one  | —                | stop; never collapses into a verdict        |
+
+Two of these are the whole Axis A defect. `advanced` and `absent` are today indistinguishable at review
+readiness, which is what the pinned probe records; separating them is the fix.
+
+**Cardinality is a field on `diverged`, not a variant.** § Established practice proves cardinality above one is
+reachable only when neither revision reaches the other, so a variant would place it beside a case it lives
+inside. Applicability is its only consumer; the other readers neither ask nor branch on it.
+
+**`unknown` never collapses.** Git keeps a ref that is missing from a ref at an unexpected value; ARC's
+addition is that an ancestry read which failed operationally is a third thing again. The hand-rolled helpers
+disagree here specifically — two of them return `false` for a failed read, which reads as "not an ancestor"
+and is how an operational failure becomes a verdict.
+
+### Shape
+
+Two layers, because the consumers share no executor. A **pure classifier** takes the two directional answers and
+the base cardinality and returns the variant — no Git dependency, so the variant logic is exhaustively testable
+without a repository, which is what every hand-rolled helper above gave up. A **thin reader per executor** then
+supplies those answers over whatever executor its consumer already holds: `GitExec`, `RawGitExec` under
+`objectAccess: "local-only"`, or the injected predicate port `scripts/base/merge.ts` already defines.
+
+The split is what makes the executor difference stop being a fork. It also puts the `unknown` variant in the one
+place that can produce it honestly: the reader knows whether Git answered, and the classifier never has to
+invent a verdict for an answer it did not get.
+
+### Readiness reads its key backwards
+
+Source-verified 2026-09-16. This is a design consequence the reader inventory did not carry, and it changes
+what the readiness fix is.
+
+`readiness.ts` resolves its member with `resolveMemberByHead(request.pullRequest.headSha)`, and every
+production member lookup is keyed the same way: `DeliveryMemberSelector` has a `head` arm and a `ref` arm, and
+`stateMemberMatches` requires `member.coordinates.head` to equal the observed head on **both**. The `ref` arm
+conjoins rather than compares, has zero production constructors, and an integration test deliberately pins
+that a correct head under a wrong ref resolves to nothing — so the conjunction is intended, not accidental.
+
+The consequence: **a moved head does not mismatch, it misses.** No member is found, so there is no bound
+coordinate to compare and the relation cannot be computed at this reader at all. Adding an ancestry term to a
+comparison that never runs would change nothing.
+
+The fix is an inversion the reader already has the inputs for. Its vehicle carries `planId`, `deliverableId`,
+and `workUnitSlug`, and the code resolves by head and then _validates_ those three against the result. Resolve
+by the identity it already holds, then compare the recorded head against the observed one with the relation:
+the same two facts, in the order that can tell a stale binding from an absent one. No new selector arm, no
+store change, and the existing `delivery-member-mismatch` facts keep their meaning.
+
+Closeout needs no such inversion — `verifyDeliveryTerminalSettlement` already holds the terminal member and
+compares its recorded head directly. Its defect is the bare equality inside the eight-term conjunction, which
+the relation replaces in place.
+
+### Proportionality
+
+`assess-design-proportionality`, 2026-09-16 — **`proportionate`**, with one scope guard.
+
+The trace: the relation's existence is required by the two Axis A rows and the four Axis B ones; each variant
+beyond a boolean buys one distinct remedy, and remedy accuracy is the defect the in-flight Errand is already
+correcting, so variant granularity is traced rather than symmetric. Rigor stays where consequence is — the
+write boundary keeps its exact preconditions (`update-ref`'s old-oid, revision-checked state writes,
+lease-checked publication) and the relation is added above it, read-only. The minimal alternative — add an
+ancestry term at the two Axis A readers and leave the rest — is rejected by the draft's own recorded
+constraint: reader-by-reader adoption is how the two implementations diverged, and it leaves Axis B's four
+vocabularies standing. Cardinality and divergence are intrinsic to Git history, not states this solution
+creates.
+
+**The guard is scope.** Twenty `--is-ancestor` call sites carry no observed failure between them; retrofitting
+them is symmetry, not traced need. The primitive is _available_ to them and this work unit converts none —
+the same line § Reader inventory already draws for the two decomposition call sites.
+
 ## Boundaries with neighbouring work
 
 ### `delivery-correction-convergence` — settled
@@ -568,3 +702,9 @@ shipped label config. Derived and then confirmed empirically here: cardinality a
 Weaker, and worth re-checking before anything load-bearing rests on it: Mercurial's bid-merge rationale comes from
 a wiki page of roughly 3.0 vintage, and "no system refuses on cross-base disagreement" is an absence rather than a
 citation.
+
+§ The relation rests on source read 2026-09-16 rather than on survey: `scripts/base/merge.ts`'s two directional
+reads and their states, the ancestry helpers' return shapes and executor split, `DeliveryMemberSelector` and
+`stateMemberMatches`, the absence of any production constructor for the `ref` arm, and the integration test that
+pins its conjunction. The count of roughly ten hand-rolled helpers is approximate and deliberately so — it bounds
+a repetition rather than enumerating a work list, and § The relation's scope guard converts none of them.
