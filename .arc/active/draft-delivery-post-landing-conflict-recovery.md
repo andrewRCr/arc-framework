@@ -21,143 +21,151 @@
 
 ## Continuity
 
-### Resolved — frozen
+The settled record is organized by what it settles, not by which pass settled it. Items marked `[frozen]` were
+verified against source — and where empirical, against a scratch repository — by three independent adversarial
+passes and appear in every one's withstood list; a later pass attacks them again only on new evidence, never on
+re-reading. Items marked `[certified]` were verified against source by the fifth, certifying pass and returned in
+its withstood set — short of the three-pass frozen bar, but not fresh ground either. Items marked `[probed]` rest
+on a measurement recorded in § Pinned probes. Everything else is settled by source read and open to ordinary
+re-examination.
 
-**Certified by three independent adversarial passes** (2026-09-16), each verifying these against source and, where
-empirical, against a scratch repository. Each appears in every pass's `withstood` list. They are frozen: a later
-pass attacks them again only on new evidence, not on re-reading.
+### Settled — scope, boundary, and the failure family
 
-- **Seven probe rows are owned here**, across three of the characterization's four axes — not the four loci the
-  origin captures described. § The failure family.
-- **The ambiguity seam has four verbs, not three**, and the fourth returns a wrong answer instead of refusing.
-- **The rebind verb already works.** What is missing is a route to it from the verbs that read the binding.
-- **The post-land refusal is correct.** Its defect is the guidance wrapped around it one layer up.
-- **Cardinality is a refinement of divergence, and the resolver fork follows.** One relation-typed read answers
-  both; cardinality is a field on the diverged variant, not a variant, and applicability is its only consumer.
-- **The relation is extraction, not invention, and it is proportionate.** Four sites already derive it by hand
-  under four return types. `assess-design-proportionality` returned `proportionate` with its scope guard.
-- **The relation carries six variants over an ordered pair, split into a pure classifier and a thin reader per
-  executor.** The reader produces the unavailable outcome, which is where the hand-rolled helpers collapse it.
-- **Readers split between the shared base resolver and the relation**, five and four respectively as of the
-  2026-09-16 re-derivation. Read-all, refuse-on-more-than-one, then diff or record from the single base. The
-  staged arm of the subject collector takes the same rule; its probe is owed. The split is what three passes
-  certified; the arithmetic has been corrected twice and is recorded in
-  § Reader inventory — Resolver or relation rather than here.
-- **The subject's path set is base-relative, with cardinality refused rather than picked.** The commit-derived
-  answer was falsified twice over: it cannot see a branch retaining its own side of a base-changed path across a
-  base merge, and the content-inclusive digest inverts its movement-sensitivity claim. § The subject's path set.
-- **Review readiness misses rather than mismatches**, because its lookup is keyed on the observed head. Resolve
-  by the deliverable identity the reader already holds and compare second.
-- **Merging the base in collapses cardinality, per coordinate pair.** It reaches the sites comparing a head
-  against a base; it does not reach the two comparing a pinned durable baseline, whose route is re-baselining.
-- **Closeout's conjunction owes a reason per term** — taken into scope by the Owner, 2026-09-16.
-- **The settled fundamentals clear the four project check-docs and two unbuilt designs**, with three constraints
-  adopted. § Forward-compatibility check.
-- **The boundary holds: one work unit**, and the boundary with `delivery-correction-convergence` is settled on
-  evidence. Re-raised and re-affirmed after pass three concentrated its findings in one half. § Boundaries.
-- **The two routed captures are integrated.** § Retained capture detail keeps what the body does not restate.
+- **Seven probe rows are owned here** `[frozen]`, across three of the characterization's four axes — not the four
+  loci the origin captures described. § The failure family.
+- **The ambiguity seam has four verbs, not three** `[frozen]`, and the fourth returns a wrong answer instead of
+  refusing.
+- **The rebind verb already works** `[frozen]`. What is missing is a route to it from the verbs that read the
+  binding.
+- **The post-land refusal is correct** `[frozen]`. Its defect is the guidance wrapped around it one layer up.
+- **Closeout's conjunction owes a reason per term** `[frozen]` — taken into scope by the Owner, 2026-09-16. The
+  sizing rests on fourteen conditions reaching one word, not eight. § The gap.
+- **The absorption arm is in scope** — the terminal collision is a structurally separate refusal from the member
+  suffix, so a member-only protocol would leave it emitting a remedy nothing can clear. The separate terminal top
+  is durable surface rather than a bridge, so its recovery is designed as a permanent path. § Axis D.
+- **The boundary holds: one work unit** `[frozen]`, and the boundary with `delivery-correction-convergence` is
+  settled on evidence, re-affirmed after a pass concentrated its findings in one half. § Boundaries.
+- **The two routed captures are integrated** `[frozen]`. § Retained capture detail keeps what the body does not
+  restate.
+- **The settled fundamentals clear the four project check-docs and two unbuilt designs** `[frozen]`, with three
+  constraints adopted. § Forward-compatibility check.
 
-**Two corrections have landed against this set**, both to evidence rather than to conclusions.
+### Settled — the relation
 
-- **The call-site inventory was short twice.** A full sweep finds **fifteen distinct base-resolving call sites,
-  seven of which pick silently**; the table carried seven sites and one silent pick. § Reader inventory now
-  records the sweep command so a later pass can re-run it rather than re-eyeball it.
-- **The silent pick is not unique to the Candidate subject collector.** `repository-target.ts` picks silently on
-  the local review host's diff base — the review-evidence surface this draft's own argument is about.
+- **Cardinality is a refinement of divergence, and the resolver fork follows** `[frozen]`. One relation-typed read
+  answers both; cardinality is a field on the diverged variant, not a variant, and applicability is its only
+  consumer.
+- **The relation is extraction, not invention, and it is proportionate** `[frozen]`. Four sites already derive it
+  by hand under four return types. `assess-design-proportionality` returned `proportionate` with its scope guard.
+- **It carries six variants over an ordered pair** `[frozen]`, split into a pure classifier and a thin reader per
+  executor. The reader produces the unavailable outcome, which is where the hand-rolled helpers collapse it.
+- **Readers split between the shared base resolver and the relation** `[frozen]`, five and four respectively.
+  Read-all, refuse-on-more-than-one, then diff or record from the single base. The staged arm of the subject
+  collector takes the same rule; its probe is owed. § Reader inventory carries the arithmetic, which has been
+  corrected twice, and the sweep command that re-derives it.
+- **The subject's path set is base-relative, with cardinality refused rather than picked** `[frozen]`. The
+  commit-derived answer was falsified twice: it cannot see a branch retaining its own side of a base-changed path
+  across a base merge, and the content-inclusive digest inverts its movement-sensitivity claim. § The subject's
+  path set.
+- **Review readiness misses rather than mismatches** `[frozen]`, because its lookup is keyed on the observed head.
+  Resolve by the deliverable identity the reader already holds and compare second. The inversion conforms
+  readiness rather than introducing a pattern: `sameDeliveryReviewMemberVehicle` is
+  `sameDeliveryReviewMemberIdentity(…) && expected.head === actual.head`, so its head term is precisely the
+  equality this design replaces with the relation everywhere else, and `status.ts` and
+  `hosted-reservation-admission.ts` already resolve identity-first across head movement. Readiness is the outlier.
+- **Merging the base in collapses cardinality, per coordinate pair** `[frozen]`. It reaches the sites comparing a
+  head against a base; it does not reach the two comparing a pinned durable baseline, whose route is re-baselining.
 
-The resolver fork's conclusion is unchanged and strengthened by both. What was wrong was the arithmetic, the
-uniqueness claim, and the `source-verified` label.
+**The movement substrate is a different axis, and the question was posed against the wrong object** `[certified]`.
+`terminalAuthoringMovement` is an admission option, a lease-proof fact, and a durable operation field — three
+things under one name, none of them a movement classification. The relation sits beneath it at `readAncestry`'s
+layer, which § Shape already assigns to the thin reader, one direction per call: one says what the movement is,
+the other whether this observation mode admits it. Axis A unifies on the relation and this is not its vehicle —
+the frozen consumer set of three stands, and `terminalAuthoringMovement`'s own reads are not converted, since
+conversion would add only a reason for a refusal that is routed out rather than owed here. The in-flight
+session-init Errand is therefore not downstream: neither the option nor the fact changes shape, so it ships in
+either order. § The movement substrate.
 
-### Resolved — recovery record
+**The readiness lookup resolves by deliverable identity, behind a fifth interface** `[certified]`. Of three routes one
+is eliminated — `resolveDischargeTargets` refuses `unavailable` for the whole enumeration when any member carries
+a null `changeRequest` or `coordinates`, turning _this member is not bound_ into _delivery state is unavailable_,
+which is the Axis A conflation relocated. The surviving two converge, and the interface boundary decides between
+them: `resolveTerminalRecords` already performs the plan read, state read, and coherence check a
+deliverable-keyed method's body needs, so that route is its body behind a named method with a typed result, taken
+as a fifth interface beside the four in `core/delivery-member-lookup.ts` rather than widening
+`DeliveryMemberLookup` by use. The result carries four arms — not-in-plan, in-plan-unbound, bound, unavailable —
+because `stateMemberMatches` opens with a null-`coordinates` guard and `coordinates` is independently nullable;
+in-plan-unbound is `absent` while not-in-plan is an identity error carrying its own remedy. `absent` therefore
+means _no member_, which both surviving routes agree on and only the eliminated one would have changed.
+§ Readiness reads its key backwards.
 
-Re-settled 2026-09-16, then **half-broken by the fourth pass**. The split below is the point: the protocol's
-_input_ side survived source verification intact, and its _output_ side did not.
+**Two evidence corrections have landed against this set**, both to evidence rather than to conclusions, and the
+resolver fork's conclusion is strengthened by each. The call-site inventory was short twice — a full sweep finds
+fifteen distinct base-resolving call sites, seven of which pick silently, where the table carried seven and one.
+And the silent pick is not unique to the Candidate subject collector: `repository-target.ts` picks silently on the
+local review host's diff base, the review-evidence surface this draft's own argument is about. What was wrong was
+the arithmetic, the uniqueness claim, and a `source-verified` label claimed twice over a short table — which is
+why § Reader inventory now records the sweep command rather than the assurance.
 
-**The input side stands** — disclosure, resubmission, and the predicate.
+### Settled — the recovery protocol
 
-- **ARC already implements the disclose-and-resubmit protocol**, on the sibling provider path.
-  `adoptExternalDeliverySuffixRefresh` collects the complete conflict set, returns `conflict-resolution-required`
-  carrying a resubmittable disclosure, and waives proof for precisely the approved members.
+**The protocol's input side is already built, on the sibling provider path.**
+
+- **ARC already implements disclose-and-resubmit.** `adoptExternalDeliverySuffixRefresh` collects the complete
+  conflict set, returns `conflict-resolution-required` carrying a resubmittable disclosure, and waives proof for
+  precisely the approved members.
 - **The decision is a resubmitted disclosure, not a stored record.** ARC persists nothing on the input side, so
-  nothing can go stale. What survives the wait is the reservation already durable in `activeOperation`. Retracts
-  the pending-obligation record, the content-equality predicate, and `readEntries` as its primitive.
+  nothing can go stale; what survives the wait is the reservation already durable in `activeOperation`. This
+  retracts the pending-obligation record, the content-equality predicate, and `readEntries` as its primitive.
 - **Arrival needs no new operation and no state-schema change.** The native path consumes the resubmitted
-  disclosure in the same `land-status` call that settles, because its reservation is already held. Verified: the
-  landing projection is passed unpersisted at the same revision, and every conflict refusal returns before the
-  single state write.
+  disclosure in the same `land-status` call that settles, because its reservation is already held: the landing
+  projection is passed unpersisted at the same revision, and every conflict refusal returns before the single
+  state write.
 - **The approval fires on genuine collisions only.** Identical trees take the `tree-equality` fast path and clean
   reapplies take `mechanical-reapply`, both silent. Movement alone never asks anyone anything.
-- **Gerrit's asymmetry and ARC's standing acceptance rule agree** once movement is distinguished from change.
+- **Adoption is request-side** — the conflict collection, the disclosure, and a scope discriminant on the
+  `native-land-status` request, not a state-schema change.
+- **Gerrit's asymmetry and ARC's standing acceptance rule agree** once movement is distinguished from change: what
+  survives arbitrary movement is the fail-closed signal, and an approval never carries itself.
 
-**The output side broke on one referent, and settling it dissolved the obligation.**
-`pendingReviewFixVerification` is the review-fix flow's own state machine — an acknowledgement identity key, a
-field terminal integration renews from its candidate, and a bar on native stack link and unlink. It is not a
-generic slot for what is owed, and a native landing has no selection to write into it.
+**No obligation field is written, and the encumbrance is structural instead.** `pendingReviewFixVerification` is
+the review-fix flow's own state machine — an acknowledgement identity key, a field terminal integration renews
+from its candidate, and a bar on native stack link and unlink — not a generic slot for what is owed, and a native
+landing has no selection to write into it. For non-terminal members nothing needs one: the settle writes resolved
+heads into state coordinates and the next landing cycle refuses any member that cannot pass `reviewReadiness` on
+its exact head. The encumbrance-predicate extraction therefore stays captured rather than scoped — there is no
+third obligation term, and an audit fact is not an encumbrance.
 
-- **The waiver needs no obligation field — proven for non-terminal members only.** The settle writes resolved
-  heads into state coordinates and the next landing cycle refuses any member that cannot pass `reviewReadiness`
-  on its exact head, so those members are encumbered by the existing gate with no field, discharge, or
-  referent. **The terminal member is not covered.** `deriveNativeDeliveryRegisteredRemainder` slices it off
-  (`plan.members.slice(start, -1)`), so the gate never runs for it. Retracted as a whole-path claim
-  2026-09-16; § Open carries what replaces it.
-- **The waiver's home was reopened, then resolved to a different family entirely.** Reusing
-  `DeliveryReviewMemberVehicle` and the `review-terminus/v1` vocabulary looked right until the store was read: its
-  only reader matches on the vehicle without inspecting `kind` (`status.ts:410`, discharging at `:592-600`), so a
-  second `kind` placed there would discharge hosted review for an unreviewed head. Settled 2026-09-16 — the
-  terminal member's acceptance is the Candidate `applicability-selection` transition, which is a different record
-  on a different surface, so the discriminant never has to exist. § The waiver record.
-- **The encumbrance-predicate extraction stays captured.** There is no third obligation term, so its trace does
-  not come back. An audit fact is not an encumbrance.
-- **Adoption is request-side.** What the native path needs is the conflict collection, the disclosure, and a
-  scope discriminant on the `native-land-status` request — not a state-schema change.
+**The terminal member is gated by the Candidate, not by delivery** `[probed]`. The per-head readiness gate never
+runs for it — `deriveNativeDeliveryRegisteredRemainder` slices it off — so reading for a delivery-side marker
+finds nothing. Its coordinate cannot advance to an unproved head without `rebindDeliveryTerminalCoordinates`
+refusing `candidate-coordinate-mismatch`, and recognizing that head requires either a machine proof or a recorded
+authority selection. The acceptance is therefore the Candidate `applicability-selection` transition, which
+already carries the disclosure, the accepting identity, and a binding that dies when the content is rewritten.
+Reusing the `review-terminus/v1` family was considered and rejected on source: its only reader matches on the
+vehicle without inspecting `kind`, so a second `kind` there would discharge hosted review for an unreviewed head.
+§ The waiver record.
 
-### Resolved — settled after pass four
+**The absorption arm is Axis D's twin on composition, and carries a live untyped adoption route** `[probed]`. Its
+three composition inputs are recorded rather than observed, so the operator's resolution cannot reach them —
+resolve-and-rerun returns the byte-identical refusal. But `observeExactAbsorption` adopts a commit on its parent
+pair alone, with any tree, so a hand-resolved merge settles and writes that tree into the terminal coordinate.
+The evidence that it _was_ a resolution is **derived, not written**: the resolved top's parent line is exactly
+`<head> <priorTop> <refreshedMember>`, and `priorTop` is data applicability already holds. The residual it
+reports is the operator's own resolution rather than the whole absorbed predecessor. § Axis D, § The waiver record.
 
-Settled 2026-09-16 by source read after the fourth pass returned not-ready, and **both certified by the fifth**,
-which verified each against source and returned them in its withstood set. Not frozen — three passes is that
-bar — but they are the part of this session's work that survived the certifying pass intact.
+**`covered` is the Owner's escape hatch, and the practice survey supports it.** ARC's evidence layer reduces an
+absorption to `fresh` with `judgmentRequired: false` while the Candidate layer offers `covered` anyway, so
+accepting one is an override of a stated machine read. No surveyed system offers a typed per-change override —
+but every one permits an unconstrained human re-assertion, so the rule that generalizes is about automatic carry,
+not about override, and ARC's version is the better-recorded form of a gesture the industry takes for granted.
+§ Established practice.
 
-**The movement substrate.**
-
-- **The question was posed against the wrong object.** `terminalAuthoringMovement` is an admission option, a
-  lease-proof fact, and a durable operation field — three things under one name, and none of them a movement
-  classification. § The movement substrate.
-- **The relation sits beneath it, at `readAncestry`'s layer** — which § Shape already assigns to the thin reader,
-  one direction per call. Relation and option are different axes: one says what the movement is, the other whether
-  this observation mode admits it. None of the three postures holds, and folding the policy into the relation is
-  the error the question invited.
-- **Axis A unifies on the relation, and this is not its vehicle.** The frozen consumer set of three stands.
-  `terminalAuthoringMovement`'s own reads are not converted: they keep `unchanged` and `advanced` and collapse
-  everything else into one refusal, so conversion would add only a reason for that refusal — which is routed
-  out rather than owed here.
-- **The in-flight session-init Errand is not downstream after all.** Neither the option nor the fact changes
-  shape, so it ships in either order. Its capture now carries the `position` verb's routing precedent in place of
-  a dependency. § Errands in flight.
-
-**The readiness lookup route.**
-
-- **One of the three is eliminated, and it reproduces the defect rather than narrowing it.**
-  `resolveDischargeTargets` refuses `unavailable` for the whole enumeration when any member carries a null
-  `changeRequest` or null `coordinates` — not only the member asked about. It turns _this member is not bound_
-  into _delivery state is unavailable_, which is the Axis A conflation relocated.
-- **The other two converge, and the interface boundary decides between them.** `resolveTerminalRecords` already
-  performs the plan read, state read, and coherence check a deliverable-keyed method's body needs, so the
-  deliverable-keyed route is that body behind a named method with a typed result. Take it as a fifth interface
-  beside the four in `core/delivery-member-lookup.ts`, leaving `DeliveryMemberLookup` single-method. The
-  terminal-record route's fault is narrow but sufficient: it widens that method's contract by use rather than by
-  design.
-- **`absent` means _no member_, and the route no longer decides it.** Both surviving routes agree; only the
-  eliminated one would have made it mean _no hosted member_. That distinction is what made this item structural,
-  so settling it settles the item.
-- **Identity lookup reaches a member head lookup structurally cannot.** `stateMemberMatches` opens with
-  `if (member.coordinates === null) return false`, a guard shared by both existing arms, and `coordinates` is
-  independently nullable in the state schema. The result therefore carries four arms — not-in-plan,
-  in-plan-unbound, bound, unavailable — and in-plan-unbound is `absent` while not-in-plan is an identity error
-  carrying its own remedy.
-- **The inversion conforms readiness rather than introducing a pattern.** `sameDeliveryReviewMemberVehicle` is
-  `sameDeliveryReviewMemberIdentity(…) && expected.head === actual.head` — identity first, head second, and that
-  head term is the one equality this design replaces with the relation everywhere else. `status.ts` and
-  `hosted-reservation-admission.ts` already resolve identity-first across head movement; readiness is the outlier.
+**Decline releases the wedge; it does not reverse the landing.** The two disclosure points sit on opposite sides
+of the local-ref rewrite, so it is two cases: the suffix arm has nothing to restore, the absorption arm must put
+back refs ARC moved itself. The restoration shape transfers from the provider path against local refs; the
+transition shape transfers from the not-applied clear, but not its code path, which reconciles observed host
+facts. § The decline route.
 
 ### Open
 
@@ -202,20 +210,20 @@ measurement, one awaits a naming call. Nothing open now changes what the design 
 
 ### Next
 
-**Consolidate next, before anything else.** Decline was the last structural item and it has settled, so nothing
-open changes what the design is — which is the bar the coherence-consolidation lean waits for. The document is
-past where accretion is cheap: § Continuity stratifies its settlements by _which pass produced them_ (frozen,
-recovery record, after pass four), a scheme that no longer has a home for settlements reached by probe rather
-than by pass, and the last three sessions' work went into body sections plus the ledger because of it. Reconcile
-the layers into one coherent input, preserving every settled decision and naming anything deliberately dropped.
+**The coherence consolidation has run** (2026-09-16). § Continuity is organized by what it settles rather than by
+which pass settled it, with certification carried per item — `[frozen]` for the three-pass bar, `[certified]` for
+the fifth pass's withstood set, `[probed]` for a measured claim — so a later pass can see what it may re-attack
+without reading a stratigraphy. The self-check against the pre-rewrite layers caught three claims that had gone
+missing in the rewrite and restored them; run that check on any future consolidation rather than trusting the
+reorganization.
 
-**Close the staged-arm probe while consolidating.** It is the only owed evidence left, it is bounded, and it is
-recorded in three places (§ Continuity, § Reader inventory, § Pinned probes) — which is itself a symptom the
-consolidation should fix. Without it the existing pin retires green over an untouched silent pick.
+**Close the staged-arm probe next.** It is the only owed evidence left and it is bounded. Without it the existing
+pin retires green over an untouched silent pick.
 
-**Then the sixth pass, against the consolidated body.** The two remaining text items — the override's wording and
-the refusal disclosure — are the same surface speaking to the same person and should be written together, but
-neither blocks the pass.
+**Then the sixth pass.** The two remaining text items — the override's wording and the refusal disclosure — are
+the same surface speaking to the same person and should be written together, but neither blocks the pass. Read
+the fifth pass's findings and withstood set from `SESSION-NOTES` before spending it; neither is in this
+document.
 
 **Both probes are spent.** The absorption-arm probe returned a third outcome — invariant composition plus a live
 untyped adoption route. The derived-evidence probe confirmed the parent-line derivation and the precise residual,
@@ -569,8 +577,8 @@ need, so the shared primitives should be _available_ to them without this work u
 
 ## The movement substrate — three things under one name
 
-Settled 2026-09-16 against source. § Continuity carried this as _whether the relation replaces
-`terminalAuthoringMovement`, sits beside it, or takes it as a policy layer_, and all three readings share a
+Settled 2026-09-16 against source. The question is usually posed as _whether the relation replaces
+`terminalAuthoringMovement`, sits beside it, or takes it as a policy layer_ — and all three readings share a
 premise source does not support: that the thing is a movement classification. It is not one. The name covers
 three separate things.
 
