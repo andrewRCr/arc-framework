@@ -18,7 +18,7 @@ describe("delivery discovered-entry workflow", () => {
     const content = await readFile(path, "utf8");
     for (const route of [
       "not-applicable", "authoring-required", "canonicalize-provisional",
-      "validate-canonical", "continue-publication", "resume-bound",
+      "repair-required", "validate-canonical", "continue-publication", "resume-bound",
       "correction-routing-required", "review-fix-verification-required", "refused",
     ]) expect(content).toContain(`\`${route}\``);
 
@@ -28,6 +28,14 @@ describe("delivery discovered-entry workflow", () => {
     expect(content).toContain("arc delivery review-fix continue - --json");
     expect(content).toContain("`refused` stops before every eligibility or mutation verb");
     expect(content).toContain("never parses headings, derives members, or re-decides cohesion");
+
+    const continuationStart = content.indexOf(
+      "Before authoring or publishing any approved correction",
+    );
+    const continuationEnd = content.indexOf("### Complete a review-fix verification continuation");
+    expect(continuationStart).toBeGreaterThan(-1);
+    expect(continuationEnd).toBeGreaterThan(continuationStart);
+    expect(content.slice(continuationStart, continuationEnd)).toContain("`repair-required / reauthor-plan`");
   });
 
   it("keeps the package and installed workflow byte-identical", async () => {

@@ -3,6 +3,7 @@ import { constructDeliveryPlanRevision } from "../../src/lib/delivery/plan.js";
 import type { DeliveryTaskInventoryEntry } from "../../src/lib/delivery/task-inventory.js";
 import {
   DeliveryPlanAuthoringInputV1Schema,
+  type DeliveryPlanAuthoringInputV1,
   type DeliveryPlanV1,
 } from "../../src/lib/delivery/schema.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
@@ -98,7 +99,7 @@ function buildDeliveryPlanFixture(
       role: { kind: "verification" as const, scope: "work-unit" },
     },
   ];
-  const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
+  const rawAuthoring = {
     schemaVersion: 1,
     semanticsVersion: "delivery-plan/v1",
     workUnitId,
@@ -120,7 +121,10 @@ function buildDeliveryPlanFixture(
       mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
     })),
     seams: [],
-  });
+  };
+  const authoring = projection === "stack-to-main"
+    ? DeliveryPlanAuthoringInputV1Schema.parse(rawAuthoring)
+    : rawAuthoring as unknown as DeliveryPlanAuthoringInputV1;
   const design = bindDesignInventory({
     artifacts: [{
       artifactId: "spec-delivery-plan-record.md",

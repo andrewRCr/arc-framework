@@ -174,7 +174,7 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
     const projection = resolveDeliveryFromTasksProjection({
       snapshot: result.snapshot,
       slots: {
-        projection: { kind: "wu-integration-target" },
+        projection: { kind: "stack-to-main" },
         boundary: {
           kind: "explicit",
           segments: [{ chunkKey: SlugSchema.parse("combined"), sourceIds: ["9.4", "1.2"] }],
@@ -205,7 +205,7 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
     expect(resolveDeliveryFromTasksProjection({
       snapshot: result.snapshot,
       slots: {
-        projection: { kind: "wu-integration-target" },
+        projection: { kind: "stack-to-main" },
         boundary: {
           kind: "explicit",
           segments: [{ chunkKey: SlugSchema.parse("verification"), sourceIds: ["7.9"] }],
@@ -226,5 +226,22 @@ describe("prepareDeliveryFromTasksAuthoring", () => {
       taskListContent: taskList(),
       designInventory: { artifacts: [] },
     })).toEqual({ status: "refused", reason: "invalid-design-inventory" });
+  });
+
+  it("refuses a retired projection before producing a from-tasks authoring projection", () => {
+    const result = prepare();
+    expect(result.status).toBe("prepared");
+    if (result.status !== "prepared") return;
+    const retiredSlots = {
+      projection: { kind: "wu-integration-target" },
+      boundary: { kind: "phase-aligned" },
+      members: [member("first"), member("second")],
+      seams: [],
+    } as unknown as DeliveryAuthoringSlotsV1;
+
+    expect(resolveDeliveryFromTasksProjection({
+      snapshot: result.snapshot,
+      slots: retiredSlots,
+    })).toEqual({ status: "refused", reason: "authoring-projection-invalid" });
   });
 });

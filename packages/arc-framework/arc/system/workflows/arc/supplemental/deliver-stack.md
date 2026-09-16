@@ -42,6 +42,8 @@ workflow never parses headings, derives members, or re-decides cohesion:
 
 - `not-applicable` returns to ordinary work-unit execution, including singleton integration from the pre-push door.
 - `authoring-required` enters the existing inventory-schema, `from-tasks`, author-slot, and compose sequence.
+- `repair-required` with `reauthor-plan` re-enters the returned `entry` path, authors a supported replacement
+  revision, composes it, and reruns entry inspection before eligibility.
 - `canonicalize-provisional` runs that same canonicalization sequence or its receipt-pinned recovery.
 - `validate-canonical` advances to eligibility.
 - `continue-publication` invokes `publicationAction.command` unchanged before reading position.
@@ -643,6 +645,8 @@ selector reconstructed in prose.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
   status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
   provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
+- `repair-required / reauthor-plan` re-enters the returned `entry` authoring path, composes a supported replacement,
+  then re-enters this continuation before correction work resumes.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
