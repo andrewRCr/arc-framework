@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "gitignore-test-cost-run-directory",
+  "claimId": "91bbdbe505f734094fc4d86c097cb18f",
+  "createdAt": "2026-09-16T16:49:27.548Z",
+  "updatedAt": "2026-09-16T16:49:27.548Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "gitignore-test-cost-run-directory",
+  "branch": "chore/gitignore-test-cost-run-directory",
+  "origin": "inbox",
+  "originEntry": "Gitignore the benchmark's default test-cost run directory",
+  "originEntrySourceDigest": "sha256:14d858318b5f64e2797967b910dd8d9c5b64bdf094d50d56f36dcc78cac2de1b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
