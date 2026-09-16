@@ -9,11 +9,10 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `rough`. Four adversarial passes (2026-09-16). The fourth ran the full rubric after the recovery
-  half was re-settled on an existing protocol, and broke it again: adoption is not the straight lift the draft
-  claimed, because the built protocol is coupled to a selection referent the native landing path does not have.
-  Two blockers, four majors, all confirmed against source. The frozen half's mechanism claims held; its call-site
-  inventory did not.
+- **Readiness:** `rough`, and converging. Four adversarial passes (2026-09-16); the fourth broke the recovery
+  half on a selection referent the native landing path does not have. Settling that referent dissolved it — the
+  landing readiness gate already encumbers a hand-resolved head, so the waiver needs no obligation, no discharge,
+  and no referent. Five items remain open, two of them structural, and a certifying pass is owed.
 
 ---
 
@@ -85,37 +84,40 @@ _input_ side survived source verification intact, and its _output_ side did not.
   reapplies take `mechanical-reapply`, both silent. Movement alone never asks anyone anything.
 - **Gerrit's asymmetry and ARC's standing acceptance rule agree** once movement is distinguished from change.
 
-**The output side does not, and the cause is one referent.** The built protocol is gated end to end on a
-`selectedDeliverableId` that the native landing case has no defined value for — it is required by the pending
-schema, required by the state refinement to resolve to a plan-ordered state member, and it is the discriminator
-on the disclosure's own `scope`. Adoption is therefore not a lift. Three consequences, all now open below: what
-the selection referent is, what discharges the obligation, and what abort means.
+**The output side broke on one referent, and settling it dissolved the obligation.**
+`pendingReviewFixVerification` is the review-fix flow's own state machine — an acknowledgement identity key, a
+field terminal integration renews from its candidate, and a bar on native stack link and unlink. It is not a
+generic slot for what is owed, and a native landing has no selection to write into it.
+
+- **The waiver needs no obligation field.** The settle writes resolved heads into state coordinates; the next
+  landing cycle derives each member's `headSha` from those coordinates and refuses unless every member passes
+  `reviewReadiness` on its exact head. A hand-resolved head carries no review evidence, so the capture's "fresh
+  applicability, review, and checks" is delivered by the existing gate. No field, no discharge, no referent.
+- **The waiver is recorded as a second `kind` in ARC's existing Owner-acceptance family**, reusing
+  `DeliveryReviewMemberVehicle` as its subject and the `review-terminus/v1` vocabulary. Not a new data structure,
+  and not an abstraction over the two — that seam routes to `review-source-authority`.
+- **The encumbrance-predicate extraction stays captured.** There is no third obligation term, so its trace does
+  not come back. An audit fact is not an encumbrance.
+- **Adoption is request-side.** What the native path needs is the conflict collection, the disclosure, and a
+  scope discriminant on the `native-land-status` request — not a state-schema change.
 
 ### Open
 
-Seven. Three are structural, and one of those was dropped from this list by a previous rewrite of it — see § Next
-for the process fix that follows.
+Five. Two left this list settled — the selection referent and the waiver's discharge, both dissolved by the
+finding that the landing readiness gate already encumbers a hand-resolved head. Two remain structural.
 
-- **The selection referent, and whether one exists.** The built protocol is gated on `selectedDeliverableId`;
-  the native landing case defines none. Three candidates and no lean: the **landed member** (just absorbed into
-  the target), the **first conflicted suffix member**, or a **native arm on the pending record** that carries no
-  selection at all. The schema constrains but does not decide — the referent must resolve to a state member and
-  sit inside a plan-ordered `memberDeliverableIds`. § What the record may carry.
-- **What discharges the waiver, and whether `pendingReviewFixVerification` can carry it.** Its projection emits a
-  Tier-1 gate over the **terminal** tree with `coveredInputs: "unchanged"` — a check-reuse obligation. The
-  retained capture requires new member heads to receive _fresh_ applicability, review, and checks. The field
-  works as the closeout encumbrance and does not, as built, carry that success signal.
-- **What abort means once the predecessor has landed.** The provider path's decline route restores refs to a
-  coherent pre-decision state. On the native path the host merge has already happened, so there is no
-  pre-decision state to return to — restoring suffix refs would re-base them on a predecessor the target no
-  longer has, and the retarget does not revert. The semantics are unsettled, not merely unbuilt.
 - **Whether the movement substrate unifies Axis A.** Carried from § Substrate, which names it as the first open
-  question and which a previous rewrite of this list silently dropped. `terminalAuthoringMovement` is a two-value
-  option at two call sites; whether the relation replaces it, sits beside it, or takes it as a policy layer is
-  three materially different designs, and an in-flight Errand is declared downstream of the answer.
-- **Which lookup route the readiness inversion takes.** Three exist and are non-equivalent, and the choice decides
-  whether `absent` means _no member_ or _no hosted member_ — the meaning of one of the six variants, and so the
-  remedy it dispatches. Previously labelled detail-design; that was wrong by the draft's own sentence.
+  question. `terminalAuthoringMovement` is a two-value option at two call sites; whether the relation replaces
+  it, sits beside it, or takes it as a policy layer is three materially different designs, and an in-flight
+  Errand is declared downstream of the answer.
+- **Which lookup route the readiness inversion takes.** Three exist and are non-equivalent, and the choice
+  decides whether `absent` means _no member_ or _no hosted member_ — the meaning of one variant, and so the
+  remedy it dispatches. **Check `sameDeliveryReviewMemberIdentity` before designing a fourth route**: it is
+  already resolve-by-identity-then-compare-head, and whether the review-gate reader can reach it is unverified.
+- **What abort means once the predecessor has landed.** Narrowed but not closed: with no obligation written there
+  is nothing in state to clear, so the question is about refs alone. Restoring suffix refs to their pre-landing
+  heads would re-base them on a predecessor the target no longer carries, and the retarget does not revert — so
+  the provider path's decline semantics still do not transfer.
 - **Whether an all-neutral conflict set should settle without asking.** ARC classifies paths `reviewable` /
   `evidence-neutral` / `regenerable`; a collision confined to lifecycle projections carries no judgment. Gating
   the disclosure on at least one `reviewable` path is the proposal; the subset's reachability is unmeasured.
@@ -124,18 +126,19 @@ for the process fix that follows.
 
 ### Next
 
-**Settle the selection referent first.** The discharge question and the abort question are both downstream of it,
-and the fourth pass showed that reasoning about the protocol without pinning that referent reproduces the same
-error at a new layer.
+**Take the substrate question next.** It is the older of the two structural items, § Substrate already names it
+as first, and an in-flight Errand is declared downstream of the answer — so it is the one whose delay costs
+something outside this work unit.
 
-**A process fix, written here because it has now failed twice.** Both times § Continuity was rewritten wholesale,
-an open item was lost — pass three caught four retracted claims left standing beside their replacements, and pass
-four caught an open question deleted beneath an explicit "none structural". Before any commit that rewrites this
-section, **diff the pre-rewrite § Open against the post-rewrite one and account for every item that left**. This
-is bookkeeping, not design, and it is the failure most likely to reach the certifying pass.
+**The ledger-diff check, which is now standing procedure here.** Before any commit that rewrites § Continuity,
+diff the pre-rewrite § Open against the post-rewrite one and account for every item that left. Run on this
+change: two items left, both settled rather than dropped, and both recorded in § What the record may carry. The
+check exists because a wholesale rewrite lost an open item twice — pass three found four retracted claims left
+standing beside their replacements, and pass four found an open question deleted beneath a "none structural"
+claim.
 
-**A whole-artifact certifying pass is still owed.** Pass four ran the full rubric and returned not-ready, so the
-next pass inherits its findings as `prior-findings` rather than starting clean.
+**A whole-artifact certifying pass is owed.** Pass four ran the full rubric and returned not-ready, so the next
+pass inherits its findings as `prior-findings` rather than starting clean.
 
 ---
 
@@ -839,49 +842,78 @@ continue mechanical proof for every other movement". That is `resolutionInput` a
 for term. The capture also attributed suffix reconciliation to `native-landing.ts`; the protocol it describes
 lives in `suffix-reconciliation.ts`, which is why it read as unbuilt.
 
-**The three classes were right; two of their homes were wrong, and the fourth pass found the cause.** The
-disclosure is the `resolutionInput`, and the decision is that same blob resubmitted — both confirmed against
-source. The obligation was recorded as `pendingReviewFixVerification`, which the settlement emits, and that is
-where adoption stops being a lift.
+**The three classes were right; the obligation class turned out not to exist.** The disclosure is the
+`resolutionInput` and the decision is that blob resubmitted — both confirmed. The obligation was recorded as
+`pendingReviewFixVerification`, then as a selection-referent question, and settling that question dissolved it.
 
-**The whole protocol is gated on a selection referent the native path does not have.** Verified across four loci:
-`DeliveryPendingReviewFixVerificationV1Schema` requires `selectedDeliverableId`; the state refinement requires it
-to resolve to a state member and to sit inside a plan-ordered `memberDeliverableIds`; the disclosure's own `scope`
-is `{ kind: "dependent-suffix", selectedDeliverableId }`; and `adoptExternalDeliverySuffixRefresh` runs the
-collect-disclose-resubmit arm only when `selectedDeliverableId !== undefined`, proving movement-by-movement
-otherwise. On the provider path that referent is the republished member whose head has not reached its dependents.
-A native landing has no such member: the analogous one has just been merged into the target.
+**That field is the review-fix flow's own state machine, not a generic slot for what is owed.** Four couplings,
+each verified: the acknowledgement handshake refuses `selected-deliverable-mismatch` unless the acknowledger
+names the same `selectedDeliverableId`, so the value is an identity key; terminal integration's review-fix arm
+**renews** the field from its candidate's selection and validates the candidate against the pending scope; a
+non-null value refuses native stack **link and unlink**, removing the degrade-to-sequential escape several
+sibling refusals recommend by name; and publication, reservation-nulling, and supersession all key on the same
+selection. Writing it from a native landing would mean inventing a selection three readers misinterpret, and
+leaving `review-fix acknowledge` as the only discharge verb.
 
-**Three candidates, no lean, all open.** The **landed member** — defined, still present in state, but absorbed
-into the target, so an obligation naming it reads oddly. The **first conflicted suffix member** — the thing
-actually at issue, but selected by the conflict rather than by an operator, which is not what the field means
-anywhere else. Or a **native arm on the pending record** carrying no selection at all — which an earlier version
-of this section foreclosed by asserting the design "adds no field at all". That assertion predates the referent
-problem and does not survive it. `installDeliveryReviewFixVerification` is a shared installer, so a write path
-composes once the referent is settled; the gap is meaning, not mechanism.
+**The waiver needs no obligation at all, because the encumbrance is already structural.** Trace the cycle the
+settlement hands back to. The settle writes the resolved heads into `state.members[].coordinates` and clears the
+operation. The next cycle's `deriveNativeDeliveryRegisteredRemainder` builds each member's `headSha` **from those
+coordinates**, so it carries the hand-resolved head. `prepareNativeDeliveryLanding` refuses `member-not-ready`
+unless every member passes its readiness dependency, and that dependency calls `reviewReadiness` keyed on the
+exact head. A hand-resolved head carries no review evidence, so it refuses there by construction — and there is
+no bypass, because the arm selector releases to terminal integration only on `no-nonterminal-remainder`, which
+means every non-terminal member has already passed that gate.
 
-**The obligation as built does not carry this design's success signal.**
-`projectDeliveryReviewFixVerificationContinuation` emits `nextAction: "verify-review-fix"` with `tier1Required`
-over the **terminal** head and tree, under `tier1Reuse: { kind: "exact-tree", requiredResult: "passed",
-coveredInputs: "unchanged" }`. That is a check-reuse obligation. § Retained capture detail requires that new
-member heads receive **fresh** applicability, review, and checks before landing. So the field is correct as the
-closeout encumbrance — every encumbrance reader already checks it — and insufficient as the discharge. Both roles
-were previously claimed for it.
+So the retained capture's requirement — new member heads receive fresh applicability, review, and checks before
+landing — is delivered by the existing gate rather than by anything this design adds. No blocking field, no
+discharge, and therefore **no referent to select**. The question dissolved rather than resolving.
 
-**Abort is not merely unbuilt; its meaning does not transfer.** `externalRefRestorations` has four references in
-source — the interface field, its composition, its return, and a result-schema declaration. Nothing consumes it
-and no restoration is performed, so "already built" was wrong. The deeper problem is semantic: on the provider
-path the movement being undone is an unadopted external refresh, so restoring returns the delivery to a coherent
-pre-decision state. After a native landing the host merge has already happened. Restoring suffix refs to their
-pre-landing heads would re-base them on a predecessor the target no longer carries, and the provider's retarget
-does not revert. **There is no pre-decision state to return to**, so what abort means here is an open design
-question rather than a missing executor.
+**A coherence check worth recording.** That gate holds today _because_ of the defect this work unit fixes:
+readiness misses on a moved head. After the Axis A correction it resolves by identity and reports a typed
+mismatch instead. Either way it refuses, so the fix and the waiver compose without regression.
 
-**What still stands, and it is the larger half.** The disclosure is regenerated rather than stored; the
-resubmission is compared by canonical form against a freshly derived one; arrival needs no new operation, no
-second reservation, and no state-schema change, because the reservation is already held and the landing
-projection is passed unpersisted at the same revision. Each was checked against source by the fourth pass and
-held. The input side of the protocol is adoptable as it stands.
+**The loop-back, stated once.** This draft proposed a sibling obligation field, retracted it on the reading that
+the protocol emits `pendingReviewFixVerification`, and source says that field belongs to another flow. The
+original instinct was right for a reason neither version had — and the answer is still not a sibling field,
+because no obligation field is needed.
+
+**Abort narrows with it.** With nothing written to state, declining a waiver leaves no obligation to clear. That
+does not make the provider path's ref-restoration semantics transfer — § Open keeps that question — but it does
+reduce abort to a question about refs alone.
+
+### The waiver record joins an existing family
+
+Settled 2026-09-16, and it settles a composition question the Owner has now raised four times in this work unit.
+A waiver is a person accepting something ARC could not mechanically establish. That is the same act as an
+Owner-accepted review terminus, and **ARC already carries a typed durable shape for it.**
+
+`OwnerAcceptedReviewTerminusSchema` is `{ schemaVersion, semanticsVersion: "review-terminus/v1", kind:
+"owner-accepted", lane, acceptedBy, completedPasses }`, and `DeliveryReviewMemberTerminusSchema` binds one such
+conclusion to a subject: `{ vehicle, terminus }`. The vehicle is `DeliveryReviewMemberVehicleSchema` —
+`{ kind: "delivery-member", planId, deliverableId, workUnitId, head }` — with `sameDeliveryReviewMemberIdentity`
+comparing identity while **ignoring head**. Subject vehicle, typed conclusion, versioned semantics, and a
+recorded accepting identity are all present.
+
+**So the waiver is a second `kind` in that family, not a new data structure.** It reuses the vehicle for its
+subject, `acceptedBy` for who accepted, and the `semanticsVersion` convention; what differs is the conclusion's
+payload — the disclosed conflict paths and the digest the acceptance was taken against — and its binding.
+
+**The binding difference is the family's own rule applied to different subjects, not a second rule.** A review
+terminus binds to a work unit's review state and survives movement that leaves the reviewed content intact; a
+waiver binds to disclosed content and dies when that content is rewritten. § What the record may carry already
+records the reconciliation — movement is distinguished from change, and each thing binds to what it is actually
+about. Two `kind`s, one rule.
+
+**What this work unit does and does not do.** It mints the waiver `kind` against the existing vocabulary rather
+than inventing a parallel one. It does **not** abstract the two into a shared acceptance primitive, because
+`review-source-authority` owns a live defect in the terminus's binding — an acceptance dropped when the Candidate
+advances, and the frontline lane refused outright — and an abstraction authored here would be authored against a
+shape that work unit is about to change. The seam is routed there instead. § Boundaries.
+
+**A pointer the readiness question should consume.** `sameDeliveryReviewMemberIdentity` is already
+resolve-by-identity-then-compare-head, which is the shape § Readiness reads its key backwards prescribes. Whether
+the review-gate reader can reach it is unverified and belongs to that open item; it is recorded here because the
+next pass should check it before designing a fourth lookup route.
 
 **How often the gate fires, because that is what decides whether it is friction.** It fires only when `merge-tree`
 cannot compose a member's pre-landing content across its predecessor's landing — a genuine content collision
@@ -1077,14 +1109,18 @@ it.
 ### Checked and not firing
 
 `strategy-knowledge-evolution` reaches this design only through Principle 6, extract on fan-in rather than
-aesthetics, which independently confirms § What composes: the predicate has three consumers and the payloads
-have one built and one unauthored. `strategy-pm-composition-evolution` finds no new external-authority surface —
-the change-request binding is untouched, and resolving a member by deliverable identity rather than by head
-object id moves toward its Principle 5 and `strategy-storage-evolution`'s Principle 5, both of which hold work
-unit identity independent of any single repository's branch state. Storage Principles 2 and 3 want re-checking rather than
-carrying forward: the clearance was written over a stored record the re-settlement retracted. What replaces it
-stores nothing on the input side, so Principle 2's tracked-tree question does not arise there — but the output
-side is unsettled (§ Open), and its clearance is owed once the obligation's shape is known.
+aesthetics, which now confirms § What composes from the other direction: the second payload this design was
+expected to add does not exist, so there is no fan-in to extract on and the predicate stays captured.
+`strategy-pm-composition-evolution` finds no new external-authority surface — the change-request binding is
+untouched, and resolving a member by deliverable identity rather than by head object id moves toward its
+Principle 5 and `strategy-storage-evolution`'s Principle 5, both of which hold work unit identity independent of
+any single repository's branch state.
+
+Storage Principles 2 and 3 clear, and the re-settlement is why. The earlier clearance was written over a stored
+record that no longer exists; what replaces it stores nothing on the input side, so Principle 2's tracked-tree
+question does not arise, and the waiver record it does write joins an existing versioned family rather than
+minting a namespace. Principle 3's version-checked precondition is satisfied by the resubmission predicate,
+which compares canonical forms against freshly derived state.
 
 ## Refusal-recoverability audit
 
@@ -1228,6 +1264,23 @@ constraint below covers.
 Carry it as a constraint, not a feature: whatever replaces the equality comparison must not assume the landed head
 is the head ARC bound. Current compatibility is **unverified** — every enumerated row moves the head from inside
 ARC, and no probe covers an external mover.
+
+### `review-source-authority` — the acceptance-primitive seam, routed not taken
+
+This work unit mints a waiver as a second `kind` in ARC's Owner-acceptance family (§ The waiver record joins an
+existing family). That makes two instances of one shape: an Owner accepting a review terminus, and an Owner
+accepting a movement whose contribution ARC cannot prove. Whether they should consume one abstracted acceptance
+primitive is a real question and it is **not this work unit's to answer**.
+
+`review-source-authority` owns a live defect in the terminus's binding — the acceptance is dropped when the
+Candidate advances, and the frontline lane refuses an Owner terminus outright. An abstraction authored here would
+be authored against a shape that work unit is about to change, which is the premature-abstraction failure this
+draft already names twice on other seams.
+
+So the discipline is the one used for the merge-base primitive and for the obligation payloads: **use the
+existing vocabulary, add no abstraction, and route the seam.** The waiver reuses `DeliveryReviewMemberVehicle`,
+`acceptedBy`, and the `semanticsVersion` convention rather than inventing parallels, so whatever unification that
+work unit reaches finds two instances already speaking one language. Capture the seam to it at planning close.
 
 ### Errands in flight
 
