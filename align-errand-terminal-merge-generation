@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "align-errand-terminal-merge-generation",
+  "claimId": "45266dcee8864a17731b787ad939a524",
+  "createdAt": "2026-09-16T13:35:17.563Z",
+  "updatedAt": "2026-09-16T13:35:17.563Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the typed Errand terminal merge validate live marker-digest occupancy while retaining the logical errand generation in its approved request, and cover the real locus-row shape.",
+  "branch": "chore/align-errand-terminal-merge-generation",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
