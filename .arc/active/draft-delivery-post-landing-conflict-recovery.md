@@ -69,10 +69,11 @@ contract it relies on was never authored. Read a marker as narrowing where to lo
   Read-all, refuse-on-more-than-one, then diff or record from the single base. The staged arm of the subject
   collector takes the same rule, and its probe is now pinned. § Reader inventory carries the arithmetic, which
   has been corrected twice, and the sweep command that re-derives it.
-- **The shared base resolver returns three arms and never throws**, authored 2026-09-16 after a pass found its
-  contract unsettled while its algorithm was settled. `resolved` / `ambiguous` / `unavailable`, split because an
-  ambiguous history carries an idiomatic remedy while an unanswerable read is retryable — the collapse
-  `base-overlap.ts` performs today under one reason. Each caller applies its own policy, and the propagation cost
+- **The shared base resolver returns four arms and never throws**, authored 2026-09-16 after a pass found its
+  contract unsettled while its algorithm was settled, then corrected for a dropped arm. `resolved` / `ambiguous`
+  / `unrelated` / `unavailable`, split on what the caller can do next: the middle two are recoverable and
+  `unrelated` is terminal. Two are already shipped under these names; the collapse `base-overlap.ts` performs is
+  of the other pair. Each caller applies its own policy, and the propagation cost
   is `collectGitCandidateTarget`'s widened result across eight importing files. § What the resolver returns.
 - **The subject's path set is base-relative, with cardinality refused rather than picked** `[frozen]`. The
   commit-derived answer was falsified twice: it cannot see a branch retaining its own side of a base-changed path
@@ -632,21 +633,40 @@ need, so the shared primitives should be _available_ to them without this work u
 Authored 2026-09-16, after a pass found the contract unsettled while the algorithm was settled. The silent pick
 is this design's most-traced fix, and a fix whose result type is unnamed is not a settled fix.
 
-**Three arms, and the resolver never throws.** `DEV-RULES.PROJECT` § Engineering Standards holds that a shared
+**Four arms, and the resolver never throws.** `DEV-RULES.PROJECT` § Engineering Standards holds that a shared
 helper returns only what it establishes while each caller applies its own failure policy — so the resolver
-reports, and the readers decide.
+catches what the executor raises, classifies it, and lets the readers decide.
 
-| Arm           | Holds when                              | What the caller owes                 |
-| ------------- | --------------------------------------- | ------------------------------------ |
-| `resolved`    | `merge-base --all` returned exactly one | proceed on that base                 |
-| `ambiguous`   | it returned more than one               | refuse, and name merging the base in |
-| `unavailable` | Git could not answer                    | refuse, and offer the retry          |
+| Arm           | Holds when                              | What the caller owes                  |
+| ------------- | --------------------------------------- | ------------------------------------- |
+| `resolved`    | `merge-base --all` returned exactly one | proceed on that base                  |
+| `ambiguous`   | it returned more than one               | refuse; merging the base in clears it |
+| `unrelated`   | it returned none — no common ancestor   | refuse; terminal, no remedy to offer  |
+| `unavailable` | Git could not answer                    | refuse; the retry is the remedy       |
 
-**Two arms would repeat the defect this design is about.** Ambiguity is a fact about the history and carries an
-idiomatic remedy; an unanswerable read is operational and retryable. `base-overlap.ts` returns
-`merge-base-failed` for both today — its multiple-base branch and its own `catch` reach the same reason — which
-is the collapse § The variants refuses for `unknown`, and the distinction § Refusal-recoverability's clause zero
-requires. Splitting it is part of adopting the resolver rather than a separate concern.
+**The arms split on what the caller can do next, which is § Refusal-recoverability's clause zero.** `ambiguous`
+and `unavailable` are recoverable — merge the base in, or retry the read. `unrelated` is terminal: there is no
+common ancestor, so there is no base to merge relative to, and a refusal that offered one would be the
+recoverable-looking dead end that clause exists to forbid.
+
+**Two of the four are already shipped under these names, and the fourth is the one this draft nearly dropped.**
+`base-overlap.ts` distinguishes `unrelated` today — `merge-base` exits 1 with no output and its `catch` returns
+that status — which is the distinct status § Axis B already records as enumerated and closed. Adopting its word
+rather than minting a fourth spelling is the controlled-vocabulary constraint applied to this surface.
+`repository-target.ts` carries the same concept as the `no-merge-base` reason in its closed union.
+`collectGitCandidateTarget` has no arm for it at all: exit 1 leaves an empty string, `isGitObjectId` rejects it,
+and the collector throws — so cardinality zero is today as unreportable there as cardinality above one.
+
+**This `unrelated` composes with its neighbours rather than joining the open collision.** `predecessorRelation`
+carries an `unrelated` arm and Git names the same condition the same way, and all three denote one topological
+fact: the two revisions share no common ancestor. Reusing the word across them is the controlled-vocabulary
+constraint working. § Open's collision is a different problem — two vocabularies disagreeing about `exact`
+against `unchanged` and `advanced` — and nothing here adds to it.
+
+**What `base-overlap.ts` does collapse is the other pair.** Its multiple-base branch and its non-exit-1 `catch`
+reach the same `merge-base-failed` reason, so an ambiguous history and an unanswerable read arrive as one word —
+the collapse § The variants refuses for `unknown`. Splitting that is part of adopting the resolver rather than a
+separate concern.
 
 **The `ambiguous` arm carries its bases for the report, not for consumption.** No consumer can take a base set,
 so nothing downstream branches on the count; the bases travel so the refusal can say what it saw.
@@ -656,14 +676,23 @@ so nothing downstream branches on the count; the bases travel so the refusal can
 - `git-candidate-subject.ts` refuses typed. Its silent pick is the one row that returns a wrong answer rather
   than a stop, so a throw would leave the condition as unreportable as it is today. That widens
   `collectGitCandidateTarget` from `CandidateLineageTarget` to a union, and **that is the propagation cost**:
-  eight files import it, including Candidate attestation and the terminal coordinate advance proof, which calls
-  it twice. Each absorbs the arm by surfacing its reason; none needs new logic.
+  eleven call sites across seven consuming files. They do not all absorb it the same way, and the differences
+  are the part worth planning against rather than discovering:
+    - **Handlers and projections** carry result channels already and absorb the arm into them.
+    - **Two sites are injected dependency lambdas** — `runAttest`'s `currentTarget` and the review gate's
+      lineage reader — so the injected contract widens with the helper. Attestation therefore gains a refusal
+      it does not have today. That is the right answer rather than an unwanted consequence: a subject whose
+      base cannot be defined cannot be attested. It is still new behaviour in a load-bearing ceremony, not a
+      pass-through, and the task plan should treat it as such.
+    - **The terminal record advance proof** converts the arm to no-proof and deliberately does not carry the
+      reason onward, which is correct for a projector whose entire output is a proof or its absence.
 - `repository-target.ts` maps it into the channel it already has. `LocalTargetDerivationError` carries a closed
   reason set and its merge-base read already passes `no-merge-base`, so ambiguity earns a reason beside that one
   rather than a new mechanism.
 - `base-overlap.ts` splits its collapsed reason, above.
 - `git-candidate-effective-target.ts` returns the typed result § Refusal-recoverability's table already names for
-  it, retiring the untyped throw.
+  it, retiring the untyped throw. That throw lives in `resolveGitCandidateTargetBase`, which carries five callers
+  of its own across four files — a second propagation, smaller than the collector's and the same arm shape.
 - `git-contribution-proof.ts` keeps its `null` / endpoints-unverified policy. It is listed for allocation
   completeness; this work unit does not convert it.
 
@@ -983,9 +1012,9 @@ Two of these are the whole Axis A defect. `advanced` and `absent` are today indi
 readiness, which is what the pinned probe records; separating them is the fix.
 
 **`advanced` is ancestry-only, by design, and the content term lives downstream.** Its pinned target is
-content-shaped — a head "advanced by a commit changing nothing" — and ARC's one existing admission of a moved
-head at a review seam is proof-conditioned, tying the two heads and requiring the Candidate subject digest
-unchanged. The relation does neither, because § Shape makes the classifier pure and Git-free: it reports the
+content-shaped — a head "advanced by a commit changing nothing" — and the admission of a moved head that ARC
+already ships at the review seam is proof-conditioned, tying the two heads and requiring the Candidate subject
+digest unchanged. The relation does neither, because § Shape makes the classifier pure and Git-free: it reports the
 topology and nothing else. What keeps an unreviewed change from riding an `advanced` verdict is the gate below
 it, which still requires the observed head to equal the target head and the routed obligation to be discharged
 at that exact vehicle. Do not add a subject term to the classifier to close a hole the downstream gate already
