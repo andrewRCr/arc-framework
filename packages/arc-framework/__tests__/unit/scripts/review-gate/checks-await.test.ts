@@ -261,6 +261,63 @@ describe("required-checks observation", () => {
       actualHeadSha: "b".repeat(40),
     });
   });
+
+  it("returns stale when the pull-request head moves while required checks are read", async () => {
+    let headReads = 0;
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: {
+        ...port([{ name: "build", state: "green" }]),
+        readHead: async () => {
+          headReads += 1;
+          return headReads === 1 ? headSha : "b".repeat(40);
+        },
+      },
+      signal: new AbortController().signal,
+    })).resolves.toMatchObject({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "stale-target",
+      nextAction: "stop",
+      actualHeadSha: "b".repeat(40),
+    });
+    expect(headReads).toBe(2);
+  });
+
+  it("returns stale when the pull-request head moves while diagnostic checks are read", async () => {
+    let headReads = 0;
+    const checks = [{ name: "merge-ok", state: "pending" }] satisfies RequiredCheck[];
+    await expect(observeRequiredChecks({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+    }, {
+      port: {
+        ...port(checks),
+        readHead: async () => {
+          headReads += 1;
+          return headReads < 3 ? headSha : "b".repeat(40);
+        },
+        readObservedChecks: async () => [
+          ...checks,
+          { name: "E2E shard 3", state: "failed" },
+        ],
+      },
+      signal: new AbortController().signal,
+    })).resolves.toMatchObject({
+      repository: "owner/repo",
+      pullRequest: 42,
+      headSha,
+      state: "stale-target",
+      nextAction: "stop",
+      actualHeadSha: "b".repeat(40),
+    });
+    expect(headReads).toBe(3);
+  });
 });
 
 describe("required-checks await", () => {
