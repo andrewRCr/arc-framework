@@ -12,9 +12,10 @@
 - **Readiness:** `maturing`. Five adversarial passes (2026-09-16), the fifth certifying and not-ready with four
   blockers. The terminal-member cluster those blockers converged on has since settled on probe rather than on
   reasoning: the marker is the Candidate applicability decision, its record is the `applicability-selection`
-  transition, the absorption arm's invariance is measured, and the acceptance evidence is derived from Git rather
-  than written. Four items are open, one of them structural, and they no longer share a premise. A sixth pass is
-  due and would be the first to run against a body whose load-bearing claims were measured.
+  transition, the absorption arm's invariance is measured, the acceptance evidence is derived from Git rather than
+  written, and decline is a release transition rather than an undo. Four items are open and **none is
+  structural** — two await text, one a measurement, one a naming call. What the design _is_ no longer moves, so
+  the coherence consolidation is due, then a sixth pass against the consolidated body.
 
 ---
 
@@ -160,10 +161,10 @@ bar — but they are the part of this session's work that survived the certifyin
 
 ### Open
 
-Four, **one of them structural**, after the terminal-member cluster settled across two probes and a practice
-survey. The admission item that briefly replaced the marker and the record's home settled on the derived-evidence
-probe; the presentation question it surfaced then settled in direction against the survey, leaving only its text.
-Decline is the only structural item left, and it is the one nothing upstream constrains.
+Four, **none of them structural**, after the terminal-member cluster settled across two probes and a practice
+survey and decline settled on a mutation-order read. Every remaining item is detail: two await text, one awaits a
+measurement, one awaits a naming call. Nothing open now changes what the design _is_ — which is the condition
+§ Next's consolidation step was waiting for.
 
 - **How the override presents itself.** Settled in direction 2026-09-16, detail open. `covered` is the Owner's
   escape hatch and stays reachable; what remains is the wording and placement that make it read as an override
@@ -172,13 +173,13 @@ Decline is the only structural item left, and it is the one nothing upstream con
   selecting from an undifferentiated menu, and `targeted-check` should be offered as the bounded-evidence
   alternative without being the forced path. § Established practice carries why the hatch is right; what is not
   yet written is the text.
-- **How an operator declines, and what releases the reservation.** `[structural]` Unchanged in substance,
-  narrowed in scope. The applicability decision supplies a decline at _its_ boundary — `changed` establishes a new
-  lineage root — but that is downstream of the held reservation and does not reach it. The disclosure window still
-  sits under an `activeOperation` that every encumbrance reader refuses on, and `delivery native` still carries no
-  decline, abort, or cancel verb. Six sites clear `activeOperation` and none is a decline route; the nearest,
-  `native-landing.ts:663`, fires only on a `not-applied` effect. This still wants a release transition with its
-  own lease-checked ref restoration.
+- **Which verb surface the release transition takes.** Settled in substance 2026-09-16; only its placement is
+  open. § The decline route establishes what it does — restore any local member refs ARC rewrote by lease,
+  publish `activeOperation: null` at the exact revision, report what it left standing — and that the two
+  disclosure points need different amounts of restoration because they sit on opposite sides of
+  `native-landing.ts:956`. What is not settled is whether that lands as its own `delivery native` verb or as a
+  declining arm of `land-status`, which turns on a CLI-surface convention this draft has no reading of. Ask at
+  spec time rather than guessing here; nothing else in the design depends on the answer.
 - **Whether an all-neutral conflict set should settle without asking.** ARC classifies paths `reviewable` /
   `evidence-neutral` / `regenerable`; a collision confined to lifecycle projections carries no judgment. Gating
   the disclosure on at least one `reviewable` path is the proposal; the subset's reachability is unmeasured.
@@ -201,14 +202,20 @@ Decline is the only structural item left, and it is the one nothing upstream con
 
 ### Next
 
-**Take the decline route next — it is the last structural item.** It did not settle with the cluster: the
-applicability decision reaches the recognition boundary, not the held reservation, so the `activeOperation` wedge
-survives intact. Its shape is a release transition with lease-checked ref restoration, and nothing upstream
-constrains it any further, so it can be worked without waiting on the presentation question.
+**Consolidate next, before anything else.** Decline was the last structural item and it has settled, so nothing
+open changes what the design is — which is the bar the coherence-consolidation lean waits for. The document is
+past where accretion is cheap: § Continuity stratifies its settlements by _which pass produced them_ (frozen,
+recovery record, after pass four), a scheme that no longer has a home for settlements reached by probe rather
+than by pass, and the last three sessions' work went into body sections plus the ledger because of it. Reconcile
+the layers into one coherent input, preserving every settled decision and naming anything deliberately dropped.
 
-**The presentation question is settled in direction and wants only its text.** `covered` is the Owner's escape
-hatch; what remains is wording that makes it read as an override of a stated machine verdict. Write it alongside
-the refusal-disclosure work rather than as its own pass — both are the same surface speaking to the same person.
+**Close the staged-arm probe while consolidating.** It is the only owed evidence left, it is bounded, and it is
+recorded in three places (§ Continuity, § Reader inventory, § Pinned probes) — which is itself a symptom the
+consolidation should fix. Without it the existing pin retires green over an untouched silent pick.
+
+**Then the sixth pass, against the consolidated body.** The two remaining text items — the override's wording and
+the refusal disclosure — are the same surface speaking to the same person and should be written together, but
+neither blocks the pass.
 
 **Both probes are spent.** The absorption-arm probe returned a third outcome — invariant composition plus a live
 untyped adoption route. The derived-evidence probe confirmed the parent-line derivation and the precise residual,
@@ -222,8 +229,9 @@ and surfaced the layer disagreement now standing in § Open. Both live in the pl
   items left and two arrived. The marker and the record's home settled on the absorption-arm probe and the
   absorption-arm probe spent itself, admitting the admission tension; the derived-evidence probe then settled
   that tension and admitted the presentation question in its place; the practice survey settled that question's
-  direction, leaving it open only for its text. Decline, the all-neutral narrowing, and the rewound variant
-  carried unchanged throughout. Four now stand where six did, and one is structural where three were.
+  direction, leaving it open only for its text; and decline settled on a mutation-order read, leaving only which
+  verb surface carries it. The all-neutral narrowing and the rewound variant carried unchanged throughout. Four
+  now stand where six did, and **none is structural** where three were.
 - **The settle-time dependency sweep, added 2026-09-16.** When a settlement retracts or replaces a named object,
   grep the whole draft for that name and re-read every hit before committing. The ledger-diff check is
   section-scoped; this failure is document-scoped, and the two are not the same guard. The fifth pass's first
@@ -1044,6 +1052,51 @@ coordinate moved and how, in the vocabulary the rest of this design uses, rather
 That is the one place this half consumes the frozen half, and it is the same role the relation plays everywhere
 else here: it reports the condition, it does not decide it.
 
+### The decline route, and what it does not undo
+
+Settled 2026-09-16 by reading the settle path's mutation order. The item was carried as one question and it is
+two, because the two disclosure points sit on **opposite sides of the first mutation**.
+
+| Step                      | Site                     | Effect                          |
+| ------------------------- | ------------------------ | ------------------------------- |
+| suffix contribution proof | `native-landing.ts:881`  | refuses — **no mutation yet**   |
+| local member-ref rewrite  | `native-landing.ts:956`  | **mutates local member refs**   |
+| terminal absorption       | `native-landing.ts:984`  | refuses — **after the rewrite** |
+| top publication           | `native-landing.ts:1009` | mutates the remote top          |
+
+So the absorption arm is Axis D's twin on composition and **not** its twin here: declining the suffix arm has
+nothing to restore, while declining the absorption arm must put back refs ARC itself moved a moment earlier.
+Treating decline as one undifferentiated release would either leave those refs moved or invent a restoration the
+suffix arm never needs.
+
+**Decline releases the wedge; it does not reverse the landing.** This is the part most likely to be misread. The
+predecessor really did land and the host really did restack — declining does not and cannot undo either. What the
+operator regains is a delivery that is no longer held behind `operation-active`, so they can reconcile by hand,
+abandon, or tear down. The conflict persists, and the next `land-status` refuses afresh against live observation
+exactly as § Where the unresolved condition lives describes. A decline that claimed to undo the movement would be
+promising something the host owns.
+
+**The restoration's shape already exists on the provider path.** `adoptExternalDeliverySuffixRefresh` emits
+`{ ref, observedHead, restoreHead }` per moved member and tells the operator to "restore every listed external ref
+by exact lease." The native case is the same triple against a narrower target: the refs are **local**, ARC moved
+them itself, and `rewriteLocalRef` already takes `{ ref, beforeHead, requestedHead }` — so the reverse call is the
+existing verb with its arguments swapped, lease-checked, refusing rather than forcing when the lease fails. No
+force-push is involved on either arm, which keeps this clear of the rebase-and-force prohibition.
+
+**The transition's shape already exists too, one arm over.** `native-landing.ts:657-680` clears `activeOperation`
+on a `not-applied` effect and returns `{ status: "retryable", transition: "cleared", action:
+"delivery-native-land-select", selector: { planId, operationKind, operationId, affectedDeliverableIds, mode } }` —
+a typed clear carrying a named resume action and an exact subject selector. A decline wants that shape, not that
+arm: `reconcileDeliveryOperation` reconciles against **observed host facts** and its `retry` outcome means the
+effect did not apply. Here the effect did apply; the operator is declining to **adopt** it. That is a different
+transition against the same reservation, so it takes the template rather than the code path.
+
+**What it therefore needs, stated as scope.** A release transition on `delivery native` that takes the exact
+reservation selector, restores any local member refs ARC rewrote by lease (a no-op on the suffix arm), publishes
+`activeOperation: null` at the exact revision, and returns a typed result naming what it restored and what it
+deliberately left standing. Its refusal must be recoverable on the same rule everything else here follows: a
+failed lease reports the observed head and leaves the reservation held rather than half-releasing it.
+
 ### Naming the variants, and where the definition lives
 
 Settled 2026-09-16 on the two parts that carry consequences; the word choice itself is recorded as proposed.
@@ -1180,9 +1233,10 @@ For non-terminal members no obligation field is needed at all; for the terminal 
 and a sibling field remains the wrong shape for it because the problem there is which reader looks, not which
 slot holds.
 
-**Abort narrows with it.** With nothing written to state, declining a waiver leaves no obligation to clear. That
-does not make the provider path's ref-restoration semantics transfer — § Open keeps that question — but it does
-reduce abort to a question about refs alone.
+**Abort narrows with it.** With nothing written to state, declining a waiver leaves no obligation to clear, which
+reduces it to a question about refs alone. Settled 2026-09-16: the provider path's ref-restoration semantics do
+transfer, against a narrower target — the refs are local and ARC moved them itself — and the two disclosure points
+need different amounts of it. § The decline route.
 
 ### The waiver record joins an existing family
 
