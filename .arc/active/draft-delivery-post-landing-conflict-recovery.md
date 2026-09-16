@@ -916,7 +916,8 @@ things already in this draft rather than on preference.
   union would put two incompatible contracts on one seam.
 
 What stays open is the word for `rewound` and the vocabulary collision with that neighbour, not the shape. That
-than settled, and it propagates into every typed remedy dispatch. The distinctions stand either way.
+is a naming choice rather than a structural one, and it propagates into every typed remedy dispatch. The
+distinctions stand either way.
 
 ### Shape
 
@@ -1308,22 +1309,24 @@ two layers disagree about whether a choice is on offer at all. That is arguably 
 accepting what the machine will not certify is the whole act — but it means `covered` must not be presented as
 the routine outcome, and it leaves a narrower question open. § Open.
 
-**The binding difference is the family's own rule applied to different subjects, not a second rule.** A review
-terminus binds to a work unit's review state and survives movement that leaves the reviewed content intact; a
-waiver binds to disclosed content and dies when that content is rewritten. § What the record may carry already
+**The binding difference is one rule applied to different subjects, not a second rule.** A review terminus binds
+to a work unit's review state and survives movement that leaves the reviewed content intact; an applicability
+selection binds to disclosed content and dies when that content is rewritten. § What the record may carry already
 records the reconciliation — movement is distinguished from change, and each thing binds to what it is actually
-about. Two `kind`s, one rule.
+about. Two acceptances, one rule.
 
-**What this work unit does and does not do.** It mints the waiver `kind` against the existing vocabulary rather
-than inventing a parallel one. It does **not** abstract the two into a shared acceptance primitive, because
-`review-source-authority` owns a live defect in the terminus's binding — an acceptance dropped when the Candidate
-advances, and the frontline lane refused outright — and an abstraction authored here would be authored against a
-shape that work unit is about to change. The seam is routed there instead. § Boundaries.
+**What this work unit does and does not do.** It mints no record at all: the terminal member's acceptance is the
+`applicability-selection` transition ARC already writes. It does **not** abstract the two acceptances into a
+shared primitive, because `review-source-authority` owns a live defect in the terminus's binding — an acceptance
+dropped when the Candidate advances, and the frontline lane refused outright — and an abstraction authored here
+would be authored against a shape that work unit is about to change. The seam is routed there instead.
+§ Boundaries.
 
-**A pointer the readiness question should consume.** `sameDeliveryReviewMemberIdentity` is already
-resolve-by-identity-then-compare-head, which is the shape § Readiness reads its key backwards prescribes. Whether
-the review-gate reader can reach it is unverified and belongs to that open item; it is recorded here because the
-next pass should check it before designing a fourth lookup route.
+**A pointer the readiness question consumed.** `sameDeliveryReviewMemberIdentity` is already
+resolve-by-identity-then-compare-head, which is the shape § Readiness reads its key backwards prescribes — and
+that section now carries it as the argument that the inversion conforms readiness to the review gate's own order
+rather than introducing one. The lookup route settled there on a named fifth interface, so no fourth route is in
+question.
 
 **How often the gate fires, because that is what decides whether it is friction.** It fires only when `merge-tree`
 cannot compose a member's pre-landing content across its predecessor's landing — a genuine content collision
@@ -1399,8 +1402,12 @@ source and probe.
 composition accepts an operator's merge on its parent pair alone, so a hand-resolved tree can enter the terminal
 coordinate without anything marking it as a resolution. The applicability decision downstream still fires — the
 tree is unproved, so it lands in the judgment arm — but it presents as an unexplained member rewrite rather than
-as the absorption the operator just resolved. The rule's fourth clause is satisfied; what fails is disclosure
-quality, and the remedy is to fence the adoption to the mechanical result and carry the conflict set forward.
+as the absorption the operator just resolved. § Refusal-recoverability audit's fourth clause is satisfied; what
+fails is disclosure quality. **Fencing the adoption to the mechanical composition is the answer to reject** — it
+closes the only working recovery route and returns the terminal top to unrecoverable. The remedy is
+admit-then-decide: adoption stays reachable, and the decision surface derives the evidence that it _was_ a
+resolution from the resolved top's parent line, carrying the absorption's conflict set into the presentation.
+§ The waiver record.
 
 **The spine extraction had a causal justification and source refuted it.** An earlier version here said the two
 settle functions had diverged — one collecting the complete conflict set, the other returning on the first
@@ -1454,7 +1461,7 @@ causal claim source refutes, and a less elaborate route reaching the same outcom
 `missed-composition` by definition. The narrowed answer stands on the remaining trace: Axis D needs the complete
 conflict set and a waiver, and two already-exported helpers supply both. § What composes.
 
-**The scope guard, now with one addition.** Twenty `--is-ancestor` call sites carry no observed failure between
+**The scope guard, now with one addition.** Nineteen `--is-ancestor` call sites carry no observed failure between
 them; retrofitting them is symmetry, not traced need, and this work unit converts none. The same line holds for
 the two decomposition call sites and for the five silent picks outside this work unit's concerns.
 `repository-target.ts` crossed it in the other direction — scoped in by the Owner on the strength of its trace
@@ -1489,9 +1496,9 @@ live state**.
 Both are the same shape as § What composes — one reader answering what encumbers a delivery, each obligation
 contributing a term. Keep it that way deliberately: this work unit must not mint a second resume path beside the
 one those designs will compile. Adopting the built protocol satisfies this by adding no field at all: a waiver
-creates no new encumbrance term, so the resume slot's reader keeps exactly the two terms it already has. What
-is not yet satisfied is the terminal member's closeout marker — until § What composes' open item settles, this
-constraint is met on the non-terminal path and unproven on the terminal one.
+creates no new encumbrance term, so the resume slot's reader keeps exactly the two terms it already has. The
+terminal member's closeout marker satisfies it the same way — the gate is the Candidate applicability decision on
+a different surface, which adds no delivery-side term either. The constraint is met on both paths.
 
 The deeper agreement is doctrinal, and the re-settlement strengthened it rather than straining it. "Derive
 continuation from live state" is the criterion this draft reached independently, and the adopted protocol goes
@@ -1551,12 +1558,12 @@ untouched, and resolving a member by deliverable identity rather than by head ob
 Principle 5 and `strategy-storage-evolution`'s Principle 5, both of which hold work unit identity independent of
 any single repository's branch state.
 
-Storage Principle 3 clears and Principle 2 clears only in part. The earlier clearance was written over a stored
-record that no longer exists; what replaces it stores nothing on the input side, so Principle 2's tracked-tree
-question does not arise for the disclosure. It does arise for the waiver record, whose store and writer are an
-open item — the clearance rested on that record joining an existing versioned family, and whether it can is
-exactly what is unsettled. Principle 3's version-checked precondition is satisfied by the resubmission
-predicate, which compares canonical forms against freshly derived state.
+Storage Principles 2 and 3 both clear. The earlier clearance was written over a stored record that no longer
+exists; what replaces it stores nothing on the input side, so Principle 2's tracked-tree question does not arise
+for the disclosure. Nor does it arise for the acceptance: the terminal member's is the `applicability-selection`
+transition, already written to the Candidate's own managed record rather than to anything this design introduces.
+Principle 3's version-checked precondition is satisfied by the resubmission predicate, which compares canonical
+forms against freshly derived state.
 
 ## Refusal-recoverability audit
 
@@ -1585,7 +1592,7 @@ had not named.
 | Prepublication        | remedy, success path        | typed relation; **remedy is re-baselining, below**     |
 | Public review target  | condition, remedy, retry    | typed result rather than a throw; base-merge remedy    |
 | Landing overlap       | remedy, success path        | refuses typed; base-merge except the checkpoint pair   |
-| Post-land replay      | clause 0, then all four     | protocol adopted for 2 and 3; **0, 1, 4 open**         |
+| Post-land replay      | clause 0, then all four     | protocol answers all five; **0 restated below**        |
 
 ### Clause zero states Axis D more precisely than this draft did
 
@@ -1688,7 +1695,8 @@ Three are introduced here and each must answer it.
   refuses to recognize an unproved head without a recorded authority selection — so the success path is not
   reachable while something is owed. What the rule still catches is the adoption branch: it admits a hand-resolved
   tree on a parent-pair match, so the resolution reaches that decision stripped of the evidence that would let the
-  operator recognize their own act. Fencing the adoption to the mechanical result is what closes it.
+  operator recognize their own act. Closing that is a disclosure fix, not a fence — the decision surface derives
+  the absorption from the resolved top's parent line and carries the conflict set into its presentation.
 - **`unknown`.** An ancestry read that did not establish an answer is retryable by construction, and the clause
   it most easily fails is the third: it must say the read failed rather than implying a verdict about history.
   This is the variant's whole purpose, and it is why the reader rather than the classifier produces it.
