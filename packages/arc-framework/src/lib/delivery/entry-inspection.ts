@@ -802,7 +802,7 @@ export async function inspectDeliveryEntry(
       ? refused("canonical-projection-mismatch")
       : refused("evidence-conflict");
   }
-  if (plan.projection.kind !== "stack-to-main") {
+  if (plan.projection.kind !== "stack-to-main" && !reopening && !recoverCanonicalPublication) {
     return {
       status: "repair-required",
       nextAction: "reauthor-plan",

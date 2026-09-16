@@ -373,6 +373,42 @@ describe("delivery entry inspection", () => {
     },
   );
 
+  it("allows an unbound retired projection to reach ordinary reopen", async () => {
+    const retired = deliveryPlanFixture();
+    const taskList = `${prefix}${renderDeliveryPlanSection(retired)}${suffix}`;
+    const entryDependencies = dependencies({ taskList, resolvedPlan: retired });
+
+    await expect(inspectDeliveryReopen(retired.workUnitId, entryDependencies)).resolves.toMatchObject({
+      status: "reopen-permitted",
+      composition: "unbound",
+      planId: retired.planId,
+      nextAction: "continue-reopen",
+    });
+    expect(entryDependencies.readState).toHaveBeenCalledOnce();
+  });
+
+  it("allows a retired projection's exact publication receipt to finish cleanup before repair", async () => {
+    const retired = deliveryPlanFixture();
+    const taskList = `${prefix}${renderDeliveryPlanSection(retired)}${suffix}`;
+    const entryDependencies = dependencies({
+      taskList,
+      resolvedPlan: retired,
+      authoring: "match",
+      authoringPlanDigest: retired.planDigest,
+    });
+
+    await expect(inspectDeliveryEntry({
+      workUnitId: retired.workUnitId,
+      entryMode: "execution",
+    }, entryDependencies)).resolves.toMatchObject({
+      status: "canonicalize-provisional",
+      nextAction: "canonicalize-provisional",
+      authoringMapId: "map-1",
+      recommendedActionText: expect.stringContaining("matching authoring receipt"),
+    });
+    expect(entryDependencies.readState).toHaveBeenCalledOnce();
+  });
+
   it("consumes an exact pending publication action before bound position routing", async () => {
     const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
     const boundary = projectPublicationBoundary({
