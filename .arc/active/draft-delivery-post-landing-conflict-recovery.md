@@ -9,11 +9,11 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `rough` — an adversarial pass (2026-09-16, pass one) broke a premature `formalization-ready`
-  call. The relation core, its Git footing, and the reader inventory withstood attack, but the recovery record's
-  validity predicate was a masked decision asserted two incompatible ways and its discharge lifecycle
-  deadlocked against the schema's idleness exclusion. Both are fundamentals of the recovery half, now
-  re-authored and awaiting a second pass.
+- **Readiness:** `rough` — two adversarial passes have run (2026-09-16). Pass one broke a premature
+  `formalization-ready` call; pass two found that one of its repairs had moved the problem rather than closing
+  it, and falsified the commit-derived path set on the design's own remedy path. The relation core, its Git
+  footing, and the proportionality verdict have withstood both. What has moved twice is the recovery record and
+  the subject's path selection, so readiness stays here until a pass converges.
 
 ---
 
@@ -60,6 +60,17 @@
   positionally so no variant flips meaning between call sites. The definition derives from the type rather than
   a prose glossary, and does not join the briefs' vocabulary because each variant carries a typed remedy the
   actor dispatches instead of a word it must look up. § The relation — Naming the variants.
+- **The reframe that removed the base was itself wrong, and the correction removes machinery.** Pass two showed
+  a commit-derived path set cannot see a branch retaining its own side of a base-changed path across a base
+  merge — the omission class, on the path this design's own cardinality remedy creates — and that the digest
+  being content-inclusive inverts the movement-sensitivity claim, since a commit-derived set leaves a permanent
+  no-op entry where a base-relative one clears. The subject is base-relative after all; what it lacked was
+  cardinality handling, not a different question. Drops the merge-diff mode selection, the touched-versus-net
+  analysis, and the one-sided-range correction with it. § Reader inventory — Resolver or relation.
+- **Three readers want the shared base resolver; three want the relation.** Read-all, refuse-on-more-than-one,
+  then diff or record from the single base — the shape two readers already implement separately and the
+  decomposition call sites reached independently. The staged arm of the subject collector takes the same rule;
+  its probe is owed.
 - **Two reframed readers carry residues the reframe does not reach, found by pass one.** The subject collector's
   staged arm compares the index against a picked base and has no commits to derive from — live, feeding
   currentness, and not covered by the pinned probe; it resolves as `diff --cached HEAD` unioned with the
@@ -133,21 +144,22 @@
 - **The six readers are classified, and two of them stop having the problem.** The subject collector and the
   overlap analyzer ask membership questions and answer them with a base-anchored diff; deriving their paths from
   the branch's own commits removes the ambiguity rather than handling it. Three readers want the relation itself.
-  § Reader inventory — Membership or content.
+  § Reader inventory — Resolver or relation.
 
 ### Open
 
-- **The abort-restore rule for a superseded obligation.** The pattern to follow is settled; what restores the
-  record when the discharging rewrite opens and then fails is not, and the existing review-fix path leaves it
-  implicit rather than answering it.
+- **What clears the suffix obligation when its discharging rewrite aborts.** It is no longer superseded at
+  reservation, so nothing is dropped at open — but the completion path that clears it needs a stated behaviour
+  when the rewrite fails partway.
 - **The word for the rewound variant.** Its structure and home are settled; the word faintly implies a cause
   the relation does not assert, since the same shape holds for a record binding something never published.
 
 ### Next
 
-Pass two of `adversarial-review` — the last at `Heavy` — re-attacking the whole artifact with pass one's
-findings and these fixes supplied. A live `major` or above at that point goes to the stage interlock for the
-Owner's call rather than a third pass. The two remaining open items are small beside that.
+Pass three of `adversarial-review`, authorized by the Owner past the `Heavy` cap at the stage interlock,
+carrying both prior passes and these repairs. Two of the changes it must attack are structural — the subject
+returning to a base-relative diff, and the suffix obligation not inheriting the idleness exclusion — and
+§ Forward-compatibility check and § Refusal-recoverability audit both lean on claims those moved.
 
 ---
 
@@ -314,68 +326,58 @@ arithmetic: the decomposition subsystem independently reached the same read-all-
 spelling of the reason code. Six call sites, four dispositions, three spellings of one condition. Whatever is
 settled here is settling a repetition ARC already carries, not introducing an abstraction it lacks.
 
-### Membership or content
+### Resolver or relation
 
-Classified 2026-09-16 by reading each reader's actual question against the line Git draws in § Established
-practice.
+Classified 2026-09-16 and **re-classified after an adversarial pass falsified the first attempt**. The first
+reading split these readers into membership questions and relation questions, and sent the two path-selecting
+readers down a commit-derived route that removed their need for a base. That was wrong, and the way it was wrong
+is recorded here because the correction is the design.
 
-| Reader                              | Question it asks                         | Shape                  |
-| ----------------------------------- | ---------------------------------------- | ---------------------- |
-| `git-candidate-subject.ts`          | which changes are mine                   | membership, as content |
-| `base-overlap.ts`                   | do both sides touch the same paths       | membership, as content |
-| `git-candidate-effective-target.ts` | which single base coordinate do I record | coordinate identity    |
-| `git-candidate-applicability.ts`    | how has the base moved under my baseline | relation               |
-| review readiness                    | is the bound head still the observed one | lookup, then relation  |
-| closeout                            | is the bound head still the observed one | relation               |
+| Reader                              | Question it asks                         | Needs                 |
+| ----------------------------------- | ---------------------------------------- | --------------------- |
+| `git-candidate-subject.ts`          | what content did I contribute            | the base resolver     |
+| `base-overlap.ts`                   | do both sides change the same content    | the base resolver     |
+| `git-candidate-effective-target.ts` | which single base coordinate do I record | the base resolver     |
+| `git-candidate-applicability.ts`    | how has the base moved under my baseline | the relation          |
+| review readiness                    | is the bound head still the observed one | lookup, then relation |
+| closeout                            | is the bound head still the observed one | the relation          |
 
-**Two readers lose the ambiguity from _path selection_ — and neither is thereby fully fixed.**
-`git-candidate-subject.ts` selects paths with `diff --name-only <picked-base> <head>`, and `base-overlap.ts`
-diffs both sides from one picked base before intersecting, so both select paths that are an artifact of which
-ancestor got chosen. A branch's own changed paths are instead derivable from the commits reachable from it and
-not from any merge base — the `--all` form Git already uses for membership — which makes the selection
-cardinality-independent. Two residues survive that reframe, and an earlier pass of this draft wrongly recorded
-both readers as fully resolved by it.
+**Why the commit-derived route failed.** Paths derived from a branch's own commits are cardinality-independent,
+which is what made the route attractive. But a branch contributes content relative to a base, and after the base
+is merged in, keeping the branch's side of a path the base changed is a substantive contribution that no
+branch-side commit records on its own. Every commit-derived mode either misses it or admits the base's own
+changes — demonstrated in a scratch repository, with the merge carrying the reversion rather than a commit after
+it. That is the omission class § Established practice raises above every other row, reachable **by design**
+rather than by hostility, because this design names merging the base in as its cardinality remedy.
 
-**The subject collector has a second arm the reframe does not reach.** When no revision is supplied it compares
-the _index_ against the picked base — `diff --cached --name-only <base>` — and an index has no commits to derive
-membership from. That arm is live: `git-candidate-effective-target.ts` takes it whenever no target is supplied,
-and feeds the result straight into Candidate currentness, which is the digest path the severe row is about. The
-pinned probe passes a revision explicitly, so it exercises only the committed arm and would retire green over an
-untouched silent pick. The arm's real question is what the index changes relative to `HEAD`, which needs no
-merge base at all: derive it as `diff --cached --name-only HEAD` and union it with the commit-derived set. A
-second probe is owed for the staged arm; the existing one is not re-scoped, because its committed-arm coverage
-is still wanted.
+**The subject was on the right side of Git's line all along.** It asks a content question and answers it with a
+content tool; what it lacked was cardinality handling, not a different question. The correction is therefore the
+smallest one available: read the base with `--all` and refuse typed when the count is not one, which is what
+three of these readers already do. Under that rule the base-relative diff is well defined, because the ambiguity
+it was fragile to has been refused rather than silently resolved.
 
-**The overlap analyzer still owes a single base coordinate.** Its available result publishes the merge base
-alongside the overlap, and that coordinate is not internal: it becomes `chainBase` on the predecessor relation,
-is read as a ref to baseline regenerable paths, and serves as the suffix chain's first predecessor. Deriving
-paths from commits removes the ambiguity from selection only — the contract still owes one base, and under
-cardinality above one none exists.
+**Three readers want the shared base resolver; three want the relation.** The resolver is read-all,
+refuse-on-more-than-one, then diff or record from the single base. It is not a new primitive — it is the shape
+`base-overlap.ts` and `git-candidate-effective-target.ts` already implement separately, and the one the
+decomposition call sites reached independently under a third spelling.
 
-**That settles the disjunction left open for `git-candidate-effective-target.ts`.** No consumer can use a _set_
-of bases: reading tree entries needs one ref and rematerialization needs one predecessor. The base-set arm is
-therefore dead, and both coordinate readers refuse typed under cardinality above one. Both compare a
-`(head, base)` pair, so the base-merge remedy in § Refusal-recoverability audit does reach them: their refusals
-are recoverable rather than terminal. Only Candidate applicability carries cardinality as a field on the
-diverged variant, because it alone consumes the relation rather than a coordinate.
+**The staged arm follows the same rule.** When the subject collector is given no revision it compares the index
+against the base, and that arm is live: `git-candidate-effective-target.ts` takes it whenever no target is
+supplied and feeds the result into Candidate currentness. It needs the identical treatment — resolve with
+`--all`, refuse on more than one, else diff the index against the single base. A probe is owed for it; the
+existing pin exercises only the committed arm and would otherwise retire green over an untouched silent pick.
 
-**One difference, since settled.** Paths touched by a branch's own commits are not the same set as its net
-diff: a path changed and then reverted within the branch appears in the commit-derived set and not in the net
-one. For overlap that errs toward reporting overlap, the fail-closed direction. For the subject it is settled in
-§ The relation — The subject's path set, which also records why the merge-diff mode is part of the design.
+**What the resolver does not settle** is the coordinate obligation under cardinality above one. No consumer can
+take a base _set_ — reading tree entries needs one ref and rematerialization needs one predecessor — so the
+base-set arm is dead and the coordinate readers refuse. Only Candidate applicability carries cardinality onward,
+as a field on the diverged variant, because it alone consumes the relation rather than a coordinate.
 
-**Three readers want the relation itself** and are the resolver's real consumers — though review readiness
-cannot compute one until its lookup is inverted, for the reason recorded in § The relation. The fourth,
-`git-candidate-effective-target.ts`, wants a single coordinate to record — and under cardinality above one no such
-coordinate exists, so it has to carry the base set or the relation rather than throw for the absence of a
-singleton.
+`lib/git/ancestry.ts` is the existing ancestry-helper module and already wraps `merge-base --independent`, so
+both primitives have a home rather than needing one invented.
 
-`lib/git/ancestry.ts` is the existing ancestry-helper module and already wraps `merge-base --independent`, so a
-shared resolver would have a home rather than needing one invented.
-
-**Scope line on the repetition.** The four readers carrying this work unit's rows have observed failures behind
-them and are in scope. The two decomposition call sites do not; unifying them would be symmetry rather than a
-traced need, so the shared primitive should be _available_ to them without this work unit retrofitting them.
+**Scope line on the repetition.** The readers carrying this work unit's rows have observed failures behind them
+and are in scope. The two decomposition call sites do not; unifying them would be symmetry rather than a traced
+need, so the shared primitives should be _available_ to them without this work unit retrofitting them.
 
 ## Substrate: one observation mode, three postures
 
@@ -415,20 +417,19 @@ two are not parallel mechanisms waiting to be unified by preference. One relatio
 carrying base cardinality and its consequences as fields on the diverged variant. Two independent primitives
 would each have to re-derive the same reachability to know whether the second even applies.
 
-### Git already draws the line this design needs, and ARC is on the wrong side of it
+### Git draws a line here, and the lesson is narrower than it first appears
 
 `git log A...B` is defined as `r1 r2 --not $(git merge-base --all r1 r2)` — commit-set membership computed
-against every base, cardinality-independent by construction. Note the symmetry: that form is the _symmetric
-difference_ and includes the base side's own commits, so the one-sided form this design needs is
-`B --not $(git merge-base --all A B)`. What is being adopted is the cardinality-independent `--not` against
-every base, not the two-sided range; using the range literally would readmit base-side paths, which is the
-failure the reframe exists to close. `git diff A...B` is defined as
+against every base, cardinality-independent by construction. `git diff A...B` is defined as
 `git diff $(git merge-base A B) B` — a tree diff against one arbitrary base, cardinality-fragile. Git answers
 "which commits are mine" safely and "what content changed" fragilely, and documents both.
 
-`git-candidate-subject.ts` asks a contribution question and answers it the fragile way. Before designing a
-cardinality-aware content path, establish which readers are really asking membership questions — those stop
-having the problem rather than needing it handled.
+**The tempting inference from that is wrong, and this draft made it before correcting it.** The fragility is in
+`merge-base` picking arbitrarily, not in asking a content question. A reader that genuinely asks what content it
+contributed cannot be rescued by switching to the membership form: § Reader inventory records the case that
+breaks it, where a branch's contribution is the retention of its own side of a path the base changed and no
+branch-side commit carries it. What Git's line actually licenses is narrower — resolve the base with `--all` and
+refuse when the count is not one, and the content form is then exactly as sound as the membership form.
 
 ### The silent pick is a recognized vulnerability class, not a rough edge
 
@@ -751,50 +752,37 @@ check already requires each variant to carry a typed remedy action rather than p
 dispatches the action instead of interpreting the word, so the name has no always-loaded miss-cost to justify a
 slot. Where a variant does reach a durable record, the record's own schema is its definition.
 
-### The subject's path set — touched, and the merge-diff mode is load-bearing
+### The subject's path set — base-relative, with cardinality refused rather than picked
 
-Settled 2026-09-16, empirically. § Reader inventory left this open and framed it as a trade between a safe but
-noisier set and a precise but movement-sensitive one. **Both halves of that framing were wrong.**
+Settled 2026-09-16, **after an adversarial pass falsified the commit-derived answer this section previously
+carried.** The earlier reading treated the choice as touched-versus-net and concluded that a commit-derived set
+was both the only cardinality-safe option and the less movement-sensitive one. Both halves were wrong, and the
+correction removes machinery rather than adding it.
 
-**Net has no cardinality-safe construction, so it is not an available option.** A net path set is the diff
-between a base and the head, which requires exactly one base — the fragile form Git documents and the condition
-Axis B is about. The two ways to get a net set without picking arbitrarily are already eliminated in
-§ Established practice: agreement across all bases refuses in essentially every real criss-cross, and a
-synthesized virtual base commits to an answer a read-only classification must not. Touched is commit-relative
-and needs no base at all, being Git's own cardinality-independent membership form. The choice is availability,
-not preference.
+**The set is the base-relative diff from the single resolved base.** Under the resolver rule in § Reader
+inventory the base is read with `--all` and the reader refuses when the count is not one, so the diff's
+fragility is discharged by refusal rather than by an arbitrary pick. No merge-diff mode selection, no union, no
+special handling of merge commits: the subject is a tree-to-tree comparison, which is what a content question
+deserves.
 
-**Touched is also the less movement-sensitive of the two, which inverts the recorded trade.** Under append-only
-movement the touched set only grows — a path entering it never leaves — so a change-and-revert pair moves the
-subject digest once. A net set flips the same path in and then back out, moving the digest twice. Confirmed in a
-scratch repository: after adding and reverting a path, the commit-derived set retains it and the base-relative
-diff drops it. The residual over-inclusion is real but bounded and monotone, and over-inclusion is the
-fail-closed direction for a currentness comparison.
+**What the commit-derived answer got wrong.** Empirically, a branch that merges the base in and keeps its own
+side of a path the base changed contributes that retention, and no branch-side commit records it. The condensed
+merge mode that suppresses the merged-in base's changes also suppresses this, and the mode that catches it
+admits every base change as the branch's own. The base-relative diff reports it correctly, and the merge that
+created the situation has made the base an ancestor — so cardinality is one and the diff is well defined
+exactly where the design most needs it.
 
-**The merge-diff mode is part of the design, not an implementation detail.** Git's default suppresses a merge
-commit's own diff, so a change introduced _by_ a merge and present in neither parent is invisible to the plain
-commit-derived read. That is the Azure and GitLab vulnerability class this draft already names — changes present
-in the branch and absent from the evidence surface — reintroduced by the naive form of the very reframe meant to
-close it. It is not theoretical here: this design now names merging the base in as the remedy for cardinality
-above one, so branches carrying merges are the path it creates rather than an edge case.
+**And the movement-sensitivity claim was inverted at the metric that matters.** The subject digest is taken over
+path, content digest, and mode — not over path names. A path changed and then reverted within the branch
+therefore leaves a commit-derived set carrying a no-op entry whose content matches the base, so the digest
+differs from the attested one permanently and currentness never clears. The base-relative set drops the path and
+the digest returns to its attested value. The commit-derived answer would have _added_ a durable
+redundant-ceremony source while this draft recorded it as removing one.
 
-Four modes, measured against both failures:
-
-| Mode               | Catches a merge-introduced change | Keeps the merged-in base's changes out |
-| ------------------ | --------------------------------- | -------------------------------------- |
-| default            | no                                | yes                                    |
-| `-m`               | yes                               | no                                     |
-| `--diff-merges=on` | yes                               | no                                     |
-| `--cc`             | yes                               | yes                                    |
-
-`--cc` is the only one that passes both, because it reports a merge's changes only where they differ from
-_every_ parent — which is exactly "content the merge itself introduced" rather than content inherited from the
-side that was merged in. `-m` diffs against each parent separately, so merging the base in makes every base
-change look like the branch's own contribution, which would corrupt the subject in the ordinary case rather
-than a hostile one.
-
-Record the mode with the reason. A later reader simplifying this call to a plain path listing would silently
-restore the omission, and no test that does not construct a merge would notice.
+Two consequences worth keeping. The severe row's defect was never that the subject asked a base-relative
+question; it was the silent pick, and refusing on cardinality is the whole fix. And the remedy in
+§ Refusal-recoverability audit does double duty here: merging the base in both clears the refusal and makes the
+content comparison well defined.
 
 ### What the record may carry
 
@@ -855,20 +843,39 @@ and the alternative that carries more would have the artifact inherit a verifica
 flight, and it already composes with the movement-allowance option § Substrate describes. Minting a second
 operation for the same shape would duplicate that machinery and split the idleness invariant across two homes.
 
-**Discharge follows the supersession pattern the existing obligation already uses**, which resolves what would
-otherwise be a deadlock. The state schema refuses a pending obligation beside an active operation, so an
-obligation cannot simply sit while the operation that clears it runs. `operation.ts` solves this for review-fix
-verification with an explicit `supersedePendingReviewFixVerification` flag on the rewrite request — validated
-to be accepted only on a `review-fix` rewrite that actually has a pending verification, and applied by nulling
-the obligation in the same reservation that opens the operation. The discharging operation therefore _declares
-it consumes_ the obligation rather than being blocked by it, and the exclusion stays intact with no relaxation
-invented for this design.
+**Discharge does not inherit the idleness exclusion, and that is a decision rather than an omission.** The
+first attempt here mirrored `pendingReviewFixVerification` wholesale, including the schema rule that refuses it
+beside an active operation. An adversarial pass showed that mirror deadlocks: the refusal is unconditional on
+operation kind, so with both obligations owed neither can be discharged, and the co-occurrence § What composes
+relies on becomes structurally unreachable. Generalising supersession to consume both was the obvious repair and
+is wrong for a plainer reason — to supersede an obligation is to say _this operation discharges it_, and a
+suffix rewrite does not discharge a review-fix verification, which is still owed afterwards. That repair would
+drop a real obligation on the floor.
 
-Mirror that for the suffix obligation, with one thing the review-fix path leaves implicit made explicit here:
-**what restores the obligation if the discharging rewrite aborts.** A reservation that supersedes an obligation
-and then fails would otherwise lose the record of what was owed, which is the bookkeeping failure the Owner's
-criterion rules out by name. This also settles the co-occurrence § What composes relies on — two obligations
-may be owed at once, and each is superseded by the operation that discharges it rather than by the other.
+**The two obligations guard different things, so they take different exclusions.** Review-fix verification
+guards member content against further mutation until it is verified, and requiring an idle state is exactly
+right for that. Suffix resolution guards the delivery against _landing or closing_ with an unresolved conflict;
+it has no reason to block mutation, because mutation is how it resolves. The suffix obligation is therefore an
+encumbrance term for the landing and closeout callers, not a bar on opening an operation. The discharging
+rewrite opens normally and clears the obligation on completion.
+
+**Co-occurrence then resolves by sequencing rather than by supersession.** Verification is not an operation —
+the acknowledgement path clears its obligation with a revision-checked write on an idle state, so an active
+operation never blocks it — which means a pending verification can be discharged first and the suffix rewrite
+opened after. Landing does not consume the verification obligation either; it carries it forward into a
+re-reservation, so the co-occurring case is real rather than hypothetical and this sequencing is what makes it
+dischargeable.
+
+This forfeits the earlier warrant that the validator already existed for this shape. That warrant was for the
+wrong property. What it buys instead is a third and independent reason the payloads must not be unified, beside
+their differing content and their differing staleness semantics: they do not share an exclusion, so one field
+could not carry both without carrying a per-arm rule about when it blocks.
+
+**The resolved content must exist as a ref before the decision is recorded.** The predicate reads tree entries
+at an explicit ref and cannot see a working tree, so a resolution living only in a checkout is unevaluable on
+resume — the precise failure durability exists to prevent. The operator commits the resolution first, the
+disclosure pins that ref, and the discharging rewrite adopts it as the member's new head. This is a real
+precondition on the flow rather than an implementation detail, which is why it is stated rather than assumed.
 
 **The refusal this creates answers the recoverability rule.** When a disclosed path no longer carries its
 disclosed content, the record reports which coordinate moved and how — the relation is the vocabulary — and
@@ -1024,10 +1031,10 @@ had not named.
 | --------------------- | --------------------------- | ------------------------------------------------------ |
 | Review readiness      | condition, remedy, retry    | inverted lookup, then the relation; rebind is the verb |
 | Closeout              | condition, remedy, retry    | relation in place — **condition still unmet, below**   |
-| Whole-WU verification | reports no condition at all | membership derivation, both arms; refusal never arises |
+| Whole-WU verification | reports no condition at all | base resolved with `--all`; refuses, base-merge remedy |
 | Prepublication        | remedy, success path        | typed relation; **remedy is re-baselining, below**     |
 | Public review target  | condition, remedy, retry    | typed result rather than a throw; base-merge remedy    |
-| Landing overlap       | remedy, success path        | paths derived; coordinate refuses typed, base-merge    |
+| Landing overlap       | remedy, success path        | refuses typed; base-merge except the checkpoint pair   |
 | Post-land replay      | all four                    | the obligation record and the new-contribution path    |
 
 ### The gap — the relation fixes the comparison, not the cause-blindness
@@ -1057,10 +1064,17 @@ That converts Axis B's refusals from correct-but-terminal into recoverable, and 
 mandated way to absorb base movement — merge the base in rather than rebase a published branch. It is idiomatic,
 available, and non-destructive, which is what clauses three and four ask for.
 
-**Per-reader applicability, checked rather than deferred.** The remedy reaches a reader only if the merge
-relates the exact pair that reader compares. Two readers compare a `(head, base)` pair — the sole-base resolver
-and the overlap analyzer — so merging the base in does collapse their cardinality and their refusals are
-recoverable.
+**Applicability is per coordinate pair, not per reader.** The remedy reaches a call site only if the merge
+relates the exact pair that site compares, and one reader can serve pairs of different topology — which an
+adversarial pass demonstrated after this section had already been written in per-reader terms. The sole-base
+resolver and the overlap analyzer's delivery and review call sites compare a `(head, base)` pair, so merging the
+base in collapses their cardinality and their refusals are recoverable.
+
+**The overlap analyzer's integration-checkpoint call site is not one of them.** There it compares the pinned
+Candidate durable baseline against the base, so the merge moves neither element and the refusal stands — the
+same refutation recorded below for Candidate applicability, reached through a different reader. Its residue is
+smaller, though: at that site the resolved base lands only in drift evidence rather than being consumed as a
+ref, so what fails there is recoverability alone and not the coordinate obligation.
 
 **Candidate applicability is a refutation, not a pending confirmation.** It compares the _pinned_ baseline
 target against the current base, and that baseline is reduced from the Candidate's durable managed record.
