@@ -52,6 +52,15 @@
   derived, and binds to exact coordinates as a validity predicate so staleness fails closed. Settled against the
   Owner's criterion: durability is warranted where its absence would make ARC wrong rather than uninformed.
   § The relation — Where the unresolved condition lives.
+- **What the record carries is settled, and the asymmetry lives in the binding rather than a policy.** Three
+  classes: an identity-bound obligation that survives arbitrary movement, an immutable disclosure of what the
+  operator was shown, and a disclosure-bound decision that dies exactly when its subject stops being what is
+  there. Nothing derived. A resolved suffix inherits nothing positive and needs nothing — mechanical proof
+  re-derives and the record carries the judgment. § The relation — What the record may carry.
+- **Gerrit's asymmetry and ARC's own standing acceptance rule agree once movement is distinguished from
+  change.** The recorded failure — an approved fix revoking the acceptance that authorized it by advancing the
+  Candidate — is the Axis A defect one layer up, on a surface carrying an Owner's authority rather than a
+  coordinate.
 - **The design clears the recoverable-refusal rule, with one scope addition and one remedy it had not named.**
   Closeout's eight-term conjunction owes a reason per term: the relation makes its comparison correct while the
   refusal still cannot report which term failed, and that clause is not separable from the ancestry fix. And
@@ -100,11 +109,6 @@
   the nearest candidates are Git's porcelain vocabulary and `merge.ts`'s existing state names. These are
   controlled vocabulary rather than taste — load-bearing terms owing a definition before use, derived from the
   type rather than restated beside it.
-- **What the new-contribution path looks like for a resolved suffix, and how much the obligation record may
-  carry.** Holding the obligation is safe; holding the operator's semantic approval is a durable human decision,
-  and an accepted review terminus has been silently revoked by movement here before. Gerrit's asymmetry is the
-  model — no positive approval survives a rework, a standing minimum score does — and applying it makes this one
-  question rather than two: what the resolved suffix inherits _is_ what the record may keep.
 - **Whether the subject's path set should be what its commits touched or what they net to.** The reframing in
   § Reader inventory creates this rather than removing it. Touched is safe for overlap in the fail-closed
   direction, but for the subject it admits paths whose content is unchanged, which trades directly against how
@@ -112,14 +116,12 @@
 
 ### Next
 
-Settle what the obligation record may carry, which is the same question as what a resolved suffix inherits.
-Gerrit's asymmetry is the model and the trust dimension is the reason to be careful: a stored approval is a
-durable human decision, and movement has silently revoked one here before. Carry § Forward-compatibility
-check's adopted constraints into it — the decision the record holds is itself a remedy-bearing result, so it
-inherits the typed-action requirement. Then the two smaller trades: touched-versus-net for the subject's path
-set, and variant naming with its definition home. `adversarial-review` is recommended at the readiness boundary
-and this draft is the shape that pass attacks well — much of it is externally-derived reasoning folded in over
-several sessions.
+Two trades remain, both detail-design: touched-versus-net for the subject's path set, and variant naming with
+its definition home. Then the readiness boundary, where `adversarial-review` is recommended — and this draft is
+squarely the shape that pass attacks well, being externally-derived reasoning folded across several sessions
+with several claims corrected only because something prompted a re-check. Two items owe confirmation before
+anything emits them: the base-merge remedy's per-reader applicability, and whether a merge queue's landed head
+reaches closeout as the request head.
 
 ---
 
@@ -635,6 +637,64 @@ already recorded in § Established practice: no positive approval survives a rew
 score does. Applied here that reads as an approval which does not outlive the contribution it approved, and a
 refusal that persists until answered — which is the same question as the new-contribution path's inheritance,
 not a second one.
+
+### What the record may carry
+
+Settled 2026-09-16. This is the same question as what a resolved suffix inherits, and it resolves by the
+principle the record already runs on, applied one level down: **carry what cannot be recomputed; re-derive
+everything that can.** Mechanical proof is cheap and honest to redo. A person's judgment is neither.
+
+Two constraints govern it and they appear to conflict. § Established practice records Gerrit's asymmetry — no
+positive approval survives a rework, while a standing minimum score does. ARC's own standing rule runs the other
+way: an Owner's acceptance binds thereafter, and ARC may report that the subject moved and what changed but may
+not silently revoke, re-ask, or route another metered pass on the strength of that movement alone. That rule
+exists because ARC violated it — an approved fix that advanced the Candidate revoked the acceptance which had
+authorized it.
+
+**They agree once movement is distinguished from change**, which is what the relation is for. An approval scoped
+to content does not survive that content being rewritten; a decision about a subject is not revoked by movement
+that leaves the subject intact. The recorded failure is ARC treating any advance as a change — the Axis A defect
+one layer up, in a surface that carries an Owner's authority rather than a coordinate. Both constraints are
+satisfied by binding each thing to what it is actually about.
+
+**Three classes, three binding semantics, nothing derived.**
+
+| Class          | Binds to                                           | Survives                                                    |
+| -------------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| The obligation | member identity                                    | arbitrary movement; discharged only by being met            |
+| The disclosure | exact coordinates, trees, and conflict paths shown | immutable once written                                      |
+| The decision   | the disclosure                                     | exactly while the disclosure still describes observed state |
+
+**The asymmetry lives in the binding, not in a policy.** The obligation is identity-bound, so no movement
+retires it — it is owed until something discharges it, which is the fail-closed signal Gerrit keeps across
+arbitrary change. The decision is disclosure-bound, so it dies precisely when the thing it approved stops being
+what is there. Neither needs a rule deciding what survives; the binding decides, and a reader can check it.
+`pendingReviewFixVerification` is already the identity-bound half of that shape in ARC today.
+
+**Why persisting the decision is safe here**, stated as the guards rather than assumed:
+
+- It is scoped to the disclosed conflicted contributions only, with mechanical proof continuing for every other
+  movement — § Retained capture detail's obligation, and the reason the approval can be narrow.
+- It binds to the disclosure rather than to the member, so it cannot widen. A resolution that later touches a
+  path outside the disclosed set is not covered, structurally rather than by a check someone must remember.
+- It authorizes a conflict resolution and nothing further. Merge to integration remains its own explicit
+  authorization and is not reachable from here · `[invariant]`.
+- It is written at the moment the operator decides, together with what they were shown, and never reconstructed
+  afterwards. A record that ARC composes later asserting an approval happened would be ARC attesting its own
+  output; the disclosure is what makes a person the witness instead.
+
+**What the resolved suffix inherits: nothing positive, and it needs nothing.** The survey already established
+that no system feeds a hand resolution into a pinned replay — the suffix becomes a new contribution that
+re-enters verification. Mechanical proof re-derives at that point, cheaply, and the human decision does not need
+to be inherited by the artifact because the record carries it. The obligation stands until that new contribution
+discharges it. This is the minimal shape rather than a chosen one: the alternative that carries less is
+re-asking the operator on resumption, which is exactly the redundant ceremony this work unit exists to remove,
+and the alternative that carries more would have the artifact inherit a verification it did not earn.
+
+**The refusal this creates answers the recoverability rule.** When the disclosure no longer describes observed
+state, the record must report which coordinate moved and how — the relation is the vocabulary — and route to the
+new-contribution path, re-asking with a fresh disclosure. Re-asking there is correct rather than redundant: the
+content genuinely changed. The ceremony being eliminated is re-asking when nothing relevant did.
 
 ### What composes with the existing obligation, and what only rhymes
 
