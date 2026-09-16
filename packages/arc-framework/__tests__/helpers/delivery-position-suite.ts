@@ -114,6 +114,7 @@ import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.j
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runHandlerAt, type HandlerRunResult } from "../helpers/handler.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
+import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { runArc as runBuiltArc } from "../e2e/helpers.js";
 import {
   copyPreparedRepository,
@@ -4115,6 +4116,68 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       .readOperation(localPreparation.payload.operationId);
     expect(persistedLocal.state).toMatchObject({ deliveryAdmission: localAdmission });
 
+    // Observe the same admission once a correction is staged on the top branch, then restore the tree so the
+    // rest of this chain runs against the state it expects.
+    await writeFile(join(fixture.repository, "top-correction.txt"), "staged correction\n");
+    await git(fixture.repository, ["add", "top-correction.txt"]);
+    const stagedPrepare = await runArcWithStdin(
+      ["review", "local", "prepare", "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "fresh-chunk-aggregate-reviewer",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+        deliveryAdmission: localAdmission,
+      })}\n`,
+      { env: fixture.env },
+    );
+    // The exit code is read after the hold. It is part of the result being held, so asserting it first would
+    // kill a run that reached the awaited result before the hold could say it was spent.
+    expectPinnedObservation(JSON.parse(stagedPrepare.stdout), {
+      behavior: "A correction staged in the operator's index is not part of the member's reviewed contribution, "
+        + "so preparing that member's local review should still admit it rather than fail on an admission the "
+        + "driver minted moments earlier.",
+      observed: {
+        mode: "review-local-prepare",
+        error: {
+          code: "unexpected-failure",
+          message: "Local delivery-member review no longer has exact driver admission.",
+        },
+      },
+      target: { state: "ready" },
+    });
+    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(1);
+    await git(fixture.repository, ["rm", "--cached", "-f", "top-correction.txt"]);
+    await unlink(join(fixture.repository, "top-correction.txt"));
+    const afterUnstage = await runArcWithStdin(
+      ["review", "local", "prepare", "-"],
+      fixture.repository,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        evaluatorIdentity: "fresh-chunk-aggregate-reviewer",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+        deliveryAdmission: localAdmission,
+      })}\n`,
+      { env: fixture.env },
+    );
+    // Clearing the index restores the admission the driver already minted, so the stop is recoverable without
+    // re-deriving anything — the operator just has to know that is what it wants, which the failure never says.
+    expect(afterUnstage.exitCode, `${afterUnstage.stderr}\n${afterUnstage.stdout}`).toBe(0);
+    expect(JSON.parse(afterUnstage.stdout)).toMatchObject({ state: "ready", nextAction: "launch-review" });
+
+
     const resumedLocal = await runArcWithStdin(
       ["review", "local", "resume", "-"],
       fixture.repository,
@@ -4697,6 +4760,89 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         revision: 2,
         value: { activeOperation: { operationId: "interrupted-provider-refresh-position-operation" } },
       },
+    });
+  });
+
+  it("resumes the bound chain at a terminal top that advanced by an append-only commit", async () => {
+    const fixture = await positionFixture("terminal-authoring");
+
+    const positioned = await runArcWithStdin(
+      ["delivery", "position", "-", "--json"],
+      fixture.repository,
+      `${fixture.request}\n`,
+      { env: fixture.env },
+    );
+
+    // Read after the hold, for the same reason: the awaited result comes with a zero exit code.
+    expectPinnedObservation(JSON.parse(positioned.stdout), {
+      behavior:
+        "An append-only advance on a terminal top should not cost the chain its position, so position " +
+        "should resume it rather than send the caller back to plan a correction it has not been asked for.",
+      observed: { status: "refused", reason: "review-fix-routing-required", nextAction: "plan-review-fix" },
+      target: { status: "position" },
+    });
+    expect(positioned.exitCode, `${positioned.stderr}\n${positioned.stdout}`).toBe(1);
+  });
+
+  it("opens a session over a terminal top that advanced by an append-only commit", async () => {
+    const orient = async (scenario?: ActiveOperationScenario): Promise<HandlerRunResult> => {
+      const fixture = await positionFixture(scenario);
+      const workUnitId = fixture.plan.workUnitId;
+      const branch = `feat/${workUnitId}`;
+      await git(fixture.repository, ["switch", "-c", branch]);
+      await git(fixture.repository, ["push", "-u", "origin", branch]);
+      const activeDir = join(fixture.repository, ".arc", "active");
+      await mkdir(activeDir, { recursive: true });
+      await writeFile(join(activeDir, `tasks-${workUnitId}.md`), [
+        `# Task List: ${workUnitId}`,
+        "",
+        renderDeliveryPlanSection(fixture.plan),
+        "## **Phase 1:** Members",
+        "",
+        "### `[x]` **1.1 Close member one**",
+        "",
+      ].join("\n"));
+      await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
+        `# Metadata: ${workUnitId}`,
+        "",
+        "- **State:** Integrating",
+        "- **Owner:** test-user",
+        `- **Branch:** ${branch}`,
+        `- **Task List:** tasks-${workUnitId}.md`,
+        "- **Candidate:** [none]",
+        "- **Current Workflow:** `integrate-work-unit`",
+        "- **Last Completed:** Task 1.1 — Close member one",
+        "- **Next Task:** [none]",
+        "- **Next Action:** Resume hosted review",
+        "",
+      ].join("\n"));
+      await git(fixture.repository, ["add", "-A"]);
+      await git(fixture.repository, ["commit", "--no-verify", "-m", "orientation fixture"]);
+      return await runArc(["status", "--session-init", "--json"], fixture.repository, {
+        env: fixture.env,
+      });
+    };
+
+    const advanced = await orient("terminal-authoring");
+    const held = await orient();
+
+    const position = (result: HandlerRunResult): unknown => {
+      expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+      return (JSON.parse(result.stdout) as { deliveryPosition: unknown }).deliveryPosition;
+    };
+    expect(position(held)).toMatchObject({
+      ok: true,
+      value: { workUnitId: "delivery-plan-record", landedCount: 0, totalCount: 3, activeOperation: null },
+    });
+    expectPinnedObservation(position(advanced), {
+      behavior:
+        "An append-only advance on a terminal top should not cost the chain its position, so a session " +
+        "opening over it should report the same delivery position it reports with the top held still.",
+      observed: {
+        ok: false,
+        error: { kind: "runtime", message: "Delivery position is unavailable: observation-unavailable." },
+      },
+      target: { ok: true },
     });
   });
   });

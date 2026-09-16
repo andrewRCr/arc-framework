@@ -23,6 +23,7 @@ import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/cand
 import { resolveSubmissionBoundaryPath } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { parseIntegrationBoundaryLocus } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
+import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -349,6 +350,13 @@ describe("delivery terminal recovery", () => {
     readonly reviewFix?: boolean;
     readonly settledRecord?: boolean;
     readonly staleTargetRef?: boolean;
+    /**
+     * Bind the terminal to the head the record write advanced past, rather than to the record itself.
+     *
+     * Without this the terminal always binds the post-record head, so an advance made only of record
+     * writes cannot arise — the one arrangement this file otherwise cannot express.
+     */
+    readonly recordOnlyMovement?: boolean;
   } = {}): Promise<{
     readonly fixture: Awaited<ReturnType<typeof installFixture>>;
     readonly envelope: { readonly revision: number };
@@ -445,7 +453,9 @@ describe("delivery terminal recovery", () => {
             coordinates: {
               ...member.coordinates!,
               base: fixture.triggerHead,
-              head: recordHead ?? (input.reviewFix === true ? candidateHead : fixture.triggerHead),
+              head: input.recordOnlyMovement === true
+                ? candidateHead
+                : recordHead ?? (input.reviewFix === true ? candidateHead : fixture.triggerHead),
             },
           }
         : member),
@@ -1024,6 +1034,46 @@ describe("delivery terminal recovery", () => {
         revision: envelope.revision + 1,
         value: {
           members: [expect.anything(), { coordinates: { head: currentHead } }],
+          pendingReviewFixVerification: {
+            selectedDeliverableId,
+            memberDeliverableIds: [selectedDeliverableId],
+          },
+        },
+      },
+    });
+  });
+
+  it("routes a record-only advance past the head the terminal binds", async () => {
+    const { fixture, request } = await installTerminalRebindFixture({
+      settledRecord: true,
+      recordOnlyMovement: true,
+    });
+    const selectedDeliverableId = deliveryStackPlanFixture().members.at(-1)!.deliverableId;
+
+    const result = await runArcWithStdin(
+      ["delivery", "reconcile", "-", "--json"],
+      repository,
+      `${JSON.stringify({
+        ...(JSON.parse(request) as Record<string, unknown>),
+        continuation: "read-position",
+        reviewFixSelectedDeliverableId: selectedDeliverableId,
+      })}\n`,
+      { env: fixture.env },
+    );
+
+    expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
+    expectPinnedObservation(JSON.parse(result.stdout), {
+      behavior: "An advance made only of the ceremony's own record writes adds no authored change to review, "
+        + "so resuming over it should return the caller to position rather than raise a verification task "
+        + "against a fix nobody wrote.",
+      observed: { status: "rebound", nextAction: "verify-review-fix" },
+      target: { nextAction: "read-position" },
+    });
+    // Part of the held result rather than a property worth keeping: the task is not merely signalled, it is
+    // persisted against a member, so whatever retires the hold above has to clear this record as well.
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      state: {
+        value: {
           pendingReviewFixVerification: {
             selectedDeliverableId,
             memberDeliverableIds: [selectedDeliverableId],

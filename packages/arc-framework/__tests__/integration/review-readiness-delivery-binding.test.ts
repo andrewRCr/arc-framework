@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -20,7 +22,8 @@ import {
   releaseMergeLock,
   type MergeLockTransitionRequest,
 } from "../../src/scripts/review-gate/merge-lock.js";
-import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
+import { cleanupTempDir, createTempRepo, makeCommit, makeGitExec } from "../helpers/integration.js";
+import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
@@ -30,13 +33,24 @@ const TREE = "b".repeat(40);
 const WORK_UNIT = "delivery-plan-record";
 const plan = deliveryStackPlanFixture(PLAN_ID);
 
+const execFileAsync = promisify(execFile);
+
+async function tree(cwd: string, revision: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", `${revision}^{tree}`], { cwd });
+  return stdout.trim();
+}
+
 const roots: string[] = [];
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(cleanupTempDir));
 });
 
-function state(): DeliveryStateV1 {
+function state(
+  boundHead: string = HEAD,
+  boundBase: string = BASE,
+  boundTree: string = TREE,
+): DeliveryStateV1 {
   return DeliveryStateV1Schema.parse({
     schemaVersion: 1,
     semanticsVersion: "delivery-state/v1",
@@ -49,7 +63,7 @@ function state(): DeliveryStateV1 {
         deliverableId: plan.members[0]!.deliverableId,
         ref: "opaque-member-0",
         changeRequest: null,
-        coordinates: { base: BASE, head: HEAD, tree: TREE },
+        coordinates: { base: boundBase, head: boundHead, tree: boundTree },
       },
       {
         deliverableId: plan.members[1]!.deliverableId,
@@ -86,17 +100,17 @@ async function unboundRepository(): Promise<string> {
   return cwd;
 }
 
-function memberRequest(treeRoot: string) {
+function memberRequest(treeRoot: string, headSha: string = HEAD) {
   return {
     schemaVersion: 1,
     treeRoot,
-    target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+    target: { repository: "owner/repo", pullRequest: 42, headSha },
     pullRequest: {
       repository: "owner/repo",
       number: 42,
       state: "open",
       headBranch: "delivery/plan/00",
-      headSha: HEAD,
+      headSha,
     },
     vehicle: {
       kind: "delivery-member",
@@ -124,11 +138,12 @@ function transitionRequest(treeRoot: string): MergeLockTransitionRequest {
 async function runReadinessHandler(
   resolvedRoot: string,
   suppliedTreeRoot: string,
+  headSha: string = HEAD,
 ): Promise<{ state: string; diagnostics: { code: string }[] }> {
   let written = "";
   await handleReviewReadiness("request.json", {
     resolveRoot: () => resolvedRoot,
-    readText: async () => JSON.stringify(memberRequest(suppliedTreeRoot)),
+    readText: async () => JSON.stringify(memberRequest(suppliedTreeRoot, headSha)),
     write: (text) => {
       written += text;
     },
@@ -224,5 +239,59 @@ describe("readiness delivery binding at its composition roots", () => {
 
     expect(JSON.stringify(readiness)).not.toContain("delivery-state-unavailable");
     expect(JSON.stringify(release)).not.toContain("delivery-state-unavailable");
+  });
+});
+
+/**
+ * A repository whose delivery state binds a member to a head its branch has since advanced past
+ * by a commit that changes nothing.
+ */
+async function staleBoundRepository(): Promise<{
+  cwd: string;
+  bound: string;
+  advanced: string;
+}> {
+  const cwd = await createTempRepo("arc-review-readiness-stale-");
+  roots.push(cwd);
+  const root = await makeCommit(cwd, "root");
+  const bound = await makeCommit(cwd, "member contribution");
+  const advanced = await makeCommit(cwd, "record-only advance");
+  const publisher = new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd);
+  const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  expect((await planStore.publishCurrent(PLAN_ID, plan, null)).status).toBe("ok");
+  const store = new RepositoryDeliveryStateStore(publisher);
+  // The advance changes nothing, and the bound tree is the evidence of that — so it has to be the real
+  // one the bound commit carries, not a synthetic id no comparison could ever satisfy.
+  const boundTree = await tree(cwd, bound);
+  expect((await store.publish(PLAN_ID, state(bound, root, boundTree), 0)).status).toBe("ok");
+  return { cwd, bound, advanced };
+}
+
+/** The result reduced to the fields that carry its identity. */
+function outcome(result: { state: string; diagnostics: { code: string }[] }): {
+  state: string;
+  diagnostics: readonly string[];
+} {
+  return { state: result.state, diagnostics: result.diagnostics.map((entry) => entry.code) };
+}
+
+describe("readiness against a member head that advanced under its binding", () => {
+  it("reports nothing bound when a member's head advanced without changing its contribution", async () => {
+    const { cwd, advanced } = await staleBoundRepository();
+    const unbound = await unboundRepository();
+
+    const stale = outcome(await runReadinessHandler(cwd, cwd, advanced));
+    const absent = outcome(await runReadinessHandler(unbound, unbound, advanced));
+
+    // Held first, so a run that reaches the awaited result says the hold is spent rather than dying on
+    // the equality below with a bare object diff.
+    expectPinnedObservation(stale, {
+      behavior:
+        "A delivery member whose bound head advanced by a commit changing nothing is still the " +
+        "reviewed member, so readiness should admit it rather than report nothing bound at all.",
+      observed: { state: "invalid", diagnostics: ["delivery-member-unbound"] },
+      target: { state: "ready" },
+    });
+    expect(stale).toEqual(absent);
   });
 });
