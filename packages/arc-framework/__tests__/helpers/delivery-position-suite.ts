@@ -4834,16 +4834,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ok: true,
       value: { workUnitId: "delivery-plan-record", landedCount: 0, totalCount: 3, activeOperation: null },
     });
-    expectPinnedObservation(position(advanced), {
-      behavior:
-        "An append-only advance on a terminal top should not cost the chain its position, so a session " +
-        "opening over it should report the same delivery position it reports with the top held still.",
-      observed: {
-        ok: false,
-        error: { kind: "runtime", message: "Delivery position is unavailable: observation-unavailable." },
-      },
-      target: { ok: true },
-    });
+    expect(position(advanced)).toEqual(position(held));
   });
   });
 }
