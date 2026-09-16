@@ -9,13 +9,14 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `maturing`. Five adversarial passes (2026-09-16), the fifth certifying and not-ready with four
-  blockers. The terminal-member cluster those blockers converged on has since settled on probe rather than on
-  reasoning: the marker is the Candidate applicability decision, its record is the `applicability-selection`
-  transition, the absorption arm's invariance is measured, the acceptance evidence is derived from Git rather than
-  written, and decline is a release transition rather than an undo. Five items are open and **none is
-  structural** — two await text, one a measurement, one a naming call, one a repair choice. What the design _is_
-  no longer moves; the consolidation and its coherence re-read have run, and the sixth pass is next.
+- **Readiness:** `maturing`. Seven adversarial passes (2026-09-16); the seventh returned two design gaps inside
+  regions the draft marked settled, both since authored. The terminal-member cluster settled on probe rather
+  than on reasoning: the marker is the Candidate applicability decision, its record is the
+  `applicability-selection` transition, the absorption arm's invariance is measured, the acceptance evidence is
+  derived from Git rather than written, and decline is a release transition rather than an undo. Five items are
+  open and **none is structural** — two await text, one a measurement, one a naming call, one a repair choice.
+  What the design _is_ no longer moves; the consolidation, its coherence re-read, and two further passes have
+  run.
 
 ---
 
@@ -28,6 +29,11 @@ re-reading. Items marked `[certified]` were verified against source by the fifth
 its withstood set — short of the three-pass frozen bar, but not fresh ground either. Items marked `[probed]` rest
 on a measurement recorded in § Pinned probes. Everything else is settled by source read and open to ordinary
 re-examination.
+
+**A marker says checked, not correct, and the seventh pass is why that distinction is written down.** Two of its
+findings landed inside regions marked settled — one of them `[certified]` — because a pass can verify every
+source fact a passage cites and still miss that the passage describes two incompatible designs, or that a
+contract it relies on was never authored. Read a marker as narrowing where to look, never as a reason not to.
 
 ### Settled — scope, boundary, and the failure family
 
@@ -63,6 +69,11 @@ re-examination.
   Read-all, refuse-on-more-than-one, then diff or record from the single base. The staged arm of the subject
   collector takes the same rule, and its probe is now pinned. § Reader inventory carries the arithmetic, which
   has been corrected twice, and the sweep command that re-derives it.
+- **The shared base resolver returns three arms and never throws**, authored 2026-09-16 after a pass found its
+  contract unsettled while its algorithm was settled. `resolved` / `ambiguous` / `unavailable`, split because an
+  ambiguous history carries an idiomatic remedy while an unanswerable read is retryable — the collapse
+  `base-overlap.ts` performs today under one reason. Each caller applies its own policy, and the propagation cost
+  is `collectGitCandidateTarget`'s widened result across eight importing files. § What the resolver returns.
 - **The subject's path set is base-relative, with cardinality refused rather than picked** `[frozen]`. The
   commit-derived answer was falsified twice: it cannot see a branch retaining its own side of a base-changed path
   across a base merge, and the content-inclusive digest inverts its movement-sensitivity claim. § The subject's
@@ -94,8 +105,10 @@ them: `resolveTerminalRecords` already performs the plan read, state read, and c
 deliverable-keyed method's body needs, so that route is its body behind a named method with a typed result, taken
 as a fifth interface beside the four in `core/delivery-member-lookup.ts` rather than widening
 `DeliveryMemberLookup` by use. The result carries four arms — not-in-plan, in-plan-unbound, bound, unavailable —
-because `stateMemberMatches` opens with a null-`coordinates` guard and `coordinates` is independently nullable;
-in-plan-unbound is `absent` while not-in-plan is an identity error carrying its own remedy. `absent` therefore
+derived from that method's own plan read, state read, and coherence check rather than from any store predicate;
+in-plan-unbound is `absent` while not-in-plan is an identity error carrying its own remedy. Widening
+`DeliveryMemberSelector` with an identity arm is the recorded rejected alternative: it edits a predicate both
+live lookups share to reach the same result. `absent` therefore
 means _no member_, which both surviving routes agree on and only the eliminated one would have changed.
 § Readiness reads its key backwards.
 
@@ -245,10 +258,10 @@ _collecting_ where the settled rule says it should refuse, so a fix applied to t
 red. Closing it surfaced a defect in its sibling, taken into scope by the Owner the same day: § Pinned probes
 carries the defect and § Open carries the choice of repair.
 
-**The sixth pass is next.** The two remaining text items — the override's wording and the refusal disclosure — are
-the same surface speaking to the same person and should be written together, but neither blocks the pass. Read
-§ Adversarial pass record before spending it: it carries the fifth pass's findings as `prior-findings` and its
-withstood set, so the sixth re-derives neither and re-attacks nothing already checked.
+**The readiness assessment is next.** The two remaining text items — the override's wording and the refusal
+disclosure — are the same surface speaking to the same person and should be written together, but neither blocks
+it. An eighth pass would read § Adversarial pass record first: it carries every prior pass's findings as
+`prior-findings` and their withstood sets, so a successor re-derives none of it and re-attacks nothing checked.
 
 **Both probes are spent.** The absorption-arm probe returned a third outcome — invariant composition plus a live
 untyped adoption route. The derived-evidence probe confirmed the parent-line derivation and the precise residual,
@@ -266,7 +279,11 @@ and surfaced the layer disagreement now standing in § Open. Both live in the pl
   verb surface carries it. The all-neutral narrowing and the rewound variant carried unchanged throughout. Four
   stood where six did, and none was structural where three were. Run again on the staged-arm close: none left
   and one arrived — the committed-arm hold's repair, scoped from a defect that probe surfaced rather than
-  from a design question. Five now stand, and **none is structural**.
+  from a design question. Five now stand, and **none is structural**. Run again on the seventh pass: none left
+  and none arrived. Both of its design gaps were settled in place rather than admitted to the ledger — the
+  lookup body on the route the section had already chosen, and the resolver's contract by authoring it — so the
+  five stand unchanged and none is structural. A pass finding a gap inside settled text does not by itself add
+  an open item; it adds one only when the gap cannot close where it was found.
 - **The settle-time dependency sweep, added 2026-09-16.** When a settlement retracts or replaces a named object,
   grep the whole draft for that name and re-read every hit before committing. The ledger-diff check is
   section-scoped; this failure is document-scoped, and the two are not the same guard. The fifth pass's first
@@ -278,13 +295,14 @@ and surfaced the layer disagreement now standing in § Open. Both live in the pl
   one, and the rejected alternative's own wording where it replaces a reading. Write the rejected reading into the
   settled passage — then the next sweep has a string to find, and the reader learns why the other branch is closed.
 
-**On the pass loop.** Five have run against a `Heavy` cap of two, each of the last three finding its blocker
-inside the previous pass's repair. Read the fifth pass's own split before spending a sixth: two of its four
-blockers were regressions of that kind, and the other five findings were latent depth no earlier pass had
-reached. The loop is not failing to converge on repairs — it is surfacing settlements that were never swept into
-the body, which is what the sweep above exists to stop. The terminal-member cluster has now settled on probe, so
-the sixth pass is due — and it is the first to run against a body whose load-bearing claims were measured rather
-than reasoned, which is the condition the previous five lacked.
+**On the pass loop.** Seven have run against a `Heavy` cap of two, every one past the second an explicit Owner
+spend. The shape changed after the fifth. Passes three through five each found their blocker inside the previous
+pass's repair; the sixth and seventh instead found claims that had never been true — a gate attributed to a verb
+that does not run on this path, and a region marked settled that described two incompatible designs. That is the
+argument for having spent them: they were not re-litigating repairs, they were reaching depth the earlier five
+never touched, against a body whose load-bearing claims had by then been measured rather than reasoned. The
+seventh also certified the sixth's own repair on source and probe, which is the check a successor pass exists to
+perform.
 
 ---
 
@@ -609,6 +627,46 @@ primitives there is a move, not an extension.
 and are in scope. The two decomposition call sites do not; unifying them would be symmetry rather than a traced
 need, so the shared primitives should be _available_ to them without this work unit retrofitting them.
 
+### What the resolver returns, and who absorbs it
+
+Authored 2026-09-16, after a pass found the contract unsettled while the algorithm was settled. The silent pick
+is this design's most-traced fix, and a fix whose result type is unnamed is not a settled fix.
+
+**Three arms, and the resolver never throws.** `DEV-RULES.PROJECT` § Engineering Standards holds that a shared
+helper returns only what it establishes while each caller applies its own failure policy — so the resolver
+reports, and the readers decide.
+
+| Arm           | Holds when                              | What the caller owes                 |
+| ------------- | --------------------------------------- | ------------------------------------ |
+| `resolved`    | `merge-base --all` returned exactly one | proceed on that base                 |
+| `ambiguous`   | it returned more than one               | refuse, and name merging the base in |
+| `unavailable` | Git could not answer                    | refuse, and offer the retry          |
+
+**Two arms would repeat the defect this design is about.** Ambiguity is a fact about the history and carries an
+idiomatic remedy; an unanswerable read is operational and retryable. `base-overlap.ts` returns
+`merge-base-failed` for both today — its multiple-base branch and its own `catch` reach the same reason — which
+is the collapse § The variants refuses for `unknown`, and the distinction § Refusal-recoverability's clause zero
+requires. Splitting it is part of adopting the resolver rather than a separate concern.
+
+**The `ambiguous` arm carries its bases for the report, not for consumption.** No consumer can take a base set,
+so nothing downstream branches on the count; the bases travel so the refusal can say what it saw.
+
+**Caller policy, per reader.**
+
+- `git-candidate-subject.ts` refuses typed. Its silent pick is the one row that returns a wrong answer rather
+  than a stop, so a throw would leave the condition as unreportable as it is today. That widens
+  `collectGitCandidateTarget` from `CandidateLineageTarget` to a union, and **that is the propagation cost**:
+  eight files import it, including Candidate attestation and the terminal coordinate advance proof, which calls
+  it twice. Each absorbs the arm by surfacing its reason; none needs new logic.
+- `repository-target.ts` maps it into the channel it already has. `LocalTargetDerivationError` carries a closed
+  reason set and its merge-base read already passes `no-merge-base`, so ambiguity earns a reason beside that one
+  rather than a new mechanism.
+- `base-overlap.ts` splits its collapsed reason, above.
+- `git-candidate-effective-target.ts` returns the typed result § Refusal-recoverability's table already names for
+  it, retiring the untyped throw.
+- `git-contribution-proof.ts` keeps its `null` / endpoints-unverified policy. It is listed for allocation
+  completeness; this work unit does not convert it.
+
 ## The movement substrate — three things under one name
 
 Settled 2026-09-16 against source. The question is usually posed as _whether the relation replaces
@@ -924,6 +982,15 @@ proposed, not settled**; the six distinctions are.
 Two of these are the whole Axis A defect. `advanced` and `absent` are today indistinguishable at review
 readiness, which is what the pinned probe records; separating them is the fix.
 
+**`advanced` is ancestry-only, by design, and the content term lives downstream.** Its pinned target is
+content-shaped — a head "advanced by a commit changing nothing" — and ARC's one existing admission of a moved
+head at a review seam is proof-conditioned, tying the two heads and requiring the Candidate subject digest
+unchanged. The relation does neither, because § Shape makes the classifier pure and Git-free: it reports the
+topology and nothing else. What keeps an unreviewed change from riding an `advanced` verdict is the gate below
+it, which still requires the observed head to equal the target head and the routed obligation to be discharged
+at that exact vehicle. Do not add a subject term to the classifier to close a hole the downstream gate already
+holds.
+
 **Cardinality is a field on `diverged`, not a variant.** § Established practice proves cardinality above one is
 reachable only when neither revision reaches the other, so a variant would place it beside a case it lives
 inside. Applicability is its only consumer; the other readers neither ask nor branch on it.
@@ -1018,18 +1085,23 @@ method, as a fifth interface beside the four already in `core/delivery-member-lo
 `resolveTerminalRecords` instead would widen a method named for terminal integration by use rather than by
 design, which is a narrow fault but a sufficient one.
 
-**The selector carries `planId` beside `deliverableId`.** `resolveMember` scans every plan's state in the
-namespace and refuses `ambiguous-match` on more than one hit, and the readiness vehicle holds both fields
-already. It spells the third one `workUnitSlug` where `DeliveryReviewMemberVehicle` spells it `workUnitId`, so
-the call is a conversion rather than a direct hand-off.
+**The vehicle already holds the key, so the call is a conversion.** Readiness carries `planId`,
+`deliverableId`, and `workUnitSlug`, and spells the third one where `DeliveryReviewMemberVehicle` spells it
+`workUnitId` — so the hand-off needs a rename, not a lookup it does not have the inputs for.
 
-**Identity lookup reaches a member head lookup structurally cannot, and that sets the result's arity.**
-`stateMemberMatches` opens with `if (member.coordinates === null) return false`, a guard shared by both existing
-arms, and `coordinates` is independently nullable in the state schema. Admitting the identity arm therefore means
-moving that guard into the two coordinate-keyed arms, which is a change to a shared predicate rather than an
-added case. The result carries four arms — not-in-plan, in-plan-unbound, bound, unavailable. **In-plan-unbound is
+**The result's four arms come from the method's own reads, not from a store predicate.** The plan read answers
+in-plan against not-in-plan; the state read answers bound against unbound; a failed read or an incoherent pair
+answers unavailable. That is four arms — not-in-plan, in-plan-unbound, bound, unavailable. **In-plan-unbound is
 `absent`**, by § The variants' reading of a subject nothing binds; **not-in-plan is an identity error**, not a
 relation variant, and § Forward-compatibility gives it its own remedy rather than the variant's.
+
+**Extending the member selector is the answer to reject**, and it is recorded because an earlier reading of this
+section derived the arity from it. `DeliveryMemberSelector` carries two arms and neither keys on a deliverable,
+so admitting an identity arm means threading it through `resolveMember` and moving `stateMemberMatches`'s
+null-`coordinates` guard into the two coordinate-keyed arms — a behavioural edit to a predicate both live
+production lookups run through, plus a new `ambiguous-match` surface, to reach a result the named method already
+produces without touching the store at all. Route it that way and the blast radius is two working readers; route
+it as above and the delivery stores are not edited.
 
 **What the route no longer decides.** Both surviving routes agree that `absent` means _no member_ rather than _no
 hosted member_, so the variant's meaning does not turn on the choice — only the eliminated route would have made
@@ -1867,9 +1939,10 @@ wrong. No success criterion, boundary, or file pointer was dropped.
 
 ## Adversarial pass record
 
-Five passes have run (2026-09-16) against a `Heavy` cap of two, the fifth certifying and returning not-ready. Its
-two products are kept here rather than in session state: a later pass consumes both, and a draft that sends its
-reader elsewhere for them is not the complete input it claims to be.
+Seven passes have run (2026-09-16) against a `Heavy` cap of two. Every pass's findings and withstood set are kept
+here rather than in session state: a later pass consumes both, and a draft that sends its reader elsewhere for
+them is not the complete input it claims to be. The seventh pass caught this section failing its own contract for
+the sixth — recorded below rather than quietly repaired, because the lapse is the argument for the rule.
 
 ### What the fifth pass cleared
 
@@ -1891,8 +1964,8 @@ evidence, never on re-reading — which is what the `[certified]` marker in § C
 
 ### What the fifth pass found, and where each landed
 
-The seven findings, carried as `prior-findings` for the sixth. Outcomes are tracked; the pass transcript is not
-retained, so nothing below should be re-derived from one.
+The seven findings. Outcomes are tracked; no pass transcript is retained, so nothing below should be re-derived
+from one.
 
 - **Blocker — the obligation write settled two incompatible ways across five sections.** Swept. The terminal gap
   it exposed became an open structural item, itself since settled on probe.
@@ -1917,6 +1990,46 @@ because none of the six is a _decline_ route — the nearest, `native-landing.ts
 without re-deriving what stood on it. That is the failure the settle-time dependency sweep in § Next exists to
 stop, and it is why a sixth pass is worth spending rather than evidence that the loop will not converge: the
 other five findings were depth no earlier pass had reached.
+
+### What the sixth pass found
+
+Four findings, all verified against source and fixed in place.
+
+- **Major — the terminal member's gate was attributed to `rebindDeliveryTerminalCoordinates`.** That verb has one
+  production call site, inside `arc delivery reconcile`, so it never runs on a native landing. The conclusion
+  survived; the mechanism did not. Replaced by the two integration-checkpoint mechanisms, and the trigger
+  measured by probe.
+- **Major — the `predecessorRelation` collision was filed as a naming call** while one direction renames literals
+  inside `CloseSchema`, a strict request schema. The schema fact and its pre-release discharge are now recorded,
+  and the item stays a naming call on stated grounds.
+- **Minor — the pinned-probe inventory named seven where eight are owned.** The digest hold was added.
+- **Minor — three passages stated positions a prior settlement had retracted.** Settled in place.
+
+Its withstood set cleared both recorded sweeps, the decline route's four line numbers, the fourteen-condition
+closeout arithmetic, the `review-terminus/v1` rejection, the readiness cluster in full, and the two planning
+probes' measured claims.
+
+### What the seventh pass found, and what it certified
+
+Five findings. It was spent deliberately over cap because the sixth pass's folds had never been read by a fresh
+reviewer, which is the residual the final-fold rule says a successor never attacks.
+
+- **Major — § Readiness reads its key backwards described two incompatible bodies.** One needed no store change;
+  the other extended `DeliveryMemberSelector` and moved a guard shared by both live production arms. Settled on
+  the first, with the second recorded as the rejected alternative.
+- **Major — the shared base resolver's refusal contract was unauthored** while its algorithm was settled, and the
+  two implementations cited as its existing shape disagreed — one of them collapsing an operational failure into
+  the ambiguity reason. § What the resolver returns now carries the contract.
+- **Minor — the pass counts and this section were stale**, which is this record failing its own durability
+  contract. Corrected here.
+- **Minor — "the recorded-tree check passes" named a branch the probe cannot reach**, since the ancestry read
+  refuses first. Restated.
+- **Minor — `advanced` admits on bare ancestry under a content-shaped justification.** Recorded as deliberate,
+  with the downstream gate named as what holds the content term.
+
+**What it certified matters as much as what it found.** The sixth pass's rewritten terminal-member gate withstood
+in full: both checkpoint mechanisms verified reachable and stopping, the rebind verb confirmed absent from every
+native-landing path, and both planning probes confirmed to measure what the draft attributes to them.
 
 ---
 
@@ -1981,8 +2094,9 @@ gate attributed to a verb that never runs here. In `delivery-public-review-conti
 no advance proof for an operator-absorbed top the Candidate does not reach" builds a real absorption — a
 two-parent commit over the recorded parent pair whose tree is neither parent's, because a person chose its
 content — records it in the terminal coordinate exactly, and asserts that
-`projectGitDeliveryTerminalCoordinateAdvance` still returns no proof. The recorded-tree check passes and the
-ancestry term is what refuses, which is the link the draft had been asserting rather than measuring. It holds
+`projectGitDeliveryTerminalCoordinateAdvance` still returns no proof. The tree matches by construction, so a
+mismatch cannot be the cause — and the ancestry read refuses before the tree comparison is reached at all, which
+is the link the draft had been asserting rather than measuring. It holds
 behaviour this design keeps, so it is ordinary regression coverage rather than a pin.
 
 ---
