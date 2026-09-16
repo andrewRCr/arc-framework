@@ -9,11 +9,12 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `rough`. Five adversarial passes (2026-09-16). The fifth was the certifying pass and returned
-  not-ready with four blockers, so the `maturing` posture it was run against does not hold. Two of the four are
-  regressions this draft introduced by settling a premise without re-deriving what stood on it; the other two
-  are depth the earlier passes had not reached. Six items are open, three of them structural, and they cluster
-  on one question: what marks a waived **terminal** movement, which is the member Axis D is about.
+- **Readiness:** `maturing`. Five adversarial passes (2026-09-16), the fifth certifying and not-ready with four
+  blockers. The terminal-member cluster those blockers converged on has since settled on probe rather than on
+  reasoning: the marker is the Candidate applicability decision, its record is the `applicability-selection`
+  transition, and the absorption arm's invariance is measured. Four items are open, two of them structural, and
+  they no longer share a premise — admission and decline are separate questions on separate surfaces. A sixth
+  pass is due and would be the first to run against a measured body.
 
 ---
 
@@ -98,11 +99,12 @@ generic slot for what is owed, and a native landing has no selection to write in
   referent. **The terminal member is not covered.** `deriveNativeDeliveryRegisteredRemainder` slices it off
   (`plan.members.slice(start, -1)`), so the gate never runs for it. Retracted as a whole-path claim
   2026-09-16; § Open carries what replaces it.
-- **The waiver's home in the Owner-acceptance family is reopened.** Reusing `DeliveryReviewMemberVehicle` and
-  the `review-terminus/v1` vocabulary still looks right, but the family's only store is the review gate's
-  integration boundary locus, and its only reader matches on the vehicle without inspecting `kind`
-  (`status.ts:410`, discharging at `:592-600`). A second `kind` placed there would discharge hosted review for
-  an unreviewed head. § Open carries the store, the writer, and the discriminant.
+- **The waiver's home was reopened, then resolved to a different family entirely.** Reusing
+  `DeliveryReviewMemberVehicle` and the `review-terminus/v1` vocabulary looked right until the store was read: its
+  only reader matches on the vehicle without inspecting `kind` (`status.ts:410`, discharging at `:592-600`), so a
+  second `kind` placed there would discharge hosted review for an unreviewed head. Settled 2026-09-16 — the
+  terminal member's acceptance is the Candidate `applicability-selection` transition, which is a different record
+  on a different surface, so the discriminant never has to exist. § The waiver record.
 - **The encumbrance-predicate extraction stays captured.** There is no third obligation term, so its trace does
   not come back. An audit fact is not an encumbrance.
 - **Adoption is request-side.** What the native path needs is the conflict collection, the disclosure, and a
@@ -158,30 +160,28 @@ bar — but they are the part of this session's work that survived the certifyin
 
 ### Open
 
-Six, **three of them structural**, after the certifying pass reopened two settlements and surfaced depth in
-three more. The three structural items are one cluster wearing three faces: the terminal member has no closeout
-marker, the record that would mark it has no safe home, and an operator who declines has no way out. Settle
-them together or not at all.
+Four, **two of them structural**, after the terminal-member cluster settled on probe. Three items left the
+ledger together — the marker, the record's home, and the absorption-arm probe — and one arrived in their place,
+which is the tension the settlement exposed rather than resolved.
 
-- **What marks a waived terminal movement at closeout.** `[structural]` The obligation write was dissolved and
-  the gate that replaced it does not reach the terminal member, so this design has neither. Every non-terminal
-  member is covered; the one Axis D is about is not. § What composes states the gap in source terms.
-- **Where the waiver record lives, and what reads it.** `[structural]` The store, the writer, and the
-  discriminant every existing `deliveryReviewTermini` reader must grow before a second `kind` can exist. Note the
-  authority crossing: acceptance happens in `arc delivery native land-status`, while the family is written by the
-  review gate under a boundary-version handshake. The abstraction question still routes to
-  `review-source-authority`; this is the placement question underneath it.
-- **How an operator declines, and what releases the reservation.** `[structural]` Reclassified from detail-design
-  2026-09-16 after source refuted its premise. That premise was that no obligation written means nothing in state
-  to clear — but the disclosure window sits under a held `activeOperation`, which every encumbrance reader refuses
-  on, and `delivery native` carries no decline, abort, or cancel verb. Six sites clear `activeOperation` and none
-  is a decline route; the nearest, `native-landing.ts:663`, fires only on a `not-applied` effect. An operator who
-  will not accept the waiver wedges the delivery behind `operation-active`. This wants a release transition with
-  its own lease-checked ref restoration, not a choice about which refs to restore.
-- **Whether the absorption arm carries the suffix arm's invariance.** A probe is owed and its outcome selects
-  between two designs: pre-landing inputs throughout make the arm Axis D's twin, taking the same
-  disclosure-and-acceptance route; an operator-reachable input makes it already recoverable with only its guidance
-  wrong. Scoped in 2026-09-16. § Axis D.
+- **How a non-mechanical absorption is admitted, and what marks it as one.** `[structural]` The marker question
+  settled — the Candidate applicability decision is the gate, and `covered` is its cheap arm — but the admission
+  question underneath it did not. Fencing the adoption branch strictly to the mechanical composition closes the
+  only working recovery route and returns the terminal top to unrecoverable; leaving it unfenced admits a
+  hand-resolved tree that reaches the decision stripped of the evidence that it _was_ a resolution. The shape
+  that satisfies both is admit-then-decide: adoption stays reachable, the absorption's conflict set reaches the
+  applicability presentation, and recognition still gates on the recorded selection. What is unsettled is whether
+  that evidence is **derived** at decision time — the terminal head is a two-parent merge of the prior top and the
+  observed highest member whose tree is not the mechanical composition, which is re-derivable from Git and would
+  keep § Where the unresolved condition lives' no-cache posture intact — or whether anything must be written at
+  settle time. Prefer the derived reading; it has not been probed.
+- **How an operator declines, and what releases the reservation.** `[structural]` Unchanged in substance,
+  narrowed in scope. The applicability decision supplies a decline at _its_ boundary — `changed` establishes a new
+  lineage root — but that is downstream of the held reservation and does not reach it. The disclosure window still
+  sits under an `activeOperation` that every encumbrance reader refuses on, and `delivery native` still carries no
+  decline, abort, or cancel verb. Six sites clear `activeOperation` and none is a decline route; the nearest,
+  `native-landing.ts:663`, fires only on a `not-applied` effect. This still wants a release transition with its
+  own lease-checked ref restoration.
 - **Whether an all-neutral conflict set should settle without asking.** ARC classifies paths `reviewable` /
   `evidence-neutral` / `regenerable`; a collision confined to lifecycle projections carries no judgment. Gating
   the disclosure on at least one `reviewable` path is the proposal; the subset's reachability is unmeasured.
@@ -194,21 +194,28 @@ them together or not at all.
 
 ### Next
 
-**Settle the terminal-member cluster next.** All three structural items are the same question from different
-sides, and answering the first likely answers the other two: what marks a waived terminal movement decides what
-record is needed, which decides where that record lives and what reads it. The decline route is the same
-settlement's other end — whatever transition writes the marker on acceptance is the transition that must have a
-refusal twin. Do not take them in isolation.
+**Probe the derived-evidence reading next.** The admission item's two readings differ in whether anything must be
+written at settle time, and the question is empirical: can an absorption-shaped terminal advance be recognized
+from Git alone at decision time — a two-parent merge of the prior top and the observed highest member whose tree
+is not the mechanical composition — reliably enough to drive the applicability presentation? A probe settles it
+the way the absorption-arm probe settled its predecessor. Run it before elaborating the admission route.
 
-**The absorption-arm probe gates part of it.** Its outcome selects between two designs for the terminal top, so
-run it before elaborating the acceptance route rather than after.
+**Then take the decline route, which is now the last structural item.** It did not settle with the cluster: the
+applicability decision reaches the recognition boundary, not the held reservation, so the `activeOperation` wedge
+survives intact. Its shape is a release transition with lease-checked ref restoration, and nothing upstream
+constrains it any further.
+
+**The absorption-arm probe is spent.** It ran 2026-09-16 and returned a third outcome — invariant composition
+plus a live untyped adoption route — which is what settled the marker and the record's home together. Its
+successor pin is recorded in § Pinned probes.
 
 **Two standing procedures, one of them new.**
 
 - **The ledger-diff check.** Before any commit that rewrites § Continuity, diff the pre-rewrite § Open against
-  the post-rewrite one and account for every item that left. Run on this change: three items left and three
-  arrived — the movement substrate and lookup route stayed settled and certified, the readiness-lookup item
-  closed, and abort was reclassified rather than removed. Six now stand where three did.
+  the post-rewrite one and account for every item that left. Run on this change: three items left and one
+  arrived — the marker and the record's home both settled on probe, the absorption-arm probe was spent, and the
+  admission tension the settlement exposed took their place. Decline, the all-neutral narrowing, and the rewound
+  variant carried unchanged. Four now stand where six did.
 - **The settle-time dependency sweep, added 2026-09-16.** When a settlement retracts or replaces a named object,
   grep the whole draft for that name and re-read every hit before committing. The ledger-diff check is
   section-scoped; this failure is document-scoped, and the two are not the same guard. The fifth pass's first
@@ -220,8 +227,9 @@ run it before elaborating the acceptance route rather than after.
 inside the previous pass's repair. Read the fifth pass's own split before spending a sixth: two of its four
 blockers were regressions of that kind, and the other five findings were latent depth no earlier pass had
 reached. The loop is not failing to converge on repairs — it is surfacing settlements that were never swept into
-the body, which is what the sweep above exists to stop. Run the sixth pass after the terminal-member cluster
-settles, not before.
+the body, which is what the sweep above exists to stop. The terminal-member cluster has now settled on probe, so
+the sixth pass is due — and it is the first to run against a body whose load-bearing claims were measured rather
+than reasoned, which is the condition the previous five lacked.
 
 ---
 
@@ -375,11 +383,36 @@ which has landed. It stays a supported configuration afterward, for projects tha
 backing repository. Its conflict recovery is therefore designed as a permanent path, and the proportionality
 trace runs to a configuration ARC intends to keep rather than to a workaround it intends to retire.
 
-**What the scope-in owes.** The absorption arm's composition inputs are untraced, so whether it carries the
-suffix arm's invariance is unestablished and a probe is owed before either claim. The two outcomes differ in what
-they cost: if every composition input is likewise pre-landing, the arm is Axis D's twin and takes the same
-disclosure-and-acceptance route; if the operator's resolved top does reach the composition, the arm is already
-recoverable and only its guidance is wrong. Nothing downstream should assume the first before the probe runs.
+**The probe ran, and returned a third outcome neither branch anticipated.** The composition is invariant, as the
+suffix arm's is — and a complete recovery route nevertheless exists, one layer above the composition and unnamed
+by the guidance.
+
+**The composition side is Axis D's twin.** `reconcileLinkedNativeDeliverySuffix` builds the call from three
+coordinates, and the operator's resolved top is none of them: the merge base is `beforeSuffix.at(-1).coordinates`
+(the recorded before-state), `top` is `input.landed.value.members.at(-1).coordinates` (recorded state, never
+re-observed), and only `highestMember` is live — and it follows the host's landing, not the operator.
+`absorbGitDeliveryChain` composes exactly those under `merge-tree --write-tree --merge-base`. The existing
+conflict test seals it: after the refusal, HEAD is pinned at `top` and the worktree is clean, so there is nothing
+staged for the operator to "resolve the listed paths" in.
+
+**The escape is an adoption branch that runs before the composition.** When HEAD has left `top.head`,
+`observeExactAbsorption` accepts it whenever `rev-list --parents -n 1 HEAD` is exactly
+`<head> <top.head> <highestMember.head>` and the worktree is clean — **on the parent pair alone, with any tree**.
+An operator who merges the refreshed predecessor by hand and commits produces precisely that shape, so the
+settlement succeeds and writes their tree into the terminal coordinate. Measured rather than reasoned: the
+planning probe drives the whole sequence against a scratch repository, and the hand merge is adopted even though
+Git resolved it against a different merge base than the absorption composes against.
+
+**So the arm is recoverable today, and the guidance is wrong in three separate ways.** Resolving the listed paths
+in the worktree and rerunning returns the byte-identical refusal; committing the resolution as an ordinary
+single-parent commit returns the _different_ `top-moved` refusal; and the merge parent the operator actually
+needs — `highestMember.head` — is never disclosed by the refusal at all.
+
+**What it costs is the marker this design was hunting.** The adopted tree is never proved anywhere downstream —
+the integration checkpoint's residual proof takes the Candidate as both of its member endpoints, so the absorbed
+commit is not one of its subjects. The terminal member therefore already carries an untyped, unrecorded
+acceptance channel. That reframes the open structural item: the question is not how to invent a waiver for the
+terminal member, but how to type the acceptance that already happens.
 
 ---
 
@@ -1115,12 +1148,31 @@ conclusion to a subject: `{ vehicle, terminus }`. The vehicle is `DeliveryReview
 comparing identity while **ignoring head**. Subject vehicle, typed conclusion, versioned semantics, and a
 recorded accepting identity are all present.
 
-**So the waiver is shaped as a second `kind` in that family rather than a new data structure.** It reuses the
-vehicle for its subject, `acceptedBy` for who accepted, and the `semanticsVersion` convention; what differs is
-the conclusion's payload — the disclosed conflict paths and the digest the acceptance was taken against — and
-its binding. **Whether that shape can actually live in the family's one store is open**, because the store's
-only reader matches on the vehicle without inspecting `kind` and would discharge hosted review on a match. The
-shape argument below stands; the placement does not follow from it. § Open.
+**The shape argument was right and the family was the wrong one.** Settled 2026-09-16 by probe: for the terminal
+member the acceptance ARC already carries is the **Candidate applicability selection**, not a second `kind` beside
+the review terminus. Reaching for the terminus family would have minted a record next to a store whose only reader
+matches on the vehicle without inspecting `kind` — and would have duplicated a decision that already exists one
+boundary later, with better evidence.
+
+**What the existing decision already is.** A terminal coordinate that moves to a head the machine cannot prove
+falls to `classifyCandidateApplicability`'s judgment arm: `state: "decision-required"`, `nextAction:
+"request-authority"`, carrying the diverged `paths`, the `verdict`, the projection, both digests, and
+`choices: ["covered", "targeted-check", "changed"]`. Selecting `covered` writes an `applicability-selection`
+transition bound to `priorTarget`, `currentTarget`, `projectionDigest`, `residualDigest`, and `selectedBy`. That
+is the disclosure, the acceptance, the accepting identity, and a binding that dies when the content is rewritten —
+the four properties this section went looking for, already typed and already durable.
+
+**And its cheap arm is genuinely cheap.** `reduceCandidateDurableBaselineRecord` advances the durable target to
+`currentTarget` for every choice except `changed`, so a `covered` selection makes the Candidate current at the
+resolved head with `recognition: { kind: "durable" }` — no new lineage root, no re-attestation. The probe asserts
+this by making a second applicability request throw: an accepted resolution is never re-asked. That matters
+because this draft elsewhere classifies re-attestation as exactly the redundant ceremony this work exists to
+reduce; routing the waiver here reduces it rather than adding to it.
+
+**The three machine proofs are the same vocabulary this design already speaks.** Applicability grants `applicable`
+on `subject-equality`, `tree-equality`, or `mechanical-reapply` — term for term the fast paths the suffix arm
+takes silently. Movement alone never reaches the operator on either surface, and the judgment arm fires on the
+same event: a real content collision.
 
 **The binding difference is the family's own rule applied to different subjects, not a second rule.** A review
 terminus binds to a work unit's review state and survives movement that leaves the reviewed content intact; a
@@ -1202,11 +1254,19 @@ its exact head — **does not reach the terminal member**. `deriveNativeDelivery
 is the last one, so the terminal member is sliced off before `prepareNativeDeliveryLanding` runs its per-head
 readiness refusal at all.
 
-For every non-terminal member the substitute gate holds and nothing is owed past it. For the terminal member —
-the one Axis D is about — this design has no marker and no gate, which satisfies the recoverability rule's
-fourth clause in the worst available sense: the success path reachable while something is owed. **Carried to
-§ Continuity as an open structural item**, because it is the recovery half's success criterion rather than a
-detail of it.
+For every non-terminal member the substitute gate holds and nothing is owed past it. **The terminal member's
+marker is the Candidate applicability selection**, settled 2026-09-16 — a different gate on a different surface,
+which is why reading for a delivery-side one found nothing. Its coordinate cannot advance to an unproved head
+without `rebindDeliveryTerminalCoordinates` refusing `candidate-coordinate-mismatch`, and recognizing that head
+requires either a machine proof or a recorded authority selection. § The waiver record reads the mechanism from
+source and probe.
+
+**What is genuinely missing is narrower, and it is a hole rather than an absence.** The adoption branch above the
+composition accepts an operator's merge on its parent pair alone, so a hand-resolved tree can enter the terminal
+coordinate without anything marking it as a resolution. The applicability decision downstream still fires — the
+tree is unproved, so it lands in the judgment arm — but it presents as an unexplained member rewrite rather than
+as the absorption the operator just resolved. The rule's fourth clause is satisfied; what fails is disclosure
+quality, and the remedy is to fence the adoption to the mechanical result and carry the conflict set forward.
 
 **The spine extraction had a causal justification and source refuted it.** An earlier version here said the two
 settle functions had diverged — one collecting the complete conflict set, the other returning on the first
@@ -1490,10 +1550,11 @@ Three are introduced here and each must answer it.
   in the same breath, so the operator's next act is one resubmission rather than a rediscovery. A bare
   `conflict-resolution-mismatch` satisfies the second clause and fails the third and fourth.
 - **A waived movement reaching closeout unmarked.** For non-terminal members the next landing cycle's per-head
-  readiness refusal is the gate, and nothing is owed past it. For the terminal member that gate never runs, so
-  this design currently leaves the success path reachable in the worst available sense — reachable while
-  something is owed. This is the rule failing inside the design rather than in the surface it audits, and it is
-  § Continuity's open structural item.
+  readiness refusal is the gate. For the terminal member the gate is the Candidate applicability decision, which
+  refuses to recognize an unproved head without a recorded authority selection — so the success path is not
+  reachable while something is owed. What the rule still catches is the adoption branch: it admits a hand-resolved
+  tree on a parent-pair match, so the resolution reaches that decision stripped of the evidence that would let the
+  operator recognize their own act. Fencing the adoption to the mechanical result is what closes it.
 - **`unknown`.** An ancestry read that did not establish an answer is retryable by construction, and the clause
   it most easily fails is the third: it must say the read failed rather than implying a verdict about history.
   This is the variant's whole purpose, and it is why the reader rather than the classifier produces it.
@@ -1545,11 +1606,13 @@ ARC, and no probe covers an external mover.
 
 ### `review-source-authority` — the acceptance-primitive seam, routed not taken
 
-This work unit shapes a waiver as a second `kind` in ARC's Owner-acceptance family (§ The waiver record joins
-an existing family), though where that record lives is itself open. Either way there are two instances of one
-shape: an Owner accepting a review terminus, and an Owner
-accepting a movement whose contribution ARC cannot prove. Whether they should consume one abstracted acceptance
-primitive is a real question and it is **not this work unit's to answer**.
+This work unit no longer mints a waiver record at all: the terminal member's acceptance is the Candidate
+applicability selection ARC already carries (§ The waiver record joins an existing family). That **sharpens** the
+seam rather than dissolving it, because there are now three instances of one shape in the tree — an Owner
+accepting a review terminus, an Owner accepting a review contribution's applicability, and an Owner accepting a
+Candidate movement whose contribution ARC cannot prove — and the third is the one this design consumes. Whether
+they should consume one abstracted acceptance primitive is a real question and it is **not this work unit's to
+answer**.
 
 `review-source-authority` owns a live defect in the terminus's binding — the acceptance is dropped when the
 Candidate advances, and the frontline lane refuses an Owner terminus outright. An abstraction authored here would
@@ -1557,9 +1620,10 @@ be authored against a shape that work unit is about to change, which is the prem
 draft already names twice on other seams.
 
 So the discipline is the one used for the merge-base primitive and for the obligation payloads: **use the
-existing vocabulary, add no abstraction, and route the seam.** The waiver reuses `DeliveryReviewMemberVehicle`,
-`acceptedBy`, and the `semanticsVersion` convention rather than inventing parallels, so whatever unification that
-work unit reaches finds two instances already speaking one language. Capture the seam to it at planning close.
+existing mechanism, add no abstraction, and route the seam.** Consuming the applicability selection rather than
+minting a sibling record is the strongest available form of that discipline — it adds no vocabulary at all, so
+whatever unification that work unit reaches finds one fewer instance to reconcile. Capture the seam to it at
+planning close.
 
 ### Errands in flight
 
@@ -1651,6 +1715,15 @@ refusal, which no other test asserts, and the refusal itself is correct.
 
 A probe that instead reports "the held result no longer describes what happens, and the awaited one has not
 arrived either" has found behaviour neither shape names. That is a finding, not a retirement.
+
+**One planning probe sits beside the pins rather than among them**, written 2026-09-16 to settle the
+terminal-member cluster: `probe-terminal-waiver-applicability.test.ts` drives a conflicted absorption through an
+operator's hand merge, the adoption branch, the contribution proof, the applicability decision, and a `covered`
+selection, asserting each result against a scratch repository. It is not an `expectPinnedObservation` call,
+because its two halves face opposite ways: the adoption assertions hold behaviour this design intends to change,
+while the applicability assertions hold behaviour it intends to keep and build on. Convert the first half to a
+pin when the admission route settles; keep the second half as ordinary regression coverage. Its value now is that
+the cluster's load-bearing claims are measured rather than reasoned.
 
 ---
 
