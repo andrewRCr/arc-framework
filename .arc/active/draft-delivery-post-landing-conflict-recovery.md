@@ -13,9 +13,9 @@
   blockers. The terminal-member cluster those blockers converged on has since settled on probe rather than on
   reasoning: the marker is the Candidate applicability decision, its record is the `applicability-selection`
   transition, the absorption arm's invariance is measured, the acceptance evidence is derived from Git rather than
-  written, and decline is a release transition rather than an undo. Four items are open and **none is
-  structural** — two await text, one a measurement, one a naming call. What the design _is_ no longer moves, so
-  the coherence consolidation is due, then a sixth pass against the consolidated body.
+  written, and decline is a release transition rather than an undo. Five items are open and **none is
+  structural** — two await text, one a measurement, one a naming call, one a repair choice. What the design _is_
+  no longer moves; the consolidation and its coherence re-read have run, and the sixth pass is next.
 
 ---
 
@@ -61,8 +61,8 @@ re-examination.
   executor. The reader produces the unavailable outcome, which is where the hand-rolled helpers collapse it.
 - **Readers split between the shared base resolver and the relation** `[frozen]`, five and four respectively.
   Read-all, refuse-on-more-than-one, then diff or record from the single base. The staged arm of the subject
-  collector takes the same rule; its probe is owed. § Reader inventory carries the arithmetic, which has been
-  corrected twice, and the sweep command that re-derives it.
+  collector takes the same rule, and its probe is now pinned. § Reader inventory carries the arithmetic, which
+  has been corrected twice, and the sweep command that re-derives it.
 - **The subject's path set is base-relative, with cardinality refused rather than picked** `[frozen]`. The
   commit-derived answer was falsified twice: it cannot see a branch retaining its own side of a base-changed path
   across a base merge, and the content-inclusive digest inverts its movement-sensitivity claim. § The subject's
@@ -169,10 +169,11 @@ facts. § The decline route.
 
 ### Open
 
-Four, **none of them structural**, after the terminal-member cluster settled across two probes and a practice
+Five, **none of them structural**, after the terminal-member cluster settled across two probes and a practice
 survey and decline settled on a mutation-order read. Every remaining item is detail: two await text, one awaits a
-measurement, one awaits a naming call. Nothing open now changes what the design _is_ — which is the condition
-§ Next's consolidation step was waiting for.
+measurement, one awaits a naming call, and one awaits a repair choice over a defect the staged-arm probe
+surfaced. Nothing open now changes what the design _is_ — which is the condition § Next's consolidation step was
+waiting for.
 
 - **How the override presents itself.** Settled in direction 2026-09-16, detail open. `covered` is the Owner's
   escape hatch and stays reachable; what remains is the wording and placement that make it read as an override
@@ -208,6 +209,14 @@ measurement, one awaits a naming call. Nothing open now changes what the design 
     **not** borrow external labels, and the deciding difference is that those name a proof while these name a
     topology Git already has words for.
 
+- **How the flaky committed-arm hold is repaired.** Scoped 2026-09-16 by the Owner; the repair itself open. That
+  hold binds to which of two equally good ancestors `git merge-base` returns, which Git does not contract, so it
+  can report its awaited result with no fix having landed — a hold that reads _spent_ on its own is not evidence.
+  Three routes: re-shape it to an outcome as the staged-arm hold does, make the arrangement deterministic so the
+  pick is stable, or drop it as redundant against the digest hold beside it, which already reports the same
+  defect stably. The flip was observed once and has not been reproduced on demand, so the determinism route owes
+  a reproduction before it can be claimed to work. § Pinned probes.
+
 ### Next
 
 **The coherence consolidation has run** (2026-09-16). § Continuity is organized by what it settles rather than by
@@ -217,13 +226,15 @@ without reading a stratigraphy. The self-check against the pre-rewrite layers ca
 missing in the rewrite and restored them; run that check on any future consolidation rather than trusting the
 reorganization.
 
-**Close the staged-arm probe next.** It is the only owed evidence left and it is bounded. Without it the existing
-pin retires green over an untouched silent pick.
+**The staged-arm probe is closed** (2026-09-16), and no owed evidence remains. It holds the staged arm
+_collecting_ where the settled rule says it should refuse, so a fix applied to the committed arm alone leaves it
+red. Closing it surfaced a defect in its sibling, taken into scope by the Owner the same day: § Pinned probes
+carries the defect and § Open carries the choice of repair.
 
-**Then the sixth pass.** The two remaining text items — the override's wording and the refusal disclosure — are
+**The sixth pass is next.** The two remaining text items — the override's wording and the refusal disclosure — are
 the same surface speaking to the same person and should be written together, but neither blocks the pass. Read
-the fifth pass's findings and withstood set from `SESSION-NOTES` before spending it; neither is in this
-document.
+§ Adversarial pass record before spending it: it carries the fifth pass's findings as `prior-findings` and its
+withstood set, so the sixth re-derives neither and re-attacks nothing already checked.
 
 **Both probes are spent.** The absorption-arm probe returned a third outcome — invariant composition plus a live
 untyped adoption route. The derived-evidence probe confirmed the parent-line derivation and the precise residual,
@@ -239,13 +250,19 @@ and surfaced the layer disagreement now standing in § Open. Both live in the pl
   that tension and admitted the presentation question in its place; the practice survey settled that question's
   direction, leaving it open only for its text; and decline settled on a mutation-order read, leaving only which
   verb surface carries it. The all-neutral narrowing and the rewound variant carried unchanged throughout. Four
-  now stand where six did, and **none is structural** where three were.
+  stood where six did, and none was structural where three were. Run again on the staged-arm close: none left
+  and one arrived — the committed-arm hold's repair, scoped from a defect that probe surfaced rather than
+  from a design question. Five now stand, and **none is structural**.
 - **The settle-time dependency sweep, added 2026-09-16.** When a settlement retracts or replaces a named object,
   grep the whole draft for that name and re-read every hit before committing. The ledger-diff check is
   section-scoped; this failure is document-scoped, and the two are not the same guard. The fifth pass's first
   blocker was five passages standing on an obligation the ledger had already dissolved, and verifying it took one
   `grep -n pendingReviewFixVerification`. Both regressions that pass found would have been caught by running it
-  at settle time rather than at audit time.
+  at settle time rather than at audit time. **Widened 2026-09-16, after it missed one.** A settlement that retracts a
+  _position_ leaves no name to grep, which is how two passages went on prescribing a remedy the same commit's
+  § Open had already rejected by name. So the sweep takes two keys: the object's name where a settlement replaces
+  one, and the rejected alternative's own wording where it replaces a reading. Write the rejected reading into the
+  settled passage — then the next sweep has a string to find, and the reader learns why the other branch is closed.
 
 **On the pass loop.** Five have run against a `Heavy` cap of two, each of the last three finding its blocker
 inside the previous pass's repair. Read the fifth pass's own split before spending a sixth: two of its four
@@ -557,8 +574,9 @@ other two are listed so the allocation is complete, not so this work unit conver
 **The staged arm follows the same rule.** When the subject collector is given no revision it compares the index
 against the base, and that arm is live: `git-candidate-effective-target.ts` takes it whenever no target is
 supplied and feeds the result into Candidate currentness. It needs the identical treatment — resolve with
-`--all`, refuse on more than one, else diff the index against the single base. A probe is owed for it; the
-existing pin exercises only the committed arm and would otherwise retire green over an untouched silent pick.
+`--all`, refuse on more than one, else diff the index against the single base. Its probe is now pinned: the
+existing pin exercises only the committed arm and would otherwise have retired green over an untouched silent
+pick. § Pinned probes.
 
 **What the resolver does not settle** is the coordinate obligation under cardinality above one. No consumer can
 take a base _set_ — reading tree entries needs one ref and rematerialization needs one predecessor — so the
@@ -1825,9 +1843,64 @@ wrong. No success criterion, boundary, or file pointer was dropped.
 
 ---
 
+## Adversarial pass record
+
+Five passes have run (2026-09-16) against a `Heavy` cap of two, the fifth certifying and returning not-ready. Its
+two products are kept here rather than in session state: a later pass consumes both, and a draft that sends its
+reader elsewhere for them is not the complete input it claims to be.
+
+### What the fifth pass cleared
+
+Its withstood set, verified against source and returned as checked. A later pass re-attacks any of it only on new
+evidence, never on re-reading — which is what the `[certified]` marker in § Continuity points at.
+
+- Both recorded sweep commands reproduce exactly: merge-base at fifteen sites with seven silent picks, and
+  `--is-ancestor` at nineteen sites across eighteen files.
+- `scripts/base/merge.ts`'s two-direction derivation.
+- Axis D's structural invariance in `git-contribution-proof.ts:89-128`.
+- The four-arms-two-share-the-shape guidance count in `native-landing.ts`.
+- The movement substrate settlement in full.
+- The readiness lookup elimination and the `stateMemberMatches` guard.
+- `repository-target.ts`'s scope-in trace through identity, admission, and change-set.
+- The fourteen-condition closeout arithmetic.
+- The acceptance-family schemas as quoted.
+- `predecessorRelation`'s collision as real rather than rhetorical.
+- Readiness-bar criteria two and three.
+
+### What the fifth pass found, and where each landed
+
+The seven findings, carried as `prior-findings` for the sixth. Outcomes are tracked; the pass transcript is not
+retained, so nothing below should be re-derived from one.
+
+- **Blocker — the obligation write settled two incompatible ways across five sections.** Swept. The terminal gap
+  it exposed became an open structural item, itself since settled on probe.
+- **Blocker — the waiver's second `kind` either discharges hosted review for an unreviewed head or has no named
+  home.** Shape kept, placement reopened; since settled on the Candidate applicability selection instead.
+- **Blocker — the excluded terminal top has no resolution mechanism.** Scoped in by the Owner; its probe has
+  since run and closed.
+- **Blocker — abort was tagged detail-design on a premise source refutes.** Re-tagged structural; since settled
+  on the settle path's mutation order.
+- **Major — the relation's contract shape was settle-able and had been filed as detail.** Settled as a wrapped
+  four-variant relation.
+- **Major — three in-scope base-readers were absent from the classification.** Classified, and the split's count
+  corrected to five and four.
+- **Minor — the encumbrance-pair site set was short by one.** `public-review-continuation.ts:71` folded in.
+
+**One finding carried a wrong number, and the correction is this draft's rather than the pass's.** It claimed the
+only non-settle clear of `activeOperation` is `residue-reaping.ts:374`. There are six. The conclusion survives,
+because none of the six is a _decline_ route — the nearest, `native-landing.ts:663`, fires only on a
+`not-applied` effect — and the body now states it that way. Do not re-import the original number.
+
+**Two of the four blockers were regressions rather than latent depth**, both produced by settling a premise
+without re-deriving what stood on it. That is the failure the settle-time dependency sweep in § Next exists to
+stop, and it is why a sixth pass is worth spending rather than evidence that the loop will not converge: the
+other five findings were depth no earlier pass had reached.
+
+---
+
 ## Pinned probes
 
-Six probes hold this boundary's behaviour as it stands. They **pass today**; each fails the moment the behaviour
+Seven probes hold this boundary's behaviour as it stands. They **pass today**; each fails the moment the behaviour
 changes, printing the sentence that names what it was waiting for and the exact replacement:
 
 > This now produces the result it was waiting for, so the hold is spent: replace this call with a plain
@@ -1842,14 +1915,22 @@ and each is a single `expectPinnedObservation` call to replace. They retire inde
   it binds"
 - `history-shape-ambiguity.test.ts` — "reports the base's own change as the contribution when two merge bases exist"
 - `history-shape-ambiguity.test.ts` — "refuses with a typed reason rather than choosing one of the two bases"
+- `history-shape-ambiguity.test.ts` — "collects a staged subject from one chosen ancestor when two merge bases
+  exist"
 - `history-shape-ambiguity.test.ts` — "reports the overlap unavailable rather than proving it from one of the two
   bases"
 - `review-status-base-movement.test.ts` — "directs a checkpoint rerun on a base that moved only in shape"
 
-**A seventh pin is owed, not yet written.** The staged arm of the subject collector reaches the same silent
-base pick as the pinned committed arm, and no probe covers it — so the existing pin would retire green over an
-untouched defect. Add a staged-arm probe rather than re-scoping the committed one, whose coverage is still
-wanted.
+**The seventh pin landed 2026-09-16, and it is shaped differently from its siblings on purpose.** It holds an
+_outcome_ — collected, where the settled rule says refused — rather than a path set, because closing it surfaced
+that a path set is not a stable observable over an ambiguous history. `git merge-base` without `--all` returns one
+best common ancestor and does not say which, so the collected paths are whichever half that choice exposes.
+**Its committed-arm sibling binds to exactly that**, and was observed once during a twelve-worker run reporting
+`[branch-side]` — its awaited result — where three other runs reported `[base-side]`. On that run the hold read
+as _spent_, which is a false retirement rather than a fix. **Repairing it is in scope**, taken by the Owner
+2026-09-16 on the ground that retiring these pins is already this work's, and a hold that can read _spent_
+without a fix is not evidence. Which repair is § Open's. Until it lands, do not read a green run of that pin as
+evidence of anything.
 
 An eighth row is owned here and **deliberately unpinned**: `delivery-rebuild-base-movement.test.ts` — "returns the
 identical refusal after the operator resolves the conflicted path". It proves the named remedy does not clear the
