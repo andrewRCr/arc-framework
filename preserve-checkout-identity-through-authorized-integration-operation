@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "preserve-checkout-identity-through-authorized-integration-operation",
+  "claimId": "f0661711e16bf7a3f79e1d738e5a309b",
+  "createdAt": "2026-09-16T19:48:15.646Z",
+  "updatedAt": "2026-09-16T19:48:15.646Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "preserve-checkout-identity-through-authorized-integration-operation",
+  "branch": "chore/preserve-checkout-identity-through-authorized-integration-operation",
+  "origin": "inbox",
+  "originEntry": "Preserve checkout identity through an authorized integration operation",
+  "originEntrySourceDigest": "sha256:4ed1999d30072533af4bb68d44554f6c0a1f6a024605f8fb4ca36a227055a87b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
