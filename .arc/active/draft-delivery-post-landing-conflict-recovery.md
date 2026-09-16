@@ -12,9 +12,9 @@
 - **Readiness:** `maturing`. Five adversarial passes (2026-09-16), the fifth certifying and not-ready with four
   blockers. The terminal-member cluster those blockers converged on has since settled on probe rather than on
   reasoning: the marker is the Candidate applicability decision, its record is the `applicability-selection`
-  transition, and the absorption arm's invariance is measured. Four items are open, two of them structural, and
-  they no longer share a premise — admission and decline are separate questions on separate surfaces. A sixth
-  pass is due and would be the first to run against a measured body.
+  transition, the absorption arm's invariance is measured, and the acceptance evidence is derived from Git rather
+  than written. Four items are open, one of them structural, and they no longer share a premise. A sixth pass is
+  due and would be the first to run against a body whose load-bearing claims were measured.
 
 ---
 
@@ -160,21 +160,18 @@ bar — but they are the part of this session's work that survived the certifyin
 
 ### Open
 
-Four, **two of them structural**, after the terminal-member cluster settled on probe. Three items left the
-ledger together — the marker, the record's home, and the absorption-arm probe — and one arrived in their place,
-which is the tension the settlement exposed rather than resolved.
+Four, **one of them structural**, after the terminal-member cluster settled across two probes and a practice
+survey. The admission item that briefly replaced the marker and the record's home settled on the derived-evidence
+probe; the presentation question it surfaced then settled in direction against the survey, leaving only its text.
+Decline is the only structural item left, and it is the one nothing upstream constrains.
 
-- **How a non-mechanical absorption is admitted, and what marks it as one.** `[structural]` The marker question
-  settled — the Candidate applicability decision is the gate, and `covered` is its cheap arm — but the admission
-  question underneath it did not. Fencing the adoption branch strictly to the mechanical composition closes the
-  only working recovery route and returns the terminal top to unrecoverable; leaving it unfenced admits a
-  hand-resolved tree that reaches the decision stripped of the evidence that it _was_ a resolution. The shape
-  that satisfies both is admit-then-decide: adoption stays reachable, the absorption's conflict set reaches the
-  applicability presentation, and recognition still gates on the recorded selection. What is unsettled is whether
-  that evidence is **derived** at decision time — the terminal head is a two-parent merge of the prior top and the
-  observed highest member whose tree is not the mechanical composition, which is re-derivable from Git and would
-  keep § Where the unresolved condition lives' no-cache posture intact — or whether anything must be written at
-  settle time. Prefer the derived reading; it has not been probed.
+- **How the override presents itself.** Settled in direction 2026-09-16, detail open. `covered` is the Owner's
+  escape hatch and stays reachable; what remains is the wording and placement that make it read as an override
+  rather than a routine pick. The decision surface should carry ARC's own evidence reduction — `fresh`, with
+  `judgmentRequired: false` — beside the choice, so the Owner overrides a stated machine read rather than
+  selecting from an undifferentiated menu, and `targeted-check` should be offered as the bounded-evidence
+  alternative without being the forced path. § Established practice carries why the hatch is right; what is not
+  yet written is the text.
 - **How an operator declines, and what releases the reservation.** `[structural]` Unchanged in substance,
   narrowed in scope. The applicability decision supplies a decline at _its_ boundary — `changed` establishes a new
   lineage root — but that is downstream of the held reservation and does not reach it. The disclosure window still
@@ -194,28 +191,29 @@ which is the tension the settlement exposed rather than resolved.
 
 ### Next
 
-**Probe the derived-evidence reading next.** The admission item's two readings differ in whether anything must be
-written at settle time, and the question is empirical: can an absorption-shaped terminal advance be recognized
-from Git alone at decision time — a two-parent merge of the prior top and the observed highest member whose tree
-is not the mechanical composition — reliably enough to drive the applicability presentation? A probe settles it
-the way the absorption-arm probe settled its predecessor. Run it before elaborating the admission route.
-
-**Then take the decline route, which is now the last structural item.** It did not settle with the cluster: the
+**Take the decline route next — it is the last structural item.** It did not settle with the cluster: the
 applicability decision reaches the recognition boundary, not the held reservation, so the `activeOperation` wedge
 survives intact. Its shape is a release transition with lease-checked ref restoration, and nothing upstream
-constrains it any further.
+constrains it any further, so it can be worked without waiting on the presentation question.
 
-**The absorption-arm probe is spent.** It ran 2026-09-16 and returned a third outcome — invariant composition
-plus a live untyped adoption route — which is what settled the marker and the record's home together. Its
-successor pin is recorded in § Pinned probes.
+**The presentation question is settled in direction and wants only its text.** `covered` is the Owner's escape
+hatch; what remains is wording that makes it read as an override of a stated machine verdict. Write it alongside
+the refusal-disclosure work rather than as its own pass — both are the same surface speaking to the same person.
+
+**Both probes are spent.** The absorption-arm probe returned a third outcome — invariant composition plus a live
+untyped adoption route. The derived-evidence probe confirmed the parent-line derivation and the precise residual,
+and surfaced the layer disagreement now standing in § Open. Both live in the planning probe recorded in
+§ Pinned probes; neither needs re-running to design against.
 
 **Two standing procedures, one of them new.**
 
 - **The ledger-diff check.** Before any commit that rewrites § Continuity, diff the pre-rewrite § Open against
-  the post-rewrite one and account for every item that left. Run on this change: three items left and one
-  arrived — the marker and the record's home both settled on probe, the absorption-arm probe was spent, and the
-  admission tension the settlement exposed took their place. Decline, the all-neutral narrowing, and the rewound
-  variant carried unchanged. Four now stand where six did.
+  the post-rewrite one and account for every item that left. Run across this session's two settlements: four
+  items left and two arrived. The marker and the record's home settled on the absorption-arm probe and the
+  absorption-arm probe spent itself, admitting the admission tension; the derived-evidence probe then settled
+  that tension and admitted the presentation question in its place; the practice survey settled that question's
+  direction, leaving it open only for its text. Decline, the all-neutral narrowing, and the rewound variant
+  carried unchanged throughout. Four now stand where six did, and one is structural where three were.
 - **The settle-time dependency sweep, added 2026-09-16.** When a settlement retracts or replaces a named object,
   grep the whole draft for that name and re-read every hit before committing. The ledger-diff check is
   section-scoped; this failure is document-scoped, and the two are not the same guard. The fifth pass's first
@@ -713,6 +711,31 @@ persists until it is answered; an approval does not outlive the thing it approve
 What ARC has in place of this is an observation-mode flag three consumers read three ways. The intent matches;
 the typing and the explicit policy layer are what is missing.
 
+**What the survey says about an operator escape hatch, read carefully.** Surveyed 2026-09-16 across Gerrit,
+GitHub, GitLab, Phabricator, Gitea, Graphite, and Zuul. No system offers a typed per-change "prior review still
+covers this" record — and the first reading of that, that ARC should not offer one either, does not survive
+looking at what the mechanisms actually require. Dropping an approval **invalidates a record; it does not demand
+evidence.** A Gerrit reviewer may re-vote on a `REWORK` having opened nothing; GitHub and GitLab both restore an
+approval in one click. The unconstrained human re-assertion is universal, and it is the same function an Owner
+acceptance performs — ARC's version simply records who did it and binds it to digests that die on rewrite, which
+none of them do.
+
+**So the rule that generalizes is about automatic carry, not about override.** The `is:MIN` asymmetry is its
+sharpest form: the fail-closed signal survives arbitrary movement and the permissive one never carries itself.
+An acceptance must therefore be a fresh, attributed act each time — which is what an `applicability-selection`
+already is, and what an automatically-copied approval is not.
+
+**Phabricator is the cautionary case, and the lesson is discrimination rather than abstinence.**
+`differential.sticky-accept` defaults true, carrying an accept across **any** update including a full rework, and
+its history records silent staleness defects. What makes it unsafe is that it never distinguishes a trivial
+update from a reworked one. ARC discriminates first — `subject-equality`, `tree-equality`, `mechanical-reapply`
+all pass silently — and reaches for a person only where discrimination fails, which is the opposite posture.
+
+**One convergence worth recording.** GitLab resets approvals by comparing `git patch-id`, so a rebase that
+preserves the patch survives and a conflict-resolved one does not. That is functionally this design's
+`tree-equality` / `mechanical-reapply` fast paths reached independently, which is corroboration for the
+classifier rather than something to adopt.
+
 ### Axis D: the refusal is the industry boundary
 
 No surveyed system — GitHub, Gerrit, Graphite, Zuul, bors, or Google's tooling — consumes an operator's
@@ -724,9 +747,11 @@ cannot be combined with rebasing on behalf of the uploader, precisely so unseen 
 as approved. The pinned replay's byte-identical refusal is therefore the standard boundary rather than a defect,
 and the remaining question is not whether to consume the resolution but what this work unit's new-contribution
 path looks like. Gerrit's change-kind and copy-condition model is the fullest precedent for how much prior
-verification such a contribution inherits — no positive review, with a standing veto surviving. That a conflicted
-patch set classifies as `REWORK` follows from the two mechanisms but is not documented as such; treat it as
-derived.
+verification such a contribution inherits — no positive review, with a standing veto surviving. **That a
+conflict-resolved rebase classifies as `REWORK` is documented rather than derived**, corrected 2026-09-16:
+`TRIVIAL_REBASE` is defined to exclude a rebase that "required git to perform any conflict resolution", so the
+exclusion is the classifier's own rule. It is also the cleanest public definition of _not mechanically derivable_
+and is worth reusing as one.
 
 `git rerere` is the one mechanism that carries a resolution across a moved base — it fingerprints normalized
 conflict hunks rather than commit identity, so it is base-agnostic by construction. It is also local, opt-in, and
@@ -1173,6 +1198,29 @@ reduce; routing the waiver here reduces it rather than adding to it.
 on `subject-equality`, `tree-equality`, or `mechanical-reapply` — term for term the fast paths the suffix arm
 takes silently. Movement alone never reaches the operator on either surface, and the judgment arm fires on the
 same event: a real content collision.
+
+**The evidence is derived, and nothing is written at settle time.** Probed 2026-09-16 against a post-landing
+shape — predecessor landed into the base, base moved on the colliding path, top absorbed the refreshed member by
+hand. Two results, both measured:
+
+- **The absorption shape is recoverable from Git alone.** The resolved top's parent line is exactly
+  `<head> <priorTop> <refreshedMember>`, and `priorTop` is `baselineTarget.revision` — data
+  `projectGitCandidateApplicability` already holds, with a `RawGitExec` already in hand. So the decision surface
+  can recognize an operator-resolved absorption without a settle-time record, which keeps § Where the unresolved
+  condition lives' no-cache posture intact rather than carving an exception in it.
+- **The disclosure is already precise.** The decision reports `paths: ["shared.txt"]` — the operator's own
+  resolution, not the whole absorbed predecessor. The expected failure mode did not occur: because the landed
+  predecessor is already in the base the contribution replays onto, its content is explained rather than residual.
+  So the framing is what is missing, not the data.
+
+**One finding cuts the other way, and it should not be smoothed over.** The verdict is `interaction`, not
+`clean-divergence` — the mechanical replay itself conflicted, which is definitionally why an absorption reaches a
+person. `reduceEvidenceApplicability` maps that to `{ verdict: "fresh", judgmentRequired: false }`: ARC's evidence
+layer asks for fresh evidence and offers **no** judgment. The Candidate layer above it still offers `covered`. So
+accepting an absorption is an _override_ of the reduction rather than a judgment the reduction invited, and the
+two layers disagree about whether a choice is on offer at all. That is arguably right for a waiver — a person
+accepting what the machine will not certify is the whole act — but it means `covered` must not be presented as
+the routine outcome, and it leaves a narrower question open. § Open.
 
 **The binding difference is the family's own rule applied to different subjects, not a second rule.** A review
 terminus binds to a work unit's review state and survives movement that leaves the reviewed content intact; a
@@ -1717,13 +1765,17 @@ A probe that instead reports "the held result no longer describes what happens, 
 arrived either" has found behaviour neither shape names. That is a finding, not a retirement.
 
 **One planning probe sits beside the pins rather than among them**, written 2026-09-16 to settle the
-terminal-member cluster: `probe-terminal-waiver-applicability.test.ts` drives a conflicted absorption through an
-operator's hand merge, the adoption branch, the contribution proof, the applicability decision, and a `covered`
-selection, asserting each result against a scratch repository. It is not an `expectPinnedObservation` call,
-because its two halves face opposite ways: the adoption assertions hold behaviour this design intends to change,
-while the applicability assertions hold behaviour it intends to keep and build on. Convert the first half to a
-pin when the admission route settles; keep the second half as ordinary regression coverage. Its value now is that
-the cluster's load-bearing claims are measured rather than reasoned.
+terminal-member cluster: `probe-terminal-waiver-applicability.test.ts` carries two cases. The first drives a
+conflicted absorption through an operator's hand merge, the adoption branch, the contribution proof, the
+applicability decision, and a `covered` selection. The second builds the post-landing shape — predecessor landed,
+base moved on the colliding path — and asserts both the resolved top's parent line and the exact applicability
+outcome it produces, including the evidence reduction that disagrees with the choice offered above it.
+
+It is not an `expectPinnedObservation` call, because its halves face opposite ways: the adoption assertions hold
+behaviour this design intends to change, while the applicability and derivation assertions hold behaviour it
+intends to keep and build on. Convert the adoption assertions to a pin when the admission route lands; keep the
+rest as ordinary regression coverage. Its value now is that the cluster's load-bearing claims are measured rather
+than reasoned — including the two that came back other than expected.
 
 ---
 
@@ -1741,6 +1793,14 @@ shipped label config. Derived and then confirmed empirically here: cardinality a
 Weaker, and worth re-checking before anything load-bearing rests on it: Mercurial's bid-merge rationale comes from
 a wiki page of roughly 3.0 vintage, and "no system refuses on cross-base disagreement" is an absence rather than a
 citation.
+
+The 2026-09-16 approval-carry survey adds primary sources on the escape-hatch question: Gerrit's `config-labels`
+change-kind definitions and the shipped `copyCondition` in `AllProjectsInput.java`, GitLab's approval-settings
+documentation including its `patch-id` reset rule, GitHub's branch-protection and ruleset documentation, and
+Phabricator's `differential.sticky-accept` default in source. Two cautions carried from it. **"No system offers a
+typed per-change override" is an absence, not a citation** — it is deliberately given no weight above, where the
+argument rests instead on what the mechanisms positively permit. And **GitHub's dismissal default is inferred**
+from opt-in phrasing rather than stated, so nothing here should rest on GitHub's default specifically.
 
 § The relation rests on source read 2026-09-16 rather than on survey: `scripts/base/merge.ts`'s two directional
 reads and their states, the ancestry helpers' return shapes and executor split, `DeliveryMemberSelector` and
