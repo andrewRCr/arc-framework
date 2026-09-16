@@ -3,14 +3,20 @@
   "slug": "align-errand-terminal-merge-generation",
   "claimId": "45266dcee8864a17731b787ad939a524",
   "createdAt": "2026-09-16T13:35:17.563Z",
-  "updatedAt": "2026-09-16T13:35:17.563Z",
+  "updatedAt": "2026-09-16T15:05:53.734Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the typed Errand terminal merge validate live marker-digest occupancy while retaining the logical errand generation in its approved request, and cover the real locus-row shape.",
   "branch": "chore/align-errand-terminal-merge-generation",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/align-errand-terminal-merge-generation",
+    "headSha": "4824b43b9742bfb2c89945521bb056c554b84827"
+  }
 }
