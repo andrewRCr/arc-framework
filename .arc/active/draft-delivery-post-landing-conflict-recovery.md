@@ -2060,6 +2060,14 @@ reviewer, which is the residual the final-fold rule says a successor never attac
 in full: both checkpoint mechanisms verified reachable and stopping, the rebind verb confirmed absent from every
 native-landing path, and both planning probes confirmed to measure what the draft attributes to them.
 
+### One narrowed review, after the seventh
+
+§ What the resolver returns was authored in response to the seventh pass, so no pass had read it. Rather than
+spend an eighth full re-run on one new section, it was given a narrowed independent review — which found the
+contract a fourth arm short, and the missing arm already named by two shipped readers and by § Axis B. Recorded
+so a later pass knows this one region has had an independent read and knows what that read cost: a contract
+authored to fix a collapse had itself dropped a distinct outcome into one.
+
 ---
 
 ## Pinned probes
