@@ -9,9 +9,9 @@
   nothing is blocked on this work today; what remains is that the mechanism which produced the residue is unfixed
   and the next stacked landing meets it again. The surface spans whole-work-unit verification, Candidate
   applicability, public review, landing, and closeout, which establishes `Class: Heavy` and a `P1` slot.
-- **Readiness:** `rough` — the failure family is characterized, its boundaries are settled, and the first
-  mechanism is authored and assessed proportionate. What holds it below `maturing` is the phase-model
-  question in § Continuity, which is fundamentals rather than detail-design.
+- **Readiness:** `maturing` — the fundamentals are settled: what the relation is, who consumes it, where the
+  unresolved condition lives, and what the recovery shape is. The open items are detail-design within those —
+  variant naming, one path-set trade, and how much verification a resolved suffix inherits.
 
 ---
 
@@ -46,6 +46,20 @@
 - **The row set is majority singleton, and the singleton closeout path already compares by ancestry.** Four of
   seven rows are singleton-shaped; the relation is a concept the codebase already has in one place and lacks in
   the other. Adopt it by reader, never by shape. § The failure family — Shape coverage.
+- **The unresolved condition is a pending-obligation record, not a phase and not a transition.**
+  `pendingReviewFixVerification` is the precedent and the state schema already refuses it unless the delivery is
+  idle, so idle-but-owing is a first-class state with a validator behind it. It stores the obligation and nothing
+  derived, and binds to exact coordinates as a validity predicate so staleness fails closed. Settled against the
+  Owner's criterion: durability is warranted where its absence would make ARC wrong rather than uninformed.
+  § The relation — Where the unresolved condition lives.
+- **The obligation composes at the predicate, not the payload.** The two records differ in content and
+  staleness semantics and are not established as mutually exclusive, so a single discriminated field would
+  impose an exclusion nothing supports. What is genuinely shared is the encumbrance check — already
+  hand-enumerated in the same order in `compose.ts` and `retirement.ts` — where a third term added site by site
+  would let a missed site report a delivery unencumbered while something is owed.
+- **The two halves of the design meet at that predicate.** Checking whether a held decision still applies is a
+  bound-versus-observed comparison, which is the relation — so the relation serves the recovery record, not only
+  the readers that motivated it.
 - **The relation carries six variants, and `rewound` is one of them.** A bound head that descends the observed
   one is Git's _behind_ and `merge.ts`'s `head-contained-by-base`. Fail-closed consumers reach the same verdict
   whether or not it is separated, but the remedy differs — and ARC's one existing hand-derivation already gives
@@ -71,24 +85,24 @@
 
 - **Variant naming.** The six distinctions are settled and their names are not; no canonical name exists to
   adopt, and the nearest candidates are Git's porcelain vocabulary and `merge.ts`'s existing state names.
-- **What the new-contribution path looks like for a resolved suffix**, and how much prior verification it
-  inherits. Gerrit's change-kind and copy-condition model is the precedent, and its shape is an asymmetry: no
-  positive review survives a rework, while a standing minimum score does.
+- **What the new-contribution path looks like for a resolved suffix, and how much the obligation record may
+  carry.** Holding the obligation is safe; holding the operator's semantic approval is a durable human decision,
+  and an accepted review terminus has been silently revoked by movement here before. Gerrit's asymmetry is the
+  model — no positive approval survives a rework, a standing minimum score does — and applying it makes this one
+  question rather than two: what the resolved suffix inherits _is_ what the record may keep.
 - **Whether the subject's path set should be what its commits touched or what they net to.** The reframing in
   § Reader inventory creates this rather than removing it. Touched is safe for overlap in the fail-closed
   direction, but for the subject it admits paths whose content is unchanged, which trades directly against how
   sensitive Candidate currentness is to movement — the sensitivity this work exists to reduce.
-- **Whether a durable `landed-awaiting-suffix-resolution` phase or a reservation-local transition composes better**
-  with the existing provider-adoption conflict machinery. Carried unresolved from the origin capture.
 
 ### Next
 
-Work the phase-model question — a durable `landed-awaiting-suffix-resolution` phase against a
-reservation-local transition. It is the one open item that is still fundamentals rather than detail-design, so
-it gates `maturing` while the remaining items do not. Take the new-contribution path for a resolved suffix
-alongside it, since what that path produces is what either phase model has to accept; Gerrit's asymmetry is the
-model for how much prior verification it inherits. Variant naming settles last, against whatever vocabulary
-those two leave in place.
+Settle what the obligation record may carry, which is the same question as what a resolved suffix inherits.
+Gerrit's asymmetry is the model and the trust dimension is the reason to be careful: a stored approval is a
+durable human decision, and movement has silently revoked one here before. Then the two smaller trades —
+touched-versus-net for the subject's path set, and variant naming against whatever vocabulary the rest leaves
+standing. `adversarial-review` is recommended at the readiness boundary and this draft is the shape that pass
+attacks well: much of it is externally-derived reasoning folded in over several sessions.
 
 ---
 
@@ -473,8 +487,12 @@ and `in-flight-derivation.ts`; `"ancestor" | "not-ancestor" | "unavailable"` in 
 `objectAccess: "local-only"`, and the review gate's own injected ports. No existing helper is consumable by all
 three relation readers, which is what makes a shared primitive composition rather than new mechanism.
 
-`in-flight-derivation.ts` reads both directions at one site already, to order two candidates — so the
-two-read shape is established here too, under a third return type.
+**Four sites already read both directions and derive this relation by hand**, each under its own return type
+and vocabulary: `scripts/base/merge.ts` to decide whether a base merge is needed, `in-flight-derivation.ts` to
+order two candidates, `push-fetch.ts` to choose between fast-forward and refusal on a notes ref, and
+`sync-status.ts` to classify a local ref against its fetched remote. None of them names the thing it computes.
+Four independent derivations of one relation is the repetition this design ends, and it is a stronger warrant
+than the single-site precedent alone.
 
 ### The variants
 
@@ -504,15 +522,24 @@ and is how an operational failure becomes a verdict.
 
 ### Shape
 
-Two layers, because the consumers share no executor. A **pure classifier** takes the two directional answers and
-the base cardinality and returns the variant — no Git dependency, so the variant logic is exhaustively testable
-without a repository, which is what every hand-rolled helper above gave up. A **thin reader per executor** then
-supplies those answers over whatever executor its consumer already holds: `GitExec`, `RawGitExec` under
-`objectAccess: "local-only"`, or the injected predicate port `scripts/base/merge.ts` already defines.
+Two layers. A **pure classifier** takes the two directional answers and the base cardinality and returns the
+variant — no Git dependency, so the variant logic is exhaustively testable without a repository, which is what
+every hand-rolled helper above gave up. A **thin reader per executor** supplies those answers over whatever
+executor its consumer already holds.
 
-The split is what makes the executor difference stop being a fork. It also puts the `unknown` variant in the one
-place that can produce it honestly: the reader knows whether Git answered, and the classifier never has to
-invent a verdict for an answer it did not get.
+**The executor plurality is not an obstacle here, and the design should not claim credit for absorbing one.**
+`GitExec` and `RawGitExec` differ in one real way — `RawGitExec` returns `Uint8Array` for commands whose
+NUL-framed output must survive as bytes, which is what lets applicability's strict decoder detect malformed
+path evidence. That distinction is essential and this work unit should not collapse it. It is also irrelevant
+to this primitive: `merge-base --is-ancestor` writes no stdout and answers through its exit code, so every
+executor already supplies everything the reader needs and each adapter is a few lines. The split earns its
+place on the two reasons below, not on absorbing an executor difference the predicate never touches.
+
+The classifier is pure, so every variant is reachable in a test without constructing a repository state that
+produces it. And the reader is the only layer that can produce `unknown` honestly: it knows whether Git
+answered, so the classifier never has to invent a verdict for an answer it did not get. That is precisely the
+failure recorded below — the collapse happens where the exit code is read, which is the layer this design
+makes a single one.
 
 ### Readiness reads its key backwards
 
@@ -538,6 +565,98 @@ store change, and the existing `delivery-member-mismatch` facts keep their meani
 Closeout needs no such inversion — `verifyDeliveryTerminalSettlement` already holds the terminal member and
 compares its recorded head directly. Its defect is the bare equality inside the eight-term conjunction, which
 the relation replaces in place.
+
+### Where the unresolved condition lives
+
+Settled 2026-09-16 against a stated criterion: **durability is warranted where its absence would make ARC
+wrong rather than merely uninformed.** A resumed session that reports what is owed and re-derives the rest is
+acceptable; one that acts on a stale cached fact is not. The cost to avoid is redundant ceremony, and the
+realistic driver is not carelessness — the post-execution tail legitimately runs for days when it waits on an
+asynchronous human review, and no session should have to stay open across that.
+
+Both framings in the original capture are wrong, and ARC already carries the shape that is right.
+
+**Not a durable phase.** `activeOperation` is the durable-phase mechanism, and it means _something is running_ —
+its `land` arm already carries a `prepared` / `submitting` phase, so the pattern exists and is in use. It is the
+wrong home twice over: a days-long wait on a human is not an operation in flight, and an active operation blocks,
+so modelling the wait that way would refuse every reader that declines on `operation-active` for the duration.
+That is the redundant-ceremony failure arriving by a different door.
+
+**Not a reservation-local transition.** It cannot outlive the session, so resuming re-asks the operator for a
+decision they already made. That is the ceremony repetition this work exists to remove, and it is the case the
+days-long tail makes ordinary rather than exotic.
+
+**A pending-obligation record, sibling to `pendingReviewFixVerification`.** That field is the precedent and it
+was built for exactly this state: it records _what is still owed_ after an operation completes, carries member
+identities and nothing else, and the state schema refuses it unless `activeOperation` is null — "pending
+review-fix verification requires an idle delivery state". Idle-but-owing is already a first-class delivery state
+with a validator behind it.
+
+Its shape is why it satisfies the criterion. It stores no derived fact, so there is nothing to go stale: whether
+the predecessor landed, whether the replay still conflicts, and which paths collide are all re-derived on
+resumption, cheaply and locally. What survives is the obligation and the human decision behind it — the two
+things that cannot be recomputed from Git at any price.
+
+**Staleness fails closed through a validity predicate, not through freshness.** Bind the record to the exact
+coordinates the decision was made against, as § Retained capture detail already requires. Those coordinates are
+not there to be trusted as current; they are there so that a resumed session can prove the decision still
+applies. `boundPlan`'s `planRevision` and `planDigest` are the same predicate in the same schema, and
+§ Established practice names the idiom — a conditional precondition, checked at use, refusing on mismatch. A
+record whose coordinates no longer match does not mislead and does not silently proceed; it reports that the
+decision it holds was made against something else.
+
+**This is where the two halves of the design meet.** That predicate is a comparison of a bound coordinate
+against an observed one — which is the relation, and which under today's equality check would read a compatible
+advance as a mismatch and send the operator back to a decision they already made. The relation is not only
+fixing the readers in § The failure family; it is the mechanism this record needs to tell _moved compatibly_
+from _no longer applies_.
+
+**What stays open is how much the record may carry**, and it is the sharp end rather than a detail. Holding the
+obligation is safe. Holding the operator's semantic approval is a durable human decision, and ARC has been bitten
+there before — an accepted review terminus that later movement silently revoked. Gerrit's asymmetry is the model
+already recorded in § Established practice: no positive approval survives a rework, while a standing minimum
+score does. Applied here that reads as an approval which does not outlive the contribution it approved, and a
+refusal that persists until answered — which is the same question as the new-contribution path's inheritance,
+not a second one.
+
+### What composes with the existing obligation, and what only rhymes
+
+Asked because this work unit adds the second instance of a shape ARC already has, which makes the duplication
+ours rather than inherited — the test § Reader inventory applies to the decomposition call sites, run from the
+other side. Two candidates, and they separate.
+
+**The payloads do not compose.** `pendingReviewFixVerification` carries member identities and nothing else;
+a suffix-resolution obligation needs the coordinate predicate and the conflict paths, because it is the one
+that can go stale. They are owed to different parties, too — one obliges ARC to re-verify, the other obliges
+a person to decide. More decisively, **nothing establishes that they are mutually exclusive**: a review fix may
+be awaiting verification when a predecessor lands and the suffix conflicts. A single nullable discriminated
+field would impose an exclusion no evidence supports, and `activeOperation`'s union is not a precedent for it —
+an operation genuinely is one-at-a-time, and the schema says so. Unifying would also convert roughly twenty
+direct field reads across eight modules to abstract over one built record and one not yet authored, which is
+where a premature abstraction gets its shape wrong.
+
+**The encumbrance predicate does compose, and this change is what makes it bite.** Asking "may this delivery
+proceed, and if not what holds it" is already hand-enumerated rather than shared:
+
+```text
+if (state.activeOperation !== null)                return refused("operation-active");
+if (state.pendingReviewFixVerification !== null)   return refused("pending-review-fix-verification");
+```
+
+That exact pair appears in `compose.ts` and again in `retirement.ts`, in the same order with the same two
+terms, while `entry-inspection.ts` reads the second term to _route_ to a continuation rather than refuse. A
+third obligation means every such site grows a third term, and a site that grows only two keeps reporting a
+delivery unencumbered while something is owed. That is the failure the Owner's criterion rules out by name:
+not a stale fact, but bookkeeping that lets ARC report wrong.
+
+So extract the predicate, not the payloads — one reader over the state answering what encumbers it, with each
+obligation contributing a term and each caller keeping its own policy over the answer. Refusing sites keep
+refusing, the routing site keeps routing, and adding a fourth obligation later touches one place.
+
+**This stays inside the change rather than beside it.** The extraction's sites — `compose.ts`, `retirement.ts`,
+`entry-inspection.ts`, `landing.ts` — are already this work unit's, named in § Retained capture detail's file
+list, and the third term is one this work unit introduces. Finishing that is completion. What it does not
+license is converting the twenty payload reads, which remain untraced.
 
 ### Proportionality
 
