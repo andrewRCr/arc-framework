@@ -52,6 +52,19 @@
   derived, and binds to exact coordinates as a validity predicate so staleness fails closed. Settled against the
   Owner's criterion: durability is warranted where its absence would make ARC wrong rather than uninformed.
   § The relation — Where the unresolved condition lives.
+- **The design clears the recoverable-refusal rule, with one scope addition and one remedy it had not named.**
+  Closeout's eight-term conjunction owes a reason per term: the relation makes its comparison correct while the
+  refusal still cannot report which term failed, and that clause is not separable from the ancestry fix. And
+  merging the base in collapses merge-base cardinality to one — a corollary of the dominance proof this draft
+  already carries — which turns Axis B's refusals from correct-but-terminal into recoverable by an operation ARC
+  already mandates. § Refusal-recoverability audit.
+- **The settled fundamentals clear the four project check-docs and two unbuilt designs.** No conflict; three
+  constraints adopted — each variant carries a typed remedy action rather than prose, the encumbrance predicate
+  feeds the planned typed resume slot rather than paralleling it, and the variant names are controlled
+  vocabulary with a definition obligation. § Forward-compatibility check.
+- **Native restacking is why the validity predicate needs the relation.** The storage target permits end-to-end
+  restacking once identity decouples from branch SHAs; under equality every restack would invalidate every held
+  decision, turning redundant ceremony from an incident into a cadence.
 - **The obligation composes at the predicate, not the payload.** The two records differ in content and
   staleness semantics and are not established as mutually exclusive, so a single discriminated field would
   impose an exclusion nothing supports. What is genuinely shared is the encumbrance check — already
@@ -83,8 +96,10 @@
 
 ### Open
 
-- **Variant naming.** The six distinctions are settled and their names are not; no canonical name exists to
-  adopt, and the nearest candidates are Git's porcelain vocabulary and `merge.ts`'s existing state names.
+- **Variant naming, and where the definition lives.** The six distinctions are settled and their names are not;
+  the nearest candidates are Git's porcelain vocabulary and `merge.ts`'s existing state names. These are
+  controlled vocabulary rather than taste — load-bearing terms owing a definition before use, derived from the
+  type rather than restated beside it.
 - **What the new-contribution path looks like for a resolved suffix, and how much the obligation record may
   carry.** Holding the obligation is safe; holding the operator's semantic approval is a durable human decision,
   and an accepted review terminus has been silently revoked by movement here before. Gerrit's asymmetry is the
@@ -99,10 +114,12 @@
 
 Settle what the obligation record may carry, which is the same question as what a resolved suffix inherits.
 Gerrit's asymmetry is the model and the trust dimension is the reason to be careful: a stored approval is a
-durable human decision, and movement has silently revoked one here before. Then the two smaller trades —
-touched-versus-net for the subject's path set, and variant naming against whatever vocabulary the rest leaves
-standing. `adversarial-review` is recommended at the readiness boundary and this draft is the shape that pass
-attacks well: much of it is externally-derived reasoning folded in over several sessions.
+durable human decision, and movement has silently revoked one here before. Carry § Forward-compatibility
+check's adopted constraints into it — the decision the record holds is itself a remedy-bearing result, so it
+inherits the typed-action requirement. Then the two smaller trades: touched-versus-net for the subject's path
+set, and variant naming with its definition home. `adversarial-review` is recommended at the readiness boundary
+and this draft is the shape that pass attacks well — much of it is externally-derived reasoning folded in over
+several sessions.
 
 ---
 
@@ -675,6 +692,146 @@ creates.
 **The guard is scope.** Twenty `--is-ancestor` call sites carry no observed failure between them; retrofitting
 them is symmetry, not traced need. The primitive is _available_ to them and this work unit converts none —
 the same line § Reader inventory already draws for the two decomposition call sites.
+
+## Forward-compatibility check
+
+Run 2026-09-16 against the four project check-docs and two planned-but-unbuilt designs, before settling what the
+obligation record may carry. **Nothing in the settled fundamentals conflicts.** Three constraints sharpen the
+design and are adopted below; one convergence is recorded because it makes the relation load-bearing for a
+reason this draft had not derived.
+
+### Adopted — each variant carries a typed remedy action, not prose
+
+`strategy-procedure-evolution` Principle 6 requires emitted text to be precomposed CLI-side rather than templated
+in prose, and `draft-composable-workflows` carries the sharper form: structured remedies already publish an
+executable half that the recommendation contract drops, leaving workflow prose to hardcode a different command.
+
+That is § Axis D's defect stated generally. The settlement there wraps a correct refusal in guidance naming a
+remedy the probe proves cannot clear it — a published result reduced to prose that says something else. Since
+the six variants are separated **because** each carries a distinct remedy, the remedy is part of the type: a
+typed action the caller dispatches, not a sentence a later reader re-authors. This is the constraint that makes
+variant separation pay off rather than merely describe.
+
+### Adopted — the encumbrance predicate feeds the resume slot rather than paralleling it
+
+`draft-composable-workflows` owns typing the integration resume point, today a prose join over lifecycle,
+change-request, worktree, and branch facts the CLI already composes. `draft-operational-state-docs` owns the
+durable resume directive and requires it be code-owned, storage-agnostic, and **derive precise continuation from
+live state**.
+
+Both are the same shape as § What composes — one reader answering what encumbers a delivery, each obligation
+contributing a term. Keep it that way deliberately: this work unit must not mint a second resume path beside the
+one those designs will compile. The predicate is a contributor to that slot, and the obligation record is a fact
+it reads.
+
+The deeper agreement is doctrinal. "Derive continuation from live state" is the criterion this draft settled on
+independently — store the obligation, re-derive every fact that can be recomputed. `draft-operational-state-docs`
+also carries `_Awaiting: <trigger>_` for captures blocked on an external condition, which records the unblock
+condition, suppresses time-based nudging, and is re-evaluated as a judgment pointer rather than an automated
+one. Different surface, same doctrine. Name this one consistently with that rather than inventing a third
+vocabulary for it.
+
+### Adopted — the variant names are controlled vocabulary, not a naming preference
+
+`strategy-procedure-evolution` Principle 7 holds that a term doing technical work is defined once and used
+exactly, and that a new load-bearing term earns its definition before use. The six variants are exactly such
+terms: they will appear in refusal reasons, remedies, and any surface that reports why a comparison failed. The
+open naming item is therefore a placement obligation with a home to find, not a matter of taste — and
+Principle 4's generated-not-hand-written rule means the definition derives from the type rather than being
+restated beside it.
+
+### Recorded — native restacking is what makes the validity predicate need the relation
+
+`strategy-storage-evolution` § Holistic Design carries a delivery-specific target: once operational state
+materializes off-branch and identity no longer couples to branch SHAs, delivery replaces its filtered-member
+projection with ordinary interior-ref members and **permits native restacking end to end**, while preserving the
+terminal-authorization arm and member-boundary verification as substrate-independent contracts.
+
+Routine restacking moves member heads as a matter of course. A held decision bound to exact coordinates and
+checked by equality would be invalidated by every restack — the redundant-ceremony failure arriving at a cadence
+rather than an incident. Checked by the relation it behaves correctly: an append-only advance reads `advanced`
+and the decision still applies, while a true rewrite reads `diverged` or `rewound` and the decision genuinely
+should not survive, which is the Gerrit asymmetry again. So the relation is not only this work unit's fix; it is
+the precondition for the restacking that target intends. The preserved contracts are safe here — this design
+adds reachability above the write boundary and relaxes nothing at it.
+
+### Checked and not firing
+
+`strategy-knowledge-evolution` reaches this design only through Principle 6, extract on fan-in rather than
+aesthetics, which independently confirms § What composes: the predicate has three consumers and the payloads
+have one built and one unauthored. `strategy-pm-composition-evolution` finds no new external-authority surface —
+the change-request binding is untouched, and resolving a member by deliverable identity rather than by head
+object id moves toward its Principle 5 and `strategy-storage-evolution`'s Principle 5, both of which hold work
+unit identity independent of any single repository's branch state. Storage Principles 2 and 3 are satisfied
+rather than strained: the record is plain schema data in the delivery state namespace, carries no tracked-tree
+assumption, and its validity predicate is a version-checked write precondition of exactly the kind Principle 3
+requires.
+
+## Refusal-recoverability audit
+
+Run 2026-09-16 against the four clauses of the recoverable-refusal rule being encoded into project rules — a
+recoverable refusal preserves a safe retry or restart route, reports the observed condition, names an actionable
+remedy, and keeps the normal success path reachable after repair.
+
+The rule is close to this work unit's thesis stated generally, so the audit is a fit check rather than a
+translation. Every row here fails at least two clauses today; that is § The failure family restated in the
+rule's vocabulary. What the audit is for is the design's answers, and it found one gap and one remedy the design
+had not named.
+
+| Row                   | Fails today                 | The design's answer                                    |
+| --------------------- | --------------------------- | ------------------------------------------------------ |
+| Review readiness      | condition, remedy, retry    | inverted lookup, then the relation; rebind is the verb |
+| Closeout              | condition, remedy, retry    | relation in place — **condition still unmet, below**   |
+| Whole-WU verification | reports no condition at all | membership derivation; the refusal never arises        |
+| Prepublication        | remedy, success path        | typed relation, plus the base-merge remedy below       |
+| Public review target  | condition, remedy, retry    | typed result rather than a throw; same remedy          |
+| Landing overlap       | remedy, success path        | membership derivation; the refusal never arises        |
+| Post-land replay      | all four                    | the obligation record and the new-contribution path    |
+
+### The gap — the relation fixes the comparison, not the cause-blindness
+
+Closeout's equality sits inside an eight-term conjunction that collapses to a single `terminal-unsettled`
+reason. § The failure family already recorded that the refusal is cause-blind as well as ancestry-blind, and
+treated the second as this work unit's concern. Under this rule the first is not separable from it: replacing
+the equality term with the relation makes the comparison correct while the refusal still cannot **report the
+observed condition**, because seven other terms reach the same word. A caller told `terminal-unsettled` still
+cannot tell a moved head from a wrong base ref, and the remedy still cannot name the failing term — which is
+exactly why the recorded remedy directs a rerun over inputs that never reach it.
+
+So the conjunction owes a reason per term. **Taken into scope by the Owner, 2026-09-16**, over the narrower arm
+that would give only the relation's term a distinct reason and leave the other seven collapsed: that arm fixes
+the ancestry row while leaving the rule's second clause unsatisfiable everywhere else. It is also the smaller
+change than it looks — the relation supplies the vocabulary for the one term that was ancestry-blind, and the
+other seven need only stop sharing a word.
+
+### The remedy the design should name — merging the base in collapses cardinality
+
+§ Established practice proves that an ancestor uniquely dominates, so `merge-base --all` returns exactly one
+whenever one revision reaches the other. The corollary was not drawn: **merging one side into the other makes it
+an ancestor, which collapses cardinality above one to exactly one.** A criss-cross is not a permanent property
+of two revisions; it is a property of their current shape, and an append-only merge changes that shape.
+
+That converts Axis B's refusals from correct-but-terminal into recoverable, and the remedy is already ARC's
+mandated way to absorb base movement — merge the base in rather than rebase a published branch. It is idiomatic,
+available, and non-destructive, which is what clauses three and four ask for.
+
+Two honest limits. Which merge clears which reader is per-reader: each compares its own pair, and the merge has
+to relate that pair rather than merely be some merge. And the remedy is unavailable where an append-only merge
+is not permitted, in which case the refusal stands and clause one is satisfied by the restart route instead —
+which the obligation record already supplies. Confirm the per-reader applicability before the remedy is named in
+any emitted text.
+
+### The design's own refusals, held to the same rule
+
+Two are introduced here and both must answer it.
+
+- **A stale validity predicate.** When the coordinates a held decision was made against no longer relate to the
+  observed ones, the record must report which coordinate moved and how — the relation is already the vocabulary
+  for that — and route to the new-contribution path rather than merely declining. The restart route is the point
+  of the record; a refusal that does not name it would reintroduce the dead end one layer up.
+- **`unknown`.** An ancestry read that did not establish an answer is retryable by construction, and the clause
+  it most easily fails is the third: it must say the read failed rather than implying a verdict about history.
+  This is the variant's whole purpose, and it is why the reader rather than the classifier produces it.
 
 ## Boundaries with neighbouring work
 
