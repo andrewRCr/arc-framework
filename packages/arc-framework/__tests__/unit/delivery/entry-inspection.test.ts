@@ -20,6 +20,7 @@ import {
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
+  deliveryPlanFixture,
   deliveryFourMemberStackPlanFixture,
   deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
@@ -349,6 +350,28 @@ describe("delivery entry inspection", () => {
       recommendedActionText: expect.stringContaining("singleton pre-publication"),
     });
   });
+
+  it.each(["execution", "prepublication"] as const)(
+    "routes a retired projection to repair before %s entry",
+    async (entryMode) => {
+      const retired = deliveryPlanFixture();
+      const taskList = `${prefix}${renderDeliveryPlanSection(retired)}${suffix}`;
+      const entryDependencies = dependencies({ taskList, resolvedPlan: retired });
+
+      await expect(inspectDeliveryEntry({
+        workUnitId: retired.workUnitId,
+        entryMode,
+      }, entryDependencies)).resolves.toMatchObject({
+        status: "repair-required",
+        nextAction: "reauthor-plan",
+        planId: retired.planId,
+        planRevision: retired.planRevision,
+        reason: "unsupported-projection",
+        recommendedActionText: expect.stringContaining("stack-to-main"),
+      });
+      expect(entryDependencies.readState).not.toHaveBeenCalled();
+    },
+  );
 
   it("consumes an exact pending publication action before bound position routing", async () => {
     const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;

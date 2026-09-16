@@ -18,7 +18,7 @@ describe("delivery discovered-entry workflow", () => {
     const content = await readFile(path, "utf8");
     for (const route of [
       "not-applicable", "authoring-required", "canonicalize-provisional",
-      "validate-canonical", "continue-publication", "resume-bound",
+      "repair-required", "validate-canonical", "continue-publication", "resume-bound",
       "correction-routing-required", "review-fix-verification-required", "refused",
     ]) expect(content).toContain(`\`${route}\``);
 
