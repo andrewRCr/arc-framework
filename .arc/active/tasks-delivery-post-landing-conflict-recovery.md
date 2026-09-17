@@ -499,17 +499,13 @@ to a verdict and carries the cause as a discriminant instead. See
   delta causes that read no base, and those causes cannot reach a base-resolution arm. Convert the conversion and
   leave that constant alone.
 
-    - `[ ]` **4.5.a Make the conversion this layer's forcing point**
+    - `[x]` **4.5.a Make the conversion this layer's forcing point**
 
-        - It returns through a cast today, so the one place where every arm from the layer above crosses into this
-          one is the place the compiler cannot see. Remove the cast and switch exhaustively over the observation's
-          status with an `assertNever` default, so every arm added above is forced at this crossing rather than
-          landing on whichever branch its path shape happens to match.
-        - Build `test-first` (one behavior at a time):
-
-            - Each observation status converts to the arm this design states for it
-            - An arm carrying no paths **field** never converts to the arm that reduces to the strongest accept
-            - An available observation whose path list is empty still converts to that accept, unchanged
+        - The cast is gone and the crossing switches exhaustively with an `assertNever` default, so an arm added
+          above now fails to compile here rather than landing on whichever branch its path shape matches —
+          confirmed by adding a fifth arm and reading the error at that call. The three behaviors were already
+          true, so each was reconstructed to a behavioral failure first: the pre-widening fold reduces both new
+          arms to the strongest accept, and withholding the accept from an empty path list loses it entirely.
 
     - `[ ]` **4.5.b Carry the cause on the `unknown` arm and split the reducer's reason**
 

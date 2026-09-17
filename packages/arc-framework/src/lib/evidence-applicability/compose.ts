@@ -38,18 +38,33 @@ function boundedResidual(paths: readonly string[]): string[] | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Convert one observed overlap into the arm this layer answers with.
+ *
+ * Every observation crosses into the reduced space here, and the crossing is exhaustive on purpose: an arm added
+ * to the observation is a compiler event at this line rather than a value landing on whichever branch its path
+ * shape happens to match. That distinction is not cosmetic — an arm carrying no paths at all reads as an empty
+ * path list, and an empty path list is the strongest accept the reducer has.
+ *
+ * A base that cannot be compared from reduces to the same unproven arm an unreadable read does: both mean
+ * disjointness was not established. The cause that distinguishes them does not yet survive this crossing.
+ */
 function normalizeOverlap(input: EvidenceOverlapObservation): EvidenceOverlap {
-  // A base that cannot be compared from reduces to the same unproven arm an unreadable read does: both mean
-  // disjointness was not established. The cause that distinguishes them does not yet survive this crossing.
-  if (input.status !== "available") {
-    return { kind: "unknown", substantivePaths: [], regenerablePaths: [] };
+  switch (input.status) {
+    case "ambiguous":
+    case "unrelated":
+    case "unavailable":
+      return { kind: "unknown", substantivePaths: [], regenerablePaths: [] };
+    case "available": {
+      const substantivePaths = canonicalPaths(input.substantivePaths);
+      const regenerablePaths = canonicalPaths(input.regenerablePaths);
+      return substantivePaths.length === 0
+        ? { kind: "disjoint", substantivePaths: [], regenerablePaths }
+        : { kind: "overlapping", substantivePaths, regenerablePaths };
+    }
+    default:
+      return assertNever(input);
   }
-  const substantivePaths = canonicalPaths(input.substantivePaths);
-  return {
-    kind: substantivePaths.length === 0 ? "disjoint" : "overlapping",
-    substantivePaths,
-    regenerablePaths: canonicalPaths(input.regenerablePaths),
-  } as EvidenceOverlap;
 }
 
 function normalizeHostAdmission(
