@@ -53,7 +53,7 @@ export async function resolveReviewChunkingCommand(
     if (selectedTarget.targetId !== target.targetId) {
       throw new ReviewChunkingCommandError("selected review scope does not belong to the current target");
     }
-    scopeSelected = parsed.scopeSelection.mode === "chunked";
+    scopeSelected = true;
   }
   const config = await dependencies.readSettings();
   const thresholds = parseReviewChunkingThresholds(config.settings);
