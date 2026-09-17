@@ -226,8 +226,9 @@ acceptance is the existing `applicability-selection` transition, not a new waive
 _Purpose:_ Give an operator who will not adopt a landing a deliberate way out that releases the reservation
 without reversing the landing.
 
-_Exit criterion:_ A landed member wedged under a reservation is settled by resubmitted resolution and, on a
-separate run, released by decline — with a failed lease leaving the reservation held rather than half-released.
+_Exit criterion:_ A landed member wedged under a reservation is settled — by resubmitted resolution on the suffix
+wedge, by the disclosed hand merge on the terminal wedge — and, on a separate run, released by decline, with a
+failed lease leaving the reservation held rather than half-released.
 
 ### `[ ]` **3.1 Add the `delivery native land-release` verb and its request contract**
 
@@ -432,8 +433,10 @@ separate run, released by decline — with a failed lease leaving the reservatio
 
 ### `[ ]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
 
-- _Goal:_ Exercise the segment's capability end to end: a wedged landing settles by resubmitted resolution, and a
-  separate wedged landing releases by decline with the reservation held on a failed lease.
+- _Goal:_ Exercise the segment's capability end to end against each wedge it opens: a suffix-wedged landing
+  settles by resubmitted resolution, a terminal-wedged landing settles by the hand merge its disclosure names,
+  absorbed on the next `land-status`, and a separate wedged landing releases by decline with the reservation held
+  on a failed lease.
 
 ## **Phase 4:** The shared base resolver
 
