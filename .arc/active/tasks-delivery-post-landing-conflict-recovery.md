@@ -199,27 +199,23 @@ acceptance is the existing `applicability-selection` transition, not a new waive
   the absorbed predecessor — was already derivable, so the increment is the evidence that it holds and the
   reconstructions proving each behavior is load-bearing rather than incidental.
 
-### `[ ]` **2.4 Prove the acceptance route through applicability selection**
+### `[x]` **2.4 Prove the acceptance route through applicability selection**
 
 - _Goal:_ Accepting an operator-absorbed terminal head is expressed by the transition that already carries the
   disclosure, the accepting identity, and a binding that dies when the content is rewritten — no record is minted.
 
-- _Rationale:_ Two checkpoint mechanisms hold the terminal member: the coordinate advance proof withholds a proof
-  because the absorbed commit is not an ancestor of the Candidate's recognized target, and the applicability
-  dispatch demands a resolution selector on `decision-required`. That selection is the acceptance.
+    - `[x]` **2.4.a Exercise the selection over an operator-absorbed top**
 
-- _Note:_ The transition kind is `applicability-selection`, not its sibling `review-applicability-selection`,
-  which carries distinct handling on the review-fix path. Reusing the `review-terminus/v1` family is rejected on
-  source — its discharge reader matches on the vehicle without inspecting `kind`, so a second `kind` there would
-  discharge hosted review for an unreviewed head.
+        - The dispatch reaching `decision-required` and its `fresh` reduction with `judgmentRequired: false` were
+          already asserted by the probe this work unit's planning wrote, so the increment is the two claims the
+          probe stopped short of: a bounded check advances the durable baseline exactly as coverage does, and the
+          acceptance stops carrying once the accepted content is rewritten. Both share the probe's absorbed-top
+          fixture through one extracted helper.
 
-    - `[ ]` **2.4.a Exercise the selection over an operator-absorbed top**
-
-        - Build `test-first` (one behavior at a time):
-
-            - The dispatch reaches `decision-required` and the selection settles it
-            - The decision surface carries the `fresh` evidence reduction with `judgmentRequired: false`
-            - `covered` and `targeted-check` are both offered, neither being the forced path
+- _Outcome:_ The acceptance is scoped to exact content, which is what makes minting no record safe: the
+  selection binds a revision and subject digest, so a later head falls back to a fresh decision rather than
+  inheriting the earlier one. Reconstructing the two guards — advancing on `covered` alone, and letting an
+  accepted selection outlive its subject — turns each claim red, so neither rides on the probe's narrative.
 
 ## **Phase 3:** The decline route
 

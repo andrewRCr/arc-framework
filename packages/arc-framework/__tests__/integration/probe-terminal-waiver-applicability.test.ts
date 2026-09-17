@@ -198,6 +198,106 @@ describe("terminal absorption waiver through Candidate applicability", () => {
     expect(projected.recognition).toEqual({ kind: "durable" });
     expect(projected.recognizedTarget.revision).toBe(resolvedHead);
   });
+
+  /** Drive the fixture to the decision an operator-absorbed top presents, plus the record it binds against. */
+  async function reachAbsorbedDecision() {
+    const fixture = await createConflictedFixture();
+    const topCoordinate = await fixture.coordinate(fixture.top);
+    const absorbInput = {
+      exec: fixture.exec,
+      topRef: "refs/heads/feat/example",
+      top: topCoordinate,
+      previousHighestMember: await fixture.coordinate(fixture.originalMember),
+      highestMember: await fixture.coordinate(fixture.refreshedMember),
+    };
+    await absorbGitDeliveryChain(absorbInput);
+    await expect(execFileAsync("git", ["merge", "--no-ff", fixture.refreshedMember], {
+      cwd: fixture.repository,
+    })).rejects.toThrow();
+    await writeFile(join(fixture.repository, "shared.txt"), "operator resolution\n", "utf8");
+    await fixture.git(["add", "shared.txt"]);
+    await fixture.git(["commit", "--no-edit"]);
+    const resolvedHead = await fixture.git(["rev-parse", "HEAD"]);
+    const resolvedTree = await fixture.git(["rev-parse", "HEAD^{tree}"]);
+    await absorbGitDeliveryChain(absorbInput);
+
+    const endpoints = {
+      before: { predecessor: await fixture.coordinate(fixture.originalMember), member: topCoordinate },
+      after: {
+        predecessor: await fixture.coordinate(fixture.refreshedMember),
+        member: { head: resolvedHead, tree: resolvedTree },
+      },
+    };
+    const proof = await proveGitDeliveryContribution({ exec: fixture.exec, ...endpoints });
+    const record = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "candidate-attestation/v1" as const,
+      attestation: createCandidateAttestation({
+        workUnit: "example",
+        subject: subjectAt("top"),
+        baseRevision: fixture.top,
+        attestedBy: "andrew",
+        attestedAt: "2026-09-16T12:00:00.000Z",
+        verificationEvidenceRef: "verification://root",
+      }),
+      subject: subjectAt("top"),
+      transitions: [],
+      lineageAttestations: [],
+    };
+    const baseline = reduceCandidateDurableBaseline(record);
+    const currentTarget = { revision: resolvedHead, subject: subjectAt("operator resolution") };
+    const decision = classifyCandidateApplicability({
+      candidateId: baseline.candidateId,
+      baselineTarget: baseline.target,
+      currentTarget,
+      currentBase: fixture.refreshedMember,
+    }, { endpoints, proof });
+    if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
+    const selectionBase = {
+      transitionKind: "applicability-selection" as const,
+      schemaVersion: 1 as const,
+      semanticsVersion: "candidate-attestation/v1" as const,
+      candidateId: baseline.candidateId,
+      priorTarget: baseline.target,
+      currentTarget,
+      projectionDigest: decision.projectionDigest,
+      residualDigest: decision.residualDigest,
+      selectedBy: "andrew",
+    };
+    const selectionFor = (choice: "covered" | "targeted-check") => (
+      choice === "covered"
+        ? { ...selectionBase, choice: "covered" as const }
+        : {
+            ...selectionBase,
+            choice: "targeted-check" as const,
+            targetedEvidenceRef: "verification://bounded-check",
+          }
+    );
+    return { fixture, record, baseline, currentTarget, decision, selectionFor };
+  }
+
+  it("settles the same decision on a bounded check, so neither offered outcome is the forced path", async () => {
+    const { record, currentTarget, selectionFor } = await reachAbsorbedDecision();
+
+    const byCheck = reduceCandidateDurableBaseline({ ...record, transitions: [selectionFor("targeted-check")] });
+    const byCoverage = reduceCandidateDurableBaseline({ ...record, transitions: [selectionFor("covered")] });
+    expect(byCheck.target).toEqual(currentTarget);
+    expect(byCheck.target).toEqual(byCoverage.target);
+  });
+
+  it("stops carrying the acceptance once the accepted content is rewritten", async () => {
+    const { record, currentTarget, decision, selectionFor } = await reachAbsorbedDecision();
+    const accepted = { ...record, transitions: [selectionFor("covered")] };
+    const rewritten = { revision: `${"9".repeat(39)}a`, subject: subjectAt("rewritten resolution") };
+    expect(rewritten.revision).not.toBe(currentTarget.revision);
+
+    await expect(projectEffectiveCandidateTarget({
+      record: accepted,
+      current: rewritten,
+      currentBase: "refs/heads/moved-base",
+      projectApplicability: async () => decision,
+    })).resolves.toMatchObject({ state: "decision-required" });
+  });
 });
 
 describe("recognizing an operator-resolved absorption at the applicability boundary", () => {
