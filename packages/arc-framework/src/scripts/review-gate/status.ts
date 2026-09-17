@@ -769,6 +769,7 @@ const ReviewStatusBaseShape = {
   movement: ReviewStatusMovementSchema,
   baseMovement: BaseMovementObservationSchema.nullable(),
   baseMovementDetail: z.string().trim().min(1).optional(),
+  baseMovementCause: z.enum(["read-failed", "ambiguous", "unrelated"]).optional(),
   deliveryCursor: DeliveryReviewCursorSchema.optional(),
 };
 
@@ -908,7 +909,7 @@ const ReviewStatusBlockedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
-  reason: z.enum(["stale-target", "checks-failed", "status-unavailable"]),
+  reason: z.enum(["stale-target", "checks-failed", "status-unavailable", "base-unrelated"]),
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
@@ -1068,6 +1069,7 @@ function projectReviewBaseMovement(observation: ReviewStatusObservation): {
   movement: z.infer<typeof ReviewStatusMovementSchema>;
   baseMovement: BaseMovementObservation | null;
   baseMovementDetail?: string;
+  baseMovementCause?: "read-failed" | "ambiguous" | "unrelated";
   carries: boolean;
 } {
   if (observation.baseMovement === undefined || observation.baseMovement === null) {
@@ -1090,6 +1092,7 @@ function projectReviewBaseMovement(observation: ReviewStatusObservation): {
     ...(observation.baseMovementDetail === undefined
       ? {}
       : { baseMovementDetail: observation.baseMovementDetail }),
+    ...(delta.overlap.kind === "unknown" ? { baseMovementCause: delta.overlap.cause } : {}),
     carries: applicability.verdict === "carries",
   };
 }
@@ -1126,6 +1129,9 @@ export async function resolveReviewStatus(
     ...(movement.baseMovementDetail === undefined
       ? {}
       : { baseMovementDetail: movement.baseMovementDetail }),
+    ...(movement.baseMovementCause === undefined
+      ? {}
+      : { baseMovementCause: movement.baseMovementCause }),
     ...(conjunction === undefined
       ? {}
       : {
@@ -1181,6 +1187,20 @@ export async function resolveReviewStatus(
           remedy: reviewStatusRetryRemedy(request.target),
         };
       }
+    } else if (movement.baseMovementCause === "unrelated") {
+      return {
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "base-unrelated",
+        detail: "The observed base and the exact reviewed head share no common ancestor, so no movement "
+          + "between them can be proved.",
+        remedy: spineRemedy(
+          "Base movement can be proved only between revisions with a common ancestor.",
+          "Give the branch and the base one common ancestor, then compose review status again",
+          ["git", "merge", "--allow-unrelated-histories", base.currentBaseOid],
+        ),
+      };
     } else {
       const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
       const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);

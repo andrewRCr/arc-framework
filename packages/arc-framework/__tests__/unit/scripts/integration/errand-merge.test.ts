@@ -540,6 +540,27 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
+  it("carries the cause that required fresh review into the result the operator reads", async () => {
+    const { value } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      reviewApplicability: {
+        verdict: "fresh",
+        residual: null,
+        reason: "overlap-ambiguous-base",
+        judgmentRequired: false,
+      },
+    });
+
+    // Fresh review is the verdict either way; which base reading produced it is what the operator acts on,
+    // and it is the thing that stops at this boundary unless the result carries it.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "review-applicability-fresh",
+      applicability: { verdict: "fresh", reason: "overlap-ambiguous-base" },
+    });
+  });
+
   it("returns typed unavailable drift evidence before mutation", async () => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({

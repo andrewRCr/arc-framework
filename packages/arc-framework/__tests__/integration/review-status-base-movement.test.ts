@@ -279,6 +279,21 @@ describe("review status over a history leaving two merge bases", () => {
     });
   });
 
+  it("sends an ambiguous base back through the checkpoint, naming the cause beside the movement", async () => {
+    const fixture = await singletonUnderReview(async (root) => {
+      await arrangeAmbiguousMergeBase({ cwd: root });
+    });
+
+    // Recoverable at this pair: merging the base in collapses the two comparison points to one, and the
+    // checkpoint is where that route is offered. So the reading keeps its rerun.
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      movement: "unknown",
+      baseMovementCause: "ambiguous",
+    });
+  });
+
   it("reports the ambiguity itself, apart from a comparison it could not read", async () => {
     const fixture = await singletonUnderReview(async (root) => {
       await arrangeAmbiguousMergeBase({ cwd: root });
@@ -297,6 +312,24 @@ describe("review status over a history leaving two merge bases", () => {
 });
 
 describe("review status over a base sharing no history with the branch", () => {
+  it("stops rather than inviting a rerun that cannot clear it", async () => {
+    const fixture = await singletonUnderReview();
+    await arrangeUnrelatedBase({ cwd: fixture.root });
+
+    const status = await statusThroughPort(fixture);
+
+    expect(status).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "base-unrelated",
+      movement: "unknown",
+      baseMovementCause: "unrelated",
+    });
+    // A rerun of this same reading is the one remedy that cannot clear the condition, so it is not the one
+    // offered: the branch and the base have to be given a common ancestor first.
+    expect(status).not.toMatchObject({ remedy: { argv: ["arc", "review", "status"] } });
+  });
+
   it("reports the absent common ancestor as its own reading", async () => {
     // The replacement lands after attestation, unlike the branch-side arrangements above: it moves the base
     // alone, so the reviewed revision the attestation binds is the same one either way.

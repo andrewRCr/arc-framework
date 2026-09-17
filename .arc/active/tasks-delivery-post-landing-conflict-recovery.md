@@ -514,27 +514,15 @@ to a verdict and carries the cause as a discriminant instead. See
           `overlap-unrelated-base`. Both the Candidate applicability result and the review-contribution result
           embed that enum, so the two new members are a contract change rather than a rename.
 
-    - `[ ]` **4.5.c Route each cause to a typed action at the two reductions that can receive it**
+    - `[x]` **4.5.c Route each cause to a typed action at the two reductions that can receive it**
 
-        - A cause that reaches the reducer and stops there is a better label on the same dead end. Only the two
-          `base-movement` reductions reach the conversion, so only they can carry a base-resolution cause:
-          review status and errand merge composition. Name both — the second is a reduction consumer this task
-          set otherwise never mentions.
-        - Review status reports the cause beside its movement field rather than inside it, leaving the
-          projection's value set unchanged. Its own `state` and `nextAction` follow the cause: every
-          non-carrying result routes to a rerun today, so a terminal cause keeps inviting a retry that cannot
-          succeed unless this task states otherwise. Task 4.7.b's replacement assertion needs that value stated.
-        - **Candidate applicability is not one of the two**, and this task does not touch it. Its ambiguous case
-          is refused at the `merge-base --all` read itself, ahead of any reduction, and its one reduction
-          composes a member-rewrite cause whose overlap is the constant. The re-baselining remedy on that
-          refusal belongs to Task 6.6, which owns the applicability result's slot for it — and which requires the
-          refusal's four existing strings be preserved exactly, so nothing here may repurpose its `nextAction`.
-        - Build `test-first` (one behavior at a time):
-
-            - An ambiguous cause reaches review status under its own reason
-            - An unrelated cause reports terminally, with a state and next action that do not invite a rerun
-            - Errand merge composition carries the same cause to its own surface
-            - The movement field still reports only its three established values
+        - Review status reports the cause as `baseMovementCause`, beside `movement`, whose three values are
+          unchanged. **An ambiguous base keeps `base-moved` / `rerun-checkpoint`** — merging the base in
+          collapses the two comparison points to one, and the checkpoint is where that route is offered.
+          **An unrelated base is terminal: `blocked` / `stop` under a new `base-unrelated` reason**, carrying a
+          remedy that gives the two revisions a common ancestor rather than re-running the reading that cannot
+          clear it. Errand merge composition carries the reduction onto its invalidated result, where the cause
+          previously stopped at a fixed string. Candidate applicability is untouched, as planned.
 
     - `[ ]` **4.5.d Make the reducer's open-ended accept branch exhaustive**
 
@@ -603,6 +591,12 @@ to a verdict and carries the cause as a discriminant instead. See
   observation and left the reduction behind them unchanged, so the state, next action, and detail the hold pins
   are still what the reader produces. Nothing it observes moves until that reduction does, and Task 4.5.c is the
   first task that changes it.
+
+- _Finding:_ Nor at Task 4.5.c, which is where this phase ends for it. The design's answer for an ambiguous base
+  is the rerun the hold already observes, so its `observed` never stops describing what happens and its `target`
+  never arrives — the position the Candidate applicability hold is in. Nothing forces the replacement, so
+  Task 4.7.b is a deliberate retirement; left standing, the hold goes red at Task 6.2 through its
+  routed-obligation half.
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 

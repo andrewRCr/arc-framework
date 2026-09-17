@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   BoundedEvidenceResidualSchema,
+  EvidenceApplicabilityResultSchema,
   type EvidenceApplicabilityResult,
 } from "../../lib/evidence-applicability/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -154,6 +155,8 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
       "merge-method-moved",
       "review-applicability-fresh",
     ]),
+    /** The reduction that invalidated the request, when one did — it names what a fresh approval must answer. */
+    applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({
     ...nonSuccess,
@@ -258,6 +261,7 @@ function invalidatedResult(
   detail: string,
   observedTarget: IntegrationMergeTarget | null,
   observedBaseOid: string | null,
+  applicability?: EvidenceApplicabilityResult,
 ): Extract<ErrandMergeResult, { state: "invalidated" }> {
   const result = ErrandMergeResultSchema.parse({
     schemaVersion: 1,
@@ -270,6 +274,7 @@ function invalidatedResult(
     approvedTarget: request.approvedTarget,
     lane: request.lane,
     coordinates: { observedTarget, observedBaseOid },
+    ...(applicability === undefined ? {} : { applicability }),
     continuation: {
       kind: "terminal-explanation",
       terminalExplanation: "Recompose the exact Errand merge request and obtain fresh approval.",
@@ -602,6 +607,7 @@ export async function mergeErrand(
       "The final evidence requires fresh review and exact integration approval.",
       final.target,
       final.baseOid,
+      final.reviewApplicability,
     );
   }
   if (final.reviewApplicability.verdict === "carries" && final.plan.state === "reconcile") {
