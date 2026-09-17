@@ -9,7 +9,7 @@ export type PredecessorRelationVariant =
   | { readonly kind: "unchanged" }
   | { readonly kind: "advanced" }
   | { readonly kind: "rewound" }
-  | { readonly kind: "diverged" }
+  | { readonly kind: "diverged"; readonly mergeBaseCount: number }
   | { readonly kind: "absent" }
   | { readonly kind: "unknown" };
 
@@ -24,10 +24,14 @@ export type AncestryAnswer = "ancestor" | "not-ancestor" | "unresolvable";
  * the pair, since only one direction can hold; divergence needs both answers to say so, so a read that
  * established nothing reports itself rather than arriving as the verdict that neither side contains the other.
  *
- * `absent` is not among the answers here. It says no record binds the subject at all, which is a prior fact
- * about whether there is a subject to compare, and a pair of revisions consults nothing that could establish it.
+ * `absent` is not among the answers here, and does not become one by letting a revision go missing. It says no
+ * record binds the subject at all — a prior fact about whether there is a subject to compare, which a pair of
+ * revisions consults nothing to establish. Each reader reports it from the binding it already holds, which is
+ * also the only place that can tell an absent binding from one naming a revision that no longer resolves.
  *
- * @param input - The bound and observed revisions, and the ancestry answers relating them in both directions.
+ * @param input - The bound and observed revisions, the ancestry answers relating them in both directions, and
+ *   how many best common ancestors they have — read only where neither contains the other, since containment
+ *   leaves exactly one.
  * @returns The relation the topology establishes, or that it established none.
  */
 export function classifyPredecessorRelation(input: {
@@ -35,6 +39,7 @@ export function classifyPredecessorRelation(input: {
   readonly observedHead: string;
   readonly boundIsAncestorOfObserved: AncestryAnswer;
   readonly observedIsAncestorOfBound: AncestryAnswer;
+  readonly mergeBaseCount: number;
 }): Exclude<PredecessorRelationVariant, { readonly kind: "absent" }> {
   if (input.boundHead === input.observedHead) {
     return { kind: "unchanged" };
@@ -46,7 +51,7 @@ export function classifyPredecessorRelation(input: {
     return { kind: "rewound" };
   }
   if (input.boundIsAncestorOfObserved === "not-ancestor" && input.observedIsAncestorOfBound === "not-ancestor") {
-    return { kind: "diverged" };
+    return { kind: "diverged", mergeBaseCount: input.mergeBaseCount };
   }
   return { kind: "unknown" };
 }

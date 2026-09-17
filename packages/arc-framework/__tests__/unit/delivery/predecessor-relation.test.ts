@@ -102,6 +102,7 @@ describe("predecessor relation classification", () => {
       observedHead: oid("c"),
       boundIsAncestorOfObserved: "unresolvable",
       observedIsAncestorOfBound: "unresolvable",
+      mergeBaseCount: 1,
     })).toEqual({ kind: "unknown" });
   });
 
@@ -111,6 +112,7 @@ describe("predecessor relation classification", () => {
       observedHead: oid("c"),
       boundIsAncestorOfObserved: "ancestor",
       observedIsAncestorOfBound: "not-ancestor",
+      mergeBaseCount: 1,
     })).toEqual({ kind: "advanced" });
   });
 
@@ -120,6 +122,7 @@ describe("predecessor relation classification", () => {
       observedHead: oid("c"),
       boundIsAncestorOfObserved: "not-ancestor",
       observedIsAncestorOfBound: "ancestor",
+      mergeBaseCount: 1,
     })).toEqual({ kind: "rewound" });
   });
 
@@ -129,7 +132,8 @@ describe("predecessor relation classification", () => {
       observedHead: oid("c"),
       boundIsAncestorOfObserved: "not-ancestor",
       observedIsAncestorOfBound: "not-ancestor",
-    })).toEqual({ kind: "diverged" });
+      mergeBaseCount: 1,
+    })).toEqual({ kind: "diverged", mergeBaseCount: 1 });
   });
 
   it("reports the pair unmoved when both heads name the same revision", () => {
@@ -138,6 +142,7 @@ describe("predecessor relation classification", () => {
       observedHead: oid("b"),
       boundIsAncestorOfObserved: "ancestor",
       observedIsAncestorOfBound: "ancestor",
+      mergeBaseCount: 1,
     })).toEqual({ kind: "unchanged" });
   });
 
@@ -148,11 +153,33 @@ describe("predecessor relation classification", () => {
       ...rewritten,
       boundIsAncestorOfObserved: "not-ancestor",
       observedIsAncestorOfBound: "not-ancestor",
-    })).toEqual({ kind: "diverged" });
+      mergeBaseCount: 1,
+    })).toEqual({ kind: "diverged", mergeBaseCount: 1 });
     expect(classifyPredecessorRelation({
       ...rewritten,
       boundIsAncestorOfObserved: "not-ancestor",
       observedIsAncestorOfBound: "ancestor",
+      mergeBaseCount: 1,
     })).toEqual({ kind: "rewound" });
+  });
+
+  it("carries a single merge base on a diverged pair as one", () => {
+    expect(classifyPredecessorRelation({
+      boundHead: oid("b"),
+      observedHead: oid("c"),
+      boundIsAncestorOfObserved: "not-ancestor",
+      observedIsAncestorOfBound: "not-ancestor",
+      mergeBaseCount: 1,
+    })).toEqual({ kind: "diverged", mergeBaseCount: 1 });
+  });
+
+  it("carries the count a pair with more than one merge base was read at", () => {
+    expect(classifyPredecessorRelation({
+      boundHead: oid("b"),
+      observedHead: oid("c"),
+      boundIsAncestorOfObserved: "not-ancestor",
+      observedIsAncestorOfBound: "not-ancestor",
+      mergeBaseCount: 2,
+    })).toEqual({ kind: "diverged", mergeBaseCount: 2 });
   });
 });

@@ -685,21 +685,17 @@ is a field on `diverged`, not a variant.
           `unrelated` onto a read arm, but nothing names the `ambiguous` arm or the fold in
           `predecessor-relation.ts` waiting on it, and 5.4.a reads as though 5.1 placed both. Added as 5.1.d.
 
-    - `[ ]` **5.1.b Settle how `absent` is reached, since it is not a topological answer**
+    - `[x]` **5.1.b Settle how `absent` is reached, since it is not a topological answer**
 
-        - The classifier's inputs are the bound head, the observed head, the ancestry answers, and the
-          cardinality — none of which can report that no record binds the subject. So either the bound head is
-          nullable in the signature and `absent` is the answer to a null one, or `absent` sits outside the
-          classifier entirely and each reader emits it from the binding it already holds. Decide it here and
-          state it: Task 7.3 consumes `absent` for a member with no binding, and it needs to know which
-          interface produces it.
+        - Settled outside the classifier: each reader emits it from the binding it already holds, and the return
+          excludes it rather than a nullable revision standing in for a missing record. A null revision cannot
+          tell an absent binding from one naming a revision that no longer resolves; the reader holding the
+          binding can. Stated at the classifier, where 7.3's reader will look for it.
 
-    - `[ ]` **5.1.c Carry cardinality as a field on `diverged`**
+    - `[x]` **5.1.c Carry cardinality as a field on `diverged`**
 
-        - Build `test-first` (one behavior at a time):
-
-            - A two-base `diverged` pair carries the cardinality field
-            - A single-base `diverged` pair carries it as one
+        - `diverged` carries `mergeBaseCount`, supplied to the classifier rather than derived by it: containment
+          leaves exactly one best common ancestor, so the arms reached by containment need no read to state it.
 
     - `[ ]` **5.1.d Land the read's `ambiguous` arm and undo the fold it stands in for**
 
