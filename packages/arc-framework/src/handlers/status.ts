@@ -1328,7 +1328,9 @@ export async function handleStatus(
           baseEvidence,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
-          nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),
+          nudge: input.includeNudge
+            ? await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor)
+            : { shouldNudge: false, markerPath: null, today: new Date().toISOString().slice(0, 10) },
         });
       },
       materializableWorkUnits: async (context) => {

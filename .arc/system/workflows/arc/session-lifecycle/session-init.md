@@ -610,6 +610,11 @@ deliberately.
 
 Produce the orientation summary.
 
+**Checkout-local attention.** Report what this checkout can act on. Inbox, housekeep, reminder, and
+compaction-nudge slots exist only on the primary worktree; linked worktrees omit them and must
+not read or write the once-per-day markers. `locusGuidance` diagnostics and unresolved inspect-cleanup
+lines are the entering row only.
+
 Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, `baseBranchSync`, `dirty`,
 `user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
 claims copied from SESSION-NOTES prose.
@@ -683,9 +688,9 @@ tracked source documents the work.
 - `locusGuidance.kind === "unavailable"` — render `locusGuidance.message` and stop before any role-sensitive
   action.
 - `locusGuidance.kind === "ready"` — collect only present optional strings and non-empty arrays; omit the section
-  when no lines remain. The composer suppresses unmanaged-sibling diagnostics and every expected/no-action frame,
-  availability, recovery, reconciliation, and cleanup fact. Render remaining strings verbatim; do not reconstruct
-  their evidence or deletion conditions.
+  when no lines remain. The composer emits entering-row diagnostics only, omits sibling unresolved
+  inspect-cleanup, and suppresses every expected/no-action frame, availability, recovery, reconciliation,
+  and cleanup fact. Render remaining strings verbatim; do not reconstruct their evidence or deletion conditions.
 - `worktree.value.state == "diverged"` — branch on `worktree.value.supersession`:
     - `supersession.superseded === true` — the local-ahead commits are patch-equal to a rebased remote
       prefix (the branch was rebased and force-pushed elsewhere), so a hard reset to the remote loses no
@@ -758,11 +763,12 @@ tracked source documents the work.
   - `{sha}` attempted {when} by machine `{whose}` — proceed with context; don't force-push to resolve.
   ```
 
-- `compactionAdvisory.value.shouldSuggest` AND `compactionAdvisory.value.nudge.shouldNudge`: local user-notes ref
+- `compactionAdvisory.value.shouldSuggest` AND `compactionAdvisory.value.nudge.shouldNudge` (primary worktree
+  only; the slot is omitted on linked checkouts): local user-notes ref
   history exceeds the advisory threshold. Surface one offer-only line for the interlock-gated command; never run
   compaction automatically. After surfacing, write `compactionAdvisory.value.nudge.today` to
   `compactionAdvisory.value.nudge.markerPath` (create the parent directory if needed) so the offer batches to
-  once per calendar day.
+  once per calendar day. Never write the marker from a linked checkout.
 
   ```text
   **Notes compaction:** user-notes history has {historyCommitCount} commit(s) (threshold {threshold}); run
@@ -940,12 +946,13 @@ tracked source documents the work.
   - `{candidate}`
   ```
 
-- `errandSweep.value.stale` non-empty AND `errandState.value.nudge.shouldNudge`: `_Remind:_`-flagged `§ Errand`
+- `errandSweep.value.stale` non-empty AND `errandState.value.nudge.shouldNudge` (primary worktree only; the
+  sweep slot is omitted on linked checkouts): `_Remind:_`-flagged `§ Errand`
   `USER-INBOX` captures pending past `inbox.remind_after_days` (default 1) — the retired errand queue's "here are
   your committed follow-ups" discoverability, now an inbox filter. Surface them as one batched line for the
   operator to drain via housekeep; advisory only, never auto-removed. After surfacing, write
   `errandState.value.nudge.today` to `errandState.value.nudge.markerPath` (create the parent directory if needed)
-  so the nudge batches to once per calendar day.
+  so the nudge batches to once per calendar day. Never write the marker from a linked checkout.
 
   ```text
   **Reminder:** {N} flagged capture(s) pending past the reminder threshold — drain via `arc-housekeep`:
@@ -995,9 +1002,10 @@ tracked source documents the work.
   - `{slug}` (`{branch}` at `{expectedHead}`, `{state}`) — materialize and resume?
   ```
 
-- `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer
-  the between-WU drain; never hard-block. A Resume session (active WU) carries the probe but does not surface this
-  — housekeep drains from a base-branch context, not mid-WU.
+- `inboxState.value.housekeepNeeded` (Orient arm — no active WU, primary worktree): `USER-INBOX` holds routable
+  captures. Soft-offer the between-WU drain; never hard-block. Linked worktrees omit the slot. A primary
+  Resume with an active WU still carries it but does not surface this — housekeep drains from a base-branch
+  context, not mid-WU.
 
   ```text
   **Housekeep:** no active WU; `USER-INBOX` has {inboxState.value.routableCount} pending capture(s) — housekeep?

@@ -1049,6 +1049,9 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     }
   }
 
+  const primaryCheckout = worktree?.identity !== undefined
+    && (worktree.identity as { kind?: string }).kind === "primary";
+
   const recoveryRequired = worktree?.state === "branch-gone" && rosterSuccessful;
   requireExactPresence(value, context, "recovery", recoveryRequired);
 
@@ -1056,8 +1059,11 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     requireExactPresence(value, context, "orphanBranchSweep", true);
   }
 
-  for (const key of ["retiredSubdirs", "errandSweep", "inboxState", "partialPushMarker"] as const) {
+  for (const key of ["retiredSubdirs", "partialPushMarker"] as const) {
     requireExactPresence(value, context, key, identityKnown);
+  }
+  for (const key of ["errandSweep", "inboxState"] as const) {
+    requireExactPresence(value, context, key, identityKnown && primaryCheckout);
   }
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
@@ -1091,8 +1097,14 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     value.active.ok && value.active.value.resolution === "none",
   );
 
-  if (hasOwn(value, "compactionAdvisory") && !identityKnown) {
-    addPresenceIssue(context, "compactionAdvisory", "requires a resolved identity");
+  if (hasOwn(value, "compactionAdvisory") && (!identityKnown || !primaryCheckout)) {
+    addPresenceIssue(
+      context,
+      "compactionAdvisory",
+      identityKnown
+        ? "forbidden on a linked worktree"
+        : "requires a resolved identity",
+    );
   }
 
   if (
