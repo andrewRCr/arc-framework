@@ -3,14 +3,20 @@
   "slug": "localize-session-init-attention",
   "claimId": "072afe57f954e5a0df767373b87bf90f",
   "createdAt": "2026-09-17T13:18:12.866Z",
-  "updatedAt": "2026-09-17T13:18:12.866Z",
+  "updatedAt": "2026-09-17T15:05:28.560Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make session-init report only what this checkout can act on: identity-global between-WU hygiene (inbox, housekeep, reminders, nudge reads/writes) is primary-only; sibling locus diagnostics stay entering-row only.",
   "branch": "chore/localize-session-init-attention",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/localize-session-init-attention",
+    "headSha": "60fab0e99e9c18e74cb0dffbf30e2215d54b2034"
+  }
 }
