@@ -620,7 +620,7 @@ deliberately.
 Produce the orientation summary.
 
 **Checkout-local attention.** Report what this checkout can act on. Inbox, housekeep, reminder, and
-compaction-nudge slots exist only on the primary worktree; linked work-unit checkouts omit them and must
+compaction-nudge slots exist only on the primary worktree; linked worktrees omit them and must
 not read or write the once-per-day markers. `locusGuidance` diagnostics and unresolved inspect-cleanup
 lines are the entering row only.
 
@@ -1012,7 +1012,7 @@ tracked source documents the work.
   ```
 
 - `inboxState.value.housekeepNeeded` (Orient arm — no active WU, primary worktree): `USER-INBOX` holds routable
-  captures. Soft-offer the between-WU drain; never hard-block. Linked work-unit checkouts omit the slot. A primary
+  captures. Soft-offer the between-WU drain; never hard-block. Linked worktrees omit the slot. A primary
   Resume with an active WU still carries it but does not surface this — housekeep drains from a base-branch
   context, not mid-WU.
 

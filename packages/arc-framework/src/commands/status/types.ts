@@ -346,7 +346,7 @@ export interface SessionInitProbeResult {
    * threshold (`inbox.remind_after_days`, default 1), surfaced for
    * execute-or-demote. Advisory only. Present when identity resolved on the
    * primary worktree; omitted when identity is absent or the session is a linked
-   * work-unit checkout.
+   * worktree.
    */
   errandSweep?: Probe<ErrandStalenessSweepResult>;
   /**
@@ -382,7 +382,7 @@ export interface SessionInitProbeResult {
    * `USER-INBOX`, plus a `housekeepNeeded` flag, so the Orient arm offers
    * housekeep from a machine-resolved signal rather than an agent re-scan. Present
    * when identity resolved on the primary worktree; omitted when identity is
-   * absent or the session is a linked work-unit checkout.
+   * absent or the session is a linked worktree.
    */
   inboxState?: Probe<InboxStateResult>;
   /**
@@ -401,7 +401,7 @@ export interface SessionInitProbeResult {
    * compared to the internal threshold, plus a once-per-calendar-day nudge
    * marker. Present when identity resolved on the primary worktree and the
    * optional probe is supplied; omitted when identity is absent, the session is
-   * a linked work-unit checkout, or the probe is not supplied. Workflow
+   * a linked worktree, or the probe is not supplied. Workflow
    * renders it as offer-only guidance and never auto-runs compaction.
    */
   compactionAdvisory?: Probe<NotesCompactionSessionAdvisoryResult>;
@@ -740,7 +740,7 @@ export interface SessionInitProbes {
    * Errand-staleness sweep resolver. Receives the resolved identity; the handler
    * resolves the candidate entries and the `inbox.remind_after_days` threshold,
    * then ages them. Fired only on the primary worktree when identity resolved;
-   * omitted on linked work-unit checkouts. Advisory, read-only.
+   * omitted on linked worktrees. Advisory, read-only.
    */
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
   /**
@@ -781,8 +781,8 @@ export interface SessionInitProbes {
   /**
    * Inbox-state resolver. Receives the resolved identity; the handler reads
    * `user/{identity}/USER-INBOX.md` and counts its routable and execute-bound entries. Fired only
-   * on the primary worktree when identity resolved; omitted on linked work-unit
-   * checkouts. Advisory, read-only.
+   * on the primary worktree when identity resolved; omitted on linked
+   * worktrees. Advisory, read-only.
    */
   inboxState: (identity: string) => Promise<InboxStateResult>;
   /**

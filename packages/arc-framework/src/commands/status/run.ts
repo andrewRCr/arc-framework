@@ -159,7 +159,7 @@ export async function runSessionInitStatus(
   // Partial-push-marker surface rides the eager / identity-gated phase: the
   // sync-state ref is identity-scoped, so it is omitted when identity is absent.
   // Inbox, reminder, and compaction hygiene wait for worktree identity below —
-  // they are primary-only and must not run on linked work-unit checkouts.
+  // they are primary-only and must not run on linked worktrees.
   const partialPushMarkerTask = identity === null
     ? null
     : safeProbe("partialPushMarker", () => probes.partialPushMarker(identity));
@@ -210,11 +210,14 @@ export async function runSessionInitStatus(
     ? worktreeIdentitySlot.value
     : { kind: "primary" };
 
-  // Identity-global between-WU hygiene is primary-only. Linked work-unit
-  // checkouts omit these slots so session-init neither reads USER-INBOX nor
-  // consumes the once-per-day nudge markers.
+  // Identity-global between-WU hygiene is primary-only. Linked worktrees omit
+  // these slots so session-init neither reads USER-INBOX nor consumes the
+  // once-per-day nudge markers. Require a successfully resolved primary
+  // identity: a failed worktreeIdentity probe still degrades to `{ kind:
+  // "primary" }` for roster/sweep, and must not leak hygiene onto that coerce.
   const primaryIdentity = identity !== null
     && worktree.isOk()
+    && worktreeIdentitySlot.isOk()
     && worktreeIdentity.kind === "primary"
     ? identity
     : null;
@@ -440,7 +443,7 @@ export async function runSessionInitStatus(
         currentBranch: worktree.value.branch,
         hasBackingMeta: active.value.resolution === "single",
         includeDiscovery: active.value.resolution === "none",
-        includeNudge: worktreeIdentity.kind === "primary",
+        includeNudge: worktreeIdentitySlot.isOk() && worktreeIdentity.kind === "primary",
       }))
       : undefined;
 

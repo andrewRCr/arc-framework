@@ -2960,7 +2960,7 @@ describe("runSessionInitStatus — errand-state slot", () => {
     });
   });
 
-  it("does not request the reminder nudge on a linked work-unit checkout", async () => {
+  it("does not request the reminder nudge on a linked worktree", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "feat/x" })),
       active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
@@ -3112,7 +3112,7 @@ describe("runSessionInitStatus — errand-staleness sweep slot", () => {
     }
   });
 
-  it("omits the sweep on a linked work-unit checkout", async () => {
+  it("omits the sweep on a linked worktree", async () => {
     const probes = sessionInitProbes({
       worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
       active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
@@ -3155,7 +3155,7 @@ describe("runSessionInitStatus — inbox-state slot", () => {
     }
   });
 
-  it("omits the slot on a linked work-unit checkout", async () => {
+  it("omits the slot on a linked worktree", async () => {
     const probes = sessionInitProbes({
       worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
       active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
@@ -3163,6 +3163,20 @@ describe("runSessionInitStatus — inbox-state slot", () => {
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.inboxState).not.toHaveBeenCalled();
     expect("inboxState" in result).toBe(false);
+  });
+
+  it("omits primary-only hygiene when worktree identity is unresolved", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: async () => { throw new Error("identity boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.errandSweep).not.toHaveBeenCalled();
+    expect(probes.inboxState).not.toHaveBeenCalled();
+    expect("errandSweep" in result).toBe(false);
+    expect("inboxState" in result).toBe(false);
+    expect(probes.errandState).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      includeNudge: false,
+    }));
   });
 
   it("omits the slot when identity is absent", async () => {
