@@ -406,34 +406,21 @@ to a verdict and carries the cause as a discriminant instead. See
   bases themselves — cardinality is what the relation wrapper consumes, and the base identities have no named
   reader. No failure policy is baked in, so each adopting caller keeps its own.
 
-### `[ ]` **4.2 Split `ambiguous` out of `RevisionOverlapResult`**
+### `[x]` **4.2 Split `ambiguous` out of `RevisionOverlapResult`**
 
 - _Goal:_ An ambiguous history and an unanswerable read stop arriving as one word at the first layer.
 
-- _Rationale:_ The type's multiple-merge-base branch and its non-exit-1 `catch` both currently reach
-  `merge-base-failed`. `ambiguous` lands as a peer `status` arm beside the existing `unrelated`, not as another
-  reason inside `unavailable` — recoverability is a status-level property and consumers branch on status.
-
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces
 
-    - `[ ]` **4.2.a Add the peer `ambiguous` arm and route the multi-base branch to it**
+    - `[x]` **4.2.a Add the peer `ambiguous` arm and route the multi-base branch to it**
 
-        - The arm carries `detail` like every other arm on the type — a named conversion site forwards `detail`
-          on any non-available status, and that site is only compiler-silent if the field is there.
-        - The arm carries **no merge base and no overlap**. The multi-base branch returns before the merge base
-          is assigned and before any changed-path read, so nothing downstream may assume either.
-        - `predecessor-relation.ts` is a consumer this split breaks at the compiler: it handles `unavailable`
-          and `unrelated`, then dereferences the overlap. Phase 5 owns its disposition, but the break lands
-          here, so the two phases are executed in order and 5.1's arm set is what this task hands to.
-        - Name the interim rather than leaving it to whoever hits the break: fold the new arm into the existing
-          `unavailable` arm here, which is fail-closed, and record that 5.1 undoes the fold when the four-arm
-          wrapper exists. A deliberate interim with a named undo is traceable; an improvised one is not.
-        - Build `test-first` (one behavior at a time):
-
-            - A two-base history reports `ambiguous`
-            - An unanswerable read still reports `unavailable` with `merge-base-failed`
-            - No common ancestor still reports `unrelated`
-            - `invalid-revision` is untouched by the split
+        - The arm carries `detail` and nothing else — no merge base and no overlap, since the branch returns
+          before either is read. `checkpoint-composition.ts` forwards `detail` on every non-available status and
+          is compiler-silent on that field alone, which is what the arm's shape is answerable to.
+        - Three sites fold the arm in fail-closed, all awaiting the same undo at Task 5.1: `predecessor-relation.ts`
+          routes it to `unavailable`, and `analyzeBaseOverlap` and `status-composition.ts` route it to
+          `merge-base-failed`, neither second-layer surface having an arm for it yet. Only the first was a
+          compiler-forced break; the other two were non-exhaustive reason reads that the same typecheck caught.
 
 ### `[ ]` **4.3 Carry ambiguous and lift `unrelated` out at `OverlapEvidence`**
 

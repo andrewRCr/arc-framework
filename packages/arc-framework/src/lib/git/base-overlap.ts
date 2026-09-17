@@ -37,6 +37,10 @@ export type RevisionOverlapResult =
       readonly overlap: Extract<OverlapEvidence, { readonly status: "available" }>;
     }
   | {
+      readonly status: "ambiguous";
+      readonly detail: string;
+    }
+  | {
       readonly status: "unrelated";
       readonly leftRevision: string;
       readonly rightRevision: string;
@@ -134,7 +138,8 @@ export async function analyzeBaseOverlap(
     classify: options.classify,
   });
   if (result.status === "available") return result.overlap;
-  if (result.status === "unrelated" || result.reason === "merge-base-failed") {
+  if (result.status === "unrelated" || result.status === "ambiguous"
+    || result.reason === "merge-base-failed") {
     return { status: "unavailable", reason: "merge-base-failed" };
   }
   if (result.reason === "left-diff-failed") return { status: "unavailable", reason: "branch-diff-failed" };
@@ -153,6 +158,12 @@ async function analyzeRevisionOverlapWithClassifier(options: {
     leftRevision: options.leftRevision,
     rightRevision: options.rightRevision,
   });
+  if (base.status === "ambiguous") {
+    return {
+      status: "ambiguous",
+      detail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
+    };
+  }
   if (base.status === "unrelated") {
     return {
       status: "unrelated",
@@ -162,13 +173,7 @@ async function analyzeRevisionOverlapWithClassifier(options: {
     };
   }
   if (base.status !== "resolved") {
-    return {
-      status: "unavailable",
-      reason: "merge-base-failed",
-      detail: base.status === "ambiguous"
-        ? "The revisions have multiple best merge bases; overlap cannot be proved from one."
-        : base.detail,
-    };
+    return { status: "unavailable", reason: "merge-base-failed", detail: base.detail };
   }
   const mergeBase = base.mergeBase;
 

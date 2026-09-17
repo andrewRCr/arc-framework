@@ -69,7 +69,7 @@ describe("base overlap evidence", () => {
     });
   });
 
-  it("refuses overlap proof when Git has multiple best merge bases", async () => {
+  it("reports a history with multiple best merge bases as ambiguous", async () => {
     const head = "c".repeat(40);
     const otherBase = "d".repeat(40);
     const exec: GitExec = async (_cmd, args) => {
@@ -82,15 +82,58 @@ describe("base overlap evidence", () => {
       throw new Error("unexpected invocation");
     };
 
-    await expect(analyzeRevisionOverlap({
+    const result = await analyzeRevisionOverlap({
       exec,
       leftRevision: head,
       rightRevision: BASE,
       treatmentContext: {},
-    })).resolves.toMatchObject({
-      status: "unavailable",
-      reason: "merge-base-failed",
     });
+
+    expect(result).toMatchObject({ status: "ambiguous" });
+    expect(result).toHaveProperty("detail");
+    // The branch returns before a base is chosen and before any changed-path read, so there is nothing
+    // downstream may assume is there.
+    expect(result).not.toHaveProperty("mergeBase");
+    expect(result).not.toHaveProperty("overlap");
+  });
+
+  it("reports revisions with no common ancestor as unrelated rather than ambiguous", async () => {
+    const head = "c".repeat(40);
+    const exec: GitExec = async () => {
+      throw new GitProcessError({
+        kind: "nonzero-exit", command: "git", args: ["merge-base", "--all", head, BASE], exitCode: 1,
+      });
+    };
+
+    await expect(analyzeRevisionOverlap({
+      exec, leftRevision: head, rightRevision: BASE, treatmentContext: {},
+    })).resolves.toMatchObject({ status: "unrelated" });
+  });
+
+  it("reports a merge-base read that failed as unavailable rather than ambiguous", async () => {
+    const head = "c".repeat(40);
+    const exec: GitExec = async () => {
+      throw new GitProcessError({
+        kind: "spawn-failure", command: "git", args: ["merge-base", "--all", head, BASE],
+      });
+    };
+
+    await expect(analyzeRevisionOverlap({
+      exec, leftRevision: head, rightRevision: BASE, treatmentContext: {},
+    })).resolves.toMatchObject({ status: "unavailable", reason: "merge-base-failed" });
+  });
+
+  it("still refuses a revision that is not an object id ahead of any read", async () => {
+    const calls: string[][] = [];
+    const exec: GitExec = async (_cmd, args) => {
+      calls.push(args);
+      return { stdout: "" };
+    };
+
+    await expect(analyzeRevisionOverlap({
+      exec, leftRevision: "HEAD", rightRevision: BASE, treatmentContext: {},
+    })).resolves.toMatchObject({ status: "unavailable", reason: "invalid-revision" });
+    expect(calls).toEqual([]);
   });
 
   it("short-circuits to available empty when either side has no unique commits", async () => {

@@ -222,7 +222,8 @@ export async function readBasePosition(input: {
     ? overlap.overlap
     : {
         status: "unavailable",
-        reason: overlap.status === "unrelated" || overlap.reason === "merge-base-failed"
+        reason: overlap.status === "unrelated" || overlap.status === "ambiguous"
+          || overlap.reason === "merge-base-failed"
           ? "merge-base-failed"
           : overlap.reason === "left-diff-failed"
             ? "branch-diff-failed"

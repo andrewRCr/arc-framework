@@ -53,7 +53,12 @@ export async function predecessorRelation(
   }
 
   const overlap = await deps.readOverlap(input.memberHead, input.observedTip);
-  if (overlap.status === "unavailable") return { status: "unavailable", detail: overlap.detail };
+  // Interim: a history leaving more than one base arrives here as unavailable. That is fail-closed but says
+  // less than the read knows, and the four-arm read wrapper is what gives it somewhere of its own to land
+  // and undoes this fold.
+  if (overlap.status === "unavailable" || overlap.status === "ambiguous") {
+    return { status: "unavailable", detail: overlap.detail };
+  }
   if (overlap.status === "unrelated") {
     return {
       status: "resolved",
