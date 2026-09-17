@@ -2352,4 +2352,88 @@ describe("delivery execution handler", () => {
       reason: "invalid-command-input",
     });
   });
+
+  const nativeStatusRequest = (planId: string) => JSON.stringify({
+    planId,
+    request: {
+      repository: "owner/repo", topChangeRequestId: "42", topHeadSha: "a".repeat(40),
+      mergeAction: "direct_merge", mergeMethod: "merge",
+    },
+    remote: "origin",
+  });
+
+  const terminalConflictRefusal = {
+    status: "blocked" as const,
+    reason: "contribution-conflicted" as const,
+    paths: ["docs/top.md"],
+    guidance: "Merge the highest member into the checked-out terminal top by hand.",
+  };
+
+  it("carries the terminal conflict disclosure through the native status envelope", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const result = {
+      ...terminalConflictRefusal,
+      conflictPreparation: {
+        topRef: "refs/heads/member-4",
+        logicalMergeBase: "6".repeat(40),
+        parents: { top: "7".repeat(40), refreshedPredecessor: "c".repeat(40) },
+        mergeTree: {
+          argv: [
+            "git", "merge-tree", "--write-tree", "--merge-base", "6".repeat(40),
+            "--name-only", "-z", "--no-messages", "7".repeat(40), "c".repeat(40),
+          ],
+        },
+      },
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(nativeStatusRequest(plan.planId)),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1, command: "delivery native land-status", ...result,
+    });
+  });
+
+  it("carries the restorations for refs moved before the terminal conflict", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const result = {
+      ...terminalConflictRefusal,
+      externalRefRestorations: [
+        { ref: "refs/heads/member-2", observedHead: "a".repeat(40), restoreHead: "5".repeat(40) },
+      ],
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(nativeStatusRequest(plan.planId)),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1, command: "delivery native land-status", ...result,
+    });
+  });
+
+  it("carries a terminal conflict refusal that discloses neither preparation nor restorations", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(nativeStatusRequest(plan.planId)),
+      execute: vi.fn().mockResolvedValue(terminalConflictRefusal),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1, command: "delivery native land-status", ...terminalConflictRefusal,
+    });
+  });
 });

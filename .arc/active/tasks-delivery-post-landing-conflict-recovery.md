@@ -143,52 +143,28 @@ subsystem already carries and admitting the operator's hand merge as the resolut
 _Design decisions:_ Reuse `DeliveryTerminalConflictPreparation` rather than authoring a second disclosure; the
 acceptance is the existing `applicability-selection` transition, not a new waiver record.
 
-### `[ ]` **2.1 Populate `conflictPreparation` on the native terminal refusal**
+### `[x]` **2.1 Populate `conflictPreparation` on the native terminal refusal**
 
 - _Goal:_ The native `content-conflict` refusal returns the disclosure naming the required merge parent, so an
   operator can act on it instead of on a remedy that returns the byte-identical refusal.
 
-- _Rationale:_ This edits the library result type and the schema arm; it is not the population of an existing
-  optional field. `ReconcileLinkedNativeDeliverySuffixResult`'s conflicted arm is `{ status, reason, paths,
-  guidance }` with no `conflictPreparation`, and `BlockedContributionRefusalSchema` is a `z.strictObject` of the
-  same four fields, so a populated object would fail validation at runtime rather than at the compile boundary.
-  `RetainedOperationBlockSchema` carries the field but additionally requires `operationId` and `nextAction`.
+    - `[x]` **2.1.a Add both optional fields to the library result type and `BlockedContributionRefusalSchema`**
 
-- _Note:_ `BlockedContributionRefusal` is not a third locus. It is a file-local conditional type whose only
-  consumer is `ProviderAdoptionBlockedResult`; nothing on the native path routes through it, so widening it buys
-  nothing and would drag an unrelated base-merge observation into this change.
+        - `conflictPreparation` and `externalRefRestorations` are optional on both the conflicted arm of
+          `ReconcileLinkedNativeDeliverySuffixResult` and `BlockedContributionRefusalSchema`, so the refusal
+          validates with either, both, or neither. The restoration element is now one named schema const, shared
+          with the `conflict-resolution-required` arm that carried the same three fields inline.
 
-- _Note:_ Three arms of the handler union already carry `conflictPreparation` and none is the slot — the third
-  belongs to the review-fix continuation union, which carries it required beside its own stop and resume fields.
-  `RetainedOperationBlockSchema` needs no edit — it has the field, and additionally requires `operationId` and
-  `nextAction`. A separate arm pinned to the `content-conflict` reason literal carries it as required beside
-  `paths` but admits no `guidance`; emitting that arm instead is the rejected shortcut, since the arm would delete
-  the guidance 1.5 corrects and reversing the translation is a user-facing surface change. The native path
-  translates `content-conflict` into `contribution-conflicted` at one site; the other translation belongs to the
-  provider adopt path.
+    - `[x]` **2.1.b Build the disclosure on the native arm**
 
-    - `[ ]` **2.1.a Add both optional fields to the library result type and `BlockedContributionRefusalSchema`**
+        - The arm hoists the absorption input it already composed and builds the disclosure from that one value,
+          so `topRef`, `logicalMergeBase`, both parents, and the argv cannot drift from the merge that refused.
+        - `workspace` is left unpopulated, matching the provider.
 
-        - `conflictPreparation` and the local ref restorations 2.2 emits land in the same edit. The schema is a
-          `z.strictObject` and the only `externalRefRestorations` in the handler belongs to the unrelated
-          `conflict-resolution-required` arm, so emitting restorations without a slot fails validation at runtime
-          exactly as a populated `conflictPreparation` would.
-        - Build `test-first` (one behavior at a time):
-
-            - A terminal conflict refusal validates with `conflictPreparation` populated
-            - A terminal conflict refusal validates with the ref restorations populated
-            - The same refusal still validates without either, so existing producers are unaffected
-
-    - `[ ]` **2.1.b Build the disclosure on the native arm**
-
-        - `settleReservedDeliverySuffixRefresh` already builds it on this same refusal on the provider path.
-        - Leave the optional `workspace` unpopulated, matching the provider, which never sets it either. Its one
-          reader selects the workspace as the resolution locus when present and falls back to `topRef` otherwise,
-          which is the locus a native operator resolves in.
-        - Build `test-first` (one behavior at a time):
-
-            - `parents.refreshedPredecessor` names the refreshed member head the operator must merge
-            - `topRef`, `logicalMergeBase`, and the exact `merge-tree` argv are carried through unchanged
+- _Outcome:_ The refusal now carries the parent pair and the exact `merge-tree` argv the absorption ran, so an
+  operator merges named heads instead of rerunning a remedy that reproduces the identical refusal. The native
+  logical merge base is the pre-landing highest member's head, where the provider arm reads the terminal's
+  recorded base — the same commit in a well-formed chain, but sourced from what each arm actually observed.
 
 ### `[ ]` **2.2 Carry the local ref restorations on the terminal arm**
 

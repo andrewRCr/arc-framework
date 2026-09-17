@@ -30,7 +30,9 @@ import type {
 import {
   collectDeliveryProviderRefreshConflicts,
   type DeliveryProviderConflictResolutionInput,
+  type DeliveryProviderExternalRefRestoration,
   type DeliveryProviderRefreshConflict,
+  type DeliveryTerminalConflictPreparation,
 } from "./suffix-reconciliation.js";
 import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
@@ -785,6 +787,8 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
       readonly reason: "contribution-conflicted" | "contribution-diverged";
       readonly paths: readonly string[];
       readonly guidance: string;
+      readonly conflictPreparation?: DeliveryTerminalConflictPreparation;
+      readonly externalRefRestorations?: readonly DeliveryProviderExternalRefRestoration[];
     }
   | {
       readonly status: "blocked";
@@ -1086,7 +1090,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   }
   let terminalCoordinates = terminal.coordinates;
   if (terminal.coordinates.base !== highest.coordinates.head) {
-    const absorbed = await dependencies.absorbTop({
+    const merge = {
       topRef: terminal.ref,
       top: { head: terminal.coordinates.head, tree: terminal.coordinates.tree },
       previousHighestMember: {
@@ -1094,7 +1098,8 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
         tree: previousHighest.coordinates.tree,
       },
       highestMember: { head: highest.coordinates.head, tree: highest.coordinates.tree },
-    });
+    };
+    const absorbed = await dependencies.absorbTop(merge);
     if (absorbed.status !== "absorbed") {
       return absorbed.reason === "content-conflict" && absorbed.paths !== undefined
         ? {
@@ -1104,6 +1109,17 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
             guidance:
               "Keep the reservation and merge the highest member into the checked-out terminal top by hand, "
               + "resolving the listed paths, then rerun `arc delivery native land-status` to absorb the merged top.",
+            conflictPreparation: {
+              topRef: merge.topRef,
+              logicalMergeBase: merge.previousHighestMember.head,
+              parents: { top: merge.top.head, refreshedPredecessor: merge.highestMember.head },
+              mergeTree: {
+                argv: [
+                  "git", "merge-tree", "--write-tree", "--merge-base", merge.previousHighestMember.head,
+                  "--name-only", "-z", "--no-messages", merge.top.head, merge.highestMember.head,
+                ],
+              },
+            },
           }
         : {
             status: "blocked",

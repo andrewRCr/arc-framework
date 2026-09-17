@@ -691,6 +691,11 @@ const DeliveryTerminalConflictPreparationSchema = z.strictObject({
     head: GitObjectIdSchema,
   }).optional(),
 });
+const ExternalRefRestorationSchema = z.strictObject({
+  ref: z.string().min(1),
+  observedHead: GitObjectIdSchema,
+  restoreHead: GitObjectIdSchema,
+});
 const RefreshPlanSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   repository: z.string().min(1),
@@ -819,6 +824,8 @@ const BlockedContributionRefusalSchema = z.strictObject({
   reason: ContributionPathReasonSchema,
   paths: z.array(z.string()),
   guidance: z.string().min(1),
+  conflictPreparation: DeliveryTerminalConflictPreparationSchema.optional(),
+  externalRefRestorations: z.array(ExternalRefRestorationSchema).optional(),
 });
 const ContributionVerdictSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
@@ -1372,11 +1379,7 @@ const ResultSchema = z.union([
     status: z.literal("conflict-resolution-required"),
     conflicts: z.array(RefreshConflictSchema).min(1),
     resolutionInput: RefreshConflictResolutionSchema,
-    externalRefRestorations: z.array(z.strictObject({
-      ref: z.string().min(1),
-      observedHead: GitObjectIdSchema,
-      restoreHead: GitObjectIdSchema,
-    })).min(1),
+    externalRefRestorations: z.array(ExternalRefRestorationSchema).min(1),
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({

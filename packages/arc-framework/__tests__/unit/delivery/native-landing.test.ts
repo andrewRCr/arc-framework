@@ -1606,13 +1606,67 @@ describe("native delivery landing", () => {
         reason: "content-conflict",
         paths: ["docs/top.md"],
       }),
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       status: "blocked",
       reason: "contribution-conflicted",
       paths: ["docs/top.md"],
       guidance:
         "Keep the reservation and merge the highest member into the checked-out terminal top by hand, "
         + "resolving the listed paths, then rerun `arc delivery native land-status` to absorb the merged top.",
+    });
+  });
+
+  it("names the refreshed predecessor the operator must merge into the terminal top", async () => {
+    const { bound, reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const refreshedHighest = movedSuffixCoordinates[1]!.head;
+    expect(refreshedHighest).not.toBe(bound.members[2]!.coordinates!.head);
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      absorbTop: async () => ({ status: "refused", reason: "content-conflict", paths: ["docs/top.md"] }),
+    })).resolves.toMatchObject({
+      conflictPreparation: { parents: { refreshedPredecessor: refreshedHighest } },
+    });
+  });
+
+  it("discloses the exact terminal merge the absorption attempted", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    type Dependencies = Parameters<typeof reconcileLinkedNativeDeliverySuffix>[1];
+    let attempted: Parameters<Dependencies["absorbTop"]>[0] | undefined;
+
+    const blocked = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      absorbTop: async (input) => {
+        attempted = input;
+        return { status: "refused", reason: "content-conflict", paths: ["docs/top.md"] };
+      },
+    });
+
+    const merge = attempted!;
+    expect(blocked).toEqual({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["docs/top.md"],
+      guidance: expect.any(String),
+      conflictPreparation: {
+        topRef: merge.topRef,
+        logicalMergeBase: merge.previousHighestMember.head,
+        parents: { top: merge.top.head, refreshedPredecessor: merge.highestMember.head },
+        mergeTree: {
+          argv: [
+            "git", "merge-tree", "--write-tree", "--merge-base", merge.previousHighestMember.head,
+            "--name-only", "-z", "--no-messages", merge.top.head, merge.highestMember.head,
+          ],
+        },
+      },
     });
   });
 
