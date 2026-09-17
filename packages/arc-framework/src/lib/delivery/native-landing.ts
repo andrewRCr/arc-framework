@@ -975,14 +975,6 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       afterPredecessor: { head: afterPredecessor.head, tree: afterPredecessor.tree },
     });
   }
-  if (movements.length === 0) {
-    return {
-      status: "blocked",
-      reason: "suffix-result-unchanged",
-      recommendedActionText:
-        "Keep the reservation and rerun `arc delivery native land-status` to reobserve the provider result.",
-    };
-  }
   const assessment = await collectNativeDeliverySuffixConflicts(movements, dependencies.proveContribution);
   if (assessment.status === "refused") {
     return "paths" in assessment
@@ -991,7 +983,8 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
           reason: assessment.reason,
           paths: assessment.paths,
           guidance:
-            "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+            "Keep the reservation and rebuild the listed paths onto the member's new predecessor, then rerun "
+            + "`arc delivery native land-status` to reprove the rebuilt suffix.",
         }
       : {
           status: "blocked",
@@ -1109,7 +1102,8 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
             reason: "contribution-conflicted",
             paths: absorbed.paths,
             guidance:
-              "Resolve the listed top absorption paths, then rerun `arc delivery native land-status`.",
+              "Keep the reservation and merge the highest member into the checked-out terminal top by hand, "
+              + "resolving the listed paths, then rerun `arc delivery native land-status` to absorb the merged top.",
           }
         : {
             status: "blocked",

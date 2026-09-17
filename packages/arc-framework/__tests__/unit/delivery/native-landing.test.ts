@@ -1382,7 +1382,8 @@ describe("native delivery landing", () => {
       reason: "contribution-diverged",
       paths: ["src/diverged.ts"],
       guidance:
-        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+        "Keep the reservation and rebuild the listed paths onto the member's new predecessor, then rerun "
+        + "`arc delivery native land-status` to reprove the rebuilt suffix.",
     });
 
     await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
@@ -1590,4 +1591,165 @@ describe("native delivery landing", () => {
       expect(settlement.published).toHaveLength(1);
     },
   );
+
+  it("directs the hand merge that clears a terminal absorption conflict", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      absorbTop: async () => ({
+        status: "refused",
+        reason: "content-conflict",
+        paths: ["docs/top.md"],
+      }),
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["docs/top.md"],
+      guidance:
+        "Keep the reservation and merge the highest member into the checked-out terminal top by hand, "
+        + "resolving the listed paths, then rerun `arc delivery native land-status` to absorb the merged top.",
+    });
+  });
+
+  function unmovedSuffixFixture() {
+    const suffixPlan = deliveryFourMemberStackPlanFixture();
+    const initial = deliveryStateFixture(suffixPlan);
+    const bound = {
+      ...initial,
+      members: initial.members.map((member, index) => ({
+        ...member,
+        coordinates: member.coordinates === null ? null : {
+          ...member.coordinates,
+          base: index === 0
+            ? initial.target!.coordinates!.head
+            : initial.members[index - 1]!.coordinates!.head,
+        },
+        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
+      })),
+    };
+    const first = bound.members[0]!;
+    const beforeSnapshot = { target: bound.target, members: [first] };
+    const reserved = reserveDeliveryOperation({ revision: 1, value: bound }, suffixPlan, {
+      operationId: "operation-1",
+      kind: "land",
+      mode: "native",
+      nativeArm: "linked-single",
+      affectedDeliverableIds: [first.deliverableId],
+      expectedStateRevision: 1,
+      before: beforeSnapshot,
+      requested: beforeSnapshot,
+      effect: {
+        providerId: "github",
+        repository: "o/r",
+        changeRequestId: "41",
+        headSha: first.coordinates!.head,
+        baseRef: "delivery-target",
+        targetRef: "refs/heads/delivery-target",
+        strategy: "merge", mergePolicy: mergePolicy("o/r"),
+      },
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const landed = {
+      ...bound,
+      target: {
+        ref: "refs/heads/delivery-target",
+        coordinates: { head: first.coordinates!.head, tree: first.coordinates!.tree },
+      },
+      activeOperation: null,
+    };
+    const unmovedByRef = new Map(bound.members.slice(1, -1).map((member) => [
+      member.ref!,
+      { head: member.coordinates!.head, tree: member.coordinates!.tree },
+    ]));
+    return {
+      reconcileInput: {
+        plan: suffixPlan,
+        before: { revision: 2, value: reserved.state },
+        landed: { revision: 2, value: landed },
+        repository: "o/r",
+        protectedTargetRef: "refs/heads/delivery-target",
+      },
+      observeRequest: async (binding: NonNullable<typeof bound.members[number]["changeRequest"]>) => {
+        const index = Number(binding.changeRequestId) - 41;
+        const unmoved = unmovedByRef.get(`refs/heads/member-${index + 1}`);
+        return unmoved === undefined ? { status: "absent" as const } : {
+          status: "observed" as const,
+          request: {
+            binding,
+            repository: "o/r",
+            headRepository: "o/r",
+            headRef: `member-${index + 1}`,
+            headSha: unmoved.head,
+            baseRef: index === 1 ? "delivery-target" : `member-${index}`,
+            state: "open" as const,
+            draft: false,
+          },
+        };
+      },
+      observeRef: async (ref: string) => unmovedByRef.get(ref) ?? null,
+    };
+  }
+
+  it("settles a fast-forward landing whose suffix did not move", async () => {
+    const { reconcileInput, observeRequest, observeRef } = unmovedSuffixFixture();
+    const settlement = reachedSettlement();
+
+    const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "tree-equality" }),
+      ...settlement.deps,
+    });
+
+    expect(result).toMatchObject({ status: "applied", state: { revision: 3 } });
+    expect(settlement.published).toHaveLength(1);
+  });
+
+  it("bases every settled member on its predecessor and clears the reservation", async () => {
+    const { reconcileInput, observeRequest, observeRef } = unmovedSuffixFixture();
+    const settlement = reachedSettlement();
+
+    await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "tree-equality" }),
+      ...settlement.deps,
+    });
+
+    const settled = settlement.published[0];
+    expect(settled).toBeDefined();
+    const heads = settled!.members.map((member) => member.coordinates!.head);
+    expect(settled!.members.slice(1).map((member) => member.coordinates!.base)).toEqual(heads.slice(0, -1));
+    expect(settled!.activeOperation).toBeNull();
+  });
+
+  it("reaches neither contribution proof nor top absorption when the suffix did not move", async () => {
+    const { reconcileInput, observeRequest, observeRef } = unmovedSuffixFixture();
+    const settlement = reachedSettlement();
+    const proveContribution = vi.fn(async () => ({
+      status: "accepted" as const,
+      proof: "tree-equality" as const,
+    }));
+    const absorbTop = vi.fn(async () => ({
+      status: "refused" as const,
+      reason: "coordinate-invalid" as const,
+    }));
+
+    const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution,
+      ...settlement.deps,
+      absorbTop,
+    });
+
+    expect(result).toMatchObject({ status: "applied" });
+    expect(proveContribution).not.toHaveBeenCalled();
+    expect(absorbTop).not.toHaveBeenCalled();
+  });
 });

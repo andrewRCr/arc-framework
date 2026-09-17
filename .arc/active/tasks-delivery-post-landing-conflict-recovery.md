@@ -106,53 +106,34 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
   member coordinates the digest covers, so the resubmitted blob could never match. It now names the two routes
   that do: resubmit unchanged to accept the collisions, or fix and rerun without a resolution.
 
-### `[ ]` **1.5 Correct the shared refusal guidance on both native-landing arms**
+### `[x]` **1.5 Correct the shared refusal guidance on both native-landing arms**
 
 - _Goal:_ Neither the suffix-proof arm nor the terminal-absorption arm names a remedy that cannot clear its own
   refusal, and both state that the reservation is kept. Amended after Task 1.1: the unmoved-suffix arm settles
   rather than refusing, so no arm this function returns directs a rerun that cannot clear it.
 
-- _Note:_ The two arms in scope are the ones carrying `guidance:` rather than `recommendedActionText:` — the
-  suffix-proof arm and the terminal-absorption arm, which share the shape, so a fix applied to one leaves its
-  twin. The suffix-proof arm's reason is `contribution-conflicted | contribution-diverged`, and Phase 1 routes
-  the conflicted half to the disclosure arm — so what survives here is the diverged half, for which no conflict
-  set is collected and nothing is resubmittable. Its remedy is written for divergence, not for resubmission.
-  Two further arms in the same function also omit the reservation line: both are `state-conflict`, whose
-  "Re-read state; never overwrite a competing native landing settlement" is correct as it stands and is out of
-  scope. Re-read every live string before pinning an assertion to it.
+    - `[x]` **1.5.a Replace the unclearable remedy on both arms**
 
-    - `[ ]` **1.5.a Replace the unclearable remedy on both arms**
+        - The suffix-proof arm survives only on `contribution-diverged`, where nothing was disclosed, so it now
+          directs rebuilding the listed paths onto the member's new predecessor. The terminal-absorption arm
+          directs the hand merge of the highest member into the checked-out top, which is the merge whose
+          three-way conflict produced the refusal.
 
-        - Each arm names the route that actually clears it. The surviving suffix-proof arm is reached only on
-          `contribution-diverged`, where nothing was disclosed, so its remedy directs rebuilding the divergent
-          member rather than resubmitting a resolution that does not exist. The terminal-absorption arm directs
-          the hand merge onto the disclosed parent. Neither directs a bare rerun, and neither names a remedy that
-          cannot clear the refusal it sits on.
+    - `[x]` **1.5.b Restore the reservation statement on both arms**
 
-    - `[ ]` **1.5.b Restore the reservation statement on both arms**
+        - Both open with the same "Keep the reservation and" wording the neighbouring arms already use.
 
-        - Both arms state that the reservation is kept, matching the wording the `recommendedActionText` arms in
-          the same function already use.
+    - `[x]` **1.5.c Settle an unmoved suffix instead of refusing it**
 
-    - `[ ]` **1.5.c Settle an unmoved suffix instead of refusing it**
+        - _Added after Task 1.1._ A third arm in the same function carried an unclearable remedy. The arm
+          inventory in the original note predates the finding and is left as it was written.
+        - Removing the early return settles a fast-forward landing whose suffix did not move: the empty
+          movement set collects no conflicts, the unchanged heads skip the local-ref rewrite, and the terminal
+          base already equals the highest member's head, so contribution proof and top absorption are never
+          reached and the only write is the single state publication that clears the reservation.
 
-        - _Added after Task 1.1._ A third arm in the same function carries an unclearable remedy. The arm
-          inventory in the note above predates the finding and is left as it was written.
-        - `suffix-result-unchanged` fires when no observed suffix member moved, and directs a rerun of
-          `arc delivery native land-status` — which reads the same refs and reaches the same arm, so the refusal
-          cannot be cleared. Its condition is reached by a fast-forward landing, where the target's new head is
-          the landed member's own head and every dependent is already correctly based.
-        - The provider-timing case its wording implies is already consumed upstream: an un-retargeted suffix
-          exits at the request-observation guard as `suffix-request-mismatch`, never here.
-        - Removing the early return settles rather than refuses. An experiment during Task 1.1 that dropped it
-          returned `applied`, called only `stateStore.publish` — leaving contribution proof, local-ref rewrite,
-          checkout observation, and top absorption untouched — and wrote a chain whose every member base equals
-          its predecessor's head with the reservation cleared.
-        - Build `test-first` (one behavior at a time):
-
-            - A fast-forward landing whose suffix did not move settles under the held reservation
-            - The settled state leaves every member based on its predecessor's head and clears the reservation
-            - An unmoved suffix reaches neither contribution proof nor top absorption
+- _Outcome:_ Every refusal this function returns now names a repair that changes what the next run observes,
+  rather than a bare rerun over unchanged refs.
 
 ## **Phase 2:** Terminal absorption conflict recovery
 
