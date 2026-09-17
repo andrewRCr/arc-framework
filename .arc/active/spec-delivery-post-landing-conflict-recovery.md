@@ -152,12 +152,27 @@ emits no remedy, because the remedy is emitted upstream, at the three reporting 
 need to branch on terminal-versus-recoverable here, the discriminant is already the branch, and promoting it to a
 status arm is mechanical.
 
-**The forcing lever is the normalizer, not the arm set.** `normalizeOverlap` is the only constructor of
-`EvidenceOverlap`, and today it returns through an `as EvidenceOverlap` cast — so the one place where every
-layer-3 arm enters layer 4 is exactly the place the compiler cannot see. The cast goes, and the function becomes
-an exhaustive `switch` over the observation's `status` with an `assertNever` default. That single choke point
-makes every arm added to layer 3 compiler-forced at the boundary, which is a stronger guarantee than peer arms
-would buy: a construction site is one lever, while consumers are many and two of them are branchless.
+**The forcing lever is the normalizer, not the arm set.** `normalizeOverlap` is the only place a layer-3
+observation is _converted_ into a layer-4 value, and today it returns through an `as EvidenceOverlap` cast — so
+the one place where every layer-3 arm crosses the boundary is exactly the place the compiler cannot see. The cast
+goes, and the function becomes an exhaustive `switch` over the observation's `status` with an `assertNever`
+default. That single choke point makes every arm added to layer 3 compiler-forced at the crossing, which is a
+stronger guarantee than peer arms would buy: a conversion site is one lever, while consumers are many and two of
+them are branchless.
+
+It is the only _conversion_, not the only constructor — the distinction matters to anyone implementing this. The
+`not-applicable` arm has a second origin entirely: a constant in the same module, assigned on the three delta
+causes that ask no base question at all (`member-rewrite`, `approved-fix`, `unexplained`). `normalizeOverlap`
+cannot produce that arm, and those three causes cannot reach a base-resolution arm, so the two origins partition
+cleanly and the lever still covers everything a base read can produce.
+
+**The delta boundary below it is a runtime check, not a compile-time one**, and that is the second reason the arm
+set stays closed. `reduceEvidenceApplicability` revalidates whatever it is handed against the delta schema rather
+than trusting where it came from, and both the schema and the delta type are exported — so any in-repo caller can
+hand-build a structurally valid delta and reduce it. Three of the five reduction call sites already bypass
+`normalizeOverlap` legitimately, on the causes that use the constant. With the arm set closed at four there is
+nothing to smuggle through that boundary; a peer `ambiguous` or `unrelated` arm would be constructible there by
+any caller, with no conversion site in the path to force the branch.
 
 **The reason must reach a remedy, not just a word.** A cause that survives to the reducer and stops there would
 be a better label on the same dead end. Each reduction consumer maps the per-cause reason onto its own typed
@@ -319,9 +334,10 @@ work unit exists to repair. Migrate it onto D2's vocabulary:
 - `unknown` _is_ the `unavailable` arm. An ancestry read that established nothing is an unavailable read, not a
   classified relation; the wrapper owns the Git access, so it reports the failure as its own arm rather than
   handing a consumer a verdict-shaped value that means "no verdict".
-- `absent` is a binding fact, settled before an ordered pair exists. The delivery eligibility readers always hold
-  a member head, so the question never arises there; it arises for the readers that hold a binding — applicability
-  and closeout — which establish it ahead of the classifier.
+- `absent` is not a topological answer at all. This read takes two revisions and asks how they relate; "no record
+  binds this subject" is a prior fact about whether there is a subject to compare, and the read consults no record
+  that could establish it. Every reader settles it before the call — the delivery readers by resolving their
+  member coordinates, applicability and closeout by holding the binding itself.
 
 This is what makes `chainBase` **total** on the resolved arm, and totality is the point: the close-time reader's
 null-chain-base branch is then removed because the value cannot be absent, not because a comment asserts it
@@ -342,6 +358,9 @@ the only overlap protection the close-time reader has, so designing one without 
   protected-base head that snapshot carries — both pinned object ids. A snapshot whose relation already holds a
   non-empty overlap therefore reproduces identically and compares equal. The comparison proves the snapshot is
   _consistent_; it never proves it is _admissible_.
+- **The close entry point is the only one that admits such a snapshot**, which bounds where the new test goes. The
+  mutation path re-prepares through the prepare-time reader and inherits its refusal, so close is the single
+  reader that accepts a submitted relation without one.
 - The chain-base identity comparison survives as what it is — a coordinate check that the snapshot's chain base is
   the one the fresh read reaches.
 
