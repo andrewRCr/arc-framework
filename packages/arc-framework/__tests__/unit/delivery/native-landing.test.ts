@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/contribution-proof.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
+import { DeliveryStateV1Schema } from "../../../src/lib/delivery/schema.js";
 
 import {
   admitNativeDeliveryLandingRelease,
   deriveNativeDeliveryMemberChain,
+  releaseNativeDeliveryLanding,
   restoreNativeDeliveryLandingRefs,
   deriveNativeDeliveryRegisteredRemainder,
   prepareNativeDeliveryLanding,
@@ -2271,6 +2273,92 @@ describe("native delivery landing", () => {
     })).resolves.toEqual({ status: "restored", restorations: [] });
     expect(observeLocalRef).not.toHaveBeenCalled();
     expect(rewriteLocalRef).not.toHaveBeenCalled();
+  });
+
+
+  async function admittedDecline(
+    planId: string,
+    current: { readonly revision: number; readonly value: DeliveryStateV1 },
+  ) {
+    const admitted = await admitNativeDeliveryLandingRelease({
+      planId, current, operationId: "operation-1", repository: "o/r",
+    }, {
+      host: { observeNativeMerge: vi.fn().mockResolvedValue({ status: "merged" }) },
+      observeEffect: vi.fn().mockResolvedValue({
+        outcome: "all-landed",
+        snapshot: current.value.activeOperation?.before,
+      }),
+    });
+    if (admitted.status !== "admitted") throw new Error(`expected an admitted decline, got ${admitted.status}`);
+    return admitted;
+  }
+
+  it("clears the reservation in one write at the revision the decline read", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const refs = localRefTable(new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead])));
+    const store = casStateStore(current.revision);
+
+    const released = await releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...refs, stateStore: store.stateStore },
+    );
+
+    expect(released).toMatchObject({ status: "released", state: { revision: current.revision + 1 } });
+    expect(store.writes).toEqual([{
+      expectedRevision: current.revision,
+      value: { ...current.value, activeOperation: null },
+    }]);
+    expect(DeliveryStateV1Schema.safeParse(store.writes[0]?.value).success).toBe(true);
+  });
+
+  it("holds the reservation when the clear meets a competing write", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const refs = localRefTable(new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead])));
+    const store = casStateStore(current.revision + 1);
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...refs, stateStore: store.stateStore },
+    )).resolves.toMatchObject({ status: "blocked", reason: "state-conflict" });
+    expect(store.writes).toEqual([]);
+  });
+
+  it("names every ref it restored in the released result", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const refs = localRefTable(new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead])));
+    const store = casStateStore(current.revision);
+
+    const released = await releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...refs, stateStore: store.stateStore },
+    );
+
+    expect(released).toMatchObject({
+      status: "released",
+      restorations: moved.map(({ ref, beforeHead, requestedHead }) => ({
+        ref, observedHead: requestedHead, restoreHead: beforeHead,
+      })),
+    });
+  });
+
+  it("names the landed work the decline leaves standing", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const refs = localRefTable(new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead])));
+    const store = casStateStore(current.revision);
+    const admitted = await admittedDecline(planId, current);
+
+    const released = await releaseNativeDeliveryLanding(
+      { planId, current, admitted },
+      { ...refs, stateStore: store.stateStore },
+    );
+
+    expect(released).toMatchObject({
+      status: "released",
+      landed: {
+        effect: admitted.effect,
+        affectedDeliverableIds: admitted.affectedDeliverableIds,
+      },
+    });
   });
 
 });

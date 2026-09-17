@@ -297,22 +297,26 @@ failed lease leaving the reservation held rather than half-released.
 - _Outcome:_ Both wedge arms are covered by one pass: the terminal arm restores every ref the settle moved, and
   the suffix arm, which refuses before any rewrite, records nothing and so restores nothing.
 
-### `[ ]` **3.3 Publish `activeOperation: null` at the exact revision and return the typed result**
+### `[x]` **3.3 Publish `activeOperation: null` at the exact revision and return the typed result**
 
 - _Goal:_ The reservation is released at the exact revision, and the result names what was restored and what was
   deliberately left standing — the landing the host performed is not reversed.
 
-    - `[ ]` **3.3.a Publish the clear at the exact revision**
+    - `[x]` **3.3.a Publish the clear at the exact revision**
 
-    - `[ ]` **3.3.b Return the typed result naming both halves**
+        - `releaseNativeDeliveryLanding` composes the residue reap's tail: restore every recorded ref, refuse on
+          any failure, then publish the reservation's own value with `activeOperation: null` at the revision the
+          decline read it at. A competing write leaves the reservation held with nothing written.
 
-        - The result needs its own arm on the handler's result union. Every result is validated before it is
-          returned and rewritten to an invalid service result on a miss, so an unarmed result reaches the operator
-          as a validation failure rather than as the decline's answer.
-        - Build `test-first` (one behavior at a time):
+    - `[x]` **3.3.b Return the typed result naming both halves**
 
-            - The result enumerates every restored ref
-            - The result names the landed work it left standing
+        - The released result carries the refs it restored and the landing it left standing — the effect and the
+          members that effect covers — and takes its own arm on the handler's result union, which rewrites any
+          unarmed result to a validation failure rather than returning it.
+
+- _Outcome:_ The decline is composed end to end and the `release-not-composed` interim is retired. The cleared
+  state keeps its pre-landing member coordinates, so ARC's record and the restored refs agree while the host keeps
+  the merge — which is why naming the landed work is the only way the operator learns what still stands.
 
 ### `[ ]` **3.4 Hold the reservation on a failed lease**
 

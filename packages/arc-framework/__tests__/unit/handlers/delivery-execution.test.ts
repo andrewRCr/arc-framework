@@ -1288,6 +1288,53 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves the released decline, its restorations, and the landing it left standing", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const result = {
+      status: "released" as const,
+      state: { revision: 5, value: state },
+      restorations: [
+        { ref: "refs/heads/member-2", observedHead: "a".repeat(40), restoreHead: "5".repeat(40) },
+      ],
+      landed: {
+        effect: {
+          providerId: "github",
+          repository: "owner/repo",
+          changeRequestId: "41",
+          headSha: "b".repeat(40),
+          baseRef: "delivery-target",
+          targetRef: "refs/heads/delivery-target",
+          strategy: "merge" as const,
+          mergePolicy: {
+            repository: "owner/repo",
+            stackPosition: "intermediate" as const,
+            method: "merge" as const,
+            allowedMethods: ["merge"],
+            policyFingerprint: `sha256:${"a".repeat(64)}`,
+          },
+        },
+        affectedDeliverableIds: [plan.members[0]!.deliverableId],
+      },
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId, repository: "owner/repo", remote: "origin", operationId: "operation-1",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native land-release",
+      ...result,
+    });
+  });
+
 
   it("preserves a prepared native submit action through native status and general reconciliation", async () => {
     const plan = deliveryStackPlanFixture();

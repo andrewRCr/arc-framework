@@ -91,6 +91,7 @@ import {
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
+  DeliveryLandEffectV1Schema,
   DeliveryMergePolicyBindingV1Schema,
   DeliveryOperationSnapshotV1Schema,
   DeliveryPlanIdSchema,
@@ -209,6 +210,7 @@ import {
   deriveNativeDeliveryRegisteredRemainder,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
+  releaseNativeDeliveryLanding,
   reserveNativeDeliveryLanding,
   selectNativeDeliveryLandingArm,
   submitReservedNativeDeliveryMerge,
@@ -1274,6 +1276,15 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("already-rebound"), replayed: z.literal(true) }),
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({
+    status: z.literal("released"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    restorations: z.array(ExternalRefRestorationSchema),
+    landed: z.strictObject({
+      effect: DeliveryLandEffectV1Schema,
+      affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    }),
+  }),
   z.strictObject({
     status: z.enum(["acknowledged", "already-acknowledged"]),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
@@ -5068,13 +5079,11 @@ async function executeDeliveryCommand(
         : observeNativeDeliveryEffect(host, current.value, parsed.repository, landing, exec, cwd, parsed.remote),
     });
     if (admitted.status !== "admitted") return admitted;
-    return {
-      status: "blocked",
-      reason: "release-not-composed",
-      recommendedActionText:
-        "Keep the reservation: this settled native landing is declinable, but the release is not composed yet. "
-        + "Continue the landing with `arc delivery native land-status`.",
-    };
+    return releaseNativeDeliveryLanding({ planId: parsed.planId, current, admitted }, {
+      observeLocalRef: (ref) => observeDeliveryLocalRef(exec, ref),
+      rewriteLocalRef: (input) => rewriteDeliveryLocalRef({ exec, ...input }),
+      stateStore,
+    });
   }
   if (command === "native-land-prepare" || command === "native-land-submit" || command === "native-land-status") {
     const parsed = (command === "native-land-prepare" ? NativePrepareSchema

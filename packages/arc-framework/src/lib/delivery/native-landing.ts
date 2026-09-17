@@ -974,6 +974,73 @@ export async function restoreNativeDeliveryLandingRefs(
   return { status: "restored", restorations: restored };
 }
 
+export type ReleaseNativeDeliveryLandingResult =
+  | {
+      readonly status: "released";
+      readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
+      readonly restorations: readonly DeliveryProviderExternalRefRestoration[];
+      readonly landed: {
+        readonly effect: DeliveryLandEffectV1;
+        readonly affectedDeliverableIds: readonly string[];
+      };
+    }
+  | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
+
+/**
+ * Release one admitted native landing reservation, restoring every ref its settlement moved.
+ *
+ * @param input - The plan, the reservation as read, and the admitted decline that resolved it.
+ * @param dependencies - The local ref reader and rewriter, and the version-checked state writer.
+ * @returns The cleared state, or a refusal that leaves the reservation held.
+ */
+export async function releaseNativeDeliveryLanding(input: {
+  readonly planId: string;
+  readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly admitted: Extract<AdmitNativeDeliveryLandingReleaseResult, { readonly status: "admitted" }>;
+}, dependencies: {
+  readonly observeLocalRef: (ref: string) => Promise<DeliveryNativeLocalRefObservation>;
+  readonly rewriteLocalRef: (input: {
+    readonly ref: string;
+    readonly beforeHead: string;
+    readonly requestedHead: string;
+  }) => Promise<
+    | { readonly status: "rewritten" | "adopted" }
+    | { readonly status: "refused"; readonly reason?: string }
+  >;
+  readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
+}): Promise<ReleaseNativeDeliveryLandingResult> {
+  const restored = await restoreNativeDeliveryLandingRefs(input.admitted.restorations, dependencies);
+  if (restored.status === "refused") {
+    return {
+      status: "blocked",
+      reason: restored.reason,
+      recommendedActionText:
+        "Keep the reservation and restore the exact local member-ref subject before declining the landing again.",
+    };
+  }
+  const published = await dependencies.stateStore.publish(
+    input.planId,
+    { ...input.current.value, activeOperation: null },
+    input.current.revision,
+  );
+  if (published.status !== "ok") {
+    return {
+      status: "blocked",
+      reason: "state-conflict",
+      recommendedActionText: "Re-read state; never overwrite a competing native landing decision.",
+    };
+  }
+  return {
+    status: "released",
+    state: published.value,
+    restorations: restored.restorations,
+    landed: {
+      effect: input.admitted.effect,
+      affectedDeliverableIds: input.admitted.affectedDeliverableIds,
+    },
+  };
+}
+
 /** One native suffix member movement paired with the predecessors its caller already resolved. */
 export interface DeliveryNativeSuffixMovement {
   readonly deliverableId: string;
