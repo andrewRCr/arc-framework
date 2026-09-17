@@ -103,8 +103,13 @@ the count is not one, and returns four arms, split on what the caller can do nex
 collapses `ambiguous` **into** `unavailable`: its multiple-merge-base branch and its non-exit-1 `catch` both reach
 `merge-base-failed`, so an ambiguous history and an unanswerable read arrive as one word.
 
-**The split is three layers deep, not one.** Editing `RevisionOverlapResult` alone changes nothing the pins in
-D11 observe, because two downstream unions re-flatten before those readers see a result:
+**Where it lands.** The resolver is exported from `base-overlap.ts` beside `analyzeRevisionOverlap` — that module
+already performs the `--all` read inside a private helper, so the resolver is an extraction of existing machinery
+rather than a new module. It takes the exec handle and the two revisions and returns the four arms above. The
+analyzer adopts it rather than keeping a second copy of the read.
+
+**The split is four layers deep, not one.** Editing `RevisionOverlapResult` alone changes nothing the pins in
+D11 observe, because three downstream unions re-flatten before those readers see a result:
 
 - `RevisionOverlapResult` — splits `ambiguous` out of `merge-base-failed`.
 - `OverlapEvidence` (`base-drift-types.ts`) — its unavailable reason set is `merge-base-failed |
@@ -114,8 +119,65 @@ D11 observe, because two downstream unions re-flatten before those readers see a
   already separate.
 - `EvidenceOverlapObservation` (`evidence-applicability/schema.ts`) — re-collapses the same pair again on the
   review-status path.
+- `EvidenceOverlap` (`evidence-applicability/schema.ts`) — the normalized verdict space the applicability reducer
+  consumes, reduced from the observation by `normalizeOverlap`. It is the layer where a distinction that survived
+  the three above is spent, and it takes a different shape from them (below).
 
-All three must carry the distinction for the drift-overlap and review-status readers to report it.
+The first three carry the distinction as peer status arms, which is what lets the drift-overlap and review-status
+readers report it. The fourth answers a narrower question and carries it as a discriminant instead.
+
+**Each distinction lands as a peer `status` arm, never as another reason inside `unavailable`.** Recoverability is
+a status-level property and every consumer branches on status: `unrelated` is terminal while `unavailable` is
+recoverable, so a terminal condition parked under the recoverable status is retried forever — the defect class
+this work unit removes, reintroduced one layer down. `RevisionOverlapResult` already models `unrelated` as a peer
+status, so the first layer is consistency rather than novelty; the two downstream layers, which today express
+everything non-available as `unavailable` with a reason enum, gain the structure.
+
+**The normalized verdict space is the exception, and it is one by construction.** `EvidenceOverlap` is not a
+reporting layer — it is the reduced input to a reducer that answers one question, "does prior evidence still
+carry?", with three verdicts. `ambiguous` and `unrelated` are not new answers to it: both mean disjointness was
+not established, and both reduce to `fresh`. A peer arm there would add a branch every consumer must handle and
+every consumer resolves identically, while changing a projection that is not about base resolution at all —
+`review-gate/status.ts` assigns `delta.overlap.kind` straight into the review-status `movement` field, so a new
+arm silently widens a published projection's value set.
+
+So the arm set stays at four, and **`unknown` carries the cause as a discriminant** — `read-failed`, `ambiguous`,
+or `unrelated`. `unknown` means _disjointness not established_, never _nothing is known_; the discriminant says
+which of the three established it. The reducer maps the discriminant onto its own reason (`overlap-unknown`
+splits into per-cause reasons), so the verdict space stays three-valued while the cause survives to the surface.
+
+This is not the reason-inside-`unavailable` shape the rule above forbids. That rule binds where consumers branch
+on status to decide recoverability and emit a remedy; here no consumer branches on recoverability and the layer
+emits no remedy, because the remedy is emitted upstream, at the three reporting layers. Should a consumer later
+need to branch on terminal-versus-recoverable here, the discriminant is already the branch, and promoting it to a
+status arm is mechanical.
+
+**The forcing lever is the normalizer, not the arm set.** `normalizeOverlap` is the only constructor of
+`EvidenceOverlap`, and today it returns through an `as EvidenceOverlap` cast — so the one place where every
+layer-3 arm enters layer 4 is exactly the place the compiler cannot see. The cast goes, and the function becomes
+an exhaustive `switch` over the observation's `status` with an `assertNever` default. That single choke point
+makes every arm added to layer 3 compiler-forced at the boundary, which is a stronger guarantee than peer arms
+would buy: a construction site is one lever, while consumers are many and two of them are branchless.
+
+**The reason must reach a remedy, not just a word.** A cause that survives to the reducer and stops there would
+be a better label on the same dead end. Each reduction consumer maps the per-cause reason onto its own typed
+action rather than prose, per D10:
+
+- **Candidate applicability** — the `ambiguous` cause carries D2's re-baselining remedy, never "merge the base
+  in", on the pinned-baseline ground D2 states. `CandidateApplicabilityResultSchema` already carries
+  `nextAction` beside `reason`, so the remedy rides the existing channel.
+- **Review status** — the cause reaches the reported surface beside `movement` rather than inside it, keeping
+  the projection's value set unchanged while the operator learns whether a retry can succeed.
+
+`FinalReasonSchema` gains the per-cause members, and it is embedded in `CandidateApplicabilityDecisionResult`, so
+this is a request-contract change rather than a local rename — permitted in place under the pre-public-release
+posture, and stated here rather than discovered during implementation.
+
+**One module principle, independent of the above.** Within the reducer, a branch whose default resolves to the
+strongest accept is the recorded failure class of this region: `reduceOtherMovement` ends in a two-way test whose
+else-arm returns `carries`. It is exhaustive-switched with the rest, not because the discriminant reaches it —
+`unknown` is caught before it — but because leaving a default-accept in a module this change is already opening
+is how the next arm gets swallowed.
 
 **Caller policy is per reader, and three decisions are settled rather than left to the implementer:**
 
@@ -132,6 +194,12 @@ The terminal record advance proof converts its arm to no-proof; carrying the rea
 required there. Each caller otherwise applies its own failure policy — the resolver returns only what it
 establishes.
 
+**Converted readers keep whichever failure channel they already use.** Two of them fail by throwing rather than
+returning today, and the conversion does not unify that: `repository-target.ts` raises its new reason through the
+typed error it already raises, while the subject collector returns the widened result its call sites handle and
+leaves its unrelated throws alone. Adopting the resolver is a propagation, not a rewrite of how each reader
+reports failure.
+
 **The `ambiguous` remedy is per coordinate pair, not per reader** — one reader can serve pairs of different
 topology, so the remedy attaches to the pair being compared:
 
@@ -141,7 +209,10 @@ topology, so the remedy attaches to the pair being compared:
   resolver and the overlap analyzer's delivery and review call sites.
 - **Pinned-durable-baseline pairs — not reached by that remedy; the route is re-baselining.** The overlap
   analyzer's integration-checkpoint call site compares the pinned Candidate durable baseline against the base, so
-  the merge moves neither element and the refusal stands. Its residue is smaller, since the resolved base lands
+  the merge moves neither element and the refusal stands. That call site is `checkpoint-composition.ts`, and it is
+  the one conversion the compiler will **not** force: it branches on `status !== "available"` and forwards
+  `detail`, so a peer `ambiguous` arm compiles unchanged there and keeps folding the distinction back into one
+  drift. It is converted explicitly, by name. Its residue is smaller, since the resolved base lands
   only in drift evidence rather than being consumed as a ref: what fails there is recoverability alone, not the
   coordinate obligation.
 - **Where an append-only merge is not permitted at all**, the refusal stands and the restart route satisfies
@@ -155,6 +226,12 @@ remedy a dispatched action rather than prose, the pair distinction is part of th
 
 A pure classifier over an ordered pair, wrapped in a thin reader result per executor. It reports topology and
 nothing else — no content term, no Git access in the classifier.
+
+**Where it lands, and what it takes.** The classifier is a new pure function in `predecessor-relation.ts`,
+distinct from the existing async `predecessorRelation` — which keeps its injected `readAncestry` / `readOverlap`
+dependencies and becomes one of its callers. Purity is possible only because the facts arrive pre-computed: the
+classifier takes the bound head, the observed head, the ancestry answers relating them, and the merge-base
+cardinality, and returns one variant. Every Git read stays in the reader wrapper around it.
 
 | Variant     | Holds when                                    | Consumer consequence                        |
 | ----------- | --------------------------------------------- | ------------------------------------------- |
@@ -196,7 +273,10 @@ work unit exists to repair. Migrate it onto D2's vocabulary:
   `disjoint-ahead` becomes `diverged` too, except for the member-behind-tip case below. The overlap distinction
   moves downstream as a field on the reader result rather than staying a variant — that is what keeps the
   classifier pure, and it is also what carries `eligibility.ts`'s split, which **accepts** `disjoint-ahead` and
-  **refuses** `overlapping-ahead` as `wrong-predecessor`. No single variant name can carry that split: merging an
+  **refuses** `overlapping-ahead` as `wrong-predecessor` — in one branch that refuses `unrelated` on the same
+  reason. Because `unrelated` leaves the relation for the resolver's arm, that branch sheds a condition and the
+  terminal case is settled before the classifier runs rather than inside this refusal.
+  No single variant name can carry that split: merging an
   accept and a refuse is the defect class this work unit removes, and it would recur under `advanced` exactly as
   it would under `diverged`. The migrated reader decides on the overlap, not on the variant — which is why D2's
   `diverged` is fail-closed _by default_ rather than by definition.
@@ -206,14 +286,86 @@ work unit exists to repair. Migrate it onto D2's vocabulary:
   member behind the tip diffs empty against the merge base, so its overlap can never be the non-empty one.
 - **The payloads need destinations.** `exact` carries `chainBase`; `disjoint-ahead` carries `chainBase`,
   `mergeBase` and `overlap`; `overlapping-ahead` carries `mergeBase` and `overlap` but no `chainBase`.
-  `eligibility.ts` consumes `chainBase` as the coordinate it observes the chain against, so the migrated shape
-  must keep it reachable for every arm that carries it today, and `samePredecessorRelation` — which compares each
-  variant's payload field by field — must be migrated with the variants rather than after them.
+  `eligibility.ts` consumes `chainBase` as the coordinate it observes the chain against — at two readers, not one
+  — so the migrated shape must keep it reachable for every arm that carries it today, and
+  `samePredecessorRelation` — which compares each variant's payload field by field — must be migrated with the
+  variants rather than after them, its `unrelated` branch removed rather than migrated.
+
+  **`diverged` therefore carries `chainBase` unconditionally**, because the two source arms merging into it
+  disagree about carrying it and an optional field would push a null check into the accept path. This costs
+  nothing: on the `not-ancestor` branch the classifier already sets `chainBase` and `mergeBase` to the same merge
+  base, so the arm that omits the field today can carry it by assigning the value it already holds. The two fields
+  stay distinct rather than collapsing, since on the `ancestor` branch `chainBase` is the observed tip.
 - `unrelated` maps onto the **resolver's** `unrelated` arm (D1) rather than becoming a seventh relation variant.
+  The reader wrapper still needs somewhere to deliver it, and so does the ambiguous pair D1 splits out: it
+  carries a resolved and an unavailable arm today, and folding either outcome into the recoverable-by-retry one
+  is exactly what D1 forbids. So the wrapper **mirrors the resolver's four arms** — resolved, `ambiguous`,
+  `unrelated`, `unavailable`. The terminal arm carries the observed tip and the resolver's detail; the ambiguous
+  arm carries the pair and its per-pair remedy, and carries no merge base or overlap, because the multi-base
+  branch returns before either is computed. Both refuse at both eligibility readers under their own reasons —
+  an ambiguous pair reaching the accept path on an absent overlap would turn a refusal into an acceptance. The
+  variant set stays at six; the arms sit on the read. The eligibility readers refuse the terminal arm under its
+  **own terminal reason** carrying the observed tip but no relation
+  payload — the migrated relation schema has no arm for one, and keeping `wrong-predecessor` would re-merge the
+  terminal cause with the recoverable one this decision separates.
   "No common ancestor" is a fact the base resolver establishes before the classifier runs, and the classifier
   reads no Git — so the relation's six variants stand unchanged, and the terminal outcome stays separated from
   the recoverable ones rather than folding into `diverged`, which is recoverable and, on an empty overlap, even
   admissible.
+
+**The `resolved` arm carries the chain-base-bearing variants only** — `unchanged`, `advanced`, `rewound`,
+`diverged`. The other two never reach it, on their own grounds rather than by exclusion:
+
+- `unknown` _is_ the `unavailable` arm. An ancestry read that established nothing is an unavailable read, not a
+  classified relation; the wrapper owns the Git access, so it reports the failure as its own arm rather than
+  handing a consumer a verdict-shaped value that means "no verdict".
+- `absent` is a binding fact, settled before an ordered pair exists. The delivery eligibility readers always hold
+  a member head, so the question never arises there; it arises for the readers that hold a binding — applicability
+  and closeout — which establish it ahead of the classifier.
+
+This is what makes `chainBase` **total** on the resolved arm, and totality is the point: the close-time reader's
+null-chain-base branch is then removed because the value cannot be absent, not because a comment asserts it
+cannot. A narrowed arm is the executable form of that guarantee; an unreachable-by-assertion variant is not.
+
+**Both eligibility readers decide on the overlap, and both decisions are stated here** — the migration retires
+the only overlap protection the close-time reader has, so designing one without the other leaves it accepting.
+
+- **Prepare-time** accepts an empty overlap and refuses a non-empty one, which is today's `disjoint-ahead` /
+  `overlapping-ahead` split re-expressed on the field.
+- **Close-time reads the same field and refuses on the same condition.** Today it has no overlap test at all: it
+  derives a chain base for the variants that carry one and `null` for those that do not, then refuses the null —
+  so the refusal is a side effect of `overlapping-ahead` lacking a field. Giving `diverged` a `chainBase`
+  unconditionally makes that branch dead, and the reader keeps accepting unless the test it stood in for is
+  written out.
+- **The snapshot comparison is not that test.** The snapshot arrives through the request contract
+  (`EligibilitySnapshotSchema` inside `CloseSchema`), and the close-time read is taken over the member head and
+  protected-base head that snapshot carries — both pinned object ids. A snapshot whose relation already holds a
+  non-empty overlap therefore reproduces identically and compares equal. The comparison proves the snapshot is
+  _consistent_; it never proves it is _admissible_.
+- The chain-base identity comparison survives as what it is — a coordinate check that the snapshot's chain base is
+  the one the fresh read reaches.
+
+**The emitted surface, per arm, at both readers.** Each arm names its own reason and carries a remedy that can
+actually clear it:
+
+| Arm                           | Reason                  | Remedy                                               |
+| ----------------------------- | ----------------------- | ---------------------------------------------------- |
+| `diverged`, overlap non-empty | `wrong-predecessor`     | rebuild the delivery chain — no automated command    |
+| resolver `unrelated`          | its own terminal reason | rebuild from a common lineage — no automated command |
+| resolver `ambiguous`          | its own reason          | merge the base in                                    |
+
+The ambiguous row is where D1's per-pair rule is spent: this read compares a member head against an observed
+protected-base tip, which is a `(head, base)` pair, so the merge collapses cardinality to one and the remedy
+clears the refusal. It is not applicability's pinned-baseline pair and does not take that pair's re-baselining
+route. The terminal and ambiguous arms carry the observed tip themselves, since neither carries a relation.
+
+**The refusal's `remedy` slot becomes a union, and the projection converts with it.** The slot holds one kind
+today (`delivery-authoring-rebuild-required`), so a second kind is a widening at the library. The locus that must
+widen with it is the owned-authority failure projection in `handlers/delivery-execution.ts`, and it is named here
+because the compiler will not name it: the projection `safeParse`s each preserved field and spreads it only on
+success, so an unrecognized remedy kind is **dropped silently** and the refusal ships with no remedy at all. The
+same projection reads its `observedHead` off the relation's `observedTip`, which the terminal and ambiguous arms
+do not have — it takes the tip from the arm that carries it instead.
 
 `PredecessorRelationSchema` sits inside `EligibilitySnapshotSchema` inside `CloseSchema`, so its literals are
 written by one verb and read back by another — a request-contract change, not a local rename. The
@@ -278,7 +430,12 @@ base-relative set drops that path and the digest returns to its attested value.
 Adopt the disclose-and-resubmit protocol ARC already runs on the provider path, request-side:
 
 1. Collect the **complete** conflict set rather than returning on the first — every member whose movement proves
-   `contribution-conflicted`, each with its paths. Any other refusal stays hard.
+   `contribution-conflicted`, each with its paths. Any other refusal stays hard. Composing the provider collector
+   takes an adapter rather than a direct call: it proves per `DeliveryProviderRefreshMovement` — `deliverableId`
+   plus before/after snapshot members, with predecessors resolved by the caller — while the native loop proves per
+   `DeliveryContributionEndpoints`, before/after pairs of predecessor and member coordinates it has already
+   observed. The native side supplies a closure mapping its endpoints into the movement shape; the collector is
+   unchanged.
 2. With conflicts present and no resolution supplied, return `conflict-resolution-required` carrying the
    conflicts and a resubmittable `resolutionInput`. **This arm carries no ref restorations**: it returns before
    the local member-ref rewrite runs, so ARC has moved nothing local at this point, and the refs that did move
@@ -299,27 +456,52 @@ Adopt the disclose-and-resubmit protocol ARC already runs on the provider path, 
    **The places to edit, named rather than counted.** `RefreshConflictResolutionSchema.scope` is a single
    `z.strictObject` pinned to `{ kind: "dependent-suffix" }`, **not** a union — the only scope union,
    `RefreshExecutionScopeSchema`, is one `resolutionInput` does not use, and widening it would silently re-route a
-   third kind through provider branches written as a binary. `RefreshConflictResolutionSchema` is also shared with
-   the live `arc delivery refresh adopt` request, so any change there is a provider-contract change and must be
-   disclosed as one. And the resubmission in step 3 has nowhere to arrive: `NativeStatusSchema` is
-   `{ planId, request, remote }`, so it needs the field that carries the resubmitted resolution.
+   third kind through provider branches written as a binary. That object is
+   `DependentRefreshExecutionScopeSchema`, **shared by reference** with the union rather than inlined at `scope`,
+   so the native kind lands as a new discriminated union at `scope` itself; adding the kind to the shared object
+   would widen the union by the back door and produce the exact re-route above. The native arm also cannot copy
+   the dependent-suffix shape: that scope keys on `selectedDeliverableId`, while the native path reconciles the
+   complete remaining registered suffix and `NativeMergeRequestSchema` carries no member identity at all — so the
+   native scope identifies the suffix under reservation, not a selected member.
+   `RefreshConflictResolutionSchema` is also shared with the live `arc delivery refresh adopt` request, so any
+   change there is a provider-contract change and must be disclosed as one. **Two library loci break with it, and
+   they are where the contract actually changes:** `DeliveryProviderConflictResolutionInput` in
+   `suffix-reconciliation.ts` mirrors the scope shape and hard-codes `kind: "dependent-suffix"`, and
+   `adoptExternalDeliverySuffixRefresh` dereferences `conflictResolution.scope.selectedDeliverableId` directly,
+   which stops typechecking the moment `scope` is a union. That dereference is also where a native-scoped
+   resolution is refused on the provider path: the adopt request accepts the shared resolution schema wholesale,
+   so the refusal is a typed guard at that call site rather than a schema narrowing that would fork the type. And
+   the resubmission in step 3 has nowhere to arrive: `NativeStatusSchema` is `{ planId, request, remote }`, so it
+   needs the field that carries the resubmitted resolution.
 3. With a resolution supplied, refuse `conflict-resolution-mismatch` unless that blob canonicalizes identically
    to a freshly derived one, then settle under the held reservation.
 
+   **What the native path digests.** `observedSuffixDigest` is the comparison's whole content, and the native path
+   has no `DeliveryOperationSnapshotV1` to hash — the provider derives it from one, while the native settle builds
+   a local observed-member array and calls `canonicalDigest` nowhere today. The native digest covers **the freshly
+   observed member coordinates**, the same values the conflict set was derived from, so a concurrent unrelated
+   push that moves any observed member changes the digest and re-discloses rather than settling silently.
+   Digesting the projected state or the conflict set alone would each answer that differently, so the choice is
+   part of the contract rather than an implementation detail.
+
 **Nothing is persisted on the input side**, so nothing can go stale; what survives the wait is the reservation
-already durable in `activeOperation`. Arrival needs no new operation and no state-schema change — the native path
+already durable in `activeOperation`. Arrival needs no new operation, and the only state-schema addition is the
+one D9 owns for the decline's lease, not one this protocol requires — the native path
 consumes the resubmitted disclosure in the same `land-status` call that settles, at the same revision, because
-every conflict refusal returns before the single state write. Adoption is the conflict collection, the
+every conflict refusal returns before any state write. Adoption is the conflict collection, the
 disclosure, and a scope discriminant on the `native-land-status` request.
 
 The approval fires on genuine collisions only: identical trees take the `tree-equality` fast path and clean
 reapplies take `mechanical-reapply`, both silent. Movement alone never asks anyone anything.
 
-**Whether the disclosure is gated on at least one `reviewable` path is carried as an Open Question**, not settled
-here. The proposal is sound in shape — a collision confined to lifecycle projections carries no judgment to
-spend, and `classifyPathTreatment` makes only three things non-`reviewable`: the ROADMAP (`regenerable`),
-Candidate projections, and the work unit's own artifacts and companions (both `evidence-neutral`). What it lacks
-is a measurement over the right population. See Open Questions for the bar it must clear before adoption.
+**The disclosure is not gated on a `reviewable` path; every conflict set discloses.** Gating it was sound in
+shape — a collision confined to lifecycle projections carries no judgment to spend, and `classifyPathTreatment`
+makes only three things non-`reviewable`: the ROADMAP (`regenerable`), Candidate projections, and the work unit's
+own artifacts and companions (both `evidence-neutral`). What it never acquired is a measurement over the
+population the gate would actually read. Adopting it on the approximation available instead is the symmetry
+Proportionality rules out, so the gate is dropped rather than carried. Dropping it costs one avoidable prompt in a
+rare case and stays forward-compatible: a later measurement over real conflict sets can add the gate without
+disturbing the protocol around it.
 
 **No obligation field is written.** `pendingReviewFixVerification` is the review-fix flow's own state machine —
 an acknowledgement identity key, a field terminal integration renews from its candidate, and a bar on native
@@ -358,10 +540,18 @@ The design types that route rather than inventing one:
   is `{ status, reason, paths, guidance }` with no `conflictPreparation` (the provider's
   `ProviderAdoptionBlockedResult` is the type that has it). `BlockedContributionRefusalSchema` is a
   `z.strictObject` of the same four fields, so the populated object matches **no** arm of the handler's result
-  union and would fail validation at runtime rather than at the compile boundary: `RetainedOperationBlockSchema`
-  carries the field but additionally requires `operationId` and `nextAction`, which this refusal has not, and the
-  arm that carries it beside `paths` is pinned to the `content-conflict` reason literal and admits no `guidance`.
-  Both gain the optional field.
+  union and would fail validation at runtime rather than at the compile boundary. Two further arms carry
+  `conflictPreparation` already and neither fits: `RetainedOperationBlockSchema` requires `operationId` and
+  `nextAction`, which this refusal has not, and a **separate** arm pinned to the `content-conflict` reason literal
+  carries it as **required** beside `paths` but admits no `guidance`. So the library result type and
+  `BlockedContributionRefusalSchema` are what gain the optional field — three arms exist, and the two that already
+  carry it are named so a later reader does not mistake either for the slot.
+
+  **Emitting the pinned `content-conflict` arm instead, rejected.** It is the obvious shortcut — that arm needs no
+  schema change at all — but the native path translates the absorber's `content-conflict` into
+  `contribution-conflicted` at two deliberate sites, and reversing that is a second user-facing surface change no
+  goal here asks for. The arm also admits no `guidance`, so routing through it would delete the prose D10 exists to
+  correct rather than correcting it.
 
   **`BlockedContributionRefusal` is not a third locus** — recorded because the name invites the assumption. It is
   a file-local conditional type over `DeliveryContributionRefusal`, not the schema's inferred type: its arms carry
@@ -369,6 +559,11 @@ The design types that route rather than inventing one:
   arm already carries `conflictPreparation` under a `reason: string` that subsumes the literals. Nothing on the
   native path routes through it, so widening it buys nothing — and doing so through the contribution-proof schema
   rather than the local alias would drag `evidence-applicability`'s base-merge observation into this change.
+- **The restorations need a slot before they can be carried.** `BlockedContributionRefusalSchema` is a
+  `z.strictObject` of exactly `{ status, reason, paths, guidance }`, and the only `externalRefRestorations` in the
+  handler belongs to the unrelated `conflict-resolution-required` arm. Emitting restorations without adding the
+  field produces an invalid service result — the same runtime failure `conflictPreparation` is added to avoid, so
+  both fields land in the same edit to the library result type and that schema.
 - **Carry the ref restorations here**, not on D6's arm: this refusal returns after the local member-ref rewrite,
   so these are refs ARC moved itself and D9 can put them back by lease.
 - Derive the evidence that the commit was a resolution rather than writing it: the resolved top's parent line is
@@ -401,7 +596,8 @@ without being the forced path.
 ### D9 — The decline route: `delivery native land-release`
 
 Decline releases the wedge; it does not reverse the landing. It takes its own verb under `delivery native`,
-alongside `land-select` / `land-prepare` / `land-submit` / `land-status`.
+alongside the four `land-*` verbs — `land-select` / `land-prepare` / `land-submit` / `land-status` — and the
+group's three non-landing commands, `observe` / `link` / `unlink`.
 
 **The warrant is intent separation, not a read/mutate split** — the group has no such split to preserve. Of the
 four verbs only `land-select` is read-only: `land-prepare` publishes a reservation, and `land-submit` and
@@ -414,8 +610,17 @@ request — poll-and-settle versus abandon-and-release — dispatched on payload
 
 The verb takes the **exact reservation selector**, restores any local member refs ARC rewrote by lease (a no-op on
 the suffix arm), publishes `activeOperation: null` at the exact revision, and returns a **typed result** naming
-what it restored and what it deliberately left standing. The two disclosure points need different amounts of
-restoration: the suffix arm has nothing to restore, while the absorption arm must put back refs ARC moved itself.
+what it restored and what it deliberately left standing.
+
+**It admits only a settled effect.** A held native land reservation is not a sufficient precondition: a `prepared`
+reservation and an in-flight `submitting` one present the same way, and clearing either while a host merge is in
+flight releases the wedge with nothing left to reconcile against — a protection the Non-Goals freeze. The decline
+observes the effect first and refuses on pending, partial, or ambiguous facts exactly as the reconcile path does;
+an effect that never applied routes to `land-status`, which owns that reconciliation. Both disclosure points this
+verb exists for sit after an applied effect, so the precondition excludes neither.
+
+The two disclosure points need different amounts of restoration: the suffix arm has nothing to restore, while the
+absorption arm must put back refs ARC moved itself.
 
 Both shapes already exist. The restoration is `rewriteLocalRef`'s existing `{ ref, beforeHead, requestedHead }`
 call with its arguments swapped, lease-checked, refusing rather than forcing when the lease fails — no force-push
@@ -423,6 +628,51 @@ on either arm, which keeps this clear of the rebase-and-force prohibition. The t
 the `not-applied` clear (a typed clear carrying a named resume action and an exact subject selector) but **not its
 code path**, which reconciles against observed host facts on the premise that the effect did not apply; here the
 effect did apply and the operator is declining to adopt it.
+
+**The execution shape has its own precedent, on a different axis from that transition template.**
+`reapCompletedDeliveryResidue` already runs exactly this order: lease-checked undo per item under an expected
+head, a typed refusal returning the still-held reservation on any failure, then one `stateStore.publish` of the
+reservation's value with `activeOperation: null` at its exact revision. Compose that shape rather than deriving
+it — including its refuse-before-publish ordering, which is the no-half-release rule already proven. What
+transfers is the undo → refuse → publish **tail** alone: the precedent mints its own teardown reservation before
+undoing, which the decline must not do, since it acts against a reservation already held. What else differs is the
+inventory undone: candidate refs and gates there, local member refs here.
+
+**The restoration target is durable; the lease is not, so the settle records it.** The single state write lands
+after the member-ref rewrite, so while the reservation is held the persisted state still carries pre-rewrite
+member coordinates — which is where the decline reads its restoration **target**. The lease is the other value:
+after the argument swap, `beforeHead` is the head ARC rewrote the ref **to**, and nothing persists it. The
+reservation is minted with `before` and `requested` from the same pre-landing snapshot, the rewrite's
+`requestedHead` is derived from a fresh observation inside the settle, and the settle's only publish is its last
+statement — which a refusal never reaches.
+
+So the settle **phase-publishes the observed suffix coordinates into the held reservation immediately before the
+rewrite loop**, composing the phase-publish precedent already in the same file: `beginNativeDeliverySubmission`
+publishes a phase state before the irreversible host effect for the same reason — so recovery has something to
+read. Placement is exact. Every conflict refusal returns before the rewrite loop, so the disclosure and
+resubmission paths still return before any state write; only a settle that proceeds to move refs publishes twice.
+
+**Three moves, not one.** The precedent works because it makes all of them, and a phase publish that makes only
+the first corrupts the reservation rather than recording it:
+
+- **The coordinates land in a dedicated field on the `land` arm's `native` object**, beside `arm` and `phase`.
+  They do not overwrite `requested`. That field is the record of what ARC was **authorized to produce**; the
+  observed suffix is what ARC **saw**, and collapsing the two is the conflation this work unit removes — even
+  though the land arm's authorization comparison would tolerate it, since `matchesHostAssignedResult` substitutes
+  `requested`'s coordinates into the observation before comparing. Reuse would also change what the reconcile
+  path emits as its applied snapshot.
+- **`stateRevision` advances to the published revision**, and `native.phase` gains the value naming this phase.
+  A reservation whose `stateRevision` is not one behind current state is `operation-stale`, which would wedge
+  `land-status`, `land-release`, and reconcile permanently.
+- **The settle rebinds its landing record to the phase-published value**, so its terminal publish uses the new
+  revision. The terminal publish is revision-checked; leaving it on the pre-phase revision makes every successful
+  settle that rewrites a ref return `state-conflict`.
+
+The cost is one additional state write on a settle that moves refs, plus the field and the phase value. What it
+buys is a lease precise enough to refuse the case that matters. **The rejected alternative is re-observing the
+host** and leasing on local-equals-host: that comparison cannot distinguish a ref ARC moved from one the operator
+took over by pushing to the member branch and pulling — both leave local equal to host, so the lease passes and
+the decline restores a pointer the operator now owns. Leasing against what ARC recorded refuses there.
 
 **Its refusal follows the same rule as everything else here: a failed lease reports the observed head and leaves
 the reservation held rather than half-releasing it.** Publishing `activeOperation: null` before every ref
@@ -597,6 +847,16 @@ request, and the eight-term conjunction itself. All three sit in the same functi
 unchanged — the relation supplies the vocabulary for the one term that was ancestry-blind, and the other terms
 need only stop sharing a word — but the work is sized against fourteen.
 
+**Where each half lands.** The settlement result types its blocked reason as the single literal
+`"terminal-unsettled"`, so fourteen reasons **widen that union** — a type change, and one with a second consumer:
+`retireCompletedDeliveryRecords` spreads the blocked settlement result straight into its own retirement result,
+whose reason is a free string. The reasons also owe a **distinguishing shape**, because closeout passes the
+terminal reason through bare while prefixing its own, and the two sets otherwise share one namespace.
+`terminal-unsettled` already carries that shape. The **typed remedy** is the half that is a contract addition: the
+emitted closeout refusal carries a prose remedy today, which is precisely the prose that directs a rerun over
+inputs the failing term never reaches. It gains a dispatchable remedy derived from the reason, leaving the library
+result untouched.
+
 The narrower arm, giving only the relation's term a distinct reason and leaving the rest collapsed, is the
 **recorded rejected alternative**: it fixes the ancestry row while leaving the refusal-recoverability rule's
 report-the-observed-condition clause unsatisfiable everywhere else in the same function.
@@ -651,6 +911,15 @@ handler's result union, and already has a workspace-preparing consumer. The nati
 it. Authoring a new disclosure would have re-derived a shape the subsystem carries — the missed composition D6's
 own premise (adopt the protocol ARC already runs) exists to prevent.
 
+**A two-member delivery plan, rejected on the landing constraint.** The cut is structurally real: the conflict
+protocol and its decline verb (D6–D10) share no file, no type, and no pinned probe with the comparison substrate
+and its readers (D1–D5, D11–D13), so either half would typecheck, test, and read coherently on its own. What
+declines it is not that evidence but the constraint this work unit sits under — a stacked landing whose successor
+is unresolved waits on a shipped post-landing recovery path, and that path is what this work unit builds, so
+stacking it would make it wait on itself. The halves stay one delivery member behind one merge boundary, and
+their independently reviewable surfaces route through ordinary review chunking, which is a review boundary rather
+than a merge one.
+
 ## Cross-cutting Considerations
 
 **Trust boundaries.** The design adds reachability above the write boundary and relaxes nothing at it. The
@@ -668,8 +937,10 @@ Verification covers both the refusal and successful continuation after repair.
 
 **Merge-queue compatibility, carried as a constraint.** A queue is a head-mover, and a rebase-style submit
 strategy moves the request head. Whatever replaces the equality comparison must not assume the landed head is the
-head ARC bound. Current compatibility is **unverified** — every enumerated row moves the head from inside ARC,
-and no probe covers an external mover.
+head ARC bound. That property belongs to the classifier rather than to any queue, so it is asserted there — an
+externally rewritten head classifies as `diverged` or `rewound`. End-to-end compatibility stays **unverified** by
+deliberate choice: every enumerated row moves the head from inside ARC, adopting a queue is a Non-Goal, and no
+observed failure asks for a probe that simulates one.
 
 **Native restacking shortens the disclosure window, accepted.** The adopted predicate is head-sensitive. The
 bound is the reservation: a disclosure exists only between the run that composes it and the resubmission that
@@ -686,8 +957,14 @@ adoption assertions in the terminal-waiver probe to a pin when the admission rou
 `native-landing.ts` refusal arms, typed remedies replacing prose, and per-term closeout reasons where one word
 stood. The native terminal refusal begins returning a `conflictPreparation` block — a contract addition across
 the places D7 names — so the operator sees the required merge parent instead of a remedy that cannot clear the
-refusal. Readiness stops emitting `delivery-member-mismatch` altogether: of its three `path` discriminations one
-becomes tautological, one becomes the `not-in-plan` arm, and one survives under a renamed identity (D12).
+refusal. The emitted closeout refusal gains a dispatchable remedy beside its per-term reason, replacing the prose
+one it carries today. Readiness stops emitting `delivery-member-mismatch` altogether: of its three `path`
+discriminations one becomes tautological, one becomes the `not-in-plan` arm, and one survives under a renamed
+identity (D12); its separate terminal-member fact is unaffected and must survive the inversion. The shipped
+`deliver-stack.md` workflow documents this protocol and changes with it: its statement that a suffix
+reconciliation refusal is settled by rerunning `land-status` "without resubmitting" is exactly what D6 replaces,
+and the native landing lifecycle it drives by verb gains the decline. That edit goes through the package source
+and syncs to the project copy, never a copy between them.
 
 ## Success Criteria
 
@@ -714,22 +991,29 @@ becomes tautological, one becomes the `not-in-plan` arm, and one survives under 
 9. `predecessor-relation.ts` no longer exports a second ordered-pair spelling and no caller reads its `exact`
    arm. The criterion is bounded to D3's conversion set: `observeTarget` keeps its own partial derivation and its
    own `"exact"` spelling, as a recorded exclusion rather than an unmet goal.
+10. The shipped `deliver-stack.md` describes the protocol as changed: no instruction to settle a suffix
+    reconciliation refusal by rerunning `land-status` without resubmitting, and the decline verb present in the
+    native landing lifecycle it drives.
 
 ## Open Questions
 
-- **Whether an all-neutral conflict set settles without asking (D6).** Adopting the gate on reasoning alone is
-  the symmetry Proportionality rules out, so it needs a measurement over the population the gate actually reads —
-  the member-suffix conflict set `merge-tree` reports, which `base-overlap.ts` classifies as the shared-path
-  intersection. A first approximation over landings rather than conflict sets ran during spec authoring and is
-  recorded here as method, not as discharge: over `git log --merges -80 main`, ~4% of landings (3/76) touched only
-  neutral or regenerable paths, and 1 of 26 consecutive overlapping landing pairs had an all-neutral overlap — two
-  lifecycle operations touching the same work unit's meta. That is the right order of magnitude and the wrong
-  population, and consecutive landings are a rough proxy for concurrency. Measure against the conflict set before
-  adopting; if the subset proves unreachable there, drop the gate rather than keeping it on the approximation.
-- **Merge-queue compatibility under an external head-mover.** Every enumerated row moves the head from inside
-  ARC, and no probe covers a queue whose rebase-style submit strategy rewrites the request head. The constraint
-  is stated in the design (the replacement comparison must not assume the landed head is the head ARC bound);
-  what is open is whether this work verifies it with a probe or records it as deliberately uncovered. Resolve at
-  task generation, when the test surface is enumerated — it bounds test scope, not the design.
+Both resolved at task generation; each decision and the evidence behind it is recorded here so a later reader
+does not reopen it on the same inputs.
+
+- **Whether an all-neutral conflict set settles without asking (D6) — resolved: the gate is dropped.** It needed a
+  measurement over the population the gate actually reads: the member-suffix conflict set `merge-tree` reports,
+  which `base-overlap.ts` classifies as the shared-path intersection. The only measurement available ran over
+  landings instead — over `git log --merges -80 main`, ~4% of landings (3/76) touched only neutral or regenerable
+  paths, and 1 of 26 consecutive overlapping landing pairs had an all-neutral overlap, two lifecycle operations
+  touching the same work unit's meta. Right order of magnitude, wrong population, with consecutive landings only a
+  rough proxy for concurrency. Adopting on that is the symmetry Proportionality rules out, so every conflict set
+  discloses. The cost is one avoidable prompt in a rare case; the gate remains addable later without disturbing
+  the protocol.
+- **Merge-queue compatibility under an external head-mover — resolved: asserted at the relation, not probed.**
+  The constraint is that the replacement comparison must not assume the landed head is the head ARC bound, and
+  that is a property of the classifier rather than of any queue. It is asserted there: an externally rewritten
+  head classifies as `diverged` or `rewound`. No probe simulates a rebase-style submit strategy — adopting a merge
+  queue is a Non-Goal, every enumerated row moves the head from inside ARC, and no observed failure asks for one.
+  The absence of end-to-end external-mover coverage is therefore deliberate and recorded, not an oversight.
 
 ---

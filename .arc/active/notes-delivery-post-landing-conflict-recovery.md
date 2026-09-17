@@ -288,3 +288,58 @@ by construction so a mismatch cannot be the cause — ordinary regression covera
 Outside those planned neither-shape retirements, a probe reporting that the held result no longer describes what
 happens and the awaited one has not arrived either has found behavior neither shape names. That is a finding, not
 a retirement.
+
+---
+
+## The overlap and relation vocabulary — inputs for its re-authoring
+
+Phases 4 and 5 of the task list were routed back to the design stage rather than patched further. The direction
+is settled — one resolver, one relation, and the collapsed distinctions carried through every layer — but the
+**vocabulary** is not: each layer's arm set, each reader's disposition, the normalized verdict space, and the
+emitted refusal surfaces have to be authored as one coherent design rather than derived layer by layer. What
+follows is the source-verified ground that authoring needs, so none of it is re-derived.
+
+### Two fail-open paths, both verified
+
+Each is a place where the natural local edit compiles, passes its listed assertions, and turns a refusal into an
+acceptance. They are the reason the vocabulary is authored as a whole.
+
+**The normalized overlap has no safe destination for a new arm.** `EvidenceOverlap` is a closed four-arm union —
+`disjoint | overlapping | unknown | not-applicable` — and the base-movement path validates against a three-arm
+subset that excludes `not-applicable`. `overlapping` requires at least one substantive path. So a new observation
+arm carrying no paths can only normalize to `disjoint` or `unknown`, and `disjoint` reduces to the strongest
+accept (`carries`), while `unknown` reduces to `fresh`. **`unknown` is the safe answer**, and any instruction that
+forbids it forces the fail-open. The durable fix is new arms on the normalized union itself, which makes every
+consumer conversion compiler-forced through the existing exhaustiveness assertions.
+
+**The close-time eligibility reader's only overlap protection is an absence.** `overlapping-ahead` carries no
+`chainBase`, and the close-time reader derives a null chain base for exactly the variants that lack one, then
+refuses. That null is what refuses a non-empty overlap at close time — there is no other check on that path.
+Giving the migrated divergent variant a `chainBase` unconditionally therefore removes the protection unless the
+close-time reader gains the same overlap decision the prepare-time one gets. The two readers must be designed
+together; a rule written for "the reader" singular leaves the second one accepting.
+
+### Facts the design should not re-derive
+
+- The multi-base branch returns **before** the merge base is assigned and before any changed-path read, so an
+  ambiguous result carries no merge base and no overlap. Any arm that assumes one is unreachable in that state.
+- An unresolvable ancestry read is a different thing from an unresolved topology: the wrapper establishes the
+  pair itself, so a failed read is an unavailable read rather than a classifier variant.
+- The relation's own reader has exactly two call sites, both in the eligibility module — prepare-time and
+  close-time — and both dereference the chain base off a resolved relation.
+- The reservation's authorization snapshot neutralizes coordinates on the landing arm: the result comparison
+  substitutes the recorded coordinates into the observation before comparing, so coordinates there are not an
+  authorization term. That is why observed coordinates take a dedicated field rather than overloading it.
+- An exhaustive consumer sweep over every widened type is already recorded in § Propagation surfaces and
+  § Reader inventory. Two consumers fail silently rather than at the compiler — the drift register narrates from
+  a positive availability test, and the review precondition mapper is a switch with no default arm.
+
+### Coverage already spent, so it is not respent
+
+The task list was audited by five independent fresh-context adversarial passes plus two exhaustive mechanical
+audits. The mechanical audits are complete over their classes and need no repeat: every task that changes a type
+or schema names both its library and schema locus, and every consumer of every widened type is enumerated. The
+adversarial passes found four defects that reached the fail-open or state-corruption class; three of those were
+introduced by repairs to earlier findings, all three in this vocabulary's territory. Phases 1-3, 6 and 7 came
+through settled and were verified against source repeatedly; their residual is specification detail that surfaces
+loudly during implementation.
