@@ -3,7 +3,7 @@
   "slug": "honor-explicit-whole-target-choice",
   "claimId": "ed5098cc941f9f4218b78ff82e6312a7",
   "createdAt": "2026-09-17T15:51:16.057Z",
-  "updatedAt": "2026-09-17T15:51:16.057Z",
+  "updatedAt": "2026-09-17T16:35:38.957Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Honor an explicit whole-target choice above the changeset advisory",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Honor an explicit whole-target choice above the changeset advisory",
   "originEntrySourceDigest": "sha256:ccce878f5d40c7dc342013debff41b3a83a1feb0e67913f9073bfc1871ee5063",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/honor-explicit-whole-target-choice",
+    "headSha": "1a39d1fc73ecae83e446f2a85cda6b726abeed4d"
+  }
 }
