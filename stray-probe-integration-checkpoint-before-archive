@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "stray-probe-integration-checkpoint-before-archive",
+  "claimId": "8400d9c01cca14558ab9f9ed9c351e1c",
+  "createdAt": "2026-09-17T12:49:35.520Z",
+  "updatedAt": "2026-09-17T12:49:35.520Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Place or tear down the stray probe-integration-checkpoint-before-archive branch",
+  "branch": "chore/stray-probe-integration-checkpoint-before-archive",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
