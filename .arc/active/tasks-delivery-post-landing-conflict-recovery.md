@@ -701,6 +701,28 @@ is a field on `diverged`, not a variant.
             - A two-base `diverged` pair carries the cardinality field
             - A single-base `diverged` pair carries it as one
 
+    - `[ ]` **5.1.d Land the read's `ambiguous` arm and undo the fold it stands in for**
+
+        - The wrapper folds an ambiguous pair into `unavailable` today, and that fold's comment names this
+          widening as its undo. The arm carries the pair and the per-pair remedy — merging the base in, which
+          collapses two bases to one for a `(head, base)` pair — and carries no merge base or overlap, because the
+          multi-base branch returns before either is computed.
+
+        - `unrelated` stays a relation variant for now; 5.2.d is what moves it onto its own arm. This task widens
+          the read, that one narrows the relation, and the two meet at the four arms.
+
+        - Both eligibility readers guard `unavailable` and then read the relation, so the new arm is a compiler
+          event at each. Their stated dispositions are 5.4.a's and the arm's own reason and remedy slot are
+          5.4.d's, so what lands here is a fail-closed interim refusal at both sites, named in place with its
+          undo — never a guard widened to "not resolved", which would park a recoverable-by-remedy cause under
+          the retry reason this phase exists to separate it from.
+
+        - Build `test-first` (one behavior at a time):
+
+            - A pair with more than one merge base reports the ambiguous arm rather than an unreadable read
+            - The arm carries the pair and the remedy that collapses the two bases
+            - An overlap that genuinely could not be read still reports `unavailable`
+
 ### `[ ]` **5.2 Migrate `predecessor-relation.ts` onto the relation's vocabulary**
 
 - _Goal:_ The tree holds one ordered-pair spelling, so the defect class this work unit removes cannot recur under
