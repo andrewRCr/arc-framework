@@ -1335,6 +1335,38 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves the failed decline lease, so the operator sees the head that held it", async () => {
+    const result = {
+      status: "blocked" as const,
+      reason: "local-ref-moved",
+      lease: {
+        ref: "refs/heads/member-2",
+        expectedHead: "a".repeat(40),
+        observedHead: "f".repeat(40),
+      },
+      recommendedActionText: "Restore the exact local member-ref subject before declining the landing again.",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        repository: "owner/repo",
+        remote: "origin",
+        operationId: "operation-1",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native land-release",
+      ...result,
+    });
+  });
+
 
   it("preserves a prepared native submit action through native status and general reconciliation", async () => {
     const plan = deliveryStackPlanFixture();

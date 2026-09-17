@@ -2277,7 +2277,9 @@ describe("native delivery landing", () => {
       rewriteLocalRef: async (
         { ref, beforeHead, requestedHead }: { ref: string; beforeHead: string; requestedHead: string },
       ) => {
-        if (table.get(ref) !== beforeHead) return { status: "refused" as const, reason: "collision" };
+        const head = table.get(ref);
+        if (head === requestedHead) return { status: "adopted" as const };
+        if (head !== beforeHead) return { status: "refused" as const, reason: "collision" };
         table.set(ref, requestedHead);
         return { status: "rewritten" as const };
       },
@@ -2416,6 +2418,61 @@ describe("native delivery landing", () => {
         affectedDeliverableIds: admitted.affectedDeliverableIds,
       },
     });
+  });
+
+  it("reports the ref and the head it found when a lease fails", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const displaced = moved[1]!;
+    const heads = new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead]));
+    heads.set(displaced.ref, "f".repeat(40));
+    const store = casStateStore(current.revision);
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...localRefTable(heads), stateStore: store.stateStore },
+    )).resolves.toMatchObject({
+      status: "blocked",
+      reason: "local-ref-moved",
+      lease: {
+        ref: displaced.ref,
+        expectedHead: displaced.requestedHead,
+        observedHead: "f".repeat(40),
+      },
+    });
+  });
+
+  it("holds the reservation through a failed lease, so a repaired retry still releases it", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const displaced = moved[1]!;
+    const heads = new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead]));
+    heads.set(displaced.ref, "f".repeat(40));
+    const refs = localRefTable(heads);
+    const store = casStateStore(current.revision);
+    const dependencies = { ...refs, stateStore: store.stateStore };
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) }, dependencies,
+    )).resolves.toMatchObject({ status: "blocked", reason: "local-ref-moved" });
+
+    refs.table.set(displaced.ref, displaced.requestedHead);
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) }, dependencies,
+    )).resolves.toMatchObject({ status: "released", state: { revision: current.revision + 1 } });
+    expect([...refs.table]).toEqual(moved.map(({ ref, beforeHead }) => [ref, beforeHead]));
+  });
+
+  it("writes no state at all when a restoration fails", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const heads = new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead]));
+    heads.set(moved[1]!.ref, "f".repeat(40));
+    const store = casStateStore(current.revision);
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...localRefTable(heads), stateStore: store.stateStore },
+    )).resolves.toMatchObject({ status: "blocked" });
+    expect(store.writes).toEqual([]);
   });
 
 });

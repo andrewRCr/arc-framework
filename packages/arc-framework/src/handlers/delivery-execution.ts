@@ -1464,6 +1464,16 @@ const ResultSchema = z.union([
   }),
   z.strictObject({
     status: z.literal("blocked"),
+    reason: z.string().min(1),
+    lease: z.strictObject({
+      ref: z.string().min(1),
+      expectedHead: GitObjectIdSchema,
+      observedHead: GitObjectIdSchema.nullable(),
+    }),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
     reason: z.literal("trigger-ref-restore-required"),
     recovery: z.strictObject({ ref: z.string().min(1), head: GitObjectIdSchema }),
     recommendedActionText: z.string().min(1),

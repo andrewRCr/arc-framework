@@ -318,24 +318,21 @@ failed lease leaving the reservation held rather than half-released.
   state keeps its pre-landing member coordinates, so ARC's record and the restored refs agree while the host keeps
   the merge — which is why naming the landed work is the only way the operator learns what still stands.
 
-### `[ ]` **3.4 Hold the reservation on a failed lease**
+### `[x]` **3.4 Hold the reservation on a failed lease**
 
 - _Goal:_ A failed lease reports the observed head and leaves the reservation held, never half-released.
 
-- _Rationale:_ Publishing the clear before every restoration succeeds would leave the wedge released with refs
-  still where ARC moved them — a state neither the landing path nor the decline path can reason about afterwards,
-  and one no refusal describes. `reapCompletedDeliveryResidue` already orders it this way, so the rule is a
-  precedent to follow rather than a new invariant to establish.
+    - `[x]` **3.4.a Refuse before publishing when any restoration fails**
 
-    - `[ ]` **3.4.a Refuse before publishing when any restoration fails**
+        - The refusal names the ref, the head its lease expected, and the head actually found; the decline's own
+          ref read supplies all three, where the rewrite's refusal carries no head to report. It takes its own arm
+          on the handler's result union, which would otherwise reduce it to a validation failure.
+        - The lease admits a ref sitting at either of its two ends, so a run that restored some refs before
+          failing can be rerun: an already-restored ref is adopted rather than refused as moved.
 
-        - The observed head comes from the decline's own ref read in 3.2.b, which is what makes it reportable —
-          the rewrite's refusal carries no head to report.
-        - Build `test-first` (one behavior at a time):
-
-            - A failed lease reports the observed head
-            - The reservation is still held after the refusal, and a retry can still succeed
-            - The clear is never published when any restoration fails
+- _Outcome:_ The refusal is recovery-complete — it names the ref and both heads, writes nothing, and leaves a
+  rerun of the same verb reachable once the operator repairs the one ref it named. A partly restored decline
+  resumes rather than wedging.
 
 ### `[ ]` **3.5 Update the shipped delivery workflow to the changed protocol**
 

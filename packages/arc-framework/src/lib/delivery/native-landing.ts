@@ -990,7 +990,7 @@ export type RestoreNativeDeliveryLandingRefsResult =
     };
 
 /**
- * Return every member ref a wedged settlement moved, refusing any whose head no longer matches its lease.
+ * Return every member ref a wedged settlement moved, refusing any that sits at neither end of its lease.
  *
  * @param restorations - The refs the reservation recorded moving, each with its observed and pre-rewrite head.
  * @param dependencies - The local ref reader that supplies the lease, and the exact ref rewriter.
@@ -1013,7 +1013,8 @@ export async function restoreNativeDeliveryLandingRefs(
   const restored: DeliveryProviderExternalRefRestoration[] = [];
   for (const restoration of restorations) {
     const observed = await dependencies.observeLocalRef(restoration.ref);
-    if (observed.status !== "observed" || observed.head !== restoration.observedHead) {
+    if (observed.status !== "observed"
+      || (observed.head !== restoration.observedHead && observed.head !== restoration.restoreHead)) {
       return {
         status: "refused",
         reason: observed.status === "observed"
@@ -1053,6 +1054,16 @@ export type ReleaseNativeDeliveryLandingResult =
         readonly affectedDeliverableIds: readonly string[];
       };
     }
+  | {
+      readonly status: "blocked";
+      readonly reason: string;
+      readonly lease: {
+        readonly ref: string;
+        readonly expectedHead: string;
+        readonly observedHead: string | null;
+      };
+      readonly recommendedActionText: string;
+    }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
 /**
@@ -1083,6 +1094,11 @@ export async function releaseNativeDeliveryLanding(input: {
     return {
       status: "blocked",
       reason: restored.reason,
+      lease: {
+        ref: restored.ref,
+        expectedHead: restored.expectedHead,
+        observedHead: restored.observedHead,
+      },
       recommendedActionText:
         "Keep the reservation and restore the exact local member-ref subject before declining the landing again.",
     };
