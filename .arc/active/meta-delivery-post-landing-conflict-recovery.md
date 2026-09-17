@@ -13,7 +13,8 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — task list authored and audited; Phases 1-3 and 6-7 settled, 4-5 re-entered
+- **Last Completed:** Planning — overlap and relation vocabulary authored whole, Phases 4-5 regenerated against
+  it, audit findings folded, task list finalized at `Heavy` and activated
 - **Next Task:** Task 1.1 — Collect the complete member-suffix conflict set (line ~18)
 - **Blockers:** [none]
 
