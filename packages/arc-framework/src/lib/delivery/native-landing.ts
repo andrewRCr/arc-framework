@@ -736,6 +736,7 @@ export type AdmitNativeDeliveryLandingReleaseResult =
       readonly effect: DeliveryLandEffectV1;
       readonly before: DeliveryOperationSnapshotV1;
       readonly affectedDeliverableIds: readonly string[];
+      readonly restorations: readonly DeliveryProviderExternalRefRestoration[];
     }
   | {
       readonly status: "retryable";
@@ -802,12 +803,21 @@ export async function admitNativeDeliveryLandingRelease(input: {
         + "which preserves the reservation and re-presents the landing for a deliberate choice.",
     };
   }
+  const preRewriteHeads = new Map(input.current.value.members.map(
+    ({ deliverableId, coordinates }) => [deliverableId, coordinates?.head],
+  ));
   const releaseAdmitted = {
     status: "admitted",
     operationId: operation.operationId,
     effect: operation.effect,
     before: operation.before,
     affectedDeliverableIds: operation.affectedDeliverableIds,
+    restorations: (operation.native?.observedSuffix ?? []).flatMap(({ deliverableId, ref, coordinates }) => {
+      const restoreHead = preRewriteHeads.get(deliverableId);
+      return restoreHead === undefined || restoreHead === coordinates.head
+        ? []
+        : [{ ref, observedHead: coordinates.head, restoreHead }];
+    }),
   } as const;
   const unsettled = (
     outcome: "partial-landed" | "ambiguous",
@@ -891,6 +901,78 @@ export async function admitNativeDeliveryLandingRelease(input: {
   return unsettled(classification.status);
 }
 
+
+export type DeliveryNativeLocalRefObservation =
+  | { readonly status: "absent" }
+  | { readonly status: "observed"; readonly head: string }
+  | { readonly status: "refused"; readonly reason: "malformed" | "unavailable" };
+
+export type RestoreNativeDeliveryLandingRefsResult =
+  | {
+      readonly status: "restored";
+      readonly restorations: readonly DeliveryProviderExternalRefRestoration[];
+    }
+  | {
+      readonly status: "refused";
+      readonly reason: string;
+      readonly ref: string;
+      readonly expectedHead: string;
+      readonly observedHead: string | null;
+    };
+
+/**
+ * Return every member ref a wedged settlement moved, refusing any whose head no longer matches its lease.
+ *
+ * @param restorations - The refs the reservation recorded moving, each with its observed and pre-rewrite head.
+ * @param dependencies - The local ref reader that supplies the lease, and the exact ref rewriter.
+ * @returns Every restored ref, or the first refusal naming the ref and the head observed under its lease.
+ */
+export async function restoreNativeDeliveryLandingRefs(
+  restorations: readonly DeliveryProviderExternalRefRestoration[],
+  dependencies: {
+    readonly observeLocalRef: (ref: string) => Promise<DeliveryNativeLocalRefObservation>;
+    readonly rewriteLocalRef: (input: {
+      readonly ref: string;
+      readonly beforeHead: string;
+      readonly requestedHead: string;
+    }) => Promise<
+      | { readonly status: "rewritten" | "adopted" }
+      | { readonly status: "refused"; readonly reason?: string }
+    >;
+  },
+): Promise<RestoreNativeDeliveryLandingRefsResult> {
+  const restored: DeliveryProviderExternalRefRestoration[] = [];
+  for (const restoration of restorations) {
+    const observed = await dependencies.observeLocalRef(restoration.ref);
+    if (observed.status !== "observed" || observed.head !== restoration.observedHead) {
+      return {
+        status: "refused",
+        reason: observed.status === "observed"
+          ? "local-ref-moved"
+          : `local-ref-${observed.status === "absent" ? "absent" : observed.reason}`,
+        ref: restoration.ref,
+        expectedHead: restoration.observedHead,
+        observedHead: observed.status === "observed" ? observed.head : null,
+      };
+    }
+    const rewritten = await dependencies.rewriteLocalRef({
+      ref: restoration.ref,
+      beforeHead: restoration.observedHead,
+      requestedHead: restoration.restoreHead,
+    });
+    if (rewritten.status === "refused") {
+      return {
+        status: "refused",
+        reason: `local-ref-${rewritten.reason ?? "refused"}`,
+        ref: restoration.ref,
+        expectedHead: restoration.observedHead,
+        observedHead: observed.head,
+      };
+    }
+    restored.push(restoration);
+  }
+  return { status: "restored", restorations: restored };
+}
 
 /** One native suffix member movement paired with the predecessors its caller already resolved. */
 export interface DeliveryNativeSuffixMovement {

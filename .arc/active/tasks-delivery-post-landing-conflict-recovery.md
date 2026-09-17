@@ -258,22 +258,10 @@ failed lease leaving the reservation held rather than half-released.
   Task 3.3.b lands the restoration and the typed result — an interim that keeps `land-status` reachable rather
   than reporting a release that has not happened.
 
-### `[ ]` **3.2 Restore ARC-moved refs by lease, refusing rather than forcing**
+### `[x]` **3.2 Restore ARC-moved refs by lease, refusing rather than forcing**
 
 - _Goal:_ Every ref ARC rewrote goes back under a lease check, which keeps the decline clear of the
   rebase-and-force prohibition.
-
-- _Rationale:_ The restoration is `rewriteLocalRef`'s existing `{ ref, beforeHead, requestedHead }` call with its
-  arguments swapped. No force-push on either arm.
-
-- _Shape:_ `reapCompletedDeliveryResidue` is the execution precedent for this task and the two after it:
-  lease-checked undo per item, typed refusal returning the still-held reservation, then one publish at the exact
-  revision. Compose that tail rather than deriving it — the precedent mints its own teardown reservation before
-  undoing, which this verb must not, since it acts against one already held.
-
-- _Note:_ The restoration target is durable and the lease is not. Persisted state carries pre-rewrite member
-  coordinates while the reservation is held, which is where the target comes from; the swapped `beforeHead` is the
-  head ARC rewrote **to**, which nothing persists today.
 
     - `[x]` **3.2.a Phase-publish the observed suffix before the rewrite loop**
 
@@ -294,17 +282,20 @@ failed lease leaving the reservation held rather than half-released.
           settling reservation gets its own `settlement-in-flight` reason rather than sharing one that describes
           the opposite condition.
 
-    - `[ ]` **3.2.b Swap the rewrite arguments under a lease check**
+    - `[x]` **3.2.b Swap the rewrite arguments under a lease check**
 
-        - The lease is the decline's own comparison, not a delegated one: read each ref, compare against the
-          head 3.2.a recorded, and only then call the rewrite. `rewriteLocalRef` refuses
-          `collision | malformed | unavailable` and carries no head, so it cannot be the lease's source of truth
-          and widening it would cross five call sites and three port types.
-        - The restoration target reads from the pre-rewrite coordinates already in state.
-        - Build `test-first` (one behavior at a time):
+        - `restoreNativeDeliveryLandingRefs` reads each ref and compares it against the head the settle recorded
+          before calling the rewrite, so the lease is the decline's own comparison. `rewriteLocalRef` carries no
+          head and could not have been its source of truth.
+        - The admitted reservation carries the restoration plan itself: the recorded observed head supplies the
+          lease, and the pre-rewrite head comes from the member coordinates persisted state still holds under the
+          reservation. A member the settle observed but never moved contributes none.
+        - The step is composed into the verb in Task 3.3, once the clear is published in the same pass. Restoring
+          refs and then refusing would leave the reservation held over refs no longer where it recorded them, and
+          a retry's lease would then fail against ARC's own undo.
 
-            - The absorption arm restores every member ref ARC moved
-            - The suffix arm restores none, and the verb still succeeds
+- _Outcome:_ Both wedge arms are covered by one pass: the terminal arm restores every ref the settle moved, and
+  the suffix arm, which refuses before any rewrite, records nothing and so restores nothing.
 
 ### `[ ]` **3.3 Publish `activeOperation: null` at the exact revision and return the typed result**
 

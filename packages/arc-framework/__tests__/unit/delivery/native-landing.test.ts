@@ -6,6 +6,7 @@ import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import {
   admitNativeDeliveryLandingRelease,
   deriveNativeDeliveryMemberChain,
+  restoreNativeDeliveryLandingRefs,
   deriveNativeDeliveryRegisteredRemainder,
   prepareNativeDeliveryLanding,
   reconcileLinkedNativeDeliverySuffix,
@@ -2072,6 +2073,7 @@ describe("native delivery landing", () => {
       effect,
       before,
       affectedDeliverableIds,
+      restorations: [],
     });
   });
 
@@ -2174,6 +2176,101 @@ describe("native delivery landing", () => {
     expect(result).not.toMatchObject({ status: "retryable" });
     expect(host.observeNativeMerge).not.toHaveBeenCalled();
     expect(observeEffect).not.toHaveBeenCalled();
+  });
+
+
+  async function wedgedSettlement() {
+    const fixture = linkedSuffixFixture();
+    const store = casStateStore();
+    const moved: Array<{ ref: string; beforeHead: string; requestedHead: string }> = [];
+    const blocked = await reconcileLinkedNativeDeliverySuffix(fixture.reconcileInput, {
+      observeRequest: fixture.observeRequest,
+      observeRef: fixture.observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...fixture.unreachedSettlement,
+      stateStore: store.stateStore,
+      rewriteLocalRef: async (input) => {
+        moved.push(input);
+        return { status: "rewritten" };
+      },
+      absorbTop: async () => ({ status: "refused", reason: "content-conflict", paths: ["docs/top.md"] }),
+    });
+    if (blocked.status !== "blocked") throw new Error(`expected a wedged settle, got ${blocked.status}`);
+    const wedged = store.writes.at(-1);
+    if (wedged === undefined) throw new Error("expected the settle to phase-publish before wedging");
+    return {
+      moved,
+      planId: fixture.reconcileInput.plan.planId,
+      current: { revision: fixture.reconcileInput.before.revision + 1, value: wedged.value },
+    };
+  }
+
+  const localRefTable = (heads: ReadonlyMap<string, string>) => {
+    const table = new Map(heads);
+    return {
+      table,
+      observeLocalRef: async (ref: string) => {
+        const head = table.get(ref);
+        return head === undefined
+          ? { status: "absent" as const }
+          : { status: "observed" as const, head };
+      },
+      rewriteLocalRef: async (
+        { ref, beforeHead, requestedHead }: { ref: string; beforeHead: string; requestedHead: string },
+      ) => {
+        if (table.get(ref) !== beforeHead) return { status: "refused" as const, reason: "collision" };
+        table.set(ref, requestedHead);
+        return { status: "rewritten" as const };
+      },
+    };
+  };
+
+  it("restores every member ref the wedged settle moved, swapping the rewrite", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    expect(moved).toHaveLength(2);
+    const refs = localRefTable(new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead])));
+
+    const admitted = await admitNativeDeliveryLandingRelease({
+      planId, current, operationId: "operation-1", repository: "o/r",
+    }, {
+      host: { observeNativeMerge: vi.fn() },
+      observeEffect: vi.fn().mockResolvedValue({
+        outcome: "all-landed",
+        snapshot: current.value.activeOperation?.before,
+      }),
+    });
+    if (admitted.status !== "admitted") throw new Error(`expected an admitted decline, got ${admitted.status}`);
+
+    await expect(restoreNativeDeliveryLandingRefs(admitted.restorations, refs))
+      .resolves.toEqual({
+        status: "restored",
+        restorations: moved.map(({ ref, beforeHead, requestedHead }) => ({
+          ref, observedHead: requestedHead, restoreHead: beforeHead,
+        })),
+      });
+    expect([...refs.table]).toEqual(moved.map(({ ref, beforeHead }) => [ref, beforeHead]));
+  });
+
+  it("restores nothing for a reservation whose settle never moved a ref", async () => {
+    const { current } = heldNativeLandingFixture();
+    const observeLocalRef = vi.fn();
+    const rewriteLocalRef = vi.fn();
+
+    const admitted = await admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host: { observeNativeMerge: vi.fn().mockResolvedValue({ status: "merged" }) },
+      observeEffect: vi.fn().mockResolvedValue({
+        outcome: "all-landed",
+        snapshot: current.value.activeOperation?.before,
+      }),
+    });
+    if (admitted.status !== "admitted") throw new Error(`expected an admitted decline, got ${admitted.status}`);
+
+    expect(admitted.restorations).toEqual([]);
+    await expect(restoreNativeDeliveryLandingRefs(admitted.restorations, {
+      observeLocalRef, rewriteLocalRef,
+    })).resolves.toEqual({ status: "restored", restorations: [] });
+    expect(observeLocalRef).not.toHaveBeenCalled();
+    expect(rewriteLocalRef).not.toHaveBeenCalled();
   });
 
 });
