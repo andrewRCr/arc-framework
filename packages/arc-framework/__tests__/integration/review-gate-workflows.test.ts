@@ -761,6 +761,12 @@ describe("trusted review-gate workflows", () => {
     const terminal = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
     expect(terminal.match(/arc errand merge <slug> - --json/gu)).toHaveLength(1);
     expect(terminal).toMatch(/errandMergeRequest[\s\S]*integration-interlock[\s\S]*arc errand merge/iu);
+    expect(terminal).toMatch(
+      /not an instruction to invoke merge this turn while those checks are pending/iu,
+    );
+    expect(terminal).toMatch(
+      /surfaced\s+required checks as not green[\s\S]*do not invoke the\s+terminal merge this turn/iu,
+    );
     expect(terminal).toMatch(/awaiting-checks \/ retry[\s\S]*exact continuation/iu);
     expect(terminal).toMatch(/reconcile-base[\s\S]*reconcile-regenerable[\s\S]*supplied\s+remedy/iu);
     expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh integration approval/iu);
@@ -1019,6 +1025,12 @@ describe("trusted review-gate workflows", () => {
     );
     expect(gate).toContain("payload.interlockSurface.machineEvidence.text");
     expect(gate).toContain("The integration interlock is the sole merge authority");
+    expect(gate).toMatch(
+      /not an instruction to invoke merge this turn while those checks are pending/iu,
+    );
+    expect(gate).toMatch(
+      /surfaced required checks as not green[\s\S]*do not invoke merge this turn/iu,
+    );
     expect(gate).toContain("No commit or push may occur after `ready`");
     expect(gate).not.toContain("head mutation returns to the checkpoint");
 

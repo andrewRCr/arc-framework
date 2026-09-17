@@ -682,13 +682,15 @@ No commit or push may occur after `ready`.
 > named rather than diffed, the review applicability calls and targeted verification retained from Step 2, and the
 > approved final dispositions carried by the checkpointed settlement plan; state that approval executes that exact
 > plan, settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and authorizes
-> merge of the checkpointed head. Close with `Approve (or redirect)?`.
+> merge of the checkpointed head. Approval authorizes that exact request; it does not satisfy required checks and is
+> not an instruction to invoke merge this turn while those checks are pending. Close with `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
 push through the workflow contract, and rebuild the checkpoint over the new head.
 
-After approval, invoke:
+After approval, if the interlock surfaced required checks as not green, do not invoke merge this turn. Retain the
+authorized checkpoint and re-enter once they are green. If required checks were green at the interlock, invoke:
 
 ```bash
 arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
