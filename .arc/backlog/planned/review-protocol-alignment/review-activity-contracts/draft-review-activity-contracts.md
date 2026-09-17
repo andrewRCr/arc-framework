@@ -12,6 +12,127 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make review spend visible before it is incurred, and keep "review" to one sense per surface**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-activity-contracts`
+
+- _Observation:_ A delegated-agent review ran during task execution, before any Candidate existed, and bound to
+  nothing; the standard lane later composed as no attempts. The immediate reachability gap is routed as an Errand
+  (§ Errand, "Say in the task loop that review during task work discharges no review lane"). What stays here is the
+  part that is design rather than wording.
+
+- _Approach:_ two pieces. First, a vocabulary pass over the task-loop surface, where "review" currently names a
+  human-approval boundary and a lane with bound evidence without distinguishing them — the cohort's Shared Goal
+  "load-bearing vocabulary is used exactly" applied to the one file an agent holds at the moment of the decision.
+  Second, have `arc attest` report the composed lane evidence for the subject it mints, so the first moment a
+  bindable target exists is also the moment its review evidence is stated — here, frontline none and standard none.
+  That is a field on an existing typed result, which is the cohort's sanctioned remedy form rather than new
+  orchestration machinery.
+
+- _Prior art:_ this is D7.1's move for a second rule at a second decision point. D7.1 found the stop discipline
+  stated "only in a completed work unit's archived spec, which the agent running integration never loads" and
+  resolves it by stating it in `integrate-work-unit.md`. Same shape, different rule, different workflow.
+
+- _Relation to D7.2:_ "Gate the activity, not the mechanism" argues from adopters who decline spend at every fire
+  point and get nothing back. This incident is the inverse failure — spend incurred willingly that bought nothing
+  creditable — so it is evidence for the same goal from the other side.
+
+- _Boundary:_ does not re-derive which rules yield to judgment, which stays with `judgment-authority-model`, and
+  does not add a review-budget ledger, already rejected under the cohort's Alternatives.
+
+- _Captured during:_ `concurrent-integration-characterization` pre-publication review, 2026-09-15.
+
+### `[ ]` **Make no-material Frontline follow-up effective across Candidate rerouting**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
+
+- _Observation:_ A private delivery-member Frontline pass returned the typed
+  `frontlineFollowUp: stop / no-approved-material-fix` result after every finding was rejected against the
+  governing contracts. Candidate response and delivery rerouting then selected the member's new exact head with no
+  durable Frontline progress, forcing another whole-target pass that reproduced the same two out-of-contract
+  findings. The typed no-material result is therefore operationally ineffective at the transition where it is
+  supposed to guide continuation.
+
+- _Approach:_ trace the result's intended binding and lifetime through Candidate advancement and private-member
+  recomposition. Either consume a safely preserved exact typed continuation across the authorized transition, or
+  stop returning a follow-up signal that no caller can act on. Preserve exact-target review authority: changed or
+  materially interacting bytes must still create a fresh obligation, and rejected findings must never become review
+  clearance by implication.
+
+- _Boundary:_ keep this an atomic Frontline response/rerouting contract reconciliation. If a correct repair requires
+  persistent cross-target review evidence or a new applicability doctrine, promote or absorb it into the direct
+  successor to `evidence-applicability` rather than hiding design in the Errand.
+
+- _Note:_ review-infrastructure smell — the observed symptom is narrow, but the drain should re-triage it if the
+  binding cannot be repaired by composing existing response and Candidate-transition records.
+
+- _Captured during:_ `evidence-applicability` private delivery review dogfooding, 2026-09-12.
+
+### `[ ]` **Make the frontline run-or-skip decision explicit in delivery review**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- WU_Target: review-activity-contracts
+
+- _Observation:_ the first post-ship stacked-delivery session followed `arc delivery position` into the exact
+  member's typed standard-review status action and silently skipped the configured `coderabbit-cli` frontline
+  activity. `deliver-stack.md` says to apply `frontline-review` before standard review, but that callout is not a
+  typed step in the member dispatch and no adjacent surface requires or records an explicit run/skip judgment. The
+  required hosted standard review still ran, so this is an agent-ergonomics and activity-accounting gap rather than
+  a weakened merge gate.
+
+- _Approach:_ at the delivery-member review decision point, surface one explicit typed frontline run-or-skip action
+  whose skip carries the agent's disclosed rationale. Compose configured source availability and exact-target
+  currentness without making the advisory lane mandatory, duplicating the standard-review obligation, or adding a
+  permission turn when the agent can make the bounded judgment.
+
+- _Field evidence (2026-09-12):_ private prepublication needed to skip Frontline for an exact 13,395-line Member 2
+  while retaining it for a 4,913-line Member 3. The `--lanes` judgment and opaque resume token replayed the skip
+  across every outstanding member: retaining it suppressed Member 3, while dropping it reselected Member 2. The
+  safe workaround had to run Member 3's exact-target Frontline operation outside the composed cursor. Bind a skip
+  to the selected target or deliverable and consume it when that target advances, so the next member recomposes its
+  configured default rather than inheriting prospective advisory-lane authority.
+
+- _Files:_ delivery-member review dispatch in `deliver-stack.md` and the review status/position composition that
+  owns the adjacent typed action, as the design requires.
+
+- _Captured during:_ `plan-segmentation` Member 1 hosted-review correction, 2026-09-09.
+
+### `[ ]` **Make review-lane progression monotonic after publication**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-activity-contracts`
+
+- _Observation:_ frontline is the local prepublication shaping pass: it narrows what a later human or hosted
+  standard reviewer sees. During Errand PR #637, frontline and hosted review were clean on one head; a narrow
+  CI-driven E2E expectation correction moved the head, and hosted Codex then completed a full clean review on the
+  new exact target. Afterward, the lane driver still returned `ready / run-frontline` for that current head. The
+  requested CodeRabbit CLI pass was canceled before it produced a durable operation. This is a backward lifecycle
+  edge, not missing review coverage: once the change is public or standard review has begun, automatically returning
+  to a prepublication lane adds no shaping value.
+
+- _Approach:_ make review progression monotonic. Frontline may run only before publication and before standard
+  review begins. Crossing either boundary closes frontline for that review cycle; later target movement routes
+  through the standard lane's applicability decision — targeted verification, incremental review, or complete
+  review — and never automatically reopens frontline. This is lifecycle applicability, not standard evidence
+  pretending to satisfy a frontline pass. An unresolved frontline finding or authorized fix must still settle
+  before the transition, so opening a PR cannot launder unfinished frontline work.
+
+- _Fit:_ this sharpens `review-activity-contracts` D7.4/D7.6 and the cohort's tiny-Errand proportionality
+  regression. Those already state that exact-head movement does not itself require new review activity and that a
+  non-interacting test-only delta must not acquire another provider request; add the explicit no-backedge contract
+  across Errand, singleton-WU, and delivery-member review choreography.
+
+- _Boundary:_ preserve exact-head invalidation of review evidence and merge authority. Do not record standard review
+  as a frontline result or fabricate a clean/skip attempt. An explicitly requested extra advisory pass may remain
+  possible, but it is not an automatic lifecycle route.
+
+- _Captured during:_ `preserve-checkout-identity-through-authorized-integration-operation` Errand integration,
+  PR #637, 2026-09-16.
+
 ### `[ ]` **Represent authorized incremental review without whole-target clearance**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-08-20).

@@ -12,6 +12,36 @@
 > _Routed-in concern pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`)._
 
+### `[ ]` **Give the session-init delivery observation a typed refusal reason**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: operational-advisory-registers`
+
+- _Observation:_ `DeliveryPositionObservation`'s refused arm is `{ status: "refused" }` with no reason field, so
+  every internal refusal inside `observeMember` and `observeFacts` reaches `readDeliveryPositionView` as the one
+  reason `observation-unavailable`. A proven terminal rewrite, an ancestry read git could not answer, an
+  unreachable host, and a benign append-only advance are indistinguishable at that boundary, and session-init
+  raises all of them as `Delivery position is unavailable: observation-unavailable.`
+
+- _Approach:_ widen the observation's refused arm to a closed reason union and thread a reason through the
+  `return { exact: false, requestState: null }` and `return null` paths that produce it. The outer
+  `ReadDeliveryPositionViewResult` already carries typed reasons and needs only the finer input to pass along.
+
+- _Files:_ `lib/session-init/delivery-position-facts.ts`, `lib/session-init/delivery-position.ts`,
+  `handlers/status.ts`.
+
+- _Boundary:_ diagnostics only — no change to what the observation admits or refuses. Passing the append-only
+  terminal allowance at the session-init call site is a separate captured errand, and this is the reason the
+  operator sees whether or not that one lands.
+
+- _Shape:_ this is the same collapse the ancestry-primitive capture describes one layer down, where a failed read
+  becomes a verdict. Here it is a dozen distinct conditions becoming one word at an observation boundary, which is
+  why the remedy is a reason union rather than a better predicate.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` draft-design, 2026-09-16, from a source-verified
+  read of the observation boundary.
+
 ### `[ ]` **Remove internal vocabulary from user-facing session-init advisories**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-advisory-registers`), housekeep drain
