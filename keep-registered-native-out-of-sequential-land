@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "keep-registered-native-out-of-sequential-land",
+  "claimId": "69177e65ed409414bf3c17aa5f6035b6",
+  "createdAt": "2026-09-17T16:38:19.016Z",
+  "updatedAt": "2026-09-17T16:38:19.016Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep registered native delivery out of sequential landing preparation",
+  "branch": "chore/keep-registered-native-out-of-sequential-land",
+  "origin": "inbox",
+  "originEntry": "Keep registered native delivery out of sequential landing preparation",
+  "originEntrySourceDigest": "sha256:b2235710c9d4815fc0727b28aed01f549aeec7e2753d863240e820e7dbbe86c6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
