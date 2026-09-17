@@ -21,6 +21,31 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Compose chunk-scoped results with RSC's terminal-producer and logical-pass boundary**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: chunk-scope-binding`
+
+- _Observation:_ RSC's approved proportionality revision consumes one complete terminal producer per logical pass,
+  including the existing aggregate after manual chunk review. It no longer prepays for ordered producer lists,
+  per-chunk identity, or multi-producer union validation. Those belong with the carrier that can establish them;
+  the existing chunk-scope draft owns scope-aware receipt/reduction but does not yet record this consumer seam.
+
+- _Approach:_ when designing automated chunk scopes, re-ground against `spec-review-signal-convergence.md` and the
+  then-landed source. Preserve one logical pass across chunks, retries, and safe fallback; distinguish completed
+  logical passes from complete coverage. Compose native source admission/result identity rather than assuming a
+  generic RSC execution envelope exists. Decide how carrier-proven complete scope union reaches convergence, binding
+  every contributing finding to its immutable producer and approved disposition; partial or duplicate scopes cannot
+  manufacture clearance. Keep working manual chunk aggregation available while introducing the automated carrier.
+
+- _Boundary:_ coordination input, not an RSC dependency or a settled chunk-carrier API. RSC retains verified signal,
+  response-before-continuation, and cap authority; chunk-scope-binding owns per-chunk transport/identity, scope-aware
+  receipts, and union proof. Review this seam in that WU's normal design gates, without copying RSC's old speculative
+  `reviewOperationIds` contract as a requirement.
+
+- _Captured during:_ `review-signal-convergence` approved design reduction, 2026-09-07.
+
 ### `[ ]` **Concurrent review checkouts need a deliberate cap, and only the chunked path has one**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
