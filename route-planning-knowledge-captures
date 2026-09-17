@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-planning-knowledge-captures",
+  "claimId": "82749d29113a28455a768b89e81dca33",
+  "createdAt": "2026-09-17T02:17:15.040Z",
+  "updatedAt": "2026-09-17T02:17:15.040Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route approved planning, knowledge, installation, and testing captures and normalize the execute-bound queue",
+  "branch": "chore/route-planning-knowledge-captures",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
