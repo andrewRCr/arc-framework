@@ -388,27 +388,23 @@ pinned probes observe. The first three layers carry each distinction as a peer s
 to a verdict and carries the cause as a discriminant instead. See
 `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces.
 
-### `[ ]` **4.1 Author the sole-base resolver with its four arms**
+### `[x]` **4.1 Author the sole-base resolver with its four arms**
 
 - _Goal:_ One mechanism answers "which single base" for every reader that adopts it, refusing when the answer is
   not one rather than picking, and never throwing.
 
-- _Rationale:_ The arms split on what the caller can do next, not on what Git reported: `resolved` diffs or
-  records, `ambiguous` and `unavailable` are recoverable, `unrelated` is terminal.
+    - `[x]` **4.1.a Author the resolver over its four arms**
 
-- _Shape:_ The resolver is exported from `base-overlap.ts` beside `analyzeRevisionOverlap`, which already performs
-  the `--all` read inside a private helper — so this is an extraction of existing machinery, not a new module. It
-  takes the exec handle and the two revisions and returns the four arms; the analyzer adopts it rather than
-  keeping a second copy of the read.
+        - `resolveSoleMergeBase` reads every best common ancestor and answers `resolved`, `ambiguous`,
+          `unrelated`, or `unavailable`, never throwing and never reducing a multi-base history to a pick.
 
-    - `[ ]` **4.1.a Author the resolver over its four arms**
-
-        - Build `test-first` (one behavior at a time):
-
-            - Exactly one merge base resolves and returns it
-            - Two equally good merge bases return `ambiguous`, never a pick
-            - No common ancestor returns `unrelated`
-            - A failed read returns `unavailable` rather than throwing or collapsing into a verdict
+- _Outcome:_ `resolveSoleMergeBase` and `SoleMergeBaseResult` sit in `base-overlap.ts`, and
+  `analyzeRevisionOverlapWithClassifier` now reads through them instead of keeping its own `--all` read. The
+  adoption is deliberately behavior-preserving: an ambiguous history still reduces to `merge-base-failed` at the
+  analyzer with its detail intact, so the existing overlap coverage and the pinned probes observe exactly what
+  they did before, and Task 4.2 is what moves them. The `ambiguous` arm carries the cardinality rather than the
+  bases themselves — cardinality is what the relation wrapper consumes, and the base identities have no named
+  reader. No failure policy is baked in, so each adopting caller keeps its own.
 
 ### `[ ]` **4.2 Split `ambiguous` out of `RevisionOverlapResult`**
 

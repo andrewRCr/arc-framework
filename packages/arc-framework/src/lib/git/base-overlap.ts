@@ -49,6 +49,53 @@ export type RevisionOverlapResult =
       readonly detail: string;
     };
 
+/** Whether two revisions have exactly one base to be compared from, and what stands in the way when they do not. */
+export type SoleMergeBaseResult =
+  | { readonly status: "resolved"; readonly mergeBase: string }
+  | { readonly status: "ambiguous"; readonly count: number; readonly detail: string }
+  | { readonly status: "unrelated"; readonly detail: string }
+  | { readonly status: "unavailable"; readonly detail: string };
+
+/**
+ * Resolve the single base two revisions can be compared from.
+ *
+ * Reads every best common ancestor rather than the one Git would otherwise choose, so a history leaving more
+ * than one is reported as leaving more than one instead of resolving to whichever side that choice exposes.
+ * The arms split on what a caller can do next — `ambiguous` and `unavailable` are recoverable while `unrelated`
+ * is terminal — and each caller applies its own failure policy, so none is baked in here.
+ *
+ * @param options - The Git boundary and the two revisions to relate.
+ * @returns The sole base, or the arm naming why there is not exactly one. Never throws.
+ */
+export async function resolveSoleMergeBase(options: {
+  readonly exec: GitExec;
+  readonly leftRevision: string;
+  readonly rightRevision: string;
+}): Promise<SoleMergeBaseResult> {
+  let mergeBases: string[];
+  try {
+    mergeBases = (await options.exec(
+      "git",
+      ["merge-base", "--all", options.leftRevision, options.rightRevision],
+    )).stdout.trim().split(/\r?\n/u).filter(Boolean);
+  } catch (error) {
+    return isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1
+      ? { status: "unrelated", detail: "The revisions have no common ancestor." }
+      : { status: "unavailable", detail: "The merge base could not be established." };
+  }
+  if (mergeBases.length > 1) {
+    return {
+      status: "ambiguous",
+      count: mergeBases.length,
+      detail: "The revisions have more than one best merge base.",
+    };
+  }
+  const [mergeBase] = mergeBases;
+  return mergeBase !== undefined && isGitObjectId(mergeBase)
+    ? { status: "resolved", mergeBase }
+    : { status: "unavailable", detail: "The merge base could not be established." };
+}
+
 /**
  * Classify changed-path overlap between two explicit commit revisions.
  *
@@ -101,36 +148,29 @@ async function analyzeRevisionOverlapWithClassifier(options: {
   rightRevision: string;
   classify: PathTreatmentClassifier;
 }): Promise<RevisionOverlapResult> {
-  let mergeBase: string;
-  try {
-    const mergeBases = (await options.exec(
-      "git",
-      ["merge-base", "--all", options.leftRevision, options.rightRevision],
-    )).stdout.trim().split(/\r?\n/u);
-    if (mergeBases.length > 1) {
-      return {
-        status: "unavailable",
-        reason: "merge-base-failed",
-        detail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
-      };
-    }
-    mergeBase = mergeBases[0] ?? "";
-    if (!isGitObjectId(mergeBase)) throw new Error("Invalid merge base.");
-  } catch (error) {
-    if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) {
-      return {
-        status: "unrelated",
-        leftRevision: options.leftRevision,
-        rightRevision: options.rightRevision,
-        detail: "The revisions have no common ancestor.",
-      };
-    }
+  const base = await resolveSoleMergeBase({
+    exec: options.exec,
+    leftRevision: options.leftRevision,
+    rightRevision: options.rightRevision,
+  });
+  if (base.status === "unrelated") {
+    return {
+      status: "unrelated",
+      leftRevision: options.leftRevision,
+      rightRevision: options.rightRevision,
+      detail: base.detail,
+    };
+  }
+  if (base.status !== "resolved") {
     return {
       status: "unavailable",
       reason: "merge-base-failed",
-      detail: "The merge base could not be established.",
+      detail: base.status === "ambiguous"
+        ? "The revisions have multiple best merge bases; overlap cannot be proved from one."
+        : base.detail,
     };
   }
+  const mergeBase = base.mergeBase;
 
   const leftPaths = await readChangedPaths(options.exec, mergeBase, options.leftRevision);
   if (leftPaths === null) {
