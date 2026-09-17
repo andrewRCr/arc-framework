@@ -81,7 +81,7 @@ describe("deriveDerivedLocusSessionGuidance", () => {
     });
   });
 
-  it("does not offer cleanup for an active foreign checkout with Candidate schema skew", () => {
+  it("does not narrate an active foreign checkout with Candidate schema skew", () => {
     const frame = primaryFrame("free-primary");
     const skewed = {
       ...frame.roster[0]!,
@@ -99,10 +99,29 @@ describe("deriveDerivedLocusSessionGuidance", () => {
     expect(deriveDerivedLocusSessionGuidance({ ok: true, value })).toMatchObject({
       kind: "ready",
       cleanup: [],
-      diagnostics: [
-        "candidate-record-schema-skew at checkout '/repo/active': "
-          + "Use the checkout-local ARC CLI from /repo/active.",
-      ],
+      diagnostics: [],
+    });
+  });
+
+  it("keeps entering-row diagnostics and omits sibling unresolved inspect-cleanup", () => {
+    const frame = primaryFrame("free-primary");
+    const sibling = {
+      ...frame.roster[0]!,
+      kind: "unresolved-checkout" as const,
+      checkout: { ...frame.roster[0]!.checkout, path: "/repo/other", primary: false },
+      subject: { kind: "work-unit" as const, key: "other" },
+      lifecycleLocation: "active" as const,
+      diagnostics: [{
+        code: "subject-unresolved",
+        message: "current meta is unreadable",
+      }],
+    };
+    const value: DerivedLocusFrame = { ...frame, roster: [...frame.roster, sibling] };
+
+    expect(deriveDerivedLocusSessionGuidance({ ok: true, value })).toMatchObject({
+      kind: "ready",
+      cleanup: [],
+      diagnostics: [],
     });
   });
 });
