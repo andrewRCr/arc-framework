@@ -1069,6 +1069,45 @@ describe("checkout subject active-extension seam", () => {
     expect(result.message).not.toContain("does not match");
   });
 
+  it("classifies a foreign Candidate record unreadable by this build as schema skew", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, "not-json");
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      foreignCheckout: true,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "unresolved",
+      code: "candidate-record-schema-skew",
+      message: expect.stringContaining("checkout-local ARC CLI"),
+    });
+    if (result.kind !== "unresolved") throw new Error("expected foreign Candidate schema skew");
+    expect(result.message).toContain(".arc/system/.internal/candidates/demo.json");
+    expect(result.message).toContain(options.cwd);
+    expect(result.message).not.toContain("before cleanup");
+  });
+
   it("reports a genuine Candidate id mismatch distinctly", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");

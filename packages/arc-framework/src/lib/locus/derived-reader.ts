@@ -245,6 +245,8 @@ export async function readDerivedLocusRoster(options: {
           metaRoot: subjectMeta.metaRoot,
           candidates: subjectMeta.candidates,
           activeExtensions: options.activeExtensions ?? [],
+          foreignCheckout: options.strictCheckoutPath !== undefined
+            && item.checkout.path !== options.strictCheckoutPath,
           io: options.subjectMetaIO,
         });
       } catch (error) {
