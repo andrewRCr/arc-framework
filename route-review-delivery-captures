@@ -3,14 +3,20 @@
   "slug": "route-review-delivery-captures",
   "claimId": "0149c0cc4a5a86a617b6bdfd76cdb650",
   "createdAt": "2026-09-17T02:07:17.927Z",
-  "updatedAt": "2026-09-17T02:07:17.927Z",
+  "updatedAt": "2026-09-17T02:16:31.862Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route approved review, delivery, and approval-flow inbox captures to their authoritative homes",
   "branch": "chore/route-review-delivery-captures",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-review-delivery-captures",
+    "headSha": "836dcf33dbebd68040f0af50ea701a5a7922d300"
+  }
 }
