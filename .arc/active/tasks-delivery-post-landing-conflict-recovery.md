@@ -86,30 +86,25 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
           threading the parsed value between them. The request admits the native scope alone — a
           `dependent-suffix` resolution cannot apply to a reservation-keyed suffix, so it refuses at the door.
 
-### `[ ]` **1.4 Settle under the held reservation on a canonicalizing resolution**
+### `[x]` **1.4 Settle under the held reservation on a canonicalizing resolution**
 
 - _Goal:_ A resolution that canonicalizes identically to a freshly derived one settles the landing under the
   reservation already held; anything else refuses `conflict-resolution-mismatch` without claiming clearance.
 
-- _Note:_ The approval fires on genuine collisions only — identical trees take the `tree-equality` fast path and
-  clean reapplies take `mechanical-reapply`, both silent. Movement alone never asks anyone anything.
+    - `[x]` **1.4.a Compare the supplied resolution against a freshly derived one**
 
-    - `[ ]` **1.4.a Compare the supplied resolution against a freshly derived one**
+        - The disclosure now derives `resolutionInput` first and branches on whether one was supplied, mirroring the
+          provider's whole-blob `canonicalize` comparison rather than a digest-field equality. Every other exit that
+          reaches no conflict set refuses a supplied resolution through one shared arm, so no path accepts a
+          resolution it never derived — including the short suffix that settles before collection runs.
 
-        - The comparison is the provider's whole-blob canonicalization, not a digest-field equality — the
-          revision and conflict-set terms are what refuse a resolution minted against different facts. What
-          `observedSuffixDigest` contributes is head-sensitivity: on the native side it covers the freshly
-          observed member coordinates, so a concurrent push moving any observed member changes it.
-        - Build `test-first` (one behavior at a time):
+    - `[x]` **1.4.b Keep the silent fast paths silent**
 
-            - A resolution canonicalizing identically settles under the held reservation
-            - A stale resolution refuses `conflict-resolution-mismatch` and keeps the reservation
-            - A resolution supplied when the conflict set is empty refuses the same way
-            - An operator's concurrent unrelated push re-discloses rather than settling silently
+        - Both accepted proofs settle with no disclosure and no resolution, asserted per proof kind.
 
-    - `[ ]` **1.4.b Keep the silent fast paths silent**
-
-        - Assert that identical trees and clean reapplies still settle with no disclosure and no prompt.
+- _Outcome:_ The disclosure's guidance named a route that cannot succeed — resolving the listed paths moves the
+  member coordinates the digest covers, so the resubmitted blob could never match. It now names the two routes
+  that do: resubmit unchanged to accept the collisions, or fix and rerun without a resolution.
 
 ### `[ ]` **1.5 Correct the shared refusal guidance on both native-landing arms**
 

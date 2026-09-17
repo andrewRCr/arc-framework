@@ -32,7 +32,7 @@ import {
   type DeliveryProviderConflictResolutionInput,
   type DeliveryProviderRefreshConflict,
 } from "./suffix-reconciliation.js";
-import { canonicalDigest } from "../kernel/index.js";
+import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 import type { DeliveryMemberRefCheckoutObservation } from "./git-materialization.js";
 
@@ -793,6 +793,14 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
       readonly recommendedActionText: string;
     };
 
+/** Shared refusal for a resolution that does not match the suffix freshly observed under the reservation. */
+const nativeSuffixConflictResolutionMismatch = {
+  status: "blocked",
+  reason: "conflict-resolution-mismatch",
+  recommendedActionText:
+    "Keep the reservation and rerun `arc delivery native land-status` without a resolution to obtain the current disclosure, then resubmit that resolution unchanged.",
+} as const;
+
 /**
  * Reconcile the complete remaining registered suffix through the contribution-proven rewrite path.
  *
@@ -859,6 +867,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     };
   }
   if (landedIndex >= input.plan.members.length - 2) {
+    if (input.conflictResolution !== undefined) return nativeSuffixConflictResolutionMismatch;
     const published = await dependencies.stateStore.publish(
       input.plan.planId,
       input.landed.value,
@@ -992,21 +1001,29 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
         };
   }
   if (assessment.conflicts.length > 0) {
-    return {
-      status: "conflict-resolution-required",
+    const resolutionInput: DeliveryNativeSuffixConflictResolutionInput = {
+      planId: input.plan.planId,
+      scope: { kind: "native-suffix", operationId: operation.operationId },
+      expectedStateRevision: input.before.revision,
+      observedSuffixDigest: canonicalDigest(
+        observedMembers.map(({ deliverableId, coordinates }) => ({ deliverableId, coordinates })),
+      ),
       conflicts: assessment.conflicts,
-      resolutionInput: {
-        planId: input.plan.planId,
-        scope: { kind: "native-suffix", operationId: operation.operationId },
-        expectedStateRevision: input.before.revision,
-        observedSuffixDigest: canonicalDigest(
-          observedMembers.map(({ deliverableId, coordinates }) => ({ deliverableId, coordinates })),
-        ),
-        conflicts: assessment.conflicts,
-      },
-      recommendedActionText:
-        "Resolve the listed member paths, then resubmit this resolution with `arc delivery native land-status` to settle the landing under the held reservation.",
     };
+    if (input.conflictResolution === undefined) {
+      return {
+        status: "conflict-resolution-required",
+        conflicts: assessment.conflicts,
+        resolutionInput,
+        recommendedActionText:
+          "Resubmit this resolution unchanged with `arc delivery native land-status` to accept the listed collisions under the held reservation, or resolve the listed member paths and rerun `arc delivery native land-status` without a resolution to settle the reobserved suffix.",
+      };
+    }
+    if (canonicalize(input.conflictResolution) !== canonicalize(resolutionInput)) {
+      return nativeSuffixConflictResolutionMismatch;
+    }
+  } else if (input.conflictResolution !== undefined) {
+    return nativeSuffixConflictResolutionMismatch;
   }
   const changedRefs: string[] = [];
   for (const [index, observed] of observedMembers.entries()) {

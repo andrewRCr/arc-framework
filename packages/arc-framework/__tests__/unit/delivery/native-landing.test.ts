@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/contribution-proof.js";
+import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 
 import {
   deriveNativeDeliveryMemberChain,
@@ -1428,4 +1429,165 @@ describe("native delivery landing", () => {
     });
     expect(result).not.toHaveProperty("externalRefRestorations");
   });
+
+  const conflictedSecondMember = async (endpoints: DeliveryContributionEndpoints) =>
+    endpoints.after.member.head === "a".repeat(40)
+      ? {
+          status: "refused" as const,
+          reason: "contribution-conflicted" as const,
+          paths: ["src/second.ts"],
+        }
+      : { status: "accepted" as const, proof: "mechanical-reapply" as const };
+
+  function reachedSettlement() {
+    const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
+    const published: DeliveryStateV1[] = [];
+    return {
+      absorbedTop,
+      published,
+      deps: {
+        observeMemberRefCheckouts: async () => ({ status: "observed" as const, checkouts: [] }),
+        absorbTop: async () => ({ status: "absorbed" as const, ...absorbedTop }),
+        publishTop: async () => ({ status: "published" as const }),
+        rewriteLocalRef: async () => ({ status: "rewritten" as const }),
+        stateStore: {
+          publish: async (_planId: string, value: DeliveryStateV1) => {
+            published.push(value);
+            return { status: "ok" as const, value: { revision: 3, value } };
+          },
+        },
+      },
+    };
+  }
+
+  it("settles under the held reservation on a resolution canonicalizing identically", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const disclosed = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: conflictedSecondMember,
+      ...unreachedSettlement,
+    });
+    if (disclosed.status !== "conflict-resolution-required") {
+      throw new Error(`expected a disclosure, got ${disclosed.status}`);
+    }
+    const settlement = reachedSettlement();
+
+    const result = await reconcileLinkedNativeDeliverySuffix(
+      { ...reconcileInput, conflictResolution: disclosed.resolutionInput },
+      {
+        observeRequest,
+        observeRef,
+        proveContribution: conflictedSecondMember,
+        ...settlement.deps,
+      },
+    );
+
+    expect(result).toMatchObject({ status: "applied", state: { revision: 3 } });
+    expect(settlement.published).toHaveLength(1);
+  });
+
+  it("refuses a stale resolution and keeps the reservation", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const disclosed = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: conflictedSecondMember,
+      ...unreachedSettlement,
+    });
+    if (disclosed.status !== "conflict-resolution-required") {
+      throw new Error(`expected a disclosure, got ${disclosed.status}`);
+    }
+
+    const result = await reconcileLinkedNativeDeliverySuffix(
+      {
+        ...reconcileInput,
+        conflictResolution: { ...disclosed.resolutionInput, expectedStateRevision: 99 },
+      },
+      {
+        observeRequest,
+        observeRef,
+        proveContribution: conflictedSecondMember,
+        ...unreachedSettlement,
+      },
+    );
+
+    expect(result).toMatchObject({ status: "blocked", reason: "conflict-resolution-mismatch" });
+  });
+
+  it("refuses a resolution supplied when the suffix proves clean", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const disclosed = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: conflictedSecondMember,
+      ...unreachedSettlement,
+    });
+    if (disclosed.status !== "conflict-resolution-required") {
+      throw new Error(`expected a disclosure, got ${disclosed.status}`);
+    }
+
+    const result = await reconcileLinkedNativeDeliverySuffix(
+      { ...reconcileInput, conflictResolution: disclosed.resolutionInput },
+      {
+        observeRequest,
+        observeRef,
+        proveContribution: async () => ({ status: "accepted", proof: "tree-equality" }),
+        ...unreachedSettlement,
+      },
+    );
+
+    expect(result).toMatchObject({ status: "blocked", reason: "conflict-resolution-mismatch" });
+  });
+
+  it("refuses a resolution after an unrelated member moves under the same conflict set", async () => {
+    const {
+      bound, movedByRef, reconcileInput, observeRequest, observeRef, unreachedSettlement,
+    } = linkedSuffixFixture();
+    const disclosed = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: conflictedSecondMember,
+      ...unreachedSettlement,
+    });
+    if (disclosed.status !== "conflict-resolution-required") {
+      throw new Error(`expected a disclosure, got ${disclosed.status}`);
+    }
+
+    movedByRef.set(bound.members[2]!.ref!, { head: "7".repeat(40), tree: "6".repeat(40) });
+    const result = await reconcileLinkedNativeDeliverySuffix(
+      { ...reconcileInput, conflictResolution: disclosed.resolutionInput },
+      {
+        observeRequest,
+        observeRef,
+        proveContribution: conflictedSecondMember,
+        ...unreachedSettlement,
+      },
+    );
+
+    expect(result).toMatchObject({ status: "blocked", reason: "conflict-resolution-mismatch" });
+    expect(disclosed.resolutionInput.conflicts).toEqual([
+      { deliverableId: bound.members[1]!.deliverableId, paths: ["src/second.ts"] },
+    ]);
+  });
+
+  it.each(["tree-equality", "mechanical-reapply"] as const)(
+    "settles a %s suffix with no disclosure and no resolution",
+    async (proof) => {
+      const { reconcileInput, observeRequest, observeRef } = linkedSuffixFixture();
+      const settlement = reachedSettlement();
+
+      const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+        observeRequest,
+        observeRef,
+        proveContribution: async () => ({ status: "accepted", proof }),
+        ...settlement.deps,
+      });
+
+      expect(result).toMatchObject({ status: "applied", state: { revision: 3 } });
+      expect(result).not.toHaveProperty("conflicts");
+      expect(result).not.toHaveProperty("resolutionInput");
+      expect(settlement.published).toHaveLength(1);
+    },
+  );
 });
