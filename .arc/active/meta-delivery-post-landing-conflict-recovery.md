@@ -8,17 +8,16 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-delivery-post-landing-conflict-recovery.md`
+- **Design:** `spec-delivery-post-landing-conflict-recovery.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
-- **Last Completed:** create-spec — `spec-*` + `notes-*` authored, approved at Gate 1, four adversarial passes folded
+- **Current Workflow:** `generate-tasks`
+- **Last Completed:** create-spec — `spec-*` + `notes-*` finalized; adversarial passes converged, draft retired
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** create-spec Gate 2 — independently verify the pass-four repairs (unreviewed), then finalize:
-  retire the draft, persist `Class`, commit.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
