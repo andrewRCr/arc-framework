@@ -18,6 +18,7 @@ import {
   attachDeliveryOperationEffectIdentity,
   beginNativeDeliverySubmission,
   reserveDeliveryOperation,
+  validateDeliveryActiveOperation,
 } from "../../../src/lib/delivery/operation.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 import {
@@ -1059,6 +1060,8 @@ describe("native delivery landing", () => {
       expectedStateRevision: 1, before: beforeSnapshot, requested: beforeSnapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const submitted = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitted.status !== "begun") throw new Error("fixture submission transition failed");
     const newTarget = { head: "d".repeat(40), tree: "e".repeat(40) };
     const landed = {
       ...bound,
@@ -1069,7 +1072,7 @@ describe("native delivery landing", () => {
       }) : member),
       activeOperation: null,
     };
-    let revision = 2;
+    let revision = 3;
     const stateStore = { publish: vi.fn(async (_id, value, expectedRevision) => expectedRevision === revision
       ? { status: "ok" as const, value: { revision: revision += 1, value } }
       : { status: "refused" as const, reason: "version-conflict" as const }) };
@@ -1078,8 +1081,8 @@ describe("native delivery landing", () => {
     const proof = vi.fn().mockResolvedValue({ status: "accepted", proof: "mechanical-reapply" });
     await expect(reconcileLinkedNativeDeliverySuffix({
       plan,
-      before: { revision: 2, value: reserved.state },
-      landed: { revision: 2, value: landed },
+      before: { revision: 3, value: submitted.state },
+      landed: { revision: 3, value: landed },
       repository: "o/r",
       protectedTargetRef: "refs/heads/delivery-target",
     }, {
@@ -1100,7 +1103,7 @@ describe("native delivery landing", () => {
       stateStore,
     })).resolves.toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     expect(proof).toHaveBeenCalledOnce();
-    expect(stateStore.publish).toHaveBeenCalledOnce();
+    expect(stateStore.publish).toHaveBeenCalledTimes(2);
   });
 
   const movedSuffixCoordinates = [
@@ -1149,6 +1152,8 @@ describe("native delivery landing", () => {
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const submitted = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitted.status !== "begun") throw new Error("fixture submission transition failed");
     const newTarget = { head: "d".repeat(40), tree: "e".repeat(40) };
     const landed = {
       ...bound,
@@ -1169,8 +1174,8 @@ describe("native delivery landing", () => {
       movedByRef,
       reconcileInput: {
         plan: suffixPlan,
-        before: { revision: 2, value: reserved.state },
-        landed: { revision: 2, value: landed },
+        before: { revision: 3, value: submitted.state },
+        landed: { revision: 3, value: landed },
         repository: "o/r",
         protectedTargetRef: "refs/heads/delivery-target",
       },
@@ -1251,17 +1256,19 @@ describe("native delivery landing", () => {
       },
       stateStore: { publish: async (_id, value, expectedRevision) => {
         publishCount += 1;
-        if (publishCount > 1 || provedHeads.size !== 2 || !topPublished || expectedRevision !== 2) {
+        const phasePublish = publishCount === 1;
+        if (publishCount > 2 || expectedRevision !== publishCount + 2 || provedHeads.size !== 2
+          || (!phasePublish && !topPublished)) {
           return { status: "refused" as const, reason: "version-conflict" as const };
         }
-        return { status: "ok" as const, value: { revision: 3, value } };
+        return { status: "ok" as const, value: { revision: expectedRevision + 1, value } };
       } },
     });
 
     expect(result).toMatchObject({
       status: "applied",
       state: {
-        revision: 3,
+        revision: 5,
         value: {
           members: [
             {},
@@ -1272,7 +1279,7 @@ describe("native delivery landing", () => {
         },
       },
     });
-    expect(publishCount).toBe(1);
+    expect(publishCount).toBe(2);
     expect([...localHeads.values()]).toEqual(["a".repeat(40), "c".repeat(40)]);
 
     const rewriteLocalRef = vi.fn();
@@ -1425,7 +1432,7 @@ describe("native delivery landing", () => {
       resolutionInput: {
         planId: reconcileInput.plan.planId,
         scope: { kind: "native-suffix", operationId: "operation-1" },
-        expectedStateRevision: 2,
+        expectedStateRevision: 3,
         conflicts,
       },
     });
@@ -1441,23 +1448,37 @@ describe("native delivery landing", () => {
         }
       : { status: "accepted" as const, proof: "mechanical-reapply" as const };
 
+  function casStateStore(initialRevision = 3) {
+    let revision = initialRevision;
+    const writes: Array<{ expectedRevision: number; value: DeliveryStateV1 }> = [];
+    return {
+      writes,
+      stateStore: {
+        publish: async (_planId: string, value: DeliveryStateV1, expectedRevision: number) => {
+          if (expectedRevision !== revision) {
+            return { status: "refused" as const, reason: "version-conflict" as const };
+          }
+          revision += 1;
+          writes.push({ expectedRevision, value });
+          return { status: "ok" as const, value: { revision, value } };
+        },
+      },
+    };
+  }
+
+
   function reachedSettlement() {
     const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
-    const published: DeliveryStateV1[] = [];
+    const { writes, stateStore } = casStateStore();
     return {
       absorbedTop,
-      published,
+      writes,
       deps: {
         observeMemberRefCheckouts: async () => ({ status: "observed" as const, checkouts: [] }),
         absorbTop: async () => ({ status: "absorbed" as const, ...absorbedTop }),
         publishTop: async () => ({ status: "published" as const }),
         rewriteLocalRef: async () => ({ status: "rewritten" as const }),
-        stateStore: {
-          publish: async (_planId: string, value: DeliveryStateV1) => {
-            published.push(value);
-            return { status: "ok" as const, value: { revision: 3, value } };
-          },
-        },
+        stateStore,
       },
     };
   }
@@ -1485,8 +1506,8 @@ describe("native delivery landing", () => {
       },
     );
 
-    expect(result).toMatchObject({ status: "applied", state: { revision: 3 } });
-    expect(settlement.published).toHaveLength(1);
+    expect(result).toMatchObject({ status: "applied", state: { revision: 5 } });
+    expect(settlement.writes).toHaveLength(2);
   });
 
   it("refuses a stale resolution and keeps the reservation", async () => {
@@ -1586,10 +1607,10 @@ describe("native delivery landing", () => {
         ...settlement.deps,
       });
 
-      expect(result).toMatchObject({ status: "applied", state: { revision: 3 } });
+      expect(result).toMatchObject({ status: "applied", state: { revision: 5 } });
       expect(result).not.toHaveProperty("conflicts");
       expect(result).not.toHaveProperty("resolutionInput");
-      expect(settlement.published).toHaveLength(1);
+      expect(settlement.writes).toHaveLength(2);
     },
   );
 
@@ -1601,6 +1622,7 @@ describe("native delivery landing", () => {
       observeRef,
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       ...unreachedSettlement,
+      stateStore: casStateStore().stateStore,
       rewriteLocalRef: async () => ({ status: "rewritten" }),
       absorbTop: async () => ({
         status: "refused",
@@ -1627,6 +1649,7 @@ describe("native delivery landing", () => {
       observeRef,
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       ...unreachedSettlement,
+      stateStore: casStateStore().stateStore,
       rewriteLocalRef: async () => ({ status: "rewritten" }),
       absorbTop: async () => ({ status: "refused", reason: "content-conflict", paths: ["docs/top.md"] }),
     })).resolves.toMatchObject({
@@ -1644,6 +1667,7 @@ describe("native delivery landing", () => {
       observeRef,
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       ...unreachedSettlement,
+      stateStore: casStateStore().stateStore,
       rewriteLocalRef: async () => ({ status: "rewritten" }),
       absorbTop: async (input) => {
         attempted = input;
@@ -1681,6 +1705,7 @@ describe("native delivery landing", () => {
       observeRef,
       proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
       ...unreachedSettlement,
+      stateStore: casStateStore().stateStore,
       rewriteLocalRef: async (moved) => {
         rewrites.push(moved);
         return { status: "rewritten" };
@@ -1695,6 +1720,153 @@ describe("native delivery landing", () => {
       })),
     });
   });
+
+  it("records the observed suffix in persisted state when the settle wedges", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement, movedByRef } = linkedSuffixFixture();
+    const store = casStateStore();
+
+    const blocked = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      stateStore: store.stateStore,
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      absorbTop: async () => ({ status: "refused", reason: "content-conflict", paths: ["docs/top.md"] }),
+    });
+
+    expect(blocked).toMatchObject({ status: "blocked", reason: "contribution-conflicted" });
+    expect(store.writes).toHaveLength(1);
+    const wedged = store.writes[0]!.value.activeOperation;
+    if (wedged?.kind !== "land" || wedged.native == null) throw new Error("expected a held native reservation");
+    expect(wedged.native.observedSuffix).toEqual(
+      [...movedByRef].map(([ref, coordinates]) => expect.objectContaining({
+        ref,
+        coordinates: expect.objectContaining({ head: coordinates.head, tree: coordinates.tree }),
+      })),
+    );
+  });
+
+  it("leaves the wedged reservation valid, so the landing verb can be re-run", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const store = casStateStore();
+
+    await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      stateStore: store.stateStore,
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      absorbTop: async () => ({ status: "refused", reason: "content-conflict", paths: ["docs/top.md"] }),
+    });
+
+    expect(store.writes).toHaveLength(1);
+    expect(validateDeliveryActiveOperation({
+      revision: reconcileInput.before.revision + 1,
+      value: store.writes[0]!.value,
+    })).toMatchObject({ status: "valid" });
+  });
+
+  it("lands the terminal publish at the revision the phase publish returned", async () => {
+    const { reconcileInput, observeRequest, observeRef } = linkedSuffixFixture();
+    const settlement = reachedSettlement();
+
+    const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...settlement.deps,
+    });
+
+    expect(settlement.writes.map(({ expectedRevision }) => expectedRevision)).toEqual([3, 4]);
+    expect(result).toMatchObject({ status: "applied", state: { revision: 5 } });
+  });
+
+  it("keeps the landed members and target at their post-landing coordinates", async () => {
+    const { reconcileInput, observeRequest, observeRef, newTarget } = linkedSuffixFixture();
+    const settlement = reachedSettlement();
+
+    const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...settlement.deps,
+    });
+
+    if (result.status !== "applied") throw new Error(`expected a settled landing, got ${result.status}`);
+    expect(result.state.value.target).toEqual({ ref: "refs/heads/delivery-target", coordinates: newTarget });
+    expect(result.state.value.members[0]?.coordinates).toMatchObject({
+      head: newTarget.head,
+      tree: newTarget.tree,
+    });
+    expect(result.state.value.activeOperation).toBeNull();
+  });
+
+  it("refuses the phase publish against a competing write rather than overwriting it", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const store = casStateStore(reconcileInput.before.revision + 1);
+    const rewriteLocalRef = vi.fn();
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      stateStore: store.stateStore,
+      rewriteLocalRef,
+    })).resolves.toMatchObject({ status: "blocked", reason: "state-conflict" });
+    expect(store.writes).toHaveLength(0);
+    expect(rewriteLocalRef).not.toHaveBeenCalled();
+  });
+
+  it("writes no state at all when the suffix proof discloses a conflict", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const store = casStateStore();
+
+    const disclosed = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: conflictedSecondMember,
+      ...unreachedSettlement,
+      stateStore: store.stateStore,
+    });
+
+    expect(disclosed).toMatchObject({ status: "conflict-resolution-required" });
+    expect(store.writes).toHaveLength(0);
+  });
+
+  it("discloses the terminal absorption conflict after the phase publish, with its restorations", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const store = casStateStore();
+    const order: string[] = [];
+
+    const blocked = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      stateStore: {
+        publish: async (planId: string, value: DeliveryStateV1, expectedRevision: number) => {
+          order.push("publish");
+          return store.stateStore.publish(planId, value, expectedRevision);
+        },
+      },
+      rewriteLocalRef: async () => {
+        order.push("rewrite");
+        return { status: "rewritten" };
+      },
+      absorbTop: async () => ({ status: "refused", reason: "content-conflict", paths: ["docs/top.md"] }),
+    });
+
+    expect(order).toEqual(["publish", "rewrite", "rewrite"]);
+    expect(blocked).toMatchObject({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      externalRefRestorations: [expect.anything(), expect.anything()],
+    });
+  });
+
 
   it("restores nothing on the suffix arm, which refuses before any ref moves", async () => {
     const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture(5);
@@ -1750,6 +1922,8 @@ describe("native delivery landing", () => {
       },
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const submitted = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitted.status !== "begun") throw new Error("fixture submission transition failed");
     const landed = {
       ...bound,
       target: {
@@ -1765,8 +1939,8 @@ describe("native delivery landing", () => {
     return {
       reconcileInput: {
         plan: suffixPlan,
-        before: { revision: 2, value: reserved.state },
-        landed: { revision: 2, value: landed },
+        before: { revision: 3, value: submitted.state },
+        landed: { revision: 3, value: landed },
         repository: "o/r",
         protectedTargetRef: "refs/heads/delivery-target",
       },
@@ -1802,8 +1976,8 @@ describe("native delivery landing", () => {
       ...settlement.deps,
     });
 
-    expect(result).toMatchObject({ status: "applied", state: { revision: 3 } });
-    expect(settlement.published).toHaveLength(1);
+    expect(result).toMatchObject({ status: "applied", state: { revision: 4 } });
+    expect(settlement.writes).toHaveLength(1);
   });
 
   it("bases every settled member on its predecessor and clears the reservation", async () => {
@@ -1817,7 +1991,7 @@ describe("native delivery landing", () => {
       ...settlement.deps,
     });
 
-    const settled = settlement.published[0];
+    const settled = settlement.writes.at(-1)?.value;
     expect(settled).toBeDefined();
     const heads = settled!.members.map((member) => member.coordinates!.head);
     expect(settled!.members.slice(1).map((member) => member.coordinates!.base)).toEqual(heads.slice(0, -1));

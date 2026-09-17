@@ -18,6 +18,7 @@ import {
   DeliveryTerminalAuthoringMovementV1Schema,
   DeliveryTopRemedyEffectV1Schema,
   type DeliveryActiveOperationV1,
+  type DeliveryNativeObservedSuffixMemberV1,
   type DeliveryOperationSnapshotV1,
   type DeliveryPlanV1,
   type DeliveryStateV1,
@@ -587,6 +588,48 @@ export function beginNativeDeliverySubmission(
       ...active.operation,
       stateRevision: current.revision,
       native: { ...active.operation.native, phase: "submitting" },
+    },
+  });
+  return parsed.success
+    ? { status: "begun", state: parsed.data }
+    : { status: "refused", reason: "state-invalid" };
+}
+
+export type BeginNativeDeliverySettlementResult =
+  | { readonly status: "begun"; readonly state: DeliveryStateV1 }
+  | {
+      readonly status: "refused";
+      readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "not-submitted";
+    };
+
+/**
+ * Record the freshly observed remaining suffix on one submitted native reservation before its refs move.
+ *
+ * @param current - The exact reservation record the settlement observed its suffix under.
+ * @param operationId - The reservation this settlement belongs to.
+ * @param observedSuffix - The complete observed remaining suffix, in plan order.
+ * @returns The state to publish against `current.revision`, or a closed refusal.
+ */
+export function beginNativeDeliverySettlement(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+  operationId: string,
+  observedSuffix: readonly DeliveryNativeObservedSuffixMemberV1[],
+): BeginNativeDeliverySettlementResult {
+  const active = validateDeliveryActiveOperation(current);
+  if (active.status === "blocked") {
+    return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
+  }
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native === null || active.operation.operationId !== operationId) {
+    return { status: "refused", reason: "wrong-operation" };
+  }
+  if (active.operation.native.phase === "prepared") return { status: "refused", reason: "not-submitted" };
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...active.state,
+    activeOperation: {
+      ...active.operation,
+      stateRevision: current.revision,
+      native: { ...active.operation.native, phase: "settling", observedSuffix },
     },
   });
   return parsed.success

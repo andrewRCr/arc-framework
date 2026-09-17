@@ -275,54 +275,24 @@ failed lease leaving the reservation held rather than half-released.
   coordinates while the reservation is held, which is where the target comes from; the swapped `beforeHead` is the
   head ARC rewrote **to**, which nothing persists today.
 
-    - `[ ]` **3.2.a Phase-publish the observed suffix before the rewrite loop**
+    - `[x]` **3.2.a Phase-publish the observed suffix before the rewrite loop**
 
-        - Placement is exact, and "after the proof loop" is not precise enough to name it: four further
-          refusals sit between the proof loop and the first rewrite, including a paths-bearing disclosure.
-          The publish goes **immediately before the first rewrite**, so those four return ahead of it too.
-        - Every **suffix-proof** conflict refusal returns earlier, so the disclosure and resubmission paths on
-          that arm still reach no state write. The terminal-absorption arm is the exception by design — it
-          refuses after the local member-ref rewrite, which is why Task 2.2 carries its ref restorations.
-          Moving the publish later to take that arm in too would destroy what the publish exists for, which is
-          recording the observed suffix before the rewrite.
-        - _Note:_ Five refusals return after the publish and only one of them carries restorations: a refused
-          mid-loop ref rewrite, which may leave refs partly moved; an unavailable terminal top; the
-          absorption's non-conflict reason; a failed top publish; and a state conflict on the final publish.
-          The sharpest is the last — the top publish can **succeed** before the final publish conflicts, so a
-          remote terminal ref has moved and Task 3.2.b's local-only swap restores nothing there. Disclosing
-          what was not restored is within this work unit; restoring a remote move is not.
-        - Every move below, not just the first. `beginNativeDeliverySubmission` is the precedent because it
-          makes them together; a publish that records the coordinates and stops corrupts the reservation rather
-          than recording it.
-            - The observed member coordinates land in a **new optional field on the `land` arm's `native`
-              object**, beside `arm` and `phase`. They do not overwrite `requested`, which records what ARC was
-              authorized to produce rather than what it observed.
-            - `stateRevision` is set to the revision the phase publish is made **against** — the reservation's
-              current revision, not the one the publish returns. The invariant is that current state sits exactly
-              one ahead of it, so setting it forward instead wedges the reservation `operation-stale`.
-            - `native.phase` gains a value naming this phase.
-            - The submit path's phase guard is restated from `=== "submitting"` to `!== "prepared"`. It is a
-              positive binary match today, so a third value falls through it into stack reobservation and the
-              member lock release before anything refuses. Of the six phase readers it is the only one the new
-              value breaks: four test `prepared` and stay correct, and the fifth refuses a non-`submitting`
-              phase, which is right because it runs only immediately after the submission transition.
-            - The restated guard now also covers a settle-time reservation, whose condition its existing reason
-              literal does not name — the submission was persisted and the settle is mid-flight. Give that state
-              its own reason rather than letting it share one that describes the opposite.
-            - The settle rebinds only its landing record's **revision** to the one the phase publish
-              **returns**, so its terminal publish is revision-checked against current state. The record's
-              value stays the landing projection: it pairs a pre-landing revision with a post-landing projection,
-              so replacing the whole record would revert the landed members and target to their pre-landing
-              coordinates and erase the host's merge from persisted state on a successful settle.
-        - Build `test-first` (one behavior at a time):
-
-            - A wedged landing leaves the observed suffix readable from persisted state
-            - The reservation still validates after the phase publish, and `land-status` can be re-run
-            - A settle that rewrites a ref still completes, its terminal publish landing at the rebound revision
-            - The landed members and target keep their post-landing coordinates through the phase publish
-            - The phase publish is revision-checked and refuses rather than overwriting a competing write
-            - A suffix-proof conflict disclosure still returns with no state write at all
-            - A terminal-absorption disclosure returns after the phase publish, carrying its ref restorations
+        - The publish sits immediately before the first rewrite, so every suffix-proof refusal and disclosure —
+          including the paths-bearing ones — still returns with no state write at all. It fires only when a ref
+          will actually move; a suffix that did not move settles in one publish as before.
+        - `beginNativeDeliverySettlement` makes the move together, as the submission transition does: it records
+          the complete observed suffix on a new optional `native.observedSuffix`, advances `native.phase` to
+          `settling`, and sets `stateRevision` to the revision the publish is made **against**, which keeps the
+          reservation exactly one behind current state rather than wedging it stale.
+        - Member coordinates, `before`, and `requested` are untouched, so the reservation still validates and the
+          landing verb can be re-run over the wedge.
+        - The settle rebinds only its landing record's revision to the one the phase publish returns. The record
+          keeps its post-landing projection, so the landed members and target survive the phase publish instead of
+          reverting to their pre-landing coordinates.
+        - The submit path's phase guard is restated from `=== "submitting"` to `!== "prepared"`, which a third
+          phase value would otherwise fall through into stack reobservation and the member lock release. A
+          settling reservation gets its own `settlement-in-flight` reason rather than sharing one that describes
+          the opposite condition.
 
     - `[ ]` **3.2.b Swap the rewrite arguments under a lease check**
 

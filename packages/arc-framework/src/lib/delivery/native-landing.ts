@@ -2,6 +2,7 @@
 
 import {
   attachDeliveryOperationEffectIdentity,
+  beginNativeDeliverySettlement,
   beginNativeDeliverySubmission,
   reconcileDeliveryOperation,
   reserveDeliveryOperation,
@@ -11,6 +12,7 @@ import type {
   DeliveryLandEffectV1,
   DeliveryMemberCoordinatesV1,
   DeliveryMergePolicyBindingV1,
+  DeliveryNativeObservedSuffixMemberV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
   DeliveryStateV1,
@@ -400,13 +402,21 @@ export async function submitReservedNativeDeliveryMerge(input: {
   if (operation.effectIdentity !== null) {
     return { status: "pending", effectIdentity: operation.effectIdentity.effectId, state: input.current };
   }
-  if (operation.native?.phase === "submitting") {
-    return {
-      status: "blocked",
-      reason: "submission-before-persist-unresolved",
-      recommendedActionText:
-        "Keep the reservation and resolve the submitted native effect from fresh facts; do not submit again.",
-    };
+  if (operation.native?.phase !== "prepared") {
+    return operation.native?.phase === "settling"
+      ? {
+          status: "blocked",
+          reason: "settlement-in-flight",
+          recommendedActionText:
+            "Keep the reservation and rerun `arc delivery native land-status` to finish settling the landing "
+            + "this reservation already submitted.",
+        }
+      : {
+          status: "blocked",
+          reason: "submission-before-persist-unresolved",
+          recommendedActionText:
+            "Keep the reservation and resolve the submitted native effect from fresh facts; do not submit again.",
+        };
   }
   if ((await dependencies.reobserveSelection()).status !== "exact") {
     return { status: "blocked", reason: "native-stack-moved", recommendedActionText: "Reobserve the exact selected stack before returning to prepare." };
@@ -1187,6 +1197,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     return nativeSuffixConflictResolutionMismatch;
   }
   const changedRefs: string[] = [];
+  const observedSuffix: DeliveryNativeObservedSuffixMemberV1[] = [];
   for (const [index, observed] of observedMembers.entries()) {
     const before = beforeSuffix[index];
     if (before?.ref === null || before?.ref === undefined || before.ref !== observed.ref
@@ -1198,6 +1209,11 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
           "Keep the reservation and restore the exact local member-ref subject before retrying settlement.",
       };
     }
+    observedSuffix.push({
+      deliverableId: observed.deliverableId,
+      ref: before.ref,
+      coordinates: observed.coordinates,
+    });
     if (before.coordinates.head === observed.coordinates.head) continue;
     changedRefs.push(before.ref);
   }
@@ -1221,6 +1237,31 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
           "Keep the reservation and release the listed member-ref checkouts before retrying settlement.",
       };
     }
+  }
+  let settleRevision = input.landed.revision;
+  if (changedRefs.length > 0) {
+    const settling = beginNativeDeliverySettlement(input.before, operation.operationId, observedSuffix);
+    if (settling.status === "refused") {
+      return {
+        status: "blocked",
+        reason: `settlement-phase-${settling.reason}`,
+        recommendedActionText:
+          "Keep the reservation and restore the exact native landing subject before retrying settlement.",
+      };
+    }
+    const phasePublished = await dependencies.stateStore.publish(
+      input.plan.planId,
+      settling.state,
+      input.before.revision,
+    );
+    if (phasePublished.status !== "ok") {
+      return {
+        status: "blocked",
+        reason: "state-conflict",
+        recommendedActionText: "Re-read state; never overwrite a competing native landing settlement.",
+      };
+    }
+    settleRevision = phasePublished.value.revision;
   }
   const externalRefRestorations: DeliveryProviderExternalRefRestoration[] = [];
   for (const [index, observed] of observedMembers.entries()) {
@@ -1333,7 +1374,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   const published = await dependencies.stateStore.publish(
     input.plan.planId,
     projected,
-    input.landed.revision,
+    settleRevision,
   );
   return published.status === "ok"
     ? { status: "applied", state: published.value }
