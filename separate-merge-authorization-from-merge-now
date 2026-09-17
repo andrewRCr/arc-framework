@@ -3,7 +3,7 @@
   "slug": "separate-merge-authorization-from-merge-now",
   "claimId": "14cfebbeb53d3636185ac1129dfa1ac1",
   "createdAt": "2026-09-17T17:14:34.674Z",
-  "updatedAt": "2026-09-17T17:14:34.674Z",
+  "updatedAt": "2026-09-17T17:32:18.630Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Separate merge authorization from merge-now at the integration interlock",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Separate merge authorization from merge-now at the integration interlock",
   "originEntrySourceDigest": "sha256:46b0a00ffbb389bd793cbfdb16d989c5f8bd01ddc7a8f2bfd1263c228ad62d84",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/separate-merge-authorization-from-merge-now",
+    "headSha": "b90ef9ff6dd8ea486d8fc5e09118f3dca42e05ea"
+  }
 }
