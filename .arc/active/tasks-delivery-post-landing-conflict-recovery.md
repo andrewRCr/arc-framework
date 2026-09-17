@@ -1084,6 +1084,14 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   `detail` the hold names verbatim — so nothing forces its replacement and it is retired deliberately. Dropping
   it as redundant against the digest hold is rejected on evidence, as is making the ancestor pick deterministic.
 
+- _Finding:_ Neither of those two can take the neither-shape route at all. Each names one field over a two-valued
+  space — `paths` is whichever half the ancestor pick exposes, `differs` is a boolean — so every result matches
+  one shape or the other, leaving the spent-hold route as the only red one. The digest sibling has taken it once
+  already with nothing fixed: the two arms write identical content deliberately, so the digests agree whenever
+  the pick lands on the branch-side ancestor, and the probe file records the same varying pick in its own comment
+  on the staged arm. What each replacement asserts is unchanged; what does not hold is the trigger, and both can
+  go red before this phase runs. Surfaced during Task 3.6.
+
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
     - `[ ]` **6.7.a Replace the committed-arm subject and digest sibling holds**

@@ -285,6 +285,15 @@ red as neither-shape and are replaced in the same change that moves the behavior
 goes red by neither route — the design keeps its observed refusal — so nothing forces its replacement and it is
 retired deliberately.
 
+**Correction, found during Phase 3.** Two of those four cannot take the neither-shape route at all. The
+committed-arm subject and the digest sibling each name one field over a two-valued space — `paths` is whichever
+half the ancestor pick exposes, `differs` is a boolean — so every result matches one shape or the other, leaving
+the spent-hold route as the only red one. The digest sibling has taken it once already with nothing fixed: the two
+arms write identical content deliberately, so the digests agree whenever the pick lands on the branch-side
+ancestor, and `history-shape-ambiguity.test.ts` records the same varying pick in its own comment on the staged
+arm. Both can therefore go red, reported as spent, before the change that moves the behavior arrives. What each
+replacement asserts is unaffected; the trigger named above is not.
+
 A ninth row is owned here and **deliberately unpinned**: `delivery-rebuild-base-movement.test.ts` — "returns the
 identical refusal after the operator resolves the conflicted path". It proves the named remedy does not clear the
 refusal, which no other test asserts, and the refusal itself is correct.
