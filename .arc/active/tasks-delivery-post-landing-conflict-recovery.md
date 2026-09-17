@@ -336,6 +336,15 @@ separate run, released by decline — with a failed lease leaving the reservatio
           change request, and the head. Compose the same effect observer; do not call the reconcile itself,
           which publishes a clear on its never-applied branch and returns a preserved reservation on a
           `prepared` one — neither of which is this verb's answer.
+        - **The effect observer alone cannot separate in-flight from never-applied**, and two of the behaviours
+          below depend on that separation. Its facts report `none-landed` for each, and the classifier reaches
+          `not-applied` only for a `none-landed` fact paired with a **failed** host observation. The
+          distinguishing read is the host poll against the persisted effect identity, which reports `pending`
+          while an effect is still in flight. Compose that poll as a second piece beside the observer — it is
+          what the reconcile composes, not the reconcile itself.
+        - The poll belongs on the asynchronous-identity branch only; the synchronous branch resolves from fresh
+          facts without it and keeps the reservation on an unresolved synchronous effect. Branch on the identity
+          the same way rather than polling unconditionally.
         - Build `test-first` (one behavior at a time):
 
             - The exact selector is accepted and resolves the held reservation
@@ -365,8 +374,12 @@ separate run, released by decline — with a failed lease leaving the reservatio
 
     - `[ ]` **3.2.a Phase-publish the observed suffix before the rewrite loop**
 
-        - Placement is exact: immediately before the first rewrite, after the proof loop. Every conflict refusal
-          returns earlier, so the disclosure and resubmission paths still reach no state write.
+        - Placement is exact: immediately before the first rewrite, after the proof loop. Every **suffix-proof**
+          conflict refusal returns earlier, so the disclosure and resubmission paths on that arm still reach no
+          state write. The terminal-absorption arm is the exception by design — it refuses after the local
+          member-ref rewrite, which is why Task 2.2 carries its ref restorations. Moving the publish later to
+          take that arm in too would destroy what the publish exists for, which is recording the observed suffix
+          before the rewrite.
         - Every move below, not just the first. `beginNativeDeliverySubmission` is the precedent because it
           makes them together; a publish that records the coordinates and stops corrupts the reservation rather
           than recording it.
@@ -397,7 +410,8 @@ separate run, released by decline — with a failed lease leaving the reservatio
             - A settle that rewrites a ref still completes, its terminal publish landing at the rebound revision
             - The landed members and target keep their post-landing coordinates through the phase publish
             - The phase publish is revision-checked and refuses rather than overwriting a competing write
-            - A conflict disclosure still returns with no state write at all
+            - A suffix-proof conflict disclosure still returns with no state write at all
+            - A terminal-absorption disclosure returns after the phase publish, carrying its ref restorations
 
     - `[ ]` **3.2.b Swap the rewrite arguments under a lease check**
 
