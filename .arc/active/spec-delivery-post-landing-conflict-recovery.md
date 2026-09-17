@@ -1022,6 +1022,10 @@ and syncs to the project copy, never a copy between them.
 10. The shipped `deliver-stack.md` describes the protocol as changed: no instruction to settle a suffix
     reconciliation refusal by rerunning `land-status` without resubmitting, and the decline verb present in the
     native landing lifecycle it drives.
+11. An ambiguous or unrelated base reaches the operator with a remedy that can clear it, or with a terminal
+    statement that stops inviting one — at both readers that refuse the pair (D3) and at both reductions that can
+    receive the normalized cause (D1). No such refusal reports a recoverable-looking retry it cannot satisfy, and
+    none ships with its remedy dropped in projection.
 
 ## Open Questions
 

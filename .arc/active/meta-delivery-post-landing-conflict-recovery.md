@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-delivery-post-landing-conflict-recovery.md`
-- **Task List:** [none]
+- **Task List:** `tasks-delivery-post-landing-conflict-recovery.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** create-spec Step 1 — re-author the overlap and relation vocabulary end to end for Phases 4-5
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

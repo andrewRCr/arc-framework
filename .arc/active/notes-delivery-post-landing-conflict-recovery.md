@@ -202,13 +202,25 @@ Five call sites across four files, not covered by the collector's:
 | `delivery-execution.ts`     | 5776     |
 | `respond-composition.ts`    | 224      |
 
-### Overlap reason split — three layers
+### Overlap reason split — four layers
 
-`RevisionOverlapResult` → `OverlapEvidence` (`base-drift-types.ts`) → `EvidenceOverlapObservation`
-(`evidence-applicability/schema.ts`). The middle layer has no ambiguous and no unrelated arm, and
-`analyzeBaseOverlap` folds `unrelated` together with `merge-base-failed`, so `unrelated` must be **lifted out**
-there rather than passed through. `status-composition.ts` re-collapses the same pair again on the review-status
-path. Editing only the first layer leaves both affected pins observing byte-identical values.
+`RevisionOverlapResult` → `OverlapEvidence` (`base-drift-types.ts`) → `EvidenceOverlapObservation` →
+`EvidenceOverlap` (both `evidence-applicability/schema.ts`). The second layer has no ambiguous and no unrelated
+arm, and `analyzeBaseOverlap` folds `unrelated` together with `merge-base-failed`, so `unrelated` must be
+**lifted out** there rather than passed through. `status-composition.ts` re-collapses the same pair again on the
+review-status path. Editing only the first layer leaves both affected pins observing byte-identical values.
+
+The fourth layer is the normalized verdict space, reached only through `normalizeOverlap` (`compose.ts`) — the
+sole conversion into it, though not its sole constructor: the `not-applicable` arm has its own origin on the
+three delta causes that read no base. Only two reductions can receive a base-resolution arm, both on the
+`base-movement` cause: `review-gate/status.ts` and `scripts/integration/errand-merge-composition.ts`. Candidate
+applicability is not one of them — it refuses an ambiguous base at its own `merge-base --all` read, ahead of any
+reduction.
+
+Two consumers of the second layer take the same shape and neither is the register alone: `base-drift-register.ts`
+and `base-distance.ts`'s movement classifier both test the unavailable status and then dereference a path field.
+And `errand-merge-composition.ts` parses second-layer evidence straight into the third layer's schema by shape
+coincidence, so the two layers' new arms must carry identical field sets or that parse throws.
 
 ### `repository-target.ts`
 
@@ -331,8 +343,11 @@ together; a rule written for "the reader" singular leaves the second one accepti
   substitutes the recorded coordinates into the observation before comparing, so coordinates there are not an
   authorization term. That is why observed coordinates take a dedicated field rather than overloading it.
 - An exhaustive consumer sweep over every widened type is already recorded in § Propagation surfaces and
-  § Reader inventory. Two consumers fail silently rather than at the compiler — the drift register narrates from
-  a positive availability test, and the review precondition mapper is a switch with no default arm.
+  § Reader inventory. Distinguish failing by type from failing by narration. The drift register and the movement
+  classifier each test the unavailable status positively and then dereference a path field, so the compiler flags
+  the dereference while saying nothing about the narration — a minimal fix restores compilation and leaves both
+  new arms sharing the quiet text. The review precondition mapper is the genuinely silent one, a switch with no
+  default arm.
 
 ### Coverage already spent, so it is not respent
 

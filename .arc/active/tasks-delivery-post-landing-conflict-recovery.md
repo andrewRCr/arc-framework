@@ -1439,5 +1439,9 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
 - `[ ]` The shipped `deliver-stack.md` describes the protocol as changed — no instruction to settle a suffix
   reconciliation refusal by rerunning `land-status` without resubmitting, and the decline verb present in the
   native landing lifecycle it drives.
+- `[ ]` An ambiguous or unrelated base reaches the operator with a remedy that can clear it, or with a terminal
+  statement that stops inviting one, at both eligibility readers and both reductions that can receive the
+  normalized cause — none reporting a retry it cannot satisfy, and none shipping with its remedy dropped in
+  projection.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
