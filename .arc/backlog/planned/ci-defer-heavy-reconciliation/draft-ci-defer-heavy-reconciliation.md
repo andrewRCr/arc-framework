@@ -11,6 +11,32 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Distinguish intentionally deferred CI from failed review diagnostics**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: ci-defer-heavy-reconciliation`
+
+- _Observation:_ during PR #583 review, `ci-defer-heavy` correctly skipped the heavy jobs and kept `ci-ok` and
+  `merge-ok` red as the merge-safety backstop. The required-check diagnostic projected that intentional deferral as
+  ordinary `failed / stop`, forcing the hosted-review workflow to stop even though CodeRabbit was still pending and
+  no executed CI job had failed. An agent must inspect labels and job skips manually to distinguish the expected
+  review-time state from a real correct-fast failure.
+
+- _Approach:_ expose the effective exact-head deferral state through required-check observation and return a typed
+  intentionally-deferred review diagnostic while the governing review activity remains pending. Preserve red
+  `ci-ok` / `merge-ok`, the draft lock, and final fail-closed merge behavior; the distinction changes operational
+  guidance and review continuation only, never treats deferred checks as green or complete. Once review settles,
+  ordinary reconciliation must remove deferral, schedule the required heavy jobs, and return to normal pending,
+  green, or failed check semantics.
+
+- _Boundary:_ `review-signal-convergence` may consume the typed state when coordinating review continuation, but it
+  should not own CI deferral policy or aggregate-gate semantics. Keep those authoritative in
+  `ci-defer-heavy-reconciliation` and avoid a second review-side deferral model.
+
+- _Captured during:_ `resume-scoped-review-fix-verification-before-candidate-reroot` full-final review, PR #583,
+  2026-09-09.
+
 ### `[ ]` **Reduce hosted CI consumption without weakening the aggregate gate**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).

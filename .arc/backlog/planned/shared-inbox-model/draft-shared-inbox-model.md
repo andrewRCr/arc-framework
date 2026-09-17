@@ -16,6 +16,26 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Isolate exact-entry inbox settlement from unrelated malformed entries**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _WU_Target:_ `shared-inbox-model`
+
+- _Observation:_ Closing PR #589 cleaned the merged Errand's refs, then refused its origin-capture settlement because
+  two unrelated Work Unit captures carried an Errand-only `_Disposition: route-on-drain` field. The intended entry
+  remained recoverable, but completion required manually correcting foreign captures and confirming the now-foreign
+  retained generation. One malformed entry can therefore interrupt an unrelated lifecycle transition after partial
+  cleanup.
+
+- _Approach:_ Make exact-entry settlement validate and mutate only the addressed capture while preserving unrelated
+  entries byte-for-byte. Surface malformed foreign entries as separate diagnostics without poisoning the target
+  operation. Settle transaction ordering so ref cleanup cannot precede a capture failure without an ordinary
+  idempotent retry path; coordinate the analogous shared-ledger recovery constraints in
+  `identity-conflict-recovery` without conflating the two stores.
+
+- _Captured during:_ `make-self-mutating-correction-drives-hand-off-a-fresh-dev-build` post-merge close, 2026-09-11.
+
 ### `[ ]` **Reopen promote-by-default under parallelism-GA shared-file churn**
 
 - _Routed from:_ parallelism-GA operating review and housekeep drain (2026-07-20).

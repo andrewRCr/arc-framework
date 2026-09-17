@@ -18,6 +18,36 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Bind record citations to the artifacts they name, and re-check a quoted measurement where it is quoted**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: knowledge-lint`
+
+- _Observation:_ A work-unit record can cite a test by file and title, and nothing binds the citation to the
+  collected set. `concurrent-integration-characterization` closed a task on the claim that every cited probe name
+  resolved to exactly one test — its goal naming the exact hazard, that the tests cite nothing back so a rename
+  silently orphans the row — and the claim held ninety-three minutes. Two later commits renamed six cited probes;
+  three subsequent close-out passes did not notice. The same record carried four more claims that were true when
+  measured and stale or wrong when quoted: a placeholder-diff count, a per-tier run spread, a lane test count, and
+  a per-file test count.
+
+- _Approach:_ two tiers, matching the ones already chartered here. Mechanical — resolve every citation from an
+  `.arc/` artifact into the code tree (a test file plus title, a symbol, a path) against what the tree contains,
+  and fail on the ones that resolve to nothing; the runner can produce the collected set, so a test title is
+  decidable without judgment. Semantic sweep — flag a quantitative claim whose supporting measurement predates a
+  later commit touching what it measured, as a candidate rather than a verdict.
+
+- _Boundary:_ detection only. Whether a stale number is re-measured, corrected, or left standing under an
+  append-only convention stays with the record's owner.
+
+- _Prior art:_ both failure classes are worked through in `notes-concurrent-integration-characterization.md`
+  § Record audit at close. The inbound-buffer entry on planning claims that lack source grounding is the nearest
+  neighbor already routed here, and the mechanical tier is the same shape as the broken-cross-reference check the
+  charter's success signal already names.
+
+- _Captured during:_ `concurrent-integration-characterization` verification close, 2026-09-15.
+
 ### `[ ]` **Detect planning claims that lack their required source grounding**
 
 - _Routed from:_ split `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-03); captured during
