@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
 import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
+import { GitProcessError } from "../../../../src/lib/git/process-error.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -599,6 +600,97 @@ describe("delivery checkpoint composition", () => {
         + "in moves neither of them.",
       evidence: { baseRevision, baselineRevision },
       nextAction: { command: "rebaseline", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("routes a branch and base sharing no history to reconciling the base", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+    });
+
+    // Both revisions of this pair can still move, so the merge that gives them a first common ancestor is a
+    // route that exists — unlike the rerun, which reads the same absent ancestry again.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "unknown",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "unrelated" },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The branch and its base share no common ancestor, so nothing between them can be compared.",
+      evidence: { baseRevision },
+      nextAction: { command: "reconcile-base", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("routes a pinned-baseline pair sharing no history through the base before the baseline", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baselineRevision = state.members.at(-1)!.coordinates!.head;
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: candidateRecord(plan.workUnitId, baselineRevision),
+      version: `sha256:${"e".repeat(64)}`,
+    });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async (_command: string, args: readonly string[]) => {
+        if (args[0] === "merge-base") {
+          throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 1 });
+        }
+        return { stdout: "", stderr: "" };
+      }),
+    });
+
+    // Retaking the baseline is what clears an ambiguous pair here, and it cannot clear this one: a baseline
+    // taken from a branch that shares no ancestry with the base shares none either. The base comes first.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "overlapping",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The durable baseline and the observed base share no common ancestor, so the base must be "
+        + "reconciled before a fresh baseline can establish one.",
+      evidence: { baseRevision, baselineRevision },
+      nextAction: { command: "reconcile-base", workUnit: plan.workUnitId },
     });
   });
 

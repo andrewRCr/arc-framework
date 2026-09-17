@@ -602,7 +602,7 @@ to a verdict and carries the cause as a discriminant instead. See
           above did not expect — it predates this work unit, and the phase moved it onto the ambiguous arm with
           its text unchanged, which is also why the hold never fired on it.
 
-### `[ ]` **4.8 Give an unrelated base a route at both checkpoint pairs**
+### `[x]` **4.8 Give an unrelated base a route at both checkpoint pairs**
 
 - _Goal:_ A base sharing no history with what it is compared against names a remedy that can clear it, at both
   pairs, rather than the rerun that cannot.
@@ -619,12 +619,15 @@ to a verdict and carries the cause as a discriminant instead. See
   not read as a one-step remedy that provably cannot succeed. Settle that shape in the task rather than assuming
   the ambiguous arm's answer carries over.
 
-    - `[ ]` **4.8.a Route the unrelated arm at both checkpoint pairs**
+    - `[x]` **4.8.a Route the unrelated arm at both checkpoint pairs**
 
-        - Build `test-first` (one behavior at a time):
+        - Both pairs dispatch `reconcile-base`, and the details differ rather than the routes: at the pinned
+          pair it names the fresh baseline that has to follow the merge, because a baseline taken from a branch
+          sharing no ancestry with the base shares none either.
 
-            - A drift pair sharing no history carries the route that can give it a common ancestor
-            - A pinned-baseline pair sharing no history names a route that does not stop at re-baselining
+- _Outcome:_ The per-pair distinction Task 4.6 established does not extend to this arm. An absent ancestor has
+  the same prerequisite at either pair, so the two differ in what has to follow the merge rather than in whether
+  one is called for at all.
 
 ## **Phase 5:** The predecessor relation and vocabulary migration
 

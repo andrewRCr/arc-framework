@@ -536,8 +536,18 @@ export function createIntegrationCheckpointDependencies(input: {
           drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
         );
       }
-      // Both revisions of this pair can move, so merging the base in leaves one merge base where there were
-      // two. Reporting it as an unreadable overlap would name a rerun that changes nothing.
+      // Both revisions of this pair can move, so merging the base in is a route that exists here: it gives an
+      // unrelated pair its first common ancestor, as review status already reports for the same pair.
+      if (drift.overlap?.status === "unrelated") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The branch and its base share no common ancestor, so nothing between them can be compared.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+          "reconcile-base",
+        );
+      }
+      // The same merge leaves one merge base where there were two. Reporting either as an unreadable overlap
+      // would name a rerun that changes nothing.
       if (drift.overlap?.status === "ambiguous") {
         return unavailableDeliveryDrift(
           workUnit,
@@ -615,8 +625,20 @@ export function createIntegrationCheckpointDependencies(input: {
           baselineRevision,
         });
       }
-      // The baseline half of this pair is pinned, so the merge that clears the pair above moves neither side
-      // here and the same two bases survive it. Only a fresh baseline can.
+      // The baseline half of this pair is pinned, so a fresh baseline is what clears it — and that is exactly
+      // what cannot clear an absent ancestor, since a baseline taken from a branch sharing no history with the
+      // base shares none either. Here alone the two pairs want the same first step.
+      if (overlap.status === "unrelated") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The durable baseline and the observed base share no common ancestor, so the base must be "
+            + "reconciled before a fresh baseline can establish one.",
+          { baseRevision, baselineRevision },
+          "reconcile-base",
+        );
+      }
+      // The merge above moves neither side of this pair, so the same two bases survive it. Only a fresh
+      // baseline can collapse them.
       if (overlap.status === "ambiguous") {
         return unavailableDeliveryDrift(
           workUnit,
