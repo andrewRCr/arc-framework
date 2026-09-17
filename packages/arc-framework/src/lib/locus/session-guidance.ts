@@ -113,6 +113,11 @@ function renderDerivedCleanup(row: DerivedCheckoutRow): string[] {
     return [`Cleanup is available for retired checkout ${row.checkout.path}.`];
   }
   if (row.kind === "unresolved-checkout") {
+    const activeCandidateSchemaSkew = row.subject?.kind === "work-unit"
+      && row.lifecycleLocation === "active"
+      && row.diagnostics.length > 0
+      && row.diagnostics.every((diagnostic) => diagnostic.code === "candidate-record-schema-skew");
+    if (activeCandidateSchemaSkew) return [];
     return [`Inspect checkout ${row.checkout.path} before cleanup.`];
   }
   return [];

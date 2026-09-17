@@ -80,6 +80,31 @@ describe("deriveDerivedLocusSessionGuidance", () => {
       cleanup: ["Cleanup is available for retired checkout /repo/old."],
     });
   });
+
+  it("does not offer cleanup for an active foreign checkout with Candidate schema skew", () => {
+    const frame = primaryFrame("free-primary");
+    const skewed = {
+      ...frame.roster[0]!,
+      kind: "unresolved-checkout" as const,
+      checkout: { ...frame.roster[0]!.checkout, path: "/repo/active", primary: false },
+      subject: { kind: "work-unit" as const, key: "active" },
+      lifecycleLocation: "active" as const,
+      diagnostics: [{
+        code: "candidate-record-schema-skew",
+        message: "Use the checkout-local ARC CLI from /repo/active.",
+      }],
+    };
+    const value: DerivedLocusFrame = { ...frame, roster: [...frame.roster, skewed] };
+
+    expect(deriveDerivedLocusSessionGuidance({ ok: true, value })).toMatchObject({
+      kind: "ready",
+      cleanup: [],
+      diagnostics: [
+        "candidate-record-schema-skew at checkout '/repo/active': "
+          + "Use the checkout-local ARC CLI from /repo/active.",
+      ],
+    });
+  });
 });
 
 describe("deriveRecoveryLocusSessionGuidance", () => {
