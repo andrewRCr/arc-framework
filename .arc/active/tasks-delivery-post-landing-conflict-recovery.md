@@ -177,31 +177,27 @@ acceptance is the existing `applicability-selection` transition, not a new waive
           moved, carrying the head ARC wrote and the head it replaced. The suffix arm returns upstream of the
           loop and so discloses no restorations at all.
 
-### `[ ]` **2.3 Derive the hand-resolution evidence and report the operator's own residual**
+### `[x]` **2.3 Derive the hand-resolution evidence and report the operator's own residual**
 
 - _Goal:_ An operator who merges the refreshed predecessor by hand and commits is admitted on the parent pair
   alone, and the residual reported back is their resolution rather than the whole absorbed predecessor.
 
-- _Rationale:_ Two of the composition's three inputs are recorded rather than observed and the third follows the
-  host's landing, so no act of the operator is an input and resolve-and-rerun returns the identical refusal. The
-  complete route sits one layer above: `observeExactAbsorption` accepts a commit on its parent pair alone,
-  whatever its tree, when `rev-list --parents -n 1 HEAD` is exactly `<head> <top.head> <highestMember.head>` and
-  the worktree is clean. Derive the evidence rather than writing it — `priorTop` is data applicability holds.
+    - `[x]` **2.3.a Admit the hand-merged top on its parent line**
 
-    - `[ ]` **2.3.a Admit the hand-merged top on its parent line**
+        - The route was already complete in `absorbGitDeliveryChain`, so this pins it rather than building it:
+          a hand merge is adopted carrying a tree that is neither parent's and omits the predecessor's own file,
+          a merge against the wrong predecessor refuses `top-moved`, and an unclean worktree refuses
+          `worktree-dirty`.
 
-        - Build `test-first` (one behavior at a time):
+    - `[x]` **2.3.b Report the residual as the operator's own resolution**
 
-            - A hand merge of the refreshed predecessor is admitted with an arbitrary resolved tree
-            - A commit whose parent line does not match is refused
-            - A dirty worktree is refused
+        - The residual diff is anchored at the highest member's head, so the predecessor's content sits on both
+          sides of the comparison and only the hand resolution survives it. Pinned at `classifyDeliveryDrift`,
+          where the anchor is chosen, against a fixture that also offers the wider span the wrong anchor reads.
 
-    - `[ ]` **2.3.b Report the residual as the operator's own resolution**
-
-        - Regression coverage over behaviour the derivation already produces, not a change to it: the drift
-          classification computes its residual paths from the highest coordinate against the baseline, so an
-          operator-absorbed top already reports their own resolution rather than the whole absorbed predecessor.
-          Assert that; do not add a channel from absorption into the residual computation.
+- _Outcome:_ No production code changed. The whole route — parent-line admission, and a residual scoped above
+  the absorbed predecessor — was already derivable, so the increment is the evidence that it holds and the
+  reconstructions proving each behavior is load-bearing rather than incidental.
 
 ### `[ ]` **2.4 Prove the acceptance route through applicability selection**
 

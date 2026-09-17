@@ -382,6 +382,98 @@ describe("delivery checkpoint composition", () => {
     expect(mocks.projectGitCandidateEffectiveTarget).not.toHaveBeenCalled();
   });
 
+  it("scopes the residual to the operator's own resolution above the absorbed predecessor", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baselineRevision = state.members.at(-1)!.coordinates!.head;
+    const baseRevision = oid("d");
+    const mergeBase = oid("a");
+    const highestCoordinate = state.members.at(-2)!.coordinates!;
+    const firstCoordinate = state.members[0]!.coordinates!;
+    const resolvedPath = "src/resolved.ts";
+    const predecessorPath = "src/member.ts";
+    const candidateId = candidateRecord(plan.workUnitId, baselineRevision).attestation.candidateId;
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: candidateRecord(plan.workUnitId, baselineRevision),
+      version: `sha256:${"e".repeat(64)}`,
+    });
+    mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.projectGitCandidateEffectiveTarget.mockResolvedValue({
+      state: "current",
+      candidateId,
+      recognizedTarget: {
+        revision: baselineRevision,
+        subject: { subjectDigest: `sha256:${"b".repeat(64)}` },
+      },
+    });
+    mocks.projectEffectiveCandidateCurrentness.mockReturnValue({
+      status: "current",
+      candidateId,
+      recognizedRevision: baselineRevision,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    });
+    const exec = vi.fn(async (_command: string, args: readonly string[]) => {
+      if (args[0] === "merge-base") return { stdout: `${mergeBase}\n`, stderr: "" };
+      if (args[0] === "diff") return { stdout: `${resolvedPath}\0`, stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+    // The absorbed top carries the predecessor's content as well as the hand resolution, so the
+    // span each diff is anchored at decides which of the two the residual reports.
+    const diffs = new Map([
+      [`${highestCoordinate.head}..${baselineRevision}`, [resolvedPath]],
+      [`${firstCoordinate.base}..${highestCoordinate.head}`, [predecessorPath]],
+      [`${firstCoordinate.base}..${baselineRevision}`, [predecessorPath, resolvedPath]],
+    ]);
+    const rawExec = vi.fn(async (args: string[]) => {
+      const paths = diffs.get(`${args[4]}..${args[5]}`);
+      if (paths === undefined) throw new Error(`unexpected diff span: ${args.join(" ")}`);
+      return { stdout: new TextEncoder().encode(paths.map((path) => `${path}\0`).join("")) };
+    });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec,
+      rawExec,
+    });
+
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "overlapping",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [resolvedPath], regenerablePaths: [] },
+      register: null,
+    })).resolves.toEqual({
+      status: "reconcile",
+      nextAction: "reconcile-base",
+      safetyClass: "residual-contained",
+      evidence: {
+        baselineRevision,
+        baseRevision,
+        mergeBase,
+        substantivePaths: [resolvedPath],
+        regenerablePaths: [],
+        residualPaths: [resolvedPath],
+        predecessorPaths: [predecessorPath],
+      },
+    });
+  });
+
   it("sanitizes a malformed managed Candidate record failure", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
