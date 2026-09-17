@@ -3,7 +3,7 @@
   "slug": "surface-exact-head-ci-readiness-for-every-stacked-member",
   "claimId": "6bfc3a320e419ac5fffe362ea36581ee",
   "createdAt": "2026-09-16T21:36:43.078Z",
-  "updatedAt": "2026-09-16T21:36:43.078Z",
+  "updatedAt": "2026-09-17T00:05:18.917Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "surface-exact-head-ci-readiness-for-every-stacked-member",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Surface exact-head CI readiness for every stacked member",
   "originEntrySourceDigest": "sha256:91ebe2dea8c68b5ba1228d9bdaee24628a7ad9317f6badf7f774f85d08705e67",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/surface-exact-head-ci-readiness-for-every-stacked-member",
+    "headSha": "a11cb531d5ef86d39e24cd4427e5957b381119ea"
+  }
 }
