@@ -19,8 +19,10 @@ import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
 import {
   advanceBase,
   arrangeAmbiguousMergeBase,
+  arrangeUnrelatedBase,
   movementPaths,
   withUnavailableBaseRead,
+  withUnreadableMergeBases,
   type GitExecLike,
 } from "../helpers/base-advance.js";
 import { runHandlerAt } from "../helpers/handler.js";
@@ -274,6 +276,35 @@ describe("review status over a history leaving two merge bases", () => {
         routedObligation: { state: "blocked", detail: "The Candidate target has no sole base coordinate." },
       },
       target: { state: "settled" },
+    });
+  });
+
+  it("reports the ambiguity itself, apart from a comparison it could not read", async () => {
+    const fixture = await singletonUnderReview(async (root) => {
+      await arrangeAmbiguousMergeBase({ cwd: root });
+    });
+
+    const ambiguous = await statusThroughPort(fixture);
+    const unreadable = await statusThroughPort(fixture, withUnreadableMergeBases);
+
+    // Two readings that answered the same way until the analyzer kept them apart: one history the branch has
+    // two comparison points against, one the boundary could not read at all.
+    expect(ambiguous).toMatchObject({ baseMovement: { overlap: { status: "ambiguous" } } });
+    expect(unreadable).toMatchObject({
+      baseMovement: { overlap: { status: "unavailable", reason: "merge-base-failed" } },
+    });
+  });
+});
+
+describe("review status over a base sharing no history with the branch", () => {
+  it("reports the absent common ancestor as its own reading", async () => {
+    // The replacement lands after attestation, unlike the branch-side arrangements above: it moves the base
+    // alone, so the reviewed revision the attestation binds is the same one either way.
+    const fixture = await singletonUnderReview();
+    await arrangeUnrelatedBase({ cwd: fixture.root });
+
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      baseMovement: { overlap: { status: "unrelated" } },
     });
   });
 });

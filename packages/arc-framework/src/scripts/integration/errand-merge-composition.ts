@@ -53,23 +53,15 @@ import type {
 /**
  * Read drift overlap evidence into the observation the applicability delta carries.
  *
- * The two unions no longer share a shape: a base the branch cannot be compared from arrives here under its own
- * status, while the observation still expresses everything non-available through one reason enum. Both sides
- * parse strictly, so converting explicitly is what keeps an arm the observation has no member for from throwing
- * at the boundary instead of being answered.
+ * Both unions state the same four readings, and this assignment is where that agreement is proved. The delta
+ * validates what it is handed strictly, so a reading one side gains alone would otherwise reach it as an
+ * unrecognized status and throw at the parse; here it fails at the compiler instead.
  *
  * @param overlap - Drift overlap evidence as the authoritative reading produced it.
- * @returns The equivalent observation, with a base that cannot be compared from reported as unprovable.
+ * @returns The equivalent observation, under the same status the reading established.
  */
 function observeDriftOverlap(overlap: OverlapEvidence): EvidenceOverlapObservation {
-  switch (overlap.status) {
-    case "available":
-    case "unavailable":
-      return overlap;
-    case "ambiguous":
-    case "unrelated":
-      return { status: "unavailable", reason: "merge-base-failed" };
-  }
+  return overlap;
 }
 
 /** Reduce one complete Errand terminal observation through the shared applicability and movement planners. */

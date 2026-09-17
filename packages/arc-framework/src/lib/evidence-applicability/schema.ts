@@ -91,6 +91,8 @@ export const EvidenceOverlapObservationSchema = z.union([
     message: "substantive and regenerable path evidence must be disjoint",
     path: ["regenerablePaths"],
   }),
+  z.strictObject({ status: z.literal("ambiguous") }),
+  z.strictObject({ status: z.literal("unrelated") }),
   z.strictObject({
     status: z.literal("unavailable"),
     reason: z.enum([

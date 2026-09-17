@@ -58,6 +58,26 @@ describe("evidence delta composition", () => {
     });
   });
 
+  it("leaves a base with more than one comparison point unproven rather than disjoint", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: { status: "ambiguous" } },
+    })).toMatchObject({
+      cause: "base-movement",
+      overlap: { kind: "unknown", substantivePaths: [], regenerablePaths: [] },
+    });
+  });
+
+  it("leaves a base sharing no history unproven rather than disjoint", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: { status: "unrelated" } },
+    })).toMatchObject({
+      cause: "base-movement",
+      overlap: { kind: "unknown", substantivePaths: [], regenerablePaths: [] },
+    });
+  });
+
   it("rejects mismatched host authority into an unresolved admission", () => {
     expect(composeEvidenceDelta({
       cause: "base-movement",

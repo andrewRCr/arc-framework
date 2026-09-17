@@ -220,17 +220,18 @@ export async function readBasePosition(input: {
   });
   const observedOverlap: EvidenceOverlapObservation = overlap.status === "available"
     ? overlap.overlap
-    : {
-        status: "unavailable",
-        reason: overlap.status === "unrelated" || overlap.status === "ambiguous"
-          || overlap.reason === "merge-base-failed"
-          ? "merge-base-failed"
-          : overlap.reason === "left-diff-failed"
-            ? "branch-diff-failed"
-            : overlap.reason === "right-diff-failed"
-              ? "base-diff-failed"
-              : "classification-failed",
-      };
+    : overlap.status === "ambiguous" || overlap.status === "unrelated"
+      ? { status: overlap.status }
+      : {
+          status: "unavailable",
+          reason: overlap.reason === "merge-base-failed"
+            ? "merge-base-failed"
+            : overlap.reason === "left-diff-failed"
+              ? "branch-diff-failed"
+              : overlap.reason === "right-diff-failed"
+                ? "base-diff-failed"
+                : "classification-failed",
+        };
   return {
     currentBaseOid,
     baseContained,

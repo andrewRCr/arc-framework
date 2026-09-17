@@ -454,38 +454,29 @@ to a verdict and carries the cause as a discriminant instead. See
   therefore taken here, since a plan that leaves the suite red across four tasks is not one the quality gate
   admits. Task 4.7 keeps only its review-status half.
 
-### `[ ]` **4.4 Carry both distinctions through `EvidenceOverlapObservation` and the review-status path**
+### `[x]` **4.4 Carry both distinctions through `EvidenceOverlapObservation` and the review-status path**
 
 - _Goal:_ The third layer stops re-collapsing the pair, so the review-status reader reports the same distinction
   the analyzer established.
 
-- _Rationale:_ Editing only the first layer leaves both affected pins observing byte-identical values —
-  `status-composition.ts` re-collapses the same pair again on this path.
+    - `[x]` **4.4.a Carry both arms through the observation schema and its two consumers**
 
-- _Note:_ `EvidenceOverlapObservationSchema` is a Zod schema with **two** consumers — the base-movement
-  observation and the base-merge producer — so this is a validated contract change of the same kind as the
-  relation's literals, not an internal type edit. The pre-public-release posture settles the cost and no
-  compatibility alias is owed.
+        - Both land as peer statuses carrying no fields, so the base-movement observation and the base-merge
+          producer carry them unchanged. The normalizer holds them fail-closed at the unproven arm — the interim
+          Task 4.5 refines with the cause. The errand crossing folded them and no longer needs to: the two unions
+          state the same four readings again, so it is an assignment the compiler checks rather than a conversion.
 
-- _Note:_ The evidence normalizer is the third consumer, and it is the boundary into the fourth layer rather
-  than another carrier of the distinction. Task 4.5 owns its settled disposition; this task hands it two new
-  observation arms to convert.
+    - `[x]` **4.4.b Stop re-collapsing them on the review-status path**
 
-- _Note:_ The hand-off is not clean, and the interim must be named rather than discovered. Widening the
-  observation union breaks the normalizer at the compiler — it reads a path field the new arms do not carry — so
-  this task cannot leave it untouched, and the behaviors below are observed through a reader that runs it. Route
-  both new arms to the `unknown` overlap here as a **fail-closed interim**, which Task 4.5 then refines with the
-  cause discriminant. The interim matters because the shape a fallthrough would take is an empty path list, which
-  reduces to the strongest accept.
+        - The reader reports each arm under its own status, observed through the production status composition
+          over a criss-cross history and over a base replaced by an unrelated root commit. Its `movement` field
+          and the state that field drives are unchanged, because the interim reduces both arms to the verdict an
+          unreadable read already took.
 
-    - `[ ]` **4.4.a Carry both arms through the observation schema and its two consumers**
-
-    - `[ ]` **4.4.b Stop re-collapsing them on the review-status path**
-
-        - Build `test-first` (one behavior at a time):
-
-            - Review status distinguishes an ambiguous base from an unreadable one
-            - Review status distinguishes an unrelated base from both
+- _Outcome:_ All three layers now carry the distinction and the review-status hold is still green, which its
+  retirement note did not expect. Nothing that hold pins has moved: the reduction behind it is the interim, so
+  the state, next action, and detail it observes are still what the reader produces. Its replacement stays at
+  Task 4.7.b rather than following Task 4.7.a forward; recorded there.
 
 ### `[ ]` **4.5 Reduce the distinction at the normalized verdict space**
 
@@ -614,6 +605,11 @@ to a verdict and carries the cause as a discriminant instead. See
   layer directly, so it went red as neither-shape the moment that layer stopped folding — during Task 4.3, which
   is where its replacement was taken. Both replacements are as described; what did not hold is when the first
   one fires.
+
+- _Finding:_ The review-status hold does not fire at the third layer either. Task 4.4 carried both arms to the
+  observation and left the reduction behind them unchanged, so the state, next action, and detail the hold pins
+  are still what the reader produces. Nothing it observes moves until that reduction does, and Task 4.5.c is the
+  first task that changes it.
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 

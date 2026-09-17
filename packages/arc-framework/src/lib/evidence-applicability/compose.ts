@@ -39,7 +39,9 @@ function boundedResidual(paths: readonly string[]): string[] | null {
 }
 
 function normalizeOverlap(input: EvidenceOverlapObservation): EvidenceOverlap {
-  if (input.status === "unavailable") {
+  // A base that cannot be compared from reduces to the same unproven arm an unreadable read does: both mean
+  // disjointness was not established. The cause that distinguishes them does not yet survive this crossing.
+  if (input.status !== "available") {
     return { kind: "unknown", substantivePaths: [], regenerablePaths: [] };
   }
   const substantivePaths = canonicalPaths(input.substantivePaths);
