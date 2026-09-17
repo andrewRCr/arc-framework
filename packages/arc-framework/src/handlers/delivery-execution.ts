@@ -208,6 +208,7 @@ import {
   admitNativeDeliveryLandingRelease,
   deriveNativeDeliveryMemberChain,
   deriveNativeDeliveryRegisteredRemainder,
+  preflightSequentialDeliveryLanding,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
   releaseNativeDeliveryLanding,
@@ -5601,6 +5602,20 @@ async function executeDeliveryCommand(
       const observed = await observePosition(plan, stateRead.value, prepare.repository, prepare.remote);
       if (observed.status !== "observed") {
         return { status: "refused", reason: "position-unavailable" };
+      }
+      const nativePreflight = await preflightSequentialDeliveryLanding({
+        plan,
+        state: stateRead.value.value,
+        selectedDeliverableId: prepare.selectedDeliverableId,
+        repository: prepare.repository,
+        observe: host,
+      });
+      if (nativePreflight.status === "refuse") {
+        return {
+          status: "refused",
+          reason: nativePreflight.reason,
+          recommendedActionText: nativePreflight.recommendedActionText,
+        };
       }
       return prepareDeliveryLanding({
         plan,

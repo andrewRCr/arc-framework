@@ -454,8 +454,10 @@ remote base all name the same exact head. Any tracked change continues through t
 > a residual race. The base OID qualifies the evidence but is not merge authority. Distinguish an Owner-accepted
 > residual review risk from provider-clean evidence and surface native-review or deferred-CI blockers separately.
 > State that approval applies dispositions and channel settlement, ends review or confirms the exact Owner-directed
-> stop, and authorizes the exact-head merge represented by this request. A redirect may instead select release-only
-> for asynchronous host review or later manual merge. Close with `Approve (or redirect)?`.
+> stop, and authorizes the exact-head merge represented by this request. Approval authorizes that exact request; it
+> does not satisfy required checks and is not an instruction to invoke merge this turn while those checks are pending.
+> A redirect may instead select release-only for asynchronous host review or later manual merge. Close with
+> `Approve (or redirect)?`.
 
 After approval, apply the approved final dispositions and channel settlements. An explicit release-only redirect
 composes `releaseRequest` with `schemaVersion: 1`, the absolute checkout path as `treeRoot`, the exact approved PR as
@@ -468,8 +470,10 @@ This separate operation authorizes no merge.
    Errand claim, PR, base OID, head, and known review/response state. Any movement or new finding returns to Step 4
    for a new exact offer; required checks and host-native review blockers remain independent stops. Owner acceptance
    never satisfies a required check; if review-cycle CI deferral keeps one red, restore the full check through the
-   project's authorized mechanism and await green before retrying. For the normal route, pass `errandMergeRequest`
-   unchanged exactly once:
+   project's authorized mechanism and await green before retrying. For the normal route, if the interlock surfaced
+   required checks as not green, do not invoke the terminal merge this turn. Retain the authorized
+   `errandMergeRequest` and re-enter with that exact request once they are green. If required checks were green at
+   the interlock, pass `errandMergeRequest` unchanged exactly once:
 
    ```bash
    arc errand merge <slug> - --json

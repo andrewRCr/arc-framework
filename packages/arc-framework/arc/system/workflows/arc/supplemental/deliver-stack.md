@@ -518,8 +518,18 @@ position facts. The handler freshly reobserves position before preparing the sin
 arc delivery land prepare - --json
 ```
 
-Render the prepared singleton member/head and its consequence. Fire one `integration-interlock` for exactly that
-effect. Approval authorizes only the displayed member/head; no other member or later head inherits it. After approval:
+The handler freshly reobserves native-stack presence before any sequential reservation. Dispatch only on the typed
+result:
+
+- `prepared` — render the singleton member/head and its consequence. Fire one `integration-interlock` for exactly that
+  effect. Approval authorizes only the displayed member/head; no other member or later head inherits it.
+- `refused / registered-native-stack` — no reservation exists. Follow `recommendedActionText` to
+  `arc delivery native land-select`. Do not unlink, change the selected member, or treat the refusal as merge
+  approval.
+- `refused / native-observation-unavailable` — restore authoritative observation; do not sequential-prepare.
+- every other refusal stops.
+
+After `prepared` approval:
 
 ```bash
 arc delivery land apply - --json
