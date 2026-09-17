@@ -166,17 +166,16 @@ acceptance is the existing `applicability-selection` transition, not a new waive
   logical merge base is the pre-landing highest member's head, where the provider arm reads the terminal's
   recorded base — the same commit in a well-formed chain, but sourced from what each arm actually observed.
 
-### `[ ]` **2.2 Carry the local ref restorations on the terminal arm**
+### `[x]` **2.2 Carry the local ref restorations on the terminal arm**
 
 - _Goal:_ Refs ARC moved itself come back with this refusal, which returns after the local member-ref rewrite —
   unlike the suffix arm, which returns before it and has nothing to restore.
 
-    - `[ ]` **2.2.a Emit the restorations with the terminal refusal**
+    - `[x]` **2.2.a Emit the restorations with the terminal refusal**
 
-        - Build `test-first` (one behavior at a time):
-
-            - A terminal conflict after the rewrite reports every ref ARC moved
-            - The suffix arm reports none, because none moved
+        - Each rewrite records its own undo as it lands, so the refusal returns one entry per ref actually
+          moved, carrying the head ARC wrote and the head it replaced. The suffix arm returns upstream of the
+          loop and so discloses no restorations at all.
 
 ### `[ ]` **2.3 Derive the hand-resolution evidence and report the operator's own residual**
 

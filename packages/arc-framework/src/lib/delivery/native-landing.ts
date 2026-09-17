@@ -1058,6 +1058,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       };
     }
   }
+  const externalRefRestorations: DeliveryProviderExternalRefRestoration[] = [];
   for (const [index, observed] of observedMembers.entries()) {
     const before = beforeSuffix[index];
     if (before?.ref === null || before?.ref === undefined || before.coordinates === null
@@ -1075,6 +1076,11 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
           "Keep the reservation and restore the exact local member ref before retrying settlement.",
       };
     }
+    externalRefRestorations.push({
+      ref: before.ref,
+      observedHead: observed.coordinates.head,
+      restoreHead: before.coordinates.head,
+    });
   }
   const terminal = input.landed.value.members.at(-1);
   const previousHighest = beforeSuffix.at(-1);
@@ -1120,6 +1126,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
                 ],
               },
             },
+            externalRefRestorations,
           }
         : {
             status: "blocked",

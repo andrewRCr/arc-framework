@@ -1667,7 +1667,48 @@ describe("native delivery landing", () => {
           ],
         },
       },
+      externalRefRestorations: expect.any(Array),
     });
+  });
+
+  it("returns every local ref it moved before the terminal conflict", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const rewrites: Array<{ ref: string; beforeHead: string; requestedHead: string }> = [];
+
+    const blocked = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      rewriteLocalRef: async (moved) => {
+        rewrites.push(moved);
+        return { status: "rewritten" };
+      },
+      absorbTop: async () => ({ status: "refused", reason: "content-conflict", paths: ["docs/top.md"] }),
+    });
+
+    expect(rewrites).toHaveLength(2);
+    expect(blocked).toMatchObject({
+      externalRefRestorations: rewrites.map(({ ref, beforeHead, requestedHead }) => ({
+        ref, observedHead: requestedHead, restoreHead: beforeHead,
+      })),
+    });
+  });
+
+  it("restores nothing on the suffix arm, which refuses before any ref moves", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture(5);
+
+    const blocked = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async (endpoints) => endpoints.after.member.head === "c".repeat(40)
+        ? { status: "refused", reason: "contribution-diverged", paths: ["src/diverged.ts"] }
+        : { status: "accepted", proof: "mechanical-reapply" },
+      ...unreachedSettlement,
+    });
+
+    expect(blocked).toMatchObject({ status: "blocked", reason: "contribution-diverged" });
+    expect(blocked).not.toHaveProperty("externalRefRestorations");
   });
 
   function unmovedSuffixFixture() {
