@@ -23,6 +23,7 @@ const expectedImplementationModules = [
   "./handlers/delivery.js",
   "./handlers/delivery-execution.js",
   "./handlers/delivery-entry.js",
+  "./handlers/delivery-member-checks.js",
   "./handlers/delivery-transfer.js",
   "./handlers/candidate.js",
   "./handlers/installation.js",

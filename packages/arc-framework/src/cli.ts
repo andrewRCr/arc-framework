@@ -105,6 +105,7 @@ import type {
   ReviewChecksAwaitOptions,
   ReviewStatusOptions,
 } from "./handlers/review.js";
+import type { DeliveryMemberChecksOptions } from "./handlers/delivery-member-checks.js";
 import type { WuReconcileOptions } from "./handlers/reconcile.js";
 import type { HandleCheckCommitMessageOptions } from "./commands/check.js";
 import type {
@@ -818,6 +819,20 @@ delivery.command("entry").description("Inspect the operator-invoked delivery ent
     { machineReadable: () => true },
     async (context, opts: DeliveryEntryInspectOptions) => {
       await (await import("./handlers/delivery-entry.js")).handleDeliveryEntryInspect(opts, context);
+    },
+  ));
+
+delivery.command("checks").description("Observe exact delivery-member required checks")
+  .command("observe").description("Qualify required checks for one exact member head without mutation")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
+  .option("--json", "Emit the typed observation as JSON")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (_context, input: string, options: DeliveryMemberChecksOptions) => {
+      await (await import("./handlers/delivery-member-checks.js")).handleDeliveryMemberChecksObserve({
+        ...options,
+        input,
+      });
     },
   ));
 
