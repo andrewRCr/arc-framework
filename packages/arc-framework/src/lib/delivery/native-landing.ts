@@ -15,8 +15,11 @@ import type {
 } from "./schema.js";
 import {
   deriveDeliveryNativeTarget,
+  observeDeliveryNativeStack,
   type DeliveryNativeStackMember,
   type DeliveryNativeStackObservation,
+  type DeliveryNativeStackPort,
+  type DeliveryNativeStackReadResult,
 } from "./native-stack.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryHostRequestObservation } from "./host.js";
@@ -206,6 +209,72 @@ export function selectNativeDeliveryLandingArm(input: {
     };
   }
   return { status: "selected", arm: "linked-atomic", members: input.members, recommendedActionText: "Prepare the exact complete non-terminal remainder for one attended atomic effect." };
+}
+
+const REGISTERED_NATIVE_SEQUENTIAL_LANDING_TEXT =
+  "Rerun `arc delivery native land-select`; it will freshly observe the canonical remaining stack.";
+
+export type SequentialLandingNativeObservationGuard =
+  | { readonly status: "continue" }
+  | {
+      readonly status: "refuse";
+      readonly reason: "registered-native-stack" | "native-observation-unavailable";
+      readonly recommendedActionText: string;
+    };
+
+/**
+ * Keep sequential landing off a still-registered native stack, and keep unlinked sequential landing available.
+ *
+ * @param observation - Fresh native-stack observation for the exact remaining chain.
+ * @returns Continue only for an unregistered stack; refuse registered or unreadable observation.
+ */
+export function sequentialLandingNativeObservationGuard(
+  observation: DeliveryNativeStackReadResult,
+): SequentialLandingNativeObservationGuard {
+  if (observation.status === "unregistered") return { status: "continue" };
+  if (observation.status === "registered") {
+    return {
+      status: "refuse",
+      reason: "registered-native-stack",
+      recommendedActionText: REGISTERED_NATIVE_SEQUENTIAL_LANDING_TEXT,
+    };
+  }
+  return {
+    status: "refuse",
+    reason: "native-observation-unavailable",
+    recommendedActionText: "Restore authoritative native-stack observation before sequential landing.",
+  };
+}
+
+/**
+ * Observe a derivable remaining chain before sequential reservation. Missing remainder bindings
+ * continue into ordinary unlinked sequential landing; a derived chain must be observed first.
+ *
+ * @param input - Exact plan/state, the selected sequential member, and the native observation port.
+ * @returns Continue into sequential preparation, or refuse without reserving.
+ */
+export async function preflightSequentialDeliveryLanding(input: {
+  readonly plan: DeliveryPlanV1;
+  readonly state: DeliveryStateV1;
+  readonly selectedDeliverableId: string;
+  readonly repository: string;
+  readonly observe: Pick<DeliveryNativeStackPort, "observe">;
+}): Promise<SequentialLandingNativeObservationGuard> {
+  const target = deriveDeliveryNativeTarget(input.state);
+  if (target.status !== "resolved") return { status: "continue" };
+  const remainder = deriveNativeDeliveryRegisteredRemainder({
+    plan: input.plan,
+    state: input.state,
+    firstDeliverableId: input.selectedDeliverableId,
+    repository: input.repository,
+    baseRef: target.baseRef,
+  });
+  if (remainder.status !== "derived") return { status: "continue" };
+  const observation = await observeDeliveryNativeStack({
+    repository: input.repository,
+    members: remainder.members,
+  }, input.observe);
+  return sequentialLandingNativeObservationGuard(observation);
 }
 
 export type PrepareNativeDeliveryLandingResult =

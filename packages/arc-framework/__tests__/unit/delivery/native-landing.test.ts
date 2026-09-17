@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   deriveNativeDeliveryMemberChain,
   deriveNativeDeliveryRegisteredRemainder,
+  preflightSequentialDeliveryLanding,
   prepareNativeDeliveryLanding,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
   reserveNativeDeliveryLanding,
   selectNativeDeliveryLandingArm,
+  sequentialLandingNativeObservationGuard,
   submitReservedNativeDeliveryMerge,
 } from "../../../src/lib/delivery/native-landing.js";
 import {
@@ -160,6 +162,61 @@ describe("native delivery landing", () => {
         { deliverableId: bound.members[2]!.deliverableId, baseRef: "member-2" },
       ],
     });
+  });
+
+  it("keeps sequential landing off a registered stack and available for an unlinked stack", async () => {
+    const chainPlan = deliveryFourMemberStackPlanFixture();
+    const state = deliveryStateFixture(chainPlan);
+    const bound = {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github" as const, changeRequestId: String(41 + index) },
+      })),
+    };
+    const observe = vi.fn();
+    expect(sequentialLandingNativeObservationGuard({ status: "registered", stackNumber: 621 }))
+      .toMatchObject({
+        status: "refuse",
+        reason: "registered-native-stack",
+        recommendedActionText:
+          "Rerun `arc delivery native land-select`; it will freshly observe the canonical remaining stack.",
+      });
+    expect(sequentialLandingNativeObservationGuard({ status: "unregistered" }))
+      .toEqual({ status: "continue" });
+    expect(sequentialLandingNativeObservationGuard({ status: "unavailable" }))
+      .toMatchObject({ status: "refuse", reason: "native-observation-unavailable" });
+
+    observe.mockResolvedValueOnce({ status: "registered", stackNumber: 621 });
+    await expect(preflightSequentialDeliveryLanding({
+      plan: chainPlan,
+      state: bound,
+      selectedDeliverableId: bound.members[0]!.deliverableId,
+      repository: "owner/repo",
+      observe: { observe },
+    })).resolves.toMatchObject({ status: "refuse", reason: "registered-native-stack" });
+    expect(observe).toHaveBeenCalledOnce();
+
+    observe.mockReset();
+    observe.mockResolvedValueOnce({ status: "unregistered" });
+    await expect(preflightSequentialDeliveryLanding({
+      plan: chainPlan,
+      state: bound,
+      selectedDeliverableId: bound.members[0]!.deliverableId,
+      repository: "owner/repo",
+      observe: { observe },
+    })).resolves.toEqual({ status: "continue" });
+    expect(observe).toHaveBeenCalledOnce();
+
+    observe.mockReset();
+    await expect(preflightSequentialDeliveryLanding({
+      plan: chainPlan,
+      state,
+      selectedDeliverableId: state.members[0]!.deliverableId,
+      repository: "owner/repo",
+      observe: { observe },
+    })).resolves.toEqual({ status: "continue" });
+    expect(observe).not.toHaveBeenCalled();
   });
 
   it("admits the unlinked arm only from authoritative absence and directs registered downgrades", () => {
