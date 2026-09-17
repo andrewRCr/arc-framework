@@ -270,17 +270,16 @@ describe("authoritative base drift over an ambiguous history", () => {
     expect(drift.overlap).toMatchObject({ status: "available", substantivePaths: [] });
   });
 
-  it("reports the overlap unavailable rather than proving it from one of the two bases", async () => {
+  it("reports a history leaving two bases as ambiguous rather than as an unreadable one", async () => {
     const cwd = await checkoutOnWorkUnitBranch();
     await arrangeAmbiguousMergeBase({ cwd });
 
     const drift = await runBaseDrift({ exec: makeGitExec(cwd), baseBranch: "main", mode: "authoritative" });
 
-    expectPinnedObservation({ verdict: drift.verdict, overlap: drift.overlap }, {
-      behavior: "Two equally good merge bases leave the changed-path intersection the same from either "
-        + "one, so drift should report the overlap it can establish rather than none at all.",
-      observed: { verdict: "reconcile", overlap: { status: "unavailable", reason: "merge-base-failed" } },
-      target: { overlap: { status: "available" } },
+    expect({ verdict: drift.verdict, movement: drift.movement, overlap: drift.overlap }).toEqual({
+      verdict: "reconcile",
+      movement: "unknown",
+      overlap: { status: "ambiguous" },
     });
   });
 });

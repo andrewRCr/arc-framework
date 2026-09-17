@@ -422,50 +422,37 @@ to a verdict and carries the cause as a discriminant instead. See
           `merge-base-failed`, neither second-layer surface having an arm for it yet. Only the first was a
           compiler-forced break; the other two were non-exhaustive reason reads that the same typecheck caught.
 
-### `[ ]` **4.3 Carry ambiguous and lift `unrelated` out at `OverlapEvidence`**
+### `[x]` **4.3 Carry ambiguous and lift `unrelated` out at `OverlapEvidence`**
 
 - _Goal:_ The middle layer stops folding three conditions into one, so the drift-overlap reader can report which
   of them held.
 
-- _Rationale:_ Its unavailable reason set is `merge-base-failed | branch-diff-failed | base-diff-failed |
-  classification-failed` with no ambiguous and no unrelated arm, and `analyzeBaseOverlap` folds `unrelated`
-  together with `merge-base-failed` — so `unrelated` is lifted out here rather than passed through.
+    - `[x]` **4.3.a Add peer `ambiguous` and `unrelated` arms**
 
-    - `[ ]` **4.3.a Add peer `ambiguous` and `unrelated` arms**
+        - Both carry status alone. This layer already drops the first layer's `detail` for a reason enum, so
+          neither new arm reintroduces one.
 
-        - This layer expresses everything non-available as `unavailable` with a reason enum, so both arms are
-          new structure rather than new enum members.
+    - `[x]` **4.3.b Convert the two readers that narrate or classify this evidence**
 
-    - `[ ]` **4.3.b Convert the two readers that narrate or classify this evidence**
+        - The register narrates each in its own terms instead of leaving both on the quiet unavailable text. The
+          movement classifier switches over every arm, so both new ones state `unknown` explicitly and a fifth
+          arm becomes a compiler event rather than a silent `unknown`.
 
-        - `base-drift-register.ts` composes the operator-facing drift text from this type and branches on a
-          positive `status === "available"` test, so both new arms would be narrated as though no overlap
-          existed. It dereferences a path field afterwards, so the compiler does flag it — but the flag points
-          at the dereference, not at the missing narration, and a minimal fix restores compilation while leaving
-          both arms sharing the quiet text. Give each its own.
-        - `base-distance.ts`'s movement classifier is the second reader and takes the same shape: a negative
-          test for the unavailable status, then a path dereference. It derives the movement value that the
-          checkpoint composition, the errand merge composition, and Task 4.7.a's hold all observe, so state what
-          movement each new arm produces — 4.7.a's replacement assertion cannot be written without it.
+    - `[x]` **4.3.c Keep the two layers' arm shapes parseable across their seam**
 
-    - `[ ]` **4.3.c Keep the two layers' arm shapes parseable across their seam**
+        - Closed by conversion rather than by landing both layers at once: `observeDriftOverlap` reads this
+          layer's evidence into the observation above it, reporting a base that cannot be compared from as
+          unprovable. The compiler stayed silent on the seam throughout, the parse being a runtime strict-union
+          check, so the window was closed by naming the site rather than by being shown it.
 
-        - _Goal:_ The site that reads this layer's evidence into the layer above keeps working, rather than
-          throwing the first time an ambiguous or unrelated base reaches it.
+    - `[x]` **4.3.d Stop folding `unrelated` into `merge-base-failed`**
 
-        - Errand merge composition parses evidence of this type directly into the observation schema of the
-          layer above, by shape coincidence rather than by conversion. Both are strict unions, so the new arms
-          must carry identical field sets on both sides or that parse throws at runtime — and it throws in the
-          window between this task and 4.4 whatever field sets are chosen. Land the two layers' arms together,
-          or sequence this site's read so the window is closed.
+        - `analyzeBaseOverlap` routes each of the three conditions to its own arm.
 
-    - `[ ]` **4.3.d Stop folding `unrelated` into `merge-base-failed`**
-
-        - Build `test-first` (one behavior at a time):
-
-            - An unrelated pair reports `unrelated`, which callers may treat as terminal
-            - An ambiguous pair reports `ambiguous` rather than a failed read
-            - A genuinely failed read still reports `unavailable` with its existing reason
+- _Outcome:_ The drift-overlap hold goes red here, not after all three layers carry the distinction: it observes
+  this layer directly, so moving it is what fires the hold. Its replacement — planned as Task 4.7.a — is
+  therefore taken here, since a plan that leaves the suite red across four tasks is not one the quality gate
+  admits. Task 4.7 keeps only its review-status half.
 
 ### `[ ]` **4.4 Carry both distinctions through `EvidenceOverlapObservation` and the review-status path**
 
@@ -623,9 +610,17 @@ to a verdict and carries the cause as a discriminant instead. See
   what the hold awaited. Seven other `expectPinnedObservation` holds elsewhere in the suite belong to adjacent
   concerns and must stay untouched.
 
+- _Finding:_ Only the review-status hold waits for all three layers. The drift-overlap hold reads the middle
+  layer directly, so it went red as neither-shape the moment that layer stopped folding — during Task 4.3, which
+  is where its replacement was taken. Both replacements are as described; what did not hold is when the first
+  one fires.
+
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
-    - `[ ]` **4.7.a Replace the drift-overlap hold**
+    - `[x]` **4.7.a Replace the drift-overlap hold**
+
+        - Taken in Task 4.3, where the behavior moved. The hold now asserts the peer `ambiguous` status plus
+          the `unknown` movement the classifier states for it.
 
     - `[ ]` **4.7.b Replace the review-status hold, asserting the base-movement half only**
 

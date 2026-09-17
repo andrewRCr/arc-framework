@@ -183,6 +183,36 @@ describe("base overlap evidence", () => {
     })).resolves.toEqual({ status: "unavailable", reason: "classification-failed" });
   });
 
+  it("reports an unrelated pair as unrelated rather than a failed merge base", async () => {
+    const exec: GitExec = async () => {
+      throw new GitProcessError({
+        kind: "nonzero-exit", command: "git", args: ["merge-base", "--all"], exitCode: 1,
+      });
+    };
+    await expect(analyzeBaseOverlap({
+      exec, baseOid: BASE, headOid: "c".repeat(40), ahead: 1, behind: 1, classify: () => "reviewable",
+    })).resolves.toEqual({ status: "unrelated" });
+  });
+
+  it("reports a pair with two best merge bases as ambiguous rather than a failed read", async () => {
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n${"d".repeat(40)}\n` };
+      throw new Error("unexpected invocation");
+    };
+    await expect(analyzeBaseOverlap({
+      exec, baseOid: BASE, headOid: "c".repeat(40), ahead: 1, behind: 1, classify: () => "reviewable",
+    })).resolves.toEqual({ status: "ambiguous" });
+  });
+
+  it("still reports a merge-base read that failed as unavailable", async () => {
+    const exec: GitExec = async () => {
+      throw new GitProcessError({ kind: "spawn-failure", command: "git", args: ["merge-base", "--all"] });
+    };
+    await expect(analyzeBaseOverlap({
+      exec, baseOid: BASE, headOid: "c".repeat(40), ahead: 1, behind: 1, classify: () => "reviewable",
+    })).resolves.toEqual({ status: "unavailable", reason: "merge-base-failed" });
+  });
+
   it("distinguishes a failed base-side diff from empty overlap", async () => {
     const exec: GitExec = async (_cmd, args) => {
       if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n` };

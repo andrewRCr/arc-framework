@@ -4,13 +4,14 @@ import {
   BaseMovementObservationSchema,
   composeEvidenceDelta,
   reduceEvidenceApplicability,
+  type EvidenceOverlapObservation,
 } from "../../lib/evidence-applicability/index.js";
 import {
   createCurrentBaseDriftAdapters,
 } from "../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
-import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
+import type { BaseDriftResult, OverlapEvidence } from "../../lib/git/base-drift-types.js";
 import {
   observeGitMergeFeasibility,
   type GitExec,
@@ -49,6 +50,28 @@ import type {
   ErrandMergeFinalPlan,
 } from "./errand-merge.js";
 
+/**
+ * Read drift overlap evidence into the observation the applicability delta carries.
+ *
+ * The two unions no longer share a shape: a base the branch cannot be compared from arrives here under its own
+ * status, while the observation still expresses everything non-available through one reason enum. Both sides
+ * parse strictly, so converting explicitly is what keeps an arm the observation has no member for from throwing
+ * at the boundary instead of being answered.
+ *
+ * @param overlap - Drift overlap evidence as the authoritative reading produced it.
+ * @returns The equivalent observation, with a base that cannot be compared from reported as unprovable.
+ */
+function observeDriftOverlap(overlap: OverlapEvidence): EvidenceOverlapObservation {
+  switch (overlap.status) {
+    case "available":
+    case "unavailable":
+      return overlap;
+    case "ambiguous":
+    case "unrelated":
+      return { status: "unavailable", reason: "merge-base-failed" };
+  }
+}
+
 /** Reduce one complete Errand terminal observation through the shared applicability and movement planners. */
 export function composeErrandFinalPlan(input: {
   readonly drift: Pick<
@@ -81,7 +104,7 @@ export function composeErrandFinalPlan(input: {
   };
   const baseMovement = BaseMovementObservationSchema.parse({
     coordinates,
-    overlap: input.drift.overlap,
+    overlap: observeDriftOverlap(input.drift.overlap),
   });
   const hostAdmission = input.admission.state === "mergeable"
     ? { state: "mergeable" as const, coordinates }

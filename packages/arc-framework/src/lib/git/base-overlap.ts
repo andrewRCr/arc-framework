@@ -138,10 +138,9 @@ export async function analyzeBaseOverlap(
     classify: options.classify,
   });
   if (result.status === "available") return result.overlap;
-  if (result.status === "unrelated" || result.status === "ambiguous"
-    || result.reason === "merge-base-failed") {
-    return { status: "unavailable", reason: "merge-base-failed" };
-  }
+  if (result.status === "ambiguous") return { status: "ambiguous" };
+  if (result.status === "unrelated") return { status: "unrelated" };
+  if (result.reason === "merge-base-failed") return { status: "unavailable", reason: "merge-base-failed" };
   if (result.reason === "left-diff-failed") return { status: "unavailable", reason: "branch-diff-failed" };
   if (result.reason === "right-diff-failed") return { status: "unavailable", reason: "base-diff-failed" };
   return { status: "unavailable", reason: "classification-failed" };
