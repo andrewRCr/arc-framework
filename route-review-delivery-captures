@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-review-delivery-captures",
+  "claimId": "0149c0cc4a5a86a617b6bdfd76cdb650",
+  "createdAt": "2026-09-17T02:07:17.927Z",
+  "updatedAt": "2026-09-17T02:07:17.927Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route approved review, delivery, and approval-flow inbox captures to their authoritative homes",
+  "branch": "chore/route-review-delivery-captures",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
