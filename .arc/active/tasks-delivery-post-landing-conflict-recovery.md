@@ -483,8 +483,10 @@ carry its ambiguous and unrelated distinctions through every layer that currentl
 _Mode:_ `layer` through Phase 5 — closes on one settled comparison substrate both singleton and delivery
 readers can adopt.
 
-_Design decisions:_ The split is three layers deep; editing `RevisionOverlapResult` alone changes nothing the
-pinned probes observe. See `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces.
+_Design decisions:_ The split is four layers deep; editing `RevisionOverlapResult` alone changes nothing the
+pinned probes observe. The first three layers carry each distinction as a peer status arm; the fourth reduces it
+to a verdict and carries the cause as a discriminant instead. See
+`notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces.
 
 ### `[ ]` **4.1 Author the sole-base resolver with its four arms**
 
@@ -576,27 +578,86 @@ pinned probes observe. See `notes-delivery-post-landing-conflict-recovery.md` §
   relation's literals, not an internal type edit. The pre-public-release posture settles the cost and no
   compatibility alias is owed.
 
-- _Note:_ The evidence normalizer is the third consumer and the one that decides what the distinction is worth.
-  It maps an unavailable observation to an unknown overlap and treats everything else as available, so the new
-  arms break it at the compiler. Normalizing either of them back to unknown would re-flatten the pair one layer
-  further down, which is the collapse this phase removes.
+- _Note:_ The evidence normalizer is the third consumer, and it is the boundary into the fourth layer rather
+  than another carrier of the distinction. Task 4.5 owns its disposition; this task hands it two new observation
+  arms to convert.
 
     - `[ ]` **4.4.a Carry both arms through the observation schema and its two consumers**
 
-    - `[ ]` **4.4.b Give the normalizer a disposition for each new arm**
-
-        - Neither normalizes to the unknown overlap that an unavailable read produces: an ambiguous base is
-          recoverable by a named remedy and an unrelated one is terminal, and both are distinguishable facts the
-          consumer can act on.
-
-    - `[ ]` **4.4.c Stop re-collapsing them on the review-status path**
+    - `[ ]` **4.4.b Stop re-collapsing them on the review-status path**
 
         - Build `test-first` (one behavior at a time):
 
             - Review status distinguishes an ambiguous base from an unreadable one
             - Review status distinguishes an unrelated base from both
 
-### `[ ]` **4.5 Attach the per-coordinate-pair remedy to the ambiguous arm**
+### `[ ]` **4.5 Reduce the distinction at the normalized verdict space**
+
+- _Goal:_ The layer the applicability reducer consumes answers its own question safely on both new arms, while the
+  cause that produced them survives to the operator rather than dying at the boundary.
+
+- _Rationale:_ This layer is not a reporting layer — it is the reduced input to a reducer answering whether prior
+  evidence still carries, with three verdicts. An ambiguous base and an unrelated one are not new answers to that
+  question: both mean disjointness was not established, and both reduce to the conservative verdict. A peer arm
+  here would add a branch every consumer resolves identically, and would widen a published projection that is not
+  about base resolution at all — the review-status reader assigns the normalized arm straight into its `movement`
+  field.
+
+- _Shape:_ The arm set stays at four, and `unknown` carries the cause — a failed read, an ambiguous base, or an
+  unrelated one. `unknown` means _disjointness not established_, never _nothing known_. The reducer maps the cause
+  onto its own reason, so the verdict space stays three-valued while the cause reaches the surface.
+
+- _Note:_ The normalizer is the only place an observation is _converted_ into this layer, which is what makes it
+  the forcing point. It is not the only constructor: the `not-applicable` arm has a separate origin on the three
+  delta causes that read no base, and those causes cannot reach a base-resolution arm. Convert the conversion and
+  leave that constant alone.
+
+    - `[ ]` **4.5.a Make the conversion this layer's forcing point**
+
+        - It returns through a cast today, so the one place where every arm from the layer above crosses into this
+          one is the place the compiler cannot see. Remove the cast and switch exhaustively over the observation's
+          status with an `assertNever` default, so every arm added above is forced at this crossing rather than
+          landing on whichever branch its path shape happens to match.
+        - Build `test-first` (one behavior at a time):
+
+            - Each observation status converts to the arm this design states for it
+            - An observation carrying no paths never converts to the arm that reduces to the strongest accept
+
+    - `[ ]` **4.5.b Carry the cause on the `unknown` arm and split the reducer's reason**
+
+        - The reason enum is embedded in an emitted result schema, so new members are a request-contract change
+          rather than a local rename, and are disclosed as one.
+        - Build `test-first` (one behavior at a time):
+
+            - An ambiguous base reduces to the conservative verdict under its own reason
+            - An unrelated base reduces to the conservative verdict under its own reason
+            - A failed read keeps the reason it reports today
+
+    - `[ ]` **4.5.c Route each cause to a typed action at both reduction consumers**
+
+        - A cause that reaches the reducer and stops there is a better label on the same dead end. Candidate
+          applicability carries the re-baselining remedy on the ambiguous cause — never merging the base in, on
+          the pinned-baseline ground — and already carries a next-action field beside its reason for that remedy
+          to ride. Review status reports the cause beside its movement field rather than inside it, leaving the
+          projection's value set unchanged.
+        - Build `test-first` (one behavior at a time):
+
+            - An ambiguous cause at applicability carries the re-baselining remedy
+            - An unrelated cause reports terminally rather than inviting a retry
+            - The movement field still reports only its three established values
+
+    - `[ ]` **4.5.d Replace the reducer's default-accept branch with an exhaustive switch**
+
+        - One branch there ends in a two-way test whose else-arm returns the strongest accept. The new causes do
+          not reach it — the `unknown` arm is caught earlier — so this is hardening rather than a dependency of
+          the arm set. A default-accept left in a module this phase is already opening is how the next arm gets
+          swallowed.
+        - _Note:_ The reducer revalidates what it is handed by shape rather than by provenance, and both its delta
+          schema and type are exported, so a caller can hand-build a valid delta. Three of the five reduction call
+          sites already bypass the conversion legitimately, on the causes that use the constant. The closed arm
+          set is what keeps that boundary safe; do not widen it here.
+
+### `[ ]` **4.6 Attach the per-coordinate-pair remedy to the ambiguous arm**
 
 - _Goal:_ An ambiguous refusal names a remedy that can actually clear it, which differs by the topology of the
   pair being compared rather than by which reader asked.
@@ -606,7 +667,7 @@ pinned probes observe. See `notes-delivery-post-landing-conflict-recovery.md` §
   route is re-baselining. Emitting the first remedy at the second pair would name a remedy that provably cannot
   clear the refusal — the recoverable-looking dead end this design's own refusal rule forbids.
 
-    - `[ ]` **4.5.a Type the remedy as a dispatched action per pair**
+    - `[ ]` **4.6.a Type the remedy as a dispatched action per pair**
 
         - `checkpoint-composition.ts` carries **two** compiler-silent sites, at different pair topologies, and
           both convert. The pinned-durable-baseline site branches on `status !== "available"` and forwards
@@ -620,7 +681,7 @@ pinned probes observe. See `notes-delivery-post-landing-conflict-recovery.md` §
             - A pinned-durable-baseline pair carries the re-baselining remedy
             - A pair where an append-only merge is not permitted carries the restart route
 
-### `[ ]` **4.6 Replace the drift-overlap and review-status holds with plain assertions**
+### `[ ]` **4.7 Replace the drift-overlap and review-status holds with plain assertions**
 
 - _Goal:_ Both holds become plain assertions on the peer `ambiguous` status, so the suite asserts the behavior
   rather than waiting for it.
@@ -632,9 +693,9 @@ pinned probes observe. See `notes-delivery-post-landing-conflict-recovery.md` §
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
-    - `[ ]` **4.6.a Replace the drift-overlap hold**
+    - `[ ]` **4.7.a Replace the drift-overlap hold**
 
-    - `[ ]` **4.6.b Replace the review-status hold, asserting the base-movement half only**
+    - `[ ]` **4.7.b Replace the review-status hold, asserting the base-movement half only**
 
         - Its `observed` pins two strings: the multi-base detail this phase changes, and a
           `routedObligation.detail` carrying the effective-target reader's untyped throw, which Task 6.2
@@ -664,9 +725,14 @@ is a field on `diverged`, not a variant.
   while these are recoverable-by-remedy and terminal respectively. The `ambiguous` arm carries the pair and the
   per-pair remedy; the `unrelated` arm carries the observed tip and the resolver's detail.
 
-- _Note:_ The wrapper still collapses an unresolvable ancestry read to `unavailable` rather than forwarding
-  `unknown` as a resolved relation. `unknown` and `absent` are classifier variants for readers that hold a
-  record and compare heads; this wrapper establishes the pair itself, so a failed read is an unavailable read.
+- _Note:_ The wrapper's **resolved arm carries only the chain-base-bearing variants** — `unchanged`, `advanced`,
+  `rewound`, `diverged`. An unresolvable ancestry read is the `unavailable` arm rather than a resolved `unknown`:
+  the wrapper owns the Git access, so it reports its own failure instead of handing a consumer a verdict-shaped
+  value meaning "no verdict". `absent` is not a topological answer at all — this read takes two revisions and asks
+  how they relate, while "no record binds this subject" is a prior fact about whether there is a subject, which
+  this read consults nothing to establish. Narrowing the arm is what makes `chainBase` total on it, and that
+  totality is what lets Task 5.4 remove a null branch because the value cannot be absent rather than because a
+  comment asserts it.
 
 - _Rationale:_ The classifier is pure over an ordered pair: topology only, no content term and no Git access.
   Purity is possible only because the facts arrive pre-computed — it is a new function beside the existing async
@@ -748,8 +814,8 @@ is a field on `diverged`, not a variant.
   `chainBase`. `rewound` carries `chainBase`, `mergeBase`, and `overlap` — it is the ancestry-direction half of
   today's `disjoint-ahead`, so it keeps that arm's payload, and its `chainBase` is what makes the second reader's
   null branch unreachable. `diverged` carries `chainBase`, `mergeBase`, `overlap`, and cardinality. `absent` and
-  `unknown` carry neither base nor overlap and never reach the eligibility readers, which establish the pair
-  rather than comparing against a record. **`overlap` stays on the relation** rather than moving to the reader
+  `unknown` carry neither base nor overlap and sit outside the read's resolved arm (5.1), so no eligibility
+  reader receives one. **`overlap` stays on the relation** rather than moving to the reader
   result: the field-by-field comparison reads it there, and moving it would narrow that comparison silently.
 
 - _Note:_ `sameOverlap` compares path arrays order-sensitively by index. Preserve that behavior as-is — it is not
@@ -788,14 +854,14 @@ is a field on `diverged`, not a variant.
         - The refusal branch also refuses `unrelated` on the same reason today. That variant leaves the relation
           for the resolver's arm, so the terminal case is settled before the classifier runs and the branch
           sheds a condition rather than keeping one that can no longer arrive.
-        - It needs somewhere to arrive instead. The reader wrapper carries two arms — resolved and unavailable —
-          and folding a terminal outcome into the recoverable one is what the design forbids, because a terminal
-          condition parked under a recoverable status is retried forever. So the wrapper gains a **third,
-          terminal arm** carrying the observed tip and the resolver's detail. That is not a seventh relation
-          variant: the variant set stays at six and the arm sits on the read.
+        - It needs somewhere to arrive instead, and 5.1 has already put it there: the read mirrors the resolver's
+          four arms, so the terminal outcome arrives on its own rather than folded into the recoverable one —
+          folding it there is what the design forbids, because a terminal condition parked under a recoverable
+          status is retried forever. That is not a seventh relation variant: the variant set stays at six and the
+          arms sit on the read.
         - **Both** wrapper call sites take these dispositions, not just the prepare-time one. The close-time
-          reader guards only `unavailable` today and then reads the relation, so each new arm forces a branch
-          there too — and widening its existing guard to "not resolved" would park the terminal and the
+          reader guards only `unavailable` today and then reads the relation, so each arm beyond resolved forces
+          a branch there too — and widening its existing guard to "not resolved" would park the terminal and the
           ambiguous cause under a recoverable reason, the merge this phase exists to undo.
         - The accept rule decides on the overlap field, so every arm and variant that carries no overlap needs
           its disposition stated rather than falling through to accept: the two non-resolved arms refuse as
@@ -820,13 +886,50 @@ is a field on `diverged`, not a variant.
               reaching the accept path on an empty overlap
             - The close-time reader refuses both non-resolved arms the same way the prepare-time one does
 
-    - `[ ]` **5.4.b Re-point both `chainBase` readers onto the migrated shape**
+    - `[ ]` **5.4.b Give the close-time reader its own overlap decision**
+
+        - _Goal:_ The second reader refuses a non-empty overlap because it tested for one, not as a side effect
+          of a field being absent.
+
+        - It has no overlap test today. It derives a chain base for the variants that carry one and `null` for
+          those that do not, then refuses the null — so today's refusal is a side effect of `overlapping-ahead`
+          lacking a field. Once 5.3 carries `chainBase` unconditionally on `diverged`, that branch is dead and
+          the reader accepts unless the test it stood in for is written out. Write it out here; 5.4.c then
+          removes the dead branch.
+        - The snapshot comparison is not that test and cannot be made into one. The snapshot arrives through the
+          request contract, and this read is taken over the member head and protected-base head that snapshot
+          carries — both pinned object ids. A snapshot whose relation already holds a non-empty overlap
+          reproduces identically and compares **equal**. That comparison proves the snapshot is consistent; it
+          never proves it is admissible.
+        - The close entry point is the only one that admits such a snapshot, which bounds the work: the mutation
+          path re-prepares through the prepare-time reader and inherits its refusal.
+        - Build `test-first` (one behavior at a time):
+
+            - A submitted relation carrying a non-empty overlap is refused at close
+            - It is refused even when the fresh read reproduces it exactly and the comparison finds them equal
+            - An empty overlap still closes
+
+    - `[ ]` **5.4.c Re-point both `chainBase` readers onto the migrated shape**
 
         - The accept path observes the chain against `chainBase` and refuses `evidence-unavailable` when the
           observation does not match; the second reader compares against the snapshot's own and refuses
           `wrong-predecessor`. Once 5.3 carries `chainBase` unconditionally on `diverged` and 5.2 moves
-          `unrelated` out, the second reader's null branch is unreachable — remove it rather than migrating it
-          forward.
+          `unrelated` out, the second reader's null branch is unreachable — remove it, and only after 5.4.b has
+          written out the overlap test it was standing in for.
+
+    - `[ ]` **5.4.d Widen the remedy slot and convert the projection that reads it**
+
+        - The refusal's remedy slot holds one kind today, so the ambiguous arm's remedy is a widening at the
+          library. The locus that must widen with it is the owned-authority failure projection, and it is named
+          here because the compiler will not name it: the projection validates each preserved field and keeps it
+          only on success, so an unrecognized remedy kind is dropped silently and the refusal ships with no
+          remedy at all.
+        - The same projection composes its observed head from the relation, which the terminal and ambiguous
+          arms do not carry. Take the tip from the arm that carries it instead.
+        - Build `test-first` (one behavior at a time):
+
+            - An ambiguous refusal reaches the operator with its remedy intact
+            - A terminal refusal reaches the operator carrying the observed tip
 
 ### `[ ]` **5.5 Update `PredecessorRelationSchema`'s literals through the request contract**
 
@@ -906,7 +1009,7 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
         - Its untyped throw currently carries "The Candidate target has no sole base coordinate." — the same
           string the ledger records as a blocked obligation's `detail`, so the surfaced message is exception text
           rather than a result.
-        - Typing it moves the `routedObligation.detail` that Task 4.6 deliberately left unpinned; extend that
+        - Typing it moves the `routedObligation.detail` that Task 4.7 deliberately left unpinned; extend that
           assertion here rather than re-editing it.
 
     - `[ ]` **6.2.c Adopt at the repository target and map into the existing reason set**
