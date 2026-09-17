@@ -156,31 +156,18 @@ export async function runSessionInitStatus(
   const retiredSubdirsTask = identity === null
     ? null
     : remote.run("retiredSubdirs", (context) => probes.retiredSubdirs(context, identity));
-  // Errand-staleness sweep rides the same eager / identity-gated phase: its
-  // source is identity-scoped, so it is omitted when identity is absent.
-  const errandSweepTask = identity === null
-    ? null
-    : safeProbe("errandSweep", () => probes.errandSweep(identity));
-  // Inbox-state probe rides the same eager / identity-gated phase: its source
-  // (`USER-INBOX.md`) is identity-scoped, so it is omitted when identity is absent.
-  const inboxStateTask = identity === null
-    ? null
-    : safeProbe("inboxState", () => probes.inboxState(identity));
-  // Partial-push-marker surface rides the same eager / identity-gated phase: the
+  // Partial-push-marker surface rides the eager / identity-gated phase: the
   // sync-state ref is identity-scoped, so it is omitted when identity is absent.
+  // Inbox, reminder, and compaction hygiene wait for worktree identity below —
+  // they are primary-only and must not run on linked worktrees.
   const partialPushMarkerTask = identity === null
     ? null
     : safeProbe("partialPushMarker", () => probes.partialPushMarker(identity));
-  const compactionAdvisoryProbe = probes.compactionAdvisory;
-  const compactionAdvisoryTask = identity === null
-    || compactionAdvisoryProbe === undefined
-    ? null
-    : safeProbe("compactionAdvisory", () => compactionAdvisoryProbe(identity));
 
   const [
     user, worktree, dirty, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
-    retiredSubdirs, errandSweep, inboxState, partialPushMarker, compactionAdvisory,
+    retiredSubdirs, partialPushMarker,
   ] = await Promise.all([
     userTask,
     worktreeTask,
@@ -193,10 +180,7 @@ export async function runSessionInitStatus(
     configTask,
     domainRulesTask,
     retiredSubdirsTask,
-    errandSweepTask,
-    inboxStateTask,
     partialPushMarkerTask,
-    compactionAdvisoryTask,
   ]);
 
   const derivedLocusState: SessionResult<DerivedLocusFrame> = identity === null
@@ -225,6 +209,28 @@ export async function runSessionInitStatus(
   const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.isOk()
     ? worktreeIdentitySlot.value
     : { kind: "primary" };
+
+  // Identity-global between-WU hygiene is primary-only. Linked worktrees omit
+  // these slots so session-init neither reads USER-INBOX nor consumes the
+  // once-per-day nudge markers. Require a successfully resolved primary
+  // identity: a failed worktreeIdentity probe still degrades to `{ kind:
+  // "primary" }` for roster/sweep, and must not leak hygiene onto that coerce.
+  const primaryIdentity = identity !== null
+    && worktree.isOk()
+    && worktreeIdentitySlot.isOk()
+    && worktreeIdentity.kind === "primary"
+    ? identity
+    : null;
+  const compactionAdvisoryProbe = probes.compactionAdvisory;
+  const [errandSweep, inboxState, compactionAdvisory] = primaryIdentity === null
+    ? [undefined, undefined, undefined]
+    : await Promise.all([
+      safeProbe("errandSweep", () => probes.errandSweep(primaryIdentity)),
+      safeProbe("inboxState", () => probes.inboxState(primaryIdentity)),
+      compactionAdvisoryProbe === undefined
+        ? Promise.resolve(undefined)
+        : safeProbe("compactionAdvisory", () => compactionAdvisoryProbe(primaryIdentity)),
+    ]);
 
   // Cross-channel qualifier: when the notes-clean verdict is true only
   // because local HEAD is behind origin, attach the qualifier to user
@@ -437,6 +443,7 @@ export async function runSessionInitStatus(
         currentBranch: worktree.value.branch,
         hasBackingMeta: active.value.resolution === "single",
         includeDiscovery: active.value.resolution === "none",
+        includeNudge: worktreeIdentitySlot.isOk() && worktreeIdentity.kind === "primary",
       }))
       : undefined;
 
@@ -531,15 +538,15 @@ export async function runSessionInitStatus(
     ...(enrichedRetiredSubdirs !== undefined
       ? { retiredSubdirs: toProbe(enrichedRetiredSubdirs) }
       : {}),
-    ...(errandSweep !== null ? { errandSweep: toProbe(errandSweep) } : {}),
+    ...(errandSweep !== undefined ? { errandSweep: toProbe(errandSweep) } : {}),
     ...(errandState !== undefined ? { errandState: toProbe(errandState) } : {}),
     ...(workUnitState !== undefined ? { workUnitState: toProbe(workUnitState) } : {}),
     ...(materializableWorkUnits !== undefined
       ? { materializableWorkUnits: toProbe(materializableWorkUnits) }
       : {}),
-    ...(inboxState !== null ? { inboxState: toProbe(inboxState) } : {}),
+    ...(inboxState !== undefined ? { inboxState: toProbe(inboxState) } : {}),
     ...(partialPushMarker !== null ? { partialPushMarker: toProbe(partialPushMarker) } : {}),
-    ...(compactionAdvisory !== null ? { compactionAdvisory: toProbe(compactionAdvisory) } : {}),
+    ...(compactionAdvisory !== undefined ? { compactionAdvisory: toProbe(compactionAdvisory) } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet: toProbe(loadSet),

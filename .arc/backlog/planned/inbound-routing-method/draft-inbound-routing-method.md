@@ -18,6 +18,35 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration
 > (`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Give direct Work Unit stubbing one agent-facing entry path**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- WU_Target: inbound-routing-method
+
+- _Observation:_ when the Owner asked mid-Errand to "stub this out" as a separate future Work Unit in the current
+  PR, no ARC skill or workflow matched that intent. The lifecycle primitive already existed as `arc stub`, but the
+  agent had to inspect the planning, inbox, lifecycle, and command surfaces to reconstruct how to invoke it. The
+  express-lane rule authorizes direct stubbing while QUICK-REFERENCE alone carries the operands.
+
+- _Exact gap:_ codify the create-only route for a new WU-shaped concern that should be recorded now while the
+  current session and locus remain in place. Distinguish explicit inclusion in the current change from the default
+  anti-rider route through capture/drain or an isolated grooming publication; require the commitment, priority,
+  resolved planned-tier Class, slug, origin, and optional dependency judgments without inventing them.
+
+- _Fold-in:_ make `arc stub` remain the sole deterministic mutator and give agents one discoverable door that
+  applies the canonical disposition and vehicle decision before invoking it. Decide the door shape with
+  `skill-infrastructure-cleanup`; do not duplicate `arc-session --start` for existing-stub launch,
+  `arc-session --plan` for grooming, current-Errand promotion, or `stub-mint-to-launch` publication continuity.
+
+- _Forward compatibility:_ keep the procedure a thin typed operation that `composable-workflows` can compile; do
+  not encode a second lifecycle resolver or reproduce command mechanics in workflow prose.
+
+- _Priority recommendation:_ raise the existing Light WU from P3 to P2 because the missing route causes recurring
+  source-navigation work, while remaining below immediate routine-operations correctness work.
+
+- _Captured during:_ `e2e-feedback-six-shard-rebalance` Errand scope correction, 2026-09-08.
+
 ### `[ ]` **State the cascade doctrine: always route, never re-open**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: inbound-routing-method`), housekeep drain (2026-07-18);

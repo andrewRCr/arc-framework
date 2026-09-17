@@ -16,6 +16,35 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Decide whether an Owner-invoked lifecycle rewind is a proven need**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: wu-lifecycle-state-model`
+
+- _Observation:_ dogfooding a Candidate-bearing work unit surfaced a proposed rule: once verification completes and
+  a Candidate exists, scope freezes for ordinary continuation, and the Owner's only way to grow scope in place is an
+  explicit rewind to the appropriate planning or execution stage — regenerating affected tasks or delivery topology
+  and invalidating downstream Candidate, verification, and review evidence rather than retaining it. No such path
+  exists today: `reopen-work-unit` rewinds only Integrating → Active against an open PR, the pre-publish route is
+  review-fix plus applicability, and anything larger exits by extraction. `amend-design` refuses a general rewind by
+  design (D4, plus a Non-Goal frozen at activation) on recorded evidence that whole lifecycle re-entry regressed
+  state painfully in this project.
+
+- _Approach:_ decide first whether the need is real — an in-place scope growth that extraction genuinely serves
+  badly — before designing anything. If it is, the state axes are where an explicit rewind would have to be
+  expressible, with its evidence consequences typed rather than left to prose, and with Owner override selecting
+  that path rather than waiving its consequences. This work unit has the authority to fold it in or route it out to
+  its own stub once that call is made; deliberately not a stub yet, and not urgent.
+
+- _Boundary:_ the defect-versus-scope-expansion distinction is already the `amend-design` entry gate, the
+  same-concern versus distinct-concern routing is already `DEV-RULES.ARC § Anti-rider`, and whether prior review,
+  verification, and merge evidence still holds is `evidence-applicability`'s. Open here is only the rewind path and
+  whether the state model should admit one.
+
+- _Captured during:_ `plan-amendment` Phase 4 close, assessing a routed-in scope-expansion proposal against that
+  work unit's design, 2026-09-12.
+
 ### `[ ]` **Qualify dependency edges with the lifecycle boundary they gate**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-22);

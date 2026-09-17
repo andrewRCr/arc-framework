@@ -143,9 +143,9 @@ describe("a sibling checkout whose record this build cannot parse", () => {
     expect(sibling, JSON.stringify(frame)).toMatchObject({
       kind: "unresolved-checkout",
       subject: { kind: "work-unit", key: WORK_UNIT },
-      diagnostics: [{ code: "subject-unresolved" }],
+      diagnostics: [{ code: "candidate-record-schema-skew" }],
     });
-    expect(sibling?.diagnostics[0]?.message).toContain("could not be read under this build's schema");
+    expect(sibling?.diagnostics[0]?.message).toContain("could not be read by this inspecting build's schema");
     // The refusal stays with the checkout that owns the record: this one still selects its own row and reports
     // the primary free, so a sibling nobody can read is a diagnostic here rather than a stop.
     expect(frame.entering).toMatchObject({ kind: "selected", row: { kind: "free-primary" } });

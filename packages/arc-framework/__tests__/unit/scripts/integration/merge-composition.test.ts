@@ -63,7 +63,7 @@ describe("integration merge composition", () => {
     });
   });
 
-  it("observes required checks once without repeating a provider read", async () => {
+  it("revalidates the head around single required and diagnostic check reads", async () => {
     const target = {
       repository: "owner/repo",
       pullRequest: 42,
@@ -71,7 +71,7 @@ describe("integration merge composition", () => {
       headRef: "feat/example",
       headSha: oid("c"),
     };
-    const seen = new Set<string>();
+    const reads: string[] = [];
     const dependencies = createIntegrationMergeDependencies({
       cwd: "/candidate",
       exec: vi.fn() as unknown as GitExec,
@@ -80,8 +80,7 @@ describe("integration merge composition", () => {
       hostedRunner: {
         run: async (args) => {
           const key = args.join(" ");
-          if (seen.has(key)) throw new Error(`provider read repeated: ${key}`);
-          seen.add(key);
+          reads.push(key);
           if (args[0] === "repo") {
             return { stdout: JSON.stringify({ nameWithOwner: target.repository }), stderr: "" };
           }
@@ -111,6 +110,9 @@ describe("integration merge composition", () => {
       checks: [{ name: "merge-ok", state: "pending" }],
       diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
     });
+    expect(reads.filter((read) => read.startsWith("api "))).toHaveLength(3);
+    expect(reads.filter((read) => read.includes("--required"))).toHaveLength(1);
+    expect(reads.filter((read) => read.startsWith("pr checks ") && !read.includes("--required"))).toHaveLength(1);
   });
 
   it("confirms the exact merged request and returns the provider merge identity", async () => {

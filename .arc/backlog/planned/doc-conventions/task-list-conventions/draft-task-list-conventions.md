@@ -13,6 +13,45 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make the canonical task-list fixture actually validated, or drop the designation**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: TBD`
+
+- _Observation:_ `template-tasks.md` is named `CANONICAL_TASK_DESCRIPTOR_FIXTURE`, is selected by the descriptor
+  lint at both fire sites, and is a staged-gate trigger path — but its whole task-list example lives inside one
+  fenced block and the structural scanner skips fences. Scanning it yields zero phases, zero parents, zero
+  descriptor extents, and zero diagnostics. The shipped skeleton every author copies from is checked by nothing,
+  and the constant's name reads as coverage the repository does not have.
+
+- _Scope:_ the fence is load-bearing rather than an oversight — an unfenced example would fire the validators on
+  illustrative content — so this is a fork, not a bug fix. Mint a non-fenced canonical fixture the validators do
+  scan and assert the template's example against it; teach the validators to opt into a designated fence in a
+  designated file; or accept the limit and drop the designation, which today overstates what is verified.
+
+- _Approach:_ whichever way it resolves, the failure mode is already on the record — a task-list checklist entry
+  contradicted by the template went unnoticed across many work units, which is the evidence cited for mechanizing
+  structural checks rather than trusting a checklist.
+
+- _Captured during:_ `plan-segmentation` task generation — grounding the template edit against both lint fire
+  sites, 2026-09-07.
+
+### `[ ]` **Diagnose an open subtask beneath a completed parent instead of skipping it**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
+
+- _Observation:_ `firstOpenCursor` in `packages/arc-framework/src/lib/task-list/cursor.ts` treats a parent's marker as
+  authoritative and never looks beneath a `[x]` parent, which is correct under the terminal-derived-state invariant
+  (a parent cascades to `[x]` only when every subtask is complete). But the inconsistent state — an open `X.Y.R` or
+  hand-added subtask under a `[x]` parent — is skipped silently rather than diagnosed, so session-init, handoff, and
+  `arc reopen --task` quietly lose the task. The older R-scheme practice of reopening a completed parent produced
+  exactly this shape in the archived `delivery-native-stack-composition` task list.
+- _Approach:_ emit a task-list diagnostic (staged gate and worktree lint, beside the segmentation scan) when a
+  parent marked `[x]` carries an open subtask; keep the cursor's behavior unchanged. Errand-sized, load-bearing
+  infra (`lib/task-list`), so the reviewed lane; no design fork.
+- _Captured during:_ `plan-amendment` draft-design, folding the first adversarial pass (2026-09-10).
+
 ### `[ ]` **Align the verification phase and task descriptor contract with shipped practice**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-03); captured during

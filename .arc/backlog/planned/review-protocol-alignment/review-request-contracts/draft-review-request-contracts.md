@@ -12,6 +12,86 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Narrow public review schema discovery to the requested command**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-request-contracts`
+
+- _Interim extraction:_ `USER-INBOX § Errand` **Return only the requested review schema closure** narrows output for
+  the three already-discoverable commands. This entry retains the generalized command-registration and caller-input
+  redesign, including deriving `standardReview` and `targetId` rather than documenting fabricable inputs.
+
+- _Observation:_ `arc review chunking resolve --schema` emitted roughly 2.8 MB containing the entire registered
+  schema bundle when the executing session needed only the small root request contract. The volume was too large for
+  the harness result boundary and still forced a source-code search for the actual input shape, turning a routine
+  typed invocation into both wall-clock and context overhead.
+
+- _Approach:_ make command-level schema discovery return the selected root schema plus only its reachable
+  definitions, or provide a concise request-only projection alongside the full registry bundle. Keep the result
+  machine-readable and sufficient to compose the command without source inspection.
+
+- _Additional evidence:_ PR #575 re-entry found `arc review chunking resolve --schema` usable, while both
+  `arc review resolve --schema` and `arc review hosted request --schema` rejected the flag. Composing those two
+  routine requests therefore required source searches during an already overlong correction cycle.
+
+- _Composition gap:_ the policy driver accepted an explicit Owner-forced `codex-pr` source for an Errand, but the
+  hosted-request boundary rejected that same invocation field as delivery-member-only. Naming `provider: codex-pr`
+  still produced the correct request, but the submit-ready policy action does not round-trip unchanged across the
+  next public boundary. Derive or project the hosted input so one command's typed continuation cannot require the
+  caller to remove a field the next command declares invalid.
+
+- _Captured during:_ `hosted-review-ci-failure-surfacing` PR #567 review routing, 2026-09-07.
+
+- _Additional evidence captured during:_ `serialize-subprocess-heavy-local-test-tiers` review correction, PR #575,
+  2026-09-08.
+
+### `[ ]` **Consolidate public review command registration metadata**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-request-contracts`
+
+- _Observation:_ adding one schema-discoverable review command required synchronized edits across the CLI tree,
+  discoverable-command list, interaction declarations, shared raw-Git command family, request-schema registration,
+  envelope registration, three hard-coded schema inventories, and two command-input matrices. Focused command,
+  handler, workflow, and schema tests passed while the broad unit suite alone found one omitted family mapping.
+  The scattered authority creates source-navigation overhead and makes a locally complete command easy to leave
+  globally incomplete.
+
+- _Approach:_ during request-contract design, evaluate one command registration record that composes the public
+  path, input/discovery contract, schema IDs, result mode/envelope, and declared infrastructure capabilities, then
+  derives the relevant inventories and test matrices. Retain independent generated/audited checks where they prove
+  a distinct boundary; remove only duplicate hand-maintained enumerations, not fail-closed coverage.
+
+- _Boundary:_ this is evidence for the generalized request-contract design, not another interim command Errand.
+  Preserve the command-input interaction audit and schema-artifact completeness guarantees while reducing manual
+  registration fan-out.
+
+- _Captured during:_ `planning-grooming-review-exemption` implementation, 2026-09-07.
+
+### `[ ]` **Distinguish a wrong review-status entry point from an evidence failure**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
+
+- _Observation:_ `arc review status --work-unit <slug>` on a work unit with no self-contained delivery status
+  action returns `status-unavailable` carrying the remedy "Review status could not read its repository or host
+  evidence. Resolve the operational failure, then re-run ...". No operational failure occurred. `--work-unit`
+  resolves the live stacked-delivery review continuation, and the applicable entry point for an Active
+  pre-publication work unit is `arc review pre-publication <name>`. The remedy sends the reader to debug evidence
+  reading instead of switching commands.
+
+- _Approach:_ separate "this work unit has no delivery status action" from "evidence could not be read", and point
+  the first at the applicable entry point rather than at an operational remedy.
+
+- _Note:_ infra smell — this sits on the review-gate status composition surface and may carry a design fork
+  between correcting the message and routing a wrong-door invocation to the applicable command. Re-triage at drain.
+
+- _Scope:_ review-status entry-point classification and its remedy text; no change to delivery status authority or
+  to the pre-publication procedure.
+
+- _Captured during:_ `candidate-reroot-recovery-frame` planning, 2026-09-11.
+
 ### `[ ]` **Bind local review targets to the current protected-base identity**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-request-contracts`), housekeep drain (2026-08-20).

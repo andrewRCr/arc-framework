@@ -7,15 +7,15 @@
  * where the ceremony meant to put it.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { handleRecoverAudit } from "../../src/handlers/recover.js";
 import { handleStatus } from "../../src/handlers/status.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { runHandlerAt } from "../helpers/handler.js";
-import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
@@ -110,8 +110,11 @@ function machineContext() {
   return resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
 }
 
-/** Open a session that also writes the recovery seed, and report what the seed write reported. */
-async function seedWriteOpening(root: string): Promise<unknown> {
+/** Open a session that also writes the recovery seed. */
+async function seedWriteOpening(root: string): Promise<{
+  compactionSeedWrite: unknown;
+  locusGuidance: unknown;
+}> {
   const opened = await runHandlerAt(root, async () => {
     await handleStatus(
       undefined,
@@ -120,7 +123,56 @@ async function seedWriteOpening(root: string): Promise<unknown> {
     );
   });
   expect(opened.exitCode, opened.stdout + opened.stderr).toBe(0);
-  return (JSON.parse(opened.stdout) as { compactionSeedWrite: unknown }).compactionSeedWrite;
+  return JSON.parse(opened.stdout) as {
+    compactionSeedWrite: unknown;
+    locusGuidance: unknown;
+  };
+}
+
+async function readSeed(root: string): Promise<{
+  locus: { checkoutPath: string; parentCheckoutPath: string | null };
+  uncommittedFiles: string[];
+}> {
+  return JSON.parse(await readFile(
+    join(root, ".arc", "user", "test-user", ".internal", "compaction-seed.json"),
+    "utf8",
+  )) as {
+    locus: { checkoutPath: string; parentCheckoutPath: string | null };
+    uncommittedFiles: string[];
+  };
+}
+
+interface RecoveryAuditOutput {
+  recover: {
+    derivedLocusState: {
+      ok: boolean;
+      value?: {
+        entering: {
+          kind: string;
+          row?: {
+            kind: string;
+            checkout: { path: string; branch: string | null };
+          };
+        };
+      };
+    };
+  };
+  verdict: {
+    status: string;
+    stopReasons: Array<{ kind: string }>;
+    locusHint: {
+      actual: { checkoutPath: string; parentCheckoutPath: string | null } | null;
+      match: boolean;
+    };
+  };
+}
+
+async function recoverAudit(root: string): Promise<RecoveryAuditOutput> {
+  const audited = await runHandlerAt(root, async () => {
+    await handleRecoverAudit({ json: true }, machineContext());
+  });
+  expect(audited.exitCode, audited.stdout + audited.stderr).toBe(0);
+  return JSON.parse(audited.stdout) as RecoveryAuditOutput;
 }
 
 describe("a session opening after an authorized merge lands a work unit's active record", () => {
@@ -128,23 +180,49 @@ describe("a session opening after an authorized merge lands a work unit's active
     const root = await projectWithWorkUnitBranch("src/other.ts");
     await git(root, ["switch", HEAD_REF]);
 
-    expect(await seedWriteOpening(root)).toMatchObject({ status: "written" });
+    expect((await seedWriteOpening(root)).compactionSeedWrite).toMatchObject({ status: "written" });
   });
 
-  it("cannot write its recovery seed once the merge has landed the record on the base", async () => {
+  it("preserves its checkout locus once the merge has landed the record on the base", async () => {
     const root = await projectWithWorkUnitBranch("src/other.ts");
     await mergeAllowingConflict(root, HEAD_REF);
 
-    expectPinnedObservation(await seedWriteOpening(root), {
-      behavior: "An authorized merge landing a work unit's active record on the base branch is an ordinary "
-        + "integration step, so a session opening over the result should still resolve the checkout it is in "
-        + "rather than report its own facts unresolved.",
-      observed: { status: "failed", reason: "seed-invalid" },
-      target: { status: "written" },
+    const opened = await seedWriteOpening(root);
+    expect(opened.compactionSeedWrite).toMatchObject({ status: "written" });
+    expect(opened.locusGuidance).toMatchObject({
+      kind: "unavailable",
+      message: expect.stringContaining("topology-mismatch"),
+    });
+    expect((await readSeed(root)).locus).toEqual({
+      checkoutPath: root,
+      parentCheckoutPath: null,
+    });
+
+    const audit = await recoverAudit(root);
+    expect(audit.recover.derivedLocusState).toMatchObject({
+      ok: true,
+      value: {
+        entering: {
+          kind: "selected",
+          row: {
+            kind: "unresolved-checkout",
+            checkout: { path: root, branch: "main" },
+          },
+        },
+      },
+    });
+    expect(audit.verdict.status).toBe("stop");
+    expect(audit.verdict.stopReasons).toContainEqual(
+      expect.objectContaining({ kind: "locus-unresolved" }),
+    );
+    expect(audit.verdict.locusHint).toEqual({
+      expected: { checkoutPath: root, parentCheckoutPath: null },
+      actual: { checkoutPath: root, parentCheckoutPath: null },
+      match: false,
     });
   });
 
-  it("reports the same failure whether or not the merge left an unmerged index", async () => {
+  it("records the exact dirty paths without treating either subject as resolved", async () => {
     const conflicted = await projectWithWorkUnitBranch("src/shared.ts");
     await mergeAllowingConflict(conflicted, HEAD_REF);
     const clean = await projectWithWorkUnitBranch("src/other.ts");
@@ -154,15 +232,17 @@ describe("a session opening after an authorized merge lands a work unit's active
     expect(await git(conflicted, ["diff", "--name-only", "--diff-filter=U"])).toBe("src/shared.ts");
     expect(await git(clean, ["status", "--porcelain"])).toBe("");
 
-    // The message carries each repository's own root, so the comparison is over the typed fields.
-    const typed = (write: unknown): unknown => {
-      const { status, reason } = write as { status: string; reason?: string };
-      return { status, reason };
-    };
-    const conflictedWrite = typed(await seedWriteOpening(conflicted));
-    expect(conflictedWrite).toEqual(typed(await seedWriteOpening(clean)));
-    // Named rather than left to the equality alone, which two succeeding arms would satisfy just as well
-    // while making this test's own name false.
-    expect(conflictedWrite).toEqual({ status: "failed", reason: "seed-invalid" });
+    const conflictedOpening = await seedWriteOpening(conflicted);
+    const cleanOpening = await seedWriteOpening(clean);
+    expect(conflictedOpening.compactionSeedWrite).toMatchObject({ status: "written" });
+    expect(cleanOpening.compactionSeedWrite).toMatchObject({ status: "written" });
+    expect(conflictedOpening.locusGuidance).toMatchObject({ kind: "unavailable" });
+    expect(cleanOpening.locusGuidance).toMatchObject({ kind: "unavailable" });
+    expect((await readSeed(conflicted)).uncommittedFiles).toEqual([
+      ".arc/active/meta-example.md",
+      ".arc/active/tasks-example.md",
+      "src/shared.ts",
+    ]);
+    expect((await readSeed(clean)).uncommittedFiles).toEqual([]);
   });
 });

@@ -2148,10 +2148,8 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "dirty",
       "domainRules",
       "errandState",
-      "errandSweep",
       "extensions",
       "identity",
-      "inboxState",
       "loadSet",
       "locusGuidance",
       "mode",
@@ -2929,6 +2927,7 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "main",
       hasBackingMeta: false,
       includeDiscovery: true,
+      includeNudge: true,
     });
     expect(result.errandState?.ok).toBe(true);
     if (result.errandState?.ok) {
@@ -2957,6 +2956,24 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "feat/x",
       hasBackingMeta: true,
       includeDiscovery: false,
+      includeNudge: true,
+    });
+  });
+
+  it("does not request the reminder nudge on a linked worktree", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "feat/x" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+
+    await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.errandState).toHaveBeenCalledWith(expect.anything(), {
+      currentBranch: "feat/x",
+      hasBackingMeta: true,
+      includeDiscovery: false,
+      includeNudge: false,
     });
   });
 
@@ -3083,7 +3100,7 @@ describe("runSessionInitStatus — retired-subdir detection slot", () => {
 });
 
 describe("runSessionInitStatus — errand-staleness sweep slot", () => {
-  it("fires the sweep when identity resolved, passing the identity", async () => {
+  it("fires the sweep when identity resolved on the primary worktree, passing the identity", async () => {
     const probes = sessionInitProbes({
       errandSweep: vi.fn(async () => ({ stale: [{ slug: "old-errand", created: "2026-05-01", ageDays: 24 }] })),
     });
@@ -3093,6 +3110,16 @@ describe("runSessionInitStatus — errand-staleness sweep slot", () => {
     if (result.errandSweep?.ok) {
       expect(result.errandSweep.value.stale[0]?.slug).toBe("old-errand");
     }
+  });
+
+  it("omits the sweep on a linked worktree", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.errandSweep).not.toHaveBeenCalled();
+    expect("errandSweep" in result).toBe(false);
   });
 
   it("omits the sweep when identity is absent", async () => {
@@ -3116,7 +3143,7 @@ describe("runSessionInitStatus — errand-staleness sweep slot", () => {
 });
 
 describe("runSessionInitStatus — inbox-state slot", () => {
-  it("fires the probe when identity resolved, passing the identity", async () => {
+  it("fires the probe when identity resolved on the primary worktree, passing the identity", async () => {
     const probes = sessionInitProbes({
       inboxState: vi.fn(async () => ({ routableCount: 3, executeBoundCount: 1, housekeepNeeded: true })),
     });
@@ -3126,6 +3153,30 @@ describe("runSessionInitStatus — inbox-state slot", () => {
     if (result.inboxState?.ok) {
       expect(result.inboxState.value).toEqual({ routableCount: 3, executeBoundCount: 1, housekeepNeeded: true });
     }
+  });
+
+  it("omits the slot on a linked worktree", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.inboxState).not.toHaveBeenCalled();
+    expect("inboxState" in result).toBe(false);
+  });
+
+  it("omits primary-only hygiene when worktree identity is unresolved", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: async () => { throw new Error("identity boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.errandSweep).not.toHaveBeenCalled();
+    expect(probes.inboxState).not.toHaveBeenCalled();
+    expect("errandSweep" in result).toBe(false);
+    expect("inboxState" in result).toBe(false);
+    expect(probes.errandState).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      includeNudge: false,
+    }));
   });
 
   it("omits the slot when identity is absent", async () => {

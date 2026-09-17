@@ -114,19 +114,23 @@ export async function observeRequiredChecks(
     pullRequest: input.pullRequest,
     headSha: input.headSha,
   });
-  try {
-    dependencies.signal.throwIfAborted();
-    repository = await dependencies.port.resolveRepository(dependencies.signal);
-    if (repository.toLowerCase() !== input.repository.toLowerCase()) {
-      return { ...base(), state: "target-mismatch", nextAction: "stop", actualRepository: repository };
-    }
+  const readMovedHead = async (): Promise<string | null> => {
     dependencies.signal.throwIfAborted();
     const actualHeadSha = await dependencies.port.readHead(
       repository,
       input.pullRequest,
       dependencies.signal,
     );
-    if (actualHeadSha !== input.headSha) {
+    return actualHeadSha === input.headSha ? null : actualHeadSha;
+  };
+  try {
+    dependencies.signal.throwIfAborted();
+    repository = await dependencies.port.resolveRepository(dependencies.signal);
+    if (repository.toLowerCase() !== input.repository.toLowerCase()) {
+      return { ...base(), state: "target-mismatch", nextAction: "stop", actualRepository: repository };
+    }
+    const actualHeadSha = await readMovedHead();
+    if (actualHeadSha !== null) {
       return { ...base(), state: "stale-target", nextAction: "stop", actualHeadSha };
     }
     dependencies.signal.throwIfAborted();
@@ -135,6 +139,10 @@ export async function observeRequiredChecks(
       input.pullRequest,
       dependencies.signal,
     );
+    const headAfterRequiredChecks = await readMovedHead();
+    if (headAfterRequiredChecks !== null) {
+      return { ...base(), state: "stale-target", nextAction: "stop", actualHeadSha: headAfterRequiredChecks };
+    }
     const status = aggregateChecks(checks);
     if (status === "not-required") {
       return { ...base(), state: "not-required", nextAction: "complete", checks: [] };
@@ -151,6 +159,10 @@ export async function observeRequiredChecks(
       input.pullRequest,
       dependencies.signal,
     )).filter(({ state }) => state === "failed");
+    const headAfterObservedChecks = await readMovedHead();
+    if (headAfterObservedChecks !== null) {
+      return { ...base(), state: "stale-target", nextAction: "stop", actualHeadSha: headAfterObservedChecks };
+    }
     return {
       ...base(),
       state: "pending",
