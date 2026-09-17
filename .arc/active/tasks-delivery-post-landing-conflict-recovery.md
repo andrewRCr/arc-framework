@@ -360,12 +360,20 @@ failed lease leaving the reservation held rather than half-released.
   release, or abandon a prepared reservation through reconcile — each by verb and typed result, where it named
   only a rerun that no longer clears the refusal it described.
 
-### `[ ]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
+### `[x]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
 
 - _Goal:_ Exercise the segment's capability end to end against each wedge it opens: a suffix-wedged landing
   settles by resubmitted resolution, a terminal-wedged landing settles by the hand merge its disclosure names,
   absorbed on the next `land-status`, and a separate wedged landing releases by decline with the reservation held
   on a failed lease.
+
+- _Outcome:_ Planned as a validation pass over existing coverage, executed as a build: no fixture reached suffix
+  settlement at all, so `delivery-native-suffix-e2e.ts` and `delivery-native-suffix.e2e.test.ts` are both new.
+  Four built-CLI cases cover the clean settlement and all three wedges. The arrangement turns on the protected
+  target carrying a commit of its own — replayed onto a landing that carries only the bottom member's tree, every
+  remaining member reproduces its original tree exactly and neither collision can be represented at all. The
+  rerun after the hand merge is the first exercise of the real adapters' `adopted` arms, for the member-ref
+  rewrite and the terminal publish alike.
 
 ## **Phase 4:** The shared base resolver
 
