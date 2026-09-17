@@ -73,25 +73,18 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
   before the provider's whole-blob canonicalization would reach the same verdict, so the clause is the narrowing
   the dereference needs rather than the sole protection.
 
-### `[ ]` **1.3 Carry the resubmitted resolution on the native status request**
+### `[x]` **1.3 Carry the resubmitted resolution on the native status request**
 
 - _Goal:_ A resubmitted resolution reaches the settle path in the same `land-status` call that consumes it, at the
   same revision, without a new operation. The state-schema additions — a reservation field and a phase value —
   belong to the decline's lease, not to this arrival.
 
-- _Rationale:_ `NativeStatusSchema` is `{ planId, request, remote }`, so the resubmission has nowhere to arrive.
-  Every conflict refusal returns before any state write, which is why arrival needs no new operation.
+    - `[x]` **1.3.a Add the field that carries the resubmitted resolution**
 
-    - `[ ]` **1.3.a Add the field that carries the resubmitted resolution**
-
-        - Two loci again: the request schema, and the settle function's own input, which today is
-          `{ plan, before, landed, repository, protectedTargetRef }` with nowhere for a resolution to sit. The
-          handler parses the request and calls the settle, so adding the field to only one leaves the resolution
-          parsed and dropped — a silent no-op rather than a failure.
-        - Build `test-first` (one behavior at a time):
-
-            - A request carrying a resolution parses and reaches the settle path
-            - A request without one parses unchanged and still discloses
+        - Both loci landed together: `NativeStatusSchema` gained an optional `conflictResolution` and
+          `reconcileLinkedNativeDeliverySuffix` the matching input field, with `settleAppliedNativeLanding`
+          threading the parsed value between them. The request admits the native scope alone — a
+          `dependent-suffix` resolution cannot apply to a reservation-keyed suffix, so it refuses at the door.
 
 ### `[ ]` **1.4 Settle under the held reservation on a canonicalizing resolution**
 

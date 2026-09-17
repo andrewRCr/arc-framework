@@ -608,11 +608,6 @@ const NativeSubmitSchema = z.strictObject({
   planId: DeliveryPlanIdSchema, operationId: z.string().min(1), request: NativeMergeRequestSchema,
   treeRoot: z.string().min(1), remote: z.string().min(1).default("origin"),
 });
-const NativeStatusSchema = z.strictObject({
-  planId: DeliveryPlanIdSchema,
-  request: NativeMergeRequestSchema,
-  remote: z.string().min(1).default("origin"),
-});
 const NativePreparedRecoveryResultSchema = z.strictObject({
   status: z.literal("prepared"),
   transition: z.literal("preserved"),
@@ -667,6 +662,15 @@ const RefreshConflictResolutionSchema = z.strictObject({
   expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   observedSuffixDigest: DeliveryCanonicalDigestSchema,
   conflicts: z.array(RefreshConflictSchema).min(1),
+});
+const NativeSuffixConflictResolutionSchema = RefreshConflictResolutionSchema.extend({
+  scope: NativeSuffixConflictScopeSchema,
+});
+const NativeStatusSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  request: NativeMergeRequestSchema,
+  remote: z.string().min(1).default("origin"),
+  conflictResolution: NativeSuffixConflictResolutionSchema.optional(),
 });
 const DeliveryTerminalConflictPreparationSchema = z.strictObject({
   topRef: z.string().min(1),
@@ -4036,6 +4040,7 @@ async function executeDeliveryCommand(
     repository: string,
     protectedTargetRef: string,
     remote: string,
+    conflictResolution?: z.infer<typeof NativeSuffixConflictResolutionSchema>,
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const rawExec = createRawGitExec(cwd);
@@ -4045,6 +4050,7 @@ async function executeDeliveryCommand(
       landed,
       repository,
       protectedTargetRef,
+      conflictResolution,
     }, {
       observeRequest: (binding) => host.readRequest(repository, binding),
       observeRef: async (ref) => {
@@ -5267,6 +5273,7 @@ async function executeDeliveryCommand(
       status.request.repository,
       operation.effect.targetRef,
       status.remote,
+      status.conflictResolution,
     );
   }
 

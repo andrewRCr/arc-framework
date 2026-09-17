@@ -796,7 +796,8 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
 /**
  * Reconcile the complete remaining registered suffix through the contribution-proven rewrite path.
  *
- * @param input - Exact pre-landing reservation, unpersisted landing projection, repository, and protected target.
+ * @param input - Exact pre-landing reservation, unpersisted landing projection, repository, protected target,
+ *   and any resolution resubmitted to settle a disclosed suffix conflict.
  * @param dependencies - Fresh observers, contribution arbiter, terminal absorber/publisher, and state writer.
  * @returns The once-persisted reconciled suffix or a closed refusal preserving path evidence when available.
  */
@@ -806,6 +807,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly landed: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly repository: string;
   readonly protectedTargetRef: string;
+  readonly conflictResolution?: DeliveryNativeSuffixConflictResolutionInput;
 }, dependencies: {
   readonly observeRequest: (binding: NonNullable<DeliveryStateV1["members"][number]["changeRequest"]>) => Promise<DeliveryHostRequestObservation>;
   readonly observeRef: (ref: string) => Promise<{ readonly head: string; readonly tree: string } | null>;
