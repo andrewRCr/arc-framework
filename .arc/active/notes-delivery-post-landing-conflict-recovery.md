@@ -294,6 +294,14 @@ ancestor, and `history-shape-ambiguity.test.ts` records the same varying pick in
 arm. Both can therefore go red, reported as spent, before the change that moves the behavior arrives. What each
 replacement asserts is unaffected; the trigger named above is not.
 
+**Retired during Phase 4.** Two of the rows above are gone, neither on the schedule stated for it. The drift
+overlap went red as neither-shape at the moment the middle layer stopped folding, a phase earlier than the route
+above predicts, and its assertion is now a plain one in the same probe file. The review status never went red at
+all: the design's answer for an ambiguous base is the rerun that hold observed, so it sat in the same position as
+the Candidate applicability row and was retired deliberately. Its replacement asserts the base-movement half and
+leaves the routed obligation unasserted, so the conversion that changes that string extends the assertion instead
+of re-editing it.
+
 A ninth row is owned here and **deliberately unpinned**: `delivery-rebuild-base-movement.test.ts` — "returns the
 identical refusal after the operator resolves the conflicted path". It proves the named remedy does not clear the
 refusal, which no other test asserts, and the refusal itself is correct.

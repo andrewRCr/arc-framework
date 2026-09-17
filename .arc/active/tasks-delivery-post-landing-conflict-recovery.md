@@ -562,7 +562,7 @@ to a verdict and carries the cause as a discriminant instead. See
   and no task in this phase assigns it a remedy — the ambiguous arm is what Task 4.6 scopes. The two pairs would
   want different answers here too, since re-baselining cannot give a pinned baseline an ancestor it never had.
 
-### `[ ]` **4.7 Replace the drift-overlap and review-status holds with plain assertions**
+### `[x]` **4.7 Replace the drift-overlap and review-status holds with plain assertions**
 
 - _Goal:_ Both holds become plain assertions on the peer `ambiguous` status, so the suite asserts the behavior
   rather than waiting for it.
@@ -595,12 +595,12 @@ to a verdict and carries the cause as a discriminant instead. See
         - Taken in Task 4.3, where the behavior moved. The hold now asserts the peer `ambiguous` status plus
           the `unknown` movement the classifier states for it.
 
-    - `[ ]` **4.7.b Replace the review-status hold, asserting the base-movement half only**
+    - `[x]` **4.7.b Replace the review-status hold, asserting the base-movement half only**
 
-        - Its `observed` pins two strings: the multi-base detail this phase changes, and a
-          `routedObligation.detail` carrying the effective-target reader's untyped throw, which Task 6.2
-          converts. Leave the routed-obligation half unpinned here so that conversion extends the assertion
-          rather than re-editing it.
+        - The assertion is the state, the next action, and the multi-base detail; the routed-obligation half is
+          left unasserted for the conversion that changes it. Pinning the detail is safe for a reason the note
+          above did not expect — it predates this work unit, and the phase moved it onto the ambiguous arm with
+          its text unchanged, which is also why the hold never fired on it.
 
 ### `[ ]` **4.8 Give an unrelated base a route at both checkpoint pairs**
 

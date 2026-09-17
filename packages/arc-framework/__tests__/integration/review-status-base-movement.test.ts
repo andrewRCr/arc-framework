@@ -26,7 +26,6 @@ import {
   type GitExecLike,
 } from "../helpers/base-advance.js";
 import { runHandlerAt } from "../helpers/handler.js";
-import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
@@ -263,19 +262,13 @@ describe("review status over a history leaving two merge bases", () => {
       await arrangeAmbiguousMergeBase({ cwd: root });
     });
 
-    const status = await statusThroughPort(fixture);
-
-    expectPinnedObservation(status, {
-      behavior: "A second equally good merge base changes the shape of the history and nothing about "
-        + "what the branch contributed, so review status should settle rather than report the base moved "
-        + "and send the work back through a checkpoint it has already passed.",
-      observed: {
-        state: "base-moved",
-        nextAction: "rerun-checkpoint",
-        baseMovementDetail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
-        routedObligation: { state: "blocked", detail: "The Candidate target has no sole base coordinate." },
-      },
-      target: { state: "settled" },
+    // A second equally good merge base leaves nothing to prove the branch's own contribution from, rather
+    // than leaving that contribution unchanged, so the reading does not settle. It names the rerun because
+    // merging the base in is what collapses the two bases to one.
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      baseMovementDetail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
     });
   });
 
