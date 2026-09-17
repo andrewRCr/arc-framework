@@ -30,9 +30,15 @@ When the supplied command carries `--seed-path <path>`, preserve that exact oper
 handoff; the audit validates that the path belongs to exactly one registered checkout and binds fresh recovery
 probes to that checkout.
 
-Require `mode: "recover-audit"`. If the command fails or the report is malformed, surface that recovery cannot
-establish live state and stop automatic recovery under Step 2's Owner-direction boundary.
-Do not manually reconstruct a seed from the harness summary.
+Require `mode: "recover-audit"`. One self-hosting pre-audit failure has a bounded repair: when the command exits
+before emitting a report and its stderr is the CLI-owned stale-development-build refusal for `recover audit`
+(`error: arc dev build is stale (...)`, refusal against stale `dist`, and the `npm run build:fast` remedy), run
+`npm run build:fast` once from the same invoking checkout, then retry the exact supplied audit command once without
+prompting. Treat only that complete signature as repair authority and require fresh output from the retry. If the
+build fails, the retry repeats the stale-build refusal, or the retry otherwise fails or returns a malformed report,
+surface that recovery cannot establish live state and stop automatic recovery under Step 2's Owner-direction
+boundary. Any other initial command failure follows that same stop. Do not manually reconstruct a seed from the
+harness summary.
 
 The report's required `recover.derivedLocusState` is the sole topology/frame read. `recover.recoveryFrame`,
 `recover.loadSet`, and `recover.taskCursor` are reader-owned projections from that same value; consume them rather
