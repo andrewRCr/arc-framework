@@ -478,7 +478,7 @@ to a verdict and carries the cause as a discriminant instead. See
   the state, next action, and detail it observes are still what the reader produces. Its replacement stays at
   Task 4.7.b rather than following Task 4.7.a forward; recorded there.
 
-### `[ ]` **4.5 Reduce the distinction at the normalized verdict space**
+### `[x]` **4.5 Reduce the distinction at the normalized verdict space**
 
 - _Goal:_ The layer the applicability reducer consumes answers its own question safely on both new arms, while the
   cause that produced them survives to the operator rather than dying at the boundary.
@@ -524,25 +524,20 @@ to a verdict and carries the cause as a discriminant instead. See
           clear it. Errand merge composition carries the reduction onto its invalidated result, where the cause
           previously stopped at a fixed string. Candidate applicability is untouched, as planned.
 
-    - `[ ]` **4.5.d Make the reducer's open-ended accept branch exhaustive**
+    - `[x]` **4.5.d Make the reducer's open-ended accept branch exhaustive**
 
-        - One branch there ends in a two-way test whose else-arm returns the strongest accept. The new causes do
-          not reach it — the `unknown` arm is caught earlier — so this is hardening rather than a dependency of
-          the arm set. An accept reached by falling past a single test, in a module this phase is already
-          opening, is how the next arm gets swallowed.
-        - **That else-arm is live, not dead**, so this is a restatement and not a repair. It is the accept every
-          `member-rewrite` delta takes, whose overlap is always the constant, and the `base-merge` accept on a
-          disjoint overlap. Two production call sites depend on it. The exhaustive form preserves those outcomes
-          exactly; changing them is a different concern with different consumers.
-        - Build `test-first` (one behavior at a time):
+        - The accept is stated arm by arm, so an arm added later fails at the compiler here instead of taking
+          `carries` by falling past one test — confirmed by admitting a probe arm through the axis guard and
+          reading the error at this branch. Both preserved accepts already had rows, and flipping the branch
+          fails them.
+        - _Finding:_ The runtime half needed no repair, and no reconstruction could make it fail. An arm the
+          design never stated is refused twice before reaching this branch — by the delta parse and by the axis
+          guard, which already switches exhaustively. The contribution here is the compiler event for an arm
+          those two would admit.
 
-            - A member-rewrite delta still reaches the accept it reaches today
-            - A base-merge delta with a disjoint overlap still reaches it
-            - An arm with no stated disposition fails to reduce rather than accepting
-        - _Note:_ The reducer revalidates what it is handed by shape rather than by provenance, and both its delta
-          schema and type are exported, so a caller can hand-build a valid delta. Three of the five reduction call
-          sites already bypass the conversion legitimately, on the causes that use the constant. The closed arm
-          set is what keeps that boundary safe; do not widen it here.
+- _Outcome:_ The reduced layer answers both new arms conservatively while the cause survives to an action an
+  operator can take, and the verdict space never widened to carry it. Two contract additions: two reason members
+  on the applicability result, and `baseMovementCause` on review status.
 
 ### `[ ]` **4.6 Attach the per-coordinate-pair remedy to the ambiguous arm**
 

@@ -10,6 +10,7 @@ import {
 import { composeEvidenceDelta } from "../../../src/lib/evidence-applicability/compose.js";
 import {
   EvidenceDeltaSchema,
+  type EvidenceDelta,
   type EvidenceOverlapObservation,
 } from "../../../src/lib/evidence-applicability/schema.js";
 
@@ -288,6 +289,23 @@ describe("evidence applicability reducer", () => {
 
     expect(EvidenceDeltaSchema.safeParse(truncated).success).toBe(false);
     expect(() => reduceEvidenceApplicability(truncated, "verification")).toThrow();
+  });
+
+  it("refuses an overlap arm it states no disposition for, rather than accepting it", () => {
+    const carried = composeEvidenceDelta({
+      cause: "member-rewrite",
+      endpoints,
+      proof: { status: "accepted", proof: "tree-equality" },
+    });
+    // The reduction revalidates by shape rather than by provenance, so a hand-built delta is a real caller.
+    // An arm this design states nothing about is exactly what a two-way test answers with its accept.
+    const unstated = {
+      ...carried,
+      overlap: { kind: "regenerable-only", substantivePaths: [], regenerablePaths: [] },
+    } as unknown as EvidenceDelta;
+
+    expect(EvidenceDeltaSchema.safeParse(unstated).success).toBe(false);
+    expect(() => reduceEvidenceApplicability(unstated, "review-clearance")).toThrow();
   });
 
   it("rejects impossible result pairs and unknown evidence kinds", () => {

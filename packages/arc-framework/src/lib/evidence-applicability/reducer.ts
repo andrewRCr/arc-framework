@@ -200,9 +200,18 @@ function reduceOtherMovement(
 ): EvidenceApplicabilityResult {
   if (delta.overlap.kind === "unknown") return final("fresh", "overlap-unknown");
   if (delta.relation === "equal" || delta.relation === "mechanical-reapply") {
-    return delta.overlap.kind === "overlapping"
-      ? final("supplemental", "overlap-supplemental")
-      : final("carries", "relation-carried");
+    // Stated arm by arm rather than as a test and an else. The accept below is reached by two different
+    // overlaps — a member rewrite reads no base at all, and a base merge can prove the two sides touched
+    // nothing in common — so an arm with no disposition here is one nobody decided should carry.
+    switch (delta.overlap.kind) {
+      case "overlapping":
+        return final("supplemental", "overlap-supplemental");
+      case "disjoint":
+      case "not-applicable":
+        return final("carries", "relation-carried");
+      default:
+        return assertNever(delta.overlap);
+    }
   }
   if (delta.relation === "clean-divergence") {
     return delta.residual === null
