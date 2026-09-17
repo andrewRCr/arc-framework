@@ -4,6 +4,53 @@ import type { RevisionOverlapResult } from "../git/base-overlap.js";
 
 type AvailableOverlap = Extract<RevisionOverlapResult, { readonly status: "available" }>;
 
+/** How one ordered pair of revisions relates, established by topology alone. */
+export type PredecessorRelationVariant =
+  | { readonly kind: "unchanged" }
+  | { readonly kind: "advanced" }
+  | { readonly kind: "rewound" }
+  | { readonly kind: "diverged" }
+  | { readonly kind: "absent" }
+  | { readonly kind: "unknown" };
+
+/** What one ancestry read establishes about an ordered pair, including that it established nothing. */
+export type AncestryAnswer = "ancestor" | "not-ancestor" | "unresolvable";
+
+/**
+ * Name how one ordered pair of revisions relates, from topology alone.
+ *
+ * Equality is settled by the revisions themselves, before either ancestry answer is consulted: two names for one
+ * revision relate as unmoved whatever a read of them reports. Past that, one positive answer is enough to place
+ * the pair, since only one direction can hold; divergence needs both answers to say so, so a read that
+ * established nothing reports itself rather than arriving as the verdict that neither side contains the other.
+ *
+ * `absent` is not among the answers here. It says no record binds the subject at all, which is a prior fact
+ * about whether there is a subject to compare, and a pair of revisions consults nothing that could establish it.
+ *
+ * @param input - The bound and observed revisions, and the ancestry answers relating them in both directions.
+ * @returns The relation the topology establishes, or that it established none.
+ */
+export function classifyPredecessorRelation(input: {
+  readonly boundHead: string;
+  readonly observedHead: string;
+  readonly boundIsAncestorOfObserved: AncestryAnswer;
+  readonly observedIsAncestorOfBound: AncestryAnswer;
+}): Exclude<PredecessorRelationVariant, { readonly kind: "absent" }> {
+  if (input.boundHead === input.observedHead) {
+    return { kind: "unchanged" };
+  }
+  if (input.boundIsAncestorOfObserved === "ancestor") {
+    return { kind: "advanced" };
+  }
+  if (input.observedIsAncestorOfBound === "ancestor") {
+    return { kind: "rewound" };
+  }
+  if (input.boundIsAncestorOfObserved === "not-ancestor" && input.observedIsAncestorOfBound === "not-ancestor") {
+    return { kind: "diverged" };
+  }
+  return { kind: "unknown" };
+}
+
 export type DeliveryPredecessorRelation =
   | { readonly kind: "exact"; readonly observedTip: string; readonly chainBase: string }
   | {
@@ -26,7 +73,7 @@ export type PredecessorRelationRead =
   | { readonly status: "unavailable"; readonly detail: string };
 
 export interface PredecessorRelationDependencies {
-  readAncestry(ancestor: string, descendant: string): Promise<"ancestor" | "not-ancestor" | "unresolvable">;
+  readAncestry(ancestor: string, descendant: string): Promise<AncestryAnswer>;
   readOverlap(leftRevision: string, rightRevision: string): Promise<RevisionOverlapResult>;
 }
 

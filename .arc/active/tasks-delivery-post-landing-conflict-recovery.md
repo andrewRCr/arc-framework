@@ -674,17 +674,16 @@ is a field on `diverged`, not a variant.
   still requires the observed head to equal the target head with the routed obligation discharged at that exact
   vehicle — do not add a subject term to close a hole the downstream gate already holds.
 
-    - `[ ]` **5.1.a Classify the six variants**
+    - `[x]` **5.1.a Classify the six variants**
 
-        - Build `test-first` (one behavior at a time):
+        - `classifyPredecessorRelation` answers from the two ancestry readings and the revisions themselves:
+          equality settles before either reading is consulted, and `diverged` requires both readings to say so, so
+          an unresolvable one reports `unknown` rather than falling through to it. The vocabulary lands whole while
+          the classifier's return excludes `absent`, which 5.1.b places.
 
-            - Equal heads report `unchanged`
-            - A bound head that is an ancestor of the observed reports `advanced`
-            - An observed head that is an ancestor of the bound reports `rewound`
-            - Neither an ancestor of the other reports `diverged`
-            - A failed ancestry read reports `unknown` and never collapses into a verdict
-            - An externally rewritten head reports `diverged` or `rewound` rather than assuming the landed head
-              is the head ARC bound
+        - _Finding:_ The four-arm read wrapper 5.1 describes has no subtask that lands it. 5.2.d moves
+          `unrelated` onto a read arm, but nothing names the `ambiguous` arm or the fold in
+          `predecessor-relation.ts` waiting on it, and 5.4.a reads as though 5.1 placed both. Added as 5.1.d.
 
     - `[ ]` **5.1.b Settle how `absent` is reached, since it is not a topological answer**
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  classifyPredecessorRelation,
   predecessorRelation,
   type PredecessorRelationDependencies,
 } from "../../../src/lib/delivery/predecessor-relation.js";
@@ -91,5 +92,67 @@ describe("predecessor relation", () => {
       status: "unavailable",
       detail: "The observed tip ancestry could not be established.",
     });
+  });
+});
+
+describe("predecessor relation classification", () => {
+  it("reports an unresolvable ancestry read rather than a relation", () => {
+    expect(classifyPredecessorRelation({
+      boundHead: oid("b"),
+      observedHead: oid("c"),
+      boundIsAncestorOfObserved: "unresolvable",
+      observedIsAncestorOfBound: "unresolvable",
+    })).toEqual({ kind: "unknown" });
+  });
+
+  it("reports an append-only advance when the bound head is an ancestor of the observed one", () => {
+    expect(classifyPredecessorRelation({
+      boundHead: oid("b"),
+      observedHead: oid("c"),
+      boundIsAncestorOfObserved: "ancestor",
+      observedIsAncestorOfBound: "not-ancestor",
+    })).toEqual({ kind: "advanced" });
+  });
+
+  it("reports a rewind when the observed head is an ancestor of the bound one", () => {
+    expect(classifyPredecessorRelation({
+      boundHead: oid("b"),
+      observedHead: oid("c"),
+      boundIsAncestorOfObserved: "not-ancestor",
+      observedIsAncestorOfBound: "ancestor",
+    })).toEqual({ kind: "rewound" });
+  });
+
+  it("reports divergence when neither head is an ancestor of the other", () => {
+    expect(classifyPredecessorRelation({
+      boundHead: oid("b"),
+      observedHead: oid("c"),
+      boundIsAncestorOfObserved: "not-ancestor",
+      observedIsAncestorOfBound: "not-ancestor",
+    })).toEqual({ kind: "diverged" });
+  });
+
+  it("reports the pair unmoved when both heads name the same revision", () => {
+    expect(classifyPredecessorRelation({
+      boundHead: oid("b"),
+      observedHead: oid("b"),
+      boundIsAncestorOfObserved: "ancestor",
+      observedIsAncestorOfBound: "ancestor",
+    })).toEqual({ kind: "unchanged" });
+  });
+
+  it("never reads an externally rewritten head as the head it bound", () => {
+    const rewritten = { boundHead: oid("b"), observedHead: oid("c") } as const;
+
+    expect(classifyPredecessorRelation({
+      ...rewritten,
+      boundIsAncestorOfObserved: "not-ancestor",
+      observedIsAncestorOfBound: "not-ancestor",
+    })).toEqual({ kind: "diverged" });
+    expect(classifyPredecessorRelation({
+      ...rewritten,
+      boundIsAncestorOfObserved: "not-ancestor",
+      observedIsAncestorOfBound: "ancestor",
+    })).toEqual({ kind: "rewound" });
   });
 });
