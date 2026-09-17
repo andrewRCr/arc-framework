@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** generate-tasks — task list authored and audited; Phases 1-3 and 6-7 settled, 4-5 re-entered
 - **Next Task:** [none]
 - **Blockers:** [none]
