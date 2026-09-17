@@ -1318,18 +1318,15 @@ describe("native delivery landing", () => {
       stateStore: {
         publish: async () => { throw new Error("rejected suffix reached state publication"); },
       },
-    })).resolves.toEqual({
-      status: "blocked",
-      reason: "contribution-conflicted",
-      paths: ["src/conflict.ts"],
-      guidance:
-        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+    })).resolves.toMatchObject({
+      status: "conflict-resolution-required",
+      conflicts: [{ deliverableId: bound.members[2]!.deliverableId, paths: ["src/conflict.ts"] }],
     });
   });
 
 
   it("reports every conflicted suffix member with its own paths", async () => {
-    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const { bound, reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
 
     await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
@@ -1340,16 +1337,16 @@ describe("native delivery landing", () => {
         paths: endpoints.after.member.head === "a".repeat(40) ? ["src/second.ts"] : ["src/third.ts"],
       }),
       ...unreachedSettlement,
-    })).resolves.toEqual({
-      status: "blocked",
-      reason: "contribution-conflicted",
-      paths: ["src/second.ts", "src/third.ts"],
-      guidance:
-        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+    })).resolves.toMatchObject({
+      status: "conflict-resolution-required",
+      conflicts: [
+        { deliverableId: bound.members[1]!.deliverableId, paths: ["src/second.ts"] },
+        { deliverableId: bound.members[2]!.deliverableId, paths: ["src/third.ts"] },
+      ],
     });
   });
-it("reports only the conflicted member when the rest of the suffix proves clean", async () => {
-    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture(5);
+  it("reports only the conflicted member when the rest of the suffix proves clean", async () => {
+    const { bound, reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture(5);
 
     await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
@@ -1358,15 +1355,12 @@ it("reports only the conflicted member when the rest of the suffix proves clean"
         ? { status: "refused", reason: "contribution-conflicted", paths: ["src/third.ts"] }
         : { status: "accepted", proof: "mechanical-reapply" },
       ...unreachedSettlement,
-    })).resolves.toEqual({
-      status: "blocked",
-      reason: "contribution-conflicted",
-      paths: ["src/third.ts"],
-      guidance:
-        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+    })).resolves.toMatchObject({
+      status: "conflict-resolution-required",
+      conflicts: [{ deliverableId: bound.members[2]!.deliverableId, paths: ["src/third.ts"] }],
     });
   });
-it("stops collection on a refusal that is not a contribution conflict", async () => {
+  it("stops collection on a refusal that is not a contribution conflict", async () => {
     const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture(5);
     const divergedAfterConflict = async (endpoints: DeliveryContributionEndpoints) => {
       if (endpoints.after.member.head === "a".repeat(40)) {
@@ -1403,5 +1397,35 @@ it("stops collection on a refusal that is not a contribution conflict", async ()
       recommendedActionText:
         "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
     });
+  });
+  it("discloses a conflicted suffix as a resubmittable native resolution", async () => {
+    const { bound, reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const conflicts = [
+      { deliverableId: bound.members[1]!.deliverableId, paths: ["src/second.ts"] },
+      { deliverableId: bound.members[2]!.deliverableId, paths: ["src/third.ts"] },
+    ];
+
+    const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async (endpoints) => ({
+        status: "refused",
+        reason: "contribution-conflicted",
+        paths: endpoints.after.member.head === "a".repeat(40) ? ["src/second.ts"] : ["src/third.ts"],
+      }),
+      ...unreachedSettlement,
+    });
+
+    expect(result).toMatchObject({
+      status: "conflict-resolution-required",
+      conflicts,
+      resolutionInput: {
+        planId: reconcileInput.plan.planId,
+        scope: { kind: "native-suffix", operationId: "operation-1" },
+        expectedStateRevision: 2,
+        conflicts,
+      },
+    });
+    expect(result).not.toHaveProperty("externalRefRestorations");
   });
 });

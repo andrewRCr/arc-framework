@@ -29,8 +29,10 @@ import type {
 } from "./contribution-proof.js";
 import {
   collectDeliveryProviderRefreshConflicts,
+  type DeliveryProviderConflictResolutionInput,
   type DeliveryProviderRefreshConflict,
 } from "./suffix-reconciliation.js";
+import { canonicalDigest } from "../kernel/index.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 import type { DeliveryMemberRefCheckoutObservation } from "./git-materialization.js";
 
@@ -764,8 +766,20 @@ export async function collectNativeDeliverySuffixConflicts(
   );
 }
 
+/** Response-owned selector for one exact native suffix conflict decision, resubmitted to settle it. */
+export type DeliveryNativeSuffixConflictResolutionInput =
+  Omit<DeliveryProviderConflictResolutionInput, "scope"> & {
+    readonly scope: Extract<DeliveryProviderConflictResolutionInput["scope"], { kind: "native-suffix" }>;
+  };
+
 export type ReconcileLinkedNativeDeliverySuffixResult =
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
+  | {
+      readonly status: "conflict-resolution-required";
+      readonly conflicts: readonly DeliveryProviderRefreshConflict[];
+      readonly resolutionInput: DeliveryNativeSuffixConflictResolutionInput;
+      readonly recommendedActionText: string;
+    }
   | {
       readonly status: "blocked";
       readonly reason: "contribution-conflicted" | "contribution-diverged";
@@ -824,9 +838,14 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 }): Promise<ReconcileLinkedNativeDeliverySuffixResult> {
   const operation = input.before.value.activeOperation;
-  const landedId = operation?.kind === "land" && operation.mode === "native"
-    ? operation.affectedDeliverableIds.at(-1)
-    : undefined;
+  if (operation === null || operation.kind !== "land" || operation.mode !== "native") {
+    return {
+      status: "blocked",
+      reason: "suffix-position-unavailable",
+      recommendedActionText: "Keep the reservation and restore the exact native landing subject.",
+    };
+  }
+  const landedId = operation.affectedDeliverableIds.at(-1);
   const landedIndex = landedId === undefined
     ? -1
     : input.plan.members.findIndex((member) => member.deliverableId === landedId);
@@ -972,11 +991,19 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
   }
   if (assessment.conflicts.length > 0) {
     return {
-      status: "blocked",
-      reason: "contribution-conflicted",
-      paths: [...new Set(assessment.conflicts.flatMap(({ paths }) => paths))].sort(),
-      guidance:
-        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+      status: "conflict-resolution-required",
+      conflicts: assessment.conflicts,
+      resolutionInput: {
+        planId: input.plan.planId,
+        scope: { kind: "native-suffix", operationId: operation.operationId },
+        expectedStateRevision: input.before.revision,
+        observedSuffixDigest: canonicalDigest(
+          observedMembers.map(({ deliverableId, coordinates }) => ({ deliverableId, coordinates })),
+        ),
+        conflicts: assessment.conflicts,
+      },
+      recommendedActionText:
+        "Resolve the listed member paths, then resubmit this resolution with `arc delivery native land-status` to settle the landing under the held reservation.",
     };
   }
   const changedRefs: string[] = [];

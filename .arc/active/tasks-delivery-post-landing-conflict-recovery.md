@@ -39,69 +39,39 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
   resolution now runs over the whole suffix ahead of any proof, which moves an unverifiable endpoint in front of a
   partial conflict set rather than behind it.
 
-### `[ ]` **1.2 Author the native conflict-disclosure arm and its scope discriminant**
+### `[x]` **1.2 Author the native conflict-disclosure arm and its scope discriminant**
 
 - _Goal:_ With conflicts present and no resolution supplied, the native path returns `conflict-resolution-required`
   carrying the conflicts and a resubmittable `resolutionInput`, matching a real arm of the result union.
 
-- _Rationale:_ The union's only `conflict-resolution-required` arm is a `z.strictObject` requiring
-  `externalRefRestorations` with `.min(1)`, and this arm returns before the local member-ref rewrite, so ARC has
-  moved nothing local and has nothing to restore. A native disclosure therefore matches no arm today and would be
-  emitted as an invalid service result — the operator receiving no conflicts, no `resolutionInput`, and no route
-  forward. Weakening the shared constraint to fit a different caller is the protection erosion Non-Goals forbid.
+    - `[x]` **1.2.a Author the distinct native disclosure arm**
 
-- _Note:_ The disclosure fires on every conflict set. Gating it on at least one `reviewable` path was considered
-  and dropped rather than adopted on the authoring-time approximation, whose population was landings rather than
-  conflict sets. Dropping it is forward-compatible: the gate can be added later if a real population warrants it.
+        - Added the arm to `ReconcileLinkedNativeDeliverySuffixResult` and a field-matching arm to the handler's
+          result union, and replaced the conflicted `blocked` return with the disclosure. The resolution blob is
+          the shared type with its scope narrowed to the native kind, so the two cannot drift. Its
+          `observedSuffixDigest` covers the freshly observed member coordinates, keyed by deliverable.
+        - The native landing operation is now narrowed once at function entry rather than re-tested per use,
+          which splits the existing `suffix-position-unavailable` guard without changing its arm or its text.
 
-- **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions
+    - `[x]` **1.2.b Give `RefreshConflictResolutionSchema.scope` its own discriminated union**
 
-    - `[ ]` **1.2.a Author the distinct native disclosure arm**
+        - `scope` now holds a new union over the existing dependent-suffix object and a native one keyed on the
+          reservation's `operationId` — the suffix under reservation, not a selected member. Widening it broke the
+          two predicted loci: the mirrored `DeliveryProviderConflictResolutionInput` scope, widened to match, and
+          the `scope.selectedDeliverableId` dereference in `adoptExternalDeliverySuffixRefresh`, narrowed by the
+          guard below. This is a provider-contract change: the schema is shared with `arc delivery refresh adopt`.
 
-        - Two loci, like the terminal arm in 2.1.a: the library result type, whose three arms admit no
-          `conflict-resolution-required` today, and the handler result union, which must agree with it
-          field-for-field. The handler returns the library result verbatim and validates it before returning, so
-          a library-only edit surfaces as an invalid service result at runtime rather than at the compiler.
-        - Build `test-first` (one behavior at a time):
+    - `[x]` **1.2.c Leave both existing scope schemas untouched**
 
-            - A conflicted suffix with no resolution returns `conflict-resolution-required` with every conflict
-            - The returned `resolutionInput` validates against the schema it will be resubmitted under
-            - The arm carries no `externalRefRestorations`, and validates against the result union
+        - `DependentRefreshExecutionScopeSchema` and `RefreshExecutionScopeSchema` are unchanged, so the execution
+          scope still admits exactly its two kinds and no third kind reaches the provider branches written as a
+          binary. The native kind is refused on the provider path by a typed check at the adopt guard.
 
-    - `[ ]` **1.2.b Give `RefreshConflictResolutionSchema.scope` its own discriminated union**
-
-        - `scope` holds `DependentRefreshExecutionScopeSchema`, which is shared by reference with
-          `RefreshExecutionScopeSchema` rather than inlined — so the native kind lands as a new union at `scope`
-          itself, over the existing dependent-suffix object plus a native one.
-        - The native scope identifies the suffix under reservation, not a selected member: the dependent-suffix
-          shape keys on `selectedDeliverableId`, while the native path reconciles the complete remaining
-          registered suffix and `NativeMergeRequestSchema` carries no member identity at all.
-        - `RefreshConflictResolutionSchema` is shared with the live `arc delivery refresh adopt` request, so this
-          is a provider-contract change and is disclosed as one.
-        - Two library loci break with it: `DeliveryProviderConflictResolutionInput` in `suffix-reconciliation.ts`
-          mirrors the scope shape and hard-codes `kind: "dependent-suffix"`, and
-          `adoptExternalDeliverySuffixRefresh` dereferences `conflictResolution.scope.selectedDeliverableId`
-          directly, which stops typechecking once `scope` is a union.
-        - Reuse `RefreshConflictSchema` for the disclosed conflicts and the resolution type itself for the
-          resubmitted blob, so the canonicalization comparison in 1.4 is the provider path's, not a second one.
-        - `observedSuffixDigest` on the native side covers the freshly observed member coordinates. The provider
-          derives it from a `DeliveryOperationSnapshotV1`; the native settle has none and calls `canonicalDigest`
-          nowhere today, so this is the contract 1.4's comparison consumes.
-
-    - `[ ]` **1.2.c Leave both existing scope schemas untouched**
-
-        - Adding the kind to the shared `DependentRefreshExecutionScopeSchema` would widen
-          `RefreshExecutionScopeSchema` by the back door. That union is the only scope union, is one
-          `resolutionInput` does not use, and a third kind in it silently re-routes through provider branches
-          written as a binary.
-        - The refusal has a home: `adoptExternalDeliverySuffixRefresh`'s existing conflict-resolution guard, where
-          the provider already validates the resolution against its selected deliverable. `RefreshAdoptSchema`
-          accepts the shared resolution schema wholesale, so narrowing there would fork the type — the typed guard
-          at that call site is the narrower change.
-        - Build `test-first` (one behavior at a time):
-
-            - `RefreshExecutionScopeSchema` still admits exactly its two existing kinds
-            - A native-scoped resolution is refused at the provider adopt guard
+- _Outcome:_ The native disclosure now matches a real arm end to end: removing it reproduces the exact failure the
+  design predicted — `invalid-service-result` naming the observed fields, with no conflicts and no route forward.
+  The adopt-guard refusal turned out to hold by two independent mechanisms; the typed check refuses a native scope
+  before the provider's whole-blob canonicalization would reach the same verdict, so the clause is the narrowing
+  the dereference needs rather than the sole protection.
 
 ### `[ ]` **1.3 Carry the resubmitted resolution on the native status request**
 

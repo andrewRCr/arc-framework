@@ -653,9 +653,17 @@ const RefreshConflictSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   paths: z.array(z.string().min(1)).min(1),
 });
+const NativeSuffixConflictScopeSchema = z.strictObject({
+  kind: z.literal("native-suffix"),
+  operationId: z.string().min(1),
+});
+const ConflictResolutionScopeSchema = z.discriminatedUnion("kind", [
+  DependentRefreshExecutionScopeSchema,
+  NativeSuffixConflictScopeSchema,
+]);
 const RefreshConflictResolutionSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
-  scope: DependentRefreshExecutionScopeSchema,
+  scope: ConflictResolutionScopeSchema,
   expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   observedSuffixDigest: DeliveryCanonicalDigestSchema,
   conflicts: z.array(RefreshConflictSchema).min(1),
@@ -1365,6 +1373,12 @@ const ResultSchema = z.union([
       observedHead: GitObjectIdSchema,
       restoreHead: GitObjectIdSchema,
     })).min(1),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("conflict-resolution-required"),
+    conflicts: z.array(RefreshConflictSchema).min(1),
+    resolutionInput: RefreshConflictResolutionSchema,
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({

@@ -2205,4 +2205,82 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("passes a native suffix disclosure through the result union without ref restorations", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const conflicts = [
+      { deliverableId: plan.members[1]!.deliverableId, paths: ["src/second.ts"] },
+      { deliverableId: plan.members[2]!.deliverableId, paths: ["src/third.ts"] },
+    ];
+    const result = {
+      status: "conflict-resolution-required" as const,
+      conflicts,
+      resolutionInput: {
+        planId: plan.planId,
+        scope: { kind: "native-suffix" as const, operationId: "operation-1" },
+        expectedStateRevision: 2,
+        observedSuffixDigest: `sha256:${"b".repeat(64)}`,
+        conflicts,
+      },
+      recommendedActionText: "Resolve the listed member paths, then resubmit this resolution.",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        request: {
+          repository: "owner/repo", topChangeRequestId: "42", topHeadSha: "a".repeat(40),
+          mergeAction: "direct_merge", mergeMethod: "merge",
+        },
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    const envelope = JSON.parse(write.mock.calls[0]?.[0] as string) as Record<string, unknown>;
+    expect(envelope).toEqual({ schemaVersion: 1, command: "delivery native land-status", ...result });
+    expect(envelope).not.toHaveProperty("externalRefRestorations");
+  });
+
+  it("admits the native conflict scope only on a resubmitted resolution", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const nativeScope = { kind: "native-suffix", operationId: "operation-1" };
+
+    const planWrite = vi.fn();
+    const planExecute = vi.fn();
+    await handleDeliveryExecution("refresh-plan", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId, repository: "owner/repo", trigger: { kind: "operator-choice" },
+        scope: nativeScope, remote: "origin",
+      })),
+      execute: planExecute,
+      write: planWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(planExecute).not.toHaveBeenCalled();
+    expect(JSON.parse(planWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+
+    const adoptExecute = vi.fn().mockResolvedValue({ status: "retryable", recommendedActionText: "Retry." });
+    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId, repository: "owner/repo", remote: "origin",
+        conflictResolution: {
+          planId: plan.planId,
+          scope: nativeScope,
+          expectedStateRevision: 2,
+          observedSuffixDigest: `sha256:${"b".repeat(64)}`,
+          conflicts: [{ deliverableId: plan.members[1]!.deliverableId, paths: ["src/second.ts"] }],
+        },
+      })),
+      execute: adoptExecute,
+      write: vi.fn(),
+      setExitCode: vi.fn(),
+    });
+    expect(adoptExecute).toHaveBeenCalledOnce();
+  });
 });
