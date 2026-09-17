@@ -151,7 +151,8 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 ### `[ ]` **1.5 Correct the shared refusal guidance on both native-landing arms**
 
 - _Goal:_ Neither the suffix-proof arm nor the terminal-absorption arm names a remedy that cannot clear its own
-  refusal, and both state that the reservation is kept.
+  refusal, and both state that the reservation is kept. Amended after Task 1.1: the unmoved-suffix arm settles
+  rather than refusing, so no arm this function returns directs a rerun that cannot clear it.
 
 - _Note:_ The two arms in scope are the ones carrying `guidance:` rather than `recommendedActionText:` — the
   suffix-proof arm and the terminal-absorption arm, which share the shape, so a fix applied to one leaves its
@@ -174,6 +175,26 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 
         - Both arms state that the reservation is kept, matching the wording the `recommendedActionText` arms in
           the same function already use.
+
+    - `[ ]` **1.5.c Settle an unmoved suffix instead of refusing it**
+
+        - _Added after Task 1.1._ A third arm in the same function carries an unclearable remedy. The arm
+          inventory in the note above predates the finding and is left as it was written.
+        - `suffix-result-unchanged` fires when no observed suffix member moved, and directs a rerun of
+          `arc delivery native land-status` — which reads the same refs and reaches the same arm, so the refusal
+          cannot be cleared. Its condition is reached by a fast-forward landing, where the target's new head is
+          the landed member's own head and every dependent is already correctly based.
+        - The provider-timing case its wording implies is already consumed upstream: an un-retargeted suffix
+          exits at the request-observation guard as `suffix-request-mismatch`, never here.
+        - Removing the early return settles rather than refuses. An experiment during Task 1.1 that dropped it
+          returned `applied`, called only `stateStore.publish` — leaving contribution proof, local-ref rewrite,
+          checkout observation, and top absorption untouched — and wrote a chain whose every member base equals
+          its predecessor's head with the reservation cleared.
+        - Build `test-first` (one behavior at a time):
+
+            - A fast-forward landing whose suffix did not move settles under the held reservation
+            - The settled state leaves every member based on its predecessor's head and clears the reservation
+            - An unmoved suffix reaches neither contribution proof nor top absorption
 
 ## **Phase 2:** Terminal absorption conflict recovery
 
