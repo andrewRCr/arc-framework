@@ -338,12 +338,13 @@ function unavailableDeliveryDrift(
   workUnit: string,
   detail: string,
   evidence: DeliveryDriftClassificationEvidence,
+  command: "rerun-checkpoint" | "reconcile-base" | "rebaseline" = "rerun-checkpoint",
 ) {
   return {
     status: "unavailable" as const,
     detail,
     evidence,
-    nextAction: { command: "rerun-checkpoint" as const, workUnit },
+    nextAction: { command, workUnit },
   };
 }
 
@@ -535,6 +536,16 @@ export function createIntegrationCheckpointDependencies(input: {
           drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
         );
       }
+      // Both revisions of this pair can move, so merging the base in leaves one merge base where there were
+      // two. Reporting it as an unreadable overlap would name a rerun that changes nothing.
+      if (drift.overlap?.status === "ambiguous") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The branch and its base share more than one merge base, so the overlap cannot be proved from one.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+          "reconcile-base",
+        );
+      }
       if (drift.overlap?.status !== "available") {
         return unavailableDeliveryDrift(
           workUnit,
@@ -603,6 +614,17 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision,
           baselineRevision,
         });
+      }
+      // The baseline half of this pair is pinned, so the merge that clears the pair above moves neither side
+      // here and the same two bases survive it. Only a fresh baseline can.
+      if (overlap.status === "ambiguous") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The durable baseline and the observed base share more than one merge base, and merging the base "
+            + "in moves neither of them.",
+          { baseRevision, baselineRevision },
+          "rebaseline",
+        );
       }
       if (overlap.status !== "available") {
         return unavailableDeliveryDrift(workUnit, overlap.detail, {

@@ -718,7 +718,13 @@ export type DeliveryDriftClassificationResult =
       readonly detail: string;
       readonly evidence: DeliveryDriftClassificationEvidence;
       readonly nextAction: {
-        readonly command: "rerun-checkpoint";
+        /**
+         * What clears this refusal, which follows the pair being compared rather than the reader that asked.
+         *
+         * Where both revisions can move, an append-only merge leaves one merge base where there were two. Where
+         * one of them is pinned, that merge moves neither, so the baseline itself has to be retaken.
+         */
+        readonly command: "rerun-checkpoint" | "reconcile-base" | "rebaseline";
         readonly workUnit: string;
       };
     }

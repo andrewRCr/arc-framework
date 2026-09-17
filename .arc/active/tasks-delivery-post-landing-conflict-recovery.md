@@ -539,7 +539,7 @@ to a verdict and carries the cause as a discriminant instead. See
   operator can take, and the verdict space never widened to carry it. Two contract additions: two reason members
   on the applicability result, and `baseMovementCause` on review status.
 
-### `[ ]` **4.6 Attach the per-coordinate-pair remedy to the ambiguous arm**
+### `[x]` **4.6 Attach the per-coordinate-pair remedy to the ambiguous arm**
 
 - _Goal:_ An ambiguous refusal names a remedy that can actually clear it, which differs by the topology of the
   pair being compared rather than by which reader asked.
@@ -549,23 +549,18 @@ to a verdict and carries the cause as a discriminant instead. See
   route is re-baselining. Emitting the first remedy at the second pair would name a remedy that provably cannot
   clear the refusal — the recoverable-looking dead end this design's own refusal rule forbids.
 
-    - `[ ]` **4.6.a Type the remedy as a dispatched action per pair**
+    - `[x]` **4.6.a Type the remedy as a dispatched action per pair**
 
-        - `checkpoint-composition.ts` carries **two** compiler-silent sites, at different pair topologies, and
-          both convert. The pinned-durable-baseline site branches on `status !== "available"` and forwards
-          `detail`; the drift site branches on the widened overlap evidence and replaces it with a fixed generic
-          string, losing the distinction entirely. A peer `ambiguous` arm compiles unchanged at both, so neither
-          is forced by the compiler and both are converted by name. The drift site is a `(head, base)` pair, so
-          its remedy is merging the base in rather than re-baselining.
-        - Build `test-first` (one behavior at a time):
+        - The classifier's dispatched action carries the route instead of one rerun for every condition:
+          `reconcile-base` at the drift pair, where both revisions move and the merge leaves one base where
+          there were two, and `rebaseline` at the pinned-baseline pair, where that merge moves neither side.
+          Both sites were converted by name, as expected — a peer arm compiled unchanged at each. The third
+          case the design states, a pair where no append-only merge is permitted, still has no locus here.
 
-            - A `(head, base)` pair carries the merge-the-base-in remedy
-            - A pinned-durable-baseline pair carries the re-baselining remedy
-
-        - _Note:_ The design also states a third case — a pair where an append-only merge is not permitted at
-          all, whose recoverability is satisfied by a restart route instead. No coordinate pair in this work
-          unit's conversion set is in that state, so it gets no behavior here. Carry it as a constraint on
-          future pairs rather than writing a test with no locus to bind to.
+- _Finding:_ An unrelated base reaches both sites and neither has a route for it: each still answers with the
+  rerun that cannot clear it. This arm became reachable at Task 4.3, when the layer below stopped folding it,
+  and no task in this phase assigns it a remedy — the ambiguous arm is what Task 4.6 scopes. The two pairs would
+  want different answers here too, since re-baselining cannot give a pinned baseline an ancestor it never had.
 
 ### `[ ]` **4.7 Replace the drift-overlap and review-status holds with plain assertions**
 

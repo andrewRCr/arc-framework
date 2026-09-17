@@ -512,6 +512,96 @@ describe("delivery checkpoint composition", () => {
     });
   });
 
+  it("routes a branch-and-base pair with two merge bases to reconciling the base", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+    });
+
+    // Merging the base in leaves one merge base where there were two, so the refusal names that and not a
+    // rerun of the reading it would not change.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "unknown",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "ambiguous" },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The branch and its base share more than one merge base, so the overlap cannot be proved from one.",
+      evidence: { baseRevision },
+      nextAction: { command: "reconcile-base", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("routes a pinned-baseline pair with two merge bases to retaking the baseline", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baselineRevision = state.members.at(-1)!.coordinates!.head;
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: candidateRecord(plan.workUnitId, baselineRevision),
+      version: `sha256:${"e".repeat(64)}`,
+    });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async (_command: string, args: readonly string[]) => (
+        args[0] === "merge-base"
+          ? { stdout: `${oid("a")}\n${oid("b")}\n`, stderr: "" }
+          : { stdout: "", stderr: "" }
+      )),
+    });
+
+    // The baseline is pinned, so merging the base in moves neither side of this pair and the same two bases
+    // survive it. Only a fresh baseline clears the refusal.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "overlapping",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The durable baseline and the observed base share more than one merge base, and merging the base "
+        + "in moves neither of them.",
+      evidence: { baseRevision, baselineRevision },
+      nextAction: { command: "rebaseline", workUnit: plan.workUnitId },
+    });
+  });
+
   it("retains exact coordinates when the delivery overlap revisions cannot resolve", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
