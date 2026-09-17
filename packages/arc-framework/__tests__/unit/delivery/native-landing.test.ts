@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/contribution-proof.js";
+
 import {
   deriveNativeDeliveryMemberChain,
   deriveNativeDeliveryRegisteredRemainder,
@@ -17,6 +19,7 @@ import {
 } from "../../../src/lib/delivery/operation.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 import {
+  deliveryFiveMemberStackPlanFixture,
   deliveryFourMemberStackPlanFixture,
   deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
@@ -1098,8 +1101,16 @@ describe("native delivery landing", () => {
     expect(stateStore.publish).toHaveBeenCalledOnce();
   });
 
-  it("observes and reconciles every member in the rewritten remaining suffix", async () => {
-    const suffixPlan = deliveryFourMemberStackPlanFixture();
+  const movedSuffixCoordinates = [
+    { head: "a".repeat(40), tree: "b".repeat(40) },
+    { head: "c".repeat(40), tree: "f".repeat(40) },
+    { head: "0".repeat(40), tree: "9".repeat(40) },
+  ];
+
+  function linkedSuffixFixture(memberCount: 4 | 5 = 4) {
+    const suffixPlan = memberCount === 4
+      ? deliveryFourMemberStackPlanFixture()
+      : deliveryFiveMemberStackPlanFixture();
     const initial = deliveryStateFixture(suffixPlan);
     const bound = {
       ...initial,
@@ -1146,35 +1157,53 @@ describe("native delivery landing", () => {
       }) : member),
       activeOperation: null,
     };
-    const movedByRef = new Map([
-      ["refs/heads/member-2", { head: "a".repeat(40), tree: "b".repeat(40) }],
-      ["refs/heads/member-3", { head: "c".repeat(40), tree: "f".repeat(40) }],
-    ]);
-    const reconcileInput = {
-      plan: suffixPlan,
-      before: { revision: 2, value: reserved.state },
-      landed: { revision: 2, value: landed },
-      repository: "o/r",
-      protectedTargetRef: "refs/heads/delivery-target",
-    };
-    const observeRequest = async (binding: NonNullable<typeof bound.members[number]["changeRequest"]>) => {
-      const index = Number(binding.changeRequestId) - 41;
-      const moved = movedByRef.get(`refs/heads/member-${index + 1}`);
-      return moved === undefined ? { status: "absent" as const } : {
-        status: "observed" as const,
-        request: {
-          binding,
-          repository: "o/r",
-          headRepository: "o/r",
-          headRef: `member-${index + 1}`,
-          headSha: moved.head,
-          baseRef: index === 1 ? "delivery-target" : `member-${index}`,
-          state: "open" as const,
-          draft: false,
+    const movedByRef = new Map(bound.members.slice(1, -1).map((member, position) => [
+      member.ref!,
+      movedSuffixCoordinates[position]!,
+    ]));
+    return {
+      bound,
+      newTarget,
+      movedByRef,
+      reconcileInput: {
+        plan: suffixPlan,
+        before: { revision: 2, value: reserved.state },
+        landed: { revision: 2, value: landed },
+        repository: "o/r",
+        protectedTargetRef: "refs/heads/delivery-target",
+      },
+      observeRequest: async (binding: NonNullable<typeof bound.members[number]["changeRequest"]>) => {
+        const index = Number(binding.changeRequestId) - 41;
+        const moved = movedByRef.get(`refs/heads/member-${index + 1}`);
+        return moved === undefined ? { status: "absent" as const } : {
+          status: "observed" as const,
+          request: {
+            binding,
+            repository: "o/r",
+            headRepository: "o/r",
+            headRef: `member-${index + 1}`,
+            headSha: moved.head,
+            baseRef: index === 1 ? "delivery-target" : `member-${index}`,
+            state: "open" as const,
+            draft: false,
+          },
+        };
+      },
+      observeRef: async (ref: string) => movedByRef.get(ref) ?? null,
+      unreachedSettlement: {
+        observeMemberRefCheckouts: async () => ({ status: "observed" as const, checkouts: [] }),
+        absorbTop: async () => { throw new Error("rejected suffix reached top absorption"); },
+        publishTop: async () => { throw new Error("rejected suffix reached top publication"); },
+        rewriteLocalRef: async () => { throw new Error("rejected suffix reached local ref rewrite"); },
+        stateStore: {
+          publish: async () => { throw new Error("rejected suffix reached state publication"); },
         },
-      };
+      },
     };
-    const observeRef = async (ref: string) => movedByRef.get(ref) ?? null;
+  }
+
+  it("observes and reconciles every member in the rewritten remaining suffix", async () => {
+    const { bound, newTarget, reconcileInput, observeRequest, observeRef } = linkedSuffixFixture();
     const provedHeads = new Set<string>();
     const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
     let topPublished = false;
@@ -1295,6 +1324,84 @@ describe("native delivery landing", () => {
       paths: ["src/conflict.ts"],
       guidance:
         "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+    });
+  });
+
+
+  it("reports every conflicted suffix member with its own paths", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async (endpoints) => ({
+        status: "refused",
+        reason: "contribution-conflicted",
+        paths: endpoints.after.member.head === "a".repeat(40) ? ["src/second.ts"] : ["src/third.ts"],
+      }),
+      ...unreachedSettlement,
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["src/second.ts", "src/third.ts"],
+      guidance:
+        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+    });
+  });
+it("reports only the conflicted member when the rest of the suffix proves clean", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture(5);
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async (endpoints) => endpoints.after.member.head === "c".repeat(40)
+        ? { status: "refused", reason: "contribution-conflicted", paths: ["src/third.ts"] }
+        : { status: "accepted", proof: "mechanical-reapply" },
+      ...unreachedSettlement,
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["src/third.ts"],
+      guidance:
+        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+    });
+  });
+it("stops collection on a refusal that is not a contribution conflict", async () => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture(5);
+    const divergedAfterConflict = async (endpoints: DeliveryContributionEndpoints) => {
+      if (endpoints.after.member.head === "a".repeat(40)) {
+        return { status: "refused" as const, reason: "contribution-conflicted" as const, paths: ["src/second.ts"] };
+      }
+      return endpoints.after.member.head === "c".repeat(40)
+        ? { status: "refused" as const, reason: "contribution-diverged" as const, paths: ["src/diverged.ts"] }
+        : { status: "accepted" as const, proof: "mechanical-reapply" as const };
+    };
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: divergedAfterConflict,
+      ...unreachedSettlement,
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "contribution-diverged",
+      paths: ["src/diverged.ts"],
+      guidance:
+        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+    });
+
+    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async (endpoints) => endpoints.after.member.head === "a".repeat(40)
+        ? { status: "refused", reason: "contribution-conflicted", paths: ["src/second.ts"] }
+        : { status: "refused", reason: "merge-tree-write-tree-unsupported" },
+      ...unreachedSettlement,
+    })).resolves.toEqual({
+      status: "blocked",
+      reason: "merge-tree-write-tree-unsupported",
+      recommendedActionText:
+        "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
     });
   });
 });

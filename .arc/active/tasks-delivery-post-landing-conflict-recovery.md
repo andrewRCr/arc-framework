@@ -15,35 +15,29 @@ _Design decisions:_ The native disclosure is a distinct result arm rather than a
 provider arm; nothing is persisted on the input side, so the held reservation is what survives the wait.
 See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 
-### `[ ]` **1.1 Collect the complete member-suffix conflict set**
+### `[x]` **1.1 Collect the complete member-suffix conflict set**
 
 - _Goal:_ One run over a conflicting suffix reports every conflicted member with its paths, so the operator sees
   the whole decision rather than discovering it one member at a time.
 
-- _Rationale:_ The native proof loop returns on the first failed proof, while the provider path already collects
-  the set — `collectDeliveryProviderRefreshConflicts` takes the movements and the contribution arbiter and returns
-  an assessment carrying a `conflicts` array. Compose that collector rather than authoring a second one; a native
-  sibling is warranted only if the movement shape genuinely differs.
+    - `[x]` **1.1.a Collect every conflicted member instead of returning at the first**
 
-    - `[ ]` **1.1.a Collect every conflicted member instead of returning at the first**
+        - Composed `collectDeliveryProviderRefreshConflicts` through a new `collectNativeDeliverySuffixConflicts`
+          adapter in `native-landing.ts`. The suffix loop builds a `DeliveryNativeSuffixMovement` array carrying
+          the before and after predecessors it had already resolved from state, and the adapter's closure maps
+          each movement back onto the native arbiter's endpoints without re-reading Git. The collector is
+          unchanged; the conflicted arm now carries the deduplicated union of every conflicted member's paths.
 
-        - The provider collector is the composition target, reached through an adapter: it proves per
-          `DeliveryProviderRefreshMovement` over snapshot members with caller-resolved predecessors, while the
-          native loop proves per `DeliveryContributionEndpoints` over predecessor/member pairs it has already
-          observed. The collector invokes the supplied prover per movement, so the adapter has two halves: build
-          the movement array from the before and observed suffixes, and supply a closure mapping each movement
-          back onto the native arbiter's endpoints. The native loop has already resolved its predecessors from
-          state, so that closure reuses them rather than re-reading Git. Leave the collector unchanged.
-        - Build `test-first` (one behavior at a time):
+    - `[x]` **1.1.b Keep every other refusal hard**
 
-            - Two conflicting members report both, each with its own paths
-            - One conflicting member among several clean ones reports only that member
-            - A clean suffix reports no conflicts and takes the existing path unchanged
+        - Inherited from the composed collector, which returns any non-`contribution-conflicted` refusal
+          immediately. A divergence or a bare refusal sitting behind an already-collected conflict still stops
+          the run and keeps the reservation, so no partial set is ever disclosed.
 
-    - `[ ]` **1.1.b Keep every other refusal hard**
-
-        - A refusal that is not `contribution-conflicted` stops collection and returns unchanged — partial
-          disclosure would invite a resolution against an incomplete set.
+- _Outcome:_ The per-member set (`{deliverableId, paths}`) is the adapter's return value and stays internal until
+  Task 1.2's disclosure arm consumes it, so the result union still holds exactly its three arms. Endpoint
+  resolution now runs over the whole suffix ahead of any proof, which moves an unverifiable endpoint in front of a
+  partial conflict set rather than behind it.
 
 ### `[ ]` **1.2 Author the native conflict-disclosure arm and its scope discriminant**
 

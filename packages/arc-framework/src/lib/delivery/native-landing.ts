@@ -8,6 +8,7 @@ import {
 } from "./operation.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import type {
+  DeliveryMemberCoordinatesV1,
   DeliveryMergePolicyBindingV1,
   DeliveryOperationSnapshotV1,
   DeliveryPlanV1,
@@ -20,7 +21,16 @@ import {
 } from "./native-stack.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import type { DeliveryHostRequestObservation } from "./host.js";
-import type { DeliveryContributionEndpoints, DeliveryContributionProofResult } from "./contribution-proof.js";
+import type {
+  DeliveryContributionCoordinate,
+  DeliveryContributionEndpoints,
+  DeliveryContributionProofResult,
+  DeliveryContributionRefusal,
+} from "./contribution-proof.js";
+import {
+  collectDeliveryProviderRefreshConflicts,
+  type DeliveryProviderRefreshConflict,
+} from "./suffix-reconciliation.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
 import type { DeliveryMemberRefCheckoutObservation } from "./git-materialization.js";
 
@@ -704,6 +714,56 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   return { status: "applied", before: input.current, projected: reconciled.state };
 }
 
+/** One native suffix member movement paired with the predecessors its caller already resolved. */
+export interface DeliveryNativeSuffixMovement {
+  readonly deliverableId: string;
+  readonly before: DeliveryMemberCoordinatesV1;
+  readonly after: DeliveryMemberCoordinatesV1;
+  readonly beforePredecessor: DeliveryContributionCoordinate;
+  readonly afterPredecessor: DeliveryContributionCoordinate;
+}
+
+/**
+ * Collect every conflicted native suffix member through the shared provider conflict collector.
+ *
+ * @param movements - Moved native members carrying the before and after predecessors already resolved from state
+ * @param proveContribution - Native contribution arbiter accepting one exact before/after endpoint pair
+ * @returns The complete conflict set, or the first refusal that is not a contribution conflict
+ */
+export async function collectNativeDeliverySuffixConflicts(
+  movements: readonly DeliveryNativeSuffixMovement[],
+  proveContribution: (
+    endpoints: DeliveryContributionEndpoints,
+  ) => Promise<DeliveryContributionProofResult>,
+): Promise<
+  | { readonly status: "assessed"; readonly conflicts: readonly DeliveryProviderRefreshConflict[] }
+  | DeliveryContributionRefusal
+> {
+  const resolved = new Map(movements.map((movement) => [movement.deliverableId, movement]));
+  return collectDeliveryProviderRefreshConflicts(
+    movements.map(({ deliverableId, before, after }) => ({
+      deliverableId,
+      before: { deliverableId, ref: null, changeRequest: null, coordinates: before },
+      after: { deliverableId, ref: null, changeRequest: null, coordinates: after },
+    })),
+    async ({ deliverableId }) => {
+      const movement = resolved.get(deliverableId);
+      return movement === undefined
+        ? { status: "refused", reason: "contribution-endpoints-unverified" }
+        : proveContribution({
+            before: {
+              predecessor: movement.beforePredecessor,
+              member: { head: movement.before.head, tree: movement.before.tree },
+            },
+            after: {
+              predecessor: movement.afterPredecessor,
+              member: { head: movement.after.head, tree: movement.after.tree },
+            },
+          });
+    },
+  );
+}
+
 export type ReconcileLinkedNativeDeliverySuffixResult =
   | { readonly status: "applied"; readonly state: DeliveryRevisionedRecord<DeliveryStateV1> }
   | {
@@ -853,7 +913,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       recommendedActionText: "Keep the reservation and restore complete observed suffix coordinates.",
     };
   }
-  let movementCount = 0;
+  const movements: DeliveryNativeSuffixMovement[] = [];
   for (const [index, observed] of observedMembers.entries()) {
     const before = beforeSuffix[index];
     if (before?.coordinates === null || before?.coordinates === undefined) {
@@ -867,7 +927,6 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
     if (before.coordinates.base === observed.coordinates.base
       && before.coordinates.head === observed.coordinates.head
       && before.coordinates.tree === observed.coordinates.tree) continue;
-    movementCount += 1;
     const beforePredecessor = input.before.value.members[suffixStart + index - 1]?.coordinates;
     const afterPredecessor = index === 0 ? target.coordinates : observedMembers[index - 1]?.coordinates;
     if (beforePredecessor === null || beforePredecessor === undefined || afterPredecessor === undefined) {
@@ -878,39 +937,46 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
           "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
       };
     }
-    const proof = await dependencies.proveContribution({
-      before: {
-        predecessor: { head: beforePredecessor.head, tree: beforePredecessor.tree },
-        member: { head: before.coordinates.head, tree: before.coordinates.tree },
-      },
-      after: {
-        predecessor: { head: afterPredecessor.head, tree: afterPredecessor.tree },
-        member: { head: observed.coordinates.head, tree: observed.coordinates.tree },
-      },
+    movements.push({
+      deliverableId: observed.deliverableId,
+      before: before.coordinates,
+      after: observed.coordinates,
+      beforePredecessor: { head: beforePredecessor.head, tree: beforePredecessor.tree },
+      afterPredecessor: { head: afterPredecessor.head, tree: afterPredecessor.tree },
     });
-    if (proof.status !== "accepted") {
-      return "paths" in proof
-        ? {
-            status: "blocked",
-            reason: proof.reason,
-            paths: proof.paths,
-            guidance:
-              "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
-          }
-        : {
-            status: "blocked",
-            reason: proof.reason,
-            recommendedActionText:
-              "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
-          };
-    }
   }
-  if (movementCount === 0) {
+  if (movements.length === 0) {
     return {
       status: "blocked",
       reason: "suffix-result-unchanged",
       recommendedActionText:
         "Keep the reservation and rerun `arc delivery native land-status` to reobserve the provider result.",
+    };
+  }
+  const assessment = await collectNativeDeliverySuffixConflicts(movements, dependencies.proveContribution);
+  if (assessment.status === "refused") {
+    return "paths" in assessment
+      ? {
+          status: "blocked",
+          reason: assessment.reason,
+          paths: assessment.paths,
+          guidance:
+            "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
+        }
+      : {
+          status: "blocked",
+          reason: assessment.reason,
+          recommendedActionText:
+            "Keep the reservation and rerun `arc delivery native land-status` to settle the suffix before review.",
+        };
+  }
+  if (assessment.conflicts.length > 0) {
+    return {
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: [...new Set(assessment.conflicts.flatMap(({ paths }) => paths))].sort(),
+      guidance:
+        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
     };
   }
   const changedRefs: string[] = [];
