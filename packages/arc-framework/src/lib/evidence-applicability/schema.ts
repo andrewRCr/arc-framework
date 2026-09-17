@@ -225,6 +225,7 @@ const OverlappingOverlapSchema = z.strictObject({
   });
 const UnknownOverlapSchema = z.strictObject({
     kind: z.literal("unknown"),
+    cause: z.enum(["read-failed", "ambiguous", "unrelated"]),
     substantivePaths: EmptyPathsSchema,
     regenerablePaths: EmptyPathsSchema,
   });

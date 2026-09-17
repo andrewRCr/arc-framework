@@ -46,15 +46,18 @@ function boundedResidual(paths: readonly string[]): string[] | null {
  * shape happens to match. That distinction is not cosmetic — an arm carrying no paths at all reads as an empty
  * path list, and an empty path list is the strongest accept the reducer has.
  *
- * A base that cannot be compared from reduces to the same unproven arm an unreadable read does: both mean
- * disjointness was not established. The cause that distinguishes them does not yet survive this crossing.
+ * A base that cannot be compared from reduces to the same arm an unreadable read does: all three mean
+ * disjointness was not established, which is the one question this layer answers. Which of them it was rides
+ * along as the arm's cause, so the reduction can report it without the verdict space gaining an answer.
  */
 function normalizeOverlap(input: EvidenceOverlapObservation): EvidenceOverlap {
   switch (input.status) {
     case "ambiguous":
+      return { kind: "unknown", cause: "ambiguous", substantivePaths: [], regenerablePaths: [] };
     case "unrelated":
+      return { kind: "unknown", cause: "unrelated", substantivePaths: [], regenerablePaths: [] };
     case "unavailable":
-      return { kind: "unknown", substantivePaths: [], regenerablePaths: [] };
+      return { kind: "unknown", cause: "read-failed", substantivePaths: [], regenerablePaths: [] };
     case "available": {
       const substantivePaths = canonicalPaths(input.substantivePaths);
       const regenerablePaths = canonicalPaths(input.regenerablePaths);

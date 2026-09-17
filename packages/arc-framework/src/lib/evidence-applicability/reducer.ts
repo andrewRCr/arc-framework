@@ -20,6 +20,8 @@ const FinalReasonSchema = z.enum([
   "merge-safety-requires-fresh",
   "base-movement-disjoint",
   "overlap-unknown",
+  "overlap-ambiguous-base",
+  "overlap-unrelated-base",
   "unbounded-residual",
   "relation-carried",
   "overlap-supplemental",
@@ -104,7 +106,7 @@ export function reduceEvidenceApplicability(
       case "disjoint":
         return final("carries", "base-movement-disjoint");
       case "unknown":
-        return final("fresh", "overlap-unknown");
+        return final("fresh", unprovenOverlapReason(delta.overlap.cause));
       case "overlapping":
         return delta.residual === null
           ? final("fresh", "unbounded-residual")
@@ -115,6 +117,28 @@ export function reduceEvidenceApplicability(
   }
 
   return reduceOtherMovement(delta);
+}
+
+/**
+ * Name the reason one unproven overlap reports, by what left it unproven.
+ *
+ * The verdict is the same for all three — disjointness was not established, so nothing carries — and the
+ * separation is entirely in what the operator is told, since a base that cannot be compared from and a read
+ * that failed call for different next moves.
+ */
+function unprovenOverlapReason(
+  cause: Extract<EvidenceDelta["overlap"], { kind: "unknown" }>["cause"],
+): z.infer<typeof FinalReasonSchema> {
+  switch (cause) {
+    case "read-failed":
+      return "overlap-unknown";
+    case "ambiguous":
+      return "overlap-ambiguous-base";
+    case "unrelated":
+      return "overlap-unrelated-base";
+    default:
+      return assertNever(cause);
+  }
 }
 
 function assertClosedAxes(delta: EvidenceDelta, evidence: EvidenceKind): void {

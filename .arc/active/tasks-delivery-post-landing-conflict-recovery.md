@@ -507,15 +507,12 @@ to a verdict and carries the cause as a discriminant instead. See
           true, so each was reconstructed to a behavioral failure first: the pre-widening fold reduces both new
           arms to the strongest accept, and withholding the accept from an empty path list loses it entirely.
 
-    - `[ ]` **4.5.b Carry the cause on the `unknown` arm and split the reducer's reason**
+    - `[x]` **4.5.b Carry the cause on the `unknown` arm and split the reducer's reason**
 
-        - The reason enum is embedded in an emitted result schema, so new members are a request-contract change
-          rather than a local rename, and are disclosed as one.
-        - Build `test-first` (one behavior at a time):
-
-            - An ambiguous base reduces to the conservative verdict under its own reason
-            - An unrelated base reduces to the conservative verdict under its own reason
-            - A failed read keeps the reason it reports today
+        - The unproven arm carries `read-failed` / `ambiguous` / `unrelated`, and the reduction maps each onto its
+          own reason — `overlap-unknown` stays with the failed read, joined by `overlap-ambiguous-base` and
+          `overlap-unrelated-base`. Both the Candidate applicability result and the review-contribution result
+          embed that enum, so the two new members are a contract change rather than a rename.
 
     - `[ ]` **4.5.c Route each cause to a typed action at the two reductions that can receive it**
 

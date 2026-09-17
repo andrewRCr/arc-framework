@@ -8,7 +8,10 @@ import {
   reduceEvidenceApplicability,
 } from "../../../src/lib/evidence-applicability/reducer.js";
 import { composeEvidenceDelta } from "../../../src/lib/evidence-applicability/compose.js";
-import { EvidenceDeltaSchema } from "../../../src/lib/evidence-applicability/schema.js";
+import {
+  EvidenceDeltaSchema,
+  type EvidenceOverlapObservation,
+} from "../../../src/lib/evidence-applicability/schema.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): string => `sha256:${character.repeat(64)}`;
@@ -37,18 +40,19 @@ function baseMovement(input: {
   paths?: string[];
   unavailable?: boolean;
   admitted?: boolean;
+  observed?: EvidenceOverlapObservation;
 }) {
   return composeEvidenceDelta({
     cause: "base-movement",
     observation: {
       coordinates: coordinates(),
-      overlap: input.unavailable === true
+      overlap: input.observed ?? (input.unavailable === true
         ? { status: "unavailable", reason: "classification-failed" }
         : {
             status: "available",
             substantivePaths: input.paths ?? [],
             regenerablePaths: [],
-          },
+          }),
     },
     ...(input.admitted === true
       ? {
@@ -78,6 +82,27 @@ describe("evidence applicability reducer", () => {
         residual: null,
       });
     }
+  });
+
+  it("reduces an ambiguous base to the conservative verdict under its own reason", () => {
+    expect(reduceEvidenceApplicability(
+      baseMovement({ observed: { status: "ambiguous" } }),
+      "review-clearance",
+    )).toMatchObject({ verdict: "fresh", reason: "overlap-ambiguous-base" });
+  });
+
+  it("reduces an unrelated base to the conservative verdict under its own reason", () => {
+    expect(reduceEvidenceApplicability(
+      baseMovement({ observed: { status: "unrelated" } }),
+      "review-clearance",
+    )).toMatchObject({ verdict: "fresh", reason: "overlap-unrelated-base" });
+  });
+
+  it("leaves a read that could not complete reporting the reason it always has", () => {
+    expect(reduceEvidenceApplicability(
+      baseMovement({ unavailable: true }),
+      "review-clearance",
+    )).toMatchObject({ verdict: "fresh", reason: "overlap-unknown" });
   });
 
   it("maps approved verification scope without weakening review clearance", () => {
