@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "retry-compaction-recovery-after-stale-self-hosting-build",
+  "claimId": "b929fe59f1a3c8e421cb97c02d66d4b7",
+  "createdAt": "2026-09-17T00:07:20.967Z",
+  "updatedAt": "2026-09-17T00:07:20.967Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "retry-compaction-recovery-after-stale-self-hosting-build",
+  "branch": "chore/retry-compaction-recovery-after-stale-self-hosting-build",
+  "origin": "inbox",
+  "originEntry": "Retry compaction recovery after a stale self-hosting build",
+  "originEntrySourceDigest": "sha256:fff293ace46b89be8b824cf0bf44233a80d48fb17f4e80eac057a79ab81dfd34",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
