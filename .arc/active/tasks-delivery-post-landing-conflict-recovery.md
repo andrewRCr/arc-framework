@@ -226,69 +226,37 @@ _Exit criterion:_ A landed member wedged under a reservation is settled — by r
 wedge, by the disclosed hand merge on the terminal wedge — and, on a separate run, released by decline, with a
 failed lease leaving the reservation held rather than half-released.
 
-### `[ ]` **3.1 Add the `delivery native land-release` verb and its request contract**
+### `[x]` **3.1 Add the `delivery native land-release` verb and its request contract**
 
 - _Goal:_ A decline is a distinct operator intent against a held reservation, reachable without overloading the
   verb that is re-run routinely.
 
-- _Rationale:_ The warrant is intent separation, not a read/mutate split — `land-status` already performs every
-  mutation this verb would reverse. Folding decline into it would put poll-and-settle and abandon-and-release on
-  one request, dispatched on payload rather than on the verb.
+    - `[x]` **3.1.a Register the verb in the `delivery native` command group**
 
-    - `[ ]` **3.1.a Register the verb in the `delivery native` command group**
+        - The eighth command in the group, beside the four `land-*` verbs, carried into both command-input
+          boundary sets and the real-process coverage matrix that exact-matches them.
 
-        - The group carries seven commands today — `observe`, `link`, `unlink`, and the four `land-*` verbs.
+    - `[x]` **3.1.b Take the exact reservation selector**
 
-    - `[ ]` **3.1.b Take the exact reservation selector**
+        - The request carries the plan, the repository, the `remote` with its `origin` default, and the
+          `operationId` naming the held reservation, registered in the command map beside the CLI verb.
+        - `admitNativeDeliveryLandingRelease` composes the effect observer and the persisted-identity host poll
+          as two pieces and re-derives the reconcile's three pre-checks. The reconcile itself is not called: it
+          publishes a clear on its never-applied branch and preserves a `prepared` one, neither of which is this
+          verb's answer.
+        - The poll's own outcomes are enumerated rather than collapsed. An enqueued effect refuses under a reason
+          naming it, and the poll's three refusal reasons pass through as themselves.
+        - The branch key is whether a persisted effect identity exists. With none there is nothing to poll, so a
+          none-landed fact holds the reservation rather than reaching the unapplied route.
+        - A `prepared` reservation refuses naming that reconciliation abandons it, never a route.
+        - The unapplied effect returns a `preserved` recovery envelope naming `arc delivery native land-status`,
+          which owns the clear. That required one arm on the canonical recovery result, whose action literals are
+          closed.
 
-        - The verb admits only a **settled** effect. A held native land reservation is not by itself enough:
-          `prepared` and in-flight `submitting` reservations present the same way, and clearing one while a host
-          merge is in flight releases the wedge with nothing left to reconcile against. The decline observes the
-          effect and refuses on pending, partial, or ambiguous facts exactly as the reconcile path already does;
-          an unapplied effect routes to `land-status`, which owns that reconciliation. Both disclosure points
-          this verb exists for sit after an applied effect, so neither is excluded.
-        - The selector carries the plan, the repository, the `remote`, and the `operationId` naming the held
-          reservation. `NativeStatusSchema` has no `operationId`, while `NativeSubmitSchema` does, and a decline
-          must name the reservation it abandons. `remote` is not derivable from state — the state carries refs,
-          not a remote name — and the effect observation needs it, so it rides the request with the same
-          `origin` default its three neighbouring schemas use. Register the request schema in the command map
-          alongside the CLI verb.
-        - The reconcile path is the shape precedent: it takes plan, repository, and remote on the wire and
-          derives the merge request from `activeOperation.effect`, which already carries the repository, the
-          change request, and the head. Compose the same effect observer; do not call the reconcile itself,
-          which publishes a clear on its never-applied branch and returns a preserved reservation on a
-          `prepared` one — neither of which is this verb's answer.
-        - **The effect observer alone cannot separate in-flight from never-applied**, and two of the behaviours
-          below depend on that separation. Its facts report `none-landed` for each, and the classifier reaches
-          `not-applied` only for a `none-landed` fact paired with a **failed** host observation. The
-          distinguishing read is the host poll against the persisted effect identity, which reports `pending`
-          while an effect is still in flight. Compose that poll as a second piece beside the observer — it is
-          what the reconcile composes, not the reconcile itself.
-        - The branch key is whether a persisted effect identity exists, not whether the effect was synchronous.
-          With no identity there is nothing to poll, and fresh facts do not resolve it either — a none-landed
-          fact there blocks on the submission having outrun its persistence, holding the reservation. Branch on
-          the identity the same way rather than polling unconditionally, and do not describe the other side as
-          a path that resolves.
-        - The refusal set is wider than pending, partial and ambiguous. The poll also reports an enqueued
-          effect and three refusal reasons of its own, and the classifier does not rescue them — an enqueued
-          effect with none-landed facts falls through to ambiguous, so it refuses under a word that misnames
-          it. Enumerate them. An in-flight effect can also report partial-landed rather than none-landed, so
-          the facts are ambiguous in more than one direction.
-        - The reconcile's three pre-checks — a missing effect identity, a reservation mismatch, and a protected
-          target mismatch — are inline in the reconcile rather than extracted, so composing the poll and the
-          classifier does not bring them along. This verb re-derives them.
-        - Build `test-first` (one behavior at a time):
-
-            - The exact selector is accepted and resolves the held reservation
-            - A selector naming no held reservation refuses rather than acting
-            - A reservation whose effect is pending, partial, or ambiguous refuses rather than clearing
-            - A reservation carrying a persisted effect identity, whose poll reports the effect failed and
-              whose facts report nothing landed, routes to `land-status`, which publishes the clear
-            - The same reservation with no persisted identity blocks instead, holding the reservation, rather
-              than reaching that route
-            - An enqueued effect refuses under a reason naming it, not under ambiguity
-            - A `prepared` reservation, which no verb releases, refuses naming that it is abandoned by
-              reconciling rather than declining — never a route that returns the same refusal
+- _Outcome:_ Only a settled effect is admitted; every other reservation state refuses or routes to the verb that
+  owns it. The admitted arm resolves the reservation and returns a named `release-not-composed` refusal until
+  Task 3.3.b lands the restoration and the typed result — an interim that keeps `land-status` reachable rather
+  than reporting a release that has not happened.
 
 ### `[ ]` **3.2 Restore ARC-moved refs by lease, refusing rather than forcing**
 

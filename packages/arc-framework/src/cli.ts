@@ -888,6 +888,11 @@ deliveryNative.command("land-status").description("Poll and reconcile one persis
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-status", { ...opts, input }, context);
   }));
+deliveryNative.command("land-release").description("Decline one settled native landing and release its reservation")
+  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
+    await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-release", { ...opts, input }, context);
+  }));
 const deliveryRefresh = delivery.command("refresh")
   .description("Plan, execute, or adopt one provider-refreshed suffix");
 deliveryRefresh.command("plan").description("Plan the exact operator-refreshed registered suffix")

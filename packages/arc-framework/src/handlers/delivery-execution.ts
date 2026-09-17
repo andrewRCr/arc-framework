@@ -204,6 +204,7 @@ import {
   observeDeliveryNativeStack,
 } from "../lib/delivery/native-stack.js";
 import {
+  admitNativeDeliveryLandingRelease,
   deriveNativeDeliveryMemberChain,
   deriveNativeDeliveryRegisteredRemainder,
   reconcileLinkedNativeDeliverySuffix,
@@ -672,6 +673,12 @@ const NativeStatusSchema = z.strictObject({
   remote: z.string().min(1).default("origin"),
   conflictResolution: NativeSuffixConflictResolutionSchema.optional(),
 });
+const NativeReleaseSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  operationId: z.string().min(1),
+});
 const DeliveryTerminalConflictPreparationSchema = z.strictObject({
   topRef: z.string().min(1),
   logicalMergeBase: GitObjectIdSchema,
@@ -791,6 +798,7 @@ const RequestSchemas = {
   "native-land-prepare": NativePrepareSchema,
   "native-land-submit": NativeSubmitSchema,
   "native-land-status": NativeStatusSchema,
+  "native-land-release": NativeReleaseSchema,
   "refresh-plan": RefreshPlanSchema,
   "refresh-execute": RefreshExecuteSchema,
   "refresh-adopt": RefreshAdoptSchema,
@@ -5037,6 +5045,36 @@ async function executeDeliveryCommand(
         headSha,
       })),
     });
+  }
+  if (command === "native-land-release") {
+    const parsed = NativeReleaseSchema.parse(request);
+    const stateRead = await stateStore.read(parsed.planId);
+    if (stateRead.status !== "ok" || stateRead.value === null) {
+      return { status: "blocked", reason: "delivery-unavailable", recommendedActionText: "Restore canonical delivery state before continuing." };
+    }
+    const current = stateRead.value;
+    const operation = current.value.activeOperation;
+    const landing = operation !== null && operation.kind === "land" ? operation : null;
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const admitted = await admitNativeDeliveryLandingRelease({
+      planId: parsed.planId,
+      current,
+      operationId: parsed.operationId,
+      repository: parsed.repository,
+    }, {
+      host,
+      observeEffect: async () => landing === null
+        ? { outcome: "ambiguous" }
+        : observeNativeDeliveryEffect(host, current.value, parsed.repository, landing, exec, cwd, parsed.remote),
+    });
+    if (admitted.status !== "admitted") return admitted;
+    return {
+      status: "blocked",
+      reason: "release-not-composed",
+      recommendedActionText:
+        "Keep the reservation: this settled native landing is declinable, but the release is not composed yet. "
+        + "Continue the landing with `arc delivery native land-status`.",
+    };
   }
   if (command === "native-land-prepare" || command === "native-land-submit" || command === "native-land-status") {
     const parsed = (command === "native-land-prepare" ? NativePrepareSchema

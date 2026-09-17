@@ -1234,6 +1234,61 @@ describe("delivery execution handler", () => {
     expect(setExitCode).not.toHaveBeenCalled();
   });
 
+  it("carries the decline route to the verb that clears an unapplied native effect", async () => {
+    const planId = "123e4567-e89b-42d3-a456-426614174000";
+    const result = {
+      status: "retryable" as const,
+      transition: "preserved" as const,
+      action: "delivery-native-land-status" as const,
+      selector: {
+        planId,
+        operationKind: "land" as const,
+        operationId: "operation-1",
+        affectedDeliverableIds: [`sha256:${"a".repeat(64)}`],
+        mode: "native" as const,
+      },
+      recommendedActionText: "Rerun `arc delivery native land-status` for the exact native landing subject.",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId, repository: "owner/repo", remote: "origin", operationId: "operation-1",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native land-release",
+      ...result,
+    });
+  });
+
+  it("refuses a decline request that names no reservation to abandon", async () => {
+    const write = vi.fn();
+    const execute = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: "123e4567-e89b-42d3-a456-426614174000", repository: "owner/repo", remote: "origin",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery native land-release",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
+
   it("preserves a prepared native submit action through native status and general reconciliation", async () => {
     const plan = deliveryStackPlanFixture();
     const member = plan.members[0]!;

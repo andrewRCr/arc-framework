@@ -4,6 +4,7 @@ import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/co
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 
 import {
+  admitNativeDeliveryLandingRelease,
   deriveNativeDeliveryMemberChain,
   deriveNativeDeliveryRegisteredRemainder,
   prepareNativeDeliveryLanding,
@@ -1847,4 +1848,158 @@ describe("native delivery landing", () => {
     expect(proveContribution).not.toHaveBeenCalled();
     expect(absorbTop).not.toHaveBeenCalled();
   });
+
+  function heldNativeLandingFixture(options?: {
+    readonly phase?: "prepared";
+    readonly effectIdentity?: "persisted" | "absent";
+  }) {
+    const state = deliveryStateFixture(plan);
+    const affectedDeliverableIds = state.members.slice(0, -1).map((member) => member.deliverableId);
+    const before = { target: state.target, members: state.members.slice(0, -1) };
+    const effect = {
+      providerId: "github", repository: "o/r", changeRequestId: "42", headSha: "b".repeat(40),
+      baseRef: "delivery-target", targetRef: "refs/heads/delivery-target", strategy: "merge",
+      mergePolicy: mergePolicy("o/r"),
+    } as const;
+    const reserved = reserveDeliveryOperation({ revision: 1, value: state }, plan, {
+      operationId: "operation-1", kind: "land", mode: "native", nativeArm: "linked-atomic",
+      affectedDeliverableIds, expectedStateRevision: 1, before, requested: before, effect,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    if (options?.phase === "prepared") {
+      return { current: { revision: 2, value: reserved.state }, effect, before, affectedDeliverableIds };
+    }
+    const submitting = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitting.status === "refused") throw new Error("fixture submission transition failed");
+    if (options?.effectIdentity === "absent") {
+      return { current: { revision: 3, value: submitting.state }, effect, before, affectedDeliverableIds };
+    }
+    const attached = attachDeliveryOperationEffectIdentity(
+      { revision: 3, value: submitting.state }, "operation-1", { providerId: "github", effectId: "uuid-1" },
+    );
+    if (attached.status === "refused") throw new Error("fixture identity attachment failed");
+    return { current: { revision: 4, value: attached.state }, effect, before, affectedDeliverableIds };
+  }
+
+  const declineSelector = (current: { readonly revision: number; readonly value: DeliveryStateV1 }) => ({
+    planId: plan.planId, current, operationId: "operation-1", repository: "o/r",
+  });
+
+  it("resolves the settled reservation the decline selector names", async () => {
+    const { current, effect, before, affectedDeliverableIds } = heldNativeLandingFixture();
+    const host = { observeNativeMerge: vi.fn().mockResolvedValue({ status: "merged" }) };
+
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host,
+      observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot: before }),
+    })).resolves.toEqual({
+      status: "admitted",
+      operationId: "operation-1",
+      effect,
+      before,
+      affectedDeliverableIds,
+    });
+  });
+
+  it("refuses a selector naming no held reservation without reading the host", async () => {
+    const { current } = heldNativeLandingFixture();
+    const unreserved = { revision: 1, value: deliveryStateFixture(plan) };
+    const host = { observeNativeMerge: vi.fn() };
+    const observeEffect = vi.fn();
+
+    await expect(admitNativeDeliveryLandingRelease(
+      { ...declineSelector(unreserved) },
+      { host, observeEffect },
+    )).resolves.toMatchObject({ status: "blocked", reason: "native-landing-reservation-missing" });
+    await expect(admitNativeDeliveryLandingRelease(
+      { ...declineSelector(current), operationId: "operation-2" },
+      { host, observeEffect },
+    )).resolves.toMatchObject({ status: "blocked", reason: "reservation-mismatch" });
+    await expect(admitNativeDeliveryLandingRelease(
+      { ...declineSelector(current), repository: "other/repo" },
+      { host, observeEffect },
+    )).resolves.toMatchObject({ status: "blocked", reason: "reservation-mismatch" });
+    expect(host.observeNativeMerge).not.toHaveBeenCalled();
+    expect(observeEffect).not.toHaveBeenCalled();
+  });
+
+  it("refuses a pending, partial, or ambiguous effect rather than declining it", async () => {
+    const { current, before, affectedDeliverableIds } = heldNativeLandingFixture();
+    const host = { observeNativeMerge: vi.fn().mockResolvedValue({ status: "pending" }) };
+
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host, observeEffect: vi.fn(),
+    })).resolves.toMatchObject({ status: "blocked", reason: "effect-pending" });
+    host.observeNativeMerge.mockResolvedValue({ status: "merged" });
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host,
+      observeEffect: vi.fn().mockResolvedValue({
+        outcome: "partial-landed", affectedDeliverableIds: [affectedDeliverableIds[0]],
+      }),
+    })).resolves.toMatchObject({ status: "blocked", reason: "partial-landed" });
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host, observeEffect: vi.fn().mockResolvedValue({ outcome: "none-landed" }),
+    })).resolves.toMatchObject({ status: "blocked", reason: "ambiguous-result" });
+    host.observeNativeMerge.mockResolvedValue({ status: "refused", reason: "unavailable" });
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host, observeEffect: vi.fn().mockResolvedValue({ outcome: "all-landed", snapshot: before }),
+    })).resolves.toMatchObject({ status: "blocked", reason: "unavailable" });
+  });
+
+  it("routes a persisted failed effect that never landed to the verb that clears it", async () => {
+    const { current, affectedDeliverableIds } = heldNativeLandingFixture();
+    const host = { observeNativeMerge: vi.fn().mockResolvedValue({ status: "failed" }) };
+
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host, observeEffect: vi.fn().mockResolvedValue({ outcome: "none-landed" }),
+    })).resolves.toEqual({
+      status: "retryable",
+      transition: "preserved",
+      action: "delivery-native-land-status",
+      selector: {
+        planId: plan.planId,
+        operationKind: "land",
+        operationId: "operation-1",
+        affectedDeliverableIds,
+        mode: "native",
+      },
+      recommendedActionText: expect.stringContaining("arc delivery native land-status"),
+    });
+  });
+
+  it("holds a reservation whose submission outran its persistence instead of routing it", async () => {
+    const { current } = heldNativeLandingFixture({ effectIdentity: "absent" });
+    const host = { observeNativeMerge: vi.fn() };
+
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host, observeEffect: vi.fn().mockResolvedValue({ outcome: "none-landed" }),
+    })).resolves.toMatchObject({
+      status: "blocked",
+      reason: "submission-before-persist-unresolved",
+    });
+    expect(host.observeNativeMerge).not.toHaveBeenCalled();
+  });
+
+  it("names an enqueued effect rather than refusing it as ambiguous", async () => {
+    const { current } = heldNativeLandingFixture();
+    const host = { observeNativeMerge: vi.fn().mockResolvedValue({ status: "enqueued" }) };
+
+    await expect(admitNativeDeliveryLandingRelease(declineSelector(current), {
+      host, observeEffect: vi.fn(),
+    })).resolves.toMatchObject({ status: "blocked", reason: "effect-enqueued" });
+  });
+
+  it("refuses a prepared reservation as one reconciliation abandons, not decline", async () => {
+    const { current } = heldNativeLandingFixture({ phase: "prepared" });
+    const host = { observeNativeMerge: vi.fn() };
+    const observeEffect = vi.fn();
+
+    const result = await admitNativeDeliveryLandingRelease(declineSelector(current), { host, observeEffect });
+
+    expect(result).toMatchObject({ status: "blocked", reason: "reservation-not-submitted" });
+    expect(result).not.toMatchObject({ status: "retryable" });
+    expect(host.observeNativeMerge).not.toHaveBeenCalled();
+    expect(observeEffect).not.toHaveBeenCalled();
+  });
+
 });

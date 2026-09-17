@@ -152,6 +152,16 @@ export const DeliveryRecoveryRerunV1Schema = z.union([
   z.strictObject({
     ...DeliveryRecoveryRerunCommonV1Shape,
     transition: z.literal("preserved"),
+    action: z.literal("delivery-native-land-status"),
+    selector: z.strictObject({
+      ...DeliveryRecoverySelectorCommonV1Shape,
+      operationKind: z.literal("land"),
+      mode: z.literal("native"),
+    }),
+  }),
+  z.strictObject({
+    ...DeliveryRecoveryRerunCommonV1Shape,
+    transition: z.literal("preserved"),
     action: z.literal("delivery-teardown"),
     selector: z.strictObject({
       ...DeliveryRecoverySelectorCommonV1Shape,
