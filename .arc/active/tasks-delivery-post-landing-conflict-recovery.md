@@ -334,28 +334,31 @@ failed lease leaving the reservation held rather than half-released.
   rerun of the same verb reachable once the operator repairs the one ref it named. A partly restored decline
   resumes rather than wedging.
 
-### `[ ]` **3.5 Update the shipped delivery workflow to the changed protocol**
+### `[x]` **3.5 Update the shipped delivery workflow to the changed protocol**
 
 - _Goal:_ An operator following the shipped workflow reaches the routes this segment built, rather than one that
   no longer clears the refusal it names.
 
-- _Rationale:_ `deliver-stack.md` drives the native landing lifecycle by verb and states that a suffix
-  reconciliation refusal is settled by rerunning `land-status` "without resubmitting" — precisely what the
-  disclose-and-resubmit protocol replaces. The terminal interlock's payload and the verb set both changed
-  alongside it.
+    - `[x]` **3.5.a Correct the suffix-refusal recovery statement**
 
-- _Note:_ The edit goes through `packages/arc-framework/arc/` and syncs to the project copy. Never copy between
-  them — that overwrites project-specific overrides silently.
+        - The bare "rerun `land-status` without resubmitting" line gives way to a typed dispatch over the
+          disclosure, the resolution resubmitted unchanged, and the mismatch that sends the operator back for a
+          fresh disclosure.
 
-    - `[ ]` **3.5.a Correct the suffix-refusal recovery statement**
+    - `[x]` **3.5.b Add the decline verb, the terminal disclosure, and the new phase to the lifecycle prose**
 
-    - `[ ]` **3.5.b Add the decline verb, the terminal disclosure, and the new phase to the lifecycle prose**
+        - The recovered-reservation enumeration gains the `settling` row — an applied effect whose settlement was
+          interrupted after local member refs moved, which returns to polling rather than resubmitting.
 
-        - The workflow enumerates recovered reservations by phase, and 3.2.a adds one an interrupted settle sits
-          in — so that row is written here rather than leaving an operator without one.
+        - The absorption refusal carries the merge parents and the logical merge base, so the prose names the
+          hand-merge route and the read that lists the collisions rather than a bare rerun.
 
-        - The absorption refusal now carries the required merge parent, so the prose names the hand-merge route
-          rather than a bare rerun.
+        - `arc delivery native land-release` takes its own dispatch, including the failed-lease refusal that
+          leaves the reservation standing.
+
+- _Outcome:_ The workflow now presents a settled landing's three exits — settle the disclosed suffix, decline and
+  release, or abandon a prepared reservation through reconcile — each by verb and typed result, where it named
+  only a rerun that no longer clears the refusal it described.
 
 ### `[ ]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
 
