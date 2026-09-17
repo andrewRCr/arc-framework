@@ -602,6 +602,30 @@ to a verdict and carries the cause as a discriminant instead. See
           converts. Leave the routed-obligation half unpinned here so that conversion extends the assertion
           rather than re-editing it.
 
+### `[ ]` **4.8 Give an unrelated base a route at both checkpoint pairs**
+
+- _Goal:_ A base sharing no history with what it is compared against names a remedy that can clear it, at both
+  pairs, rather than the rerun that cannot.
+
+- _Rationale:_ Folded in from the finding recorded on Task 4.6, which scoped the ambiguous arm alone. This arm
+  became reachable at Task 4.3, when the layer below stopped folding it into an unreadable read, and no task in
+  this phase had assigned it a route — so both sites answer it today with a rerun that changes nothing, which is
+  the recoverable-looking dead end this design's own refusal rule forbids.
+
+- _Shape:_ The two pairs differ here as they do for ambiguity, and not in the same way. At the drift pair an
+  append-only merge can still give the two revisions a common ancestor, which is the route review status already
+  names for this arm. At the pinned-baseline pair neither side moves, and a fresh baseline taken from a branch
+  that still shares no history with the base does not clear it either — so whatever this task emits there must
+  not read as a one-step remedy that provably cannot succeed. Settle that shape in the task rather than assuming
+  the ambiguous arm's answer carries over.
+
+    - `[ ]` **4.8.a Route the unrelated arm at both checkpoint pairs**
+
+        - Build `test-first` (one behavior at a time):
+
+            - A drift pair sharing no history carries the route that can give it a common ancestor
+            - A pinned-baseline pair sharing no history names a route that does not stop at re-baselining
+
 ## **Phase 5:** The predecessor relation and vocabulary migration
 
 _Purpose:_ Extract the ordered-pair ancestry relation four sites already derive by hand, and migrate the one
