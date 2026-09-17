@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "recognize-in-flight-candidate-schema-skew-during-cross-worktree-recovery",
+  "claimId": "f2010d1adacdf1a543af5aee1dd56d53",
+  "createdAt": "2026-09-17T00:30:57.768Z",
+  "updatedAt": "2026-09-17T00:30:57.768Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Distinguish active cross-worktree Candidate vocabulary skew from cleanup residue and route recovery to the checkout-local reader.",
+  "branch": "chore/recognize-in-flight-candidate-schema-skew-during-cross-worktree-recovery",
+  "origin": "inbox",
+  "originEntry": "Recognize in-flight Candidate schema skew during cross-worktree recovery",
+  "originEntrySourceDigest": "sha256:efdccde998aa4ef93f6efdd120606dec0ae67606d8f2291e32019dca9111bd39",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
