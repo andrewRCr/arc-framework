@@ -342,16 +342,29 @@ separate run, released by decline — with a failed lease leaving the reservatio
           distinguishing read is the host poll against the persisted effect identity, which reports `pending`
           while an effect is still in flight. Compose that poll as a second piece beside the observer — it is
           what the reconcile composes, not the reconcile itself.
-        - The poll belongs on the asynchronous-identity branch only; the synchronous branch resolves from fresh
-          facts without it and keeps the reservation on an unresolved synchronous effect. Branch on the identity
-          the same way rather than polling unconditionally.
+        - The branch key is whether a persisted effect identity exists, not whether the effect was synchronous.
+          With no identity there is nothing to poll, and fresh facts do not resolve it either — a none-landed
+          fact there blocks on the submission having outrun its persistence, holding the reservation. Branch on
+          the identity the same way rather than polling unconditionally, and do not describe the other side as
+          a path that resolves.
+        - The refusal set is wider than pending, partial and ambiguous. The poll also reports an enqueued
+          effect and three refusal reasons of its own, and the classifier does not rescue them — an enqueued
+          effect with none-landed facts falls through to ambiguous, so it refuses under a word that misnames
+          it. Enumerate them. An in-flight effect can also report partial-landed rather than none-landed, so
+          the facts are ambiguous in more than one direction.
+        - The reconcile's three pre-checks — a missing effect identity, a reservation mismatch, and a protected
+          target mismatch — are inline in the reconcile rather than extracted, so composing the poll and the
+          classifier does not bring them along. This verb re-derives them.
         - Build `test-first` (one behavior at a time):
 
             - The exact selector is accepted and resolves the held reservation
             - A selector naming no held reservation refuses rather than acting
             - A reservation whose effect is pending, partial, or ambiguous refuses rather than clearing
-            - A reservation whose effect never applied and was submitted routes to `land-status`, which
-              publishes the clear on that branch
+            - A reservation carrying a persisted effect identity, whose poll reports the effect failed and
+              whose facts report nothing landed, routes to `land-status`, which publishes the clear
+            - The same reservation with no persisted identity blocks instead, holding the reservation, rather
+              than reaching that route
+            - An enqueued effect refuses under a reason naming it, not under ambiguity
             - A `prepared` reservation, which no verb releases, refuses naming that it is abandoned by
               reconciling rather than declining — never a route that returns the same refusal
 
@@ -374,12 +387,20 @@ separate run, released by decline — with a failed lease leaving the reservatio
 
     - `[ ]` **3.2.a Phase-publish the observed suffix before the rewrite loop**
 
-        - Placement is exact: immediately before the first rewrite, after the proof loop. Every **suffix-proof**
-          conflict refusal returns earlier, so the disclosure and resubmission paths on that arm still reach no
-          state write. The terminal-absorption arm is the exception by design — it refuses after the local
-          member-ref rewrite, which is why Task 2.2 carries its ref restorations. Moving the publish later to
-          take that arm in too would destroy what the publish exists for, which is recording the observed suffix
-          before the rewrite.
+        - Placement is exact, and "after the proof loop" is not precise enough to name it: four further
+          refusals sit between the proof loop and the first rewrite, including a paths-bearing disclosure.
+          The publish goes **immediately before the first rewrite**, so those four return ahead of it too.
+        - Every **suffix-proof** conflict refusal returns earlier, so the disclosure and resubmission paths on
+          that arm still reach no state write. The terminal-absorption arm is the exception by design — it
+          refuses after the local member-ref rewrite, which is why Task 2.2 carries its ref restorations.
+          Moving the publish later to take that arm in too would destroy what the publish exists for, which is
+          recording the observed suffix before the rewrite.
+        - _Note:_ Five refusals return after the publish and only one of them carries restorations: a refused
+          mid-loop ref rewrite, which may leave refs partly moved; an unavailable terminal top; the
+          absorption's non-conflict reason; a failed top publish; and a state conflict on the final publish.
+          The sharpest is the last — the top publish can **succeed** before the final publish conflicts, so a
+          remote terminal ref has moved and Task 3.2.b's local-only swap restores nothing there. Disclosing
+          what was not restored is within this work unit; restoring a remote move is not.
         - Every move below, not just the first. `beginNativeDeliverySubmission` is the precedent because it
           makes them together; a publish that records the coordinates and stops corrupts the reservation rather
           than recording it.
@@ -543,6 +564,9 @@ to a verdict and carries the cause as a discriminant instead. See
         - `predecessor-relation.ts` is a consumer this split breaks at the compiler: it handles `unavailable`
           and `unrelated`, then dereferences the overlap. Phase 5 owns its disposition, but the break lands
           here, so the two phases are executed in order and 5.1's arm set is what this task hands to.
+        - Name the interim rather than leaving it to whoever hits the break: fold the new arm into the existing
+          `unavailable` arm here, which is fail-closed, and record that 5.1 undoes the fold when the four-arm
+          wrapper exists. A deliberate interim with a named undo is traceable; an improvised one is not.
         - Build `test-first` (one behavior at a time):
 
             - A two-base history reports `ambiguous`
@@ -564,14 +588,30 @@ to a verdict and carries the cause as a discriminant instead. See
         - This layer expresses everything non-available as `unavailable` with a reason enum, so both arms are
           new structure rather than new enum members.
 
-    - `[ ]` **4.3.b Convert the register that narrates this evidence**
+    - `[ ]` **4.3.b Convert the two readers that narrate or classify this evidence**
 
         - `base-drift-register.ts` composes the operator-facing drift text from this type and branches on a
-          positive `status === "available"` test, so both new arms fall silently into its else branch and are
-          narrated as though no overlap existed. It breaks at no compiler, so it converts by name — an ambiguous
-          base and an unrelated one each get their own text rather than sharing the quiet one.
+          positive `status === "available"` test, so both new arms would be narrated as though no overlap
+          existed. It dereferences a path field afterwards, so the compiler does flag it — but the flag points
+          at the dereference, not at the missing narration, and a minimal fix restores compilation while leaving
+          both arms sharing the quiet text. Give each its own.
+        - `base-distance.ts`'s movement classifier is the second reader and takes the same shape: a negative
+          test for the unavailable status, then a path dereference. It derives the movement value that the
+          checkpoint composition, the errand merge composition, and Task 4.7.a's hold all observe, so state what
+          movement each new arm produces — 4.7.a's replacement assertion cannot be written without it.
 
-    - `[ ]` **4.3.c Stop folding `unrelated` into `merge-base-failed`**
+    - `[ ]` **4.3.c Keep the two layers' arm shapes parseable across their seam**
+
+        - _Goal:_ The site that reads this layer's evidence into the layer above keeps working, rather than
+          throwing the first time an ambiguous or unrelated base reaches it.
+
+        - Errand merge composition parses evidence of this type directly into the observation schema of the
+          layer above, by shape coincidence rather than by conversion. Both are strict unions, so the new arms
+          must carry identical field sets on both sides or that parse throws at runtime — and it throws in the
+          window between this task and 4.4 whatever field sets are chosen. Land the two layers' arms together,
+          or sequence this site's read so the window is closed.
+
+    - `[ ]` **4.3.d Stop folding `unrelated` into `merge-base-failed`**
 
         - Build `test-first` (one behavior at a time):
 
@@ -593,8 +633,15 @@ to a verdict and carries the cause as a discriminant instead. See
   compatibility alias is owed.
 
 - _Note:_ The evidence normalizer is the third consumer, and it is the boundary into the fourth layer rather
-  than another carrier of the distinction. Task 4.5 owns its disposition; this task hands it two new observation
-  arms to convert.
+  than another carrier of the distinction. Task 4.5 owns its settled disposition; this task hands it two new
+  observation arms to convert.
+
+- _Note:_ The hand-off is not clean, and the interim must be named rather than discovered. Widening the
+  observation union breaks the normalizer at the compiler — it reads a path field the new arms do not carry — so
+  this task cannot leave it untouched, and the behaviors below are observed through a reader that runs it. Route
+  both new arms to the `unknown` overlap here as a **fail-closed interim**, which Task 4.5 then refines with the
+  cause discriminant. The interim matters because the shape a fallthrough would take is an empty path list, which
+  reduces to the strongest accept.
 
     - `[ ]` **4.4.a Carry both arms through the observation schema and its two consumers**
 
@@ -635,7 +682,8 @@ to a verdict and carries the cause as a discriminant instead. See
         - Build `test-first` (one behavior at a time):
 
             - Each observation status converts to the arm this design states for it
-            - An observation carrying no paths never converts to the arm that reduces to the strongest accept
+            - An arm carrying no paths **field** never converts to the arm that reduces to the strongest accept
+            - An available observation whose path list is empty still converts to that accept, unchanged
 
     - `[ ]` **4.5.b Carry the cause on the `unknown` arm and split the reducer's reason**
 
@@ -647,25 +695,43 @@ to a verdict and carries the cause as a discriminant instead. See
             - An unrelated base reduces to the conservative verdict under its own reason
             - A failed read keeps the reason it reports today
 
-    - `[ ]` **4.5.c Route each cause to a typed action at both reduction consumers**
+    - `[ ]` **4.5.c Route each cause to a typed action at the two reductions that can receive it**
 
-        - A cause that reaches the reducer and stops there is a better label on the same dead end. Candidate
-          applicability carries the re-baselining remedy on the ambiguous cause — never merging the base in, on
-          the pinned-baseline ground — and already carries a next-action field beside its reason for that remedy
-          to ride. Review status reports the cause beside its movement field rather than inside it, leaving the
-          projection's value set unchanged.
+        - A cause that reaches the reducer and stops there is a better label on the same dead end. Only the two
+          `base-movement` reductions reach the conversion, so only they can carry a base-resolution cause:
+          review status and errand merge composition. Name both — the second is a reduction consumer this task
+          set otherwise never mentions.
+        - Review status reports the cause beside its movement field rather than inside it, leaving the
+          projection's value set unchanged. Its own `state` and `nextAction` follow the cause: every
+          non-carrying result routes to a rerun today, so a terminal cause keeps inviting a retry that cannot
+          succeed unless this task states otherwise. Task 4.7.b's replacement assertion needs that value stated.
+        - **Candidate applicability is not one of the two**, and this task does not touch it. Its ambiguous case
+          is refused at the `merge-base --all` read itself, ahead of any reduction, and its one reduction
+          composes a member-rewrite cause whose overlap is the constant. The re-baselining remedy on that
+          refusal belongs to Task 6.6, which owns the applicability result's slot for it — and which requires the
+          refusal's four existing strings be preserved exactly, so nothing here may repurpose its `nextAction`.
         - Build `test-first` (one behavior at a time):
 
-            - An ambiguous cause at applicability carries the re-baselining remedy
-            - An unrelated cause reports terminally rather than inviting a retry
+            - An ambiguous cause reaches review status under its own reason
+            - An unrelated cause reports terminally, with a state and next action that do not invite a rerun
+            - Errand merge composition carries the same cause to its own surface
             - The movement field still reports only its three established values
 
-    - `[ ]` **4.5.d Replace the reducer's default-accept branch with an exhaustive switch**
+    - `[ ]` **4.5.d Make the reducer's open-ended accept branch exhaustive**
 
         - One branch there ends in a two-way test whose else-arm returns the strongest accept. The new causes do
           not reach it — the `unknown` arm is caught earlier — so this is hardening rather than a dependency of
-          the arm set. A default-accept left in a module this phase is already opening is how the next arm gets
-          swallowed.
+          the arm set. An accept reached by falling past a single test, in a module this phase is already
+          opening, is how the next arm gets swallowed.
+        - **That else-arm is live, not dead**, so this is a restatement and not a repair. It is the accept every
+          `member-rewrite` delta takes, whose overlap is always the constant, and the `base-merge` accept on a
+          disjoint overlap. Two production call sites depend on it. The exhaustive form preserves those outcomes
+          exactly; changing them is a different concern with different consumers.
+        - Build `test-first` (one behavior at a time):
+
+            - A member-rewrite delta still reaches the accept it reaches today
+            - A base-merge delta with a disjoint overlap still reaches it
+            - An arm with no stated disposition fails to reduce rather than accepting
         - _Note:_ The reducer revalidates what it is handed by shape rather than by provenance, and both its delta
           schema and type are exported, so a caller can hand-build a valid delta. Three of the five reduction call
           sites already bypass the conversion legitimately, on the causes that use the constant. The closed arm
@@ -693,7 +759,11 @@ to a verdict and carries the cause as a discriminant instead. See
 
             - A `(head, base)` pair carries the merge-the-base-in remedy
             - A pinned-durable-baseline pair carries the re-baselining remedy
-            - A pair where an append-only merge is not permitted carries the restart route
+
+        - _Note:_ The design also states a third case — a pair where an append-only merge is not permitted at
+          all, whose recoverability is satisfied by a restart route instead. No coordinate pair in this work
+          unit's conversion set is in that state, so it gets no behavior here. Carry it as a constraint on
+          future pairs rather than writing a test with no locus to bind to.
 
 ### `[ ]` **4.7 Replace the drift-overlap and review-status holds with plain assertions**
 
@@ -769,12 +839,20 @@ is a field on `diverged`, not a variant.
             - A bound head that is an ancestor of the observed reports `advanced`
             - An observed head that is an ancestor of the bound reports `rewound`
             - Neither an ancestor of the other reports `diverged`
-            - No record binding the subject reports `absent`
             - A failed ancestry read reports `unknown` and never collapses into a verdict
             - An externally rewritten head reports `diverged` or `rewound` rather than assuming the landed head
               is the head ARC bound
 
-    - `[ ]` **5.1.b Carry cardinality as a field on `diverged`**
+    - `[ ]` **5.1.b Settle how `absent` is reached, since it is not a topological answer**
+
+        - The classifier's inputs are the bound head, the observed head, the ancestry answers, and the
+          cardinality — none of which can report that no record binds the subject. So either the bound head is
+          nullable in the signature and `absent` is the answer to a null one, or `absent` sits outside the
+          classifier entirely and each reader emits it from the binding it already holds. Decide it here and
+          state it: Task 7.3 consumes `absent` for a member with no binding, and it needs to know which
+          interface produces it.
+
+    - `[ ]` **5.1.c Carry cardinality as a field on `diverged`**
 
         - Build `test-first` (one behavior at a time):
 
@@ -803,6 +881,11 @@ is a field on `diverged`, not a variant.
 
     - `[ ]` **5.2.c Split `disjoint-ahead` on ancestry direction**
 
+        - State how the split is detected before writing it: the wrapper performs one ancestry read today, in
+          one direction, which cannot distinguish the member-behind-tip case on its own. Either add the second
+          ancestry read or use the merge-base-equals-member-head equality the design names. Both are sound; they
+          differ in how many Git reads the wrapper performs, so the choice is stated rather than left to
+          whoever implements it.
         - Build `test-first` (one behavior at a time):
 
             - A member behind the tip reports `rewound`
@@ -835,13 +918,22 @@ is a field on `diverged`, not a variant.
 - _Note:_ `sameOverlap` compares path arrays order-sensitively by index. Preserve that behavior as-is — it is not
   this work unit's to change — but do not widen its reach while migrating around it.
 
-    - `[ ]` **5.3.a Carry `chainBase` unconditionally on `diverged`**
+    - `[ ]` **5.3.a Carry `chainBase` unconditionally on `diverged`, with the close-time overlap test alongside**
 
         - The two source arms disagree about carrying it, and an optional field would push a null check into
           the accept path. It costs nothing: on the `not-ancestor` branch the classifier already sets
           `chainBase` and `mergeBase` to the same merge base, so the arm that omits it today can carry the
           value it already holds. Keep the two fields distinct — on the `ancestor` branch `chainBase` is the
           observed tip.
+        - **This is the task that kills the close-time overlap protection, so it is the task that replaces it.**
+          The second reader has no overlap test: it refuses a non-empty overlap only because the variant
+          carrying one carries no chain base, and this change gives it one. 5.2 already forces that expression
+          to be rewritten at the compiler, so the protection is gone as of here — one task before 5.4 states the
+          reader's full disposition. Write the overlap refusal in this task; 5.4.b then states the disposition
+          around it and 5.4.c removes the dead null branch.
+        - Nothing in the suite covers this today — no close-time test constructs a snapshot carrying a non-empty
+          overlap — so the gap would be silent rather than red. Build the refusal test first, against a
+          submitted snapshot whose relation the fresh read reproduces exactly.
 
     - `[ ]` **5.3.b Migrate the field-by-field comparison with the variants**
 
@@ -877,9 +969,11 @@ is a field on `diverged`, not a variant.
           reader guards only `unavailable` today and then reads the relation, so each arm beyond resolved forces
           a branch there too — and widening its existing guard to "not resolved" would park the terminal and the
           ambiguous cause under a recoverable reason, the merge this phase exists to undo.
-        - The accept rule decides on the overlap field, so every arm and variant that carries no overlap needs
-          its disposition stated rather than falling through to accept: the two non-resolved arms refuse as
-          above, and no relation variant reaching this reader lacks one.
+        - The accept rule decides on the overlap field, so every arm and variant carrying no overlap needs its
+          disposition stated rather than falling through. Three do. The two non-resolved arms refuse as above.
+          `unchanged` and `advanced` **accept**: the classifier returns on the ancestor branch before the
+          overlap is ever read, so they carry none and they are today's accept path. The compiler forces the
+          branch — there is no field to read — so what is needed is the statement, not a guard.
         - The eligibility reader refuses that arm under its **own terminal reason**, carrying the detail and the
           rebuild remedy it already emits, and carrying no relation payload — the migrated relation schema has no
           arm for one. Keeping `wrong-predecessor` here would re-merge a terminal cause with a recoverable one,
@@ -890,6 +984,11 @@ is a field on `diverged`, not a variant.
         - That reason needs its own emitted arm. The wrong-predecessor refusal is a `z.strictObject` pinned to
           its reason literal and is a member of the result union; a sibling arm lands beside it, reusing the same
           remedy shape. Two further sites read that schema's remedy by reference and must keep resolving.
+        - **The ambiguous reason needs one too, and for a sharper cause.** Without its own arm it falls through
+          to the generic owned-authority failure, whose projection keeps a remedy only when it recognizes the
+          kind — so the refusal ships with none at all. Its remedy kind and that projection are 5.4.d's, so the
+          ambiguous behavior below is satisfied only once 5.4.d lands; sequence the two together rather than
+          asserting the remedy before the slot exists.
         - Build `test-first` (one behavior at a time):
 
             - An empty overlap is accepted
@@ -905,11 +1004,10 @@ is a field on `diverged`, not a variant.
         - _Goal:_ The second reader refuses a non-empty overlap because it tested for one, not as a side effect
           of a field being absent.
 
-        - It has no overlap test today. It derives a chain base for the variants that carry one and `null` for
-          those that do not, then refuses the null — so today's refusal is a side effect of `overlapping-ahead`
-          lacking a field. Once 5.3 carries `chainBase` unconditionally on `diverged`, that branch is dead and
-          the reader accepts unless the test it stood in for is written out. Write it out here; 5.4.c then
-          removes the dead branch.
+        - The refusal itself lands in 5.3.a, because that is the task that retires the null branch standing in
+          for it and the protection may not lapse between them. What lands here is the reader's full
+          disposition around it: which arms and variants refuse, under which reason, and why the accept path
+          cannot be reached by falling through.
         - The snapshot comparison is not that test and cannot be made into one. The snapshot arrives through the
           request contract, and this read is taken over the member head and protected-base head that snapshot
           carries — both pinned object ids. A snapshot whose relation already holds a non-empty overlap

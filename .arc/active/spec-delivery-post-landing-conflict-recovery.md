@@ -176,13 +176,22 @@ any caller, with no conversion site in the path to force the branch.
 
 **The reason must reach a remedy, not just a word.** A cause that survives to the reducer and stops there would
 be a better label on the same dead end. Each reduction consumer maps the per-cause reason onto its own typed
-action rather than prose, per D10:
+action rather than prose, per D10. Exactly two consumers can receive a base-resolution cause, because only the
+two `base-movement` reductions reach the conversion at all:
 
-- **Candidate applicability** — the `ambiguous` cause carries D2's re-baselining remedy, never "merge the base
-  in", on the pinned-baseline ground D2 states. `CandidateApplicabilityResultSchema` already carries
-  `nextAction` beside `reason`, so the remedy rides the existing channel.
 - **Review status** — the cause reaches the reported surface beside `movement` rather than inside it, keeping
-  the projection's value set unchanged while the operator learns whether a retry can succeed.
+  the projection's value set unchanged. Its own `state` and `nextAction` follow the cause rather than routing
+  every non-carrying result to a rerun, so a terminal cause stops inviting one.
+- **Errand merge composition** — the second `base-movement` reduction. It parses its drift evidence straight
+  into the observation schema by shape coincidence across the two layers, so it carries the cause to its own
+  surface and constrains the arms' field sets (below).
+
+**Candidate applicability is not one of them**, and saying so is load-bearing, because the relation does carry an
+ambiguous case there under D2. That path never reaches this reducer: an ambiguous base is refused at the
+`merge-base --all` read itself, ahead of any reduction, and applicability's one reduction composes a
+member-rewrite cause whose overlap is the constant. D2's re-baselining remedy therefore lands on that refusal's
+own result, where `nextAction` is a closed literal today — a disclosed contract change on the applicability
+result schema, not a ride on a channel that already exists.
 
 `FinalReasonSchema` gains the per-cause members, and it is embedded in `CandidateApplicabilityDecisionResult`, so
 this is a request-contract change rather than a local rename — permitted in place under the pre-public-release
