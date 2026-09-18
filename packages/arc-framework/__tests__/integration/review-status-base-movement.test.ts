@@ -297,8 +297,9 @@ describe("review status over a history leaving two merge bases", () => {
   it("sends an ambiguous base back through the checkpoint, naming the cause beside the movement", async () => {
     const fixture = await attestedUnderAnAmbiguousBase();
 
-    // Recoverable at this pair: merging the base in collapses the two comparison points to one, and the
-    // checkpoint is where that route is offered. So the reading keeps its rerun.
+    // Recoverable at this pair: merging the base in collapses the two comparison points to one, so the
+    // reading keeps its rerun rather than stopping. The checkpoint it reruns does not yet offer that merge —
+    // amendment A4 is what gives it one — so this asserts the route taken, not a remedy waiting at its end.
     expect(await statusThroughPort(fixture)).toMatchObject({
       state: "base-moved",
       nextAction: "rerun-checkpoint",
@@ -336,9 +337,13 @@ describe("review status over a base sharing no history with the branch", () => {
       movement: "unknown",
       baseMovementCause: "unrelated",
     });
-    // A rerun of this same reading is the one remedy that cannot clear the condition, so it is not the one
-    // offered: the branch and the base have to be given a common ancestor first.
-    expect(status).not.toMatchObject({ remedy: { argv: ["arc", "review", "status"] } });
+    // Named positively, because the negation this replaced could not fail: `toMatchObject` compares arrays by
+    // exact length, so a three-element argv never matched the four-element one offered here, and the assertion
+    // passed for a correct remedy, a wrong one, and no remedy at all. What the condition needs is a common
+    // ancestor, so that is what the remedy has to name.
+    expect(status).toMatchObject({
+      remedy: { argv: ["git", "merge", "--allow-unrelated-histories", status.currentBaseOid] },
+    });
   });
 
   it("reports the absent common ancestor as its own reading", async () => {

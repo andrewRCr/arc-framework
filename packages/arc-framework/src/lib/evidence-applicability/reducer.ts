@@ -198,7 +198,9 @@ function assertClosedAxes(delta: EvidenceDelta, evidence: EvidenceKind): void {
 function reduceOtherMovement(
   delta: Extract<EvidenceDelta, { cause: "approved-fix" | "base-merge" | "member-rewrite" }>,
 ): EvidenceApplicabilityResult {
-  if (delta.overlap.kind === "unknown") return final("fresh", "overlap-unknown");
+  // Named by cause, as the base-movement arm does. The verdict is the same for all three, so folding them read
+  // as harmless; what it costs is the split the reduction exists to carry, at whichever producer arrives here.
+  if (delta.overlap.kind === "unknown") return final("fresh", unprovenOverlapReason(delta.overlap.cause));
   if (delta.relation === "equal" || delta.relation === "mechanical-reapply") {
     // Stated arm by arm rather than as a test and an else. The accept below is reached by two different
     // overlaps — a member rewrite reads no base at all, and a base merge can prove the two sides touched

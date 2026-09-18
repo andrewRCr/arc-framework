@@ -229,6 +229,29 @@ describe("evidence applicability reducer", () => {
     )).toMatchObject({ verdict: "supplemental", judgmentRequired: true, residual: ["a.ts"] });
   });
 
+  it.each([
+    ["ambiguous" as const, "overlap-ambiguous-base"],
+    ["unrelated" as const, "overlap-unrelated-base"],
+    ["unavailable" as const, "overlap-unknown"],
+  ])("names the %s base cause on the other-movement arm too", (status, reason) => {
+    // The arm reached by every producer that is not base movement reduced all three causes to one token, so
+    // the split the reduction exists to carry stopped at whichever producer happened to arrive. No composer
+    // supplies these overlaps here yet, which is why it shipped unobserved rather than because it is right.
+    const delta = composeEvidenceDelta({
+      cause: "base-merge",
+      before: coordinates(),
+      after: { ...coordinates(), base: oid("c") },
+      overlap: status === "unavailable"
+        ? { status, reason: "merge-base-failed" }
+        : { status },
+    });
+
+    expect(reduceEvidenceApplicability(delta, "review-clearance")).toMatchObject({
+      verdict: "fresh",
+      reason,
+    });
+  });
+
   it("rejects carried evidence across normalized base-merge discontinuity", () => {
     const before = coordinates();
     const after = { ...coordinates(), base: oid("c") };

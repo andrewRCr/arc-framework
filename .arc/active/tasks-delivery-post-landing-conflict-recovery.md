@@ -665,7 +665,9 @@ to a verdict and carries the cause as a discriminant instead. See
 
         - Review status reports the cause as `baseMovementCause`, beside `movement`, whose three values are
           unchanged. **An ambiguous base keeps `base-moved` / `rerun-checkpoint`** — merging the base in
-          collapses the two comparison points to one, and the checkpoint is where that route is offered.
+          collapses the two comparison points to one, which is a route the checkpoint is the place to offer.
+          _Corrected in 4.R2 (A3):_ this read as though the checkpoint already offered it. It offers that route
+          for no vehicle until A4 lands; 4.R3 is what gives it one.
           **An unrelated base is terminal: `blocked` / `stop` under a new `base-unrelated` reason**, carrying a
           remedy that gives the two revisions a common ancestor rather than re-running the reading that cannot
           clear it. Errand merge composition carries the reduction onto its invalidated result, where the cause
@@ -817,24 +819,38 @@ to a verdict and carries the cause as a discriminant instead. See
           The integration fixture builds a real repository, host stub and attestation around a singleton; the
           arm under test is the conjunction branch, which that fixture is documented as deliberately avoiding.
 
-### `[ ]` **4.R2 Assert the remedy the replaced hold named** — amendment A3
+### `[x]` **4.R2 Assert the remedy the replaced hold named** — amendment A3
 
 - _Goal:_ A3 — Task 4.7's replacement for the review-status hold compares an argv list of a different length, so
   it passes for a correct remedy, a wrong one, and no remedy at all.
 
-    - `[ ]` **4.R2.a Replace the vacuous comparison with one that can fail**
+    - `[x]` **4.R2.a Replace the vacuous comparison with one that can fail**
 
         - The assertion names the remedy actually offered, so it discriminates the condition it was written for.
+        - _Outcome:_ The hold's replacement negated a three-element argv against the four-element one the arm
+          offers. `toMatchObject` compares arrays by exact length, so the negation held for a correct remedy, a
+          wrong one, and no remedy at all. It now asserts positively that the remedy names `git merge
+          --allow-unrelated-histories` against the observed base.
+        - _Outcome:_ Verified it can fail: with the arm's remedy replaced by the review-status rerun, the
+          assertion goes red — on exactly the remedy the original was written to exclude.
 
-    - `[ ]` **4.R2.b Keep the normalized cause split at the other-movement arm**
+    - `[x]` **4.R2.b Keep the normalized cause split at the other-movement arm**
 
         - Task 4.5's reducer splits the cause and one arm folds it back to a single token. No composer reaches it
           today; it re-collapses the distinction the reduction exists to carry.
+        - _Outcome:_ `reduceOtherMovement` calls `unprovenOverlapReason` on the arm's own cause, as the
+          base-movement arm already did, so every producer reaching this reduction reports the same three
+          reasons. Covered by an `it.each` over all three causes, of which the two split ones were RED at
+          `overlap-unknown` and the `read-failed` control passed throughout.
 
-    - `[ ]` **4.R2.c Correct the checkpoint claim in 4.5.c and its test comment**
+    - `[x]` **4.R2.c Correct the checkpoint claim in 4.5.c and its test comment**
 
         - Both state that merging the base in is the route offered at the checkpoint. Until A4 lands that is true
           of no vehicle, and the comment sits in a probe file this boundary owns.
+        - _Outcome:_ Both corrected to say the ambiguous arm asserts the route taken, not a remedy waiting at
+          its end, and to name 4.R3 as what gives the checkpoint one. 4.5.c's text carries a
+          `_Corrected in 4.R2 (A3):_` line rather than being silently rewritten — its `[x]` marker and its
+          original claim both stand, per D6.
 
 ### `[ ]` **4.R3 Give the unbound work unit the route 4.8 names** — amendment A4
 
