@@ -50,8 +50,10 @@ Four behaviors decide whether the gate tells the truth:
 - **Never re-run `--suppress-rule` to clear a red gate.** That records the new violation as permanent debt,
   which is the one thing the record exists to prevent.
 
-The record cannot see an existing oversized unit growing further: the count stays put while the function gets
-worse. That gap closes by remediation, not by more gate.
+The record cannot see two things, and both close by remediation rather than by more gate. An already-recorded
+unit can grow worse while its count stays put. And a swap is invisible: fix one violation of a rule in a file
+while adding another of the same rule to the same file, and the bucket stays exactly full — the run stays green
+and pruning finds nothing to report.
 
 ### Selecting what to run
 
