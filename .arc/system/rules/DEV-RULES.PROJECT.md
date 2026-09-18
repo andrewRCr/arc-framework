@@ -139,9 +139,10 @@ guard-only dead ends.
   (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
 - TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
   describing the module's purpose
-- Write inside the size gate rather than against it: functions ≤100 lines and cyclomatic complexity ≤15,
-  files ≤1000 lines, nesting depth and nested callbacks ≤4 — blank lines and comments do not count, and
-  `eslint.config.js` is the authority
+- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cyclomatic
+  complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
+  ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the
+  authority
 
 ## Self-Hosting Defects
 
