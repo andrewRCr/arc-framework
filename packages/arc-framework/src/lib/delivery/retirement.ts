@@ -54,6 +54,51 @@ export type DeliveryTerminalUnsettledReason =
   | "terminal-base-ref-mismatch"
   | "terminal-not-merged";
 
+/**
+ * The act that clears one terminal condition, named so a caller dispatches on it rather than on prose.
+ *
+ * No act is a command ARC can run — each is a repair to the record the caller owns or a change on the host —
+ * so the automated command is always absent here, and the kind is the whole of what a caller dispatches on.
+ */
+export interface DeliveryTerminalRemedy {
+  readonly kind:
+    | "delivery-record-repair-required"
+    | "delivery-member-rebind-required"
+    | "delivery-member-publication-required"
+    | "delivery-host-reobservation-required"
+    | "delivery-closeout-repository-correction-required"
+    | "delivery-request-retarget-required"
+    | "delivery-terminal-landing-required";
+  readonly automatedCommand: null;
+}
+
+/**
+ * The clearing act for every terminal condition.
+ *
+ * Several conditions share an act, which is the division working rather than the collapse it replaced: the
+ * condition reports what was observed and the act reports what to do about it, so two observations a caller
+ * clears the same way name that way once. Totality is the compiler's, not a check's.
+ */
+export const DELIVERY_TERMINAL_REMEDIES: Record<DeliveryTerminalUnsettledReason, DeliveryTerminalRemedy> = {
+  "terminal-member-absent": { kind: "delivery-record-repair-required", automatedCommand: null },
+  "terminal-ref-unbound": { kind: "delivery-member-rebind-required", automatedCommand: null },
+  "terminal-request-unbound": { kind: "delivery-member-publication-required", automatedCommand: null },
+  "terminal-coordinates-unbound": { kind: "delivery-member-rebind-required", automatedCommand: null },
+  "terminal-target-unbound": { kind: "delivery-record-repair-required", automatedCommand: null },
+  "terminal-request-unobserved": { kind: "delivery-host-reobservation-required", automatedCommand: null },
+  "terminal-provider-mismatch": { kind: "delivery-member-rebind-required", automatedCommand: null },
+  "terminal-request-mismatch": { kind: "delivery-member-rebind-required", automatedCommand: null },
+  "terminal-repository-mismatch": {
+    kind: "delivery-closeout-repository-correction-required",
+    automatedCommand: null,
+  },
+  "terminal-head-repository-mismatch": { kind: "delivery-request-retarget-required", automatedCommand: null },
+  "terminal-head-ref-mismatch": { kind: "delivery-request-retarget-required", automatedCommand: null },
+  "terminal-head-moved": { kind: "delivery-member-rebind-required", automatedCommand: null },
+  "terminal-base-ref-mismatch": { kind: "delivery-request-retarget-required", automatedCommand: null },
+  "terminal-not-merged": { kind: "delivery-terminal-landing-required", automatedCommand: null },
+};
+
 export type DeliveryTerminalSettlementResult =
   | { readonly status: "settled" }
   | { readonly status: "blocked"; readonly reason: DeliveryTerminalUnsettledReason };

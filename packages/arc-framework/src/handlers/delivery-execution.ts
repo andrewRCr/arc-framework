@@ -899,11 +899,25 @@ const DeliveryTopRemedyRefusalSchema = z.strictObject({
     protectedBaseRef: z.string().min(1),
   }),
 });
+/** Carried only on a terminal condition; closeout's own reasons keep their remedy as prose. */
+const DeliveryTerminalRemedySchema = z.strictObject({
+  kind: z.enum([
+    "delivery-record-repair-required",
+    "delivery-member-rebind-required",
+    "delivery-member-publication-required",
+    "delivery-host-reobservation-required",
+    "delivery-closeout-repository-correction-required",
+    "delivery-request-retarget-required",
+    "delivery-terminal-landing-required",
+  ]),
+  automatedCommand: z.null(),
+});
 const DeliveryCloseoutBlockedSchema = z.strictObject({
   status: z.literal("blocked"),
   reason: z.string().min(1),
   planId: DeliveryPlanIdSchema.optional(),
   deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  remedy: DeliveryTerminalRemedySchema.optional(),
   recommendedActionText: z.string().min(1),
 });
 const OperationalStateAccessRefusalSchema = z.strictObject({

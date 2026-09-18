@@ -1104,24 +1104,10 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   it takes the retired path — so the three codes out are not the three codes in: two are renamed survivors and
   one is new.
 
-### `[ ]` **7.5 Give each of closeout's fourteen conditions a distinct reason and typed remedy**
+### `[x]` **7.5 Give each of closeout's fourteen conditions a distinct reason and typed remedy**
 
 - _Goal:_ A caller told the terminal is unsettled can tell which term failed and act on it, instead of receiving
   one word reachable fourteen ways with a remedy directing a rerun over inputs that never reach the failing term.
-
-- _Rationale:_ The one reason is reachable three ways in the same function — a five-condition pre-guard before
-  the conjunction is built, an unobserved host request, and the eight-term conjunction itself. The relation
-  supplies the vocabulary for the one term that was ancestry-blind; the other terms need only stop sharing a
-  word. Giving only the relation's term a distinct reason is the recorded rejected alternative: it fixes the
-  ancestry row while leaving the report-the-observed-condition clause unsatisfiable for the other thirteen.
-
-- _Shape:_ The two halves land in different places. The settlement result types its blocked reason as the single
-  literal `"terminal-unsettled"`, so fourteen reasons widen that union — and it has a second consumer, where
-  `retireCompletedDeliveryRecords` spreads the blocked result straight into its own free-string retirement result.
-  The reasons also share a namespace with closeout's own blocked reasons, which the terminal reason reaches bare
-  while closeout prefixes its own, so each needs a distinguishing shape of the kind `terminal-unsettled` already
-  carries. The typed remedy is the second contract addition: it lands on the emitted closeout refusal, derived
-  from the reason, replacing the prose remedy there.
 
     - `[x]` **7.5.a Replace the equality term with the relation**
 
@@ -1152,22 +1138,22 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
           equality is settled before any ancestry answer is consulted, so the heads differ and what is
           unestablished is only whether the difference is the advance this settles on.
 
-    - `[ ]` **7.5.e Derive the emitted refusal's dispatchable remedy from the reason**
+    - `[x]` **7.5.e Derive the emitted refusal's dispatchable remedy from the reason**
 
-        - Bounded to the fourteen terminal conditions. Closeout's own reasons keep their prose remedy; this task
-          does not widen to the whole free-string reason space it emits beside them.
-        - Two loci, as in 2.1.a: the closeout result's blocked arm — five fields, no remedy among them — and the
-          handler's closeout blocked schema, a `z.strictObject` of the same five. The handler returns the library
-          result unchanged, so emitting a remedy without both edits yields an invalid service result.
-        - The terminal reason reaches closeout's output under two spellings — bare, and prefixed once retirement
-          re-runs the same verification — so the distinguishing shape must hold for both.
-        - Build `test-first` (one behavior at a time):
+        - The refusal carries the act and its prose names that act, so the blind-rerun sentence survives only on
+          closeout's own reasons, which is the bound the task set. Both spellings resolve to one act by stripping
+          retirement's prefix — which is not on its own a licence to answer, since the reasons retirement raises
+          on its own behalf carry that prefix too and none of them is terminal.
+        - The schema half is load-bearing rather than bookkeeping, confirmed by removing it: with the library
+          emitting an act the strict envelope does not admit, the refusal reaches the caller as
+          `invalid-service-result` instead of as the condition that named it.
 
-            - Each of the fourteen conditions reports its own reason
-            - No terminal reason collides with a closeout reason
-            - Each reason yields a typed remedy the caller dispatches rather than prose it re-authors
-            - A moved head is distinguishable from a wrong base ref
-            - A merged-past-the-bound-head terminal returns closed-out rather than unsettled
+- _Outcome:_ The two halves do not line up one to one, and the gap is the division the single word hid: fourteen
+  conditions resolve to seven acts, because a condition reports what was observed while a remedy reports what to
+  do about it, so two observations a caller clears the same way name that way once. The design costed the reasons
+  and the remedy as separate contract changes and both held; what it did not carry is what the acts turned out to
+  be. None is a command ARC can run — each is a repair to the record or a change on the host — so every automated
+  command is empty and the kind carries the whole dispatch.
 
 ### `[x]` **7.6 Replace the review-readiness binding and terminal head-movement holds**
 

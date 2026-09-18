@@ -8,8 +8,10 @@ import {
   type DeliveryResidueReapingDependencies,
 } from "./residue-reaping.js";
 import {
+  DELIVERY_TERMINAL_REMEDIES,
   retireCompletedDeliveryRecords,
   type DeliveryRetirementDependencies,
+  type DeliveryTerminalRemedy,
   verifyDeliveryTerminalSettlement,
 } from "./retirement.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
@@ -41,8 +43,46 @@ export type DeliveryCloseoutResult =
       readonly reason: string;
       readonly planId?: string;
       readonly deliverableId?: string;
+      /** Present only on a terminal condition; closeout's own reasons carry their remedy as prose. */
+      readonly remedy?: DeliveryTerminalRemedy;
       readonly recommendedActionText: string;
     };
+
+/** The prefix closeout puts on the reasons retirement raises, terminal conditions among them. */
+const RETIREMENT_PREFIX = "retire-";
+
+const TERMINAL_REMEDY_ACTIONS: Record<DeliveryTerminalRemedy["kind"], string> = {
+  "delivery-record-repair-required":
+    "Repair the delivery record so it binds a terminal member and a target before closing out.",
+  "delivery-member-rebind-required":
+    "Rebind the terminal member to the request and head the host actually holds, then close out again.",
+  "delivery-member-publication-required":
+    "Publish the terminal member so the record binds the change request its landing settles.",
+  "delivery-host-reobservation-required":
+    "The host reported no readable request. Observe it again once the host answers, then close out.",
+  "delivery-closeout-repository-correction-required":
+    "The bound request belongs to another repository. Close out against the repository that holds it.",
+  "delivery-request-retarget-required":
+    "Retarget the change request on the host to the branch and base the record binds, then close out.",
+  "delivery-terminal-landing-required":
+    "Land the terminal change request on its base, then close out.",
+};
+
+/**
+ * Name the act that clears one blocked reason, where the reason is a terminal condition.
+ *
+ * The same condition reaches this result under two spellings — passed through bare, and prefixed once
+ * retirement re-runs the verification — so both resolve to one act. Stripping the prefix is not on its own
+ * a licence to answer: the reasons retirement raises on its own behalf carry it too, and none is terminal.
+ *
+ * @param reason - The blocked reason, in either spelling.
+ * @returns The clearing act, or nothing when no terminal condition names this reason.
+ */
+function terminalRemedy(reason: string): DeliveryTerminalRemedy | undefined {
+  const bare = reason.startsWith(RETIREMENT_PREFIX) ? reason.slice(RETIREMENT_PREFIX.length) : reason;
+  const byReason: Partial<Record<string, DeliveryTerminalRemedy>> = DELIVERY_TERMINAL_REMEDIES;
+  return byReason[bare];
+}
 
 /**
  * Reap exact delivery residue, then retire its completed records.
@@ -58,14 +98,21 @@ export async function closeoutCompletedDelivery(
   const blocked = (
     reason: string,
     details: { readonly planId?: string; readonly deliverableId?: string } = {},
-  ): DeliveryCloseoutResult => ({
-    status: "blocked",
-    reason,
-    ...details,
-    recommendedActionText:
-      `Delivery closeout stopped for \`${input.workUnitId}\`: ${reason}. Resolve the exact reported state and rerun `
-      + "`arc delivery closeout` with the same work-unit, repository, and remote inputs.",
-  });
+  ): DeliveryCloseoutResult => {
+    const remedy = terminalRemedy(reason);
+    return {
+      status: "blocked",
+      reason,
+      ...details,
+      ...(remedy === undefined ? {} : { remedy }),
+      recommendedActionText:
+        `Delivery closeout stopped for \`${input.workUnitId}\`: ${reason}. `
+        + (remedy === undefined
+          ? "Resolve the exact reported state and rerun `arc delivery closeout` with the same work-unit, "
+            + "repository, and remote inputs."
+          : TERMINAL_REMEDY_ACTIONS[remedy.kind]),
+    };
+  };
   if (!SlugSchema.safeParse(input.workUnitId).success
     || input.repository.trim() === "" || input.remote.trim() === "") {
     return blocked("identity-invalid");
@@ -127,7 +174,7 @@ export async function closeoutCompletedDelivery(
     stateStore: dependencies.stateStore,
   });
   if (retired.status === "blocked") {
-    return blocked(`retire-${retired.reason}`, {
+    return blocked(`${RETIREMENT_PREFIX}${retired.reason}`, {
       ...(retired.planId === undefined ? {} : { planId: retired.planId }),
       ...(retired.deliverableId === undefined ? {} : { deliverableId: retired.deliverableId }),
     });

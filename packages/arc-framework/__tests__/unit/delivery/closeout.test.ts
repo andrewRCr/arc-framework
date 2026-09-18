@@ -166,6 +166,121 @@ describe("delivery closeout", () => {
     });
   });
 
+  it("names the act that clears a terminal condition instead of directing a blind rerun", async () => {
+    const moved = closeoutFixture();
+    const retargeted = closeoutFixture();
+    const request = (overrides: Record<string, unknown>) => async () => ({
+      status: "observed" as const,
+      request: {
+        binding: moved.state.members.at(-1)!.changeRequest!,
+        repository: "owner/repo",
+        headRepository: "owner/repo",
+        headRef: "feat/delivery-plan-record",
+        headSha: moved.state.members.at(-1)!.coordinates!.head,
+        baseRef: "delivery-target",
+        state: "merged" as const,
+        draft: false,
+        ...overrides,
+      },
+    });
+
+    const headMoved = await closeoutCompletedDelivery(
+      { workUnitId: moved.plan.workUnitId, repository: "owner/repo", remote: "origin" },
+      {
+        ...moved.dependencies,
+        retirement: { ...moved.dependencies.retirement, readTerminalRequest: request({ headSha: "a".repeat(40) }) },
+      },
+    );
+    const baseWrong = await closeoutCompletedDelivery(
+      { workUnitId: retargeted.plan.workUnitId, repository: "owner/repo", remote: "origin" },
+      {
+        ...retargeted.dependencies,
+        retirement: {
+          ...retargeted.dependencies.retirement,
+          readTerminalRequest: request({ baseRef: "some-other-target" }),
+        },
+      },
+    );
+
+    expect(headMoved).toMatchObject({
+      status: "blocked",
+      reason: "terminal-head-moved",
+      remedy: { kind: "delivery-member-rebind-required", automatedCommand: null },
+    });
+    // The pair D13 names reaches the caller as two acts, not one sentence sending both at the same rerun.
+    expect(baseWrong).toMatchObject({
+      status: "blocked",
+      reason: "terminal-base-ref-mismatch",
+      remedy: { kind: "delivery-request-retarget-required", automatedCommand: null },
+    });
+    for (const result of [headMoved, baseWrong]) {
+      if (result.status !== "blocked") throw new Error("both arrangements must block");
+      expect(result.recommendedActionText).not.toContain("with the same work-unit, repository, and remote");
+    }
+  });
+
+  it("resolves the same act whether the condition arrives bare or under retirement's prefix", async () => {
+    const fixture = closeoutFixture();
+    let observations = 0;
+    const raced = await closeoutCompletedDelivery(
+      { workUnitId: fixture.plan.workUnitId, repository: "owner/repo", remote: "origin" },
+      {
+        ...fixture.dependencies,
+        retirement: {
+          ...fixture.dependencies.retirement,
+          // The host's answer changes between closeout's own verification and the one retirement re-runs,
+          // which is the only way the prefixed spelling is reached at all.
+          readTerminalRequest: async () => {
+            observations += 1;
+            return {
+              status: "observed" as const,
+              request: {
+                binding: fixture.state.members.at(-1)!.changeRequest!,
+                repository: "owner/repo",
+                headRepository: "owner/repo",
+                headRef: "feat/delivery-plan-record",
+                headSha: fixture.state.members.at(-1)!.coordinates!.head,
+                baseRef: "delivery-target",
+                state: observations === 1 ? ("merged" as const) : ("open" as const),
+                draft: false,
+              },
+            };
+          },
+        },
+      },
+    );
+
+    expect(raced).toMatchObject({
+      status: "blocked",
+      reason: "retire-terminal-not-merged",
+      remedy: { kind: "delivery-terminal-landing-required", automatedCommand: null },
+    });
+  });
+
+  it("offers no act for a reason retirement raised on its own behalf", async () => {
+    const fixture = closeoutFixture();
+
+    const result = await closeoutCompletedDelivery(
+      { workUnitId: fixture.plan.workUnitId, repository: "owner/repo", remote: "origin" },
+      {
+        ...fixture.dependencies,
+        retirement: {
+          ...fixture.dependencies.retirement,
+          observeLocalRef: async () => ({ status: "refused" as const }),
+        },
+      },
+    );
+
+    // Both spellings share the `retire-` prefix, so stripping it is not on its own a licence to answer.
+    expect(result).toEqual({
+      status: "blocked",
+      reason: "retire-member-ref-observation-refused",
+      planId: fixture.plan.planId,
+      deliverableId: fixture.state.members[0]!.deliverableId,
+      recommendedActionText: expect.stringContaining("with the same work-unit, repository, and remote"),
+    });
+  });
+
   it("leaves the terminal prefix to the terminal conditions alone", async () => {
     const blockedReason = async (
       workUnitId: string,

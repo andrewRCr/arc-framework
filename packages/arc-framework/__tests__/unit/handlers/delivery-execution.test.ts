@@ -459,6 +459,42 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("carries a terminal condition's act through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const write = vi.fn();
+    const recommendedActionText =
+      "Delivery closeout stopped for `delivery-plan-record`: terminal-head-moved. Rebind the terminal member "
+      + "to the request and head the host actually holds, then close out again.";
+    await handleDeliveryExecution("closeout", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        workUnitId: plan.workUnitId,
+        repository: "owner/repo",
+        remote: "upstream",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "blocked",
+        reason: "terminal-head-moved",
+        planId: plan.planId,
+        remedy: { kind: "delivery-member-rebind-required", automatedCommand: null },
+        recommendedActionText,
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    // The envelope is strict, so an act the schema does not admit reaches the caller as a service fault
+    // rather than as the refusal that named it.
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery closeout",
+      status: "blocked",
+      reason: "terminal-head-moved",
+      planId: plan.planId,
+      remedy: { kind: "delivery-member-rebind-required", automatedCommand: null },
+      recommendedActionText,
+    });
+  });
+
   it("preserves deterministic authoring locators through a strict read-only verb", async () => {
     const plan = deliveryStackPlanFixture();
     const locators = plan.members.map((member) => ({
