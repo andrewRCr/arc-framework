@@ -1,6 +1,8 @@
 /** Ordered delivery-chain derivation and binding through the single operation slot. */
 
 import { canonicalize } from "../kernel/index.js";
+import { parseCommitMessage } from "../commit-check/parser.js";
+import { CONVENTIONAL_TYPES } from "../commit-check/policy.js";
 import type { DeliveryHostOpenRequest, DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
@@ -64,10 +66,44 @@ export interface DeliveryPublicationPresentations {
   readonly terminal: DeliveryTerminalPresentation;
 }
 
+/** One delivery's shared request-title identity, derived from the authored terminal title. */
+export interface DeliveryTitleIdentity {
+  readonly type: string;
+  readonly breaking: boolean;
+  readonly description: string;
+}
+
+/**
+ * Derive the delivery-wide Conventional Commits identity from the authored terminal title.
+ *
+ * A delivery is one work unit, so one type governs every member; the work-unit ID supplies the shared
+ * scope. Returns null when the authored title is not an admitted conventional subject — the subject
+ * pattern alone accepts any leading word, so the type is checked against the admitted set.
+ */
+function deriveDeliveryTitleIdentity(title: string): DeliveryTitleIdentity | null {
+  const { subject } = parseCommitMessage(title);
+  if (subject.type === null || subject.description === null) return null;
+  if (!CONVENTIONAL_TYPES.has(subject.type)) return null;
+  return { type: subject.type, breaking: subject.breaking, description: subject.description };
+}
+
+/** Compose one request title carrying shared delivery identity and truthful position. */
+function composeDeliveryRequestTitle(input: {
+  readonly workUnitId: string;
+  readonly type: string;
+  readonly breaking: boolean;
+  readonly position: string;
+  readonly description: string;
+}): string {
+  const breaking = input.breaking ? "!" : "";
+  return `${input.type}(${input.workUnitId})${breaking}: [${input.position}] ${input.description}`;
+}
+
 /** Validate exact authored presentation coverage without granting caller order authority. */
 export function resolveDeliveryMemberPresentations(
   plan: DeliveryPlanV1,
   presentations: readonly DeliveryMemberReviewerPresentation[],
+  identity: DeliveryTitleIdentity,
 ): { readonly status: "resolved"; readonly value: ReadonlyMap<string, Pick<DeliveryHostOpenRequest, "title" | "body">> } | {
   readonly status: "refused";
   readonly reason: "presentation-mismatch";
@@ -87,7 +123,7 @@ export function resolveDeliveryMemberPresentations(
   for (const member of plan.members.slice(0, -1)) {
     const authored = authoredByDeliverableId.get(member.deliverableId);
     if (authored === undefined) return { status: "refused", reason: "presentation-mismatch" };
-    const effective = describeDeliveryMemberPresentation(plan, member, authored);
+    const effective = describeDeliveryMemberPresentation(plan, member, authored, identity);
     if (!isValidRequestPresentation(effective)) {
       return { status: "refused", reason: "presentation-mismatch" };
     }
@@ -103,13 +139,36 @@ export function resolveDeliveryPublicationPresentations(
   terminal: DeliveryTerminalPresentation,
 ): { readonly status: "resolved"; readonly value: DeliveryPublicationPresentations } | {
   readonly status: "refused";
-  readonly reason: "presentation-mismatch";
+  readonly reason: "presentation-mismatch" | "terminal-title-not-conventional";
 } {
-  const members = resolveDeliveryMemberPresentations(plan, presentations);
-  if (members.status === "refused" || !isValidRequestPresentation(terminal)) {
+  if (!isValidRequestPresentation(terminal)) {
     return { status: "refused", reason: "presentation-mismatch" };
   }
-  return { status: "resolved", value: { members: members.value, terminal } };
+  // A one-member delivery publishes a single request. It is not a stack, so it carries no position
+  // and its authored title stands unchanged; it also admits no member presentations.
+  if (plan.members.length === 1) {
+    if (presentations.length > 0) return { status: "refused", reason: "presentation-mismatch" };
+    return { status: "resolved", value: { members: new Map(), terminal } };
+  }
+  const identity = deriveDeliveryTitleIdentity(terminal.title);
+  if (identity === null) return { status: "refused", reason: "terminal-title-not-conventional" };
+  const members = resolveDeliveryMemberPresentations(plan, presentations, identity);
+  if (members.status === "refused") return members;
+  const total = plan.members.length;
+  const composedTerminal = {
+    ...terminal,
+    title: composeDeliveryRequestTitle({
+      workUnitId: plan.workUnitId,
+      type: identity.type,
+      breaking: identity.breaking,
+      position: `${total}/${total}`,
+      description: identity.description,
+    }),
+  };
+  if (!isValidRequestPresentation(composedTerminal)) {
+    return { status: "refused", reason: "presentation-mismatch" };
+  }
+  return { status: "resolved", value: { members: members.value, terminal: composedTerminal } };
 }
 
 /** Derive exact member refs and predecessor bases with the terminal on the originating branch. */
@@ -163,6 +222,7 @@ export function describeDeliveryMemberPresentation(
   plan: DeliveryPlanV1,
   member: Pick<DeliveryMaterializationMember, "deliverableId" | "chunkKey">,
   presentation: DeliveryMemberReviewerPresentation,
+  identity: DeliveryTitleIdentity,
 ): Pick<DeliveryHostOpenRequest, "title" | "body"> {
   const index = plan.members.findIndex((planned) => planned.deliverableId === member.deliverableId);
   const planned = index >= 0 ? plan.members[index] : undefined;
@@ -190,7 +250,13 @@ export function describeDeliveryMemberPresentation(
     );
   }
   return {
-    title: `${plan.workUnitId} [${position}]: ${planned.title}`,
+    title: composeDeliveryRequestTitle({
+      workUnitId: plan.workUnitId,
+      type: identity.type,
+      breaking: false,
+      position,
+      description: planned.title,
+    }),
     body: body.join("\n"),
   };
 }
