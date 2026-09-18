@@ -206,7 +206,7 @@ async function runArcWithStdin(
   options: HandlerInvocationOptions = {},
 ): Promise<HandlerRunResult> {
   return runHandlerAt(cwd, async () => {
-    const path = args.filter((arg) => arg !== "-" && arg !== "--json" && arg !== "--input").join(" ");
+    const path = args.filter((arg) => arg !== "-" && arg !== "--json").join(" ");
     const readText = async () => input;
     if (path === "delivery entry inspect") {
       await handleDeliveryEntryInspect({ input: "-", json: true }, machineContext(), { readText });
@@ -1019,7 +1019,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     const entry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
@@ -1541,7 +1541,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       throw new Error("terminal coordinates must rebind onto the installed fixture commit");
     }
     const entered = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
@@ -1651,7 +1651,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     expect(reboundContinuation.verification.target).not.toEqual(continuation.verification.target);
     const reboundEntry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
@@ -1761,7 +1761,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const recoveredEntry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
@@ -3328,7 +3328,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect(supersedingVerificationStop.verification.target.head)
       .not.toBe(verificationStop.verification.target.head);
     const supersedingEntry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-", "--json"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
