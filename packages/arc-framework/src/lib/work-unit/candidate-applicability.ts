@@ -73,6 +73,20 @@ export type CandidateApplicabilityStructuralFacts = z.infer<
   typeof CandidateApplicabilityStructuralFactsSchema
 >;
 
+/**
+ * The one route out of an ambiguous pinned pair: re-pin the baseline.
+ *
+ * It carries no command to run because merging is the remedy this pair cannot take. Both elements are fixed —
+ * the baseline is reduced from a durable record and the base is observed — so an append-only merge advances the
+ * branch and leaves the compared revisions, and their two best ancestors, exactly where they were. Clearing it
+ * takes a fresh authority transition that pins a new baseline, which is a ceremony rather than a command this
+ * reader can name.
+ */
+export const CandidateRebaselineRemedySchema = z.strictObject({
+  kind: z.literal("candidate-rebaseline-required"),
+});
+export type CandidateRebaselineRemedy = z.infer<typeof CandidateRebaselineRemedySchema>;
+
 const ResultCommon = {
   schemaVersion: z.literal(1),
   mode: z.literal("candidate-applicability"),
@@ -150,11 +164,20 @@ export const CandidateApplicabilityResultSchema = z.union([
     nextAction: z.literal("stop"),
     reason: z.enum([
       "merge-base-missing",
-      "merge-base-ambiguous",
       "residual-empty",
       "residual-unbounded",
     ]),
     detail: z.string().min(1),
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("classification-unavailable"),
+    nextAction: z.literal("stop"),
+    reason: z.literal("merge-base-ambiguous"),
+    detail: z.string().min(1),
+    /** How many best common ancestors the pair has. Its own arm, so a refusal cannot ship without it. */
+    mergeBaseCount: z.number().int().min(2),
+    remedy: CandidateRebaselineRemedySchema,
   }),
 ]);
 export type CandidateApplicabilityResult = z.infer<typeof CandidateApplicabilityResultSchema>;

@@ -179,3 +179,102 @@ describe("Candidate applicability against Git", () => {
     }
   });
 });
+
+describe("Candidate applicability over base movement under a pinned baseline", () => {
+  /** A repository plus a runner, since every case here builds its own topology by hand. */
+  async function repository(): Promise<{
+    run: (args: string[]) => Promise<string>;
+    exec: RawGitExec;
+    write: (path: string, content: string) => Promise<void>;
+  }> {
+    const root = await createTempRepoCore({ prefix: "arc-candidate-base-movement-" });
+    roots.push(root);
+    const run = async (args: string[]): Promise<string> => (
+      await execFileAsync("git", args, { cwd: root })
+    ).stdout.trim();
+    const exec: RawGitExec = async (args) => {
+      const output = await execFileAsync("git", [...args], { cwd: root, encoding: "buffer" });
+      return { stdout: new Uint8Array(output.stdout), stderr: new Uint8Array(output.stderr) };
+    };
+    const write = async (path: string, content: string): Promise<void> => {
+      await writeFile(join(root, path), content, "utf8");
+      await run(["add", path]);
+      await run(["commit", "-m", path]);
+    };
+    return { run, exec, write };
+  }
+
+  function request(baselineRevision: string, currentRevision: string, currentBase: string) {
+    return {
+      candidateId: canonicalDigest({ candidate: "base-movement" }),
+      baselineTarget: { revision: baselineRevision, subject: subject("baseline") },
+      currentTarget: { revision: currentRevision, subject: subject("current") },
+      currentBase,
+    };
+  }
+
+  it("admits a base that advanced past the pinned baseline", async () => {
+    const { run, exec, write } = await repository();
+    await write("root.txt", "root\n");
+    const rootCommit = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "candidate"]);
+    await write("feature.txt", "feature\n");
+    const baselineHead = await run(["rev-parse", "HEAD"]);
+    // The base takes the baseline in and keeps going, so the pinned baseline is an ancestor of the base:
+    // an append-only advance, and the only movement that leaves exactly one best ancestor by containment.
+    await run(["checkout", "-b", "base-line", rootCommit]);
+    await write("base-one.txt", "one\n");
+    await run(["merge", "--no-ff", "--no-edit", baselineHead]);
+    await write("base-two.txt", "two\n");
+    const currentBase = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "candidate-current", baselineHead]);
+    await run(["merge", "--no-ff", "--no-edit", currentBase]);
+    const currentHead = await run(["rev-parse", "HEAD"]);
+
+    const projected = await projectGitCandidateApplicability({
+      request: request(baselineHead, currentHead, currentBase),
+      exec,
+      observeEndpoints: async () => ({ candidateHead: currentHead, baseHead: currentBase }),
+    });
+
+    expect(projected.state).not.toBe("classification-unavailable");
+  });
+
+  it("refuses a two-base history with its cardinality and the route that clears it", async () => {
+    const { run, exec, write } = await repository();
+    await write("root.txt", "root\n");
+    const rootCommit = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "candidate"]);
+    await write("feature.txt", "feature\n");
+    const branchSide = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "-b", "base-line", rootCommit]);
+    await write("base.txt", "base\n");
+    const baseSide = await run(["rev-parse", "HEAD"]);
+    // Each side merges the other's commit rather than the other's merge, so neither result contains the
+    // other and the pair keeps both of them as equally good ancestors.
+    await run(["checkout", "candidate"]);
+    await run(["merge", "--no-ff", "--no-edit", baseSide]);
+    const baselineHead = await run(["rev-parse", "HEAD"]);
+    await run(["checkout", "base-line"]);
+    await run(["merge", "--no-ff", "--no-edit", branchSide]);
+    const currentBase = await run(["rev-parse", "HEAD"]);
+
+    const projected = await projectGitCandidateApplicability({
+      request: request(baselineHead, baselineHead, currentBase),
+      exec,
+      observeEndpoints: async () => ({ candidateHead: baselineHead, baseHead: currentBase }),
+    });
+
+    // The four strings the refusal already carried are unchanged; what the pinned pair gains is how many
+    // ancestors it has, and the route out — re-baselining, because merging moves neither element of a pair
+    // whose baseline is reduced from a durable record.
+    expect(projected).toMatchObject({
+      state: "classification-unavailable",
+      nextAction: "stop",
+      reason: "merge-base-ambiguous",
+      detail: "Multiple baseline-to-current merge bases are available.",
+      mergeBaseCount: 2,
+      remedy: { kind: "candidate-rebaseline-required" },
+    });
+  });
+});

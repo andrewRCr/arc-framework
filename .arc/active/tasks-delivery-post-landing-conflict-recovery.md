@@ -945,27 +945,26 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   instead of a catch-all reporting an exception — and a base that cannot be read at all still raises past it,
   which is the distinction that catch-all had been hiding.
 
-### `[ ]` **6.6 Adopt the relation at Candidate applicability**
+### `[x]` **6.6 Adopt the relation at Candidate applicability**
 
 - _Goal:_ Base movement under a baseline is classified by the relation, with cardinality carried as the field its
   only deciding consumer reads.
 
-- _Note:_ The sibling review-contribution reader is the same code shape line for line and is a recorded
-  exclusion — the absence of a traced defect is what separates them, not the presence of a typed reason.
+    - `[x]` **6.6.a Classify base movement through the relation**
 
-    - `[ ]` **6.6.a Classify base movement through the relation**
+        - The pinned baseline is the bound element and the observed base the moved one, so a base that took the
+          baseline in reads as `advanced` and a criss-cross as `diverged`. Two `--is-ancestor` reads join the
+          existing `--all` count, and a read that failed answers `unresolvable` and stops as a Git failure rather
+          than arriving as the verdict that neither side contains the other.
+        - `merge-base-ambiguous` took its own result arm instead of optional fields on the four-reason one, so a
+          refusal cannot ship without its cardinality. The four strings are untouched, and the remedy names
+          re-baselining: both elements of this pair are fixed, so merging advances the branch and moves neither.
 
-        - Preserve the refusal's `state`, `nextAction`, `reason`, and `detail` exactly. The Candidate
-          applicability hold matches on a subset, so added fields leave it green while any edit to those four
-          strings breaks it — and Task 6.7 retires that hold on the premise the refusal is kept.
-        - The cardinality field and the typed remedy both need a slot on the applicability result schema, which
-          the refusal is parsed through on its way out. Adding them to the reader alone fails that parse at
-          runtime rather than at the compiler.
-        - Build `test-first` (one behavior at a time):
-
-            - An append-only base advance classifies as `advanced`
-            - A two-base history refuses and carries cardinality
-            - The refusal names re-baselining rather than merging the base in
+- _Outcome:_ The disclosed contract change cost less than the plan budgeted for it. The resolution wraps the whole
+  result schema as its projection rather than restating a field set, so the two added fields reach the operator
+  without a second edit — the failure mode that dropped a remedy in projection elsewhere has no purchase here.
+  What the plan did not anticipate is where the cost landed instead: the unit stubs answered the new containment
+  question with the `--all` reply, which placed an ambiguous pair as an append-only advance.
 
 ### `[ ]` **6.7 Replace the four history-shape holds with plain assertions**
 
