@@ -3,7 +3,7 @@
   "slug": "delivery-entry-input-shape",
   "claimId": "4ed5d8fa7a5076cc15b4affb03d9288c",
   "createdAt": "2026-09-18T19:07:11.246Z",
-  "updatedAt": "2026-09-18T19:07:11.246Z",
+  "updatedAt": "2026-09-18T20:11:40.581Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Give the delivery and review command families one request-input flag shape. arc delivery entry inspect takes --input <path> while position, review-fix continue, and the land verbs take a positional <input>; the dash-taking review verbs reject --json while status, errand merge, and base drift accept it. Converge on the majority shape per family and update the workflow invocations in the same change.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give every delivery verb the same request-input flag shape",
   "originEntrySourceDigest": "sha256:236b66199a3356a6ff5cb1b55a0d47cc6b391749771a488a925935bb39b98436",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/delivery-entry-input-shape",
+    "headSha": "91bc4131f80ba5a977f72247224d36286a80faa3"
+  }
 }
