@@ -1000,16 +1000,22 @@ to a verdict and carries the cause as a discriminant instead. See
           for two of them. That is the assertion the seam hid: the payload token and the remedy an operator is
           actually handed are now proved against one another rather than separately.
 
-### `[ ]` **4.R5 Give the errand-merge invalidation an action, not a sentence** — amendment A9
+### `[x]` **4.R5 Give the errand-merge invalidation an action, not a sentence** — amendment A9
 
 - _Goal:_ A9 — Task 4.R.b carried the base-resolution cause into the second reduction's projection and left the
   continuation a terminal explanation asking for fresh approval, which reduces identically over the same pair.
 
-    - `[ ]` **4.R5.a Emit a remedy continuation on the base-resolution causes**
+    - `[x]` **4.R5.a Emit a remedy continuation on the base-resolution causes**
 
         - The continuation union already carries `{kind: "remedy", remedy: SpineRemedySchema}` beside the terminal
           explanation, and D10 requires the typed action rather than a sentence. The plan reduces from live drift,
           so a freshly approved request over an unchanged pair returns the same invalidation.
+        - _Outcome:_ `invalidatedResult` consults a `baseResolutionContinuation` reader before falling back to the
+          recompose sentence, so the two causes carry the opposite acts they need: an absent common ancestor gets
+          the same hand merge the checkpoint and review status name, and a second merge base gets the typed
+          reconcile that collapses it. The reader keys on the carried reduction's reason, which is supplied only
+          where a reduction invalidated the request, so no other invalidation reason can reach it. Both render
+          through the handler's existing `Run:` branch — the operator sees the command rather than a paragraph.
 
 ## **Phase 5:** The predecessor relation and vocabulary migration
 

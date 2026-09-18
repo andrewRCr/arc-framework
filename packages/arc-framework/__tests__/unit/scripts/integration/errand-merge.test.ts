@@ -561,6 +561,65 @@ describe("Errand merge operation", () => {
     });
   });
 
+  it("sends an absent common ancestor to the join, not back around the approval loop", async () => {
+    const { value } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      reviewApplicability: {
+        verdict: "fresh",
+        residual: null,
+        reason: "overlap-unrelated-base",
+        judgmentRequired: false,
+      },
+    });
+
+    // Recomposing the request reduces over the same pair and returns the same invalidation, so the explanation
+    // that asks for one is a loop. No `arc` verb clears this reading: the append-only reconcile declines
+    // unrelated histories rather than joining them, so the operator performs the join.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "request-approval",
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          invariant: "Base movement can be proved only between revisions with a common ancestor.",
+          argv: ["git", "merge", "--allow-unrelated-histories", oid("b")],
+        },
+      },
+    });
+  });
+
+  it("sends a second merge base to the typed reconcile that collapses it", async () => {
+    const { value } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      reviewApplicability: {
+        verdict: "fresh",
+        residual: null,
+        reason: "overlap-ambiguous-base",
+        judgmentRequired: false,
+      },
+    });
+
+    // The opposite act from its sibling: merging the base in collapses two merge bases to one, which is exactly
+    // what the append-only reconcile already does, so this pair keeps the route that clears it.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "request-approval",
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", approvedTarget.headSha,
+            "--json",
+          ],
+        },
+      },
+    });
+  });
+
   it("returns typed unavailable drift evidence before mutation", async () => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
