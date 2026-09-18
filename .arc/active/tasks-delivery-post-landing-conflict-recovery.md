@@ -737,22 +737,13 @@ is a field on `diverged`, not a variant.
 - _Note:_ `sameOverlap` compares path arrays order-sensitively by index. Preserve that behavior as-is — it is not
   this work unit's to change — but do not widen its reach while migrating around it.
 
-    - `[ ]` **5.3.a Carry `chainBase` unconditionally on `diverged`, with the close-time overlap test alongside**
+    - `[x]` **5.3.a Carry `chainBase` unconditionally on `diverged`, with the close-time overlap test alongside**
 
-        - The two source arms disagree about carrying it, and an optional field would push a null check into
-          the accept path. It costs nothing: on the `not-ancestor` branch the classifier already sets
-          `chainBase` and `mergeBase` to the same merge base, so the arm that omits it today can carry the
-          value it already holds. Keep the two fields distinct — on the `ancestor` branch `chainBase` is the
-          observed tip.
-        - **This is the task that kills the close-time overlap protection, so it is the task that replaces it.**
-          The second reader has no overlap test: it refuses a non-empty overlap only because the variant
-          carrying one carries no chain base, and this change gives it one. 5.2 already forces that expression
-          to be rewritten at the compiler, so the protection is gone as of here — one task before 5.4 states the
-          reader's full disposition. Write the overlap refusal in this task; 5.4.b then states the disposition
-          around it and 5.4.c removes the dead null branch.
-        - Nothing in the suite covers this today — no close-time test constructs a snapshot carrying a non-empty
-          overlap — so the gap would be silent rather than red. Build the refusal test first, against a
-          submitted snapshot whose relation the fresh read reproduces exactly.
+        - `chainBase` rides every `diverged` pair now, at the merge base both directions already name — through
+          the producer and the nested request contract. The close-time reader gained the overlap refusal the
+          absent field stood in for, decided on the fresh observation and ahead of the snapshot comparison,
+          which a snapshot carrying its own overlap passes.
+        - With the field total and that refusal unwritten, a submitted overlap closed `eligible`.
 
     - `[ ]` **5.3.b Migrate the field-by-field comparison with the variants**
 

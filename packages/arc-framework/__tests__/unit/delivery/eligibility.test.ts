@@ -696,6 +696,44 @@ describe("eligibility observation bracket", () => {
     expect(completeness).not.toHaveBeenCalled();
   });
 
+  it("refuses a submitted relation sharing changed content, however faithfully it reobserves", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const completeness = vi.mocked(deps.compareNormalizedCompleteness);
+    const overlap = {
+      status: "available" as const,
+      substantivePaths: ["src/shared.ts"],
+      regenerablePaths: [] as string[],
+    };
+    // Neither head contains the other, and the commits they do not share touch one file in common.
+    deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    deps.readOverlap = vi.fn(async () => ({ status: "available" as const, mergeBase: oid("a"), overlap }));
+
+    // Submitted relation and fresh read agree in every field, so the comparison below finds them equal and
+    // every coordinate check passes. Consistency is all that proves; the content they share is what refuses.
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      predecessorRelation: {
+        kind: "diverged",
+        observedTip: prepared.snapshot.protectedBase.head,
+        chainBase: oid("a"),
+        mergeBase: oid("a"),
+        overlap,
+      },
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
+      paths: ["src/shared.ts"],
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    });
+    expect(completeness).not.toHaveBeenCalled();
+  });
+
   it("rejects a resolvable substituted chain-base coordinate before completeness", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({

@@ -69,7 +69,7 @@ describe("predecessor relation", () => {
     });
   });
 
-  it("names no chain base on a diverged pair whose substantive paths intersect", async () => {
+  it("still names the chain base on a diverged pair whose substantive paths intersect", async () => {
     const deps = dependencies();
     deps.readOverlap = vi.fn(async () => ({
       status: "available" as const,
@@ -86,6 +86,7 @@ describe("predecessor relation", () => {
       relation: {
         kind: "diverged",
         observedTip: oid("c"),
+        chainBase: oid("a"),
         mergeBase: oid("a"),
         overlap: {
           status: "available",

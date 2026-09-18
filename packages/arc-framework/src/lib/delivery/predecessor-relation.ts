@@ -69,13 +69,7 @@ export type DeliveryPredecessorRelation =
   | {
       readonly kind: "diverged";
       readonly observedTip: string;
-      /**
-       * Absent where the pair was read at a base the member does not sit on top of.
-       *
-       * Carrying it on every diverged pair is what retires the close-time reader's null branch, and that branch
-       * is the only thing refusing a non-empty overlap there — so the two move together, not here.
-       */
-      readonly chainBase?: string;
+      readonly chainBase: string;
       readonly mergeBase: string;
       readonly overlap: AvailableOverlap["overlap"];
     };
@@ -179,10 +173,9 @@ export async function predecessorRelation(
     relation: {
       kind: "diverged",
       observedTip: input.observedTip,
-      // The chain base rides only where the pair shares no changed content, which is where the reader below
-      // observes the chain from it. Where they do share content, nothing downstream may proceed from a base,
-      // and the absent field is what says so until the refusal is written out.
-      ...(overlap.overlap.substantivePaths.length === 0 ? { chainBase: overlap.mergeBase } : {}),
+      // Both directions name the same revision here: the best common ancestor is the last coordinate the two
+      // still agree on, so it is equally the base the chain sits on and the base the pair was measured from.
+      chainBase: overlap.mergeBase,
       mergeBase: overlap.mergeBase,
       overlap: overlap.overlap,
     },

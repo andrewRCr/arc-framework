@@ -9,6 +9,10 @@ import {
   type DeliveryPredecessorRelation,
 } from "./predecessor-relation.js";
 
+/** What both readers tell an operator whose member and observed tip changed the same content. */
+const OVERLAPPING_MOVEMENT_DETAIL = "The observed protected-base movement overlaps this delivery member. "
+  + "Rebuild the delivery chain against the observed tip; no safe automated rebuild command is available.";
+
 /** Exact ref coordinates pinned during one eligibility observation window. */
 export interface DeliveryEligibilityCoordinates {
   readonly head: string;
@@ -408,8 +412,7 @@ export async function prepareDeliveryEligibility(input: {
       deliverableId: firstCandidate.deliverableId,
       relation: observedRelation,
       paths: observedRelation.overlap.substantivePaths,
-      detail: "The observed protected-base movement overlaps this delivery member. Rebuild the delivery "
-        + "chain against the observed tip; no safe automated rebuild command is available.",
+      detail: OVERLAPPING_MOVEMENT_DETAIL,
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     };
   }
@@ -608,6 +611,21 @@ async function closeMechanicalDeliveryEligibility(
       detail: currentRelation.detail,
     };
   }
+  // Read from the fresh observation rather than from the relation the snapshot carries, and decided before the
+  // comparison below rather than after it: a snapshot holding content it may not proceed over reobserves
+  // identically and compares equal, so consistency with it establishes nothing about whether it may close.
+  if (currentRelation.relation.kind === "diverged"
+    && currentRelation.relation.overlap.substantivePaths.length > 0) {
+    return {
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: firstMember.deliverableId,
+      relation: currentRelation.relation,
+      paths: currentRelation.relation.overlap.substantivePaths,
+      detail: OVERLAPPING_MOVEMENT_DETAIL,
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    };
+  }
   if (!samePredecessorRelation(currentRelation.relation, snapshot.predecessorRelation)) {
     return {
       status: "refused",
@@ -697,13 +715,14 @@ async function closeMechanicalDeliveryEligibility(
 }
 
 /**
- * The coordinate a relation says the chain sits on, where it says one at all.
+ * The coordinate a relation says the chain sits on.
  *
- * A pair found to share changed content names no base to proceed from, and the absent field is what reports
- * that — so a reader observing the chain gets `null` rather than a coordinate it would have to trust.
+ * Interim: the declared result still admits a missing coordinate, which no variant produces now that every one
+ * of them carries a base. It is what keeps both readers' absent-base branches compiling until those branches
+ * are removed along with it.
  */
 function relationChainBase(relation: DeliveryPredecessorRelation): string | null {
-  return relation.kind === "diverged" ? relation.chainBase ?? null : relation.chainBase;
+  return relation.chainBase;
 }
 
 function samePredecessorRelation(

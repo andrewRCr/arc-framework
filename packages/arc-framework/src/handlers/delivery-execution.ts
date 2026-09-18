@@ -396,7 +396,7 @@ const PredecessorRelationSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("diverged"),
     observedTip: GitObjectIdSchema,
-    chainBase: GitObjectIdSchema.optional(),
+    chainBase: GitObjectIdSchema,
     mergeBase: GitObjectIdSchema,
     overlap: DeliveryOverlapSchema,
   }),
