@@ -73,6 +73,7 @@ describe("native delivery landing decline", () => {
       before,
       affectedDeliverableIds,
       restorations: [],
+      standingRemoteTop: null,
     });
   });
 
@@ -356,6 +357,80 @@ describe("native delivery landing decline", () => {
         affectedDeliverableIds: admitted.affectedDeliverableIds,
       },
     });
+  });
+
+  /**
+   * The one interleaving that leaves a ref moved outside the repository: the terminal top publishes under its
+   * own lease, and the settle then loses the closing write that would have cleared the reservation.
+   */
+  async function wedgedAfterThePublishedTop() {
+    const fixture = linkedSuffixFixture();
+    const store = casStateStore();
+    const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
+    const moved: Array<{ ref: string; beforeHead: string; requestedHead: string }> = [];
+    let publishes = 0;
+    const blocked = await reconcileLinkedNativeDeliverySuffix(fixture.reconcileInput, {
+      observeRequest: fixture.observeRequest,
+      observeRef: fixture.observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
+      absorbTop: async () => ({ status: "absorbed", ...absorbedTop }),
+      publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async (input) => {
+        moved.push(input);
+        return { status: "rewritten" };
+      },
+      stateStore: {
+        publish: async (planId: string, value: DeliveryStateV1, expectedRevision: number) => (
+          (publishes += 1) === 3
+            ? { status: "refused" as const, reason: "version-conflict" as const }
+            : store.stateStore.publish(planId, value, expectedRevision)
+        ),
+      },
+    });
+    if (blocked.status !== "blocked") throw new Error(`expected a wedged settle, got ${blocked.status}`);
+    const recorded = store.writes.at(-1);
+    if (recorded === undefined) throw new Error("expected the settle to record the absorbed top before wedging");
+    return {
+      moved,
+      absorbedTop,
+      terminalRef: fixture.bound.members.at(-1)!.ref!,
+      terminalHead: fixture.bound.members.at(-1)!.coordinates!.head,
+      planId: fixture.reconcileInput.plan.planId,
+      current: { revision: recorded.expectedRevision + 1, value: recorded.value },
+    };
+  }
+
+  it("names the remote terminal top the decline cannot take back", async () => {
+    const { moved, absorbedTop, terminalRef, terminalHead, planId, current } = await wedgedAfterThePublishedTop();
+    const heads = new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead]));
+    heads.set(terminalRef, absorbedTop.head);
+    const refs = localRefTable(heads);
+    const store = casStateStore(current.revision);
+
+    const released = await releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...refs, stateStore: store.stateStore },
+    );
+
+    // The local top is restored like any other ref the settle moved; the head it was published under is what
+    // the decline leaves out there, so the result names it instead of implying the rollback was total.
+    expect(released).toMatchObject({
+      status: "released",
+      standingRemoteTop: { ref: terminalRef, head: absorbedTop.head },
+    });
+    expect(refs.table.get(terminalRef)).toBe(terminalHead);
+  });
+
+  it("leaves nothing standing when the settle never absorbed a top", async () => {
+    const { moved, planId, current } = await wedgedSettlement();
+    const refs = localRefTable(new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead])));
+    const store = casStateStore(current.revision);
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...refs, stateStore: store.stateStore },
+    )).resolves.toMatchObject({ status: "released", standingRemoteTop: null });
   });
 
   it("reports the ref and the head it found when a lease fails", async () => {

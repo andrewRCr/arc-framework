@@ -514,7 +514,9 @@ The request carries the plan, repository, remote, and the `operationId` of the h
 the typed result:
 
 - `released` — the reservation is cleared. `restorations` lists every local member ref put back with the head it
-  returned to; `landed` names the effect and the members it covers, all of which stay landed.
+  returned to; `landed` names the effect and the members it covers, all of which stay landed. A non-null
+  `standingRemoteTop` names the terminal ref the settlement published outward and the head it wrote there — the
+  decline is local-only, so read that ref and decide what it should carry before continuing.
 - `retryable / preserved / delivery-native-land-status` — nothing landed, so there is nothing to decline. Rerun
   `land-status`, which owns that reconciliation.
 - `blocked` carrying a `lease` — a local member ref no longer sits where the settlement left it. The refusal names

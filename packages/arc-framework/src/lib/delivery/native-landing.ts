@@ -801,6 +801,19 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
   return { status: "applied", before: input.current, projected: reconciled.state };
 }
 
+/**
+ * The terminal top the settle published outward, which a local-only decline does not roll back.
+ *
+ * The settle rewrites the local top and then publishes it under its own lease, and only the local half is a
+ * restoration the decline can perform. The head here is the one the settle wrote and offered the remote; the
+ * reservation records the publication attempt but not its outcome, so this names the ref to look at rather
+ * than asserting where it now sits.
+ */
+export interface DeliveryNativeStandingRemoteTop {
+  readonly ref: string;
+  readonly head: string;
+}
+
 export type AdmitNativeDeliveryLandingReleaseResult =
   | {
       readonly status: "admitted";
@@ -809,6 +822,7 @@ export type AdmitNativeDeliveryLandingReleaseResult =
       readonly before: DeliveryOperationSnapshotV1;
       readonly affectedDeliverableIds: readonly string[];
       readonly restorations: readonly DeliveryProviderExternalRefRestoration[];
+      readonly standingRemoteTop: DeliveryNativeStandingRemoteTop | null;
     }
   | {
       readonly status: "retryable";
@@ -925,6 +939,27 @@ async function observeNativeLandingEffectDisposition(
 }
 
 /**
+ * The terminal top a settle published outward, or `null` when this reservation never moved one.
+ *
+ * The terminal joins the observed suffix only after the absorber has rewritten it, so an entry sitting at a head
+ * the member record does not carry is exactly the ref a local-only decline cannot take back.
+ *
+ * @param state - The delivery state the decline read, whose last member is the terminal.
+ * @param observedSuffix - The suffix the reservation recorded, terminal included once the absorber ran.
+ * @returns The terminal ref and the head the settle published it under, or `null`.
+ */
+function standingRemoteTopOf(
+  state: DeliveryStateV1,
+  observedSuffix: readonly DeliveryNativeObservedSuffixMemberV1[],
+): DeliveryNativeStandingRemoteTop | null {
+  const terminal = state.members.at(-1);
+  const settledTop = observedSuffix.find(({ deliverableId }) => deliverableId === terminal?.deliverableId);
+  return settledTop === undefined || terminal?.coordinates?.head === settledTop.coordinates.head
+    ? null
+    : { ref: settledTop.ref, head: settledTop.coordinates.head };
+}
+
+/**
  * Admit only a settled native landing reservation to release, refusing every unsettled one.
  *
  * @param input - The exact plan, reservation, and repository the decline names.
@@ -1003,18 +1038,20 @@ export async function admitNativeDeliveryLandingRelease(input: {
   const preRewriteHeads = new Map(input.current.value.members.map(
     ({ deliverableId, coordinates }) => [deliverableId, coordinates?.head],
   ));
+  const observedSuffix = operation.native?.observedSuffix ?? [];
   return {
     status: "admitted",
     operationId: operation.operationId,
     effect: operation.effect,
     before: operation.before,
     affectedDeliverableIds: operation.affectedDeliverableIds,
-    restorations: (operation.native?.observedSuffix ?? []).flatMap(({ deliverableId, ref, coordinates }) => {
+    restorations: observedSuffix.flatMap(({ deliverableId, ref, coordinates }) => {
       const restoreHead = preRewriteHeads.get(deliverableId);
       return restoreHead === undefined || restoreHead === coordinates.head
         ? []
         : [{ ref, observedHead: coordinates.head, restoreHead }];
     }),
+    standingRemoteTop: standingRemoteTopOf(input.current.value, observedSuffix),
   };
 }
 
@@ -1096,6 +1133,7 @@ export type ReleaseNativeDeliveryLandingResult =
       readonly status: "released";
       readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
       readonly restorations: readonly DeliveryProviderExternalRefRestoration[];
+      readonly standingRemoteTop: DeliveryNativeStandingRemoteTop | null;
       readonly landed: {
         readonly effect: DeliveryLandEffectV1;
         readonly affectedDeliverableIds: readonly string[];
@@ -1166,6 +1204,7 @@ export async function releaseNativeDeliveryLanding(input: {
     status: "released",
     state: published.value,
     restorations: restored.restorations,
+    standingRemoteTop: input.admitted.standingRemoteTop,
     landed: {
       effect: input.admitted.effect,
       affectedDeliverableIds: input.admitted.affectedDeliverableIds,

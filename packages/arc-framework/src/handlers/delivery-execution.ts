@@ -1335,6 +1335,10 @@ const ResultSchema = z.union([
     status: z.literal("released"),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
     restorations: z.array(ExternalRefRestorationSchema),
+    standingRemoteTop: z.strictObject({
+      ref: z.string().min(1),
+      head: GitObjectIdSchema,
+    }).nullable(),
     landed: z.strictObject({
       effect: DeliveryLandEffectV1Schema,
       affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),

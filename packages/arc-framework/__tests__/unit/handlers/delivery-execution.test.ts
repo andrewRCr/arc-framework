@@ -1437,6 +1437,7 @@ describe("delivery execution handler", () => {
       restorations: [
         { ref: "refs/heads/member-2", observedHead: "a".repeat(40), restoreHead: "5".repeat(40) },
       ],
+      standingRemoteTop: { ref: "refs/heads/member-3", head: "9".repeat(40) },
       landed: {
         effect: {
           providerId: "github",

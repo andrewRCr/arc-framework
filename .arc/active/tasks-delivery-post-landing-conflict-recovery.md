@@ -531,21 +531,33 @@ failed lease leaving the reservation held rather than half-released.
         - _Outcome:_ Verified RED: with the top removed from the recorded observation, all three fail and the
           sixteen pre-existing decline checks stay green.
 
-### `[ ]` **3.R2 Name the remote terminal top the decline leaves standing** — amendment A11
+### `[x]` **3.R2 Name the remote terminal top the decline leaves standing** — amendment A11
 
 - _Goal:_ A11 — Task 3.R closed the local half of the settle's inventory, and the remote terminal ref `publishTop`
   moves under its own lease is neither restored nor named when the final publish fails behind it.
 
-    - `[ ]` **3.R2.a Carry the standing remote top in the typed result**
+    - `[x]` **3.R2.a Carry the standing remote top in the typed result**
 
-        - Criterion 7 asks the result to name what it restored **and what it left standing**.
-          `ReleaseNativeDeliveryLandingResult` has a slot for the first and none for the second. Disclosure rather
-          than restoration: the shipped workflow declares the decline local-only and D9 keeps it there, so naming
-          the ref is the correction that stays inside the boundary.
+        - `standingRemoteTop` is carried from `admitNativeDeliveryLandingRelease` through the `released` arm, and
+          derived by `standingRemoteTopOf` from the one signal state holds: the terminal joins the observed suffix
+          only after the absorber rewrote it, so an entry at a head the member record does not carry is the ref
+          the decline cannot take back. Three surfaces had to move together — the library result, the handler's
+          `z.strictObject` release response, which would otherwise have refused the widened value, and the shipped
+          `deliver-stack.md` dispatch bullet, so the field reaches a reader instead of sitting unread.
 
-    - `[ ]` **3.R2.b Cover the interleaving that reaches it**
+    - `[x]` **3.R2.b Cover the interleaving that reaches it**
 
-        - A successful `publishTop` followed by a failed final publish has no case today.
+        - `wedgedAfterThePublishedTop` in `native-landing-release.test.ts` drives a settle whose terminal publish
+          succeeds and whose closing state write then loses its revision — the only order that leaves a ref moved
+          outside the repository with the reservation still held. Its companion asserts the null: a settle wedged
+          at the absorber published no top, so the decline leaves nothing standing. The handler's released-decline
+          case carries a non-null value through the CLI projection, where dropping the schema field turns the
+          whole result into `invalid-service-result` rather than silently shipping without it.
+
+- _Outcome:_ The disclosure names the head the settle wrote and offered, not where the ref now sits — the
+  reservation records the publication attempt, not its outcome, and a refused `publishTop` reaches the decline
+  through the same state. Extracting the derivation kept `admitNativeDeliveryLandingRelease` inside the complexity
+  gate, which the inline form had pushed from 15 to 18 without adding a suppression.
 
 ### `[x]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
 
