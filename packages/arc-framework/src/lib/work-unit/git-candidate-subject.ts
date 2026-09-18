@@ -1,6 +1,7 @@
 /** Git-backed Candidate subject collection for one work-unit branch. */
 
 import type { GitExec } from "../git/exec.js";
+import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { isGitObjectId } from "../git/object-id.js";
 import { readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
 import { classifyPathTreatment } from "../evidence-applicability/index.js";
@@ -32,6 +33,15 @@ export interface CollectGitCandidateTargetInput {
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
   readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
 }
+
+/** A collected subject, or the reason the branch and its base leave no single revision to collect one against. */
+export type CandidateSubjectCollection =
+  | { readonly status: "collected"; readonly target: CandidateLineageTarget }
+  | {
+      readonly status: "refused";
+      readonly reason: "merge-base-ambiguous";
+      readonly detail: string;
+    };
 
 /** Resolve the configured base from its materialized remote-tracking ref, falling back to the local branch. */
 export async function resolveGitCandidateBaseRevision(input: {
@@ -150,10 +160,21 @@ export async function collectUnstagedReviewablePaths(
     .sort(compareUtf8);
 }
 
-/** Collect the staged work-unit subject, or one exact committed subject, relative to its configured base. */
-export async function collectGitCandidateTarget(
+/**
+ * Collect the staged work-unit subject, or one exact committed subject, relative to its configured base.
+ *
+ * The subject is the base-relative diff from the single base the branch and its configured base share, rather
+ * than the set the branch's own commits name. The two disagree in both directions: a path changed and reverted
+ * within the branch leaves a permanent entry in the commit-derived set, so currentness never clears, while a
+ * path the branch keeps its own side of across a base merge appears in no commit's diff at all and goes
+ * uncontributed.
+ *
+ * @param input - The checkout, the work unit, its configured base, and the Git boundary to read through.
+ * @returns The collected subject, or the refusal naming why there is no single base to collect it against.
+ */
+export async function collectGitCandidateSubject(
   input: CollectGitCandidateTargetInput,
-): Promise<CandidateLineageTarget> {
+): Promise<CandidateSubjectCollection> {
   const name = SlugSchema.parse(input.name);
   const baseBranch = input.baseBranch.trim();
   if (baseBranch === "") throw new Error("Candidate subject collection requires a configured base branch");
@@ -164,8 +185,22 @@ export async function collectGitCandidateTarget(
   const baseRevision = input.baseRevision
     ?? await resolveGitCandidateBaseRevision({ cwd: input.cwd, baseBranch, exec: input.exec });
   if (!isGitObjectId(baseRevision)) throw new Error("Cannot resolve the Candidate base revision");
-  const base = (await input.exec("git", ["merge-base", head, baseRevision], options)).stdout.trim();
-  if (!isGitObjectId(base)) throw new Error("Cannot resolve the Candidate base revision");
+  // Read every best common ancestor rather than the one Git would otherwise hand back. Over a history
+  // leaving two, the ancestor that read picks decides which half of the branch's work the subject reports,
+  // and names neither the choice nor the alternative — so what an attestation binds as the contribution
+  // depends on a selection nothing recorded. Refusing is what keeps that half from being bound at all.
+  const sole = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, options),
+    leftRevision: head,
+    rightRevision: baseRevision,
+  });
+  if (sole.status === "ambiguous") {
+    return { status: "refused", reason: "merge-base-ambiguous", detail: sole.detail };
+  }
+  // A base that cannot be read, and one the branch shares no lineage with, both already reached the caller
+  // as a raised failure and still do; only the choice made silently is converted here.
+  if (sole.status !== "resolved") throw new Error("Cannot resolve the Candidate base revision");
+  const base = sole.mergeBase;
   const changed = (await input.exec(
     "git",
     input.revision === undefined
@@ -225,10 +260,30 @@ export async function collectGitCandidateTarget(
       treatment: relocatedEntry.treatment,
     });
   }
-  return CandidateLineageTargetSchema.parse({
-    revision: head,
-    subject: createCandidateSubjectSnapshot([...entries.values()]),
-  });
+  return {
+    status: "collected",
+    target: CandidateLineageTargetSchema.parse({
+      revision: head,
+      subject: createCandidateSubjectSnapshot([...entries.values()]),
+    }),
+  };
+}
+
+/**
+ * Collect the subject, raising a refusal rather than returning it.
+ *
+ * Every caller reached through here inherits one policy for a base that resolves to no single revision, which
+ * is the policy the reader itself used to hold. It goes away once each call site applies its own.
+ *
+ * @param input - The same collection input the reader takes.
+ * @returns The collected subject.
+ */
+export async function collectGitCandidateTarget(
+  input: CollectGitCandidateTargetInput,
+): Promise<CandidateLineageTarget> {
+  const collected = await collectGitCandidateSubject(input);
+  if (collected.status !== "collected") throw new Error(collected.detail);
+  return collected.target;
 }
 
 function compareUtf8(left: string, right: string): number {

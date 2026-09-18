@@ -117,6 +117,14 @@ export interface AmbiguousMergeBaseOptions extends BaseCoordinates {
   /** The path the branch-side ancestor changes. */
   readonly branchPath?: string;
   readonly message?: string;
+  /**
+   * When the advanced base reaches the remote, and so when the pair becomes ambiguous at all.
+   *
+   * The branch's own merge is history a checkout carries from the moment it is made; the base's merge is what
+   * makes the two ancestors equally good. A boundary observing an already-attested Candidate over an ambiguous
+   * history needs them in that order, because attesting over one is what the subject collector refuses.
+   */
+  readonly publishBase?: "immediately" | "on-request";
 }
 
 /** The two heads a criss-cross leaves, and the two ancestors that make it ambiguous. */
@@ -128,6 +136,8 @@ export interface AmbiguousMergeBaseResult {
   /** Both best merge bases, base-side ancestor first. */
   readonly bases: readonly [string, string];
   readonly paths: MovementPathSets;
+  /** Push the advanced base, which is what leaves the pair two best ancestors. Already done unless deferred. */
+  readonly publish: () => Promise<void>;
 }
 
 /**
@@ -313,7 +323,7 @@ export async function advanceBase(options: BaseAdvanceOptions): Promise<BaseAdva
  * picks one of the two bases is choosing which half of the history it sees, not which half exists.
  *
  * @param options - The checkout, base coordinates, and the path each ancestor changes.
- * @returns Both heads, both merge bases, and the paths each side changed.
+ * @returns Both heads, both merge bases, the paths each side changed, and the base-side push.
  */
 export async function arrangeAmbiguousMergeBase(
   options: AmbiguousMergeBaseOptions,
@@ -369,15 +379,19 @@ export async function arrangeAmbiguousMergeBase(
     ],
     authorEnvironment(),
   )).trim();
-  await git(options.cwd, [
-    "-c", "core.hooksPath=/dev/null", "push", remote, `${advanced}:refs/heads/${base}`,
-  ]);
+  const publish = async (): Promise<void> => {
+    await git(options.cwd, [
+      "-c", "core.hooksPath=/dev/null", "push", remote, `${advanced}:refs/heads/${base}`,
+    ]);
+  };
+  if ((options.publishBase ?? "immediately") === "immediately") await publish();
 
   return {
     base: advanced,
     head,
     bases: [baseSide, branchSide],
     paths: { branch: [branchPath], base: [basePath] },
+    publish,
   };
 }
 

@@ -818,30 +818,23 @@ consuming call site.
 _Design decisions:_ The two allocated-but-unconverted readers and the five out-of-scope silent picks are
 recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 
-### `[ ]` **6.1 Adopt the resolver at the subject reader and derive the subject from the single base**
+### `[x]` **6.1 Adopt the resolver at the subject reader and derive the subject from the single base**
 
 - _Goal:_ The subject is the base-relative diff from one resolved base, so a two-base history refuses instead of
   naming the base's own change as the contribution.
 
-- _Rationale:_ A tree-to-tree comparison with fragility discharged by refusal — no merge-diff mode selection, no
-  union, no special handling of merge commits. A commit-derived set was falsified twice: it cannot see a branch
-  retaining its own side of a base-changed path across a base merge, and because the digest is taken over path,
-  content digest, and mode, a path changed and reverted within the branch leaves a permanent no-op entry so
-  currentness never clears. The base-relative set drops that path and the digest returns to its attested value.
+    - `[x]` **6.1.a Derive the subject from the single resolved base**
 
-- _Note:_ This reader fails by throwing today, several times before it reaches its merge-base read. The new refusal
-  arrives as the widened result its call sites handle; the unrelated throws stay. `resolveGitCandidateBaseRevision`
-  is its immediate dependency and also throws, but it resolves the base branch tip rather than a merge base, so it
-  is outside the conversion set and stays as it is.
+        - `collectGitCandidateSubject` resolves through `resolveSoleMergeBase` and answers `collected` or a
+          `merge-base-ambiguous` refusal. A base that cannot be read, and one sharing no lineage, still raise:
+          only the choice made silently is converted. Two integration cases pin the base-relative set against the
+          commit-derived one that was falsified — the reverted path absent, the merge-retained path present.
 
-    - `[ ]` **6.1.a Derive the subject from the single resolved base**
-
-        - Build `test-first` (one behavior at a time):
-
-            - A single-base history produces the base-relative path set
-            - A two-base history refuses typed rather than picking an ancestor
-            - A path changed and reverted within the branch leaves no entry
-            - A branch retaining its own side of a base-changed path contributes that retention
+- _Outcome:_ `collectGitCandidateTarget` survives as a wrapper raising the refusal, so the eleven call sites keep
+  compiling until each takes its own policy. Its removal is the whole of Task 6.3. The refusal also reached the
+  review-status fixture, which attested a Candidate over the criss-cross history it then measured: attesting
+  there is now refused, so `arrangeAmbiguousMergeBase` gained a deferred base push and the fixture publishes the
+  second ancestor after attestation — the order a real Candidate reaches that state in anyway.
 
 ### `[ ]` **6.2 Adopt the resolver at the overlap, effective-target, and repository-target readers**
 
@@ -970,9 +963,16 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
-    - `[ ]` **6.7.a Replace the committed-arm subject and digest sibling holds**
+    - `[x]` **6.7.a Replace the committed-arm subject and digest sibling holds**
 
-    - `[ ]` **6.7.b Replace the staged-arm hold**
+        - Taken at Task 6.1, which is where both went red: the collector refuses, so the committed arm reports no
+          paths to hold and the digest sibling has no ambiguous digest to compare. The replacements assert the
+          refusal, and the sibling keeps its control — identical content on both arrangements, so the shape of
+          the history is all that separates the outcomes.
+
+    - `[x]` **6.7.b Replace the staged-arm hold**
+
+        - Taken at Task 6.1 with its sibling, by the spent route its `target` declared: the staged arm refuses.
 
     - `[ ]` **6.7.c Retire the Candidate applicability hold deliberately**
 

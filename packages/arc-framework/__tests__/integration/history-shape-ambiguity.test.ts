@@ -2,14 +2,14 @@
  * What each boundary that computes a merge base returns when the history leaves more than one.
  *
  * A branch and its base can share two equally good common ancestors with neither reachable from the
- * other, and the readers here disagree about what to do: one picks a side without saying so, one
- * refuses with a typed reason, and one reports its evidence unavailable. Each case observes the
- * reader the boundary actually runs, over a real repository, against a control on the same
- * arrangement with an unambiguous history.
+ * other, and each reader here says so in its own terms rather than resolving to whichever side the
+ * choice exposes: one refuses to collect at all, one refuses with a typed reason, and one reports the
+ * cardinality as its overlap. Each case observes the reader the boundary actually runs, over a real
+ * repository, against a control on the same arrangement with an unambiguous history.
  *
  * The subject collector is read twice, because it has two arms over one base read: the committed arm
- * diffs a named revision against the base, and the staged arm diffs the index. A fix applied to one
- * leaves the other picking silently, so neither arm's coverage stands in for the other's.
+ * diffs a named revision against the base, and the staged arm diffs the index. A change reaching only
+ * one of them leaves the other unproven, so neither arm's coverage stands in for the other's.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -23,7 +23,10 @@ import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../src/lib/work-unit/candidate-attestation.js";
 import { runBaseDrift } from "../../src/lib/git/base-distance.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import {
+  collectGitCandidateSubject,
+  type CandidateSubjectCollection,
+} from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
   advanceBase,
   arrangeAmbiguousMergeBase,
@@ -65,17 +68,33 @@ async function checkoutOnWorkUnitBranch(): Promise<string> {
   return clone.cloneA;
 }
 
-/** The paths the collected subject reports, which is what an attestation goes on to bind. */
-async function subjectPaths(cwd: string, revision: string, baseRevision: string): Promise<string[]> {
-  const target = await collectGitCandidateTarget({
+/** Collect the subject the boundary would attest, as the reader answers it — refusal included. */
+async function collectSubject(
+  cwd: string,
+  baseRevision: string,
+  revision?: string,
+): Promise<CandidateSubjectCollection> {
+  return collectGitCandidateSubject({
     cwd,
     name: WORK_UNIT,
     baseBranch: "main",
     baseRevision,
-    revision,
+    ...(revision === undefined ? {} : { revision }),
     exec: makeGitExec(cwd),
   });
-  return target.subject.entries.map((entry) => entry.path);
+}
+
+/**
+ * The paths a collected subject carries, or the reason it carries none — so both outcomes read in one place.
+ *
+ * The paths are re-sorted by path. A subject orders its entries by their canonical bytes, which puts them in
+ * digest order, so asserting the collector's own order would bind these cases to the fixture's blob content
+ * rather than to which paths the subject carries.
+ */
+function collectedPathsOrReason(collection: CandidateSubjectCollection): readonly string[] | string {
+  return collection.status === "collected"
+    ? collection.target.subject.entries.map((entry) => entry.path).sort()
+    : collection.reason;
 }
 
 /** Put one path in the index and leave it out of every commit, so the staged arm has something to read. */
@@ -85,70 +104,31 @@ async function stageWork(cwd: string, path: string): Promise<void> {
   await git(cwd, ["add", "--", path]);
 }
 
-/**
- * What the staged arm does, distinguishing a collected path set from declining to collect one.
- *
- * Supplying no revision selects the arm whose subject is the index, and an ambiguous history should
- * reach a refusal there rather than a path set diffed from one arbitrarily chosen ancestor. The two
- * are held apart as outcomes because the refusal has no path set to compare against.
- *
- * The paths are re-sorted by path. A subject orders its entries by their canonical bytes, which puts
- * them in digest order, so asserting the collector's own order would bind this to the fixture's blob
- * content rather than to which paths the subject carries.
- *
- * They are reported for the unambiguous case only. `git merge-base` without `--all` returns one best
- * common ancestor and does not say which, so over two equally good ones the collected path set is
- * whichever half that choice exposes — observed to differ between runs of this very suite. The
- * ambiguous case therefore holds the outcome rather than the paths: what is wrong there is that a
- * subject is collected at all, not which of the two halves it happened to show.
- */
-async function stagedSubject(cwd: string, baseRevision: string): Promise<Record<string, unknown>> {
-  try {
-    const target = await collectGitCandidateTarget({
-      cwd,
-      name: WORK_UNIT,
-      baseBranch: "main",
-      baseRevision,
-      exec: makeGitExec(cwd),
-    });
-    const paths = target.subject.entries.map((entry) => entry.path);
-    return { outcome: "collected", paths: [...paths].sort() };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    // Only a refusal about the base's cardinality is the awaited outcome. Any other throw is a
-    // different failure, and reading it as the awaited one would retire this hold over a broken fixture.
-    if (!/ambiguous|multiple .*base|sole base/iu.test(message)) throw error;
-    return { outcome: "refused" };
-  }
-}
-
 describe("the subject a work unit's own verification binds", () => {
   it("reports the branch's own contribution when one merge base is the only one", async () => {
     const cwd = await checkoutOnWorkUnitBranch();
     await arrangeBranchSide({ cwd, paths: [BRANCH_PATH] });
     const advance = await advanceBase({ cwd, paths: [BASE_PATH] });
 
-    const paths = await subjectPaths(cwd, await git(cwd, ["rev-parse", "HEAD"]), advance.head);
+    const collection = await collectSubject(cwd, advance.head, await git(cwd, ["rev-parse", "HEAD"]));
 
-    expect(paths).toEqual([BRANCH_PATH]);
+    expect(collectedPathsOrReason(collection)).toEqual([BRANCH_PATH]);
   });
 
-  it("reports the base's own change as the contribution when two merge bases exist", async () => {
+  it("collects no subject at all when the history leaves two equally good merge bases", async () => {
     const cwd = await checkoutOnWorkUnitBranch();
     const arrangement = await arrangeAmbiguousMergeBase({ cwd });
 
-    const paths = await subjectPaths(cwd, arrangement.head, arrangement.base);
-
-    expectPinnedObservation({ paths }, {
-      behavior: "A branch whose history leaves two equally good merge bases still contributed exactly "
-        + "what its own commits changed, so collecting its subject should report that contribution "
-        + "rather than whichever side one silently chosen ancestor happens to expose.",
-      observed: { paths: [BASE_PATH] },
-      target: { paths: [BRANCH_PATH] },
+    // Not a choice between the two halves the two ancestors expose: either half would be bound as the
+    // branch's contribution on the strength of a selection the result does not carry and nobody made.
+    await expect(collectSubject(cwd, arrangement.base, arrangement.head)).resolves.toEqual({
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The revisions have more than one best merge base.",
     });
   });
 
-  it("reads the ambiguous subject against the one the same branch work produces unambiguously", async () => {
+  it("separates on the shape of the history rather than on anything the branch contributed", async () => {
     const ambiguous = await checkoutOnWorkUnitBranch();
     const arrangement = await arrangeAmbiguousMergeBase({ cwd: ambiguous, message: ARRANGEMENT_MESSAGE });
     const unambiguous = await checkoutOnWorkUnitBranch();
@@ -157,27 +137,13 @@ describe("the subject a work unit's own verification binds", () => {
       cwd: unambiguous, paths: [BASE_PATH], message: ARRANGEMENT_MESSAGE,
     });
 
-    const digest = async (cwd: string, revision: string, base: string): Promise<string> => (
-      await collectGitCandidateTarget({
-        cwd, name: WORK_UNIT, baseBranch: "main", baseRevision: base, revision, exec: makeGitExec(cwd),
-      })
-    ).subject.subjectDigest;
-
-    const ambiguousDigest = await digest(ambiguous, arrangement.head, arrangement.base);
-    const unambiguousDigest = await digest(
-      unambiguous, await git(unambiguous, ["rev-parse", "HEAD"]), advance.head,
-    );
-
-    // Held rather than compared bare: the two arms write identical content deliberately, so the reading that
-    // retires the pin above is the same reading that makes these digests agree. A plain inequality would go
-    // red on that fix with an object diff and nothing saying the hold was spent.
-    expectPinnedObservation({ differs: ambiguousDigest !== unambiguousDigest }, {
-      behavior: "The same branch work contributes the same subject whether or not its history leaves two "
-        + "equally good merge bases, so the ambiguous reading should digest to what the unambiguous one "
-        + "does rather than to whichever side one silently chosen ancestor exposes.",
-      observed: { differs: true },
-      target: { differs: false },
-    });
+    // The two arrangements write identical content deliberately, so the same branch work reaches both
+    // readings and only the shape of the history they sit in tells the outcomes apart.
+    expect(collectedPathsOrReason(await collectSubject(ambiguous, arrangement.base, arrangement.head)))
+      .toBe("merge-base-ambiguous");
+    expect(collectedPathsOrReason(
+      await collectSubject(unambiguous, advance.head, await git(unambiguous, ["rev-parse", "HEAD"])),
+    )).toEqual([BRANCH_PATH]);
   });
 
   it("reports the branch's own contribution and its staged work when one merge base is the only one",
@@ -187,30 +153,19 @@ describe("the subject a work unit's own verification binds", () => {
       const advance = await advanceBase({ cwd, paths: [BASE_PATH] });
       await stageWork(cwd, STAGED_PATH);
 
-      const outcome = await stagedSubject(cwd, advance.head);
+      const collection = await collectSubject(cwd, advance.head);
 
-      expect(outcome).toEqual({ outcome: "collected", paths: [BRANCH_PATH, STAGED_PATH] });
+      expect(collectedPathsOrReason(collection)).toEqual([BRANCH_PATH, STAGED_PATH]);
     });
 
-  it("collects a staged subject from one chosen ancestor when two merge bases exist", async () => {
+  it("collects no staged subject either, rather than diffing the index against a chosen ancestor", async () => {
     const cwd = await checkoutOnWorkUnitBranch();
     const arrangement = await arrangeAmbiguousMergeBase({ cwd });
     await stageWork(cwd, STAGED_PATH);
 
-    const outcome = await stagedSubject(cwd, arrangement.base);
-
-    // Stable whichever ancestor the pick lands on: neither carries the staged path, so it reaches the
-    // subject either way. This is what makes the case a reading of the staged arm rather than the
-    // committed one.
-    expect(outcome["paths"]).toContain(STAGED_PATH);
-
-    expectPinnedObservation(outcome, {
-      behavior: "The staged subject is the index read against one base, so a history leaving two equally "
-        + "good merge bases should refuse to collect it rather than diff the index against an ancestor "
-        + "chosen without saying so.",
-      observed: { outcome: "collected" },
-      target: { outcome: "refused" },
-    });
+    // Read separately from the committed arm above: the two share one base read, so a fix reaching only
+    // one of them would leave the other diffing the index against an ancestor chosen without saying so.
+    expect(collectedPathsOrReason(await collectSubject(cwd, arrangement.base))).toBe("merge-base-ambiguous");
   });
 });
 

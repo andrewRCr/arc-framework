@@ -248,6 +248,24 @@ describe("review status when the base read goes unavailable under it", () => {
 });
 
 describe("review status over a history leaving two merge bases", () => {
+  /**
+   * A Candidate attested over its own criss-cross merge, whose base becomes the second best ancestor after.
+   *
+   * The two halves cannot both precede the attestation: collecting a subject over a pair with two best
+   * ancestors is refused, so a Candidate could never have been attested there. Publishing the base afterwards
+   * is also the order a real one reaches this state in — the branch is attested, and then the base moves.
+   */
+  async function attestedUnderAnAmbiguousBase(): Promise<Awaited<ReturnType<typeof singletonUnderReview>>> {
+    let publishBase: (() => Promise<void>) | undefined;
+    const fixture = await singletonUnderReview(async (root) => {
+      ({ publish: publishBase } = await arrangeAmbiguousMergeBase({
+        cwd: root, publishBase: "on-request",
+      }));
+    });
+    await publishBase?.();
+    return fixture;
+  }
+
   it("reports the settled state the ambiguous reading is measured against", async () => {
     const fixture = await singletonUnderReview();
 
@@ -258,9 +276,7 @@ describe("review status over a history leaving two merge bases", () => {
   });
 
   it("directs a checkpoint rerun on a base that moved only in shape", async () => {
-    const fixture = await singletonUnderReview(async (root) => {
-      await arrangeAmbiguousMergeBase({ cwd: root });
-    });
+    const fixture = await attestedUnderAnAmbiguousBase();
 
     // A second equally good merge base leaves nothing to prove the branch's own contribution from, rather
     // than leaving that contribution unchanged, so the reading does not settle. It names the rerun because
@@ -273,9 +289,7 @@ describe("review status over a history leaving two merge bases", () => {
   });
 
   it("sends an ambiguous base back through the checkpoint, naming the cause beside the movement", async () => {
-    const fixture = await singletonUnderReview(async (root) => {
-      await arrangeAmbiguousMergeBase({ cwd: root });
-    });
+    const fixture = await attestedUnderAnAmbiguousBase();
 
     // Recoverable at this pair: merging the base in collapses the two comparison points to one, and the
     // checkpoint is where that route is offered. So the reading keeps its rerun.
@@ -288,9 +302,7 @@ describe("review status over a history leaving two merge bases", () => {
   });
 
   it("reports the ambiguity itself, apart from a comparison it could not read", async () => {
-    const fixture = await singletonUnderReview(async (root) => {
-      await arrangeAmbiguousMergeBase({ cwd: root });
-    });
+    const fixture = await attestedUnderAnAmbiguousBase();
 
     const ambiguous = await statusThroughPort(fixture);
     const unreadable = await statusThroughPort(fixture, withUnreadableMergeBases);
