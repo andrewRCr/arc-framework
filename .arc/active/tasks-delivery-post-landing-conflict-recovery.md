@@ -1058,30 +1058,34 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
           plan refuses as a mismatch rather than arriving as a deliverable miss. Plan ids compare without case
           while the deliverable and work unit beside them compare exactly, which preserves today's admission.
 
-### `[ ]` **7.3 Invert review readiness to resolve by identity, then compare by relation**
+### `[x]` **7.3 Invert review readiness to resolve by identity, then compare by relation**
 
 - _Goal:_ A stale binding and an absent binding become distinguishable, because the reader now finds the member
   and then compares its recorded head against the observed one.
 
-- _Rationale:_ A moved head does not mismatch at this reader — it misses. Readiness resolves by head, and every
-  production member lookup is keyed the same way, so no member is found and there is no bound coordinate to
-  compare. Adding an ancestry term to a comparison that never runs would change nothing. The inversion conforms
-  readiness to the order the review gate already uses, where identity-first resolution across head movement is
-  the pattern rather than the exception.
+    - `[x]` **7.3.a Resolve by deliverable identity**
 
-- _Note:_ The vehicle already holds the key, so the call is a conversion rather than a new lookup — readiness
-  spells the third field one way where the vehicle spells it another, so the hand-off needs a rename.
+        - The reader hands the vehicle's own three fields to the deliverable-keyed lookup, renaming the work unit
+          it spells as a slug. The four identity misses take the paths the three post-hoc comparisons used, so
+          the emitted code and paths are unchanged while the resolution order is inverted.
 
-    - `[ ]` **7.3.a Resolve by deliverable identity**
+    - `[x]` **7.3.b Compare the recorded head against the observed one by relation**
 
-    - `[ ]` **7.3.b Compare the recorded head against the observed one by relation**
+        - `classifyPredecessorRelation` takes the recorded head as bound and the head under review as observed:
+          `unchanged` and `advanced` admit, and every other reading reports `delivery-member-stale`. Only the
+          forward direction is read, which also leaves `diverged` unreachable — the one variant carrying a
+          cardinality — so no count is ever supplied that nothing read.
+        - Ancestry is a second authority the module could not reach, injected beside the lookup from the same
+          composition root and pinned to that root. An absent reader answers `unresolvable`, so an unmoved
+          binding is still admitted and a moved one is never admitted without the read.
 
-        - Build `test-first` (one behavior at a time):
-
-            - A member whose branch advanced past its bound head reports the stale binding, not nothing
-            - A member with no binding reports absent
-            - An unmoved member is unaffected
-            - A final member still emits its terminal-member fact
+- _Outcome:_ The distinction lands by narrowing rather than by adding: `delivery-member-unbound` now means the
+  plan carries this member and records no head for it, so a repository whose plans carry the work unit not at all
+  reports an identity miss instead. That reaches two live assertions about composition-root binding, which now
+  name the miss they actually get. The design costed this inversion as the lookup alone; the ancestry read is a
+  second cost it did not carry, and pinning that read to the resolved root — rather than to whatever directory
+  the process is in — is what the first run got wrong. The readiness probe reached its declared target here
+  rather than at Task 7.6, so 7.6.a landed in this increment.
 
 ### `[ ]` **7.4 Retire `delivery-member-mismatch` and emit the arm-specific outcomes**
 
@@ -1157,7 +1161,12 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
-    - `[ ]` **7.6.a Replace the review-readiness binding hold**
+    - `[x]` **7.6.a Replace the review-readiness binding hold** — landed with Task 7.3
+
+        - Inverting the reader is what reaches the hold's declared target, so the helper reported it spent in
+          that same change and the replacement could not wait. It asserts the target directly and adds the
+          reading the target implies: a head its binding does not contain is refused as its own condition,
+          distinct from a member the plan holds with nothing recorded for it.
 
     - `[ ]` **7.6.b Replace the terminal head-movement hold**
 

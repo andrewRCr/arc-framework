@@ -5631,7 +5631,14 @@ async function executeDeliveryCommand(
             deliverableId: input.deliverableId,
             workUnitSlug: input.workUnitId,
           },
-        }, { deliveryMemberLookup: memberLookup });
+        }, {
+          deliveryMemberLookup: memberLookup,
+          readDeliveryAncestry: (ancestor, descendant) => readAncestry(
+            (command, args, options) => exec(command, args, { ...options, cwd }),
+            ancestor,
+            descendant,
+          ),
+        });
         if (checked.state !== "ready") {
           return { status: "refused" as const, reason: "review-readiness-invalid" as const };
         }

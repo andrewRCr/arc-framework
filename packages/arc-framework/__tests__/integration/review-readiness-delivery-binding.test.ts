@@ -23,7 +23,6 @@ import {
   type MergeLockTransitionRequest,
 } from "../../src/scripts/review-gate/merge-lock.js";
 import { cleanupTempDir, createTempRepo, makeCommit, makeGitExec } from "../helpers/integration.js";
-import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 
 const PLAN_ID = "8ddfd842-4c92-4ccb-9958-ae47b43e2c44";
@@ -37,6 +36,11 @@ const execFileAsync = promisify(execFile);
 
 async function tree(cwd: string, revision: string): Promise<string> {
   const { stdout } = await execFileAsync("git", ["rev-parse", `${revision}^{tree}`], { cwd });
+  return stdout.trim();
+}
+
+async function parentOf(cwd: string, revision: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", `${revision}^`], { cwd });
   return stdout.trim();
 }
 
@@ -195,9 +199,11 @@ describe("readiness delivery binding at its composition roots", () => {
     const resolvedFromUnbound = await runReadinessHandler(unbound, bound);
 
     expect(resolvedFromBound.state).toBe("ready");
+    // No plan in that repository carries the work unit, which is a different miss from a plan that
+    // carries the member with no head recorded for it.
     expect(resolvedFromUnbound).toMatchObject({
       state: "invalid",
-      diagnostics: [{ code: "delivery-member-unbound" }],
+      diagnostics: [{ code: "delivery-member-mismatch" }],
     });
   });
 
@@ -222,7 +228,7 @@ describe("readiness delivery binding at its composition roots", () => {
       state: "blocked",
       payload: { reason: "readiness-failed" },
       diagnostics: expect.arrayContaining([
-        expect.objectContaining({ code: "delivery-member-unbound" }),
+        expect.objectContaining({ code: "delivery-member-mismatch" }),
       ]),
     });
   });
@@ -275,23 +281,41 @@ function outcome(result: { state: string; diagnostics: { code: string }[] }): {
   return { state: result.state, diagnostics: result.diagnostics.map((entry) => entry.code) };
 }
 
+/** A repository whose plan holds the member and whose state records no head for it. */
+async function plannedUnboundRepository(): Promise<string> {
+  const cwd = await createTempRepo("arc-review-readiness-planned-");
+  roots.push(cwd);
+  const publisher = new RepositoryGitCommonStatePublisher(makeGitExec(cwd), cwd);
+  const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
+  expect((await planStore.publishCurrent(PLAN_ID, plan, null)).status).toBe("ok");
+  return cwd;
+}
+
 describe("readiness against a member head that advanced under its binding", () => {
-  it("reports nothing bound when a member's head advanced without changing its contribution", async () => {
+  it("admits a head that advanced under its binding, apart from one nothing binds", async () => {
     const { cwd, advanced } = await staleBoundRepository();
-    const unbound = await unboundRepository();
+    const planned = await plannedUnboundRepository();
 
     const stale = outcome(await runReadinessHandler(cwd, cwd, advanced));
-    const absent = outcome(await runReadinessHandler(unbound, unbound, advanced));
+    const absent = outcome(await runReadinessHandler(planned, planned, advanced));
 
-    // Held first, so a run that reaches the awaited result says the hold is spent rather than dying on
-    // the equality below with a bare object diff.
-    expectPinnedObservation(stale, {
-      behavior:
-        "A delivery member whose bound head advanced by a commit changing nothing is still the " +
-        "reviewed member, so readiness should admit it rather than report nothing bound at all.",
-      observed: { state: "invalid", diagnostics: ["delivery-member-unbound"] },
-      target: { state: "ready" },
-    });
-    expect(stale).toEqual(absent);
+    // The member is still the reviewed member: its recorded head is an ancestor of the head under
+    // review, so the movement is append-only and the gate below still holds the observed head exact.
+    expect(stale).toEqual({ state: "ready", diagnostics: [] });
+    // And the binding nothing records reports that, rather than the same word the advance used to get.
+    expect(absent).toEqual({ state: "invalid", diagnostics: ["delivery-member-unbound"] });
+  });
+
+  it("reports a head its binding does not contain without claiming nothing is bound", async () => {
+    const { cwd, bound } = await staleBoundRepository();
+    const planned = await plannedUnboundRepository();
+
+    // The bound head is a descendant of the root commit, so a review of the root is a head the
+    // binding does not contain — neither the recorded head nor an advance past it.
+    const behind = outcome(await runReadinessHandler(cwd, cwd, await parentOf(cwd, bound)));
+    const absent = outcome(await runReadinessHandler(planned, planned, bound));
+
+    expect(behind).toEqual({ state: "invalid", diagnostics: ["delivery-member-stale"] });
+    expect(behind).not.toEqual(absent);
   });
 });

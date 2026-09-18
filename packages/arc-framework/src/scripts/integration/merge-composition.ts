@@ -37,6 +37,7 @@ import { readGhRequiredStatusPolicy } from "../review-gate/hosts/github/checks-a
 import { GhMergeLockPort } from "../review-gate/hosts/github/merge-lock.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
+import { readAncestry } from "../../lib/work-unit/git-decomposition-object-readers.js";
 import { RepositoryDeliveryMemberLookup } from "../review-gate/hosts/local/delivery-member-lookup.js";
 import { readMergeLockSetting } from "../review-gate/hosts/local/merge-lock-config.js";
 import {
@@ -143,10 +144,15 @@ export function createIntegrationMergeDependencies(input: {
   const mergeObservationPort = createGhChangeRequestMergeObservationPort(runner);
   const respondDependencies = createRespondDependencies(input);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
+  const rootExec: GitExec = (command, args, options) => input.exec(command, args, {
+    ...options,
+    cwd: input.cwd,
+  });
   const lockPort = new GhMergeLockPort(
     runner,
     (request) => evaluateReviewReadiness(request, {
       deliveryMemberLookup,
+      readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
       fs: createGitTreeReadFs({
         cwd: input.cwd,
         revision: request.target.headSha,

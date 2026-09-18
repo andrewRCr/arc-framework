@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
 import type {
-  DeliveryMemberLookup,
-  DeliveryMemberLookupResult,
+  DeliveryMemberIdentity,
+  DeliveryMemberIdentityLookup,
+  DeliveryMemberIdentityLookupResult,
 } from "../../../../src/scripts/review-gate/core/delivery-member-lookup.js";
 import {
   evaluateReviewReadiness,
@@ -124,16 +125,23 @@ function memberVehicle(
   };
 }
 
+function memberIdentity(
+  overrides: Partial<{ planId: string; deliverableId: string; workUnitId: string }> = {},
+): DeliveryMemberIdentity {
+  return { planId: PLAN_ID, deliverableId: DELIVERABLE_ID, workUnitId: "demo", ...overrides };
+}
+
 function resolvedMember(
   overrides: Partial<{
     planId: string;
     deliverableId: string;
     workUnitId: string;
+    head: string;
     isFinalMember: boolean;
   }> = {},
-): DeliveryMemberLookupResult {
+): DeliveryMemberIdentityLookupResult {
   return {
-    status: "resolved",
+    status: "bound",
     member: {
       planId: PLAN_ID,
       deliverableId: DELIVERABLE_ID,
@@ -149,15 +157,26 @@ function resolvedMember(
   };
 }
 
-function memberLookup(
-  result: DeliveryMemberLookupResult,
-  heads: string[] = [],
-): DeliveryMemberLookup {
+function memberLookup(result: DeliveryMemberIdentityLookupResult): DeliveryMemberIdentityLookup {
+  return { resolveMemberByIdentity: async () => result };
+}
+
+/**
+ * A lookup that answers only the exact identity it was built for.
+ *
+ * The hand-off is the behavior under test wherever this is used: readiness spells the work unit one
+ * way and the delivery record spells it another, so a lookup that discriminates proves the rename
+ * arrived without anyone reading the arguments it was called with.
+ */
+function identityLookup(expected: DeliveryMemberIdentity): DeliveryMemberIdentityLookup {
   return {
-    resolveMemberByHead: async (headObjectId) => {
-      heads.push(headObjectId);
-      return result;
-    },
+    resolveMemberByIdentity: async (identity) => (
+      identity.planId === expected.planId
+        && identity.deliverableId === expected.deliverableId
+        && identity.workUnitId === expected.workUnitId
+        ? resolvedMember()
+        : { status: "no-plan" }
+    ),
   };
 }
 
@@ -921,7 +940,7 @@ describe("delivery-member authentication against delivery state", () => {
 
   it.each([
     ["unavailable", { status: "unavailable" } as const, "delivery-state-unavailable"],
-    ["unbound", { status: "unbound" } as const, "delivery-member-unbound"],
+    ["in-plan-unbound", { status: "in-plan-unbound" } as const, "delivery-member-unbound"],
   ])("refuses an %s lookup answer with its own fact", async (_case, answer, code) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
@@ -935,13 +954,13 @@ describe("delivery-member authentication against delivery state", () => {
   });
 
   it.each([
-    ["plan", { planId: "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e" }, "vehicle.planId"],
-    ["deliverable", { deliverableId: `sha256:${"c".repeat(64)}` }, "vehicle.deliverableId"],
-    ["work unit", { workUnitId: "other-unit" }, "vehicle.workUnitSlug"],
-  ])("refuses a disagreeing %s with one mismatch fact naming its path", async (_field, drift, path) => {
+    ["no plan carries the work unit", { status: "no-plan" } as const, "vehicle.workUnitSlug"],
+    ["the resolved plan is another", { status: "plan-mismatch" } as const, "vehicle.planId"],
+    ["the plan omits the deliverable", { status: "not-in-plan" } as const, "vehicle.deliverableId"],
+  ])("refuses an identity miss where %s, naming its own path", async (_case, answer, path) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember(drift)) },
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
     );
 
     expect(result).toMatchObject({
@@ -950,52 +969,119 @@ describe("delivery-member authentication against delivery state", () => {
     });
   });
 
-  it("emits one mismatch fact per disagreeing field", async () => {
+  it("reports at most one identity miss, because the lookup answers with one arm", async () => {
     const result = await evaluateReviewReadiness(
-      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      {
-        fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({
+      readinessRequest(
+        memberVehicle({
           planId: "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
           deliverableId: `sha256:${"c".repeat(64)}`,
-          workUnitId: "other-unit",
-        })),
-      },
+          workUnitSlug: "other-unit",
+        }),
+        { headBranch: "delivery/plan/03" },
+      ),
+      { fs: buildFs({}), deliveryMemberLookup: identityLookup(memberIdentity()) },
     );
 
     expect(result).toMatchObject({
       state: "invalid",
-      payload: {
-        facts: [
-          { code: "delivery-member-mismatch", path: "vehicle.planId" },
-          { code: "delivery-member-mismatch", path: "vehicle.deliverableId" },
-          { code: "delivery-member-mismatch", path: "vehicle.workUnitSlug" },
-        ],
-      },
+      payload: { facts: [{ code: "delivery-member-mismatch", path: "vehicle.workUnitSlug" }] },
     });
   });
 
-  it("admits a fully agreeing resolution, authenticating the live pull-request head", async () => {
-    const heads: string[] = [];
+  it("hands the vehicle's own identity to the lookup, renaming the work unit it spells as a slug", async () => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember(), heads) },
+      { fs: buildFs({}), deliveryMemberLookup: identityLookup(memberIdentity()) },
     );
 
     expect(result.state).toBe("ready");
-    expect(heads).toEqual([SHA]);
   });
 
-  it("admits an assertion whose plan id differs from the resolution's only in case", async () => {
+  it("hands the asserted plan id through as written, leaving the admission to the lookup", async () => {
     const result = await evaluateReviewReadiness(
       readinessRequest(
         memberVehicle({ planId: PLAN_ID.toUpperCase() }),
         { headBranch: "delivery/plan/03" },
       ),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: identityLookup(memberIdentity({ planId: PLAN_ID.toUpperCase() })),
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  it("admits a member whose recorded head the head under review descends from", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        readDeliveryAncestry: async () => "ancestor",
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  it.each([
+    ["the review head does not descend from it", "not-ancestor" as const],
+    ["ancestry could not be established", "unresolvable" as const],
+  ])("refuses a moved binding where %s", async (_case, answer) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        readDeliveryAncestry: async () => answer,
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-stale", path: "pullRequest.headSha" }] },
+    });
+  });
+
+  it("leaves an unmoved binding admitted with no ancestry reader supplied", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()) },
     );
 
     expect(result.state).toBe("ready");
+  });
+
+  it("refuses a moved binding with no ancestry reader, rather than admitting the movement", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-stale", path: "pullRequest.headSha" }] },
+    });
+  });
+
+  it("still names the terminal member when the head under review advanced past its binding", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40), isFinalMember: true })),
+        readDeliveryAncestry: async () => "ancestor",
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-terminal", path: "vehicle.deliverableId" }] },
+    });
   });
 
   it("refuses the plan's final member and admits a non-final one", async () => {
@@ -1088,7 +1174,7 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}, { missingRoot: true }),
-        deliveryMemberLookup: memberLookup({ status: "unbound" }),
+        deliveryMemberLookup: memberLookup({ status: "in-plan-unbound" }),
       },
     );
 
