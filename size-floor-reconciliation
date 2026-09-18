@@ -3,7 +3,7 @@
   "slug": "size-floor-reconciliation",
   "claimId": "244a29f3e6731277755c8e4159ec87c3",
   "createdAt": "2026-09-18T17:09:48.756Z",
-  "updatedAt": "2026-09-18T17:09:48.756Z",
+  "updatedAt": "2026-09-18T17:39:30.221Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Reconcile the pre-commit TypeScript hook and the test/authoring guidance surfaces with the recorded size floor",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Reconcile the mirror rule and new-debt attribution with the recorded size floor",
   "originEntrySourceDigest": "sha256:2db8d0e066a063bab4204937a81149110f6d5d1b760d70aa5692b049e2a363f3",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/size-floor-reconciliation",
+    "headSha": "f63e4994959b89cc07fa103bb62fbc10e0ad316f"
+  }
 }
