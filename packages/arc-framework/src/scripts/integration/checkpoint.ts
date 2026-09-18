@@ -603,18 +603,6 @@ export function checkpointRemedy(reason: CheckpointRemedyReason, workUnit: strin
 }
 
 /**
- * The remedy for a base sharing no history with the branch, which no ARC verb performs.
- *
- * `arc base merge` reconciles append-only and declines unrelated histories, so the join is the operator's. This
- * is the remedy review status already reports for the same pair, kept identical so one condition reads one way
- * wherever it surfaces. It leads with the observation rather than the command: a branch sharing no history with
- * its base is more often a wrong base or a wrong clone than a merge waiting to happen, and the operator should
- * recognize that before running anything.
- *
- * @param baseOid - The observed base revision to join, which the caller reads from its own drift observation.
- * @returns The remedy naming the failed invariant and the one command that clears it.
- */
-/**
  * A checkpoint composition stopped because the branch and its base leave two equally good ancestors.
  *
  * Naming it apart from an ordinary composition failure is what lets the refusal ask for the merge. The
@@ -646,6 +634,18 @@ export function checkpointAmbiguousBaseRemedy(workUnit: string): SpineRemedy {
   );
 }
 
+/**
+ * The remedy for a base sharing no history with the branch, which no ARC verb performs.
+ *
+ * `arc base merge` reconciles append-only and declines unrelated histories, so the join is the operator's. This
+ * is the remedy review status already reports for the same pair, kept identical so one condition reads one way
+ * wherever it surfaces. It leads with the observation rather than the command: a branch sharing no history with
+ * its base is more often a wrong base or a wrong clone than a merge waiting to happen, and the operator should
+ * recognize that before running anything.
+ *
+ * @param baseOid - The observed base revision to join, which the caller reads from its own drift observation.
+ * @returns The remedy naming the failed invariant and the one command that clears it.
+ */
 export function checkpointUnrelatedBaseRemedy(baseOid: string): SpineRemedy {
   return spineRemedy(
     "Base movement can be proved only between revisions with a common ancestor.",

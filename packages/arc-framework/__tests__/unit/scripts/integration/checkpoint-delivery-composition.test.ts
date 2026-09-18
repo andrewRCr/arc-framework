@@ -646,6 +646,38 @@ describe("delivery checkpoint composition", () => {
     });
   });
 
+  /** The one drift shape both guards above the base-resolution arms are reached with. */
+  type PairOverlap =
+    | { readonly status: "unrelated" }
+    | { readonly status: "ambiguous" }
+    | {
+        readonly status: "available";
+        readonly substantivePaths: string[];
+        readonly regenerablePaths: string[];
+      };
+
+  const unresolvedPairDrift = (overlap: PairOverlap) => ({
+    mode: "authoritative" as const,
+    verdict: "reconcile" as const,
+    state: "diverged" as const,
+    ahead: 2,
+    behind: 1,
+    base: "main",
+    baseOid: oid("d"),
+    headOid: oid("c"),
+    movement: "unknown" as const,
+    integrationEvidence: {
+      coverage: "complete" as const,
+      scannedCommitCount: 1,
+      events: [],
+      unclassifiedCommitCount: 0,
+      truncated: false,
+      limitations: [],
+    },
+    overlap,
+    register: null,
+  });
+
   /**
    * The branch-and-base pair is not a delivery fact, and this classifier is not where a work unit without a
    * bound terminal should meet it: answering here wraps that pair in a delivery refusal whose own remedy is a
@@ -653,37 +685,6 @@ describe("delivery checkpoint composition", () => {
    * downstream reads the same pair and answers it directly.
    */
   describe("a work unit with no bound delivery terminal", () => {
-    type PairOverlap =
-      | { readonly status: "unrelated" }
-      | { readonly status: "ambiguous" }
-      | {
-          readonly status: "available";
-          readonly substantivePaths: string[];
-          readonly regenerablePaths: string[];
-        };
-
-    const unboundDrift = (overlap: PairOverlap) => ({
-      mode: "authoritative" as const,
-      verdict: "reconcile" as const,
-      state: "diverged" as const,
-      ahead: 2,
-      behind: 1,
-      base: "main",
-      baseOid: oid("d"),
-      headOid: oid("c"),
-      movement: "unknown" as const,
-      integrationEvidence: {
-        coverage: "complete" as const,
-        scannedCommitCount: 1,
-        events: [],
-        unclassifiedCommitCount: 0,
-        truncated: false,
-        limitations: [],
-      },
-      overlap,
-      register: null,
-    });
-
     it.each([
       ["shares no history with", { status: "unrelated" } as const],
       ["shares more than one merge base with", { status: "ambiguous" } as const],
@@ -695,10 +696,35 @@ describe("delivery checkpoint composition", () => {
         exec: vi.fn(async () => { throw new Error("no read is reached"); }),
       });
 
-      await expect(dependencies.classifyDeliveryDrift("example", unboundDrift(overlap)))
+      await expect(dependencies.classifyDeliveryDrift("example", unresolvedPairDrift(overlap)))
         .resolves.toEqual({ status: "not-applicable" });
     });
   });
+
+  it.each([
+    ["shares no history with", { status: "unrelated" } as const],
+    ["shares more than one merge base with", { status: "ambiguous" } as const],
+  ])(
+    "reports records it could not read before a base that %s the branch",
+    async (_label, overlap) => {
+      // The base reading is true either way, but it is not this classifier's answer until the records it
+      // classifies against can be read. Reported ahead of them, it sends an operator to merge on evidence
+      // that never established this classification applies to the work unit at all.
+      mocks.resolveTerminalRecords.mockResolvedValue({ status: "unavailable" });
+      const dependencies = createIntegrationCheckpointDependencies({
+        cwd: "/repository",
+        exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+      });
+
+      await expect(dependencies.classifyDeliveryDrift("example", unresolvedPairDrift(overlap)))
+        .resolves.toEqual({
+          status: "unavailable",
+          detail: "The delivery terminal records are unavailable.",
+          evidence: { baseRevision: oid("d") },
+          nextAction: { command: "rerun-checkpoint", workUnit: "example" },
+        });
+    },
+  );
 
   it("routes a pinned-baseline pair sharing no history through the base before the baseline", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();

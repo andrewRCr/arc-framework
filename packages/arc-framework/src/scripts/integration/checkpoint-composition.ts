@@ -533,6 +533,17 @@ export function createIntegrationCheckpointDependencies(input: {
       // the one the movement plan reads for itself. Answering here instead wraps that pair in a delivery
       // refusal whose remedy is a rerun of the checkpoint that raised it.
       if (records.status === "unbound") return { status: "not-applicable" };
+      // Ahead of either base reading, as it was before the pair was given a route here. Both readings are
+      // true whatever the records say, but neither is this classifier's answer until the records it
+      // classifies against can be read — reported first, they send an operator to merge on evidence that
+      // never established this classification applies.
+      if (records.status === "unavailable") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The delivery terminal records are unavailable.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+        );
+      }
       // Both revisions of this pair can move, so merging the base in collapses two merge bases to one.
       if (drift.overlap?.status === "ambiguous") {
         return unavailableDeliveryDrift(
@@ -550,13 +561,6 @@ export function createIntegrationCheckpointDependencies(input: {
           "The branch and its base share no common ancestor, so nothing between them can be compared.",
           drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
           "merge-unrelated",
-        );
-      }
-      if (records.status === "unavailable") {
-        return unavailableDeliveryDrift(
-          workUnit,
-          "The delivery terminal records are unavailable.",
-          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
         );
       }
       if (drift.overlap?.status !== "available") {

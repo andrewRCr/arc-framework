@@ -311,12 +311,6 @@ export type DeliveryChainAbsorptionResult =
       readonly paths?: readonly string[];
     };
 
-/**
- * Merge refreshed predecessor content into the checked-out top without rewriting history.
- *
- * @param input - Pinned top/ref coordinates, refreshed predecessor coordinates, and Git boundary
- * @returns The new append-only top coordinate or a typed refusal
- */
 /** What each absorption refusal asks the operator to do, keyed by the condition the guard actually observed. */
 export const DELIVERY_CHAIN_ABSORPTION_REMEDIES: Record<
   Extract<DeliveryChainAbsorptionResult, { status: "refused" }>["reason"],
@@ -363,6 +357,12 @@ export const DELIVERY_CHAIN_ABSORPTION_REMEDIES: Record<
   },
 };
 
+/**
+ * Merge refreshed predecessor content into the checked-out top without rewriting history.
+ *
+ * @param input - Pinned top/ref coordinates, refreshed predecessor coordinates, and Git boundary
+ * @returns The new append-only top coordinate or a typed refusal
+ */
 export async function absorbGitDeliveryChain(
   input: DeliveryChainAbsorptionInput,
 ): Promise<DeliveryChainAbsorptionResult> {

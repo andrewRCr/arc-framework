@@ -628,16 +628,6 @@ export const DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES: Record<
 };
 
 /**
- * Record the freshly observed remaining suffix on one submitted native reservation before its refs move.
- *
- * @param current - The exact reservation record the settlement observed its suffix under.
- * @param operationId - The reservation this settlement belongs to.
- * @param observedSuffix - The complete observed remaining suffix, in plan order. Entries the reservation has
- *   already recorded are kept over their reobservation; entries it carries and this observation does not are
- *   carried forward.
- * @returns The state to publish against `current.revision`, or a closed refusal.
- */
-/**
  * Keep every coordinate the reservation already established, admitting only refs it has not recorded yet.
  *
  * A settlement that wedges past its first publish reruns from a fresh observation, and that observation cannot
@@ -658,6 +648,16 @@ function reconcileObservedSuffix(
   ];
 }
 
+/**
+ * Record the freshly observed remaining suffix on one submitted native reservation before its refs move.
+ *
+ * @param current - The exact reservation record the settlement observed its suffix under.
+ * @param operationId - The reservation this settlement belongs to.
+ * @param observedSuffix - The complete observed remaining suffix, in plan order. Entries the reservation has
+ *   already recorded are kept over their reobservation; entries it carries and this observation does not are
+ *   carried forward.
+ * @returns The state to publish against `current.revision`, or a closed refusal.
+ */
 export function beginNativeDeliverySettlement(
   current: DeliveryRevisionedRecord<DeliveryStateV1>,
   operationId: string,
