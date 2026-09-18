@@ -2240,6 +2240,40 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves a reconcile base refusal that names no deliverable and carries no merge command", async () => {
+    const request = JSON.stringify({
+      planId: "123e4567-e89b-42d3-a456-426614174000",
+      repository: "andrewRCr/arc-framework",
+      remote: "origin",
+    });
+    const observedTip = "7".repeat(40);
+    const write = vi.fn();
+
+    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "ambiguous-predecessor-base",
+        observedTip,
+        detail: "The Candidate target has more than one base coordinate.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    // The eligibility readers reach this reason holding a deliverable and a merge command to name; the
+    // reconcile reader derives neither, so the envelope has to admit the reason without them. An envelope
+    // that does not degrades the refusal to a service fault, which names no condition an operator can clear.
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery reconcile",
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      observedTip,
+      detail: "The Candidate target has more than one base coordinate.",
+    });
+  });
+
   it("preserves lifecycle-contribution refusal evidence through the strict result envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const deliverableId = plan.members[0]!.deliverableId;

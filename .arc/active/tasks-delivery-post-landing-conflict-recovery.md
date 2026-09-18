@@ -996,18 +996,18 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   target it declared — and only this one needed the decision, because a hold whose `target` the design rejects
   and whose `observed` it keeps has no route to red at all.
 
-### `[ ]` **6.8 Exhaust the conversion set** — validate exit criterion at segment scope
+### `[x]` **6.8 Exhaust the conversion set** — validate exit criterion at segment scope
 
 - _Goal:_ Batch-verify the enumerated surface: a two-merge-base history refuses typed at every converted reader,
   and both propagations reach every consuming call site.
 
-- _Note:_ Three gaps the phase does not close on its own. Four refusals in `executeDeliveryCommand` and one in
-  the respond reader are reached by the compiler and by no case — none arranges an ambiguous base that deep, and
-  the reconcile arm's `ambiguous-predecessor-base` emission has never been observed through the result schema, so
-  its field set is argued rather than seen. Attestation's ceremony refusal is proven for an Active work unit
-  only; while Integrating or Shipped, `inspectRepositoryDeliveryCandidateRenewal` runs ahead of the subject read,
-  and which of the two answers first over an ambiguous history was not established. And the checkpoint reader's
-  raise is preserved behavior, so no case distinguishes its wording from the wrapper's. Assume none is covered.
+- _Outcome:_ The criterion's two halves take different proofs, which is what sizes the gaps the plan could not.
+  Readers must be observed refusing — all six are, each over a real two-base history — while call sites must
+  carry, which the compiler proved when both wrappers were deleted with no reference left to either. That makes
+  the refusals reached by no case carried rather than uncovered, except the reconcile arm: the only one emitting
+  rather than raising, and its envelope degrades an unadmitted field to a service fault silently, now observed
+  both ways. The checkpoint raise gained a case naming its own words, and attestation from Integrating reaches
+  the subject refusal — the renewal read runs first but reads records, not history.
 
 ## **Phase 7:** Ancestry-aware readiness and per-term closeout
 

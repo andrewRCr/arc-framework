@@ -885,7 +885,13 @@ describe("delivery checkpoint composition", () => {
     expect(mocks.readCandidateRecordVersion).toHaveBeenCalledTimes(1);
   });
 
-  it("reads each exact member discharge for a multi-member delivery", async () => {
+  /**
+   * A three-member delivery whose review is fully discharged, arranged to the point of composition.
+   *
+   * Reaching the terminal's predecessor-base read means getting past member discharge, so the
+   * arrangement is the whole of it; two cases turn on what that read answers.
+   */
+  async function dischargedMultiMemberDelivery() {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
     for (const [index, member] of state.members.entries()) {
@@ -1079,6 +1085,11 @@ describe("delivery checkpoint composition", () => {
     });
 
     const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec });
+    return { plan, state, currentness, baseHead, dependencies };
+  }
+
+  it("reads each exact member discharge for a multi-member delivery", async () => {
+    const { plan, state, currentness, baseHead, dependencies } = await dischargedMultiMemberDelivery();
     const result = await dependencies.composeDelivery({
       workUnit: plan.workUnitId,
       candidate: currentness,
@@ -1094,6 +1105,23 @@ describe("delivery checkpoint composition", () => {
         }))),
       },
     }));
+  });
+
+  it("refuses to compose a terminal whose predecessor base is not one coordinate", async () => {
+    const { plan, currentness, baseHead, dependencies } = await dischargedMultiMemberDelivery();
+    mocks.readGitCandidateTargetBase.mockResolvedValue({
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The Candidate target has more than one base coordinate.",
+    });
+
+    // Stated in this reader's own words rather than forwarded from the base reader's: what cannot be
+    // composed here is the terminal's coordinate set, which a pair carrying two ancestors does not fix.
+    await expect(dependencies.composeDelivery({
+      workUnit: plan.workUnitId,
+      candidate: currentness,
+      baseRevision: baseHead,
+    })).rejects.toThrow("The delivery terminal's predecessor base is not a single coordinate.");
   });
 
   it("offers terminal repair when the Candidate is ahead of its frozen closed request", async () => {

@@ -124,13 +124,13 @@ function machineContext() {
   return resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
 }
 
-function metaDocument(): string {
+function metaDocument(state: "Active" | "Integrating"): string {
   return [
     `# Metadata: ${WORK_UNIT}`,
     "",
     "| **State** | **Owner**   | **Branch**           | **Class** | **Priority** |",
     "| --------- | ----------- | -------------------- | --------- | ------------ |",
-    `| \`Active\`  | \`test-user\` | \`feat/${WORK_UNIT}\` | \`Light\`   | \`P2\`         |`,
+    `| \`${state}\` | \`test-user\` | \`feat/${WORK_UNIT}\` | \`Light\`   | \`P2\`         |`,
     "",
     "- **Cohort:** [none]",
     "- **Depends On:** [none]",
@@ -298,7 +298,7 @@ describe("the Candidate attestation ceremony over an ambiguous history", () => {
    * handler, so it needs everything attestation checks before it ever collects a subject — a resolvable
    * identity, an Active meta, a task list with nothing open, and no reviewable path the index is missing.
    */
-  async function attestableWorkUnit(): Promise<string> {
+  async function attestableWorkUnit(state: "Active" | "Integrating" = "Active"): Promise<string> {
     const root = await initInTempRepo(DEFAULT_PROMPTS);
     cleanups.push(async () => cleanupTempDir(root));
     await arcGit(root, ["add", "-A"]);
@@ -306,7 +306,7 @@ describe("the Candidate attestation ceremony over an ambiguous history", () => {
 
     await arcGit(root, ["switch", "-c", `feat/${WORK_UNIT}`]);
     await mkdir(join(root, ".arc", "active"), { recursive: true });
-    await writeFile(join(root, ".arc", "active", `meta-${WORK_UNIT}.md`), metaDocument(), "utf-8");
+    await writeFile(join(root, ".arc", "active", `meta-${WORK_UNIT}.md`), metaDocument(state), "utf-8");
     await writeFile(join(root, ".arc", "active", `tasks-${WORK_UNIT}.md`), taskDocument(), "utf-8");
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, BRANCH_PATH), "branch contribution\n", "utf-8");
@@ -342,6 +342,22 @@ describe("the Candidate attestation ceremony over an ambiguous history", () => {
     });
     return { exitCode: run.exitCode, result: JSON.parse(run.stdout) };
   }
+
+  it("names the ambiguous history from Integrating too, where a record read runs ahead of it", async () => {
+    const root = await attestableWorkUnit("Integrating");
+    await crossTheBase(root);
+
+    const refused = await attest(root);
+
+    expect(refused.exitCode).toBe(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(refused.result);
+    // In this state the public delivery renewal evidence is read before the subject is collected, and that
+    // read examines records rather than history — so a work unit carrying no delivery plan passes it, and
+    // what the operator is told is the shape of the branch rather than an unavailable renewal.
+    expect(refusal.reason).toContain("cannot derive");
+    expect(refusal.reason).toContain("merge-base-ambiguous");
+    expect(refusal.reason).not.toContain("renewal");
+  });
 
   it("refuses over two equally good bases, and attests once the base is merged in", async () => {
     const root = await attestableWorkUnit();
