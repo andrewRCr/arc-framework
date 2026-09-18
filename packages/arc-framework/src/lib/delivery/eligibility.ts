@@ -7,11 +7,19 @@ import type { RevisionOverlapResult } from "../git/base-overlap.js";
 import {
   predecessorRelation,
   type DeliveryPredecessorRelation,
+  type PredecessorRelationRead,
 } from "./predecessor-relation.js";
+
+/** The merge that collapses a pair's several best bases to one, which is what clears an ambiguous read. */
+type DeliveryBaseMergeRemedy = Extract<PredecessorRelationRead, { readonly status: "ambiguous" }>["remedy"];
 
 /** What both readers tell an operator whose member and observed tip changed the same content. */
 const OVERLAPPING_MOVEMENT_DETAIL = "The observed protected-base movement overlaps this delivery member. "
   + "Rebuild the delivery chain against the observed tip; no safe automated rebuild command is available.";
+
+/** What both readers append for a pair that shares no lineage at all, which no retry can change. */
+const UNRELATED_LINEAGE_REMEDY_DETAIL = " Rebuild the delivery chain from a common lineage; no safe automated "
+  + "rebuild command is available.";
 
 /** Exact ref coordinates pinned during one eligibility observation window. */
 export interface DeliveryEligibilityCoordinates {
@@ -161,6 +169,8 @@ export interface DeliveryEligibilityRefusal {
     | "direct-delivery-ref"
     | "candidate-unavailable"
     | "wrong-predecessor"
+    | "unrelated-predecessor"
+    | "ambiguous-predecessor-base"
     | "empty-candidate"
     | "lifecycle-contribution"
     | "checkout-dirty"
@@ -183,6 +193,8 @@ export interface DeliveryEligibilityRefusal {
   /** Every mismatching lifecycle-contribution path; present only for `lifecycle-contribution` refusals. */
   readonly paths?: readonly string[];
   readonly relation?: DeliveryPredecessorRelation;
+  /** The independently observed protected-base tip, for the arms that carry no relation to report it on. */
+  readonly observedTip?: string;
   readonly detail?: string;
   readonly source?: {
     readonly ref: string;
@@ -197,10 +209,9 @@ export interface DeliveryEligibilityRefusal {
     readonly candidates: readonly { readonly deliverableId: string; readonly ref: string }[];
     readonly lifecyclePaths: readonly string[];
   };
-  readonly remedy?: {
-    readonly kind: "delivery-authoring-rebuild-required";
-    readonly automatedCommand: null;
-  };
+  readonly remedy?:
+    | { readonly kind: "delivery-authoring-rebuild-required"; readonly automatedCommand: null }
+    | DeliveryBaseMergeRemedy;
 }
 
 /** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
@@ -378,27 +389,29 @@ export async function prepareDeliveryEligibility(input: {
   if (predecessorRead.status === "unavailable") {
     return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
   }
-  // Interim: a pair with more than one merge base refuses under the reason a failed read takes, which invites a
-  // retry that cannot clear it — the merge the arm carries is what clears it. The reason and the remedy slot that
-  // holds it land with this reader's stated dispositions; until then the detail at least reports the condition.
+  // A recoverable condition, and the merge the read already composed is what recovers it — so it takes neither
+  // the unreadable-evidence reason, which invites a retry that cannot clear it, nor the accept path, which an
+  // absent overlap would otherwise hand it: the multi-base branch returns before an overlap is ever computed.
   if (predecessorRead.status === "ambiguous") {
     return {
       status: "refused",
-      reason: "evidence-unavailable",
+      reason: "ambiguous-predecessor-base",
       deliverableId: firstCandidate.deliverableId,
+      observedTip: predecessorRead.observedTip,
       detail: predecessorRead.detail,
+      remedy: predecessorRead.remedy,
     };
   }
-  // Interim: a pair sharing no lineage refuses under the reason a pair that merely diverged takes. A rebuild
-  // does clear it, so the refusal is not wrong — but the two causes stay merged until this reader's own terminal
-  // reason lands, and the tip it carries has nowhere of its own to ride yet.
+  // Terminal: no rebuild against the observed tip helps a pair that shares no lineage with it, so it refuses
+  // apart from the pair that merely diverged rather than under that pair's recoverable reason. It relates by
+  // nothing, so there is no relation to report the condition on and the tip rides the refusal itself.
   if (predecessorRead.status === "unrelated") {
     return {
       status: "refused",
-      reason: "wrong-predecessor",
+      reason: "unrelated-predecessor",
       deliverableId: firstCandidate.deliverableId,
-      detail: `${predecessorRead.detail} Rebuild the delivery chain from a common lineage; no safe automated `
-        + "rebuild command is available.",
+      observedTip: predecessorRead.observedTip,
+      detail: predecessorRead.detail + UNRELATED_LINEAGE_REMEDY_DETAIL,
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     };
   }
@@ -598,17 +611,26 @@ async function closeMechanicalDeliveryEligibility(
     }),
   });
   if (currentRelation.status === "unavailable") return { status: "refused", reason: "evidence-unavailable" };
-  // Interim, matching the prepare-time reader above: the arm refuses, under a reason that does not yet name what
-  // clears it. Stated as its own branch rather than by widening the guard, so the two conditions stay apart.
+  // Both non-resolved arms take the same dispositions here as at the prepare-time reader: each states its own,
+  // rather than one widened "not resolved" guard parking a terminal and a recoverable cause under one reason.
   if (currentRelation.status === "ambiguous") {
-    return { status: "refused", reason: "evidence-unavailable", detail: currentRelation.detail };
+    return {
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      deliverableId: firstMember.deliverableId,
+      observedTip: currentRelation.observedTip,
+      detail: currentRelation.detail,
+      remedy: currentRelation.remedy,
+    };
   }
   if (currentRelation.status === "unrelated") {
     return {
       status: "refused",
-      reason: "wrong-predecessor",
+      reason: "unrelated-predecessor",
       deliverableId: firstMember.deliverableId,
-      detail: currentRelation.detail,
+      observedTip: currentRelation.observedTip,
+      detail: currentRelation.detail + UNRELATED_LINEAGE_REMEDY_DETAIL,
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     };
   }
   // Read from the fresh observation rather than from the relation the snapshot carries, and decided before the

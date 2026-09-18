@@ -432,6 +432,19 @@ const DeliveryEligibilitySourceMovedSchema = z.strictObject({
     lifecyclePaths: z.array(z.string().min(1)),
   }),
 });
+const DeliveryAuthoringRebuildRemedySchema = z.strictObject({
+  kind: z.literal("delivery-authoring-rebuild-required"),
+  automatedCommand: z.null(),
+});
+const DeliveryBaseMergeRemedySchema = z.strictObject({
+  kind: z.literal("delivery-base-merge-required"),
+  automatedCommand: z.array(z.string().min(1)).min(1),
+});
+/** Every remedy an eligibility refusal may carry; a kind absent here is dropped rather than reported. */
+const DeliveryRefusalRemedySchema = z.union([
+  DeliveryAuthoringRebuildRemedySchema,
+  DeliveryBaseMergeRemedySchema,
+]);
 const DeliveryWrongPredecessorSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.literal("wrong-predecessor"),
@@ -439,10 +452,24 @@ const DeliveryWrongPredecessorSchema = z.strictObject({
   relation: PredecessorRelationSchema,
   paths: z.array(z.string().min(1)).optional(),
   detail: z.string().min(1).max(1_000),
-  remedy: z.strictObject({
-    kind: z.literal("delivery-authoring-rebuild-required"),
-    automatedCommand: z.null(),
-  }).optional(),
+  remedy: DeliveryAuthoringRebuildRemedySchema.optional(),
+});
+// Neither arm relates by a variant, so each reports the observed tip itself rather than off a relation.
+const DeliveryUnrelatedPredecessorSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("unrelated-predecessor"),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  observedTip: GitObjectIdSchema,
+  detail: z.string().min(1).max(1_000),
+  remedy: DeliveryAuthoringRebuildRemedySchema.optional(),
+});
+const DeliveryAmbiguousPredecessorBaseSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("ambiguous-predecessor-base"),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  observedTip: GitObjectIdSchema,
+  detail: z.string().min(1).max(1_000),
+  remedy: DeliveryBaseMergeRemedySchema.optional(),
 });
 
 const PrepareSchema = z.strictObject({
@@ -1237,7 +1264,7 @@ const OwnedDeliveryPublicFailureSchema = z.strictObject({
   source: DeliveryEligibilitySourceMovedSchema.shape.source.optional(),
   nextAction: DeliveryEligibilitySourceMovedSchema.shape.nextAction.optional(),
   relation: PredecessorRelationSchema.optional(),
-  remedy: DeliveryWrongPredecessorSchema.shape.remedy.optional(),
+  remedy: DeliveryRefusalRemedySchema.optional(),
   continuation: OwnedDeliveryFailureContinuationSchema,
 });
 
@@ -1259,6 +1286,8 @@ const ResultSchema = z.union([
   NativeMemberNotReadyResultSchema,
   DeliveryEligibilitySourceMovedSchema,
   DeliveryWrongPredecessorSchema,
+  DeliveryUnrelatedPredecessorSchema,
+  DeliveryAmbiguousPredecessorBaseSchema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({
@@ -1834,7 +1863,7 @@ function ownedDeliveryFailure(
   const preservedSource = DeliveryEligibilitySourceMovedSchema.shape.source.safeParse(result.source);
   const preservedNextAction = DeliveryEligibilitySourceMovedSchema.shape.nextAction.safeParse(result.nextAction);
   const preservedRelation = PredecessorRelationSchema.safeParse(result.relation);
-  const preservedRemedy = DeliveryWrongPredecessorSchema.shape.remedy.safeParse(result.remedy);
+  const preservedRemedy = DeliveryRefusalRemedySchema.safeParse(result.remedy);
   return OwnedDeliveryPublicFailureSchema.parse({
     status: result.status === "blocked" ? "blocked" : "refused",
     reason,
@@ -1849,7 +1878,7 @@ function ownedDeliveryFailure(
       snapshotTopHead: oidOrNull(snapshotTop.head),
       requestedBase: oidOrNull(requestedCoordinates.base),
       requestedHead: oidOrNull(requestedCoordinates.head ?? finalGate.head),
-      observedHead: oidOrNull(observed.head ?? relation.observedTip),
+      observedHead: oidOrNull(observed.head ?? relation.observedTip ?? result.observedTip),
     },
     ...(deliverableId.success ? { deliverableId: deliverableId.data } : {}),
     ...(Array.isArray(result.paths)

@@ -753,49 +753,14 @@ is a field on `diverged`, not a variant.
   and it would recur under `advanced` exactly as it would under `diverged`. This is why `diverged` is fail-closed
   by default rather than by definition.
 
-    - `[ ]` **5.4.a Decide on the overlap field**
+    - `[x]` **5.4.a Decide on the overlap field**
 
-        - The refusal branch also refuses `unrelated` on the same reason today. That variant leaves the relation
-          for the resolver's arm, so the terminal case is settled before the classifier runs and the branch
-          sheds a condition rather than keeping one that can no longer arrive.
-        - It needs somewhere to arrive instead, and 5.1 has already put it there: the read mirrors the resolver's
-          four arms, so the terminal outcome arrives on its own rather than folded into the recoverable one —
-          folding it there is what the design forbids, because a terminal condition parked under a recoverable
-          status is retried forever. That is not a seventh relation variant: the variant set stays at six and the
-          arms sit on the read.
-        - **Both** wrapper call sites take these dispositions, not just the prepare-time one. The close-time
-          reader guards only `unavailable` today and then reads the relation, so each arm beyond resolved forces
-          a branch there too — and widening its existing guard to "not resolved" would park the terminal and the
-          ambiguous cause under a recoverable reason, the merge this phase exists to undo.
-        - The accept rule decides on the overlap field, so every arm and variant carrying no overlap needs its
-          disposition stated rather than falling through. Three do. The two non-resolved arms refuse as above.
-          `unchanged` and `advanced` **accept**: the classifier returns on the ancestor branch before the
-          overlap is ever read, so they carry none and they are today's accept path. The compiler forces the
-          branch — there is no field to read — so what is needed is the statement, not a guard.
-        - The eligibility reader refuses that arm under its **own terminal reason**, carrying the detail and the
-          rebuild remedy it already emits, and carrying no relation payload — the migrated relation schema has no
-          arm for one. Keeping `wrong-predecessor` here would re-merge a terminal cause with a recoverable one,
-          which is the split this phase exists to make.
-        - It still carries the observed tip. The emitted failure composes its observed head from the relation
-          today, so a refusal carrying no relation drops the only coordinate that reports the observed
-          condition — which the refusal-recoverability rule requires. Carry it as the refusal's own field.
-        - That reason needs its own emitted arm. The wrong-predecessor refusal is a `z.strictObject` pinned to
-          its reason literal and is a member of the result union; a sibling arm lands beside it, reusing the same
-          remedy shape. Two further sites read that schema's remedy by reference and must keep resolving.
-        - **The ambiguous reason needs one too, and for a sharper cause.** Without its own arm it falls through
-          to the generic owned-authority failure, whose projection keeps a remedy only when it recognizes the
-          kind — so the refusal ships with none at all. Its remedy kind and that projection are 5.4.d's, so the
-          ambiguous behavior below is satisfied only once 5.4.d lands; sequence the two together rather than
-          asserting the remedy before the slot exists.
-        - Build `test-first` (one behavior at a time):
-
-            - An empty overlap is accepted
-            - A non-empty overlap refuses `wrong-predecessor`
-            - No common ancestor reaches this reader as the wrapper's terminal arm, never as a relation variant
-            - It refuses under its own terminal reason, distinct from `wrong-predecessor`, carrying no relation
-            - An ambiguous pair refuses under its own recoverable reason carrying the per-pair remedy, never
-              reaching the accept path on an empty overlap
-            - The close-time reader refuses both non-resolved arms the same way the prepare-time one does
+        - Both readers state a disposition per arm rather than letting any fall through: `unrelated-predecessor`
+          is terminal, `ambiguous-predecessor-base` is recoverable through the merge the read already composed,
+          and `unchanged` and `advanced` accept — they carry no overlap because the classifier returns on the
+          ancestor branch before one is taken.
+        - The ambiguous reason is deliberately not applicability's `merge-base-ambiguous`; one literal for both
+          would re-merge the two routes the design keeps apart.
 
     - `[ ]` **5.4.b Give the close-time reader its own overlap decision**
 
@@ -827,19 +792,12 @@ is a field on `diverged`, not a variant.
           `unrelated` out, the second reader's null branch is unreachable — remove it, and only after 5.4.b has
           written out the overlap test it was standing in for.
 
-    - `[ ]` **5.4.d Widen the remedy slot and convert the projection that reads it**
+    - `[x]` **5.4.d Widen the remedy slot and convert the projection that reads it**
 
-        - The refusal's remedy slot holds one kind today, so the ambiguous arm's remedy is a widening at the
-          library. The locus that must widen with it is the owned-authority failure projection, and it is named
-          here because the compiler will not name it: the projection validates each preserved field and keeps it
-          only on success, so an unrecognized remedy kind is dropped silently and the refusal ships with no
-          remedy at all.
-        - The same projection composes its observed head from the relation, which the terminal and ambiguous
-          arms do not carry. Take the tip from the arm that carries it instead.
-        - Build `test-first` (one behavior at a time):
-
-            - An ambiguous refusal reaches the operator with its remedy intact
-            - A terminal refusal reaches the operator carrying the observed tip
+        - The remedy slot became a union of the two kinds and every reader of it moved together, including the
+          emitted result union. A reason literal with no arm there does not degrade quietly as the remedy would:
+          it fails the union parse outright and the refusal reaches the operator as an invalid service result.
+        - The projection takes the observed tip from the refusal itself where no relation carries one.
 
 ### `[ ]` **5.5 Update `PredecessorRelationSchema`'s literals through the request contract**
 

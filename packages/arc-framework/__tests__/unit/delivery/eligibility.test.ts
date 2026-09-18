@@ -269,29 +269,43 @@ describe("prepareDeliveryEligibility", () => {
     });
   });
 
-  it("distinguishes an unrelated bottom member with an explicit rebuild boundary", async () => {
+  it("refuses an unrelated bottom member terminally at both readers, never as a wrong predecessor", async () => {
     const plan = deliveryStackPlanFixture();
-    const deps = dependencies();
-    deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
-    deps.readOverlap = vi.fn(async () => ({
-      status: "unrelated" as const,
-      leftRevision: oid("b"),
-      rightRevision: oid("a"),
-      detail: "The revisions have no common ancestor.",
-    }));
-
-    const refusal = await prepareDeliveryEligibility({
-      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
-    }, deps);
-    expect(refusal).toMatchObject({
+    const unrelatedRead = (deps: DeliveryEligibilityCloseDependencies) => {
+      deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+      deps.readOverlap = vi.fn(async () => ({
+        status: "unrelated" as const,
+        leftRevision: oid("b"),
+        rightRevision: oid("a"),
+        detail: "The revisions have no common ancestor.",
+      }));
+    };
+    const terminal = {
       status: "refused",
-      reason: "wrong-predecessor",
+      reason: "unrelated-predecessor",
       deliverableId: plan.members[0]!.deliverableId,
+      observedTip: oid("a"),
       detail: expect.stringContaining("The revisions have no common ancestor."),
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
-    });
-    // A pair sharing no lineage relates by nothing, so the refusal carries no variant to report it with.
+    };
+
+    const prepareDeps = dependencies();
+    unrelatedRead(prepareDeps);
+    const refusal = await prepareDeliveryEligibility({
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
+    }, prepareDeps);
+    expect(refusal).toMatchObject(terminal);
+    // A pair sharing no lineage relates by nothing, so the refusal carries no variant to report it with —
+    // which is also why the observed tip has to ride the refusal itself.
     expect(refusal).not.toHaveProperty("relation");
+
+    const closeDeps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
+    }, closeDeps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    unrelatedRead(closeDeps);
+    await expect(closeDeliveryEligibility(prepared.snapshot, closeDeps)).resolves.toMatchObject(terminal);
   });
 
   it("refuses an empty non-terminal candidate by exact head or tree identity", async () => {
@@ -934,8 +948,10 @@ describe("eligibility observation bracket", () => {
       candidates: candidates(), lifecyclePaths: [],
     }, prepareDeps)).resolves.toMatchObject({
       status: "refused",
-      reason: "evidence-unavailable",
+      reason: "ambiguous-predecessor-base",
+      observedTip: oid("a"),
       detail: "The revisions have multiple best merge bases.",
+      remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", oid("a")] },
     });
 
     const closeDeps = dependencies();
@@ -948,8 +964,10 @@ describe("eligibility observation bracket", () => {
     closeDeps.readOverlap = ambiguousOverlap();
     await expect(closeDeliveryEligibility(prepared.snapshot, closeDeps)).resolves.toMatchObject({
       status: "refused",
-      reason: "evidence-unavailable",
+      reason: "ambiguous-predecessor-base",
+      observedTip: oid("a"),
       detail: "The revisions have multiple best merge bases.",
+      remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", oid("a")] },
     });
   });
 

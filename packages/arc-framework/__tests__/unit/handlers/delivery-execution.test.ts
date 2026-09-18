@@ -196,6 +196,54 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves the base-merge remedy an ambiguous predecessor refusal recovers through", async () => {
+    const request = eligibilityCloseRequest();
+    const observedTip = "9".repeat(40);
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-close", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "ambiguous-predecessor-base",
+        deliverableId: request.snapshot.members[0]!.deliverableId,
+        observedTip,
+        detail: "The revisions have multiple best merge bases.",
+        remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", observedTip] },
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", observedTip] },
+    });
+  });
+
+  it("reports the observed tip of a terminal refusal that relates by no variant at all", async () => {
+    const request = eligibilityCloseRequest();
+    const observedTip = "9".repeat(40);
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-close", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "unrelated-predecessor",
+        deliverableId: request.snapshot.members[0]!.deliverableId,
+        observedTip,
+        detail: "The revisions have no common ancestor.",
+        remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "unrelated-predecessor",
+      coordinates: { observedHead: observedTip },
+    });
+  });
+
   it.each(["eligibility-prepare", "publish", "rematerialize"] as const)(
     "projects %s eligibility-consumer refusals through the public failure contract",
     async (command) => {
