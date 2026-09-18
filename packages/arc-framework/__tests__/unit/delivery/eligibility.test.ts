@@ -797,6 +797,39 @@ describe("eligibility observation bracket", () => {
     });
   });
 
+  it("refuses a pair with more than one merge base at both readers", async () => {
+    const ambiguousOverlap = () => vi.fn(async () => ({
+      status: "ambiguous" as const,
+      detail: "The revisions have multiple best merge bases.",
+    }));
+
+    const prepareDeps = dependencies();
+    prepareDeps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    prepareDeps.readOverlap = ambiguousOverlap();
+    await expect(prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, prepareDeps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "evidence-unavailable",
+      detail: "The revisions have multiple best merge bases.",
+    });
+
+    const closeDeps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, closeDeps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    closeDeps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    closeDeps.readOverlap = ambiguousOverlap();
+    await expect(closeDeliveryEligibility(prepared.snapshot, closeDeps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "evidence-unavailable",
+      detail: "The revisions have multiple best merge bases.",
+    });
+  });
+
   it("admits an exact same-member retry and refuses late plan or completeness drift", async () => {
     const deps = dependencies();
     const prepared = await prepareDeliveryEligibility({

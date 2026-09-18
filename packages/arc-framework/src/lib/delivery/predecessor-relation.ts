@@ -75,6 +75,17 @@ export type DeliveryPredecessorRelation =
 
 export type PredecessorRelationRead =
   | { readonly status: "resolved"; readonly relation: DeliveryPredecessorRelation }
+  | {
+      readonly status: "ambiguous";
+      readonly memberHead: string;
+      readonly observedTip: string;
+      readonly detail: string;
+      /** Merging the observed tip in leaves one merge base where there were two, which is what clears this. */
+      readonly remedy: {
+        readonly kind: "delivery-base-merge-required";
+        readonly automatedCommand: readonly string[];
+      };
+    }
   | { readonly status: "unavailable"; readonly detail: string };
 
 export interface PredecessorRelationDependencies {
@@ -105,10 +116,19 @@ export async function predecessorRelation(
   }
 
   const overlap = await deps.readOverlap(input.memberHead, input.observedTip);
-  // Interim: a history leaving more than one base arrives here as unavailable. That is fail-closed but says
-  // less than the read knows, and the four-arm read wrapper is what gives it somewhere of its own to land
-  // and undoes this fold.
-  if (overlap.status === "unavailable" || overlap.status === "ambiguous") {
+  if (overlap.status === "ambiguous") {
+    return {
+      status: "ambiguous",
+      memberHead: input.memberHead,
+      observedTip: input.observedTip,
+      detail: overlap.detail,
+      remedy: {
+        kind: "delivery-base-merge-required",
+        automatedCommand: ["git", "merge", input.observedTip],
+      },
+    };
+  }
+  if (overlap.status === "unavailable") {
     return { status: "unavailable", detail: overlap.detail };
   }
   if (overlap.status === "unrelated") {

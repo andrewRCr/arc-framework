@@ -374,6 +374,17 @@ export async function prepareDeliveryEligibility(input: {
   if (predecessorRead.status === "unavailable") {
     return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
   }
+  // Interim: a pair with more than one merge base refuses under the reason a failed read takes, which invites a
+  // retry that cannot clear it — the merge the arm carries is what clears it. The reason and the remedy slot that
+  // holds it land with this reader's stated dispositions; until then the detail at least reports the condition.
+  if (predecessorRead.status === "ambiguous") {
+    return {
+      status: "refused",
+      reason: "evidence-unavailable",
+      deliverableId: firstCandidate.deliverableId,
+      detail: predecessorRead.detail,
+    };
+  }
   const observedRelation = predecessorRead.relation;
   if (observedRelation.kind === "overlapping-ahead" || observedRelation.kind === "unrelated") {
     return {
@@ -573,6 +584,11 @@ async function closeMechanicalDeliveryEligibility(
     }),
   });
   if (currentRelation.status === "unavailable") return { status: "refused", reason: "evidence-unavailable" };
+  // Interim, matching the prepare-time reader above: the arm refuses, under a reason that does not yet name what
+  // clears it. Stated as its own branch rather than by widening the guard, so the two conditions stay apart.
+  if (currentRelation.status === "ambiguous") {
+    return { status: "refused", reason: "evidence-unavailable", detail: currentRelation.detail };
+  }
   if (!samePredecessorRelation(currentRelation.relation, snapshot.predecessorRelation)) {
     return {
       status: "refused",

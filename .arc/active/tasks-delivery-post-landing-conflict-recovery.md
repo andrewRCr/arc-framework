@@ -640,39 +640,10 @@ ordered-pair spelling, and `eligibility.ts` decides on the overlap field rather 
 _Design decisions:_ `unrelated` maps onto the resolver's arm rather than becoming a seventh variant; cardinality
 is a field on `diverged`, not a variant.
 
-### `[ ]` **5.1 Author the predecessor-relation classifier over its six variants**
+### `[x]` **5.1 Author the predecessor-relation classifier over its six variants**
 
 - _Goal:_ A reader asking whether a bound head is still the observed one distinguishes unmoved, append-only
   advance, rewound, diverged, absent, and unreadable — rather than collapsing them into equality-or-not.
-
-- _Shape:_ The **read wrapper carries four arms, mirroring the resolver's**: resolved, `ambiguous`, `unrelated`,
-  and `unavailable`. Two of them exist because the six-variant relation vocabulary cannot express them — an
-  ambiguous pair has no single base to relate against, and an unrelated pair has no relation at all — and
-  parking either under `unavailable` is what the design forbids, since `unavailable` is recoverable-by-retry
-  while these are recoverable-by-remedy and terminal respectively. The `ambiguous` arm carries the pair and the
-  per-pair remedy; the `unrelated` arm carries the observed tip and the resolver's detail.
-
-- _Note:_ The wrapper's **resolved arm carries only the chain-base-bearing variants** — `unchanged`, `advanced`,
-  `rewound`, `diverged`. An unresolvable ancestry read is the `unavailable` arm rather than a resolved `unknown`:
-  the wrapper owns the Git access, so it reports its own failure instead of handing a consumer a verdict-shaped
-  value meaning "no verdict". `absent` is not a topological answer at all — this read takes two revisions and asks
-  how they relate, while "no record binds this subject" is a prior fact about whether there is a subject, which
-  this read consults nothing to establish. Narrowing the arm is what makes `chainBase` total on it, and that
-  totality is what lets Task 5.4 remove a null branch because the value cannot be absent rather than because a
-  comment asserts it.
-
-- _Rationale:_ The classifier is pure over an ordered pair: topology only, no content term and no Git access.
-  Purity is possible only because the facts arrive pre-computed — it is a new function beside the existing async
-  `predecessorRelation` in `predecessor-relation.ts`, taking the bound head, the observed head, the ancestry
-  answers relating them, and the merge-base cardinality. `predecessorRelation` keeps its injected readers and
-  becomes one of its callers, so every Git read stays in that wrapper.
-  Cardinality rides as a field on `diverged` rather than as a variant, because cardinality above one is reachable
-  only when neither revision is an ancestor of the other — a variant would place it beside the case it lives
-  inside. Applicability is its only deciding consumer, and its remedy is re-baselining, not merging the base in.
-
-- _Note:_ `advanced` is ancestry-only. What keeps an unreviewed change from riding it is the gate below, which
-  still requires the observed head to equal the target head with the routed obligation discharged at that exact
-  vehicle — do not add a subject term to close a hole the downstream gate already holds.
 
     - `[x]` **5.1.a Classify the six variants**
 
@@ -697,27 +668,18 @@ is a field on `diverged`, not a variant.
         - `diverged` carries `mergeBaseCount`, supplied to the classifier rather than derived by it: containment
           leaves exactly one best common ancestor, so the arms reached by containment need no read to state it.
 
-    - `[ ]` **5.1.d Land the read's `ambiguous` arm and undo the fold it stands in for**
+    - `[x]` **5.1.d Land the read's `ambiguous` arm and undo the fold it stands in for**
 
-        - The wrapper folds an ambiguous pair into `unavailable` today, and that fold's comment names this
-          widening as its undo. The arm carries the pair and the per-pair remedy — merging the base in, which
-          collapses two bases to one for a `(head, base)` pair — and carries no merge base or overlap, because the
-          multi-base branch returns before either is computed.
+        - The arm carries the pair, the resolver's detail, and the merge that collapses two bases to one; the
+          fold that sent it to `unavailable` is gone. Both eligibility readers refuse it under the failed-read
+          reason for now, each as its own branch rather than a widened guard, and carry the detail through so the
+          refusal reports the condition it cannot yet name.
 
-        - `unrelated` stays a relation variant for now; 5.2.d is what moves it onto its own arm. This task widens
-          the read, that one narrows the relation, and the two meet at the four arms.
-
-        - Both eligibility readers guard `unavailable` and then read the relation, so the new arm is a compiler
-          event at each. Their stated dispositions are 5.4.a's and the arm's own reason and remedy slot are
-          5.4.d's, so what lands here is a fail-closed interim refusal at both sites, named in place with its
-          undo — never a guard widened to "not resolved", which would park a recoverable-by-remedy cause under
-          the retry reason this phase exists to separate it from.
-
-        - Build `test-first` (one behavior at a time):
-
-            - A pair with more than one merge base reports the ambiguous arm rather than an unreadable read
-            - The arm carries the pair and the remedy that collapses the two bases
-            - An overlap that genuinely could not be read still reports `unavailable`
+- _Outcome:_ Topology lives in a pure classifier and everything that is not a relation lives in the read around
+  it. The read carries `resolved`, `ambiguous`, and `unavailable`, with `unrelated` joining them at 5.2.d once it
+  stops being a relation variant. The vocabulary is stated once, so later schema literals derive from it rather
+  than beside it, and widening the read is a compiler event at every consumer — both eligibility readers took one
+  here, fail-closed, pending the dispositions 5.4 states.
 
 ### `[ ]` **5.2 Migrate `predecessor-relation.ts` onto the relation's vocabulary**
 

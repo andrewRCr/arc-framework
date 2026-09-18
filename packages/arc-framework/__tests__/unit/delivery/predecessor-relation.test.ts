@@ -69,6 +69,48 @@ describe("predecessor relation", () => {
     });
   });
 
+  it("reports a pair with more than one merge base as its own arm", async () => {
+    const deps = dependencies();
+    deps.readOverlap = vi.fn(async () => ({
+      status: "ambiguous" as const,
+      detail: "The revisions have multiple best merge bases.",
+    }));
+
+    await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, deps)).resolves.toMatchObject({
+      status: "ambiguous",
+      memberHead: oid("b"),
+      observedTip: oid("c"),
+      detail: "The revisions have multiple best merge bases.",
+    });
+  });
+
+  it("carries the merge that collapses the two bases as that arm's remedy", async () => {
+    const deps = dependencies();
+    deps.readOverlap = vi.fn(async () => ({
+      status: "ambiguous" as const,
+      detail: "The revisions have multiple best merge bases.",
+    }));
+
+    await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, deps)).resolves.toMatchObject({
+      status: "ambiguous",
+      remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", oid("c")] },
+    });
+  });
+
+  it("still reports an overlap it could not read as unavailable", async () => {
+    const deps = dependencies();
+    deps.readOverlap = vi.fn(async () => ({
+      status: "unavailable" as const,
+      reason: "merge-base-failed" as const,
+      detail: "The merge base could not be read.",
+    }));
+
+    await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, deps)).resolves.toEqual({
+      status: "unavailable",
+      detail: "The merge base could not be read.",
+    });
+  });
+
   it("keeps no-common-ancestor distinct from unavailable evidence", async () => {
     const unrelated = dependencies();
     unrelated.readOverlap = vi.fn(async () => ({
