@@ -2100,4 +2100,24 @@ describe("handleAttest", () => {
     expect(reason).not.toContain("src/file-5.ts");
     expect(reason).toContain("and 3 more");
   });
+
+  it("refuses without attesting when the branch and its base leave no single base to collect against", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectGitCandidateSubject.mockResolvedValueOnce({
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The revisions have more than one best merge base.",
+    });
+
+    await handleAttest("foo", { json: true });
+
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.reason).toContain("merge-base-ambiguous");
+    expect(refusal.reason).toContain("The revisions have more than one best merge base.");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(mockRunAttest).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
 });

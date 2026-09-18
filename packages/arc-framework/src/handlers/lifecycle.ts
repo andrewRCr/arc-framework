@@ -2768,6 +2768,31 @@ export async function handleAttest(
     return;
   }
 
+  // Read here rather than inside attestation's own target dependency: every refusal attestation returns names
+  // a Candidate and the subject digest it was measured against, and a subject that was never collected has
+  // neither. What blocks it is the shape of the branch's history — the same kind of condition as the checks
+  // above, and like them it clears by hand and leaves the same command to re-run.
+  const subject = await collectGitCandidateSubject({
+    cwd: base.cwd,
+    name: input.name,
+    baseBranch: settings["branch.base"],
+    exec: base.io.exec,
+  });
+  if (subject.status !== "collected") {
+    refuseWithRemedy(
+      `\`arc attest\` cannot derive \`${input.name}\`'s subject from a single base `
+        + `(${subject.reason}): ${subject.detail}`,
+      spineRemedy(
+        "A Candidate attests what the branch contributes over one base, which a history leaving two equally "
+          + "good ancestors does not name.",
+        "Merge the configured base into the branch, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+
   let result: Awaited<ReturnType<typeof runAttest>>;
   try {
     result = await runAttest({
@@ -2775,18 +2800,7 @@ export async function handleAttest(
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
       readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
-      currentTarget: async (slug) => {
-        const collected = await collectGitCandidateSubject({
-          cwd: base.cwd,
-          name: slug,
-          baseBranch: settings["branch.base"],
-          exec: base.io.exec,
-        });
-        // Attestation asks for a target and this dependency answers with one or not at all, so the refusal
-        // leaves here raised. It reads as a ceremony outcome once attestation itself can carry one.
-        if (collected.status !== "collected") throw new Error(collected.detail);
-        return collected.target;
-      },
+      currentTarget: () => Promise.resolve(subject.target),
       effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
         cwd: base.cwd,
         name: slug,

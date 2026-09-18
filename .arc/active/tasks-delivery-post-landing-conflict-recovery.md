@@ -906,22 +906,23 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   reader confronts the arm instead of inheriting it. Test fixtures that only want a subject take one shared
   helper, so the raise a fixture inherits is visibly a fixture's and not a consumer's.
 
-### `[ ]` **6.4 Admit attestation's new refusal at the lifecycle ceremony**
+### `[x]` **6.4 Admit attestation's new refusal at the lifecycle ceremony**
 
 - _Goal:_ Attestation refuses a two-base history rather than attesting a subject derived from an arbitrary
   ancestor, and the refusal reads as a ceremony outcome rather than an internal error.
 
-- _Rationale:_ The lifecycle handler passes `currentTarget` into `runAttest`, so this is new behavior in a
-  load-bearing ceremony, not a pass-through. A plan treating the widening as a mechanical type propagation would
-  miss that a ceremony changes behavior.
+    - `[x]` **6.4.a Surface the refusal as a ceremony outcome**
 
-    - `[ ]` **6.4.a Surface the refusal as a ceremony outcome**
+        - The subject is collected as a ceremony precondition beside the open-task, unstaged-path, and delivery
+          renewal checks, so the refusal carries the `rejected` envelope and spine remedy they do. The target
+          dependency handed to `runAttest` no longer raises.
+        - The remedy names merging the configured base in, and is asserted by running it: one repository refuses
+          and then attests, which is also where the single-base arm is observed through the ceremony.
 
-        - Build `test-first` (one behavior at a time):
-
-            - Attestation over a two-base history refuses with a typed reason and an actionable remedy
-            - Attestation over a single-base history is unchanged
-            - The refusal is recoverable — the ceremony succeeds after the base is merged in
+- _Outcome:_ Attestation's own result had no slot for this. Every refusal `runAttest` returns names a Candidate
+  and the subject digest it was measured against, and a subject never collected has neither — the same reading
+  that gave each consumer its own policy at Task 6.3. So the refusal is the ceremony's, standing beside its other
+  preconditions, rather than a fourth arm of the verb's result.
 
 ### `[ ]` **6.5 Propagate the target-base resolver's widened result across its five call sites**
 
@@ -1008,6 +1009,12 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 
 - _Goal:_ Batch-verify the enumerated surface: a two-merge-base history refuses typed at every converted reader,
   and both propagations reach every consuming call site.
+
+- _Note:_ Two gaps the phase does not close on its own. The three delivery-execution refusals are reached by the
+  compiler and by no case — none arranges an ambiguous base that deep in `executeDeliveryCommand`. And
+  attestation's ceremony refusal is proven for an Active work unit only; while Integrating or Shipped,
+  `inspectRepositoryDeliveryCandidateRenewal` runs ahead of the subject read, and which of the two answers first
+  over an ambiguous history was not established here. Do not assume either is covered from elsewhere.
 
 ## **Phase 7:** Ancestry-aware readiness and per-term closeout
 

@@ -7,6 +7,10 @@
  * cardinality as its overlap. Each case observes the reader the boundary actually runs, over a real
  * repository, against a control on the same arrangement with an unambiguous history.
  *
+ * The attestation ceremony closes the file because it is where those readings reach an operator: it is
+ * driven through its handler rather than called directly, and its case carries the recovery too, since a
+ * refusal naming a remedy is worth only as much as the remedy actually clearing it.
+ *
  * The subject collector is read twice, because it has two arms over one base read: the committed arm
  * diffs a named revision against the base, and the staged arm diffs the index. A change reaching only
  * one of them leaves the other unproven, so neither arm's coverage stands in for the other's.
@@ -21,6 +25,8 @@ import { promisify } from "node:util";
 import type { RawGitExec } from "../../src/lib/change-facts.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../src/lib/work-unit/candidate-attestation.js";
+import { handleAttest, LifecycleCommandRefusalSchema } from "../../src/handlers/lifecycle.js";
+import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { runBaseDrift } from "../../src/lib/git/base-distance.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
 import {
@@ -32,7 +38,13 @@ import {
   arrangeAmbiguousMergeBase,
   arrangeBranchSide,
 } from "../helpers/base-advance.js";
-import { makeGitExec } from "../helpers/integration.js";
+import { runHandlerAt } from "../helpers/handler.js";
+import {
+  cleanupTempDir,
+  DEFAULT_PROMPTS,
+  initInTempRepo,
+  makeGitExec,
+} from "../helpers/integration.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
 import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 
@@ -102,6 +114,50 @@ async function stageWork(cwd: string, path: string): Promise<void> {
   await mkdir(join(cwd, dirname(path)), { recursive: true });
   await writeFile(join(cwd, path), `staged work\n${path}\n`, "utf-8");
   await git(cwd, ["add", "--", path]);
+}
+
+/** Run git with the fixture repository's own installed hooks out of the way. */
+async function arcGit(cwd: string, args: readonly string[]): Promise<string> {
+  return git(cwd, ["-c", "core.hooksPath=/dev/null", ...args]);
+}
+
+function machineContext() {
+  return resolveProcessInteractionContext({ noInput: false, machineReadable: true, yes: "absent" });
+}
+
+function metaDocument(): string {
+  return [
+    `# Metadata: ${WORK_UNIT}`,
+    "",
+    "| **State** | **Owner**   | **Branch**           | **Class** | **Priority** |",
+    "| --------- | ----------- | -------------------- | --------- | ------------ |",
+    `| \`Active\`  | \`test-user\` | \`feat/${WORK_UNIT}\` | \`Light\`   | \`P2\`         |`,
+    "",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
+    "- **Origin:** [internal]",
+    "- **Design:** [none]",
+    `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
+    "- **Review Rubric:** [none]",
+    "",
+    "- **Current Workflow:** [none]",
+    "- **Last Completed:** verification",
+    "- **Next Task:** [none]",
+    "- **Blockers:** [none]",
+    "",
+    "- **Next Action:** verification complete",
+    "",
+    "- **PR URL:** [none]",
+    "- **Completed:** [none]",
+    "",
+    "---",
+    "",
+  ].join("\n");
+}
+
+function taskDocument(): string {
+  return "# Task List: Sample\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n";
 }
 
 describe("the subject a work unit's own verification binds", () => {
@@ -236,5 +292,80 @@ describe("authoritative base drift over an ambiguous history", () => {
       movement: "unknown",
       overlap: { status: "ambiguous" },
     });
+  });
+});
+
+describe("the Candidate attestation ceremony over an ambiguous history", () => {
+  /**
+   * An Active work unit whose branch is ready to attest, in a repository ARC itself initialized.
+   *
+   * The readers above are reached directly, over a bare repository. The ceremony is reached through its
+   * handler, so it needs everything attestation checks before it ever collects a subject — a resolvable
+   * identity, an Active meta, a task list with nothing open, and no reviewable path the index is missing.
+   */
+  async function attestableWorkUnit(): Promise<string> {
+    const root = await initInTempRepo(DEFAULT_PROMPTS);
+    cleanups.push(async () => cleanupTempDir(root));
+    await arcGit(root, ["add", "-A"]);
+    await arcGit(root, ["commit", "-m", "init"]);
+
+    await arcGit(root, ["switch", "-c", `feat/${WORK_UNIT}`]);
+    await mkdir(join(root, ".arc", "active"), { recursive: true });
+    await writeFile(join(root, ".arc", "active", `meta-${WORK_UNIT}.md`), metaDocument(), "utf-8");
+    await writeFile(join(root, ".arc", "active", `tasks-${WORK_UNIT}.md`), taskDocument(), "utf-8");
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, BRANCH_PATH), "branch contribution\n", "utf-8");
+    await arcGit(root, ["add", "-A"]);
+    await arcGit(root, ["commit", "-m", "implementation"]);
+    return root;
+  }
+
+  /**
+   * Merge the same pair in opposite parent orders, leaving the branch and its base two best ancestors.
+   *
+   * Both merges name the two side commits rather than each other's result, which is what keeps neither
+   * ancestor reachable from the other — a branch merging the base's own merge would collapse back to one.
+   */
+  async function crossTheBase(root: string): Promise<void> {
+    const branchSide = await arcGit(root, ["rev-parse", "HEAD"]);
+    await arcGit(root, ["switch", "main"]);
+    await mkdir(join(root, dirname(BASE_PATH)), { recursive: true });
+    await writeFile(join(root, BASE_PATH), "base contribution\n", "utf-8");
+    await arcGit(root, ["add", "-A"]);
+    await arcGit(root, ["commit", "-m", "base side"]);
+    const baseSide = await arcGit(root, ["rev-parse", "HEAD"]);
+    await arcGit(root, ["switch", `feat/${WORK_UNIT}`]);
+    await arcGit(root, ["merge", "--no-ff", "-m", "branch merge", baseSide]);
+    await arcGit(root, ["switch", "main"]);
+    await arcGit(root, ["merge", "--no-ff", "-m", "base merge", branchSide]);
+    await arcGit(root, ["switch", `feat/${WORK_UNIT}`]);
+  }
+
+  async function attest(root: string): Promise<{ exitCode: number | undefined; result: unknown }> {
+    const run = await runHandlerAt(root, async () => {
+      await handleAttest(WORK_UNIT, { json: true }, machineContext());
+    });
+    return { exitCode: run.exitCode, result: JSON.parse(run.stdout) };
+  }
+
+  it("refuses over two equally good bases, and attests once the base is merged in", async () => {
+    const root = await attestableWorkUnit();
+    await crossTheBase(root);
+
+    const refused = await attest(root);
+
+    expect(refused.exitCode).toBe(1);
+    const refusal = LifecycleCommandRefusalSchema.parse(refused.result);
+    expect(refusal.reason).toContain("merge-base-ambiguous");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", WORK_UNIT]);
+
+    // The remedy the refusal names, run as an operator would run it: one merge leaves the advanced base an
+    // ancestor of the branch, so the pair has one best ancestor again and the same ceremony goes through.
+    await arcGit(root, ["merge", "--no-ff", "-m", "merge the base in", "main"]);
+
+    const attested = await attest(root);
+
+    expect(attested.exitCode).toBe(0);
+    expect(attested.result).toMatchObject({ status: "attested", operation: "root" });
   });
 });
