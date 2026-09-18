@@ -261,6 +261,13 @@ describe("native delivery landing suffix settlement", () => {
         }
       : { status: "accepted" as const, proof: "mechanical-reapply" as const };
 
+  /** What the terminal absorber returns when the top and the highest member disagree on a path. */
+  const conflictedTop = {
+    status: "refused" as const,
+    reason: "content-conflict" as const,
+    paths: ["docs/top.md"],
+  };
+
   function reachedSettlement() {
     const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
     const { writes, stateStore } = casStateStore();
@@ -304,7 +311,7 @@ describe("native delivery landing suffix settlement", () => {
     expect(settlement.writes).toHaveLength(2);
   });
 
-  it("refuses a stale resolution and keeps the reservation", async () => {
+  it("settles a resubmission the settle's own publish has since outrun", async () => {
     const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
     const disclosed = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
       observeRequest,
@@ -315,21 +322,70 @@ describe("native delivery landing suffix settlement", () => {
     if (disclosed.status !== "conflict-resolution-required") {
       throw new Error(`expected a disclosure, got ${disclosed.status}`);
     }
+    const settlement = reachedSettlement();
+    const resubmitted = {
+      ...reconcileInput,
+      conflictResolution: disclosed.resolutionInput,
+    };
+    const observers = { observeRequest, observeRef, proveContribution: conflictedSecondMember };
 
+    // The settle publishes its settlement phase before the terminal absorber runs, so a refusal past that
+    // point leaves state one revision ahead of the disclosure the operator is holding.
+    const wedged = await reconcileLinkedNativeDeliverySuffix(resubmitted, {
+      ...observers,
+      ...settlement.deps,
+      absorbTop: async () => conflictedTop,
+    });
+    const settled = settlement.writes.at(-1);
+    if (wedged.status !== "blocked" || settled === undefined) {
+      throw new Error(`expected a wedge past the phase publish, got ${wedged.status}`);
+    }
+
+    // The operator resolves by hand and resubmits the disclosure byte-identical, as the wedge asked.
     const result = await reconcileLinkedNativeDeliverySuffix(
       {
-        ...reconcileInput,
-        conflictResolution: { ...disclosed.resolutionInput, expectedStateRevision: 99 },
+        ...resubmitted,
+        before: { revision: 4, value: settled.value },
+        landed: { ...reconcileInput.landed, revision: 4 },
       },
+      { ...observers, ...settlement.deps },
+    );
+
+    expect(settled.expectedRevision).toBe(3);
+    expect(disclosed.resolutionInput.expectedStateRevision).toBe(3);
+    expect(result).toMatchObject({ status: "applied" });
+  });
+
+  it("carries a suffix resolution through to a terminal collision in the same settle", async () => {
+    const { reconcileInput, observeRequest, observeRef } = linkedSuffixFixture();
+    const disclosed = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: conflictedSecondMember,
+      ...linkedSuffixFixture().unreachedSettlement,
+    });
+    if (disclosed.status !== "conflict-resolution-required") {
+      throw new Error(`expected a disclosure, got ${disclosed.status}`);
+    }
+
+    // Neither lane covered the pair: the end-to-end terminal fixture has a clean suffix, and no unit test
+    // supplied a resolution across a terminal wedge — which is where the revision moves underneath it.
+    const result = await reconcileLinkedNativeDeliverySuffix(
+      { ...reconcileInput, conflictResolution: disclosed.resolutionInput },
       {
         observeRequest,
         observeRef,
         proveContribution: conflictedSecondMember,
-        ...unreachedSettlement,
+        ...reachedSettlement().deps,
+        absorbTop: async () => conflictedTop,
       },
     );
 
-    expect(result).toMatchObject({ status: "blocked", reason: "conflict-resolution-mismatch" });
+    expect(result).toMatchObject({
+      status: "blocked",
+      reason: "contribution-conflicted",
+      paths: ["docs/top.md"],
+    });
   });
 
   it("refuses a resolution supplied when the suffix proves clean", async () => {

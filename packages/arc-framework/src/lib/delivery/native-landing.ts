@@ -1252,6 +1252,34 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
       readonly recommendedActionText: string;
     };
 
+/**
+ * What a resubmitted suffix resolution has to match: the conflict set it answers and the suffix it was
+ * disclosed against.
+ *
+ * The state revision is deliberately excluded. The settle publishes its settlement phase before the terminal
+ * absorber runs, so a refusal past that point leaves state a revision ahead of the disclosure the operator is
+ * holding; comparing the revision would refuse the byte-identical resubmission the wedge asked for, on a value
+ * this protocol moved itself.
+ *
+ * Nothing is loosened by the omission. Concurrency is held by the reservation's own revision lockstep and by
+ * the compare-and-set on each publish, and a member that moved between attempts changes the observed suffix
+ * digest, which this comparison does bind.
+ */
+function nativeSuffixResolutionSubstance(
+  resolution: DeliveryNativeSuffixConflictResolutionInput,
+): string {
+  const { planId, scope, observedSuffixDigest, conflicts } = resolution;
+  // Annotated, not inferred: a field added to the shared resolution input stops this compiling until someone
+  // decides whether the clearance comparison binds it.
+  const substance: Omit<DeliveryNativeSuffixConflictResolutionInput, "expectedStateRevision"> = {
+    planId,
+    scope,
+    observedSuffixDigest,
+    conflicts,
+  };
+  return canonicalize(substance);
+}
+
 /** Shared refusal for a resolution that does not match the suffix freshly observed under the reservation. */
 const nativeSuffixConflictResolutionMismatch = {
   status: "blocked",
@@ -1471,7 +1499,8 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
           "Resubmit this resolution unchanged with `arc delivery native land-status` to accept the listed collisions under the held reservation, or resolve the listed member paths and rerun `arc delivery native land-status` without a resolution to settle the reobserved suffix.",
       };
     }
-    if (canonicalize(input.conflictResolution) !== canonicalize(resolutionInput)) {
+    if (nativeSuffixResolutionSubstance(input.conflictResolution)
+      !== nativeSuffixResolutionSubstance(resolutionInput)) {
       return nativeSuffixConflictResolutionMismatch;
     }
   } else if (input.conflictResolution !== undefined) {

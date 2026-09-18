@@ -252,21 +252,39 @@ acceptance is the existing `applicability-selection` transition, not a new waive
   inheriting the earlier one. Reconstructing the two guards — advancing on `covered` alone, and letting an
   accepted selection outlive its subject — turns each claim red, so neither rides on the probe's narrative.
 
-### `[ ]` **2.R Bind a resubmitted resolution to its conflict set** — amendment A6
+### `[x]` **2.R Bind a resubmitted resolution to its conflict set** — amendment A6
 
 - _Goal:_ A6 — the terminal arm's phase publish advances the revision Task 1.4's clearance check pins, so a
   byte-identical resubmission is refused for a mismatch on a value the protocol itself moved.
 
-    - `[ ]` **2.R.a Drop the state revision from the resolution's clearance comparison**
+    - `[x]` **2.R.a Drop the state revision from the resolution's clearance comparison**
 
         - The comparison keeps every member digest and the conflict set it answers; what it stops carrying is the
           revision, which the settle advances between disclosure and resubmission.
         - The check stays exact: moving an unrelated member, or resolving when clean, still refuses.
+        - _Outcome:_ `nativeSuffixResolutionSubstance` in `native-landing.ts` compares `planId`, `scope`,
+          `observedSuffixDigest` and `conflicts`, annotated against `Omit<…, "expectedStateRevision">` so a field
+          added to the shared resolution input stops compiling rather than silently leaving the comparison.
+        - _Outcome:_ `expectedStateRevision` stays on the contract. It is read from the shared
+          `DeliveryProviderConflictResolutionInput`, and the provider-refresh flow's own guard on it is sound —
+          that arm returns before any state write, so nothing moves the revision under it.
 
-    - `[ ]` **2.R.b Prove a suffix collision and a terminal collision together**
+    - `[x]` **2.R.b Prove a suffix collision and a terminal collision together**
 
         - Neither lane covers the pair today — the end-to-end terminal fixture has a clean suffix, and no unit
           test supplies a resolution across a terminal wedge. That pair is where the staleness surfaces.
+        - _Outcome:_ "settles a resubmission the settle's own publish has since outrun" runs the real operator
+          sequence over one CAS store: disclose at revision 3, settle until the terminal absorber refuses
+          `content-conflict` — past the settlement-phase publish, which leaves state at 4 — then resubmit the
+          byte-identical disclosure. Verified RED against the pre-fix comparison with reason
+          `conflict-resolution-mismatch`, whose own remedy text tells the operator to discard the disclosure the
+          wedge asked them to hold.
+        - _Outcome:_ "carries a suffix resolution through to a terminal collision in the same settle" covers the
+          pair directly. It passed on first write: the pair works today when the revision has not moved, so this
+          one closes the coverage gap rather than a defect.
+        - _Outcome:_ The superseded "refuses a stale resolution and keeps the reservation" was removed — A6
+          supersedes its premise. Refusal on substance stays covered by the unrelated-member and resolved-clean
+          cases.
 
 ### `[ ]` **2.R2 Drive a settled member back through the landing readiness gate** — amendment A7
 
