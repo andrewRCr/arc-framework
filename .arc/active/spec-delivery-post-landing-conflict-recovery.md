@@ -96,7 +96,7 @@ the count is not one, and returns four arms, split on what the caller can do nex
 | ------------- | ------------------------------------- | -------------------------------------- |
 | `resolved`    | exactly one merge base                | diff or record from that single base   |
 | `ambiguous`   | more than one equally good merge base | recoverable — remedy per pair (below)  |
-| `unrelated`   | no common ancestor                    | terminal                               |
+| `unrelated`   | no common ancestor                    | recoverable by hand merge only (A13)   |
 | `unavailable` | the read failed operationally         | recoverable — retry or repair the repo |
 
 `unrelated` and `unavailable` ship under these names in `base-overlap.ts`'s `RevisionOverlapResult`, and that type
@@ -127,11 +127,12 @@ The first three carry the distinction as peer status arms, which is what lets th
 readers report it. The fourth answers a narrower question and carries it as a discriminant instead.
 
 **Each distinction lands as a peer `status` arm, never as another reason inside `unavailable`.** Recoverability is
-a status-level property and every consumer branches on status: `unrelated` is terminal while `unavailable` is
-recoverable, so a terminal condition parked under the recoverable status is retried forever — the defect class
-this work unit removes, reintroduced one layer down. `RevisionOverlapResult` already models `unrelated` as a peer
-status, so the first layer is consistency rather than novelty; the two downstream layers, which today express
-everything non-available as `unavailable` with a reason enum, gain the structure.
+a status-level property and every consumer branches on status: the act that clears `unrelated` is not the act that
+clears `unavailable` (A13), so a condition parked under the wrong status is answered forever by a command that
+cannot reach it — the defect class this work unit removes, reintroduced one layer down. `RevisionOverlapResult`
+already models `unrelated` as a peer status, so the first layer is consistency rather than novelty; the two
+downstream layers, which today express everything non-available as `unavailable` with a reason enum, gain the
+structure.
 
 **The normalized verdict space is the exception, and it is one by construction.** `EvidenceOverlap` is not a
 reporting layer — it is the reduced input to a reducer that answers one question, "does prior evidence still
@@ -1094,5 +1095,9 @@ does not reopen it on the same inputs.
   _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 3.R2. _Revalidated:_ verify-work-unit.
 - **A12** — 2026-09-18 — task: each settlement-phase refusal names the act its own cause needs.
   _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 1.R2. _Revalidated:_ verify-work-unit.
+- **A13** — 2026-09-18 — design: `unrelated` is cleared by the hand merge review status already names, never
+  by `arc base merge`, so the readers name that remedy instead of a disposition. _Supersedes:_ § D1 — the
+  `unrelated` row's terminal disposition. _Trigger:_ 4.R4 must-stop. _Work:_ 4.R4.
+  _Revalidated:_ verify-work-unit.
 
 ---

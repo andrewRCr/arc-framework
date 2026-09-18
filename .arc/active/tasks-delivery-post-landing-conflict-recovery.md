@@ -974,6 +974,10 @@ to a verdict and carries the cause as a discriminant instead. See
           `--allow-unrelated-histories` and cannot clear the pair. `ambiguous` keeps the route, since git collapses
           a criss-cross through a virtual base.
 
+        - _Amended in:_ A13 — measured against git, the pair is clearable, just not by `arc base merge`: the
+          readers name the hand merge `review-gate/status.ts` already ships for it rather than a disposition.
+          `ambiguous` is unchanged. See `notes-delivery-post-landing-conflict-recovery.md` § A13.
+
     - `[ ]` **4.R4.c Drive the criterion's own scenario end to end**
 
         - No test takes an ambiguous or unrelated base through `checkpointIntegration`. Both halves of Task 4.R3

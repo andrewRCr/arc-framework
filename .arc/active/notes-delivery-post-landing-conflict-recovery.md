@@ -460,3 +460,40 @@ pins. An operator who resubmits the byte-identical resolution the disclosure ask
 mismatch on a revision that moved underneath them, with nothing about the conflict set changed. Binding the
 resolution to the conflict set it answers, rather than to the revision that carried it, keeps the clearance
 check exact while removing the dependence on a value the protocol itself moves.
+
+### A13 — `unrelated` is clearable, just not by the command the checkpoint named
+
+Superseded, § D1: _"`unrelated` | no common ancestor | terminal"_, and the sentence resting on it —
+_"`unrelated` is terminal while `unavailable` is recoverable."_
+
+The disposition was never observed against git. Both halves were measured in a throwaway repository before the
+amendment was written:
+
+- `git merge --no-ff --no-edit <base>` — the exact command `mergeAppendOnly` runs for `arc base merge` — exits
+  128 with `fatal: refusing to merge unrelated histories` and leaves **no** `MERGE_HEAD`. The composition's
+  `catch` rethrows anything without a merge in progress, so `arc base merge` does not refuse here; it dies on an
+  uncaught error.
+- `git merge --allow-unrelated-histories <base>` exits 0, builds a two-parent commit, and leaves the pair with
+  exactly one merge base. The pair moves to `resolved`, not to `ambiguous`, so the next read resolves cleanly.
+
+The symmetric claim was measured the same way: a criss-cross carrying two merge bases collapses to one under the
+plain merge, so `ambiguous` keeps `reconcile-base` unchanged.
+
+So the design record and the delivered code had already disagreed. `review-gate/status.ts` ships
+`git merge --allow-unrelated-histories` as this condition's remedy under this very work unit, while D1 called the
+condition terminal. The amendment catches the record up to what shipped rather than introducing a new route.
+
+What "terminal" was protecting is kept. The reason D1 gave was that a terminal condition parked under a
+recoverable status is retried forever — and routing `unrelated` to `reconcile-base` is exactly that failure, a
+retry of a command that cannot reach it. Naming the hand merge removes the loop without removing the route, which
+is what § Success Criteria asks for: a remedy that can clear it, **or** a statement that stops inviting one.
+
+Two costs are accepted rather than hidden. The hand merge carries no head pin — `arc base merge` refuses on an
+`--expected-head` mismatch, while `git merge --allow-unrelated-histories <oid>` runs against whatever `HEAD` is,
+so the operator's checkout is the only thing binding it. And a branch sharing no history with its base is more
+often a wrong base or a wrong clone than a merge waiting to happen, so the refusal detail leads with the observed
+condition rather than the command, and the operator is expected to recognize a setup error before running it.
+
+One route was considered and rejected as out of scope: adding `--allow-unrelated-histories` to `mergeAppendOnly`
+would make the superseded routing correct and cost nothing here, but it changes what `arc base merge` means for
+every caller — a scope expansion for the Owner to weigh separately, not a correction this amendment may absorb.
