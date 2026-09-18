@@ -68,7 +68,12 @@ export interface DeliveryTerminalRemedy {
     | "delivery-host-reobservation-required"
     | "delivery-closeout-repository-correction-required"
     | "delivery-request-retarget-required"
-    | "delivery-terminal-landing-required";
+    | "delivery-terminal-landing-required"
+    | "delivery-terminal-checkout-required"
+    | "delivery-terminal-restore-required"
+    | "delivery-terminal-hand-merge-required"
+    | "delivery-terminal-absorption-retry-required"
+    | "delivery-worktree-clean-required";
   readonly automatedCommand: null;
 }
 

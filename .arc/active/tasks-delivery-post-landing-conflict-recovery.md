@@ -139,22 +139,32 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 - _Outcome:_ Every refusal this function returns now names a repair that changes what the next run observes,
   rather than a bare rerun over unchanged refs.
 
-### `[ ]` **1.R Name a clearing remedy on each absorber refusal** — amendment A5
+### `[x]` **1.R Name a clearing remedy on each absorber refusal** — amendment A5
 
 - _Goal:_ A5 — the shared refusal guidance Task 1.5 corrected hands every absorber reason the same "restore the
   exact terminal top" remedy, which cannot clear a dirty worktree or a top that is not checked out.
 
-    - `[ ]` **1.R.a Branch the remedy by absorber reason**
+    - `[x]` **1.R.a Branch the remedy by absorber reason**
 
-        - `worktree-dirty`, `top-not-checked-out`, `coordinate-invalid`, `top-moved` and `absorption-unavailable`
-          all reach one arm today. Each names the condition it can actually clear; the typed reason is unchanged.
-        - The engineering standard is the floor: a recoverable refusal preserves a safe retry route and names an
-          actionable remedy, and a guard-only dead end is not one.
+        - `DELIVERY_CHAIN_ABSORPTION_REMEDIES` in `chain-absorption.ts` keys a typed remedy and its operator
+          text to each refusal reason, beside the union that raises them; the arm spreads the entry rather than
+          composing a sentence.
+        - The record is total over the whole reason union, which covers a case the single sentence hid:
+          `content-conflict` reaches this arm whenever its paths are absent, and was answered with guidance
+          about the top.
+        - D10 asks for a typed remedy the caller dispatches, and the closeout vocabulary carried no kind for a
+          local precondition. Five were added — terminal checkout, restore, hand merge, absorption retry, and
+          worktree clean.
 
-    - `[ ]` **1.R.b Cover each reason's remedy**
+    - `[x]` **1.R.b Cover each reason's remedy**
 
-        - One assertion per reason that the named remedy addresses that reason, so a later arm cannot inherit a
-          remedy for a condition it does not have.
+        - Six cases assert the reason's own remedy kind and a phrase naming its condition, spelled out in the
+          test rather than read from the table under test, which would have passed for any mapping.
+        - A seventh asserts the six answers are distinct. Before the change it reported one.
+
+- _Outcome:_ Widening `DeliveryTerminalRemedy` left closeout's total `TERMINAL_REMEDY_ACTIONS` incomplete and
+  the type checker named it, so each new kind also carries the sentence closeout puts on it. The two surfaces
+  stay in step by construction rather than by inspection.
 
 ## **Phase 2:** Terminal absorption conflict recovery
 

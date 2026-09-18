@@ -421,6 +421,16 @@ checkpoint pairs; the arms it authored sit behind a guard that returns before th
 are unbound, so the route exists and is unreachable on the only vehicle that needs it. Admitting the checkpoint
 as a third consumer is what makes 4.8's stated outcome true, rather than new scope.
 
+### A5 — why the absorber remedy is spec-depth and not a task arm
+
+D10 already requires this arm to carry "a typed remedy action the caller dispatches", and names the
+terminal-absorption arm explicitly, so the gap is covered by a settled statement. What no statement supplies is
+the remedy **vocabulary** for the condition class: every kind `DeliveryTerminalRemedy` carried describes a
+delivery-record or host condition, and the absorber refuses on local preconditions — an unchecked-out top, a
+moved top, a dirty worktree, an in-progress merge. Those kinds had to be authored rather than selected, which is
+what keeps the amendment at spec-depth. The appended criterion makes the property checkable at the next
+occurrence.
+
 ### A6 — the terminal arm persists before its wedge returns
 
 Superseded, § D6: _"Nothing is persisted on the input side, so nothing can go stale."_

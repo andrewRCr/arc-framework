@@ -816,3 +816,52 @@ describe("native delivery landing suffix settlement", () => {
     expect(absorbTop).not.toHaveBeenCalled();
   });
 });
+
+describe("the terminal absorber's refusal remedy", () => {
+  const absorberRefusals = [
+    "top-ref-invalid",
+    "coordinate-invalid",
+    "top-not-checked-out",
+    "top-moved",
+    "worktree-dirty",
+    "absorption-unavailable",
+  ] as const;
+
+  const blockedByAbsorber = async (reason: (typeof absorberRefusals)[number]) => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const blocked = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...unreachedSettlement,
+      stateStore: casStateStore().stateStore,
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      absorbTop: async () => ({ status: "refused", reason }),
+    });
+    return blocked as { status: string; reason: string; recommendedActionText: string; remedy?: { kind: string } };
+  };
+
+  // Spelled out per reason rather than compared against the table the code reads: an assertion sourced from the
+  // mapping under test would pass for any mapping, which is the failure this boundary is correcting.
+  it.each([
+    ["top-ref-invalid", "delivery-record-repair-required", /repair the landing record/i],
+    ["coordinate-invalid", "delivery-host-reobservation-required", /re-observe/i],
+    ["top-not-checked-out", "delivery-terminal-checkout-required", /check out the terminal top/i],
+    ["top-moved", "delivery-terminal-restore-required", /restore the exact terminal top/i],
+    ["worktree-dirty", "delivery-worktree-clean-required", /commit or set aside/i],
+    ["absorption-unavailable", "delivery-terminal-absorption-retry-required", /in-progress merge/i],
+  ] as const)("answers %s with a remedy that clears it", async (reason, kind, names) => {
+    const blocked = await blockedByAbsorber(reason);
+
+    expect(blocked).toMatchObject({ status: "blocked", reason, remedy: { kind, automatedCommand: null } });
+    expect(blocked.recommendedActionText).toMatch(names);
+    expect(blocked.recommendedActionText).toMatch(/^Keep the reservation/);
+  });
+
+  it("answers each absorber refusal in its own words", async () => {
+    const answers = await Promise.all(absorberRefusals.map(blockedByAbsorber));
+
+    const texts = answers.map((answer) => answer.recommendedActionText);
+    expect(new Set(texts).size).toBe(absorberRefusals.length);
+  });
+});

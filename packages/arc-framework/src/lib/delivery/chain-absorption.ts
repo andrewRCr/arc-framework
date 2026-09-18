@@ -1,6 +1,7 @@
 /** Append-only content absorption for a refreshed delivery predecessor. */
 
 import type { RawGitExec } from "../change-facts.js";
+import type { DeliveryTerminalRemedy } from "./retirement.js";
 import { supportsMergeTreeWriteTree } from "../git/merge-tree-capability.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import type { DeliveryContributionCoordinate } from "./contribution-proof.js";
@@ -316,6 +317,52 @@ export type DeliveryChainAbsorptionResult =
  * @param input - Pinned top/ref coordinates, refreshed predecessor coordinates, and Git boundary
  * @returns The new append-only top coordinate or a typed refusal
  */
+/** What each absorption refusal asks the operator to do, keyed by the condition the guard actually observed. */
+export const DELIVERY_CHAIN_ABSORPTION_REMEDIES: Record<
+  Extract<DeliveryChainAbsorptionResult, { status: "refused" }>["reason"],
+  { readonly remedy: DeliveryTerminalRemedy; readonly recommendedActionText: string }
+> = {
+  "top-ref-invalid": {
+    remedy: { kind: "delivery-record-repair-required", automatedCommand: null },
+    recommendedActionText:
+      "Keep the reservation and repair the landing record, whose terminal ref is not a usable ref name.",
+  },
+  "coordinate-invalid": {
+    remedy: { kind: "delivery-host-reobservation-required", automatedCommand: null },
+    recommendedActionText:
+      "Keep the reservation and rerun `arc delivery native land-status` to re-observe the terminal "
+      + "coordinates, which no longer match the repository.",
+  },
+  "top-not-checked-out": {
+    remedy: { kind: "delivery-terminal-checkout-required", automatedCommand: null },
+    recommendedActionText:
+      "Keep the reservation and check out the terminal top branch before retrying native landing settlement.",
+  },
+  "top-moved": {
+    remedy: { kind: "delivery-terminal-restore-required", automatedCommand: null },
+    recommendedActionText:
+      "Keep the reservation and restore the exact terminal top before retrying native landing settlement.",
+  },
+  "worktree-dirty": {
+    remedy: { kind: "delivery-worktree-clean-required", automatedCommand: null },
+    recommendedActionText:
+      "Keep the reservation and commit or set aside the terminal checkout's worktree changes before "
+      + "retrying native landing settlement.",
+  },
+  "content-conflict": {
+    remedy: { kind: "delivery-terminal-hand-merge-required", automatedCommand: null },
+    recommendedActionText:
+      "Keep the reservation and merge the highest member into the checked-out terminal top by hand, then "
+      + "rerun `arc delivery native land-status` to absorb the merged top.",
+  },
+  "absorption-unavailable": {
+    remedy: { kind: "delivery-terminal-absorption-retry-required", automatedCommand: null },
+    recommendedActionText:
+      "Keep the reservation and conclude any in-progress merge in the terminal checkout, then rerun "
+      + "`arc delivery native land-status`.",
+  },
+};
+
 export async function absorbGitDeliveryChain(
   input: DeliveryChainAbsorptionInput,
 ): Promise<DeliveryChainAbsorptionResult> {

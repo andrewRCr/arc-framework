@@ -66,6 +66,17 @@ const TERMINAL_REMEDY_ACTIONS: Record<DeliveryTerminalRemedy["kind"], string> = 
     "Retarget the change request on the host to the branch and base the record binds, then close out.",
   "delivery-terminal-landing-required":
     "Land the terminal change request on its base, then close out.",
+  "delivery-terminal-checkout-required":
+    "Check out the terminal top branch in the delivery worktree, then close out.",
+  "delivery-terminal-restore-required":
+    "Restore the terminal top to the exact head the record binds, then close out.",
+  "delivery-terminal-hand-merge-required":
+    "Merge the highest member into the checked-out terminal top by hand, resolving the conflicted paths, "
+    + "then close out.",
+  "delivery-terminal-absorption-retry-required":
+    "Conclude any in-progress merge in the terminal checkout, then close out.",
+  "delivery-worktree-clean-required":
+    "Commit or set aside the terminal checkout's worktree changes, then close out.",
 };
 
 /**

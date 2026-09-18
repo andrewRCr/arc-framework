@@ -42,6 +42,8 @@ import {
 } from "./suffix-reconciliation.js";
 import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import type { DeliveryChainAbsorptionResult } from "./chain-absorption.js";
+import { DELIVERY_CHAIN_ABSORPTION_REMEDIES } from "./chain-absorption.js";
+import type { DeliveryTerminalRemedy } from "./retirement.js";
 import type { DeliveryMemberRefCheckoutObservation } from "./git-materialization.js";
 
 export interface DeliveryNativeLandingMember {
@@ -1246,6 +1248,7 @@ export type ReconcileLinkedNativeDeliverySuffixResult =
       readonly status: "blocked";
       readonly reason: string;
       readonly paths?: readonly string[];
+      readonly remedy?: DeliveryTerminalRemedy;
       readonly recommendedActionText: string;
     };
 
@@ -1614,8 +1617,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
         : {
             status: "blocked",
             reason: absorbed.reason,
-            recommendedActionText:
-              "Keep the reservation and restore the exact terminal top before retrying native landing settlement.",
+            ...DELIVERY_CHAIN_ABSORPTION_REMEDIES[absorbed.reason],
           };
     }
     const publishedTop = await dependencies.publishTop({
