@@ -1443,15 +1443,29 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   reporting the hold spent rather than neither-shape. That empties the last of the four probe files this boundary
   owns, so no `expectPinnedObservation` call remains in any of them.
 
-### `[ ]` **7.R Report only the relation the read established** — amendment A5
+### `[x]` **7.R Report only the relation the read established** — amendment A5
 
 - _Goal:_ A5 — Task 7.3's readiness comparison leaves one direction unresolvable by construction and still emits
   a stale reason asserting the head under review does not descend from the bound one.
 
-    - `[ ]` **7.R.a State the unread direction as unread**
+    - `[x]` **7.R.a State the unread direction as unread**
 
         - The reason distinguishes a relation that was read and disagreed from one the read could not establish;
           the recorded exclusion already names the different remedy the second case needs.
+        - _Outcome:_ The forward ancestry answer is held at the call site rather than passed straight through,
+          because with the reverse direction never read `unknown` is the only non-admitting variant this call
+          can produce — so the classifier hands back one token for a direction that said no and a direction
+          nobody could read. The refusal splits on the held answer: `not-ancestor` keeps
+          `delivery-member-stale` and its descent claim, and every other answer reports
+          `delivery-member-relation-unavailable`, which says the descent could not be read and names the fetch
+          that clears it. The fact carries no dispatchable act, so the remedy is the prose and the check asserts
+          the message, not only the code. An absent reader answers `unresolvable` and now refuses under the
+          unread reason for the same cause the injected reader reports it under.
+        - _Outcome:_ Recorded against the exclusion it narrows. `notes-…md` § Recorded exclusions argued that
+          readiness and closeout agree because both collapse the pair; readiness did not merely collapse it, it
+          asserted the collapse as a finding. The bullet carries a `_Corrected in 7.R (A5):_` line rather than
+          being rewritten, and A5's register entry names the supersession. Closeout's fourteen conditions are
+          unchanged — the two readers now differ, which is the forward amendment that exclusion still records.
 
 ### `[x]` **7.7 Distinguish a stale binding from an absent one** — validate exit criterion at segment scope
 

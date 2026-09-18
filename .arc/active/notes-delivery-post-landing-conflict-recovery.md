@@ -167,6 +167,16 @@ Scope decisions this work unit made deliberately. Each is a thing a later reader
   draw the rebind act — where the second clears by fetching and rerunning instead. Fourteen conditions is the
   design's own sizing and review readiness collapses the same pair under `delivery-member-stale`, so the two
   readers agree rather than one lagging; splitting the pair is a forward amendment, not a gap left behind here.
+
+    _Corrected in 7.R (A5):_ the agreement argument no longer holds, and the exclusion is narrower than it
+    reads. Readiness did not merely collapse the pair — it stated the collapse as a finding, asserting that the
+    head under review does not descend from the binding on the strength of a read that established nothing.
+    That is a claim, not a granularity choice, so A5 splits it there: `delivery-member-relation-unavailable`
+    carries the unread direction and names the fetch that clears it. Closeout's fourteen conditions stand
+    unchanged, which is what this exclusion is actually about; the two readers now differ, and closing that gap
+    remains the forward amendment recorded here — now carried live as the `USER-INBOX` § Errand entry
+    "Split the unresolvable ancestry read out of closeout's `terminal-head-moved`", rather than only by this
+    bullet, since nothing sweeps a recorded exclusion out of an archived work unit.
 - **`git-contribution-proof.ts` and `git-review-contribution-applicability.ts`** are allocated but not converted,
   on the absence of a traced defect. Both already return typed reasons, but that alone does not separate them from
   the converted set: `git-review-contribution-applicability.ts` is the same code shape line for line as

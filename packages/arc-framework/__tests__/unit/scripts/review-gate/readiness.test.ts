@@ -1064,10 +1064,13 @@ describe("delivery-member authentication against delivery state", () => {
     expect(result.state).toBe("ready");
   });
 
+  // One read and two refusals. Both leave the member unadmitted, so a single code reads as harmless until the
+  // operator acts on it: the stale one asserts the head under review does not descend from the binding, which
+  // only the `not-ancestor` answer establishes, and it draws a rebind the unread case does not need.
   it.each([
-    ["the review head does not descend from it", "not-ancestor" as const],
-    ["ancestry could not be established", "unresolvable" as const],
-  ])("refuses a moved binding where %s", async (_case, answer) => {
+    ["the review head does not descend from it", "not-ancestor" as const, "delivery-member-stale"],
+    ["ancestry could not be established", "unresolvable" as const, "delivery-member-relation-unavailable"],
+  ])("refuses a moved binding where %s, under its own reason", async (_case, answer, code) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
@@ -1079,7 +1082,29 @@ describe("delivery-member authentication against delivery state", () => {
 
     expect(result).toMatchObject({
       state: "invalid",
-      payload: { facts: [{ code: "delivery-member-stale", path: "pullRequest.headSha" }] },
+      payload: { facts: [{ code, path: "pullRequest.headSha" }] },
+    });
+  });
+
+  it("states the unread direction as unread rather than as a head that moved", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        readDeliveryAncestry: async () => "unresolvable",
+      },
+    );
+
+    // The prose is the whole remedy here — the fact carries no dispatchable act — so the refusal has to say
+    // what it could not read and name the fetch that clears it, not assert a descent nobody established.
+    expect(result).toMatchObject({
+      payload: {
+        facts: [{
+          message: "The member's recorded head is not the head under review, and whether the head under "
+            + "review descends from it could not be read. Fetch the member's recorded head and rerun.",
+        }],
+      },
     });
   });
 
@@ -1101,9 +1126,11 @@ describe("delivery-member authentication against delivery state", () => {
       },
     );
 
+    // An absent reader answers `unresolvable`, so this refuses under the unread reason for the same cause the
+    // injected reader reports it under: nobody established which way the pair relates.
     expect(result).toMatchObject({
       state: "invalid",
-      payload: { facts: [{ code: "delivery-member-stale", path: "pullRequest.headSha" }] },
+      payload: { facts: [{ code: "delivery-member-relation-unavailable", path: "pullRequest.headSha" }] },
     });
   });
 

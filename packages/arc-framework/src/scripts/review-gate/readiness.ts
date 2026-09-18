@@ -550,12 +550,17 @@ async function evaluateDeliveryMember(
   }
   const member = resolution.member;
   const facts: ReviewReadinessFact[] = [];
+  // Held rather than passed straight through, because it is the answer the refusal below reports. With the
+  // reverse direction never read, `unknown` is the only non-admitting variant this call can produce, so the
+  // classifier hands back one token for a direction that was read and said no and a direction nobody could
+  // read. Only the first is a statement about the member's head.
+  const boundIsAncestorOfObserved = readAncestry === undefined
+    ? "unresolvable"
+    : await readAncestry(member.head, request.pullRequest.headSha);
   const relation = classifyPredecessorRelation({
     boundHead: member.head,
     observedHead: request.pullRequest.headSha,
-    boundIsAncestorOfObserved: readAncestry === undefined
-      ? "unresolvable"
-      : await readAncestry(member.head, request.pullRequest.headSha),
+    boundIsAncestorOfObserved,
     // Only the append-only advance is admissible here, so the reverse direction is
     // never read. Leaving it unestablished also keeps `diverged` unreachable, which
     // is the one variant carrying the cardinality below, so no count is ever read.
@@ -563,12 +568,23 @@ async function evaluateDeliveryMember(
     mergeBaseCount: 1,
   });
   if (relation.kind !== "unchanged" && relation.kind !== "advanced") {
-    facts.push(fact(
-      "delivery-member-stale",
-      "pullRequest.headSha",
-      "The member's recorded head is not the head under review, and the head under review does not "
-      + "descend from it.",
-    ));
+    // Both refusals leave the member unadmitted; they differ in what they assert and therefore in what clears
+    // them. A binding the read placed behind the head under review is answered by rebinding it. A binding the
+    // read could not place is answered by making the read succeed — the objects are commonly just not fetched
+    // here — and saying it moved would name a repair for a movement nobody observed.
+    facts.push(boundIsAncestorOfObserved === "not-ancestor"
+      ? fact(
+        "delivery-member-stale",
+        "pullRequest.headSha",
+        "The member's recorded head is not the head under review, and the head under review does not "
+        + "descend from it.",
+      )
+      : fact(
+        "delivery-member-relation-unavailable",
+        "pullRequest.headSha",
+        "The member's recorded head is not the head under review, and whether the head under review "
+        + "descends from it could not be read. Fetch the member's recorded head and rerun.",
+      ));
   }
   if (member.isFinalMember) {
     facts.push(fact(

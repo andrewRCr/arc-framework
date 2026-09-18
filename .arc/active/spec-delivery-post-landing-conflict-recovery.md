@@ -1075,8 +1075,9 @@ does not reopen it on the same inputs.
   § Propagation surfaces — the two-reduction enumeration. _Trigger:_ 8.1 terminal. _Work:_ 4.R3.
   _Revalidated:_ verify-work-unit.
 - **A5** — 2026-09-18 — spec-depth: each refusal this work unit newly makes reachable names a clearing remedy
-  and states only what it read. _Supersedes:_ none. _Trigger:_ 8.1 terminal. _Work:_ 1.R, 7.R.
-  _Revalidated:_ verify-work-unit.
+  and states only what it read. _Supersedes:_ `notes-delivery-post-landing-conflict-recovery.md`
+  § Recorded exclusions — the readers-agree argument under the unresolvable-ancestry exclusion.
+  _Trigger:_ 8.1 terminal. _Work:_ 1.R, 7.R. _Revalidated:_ verify-work-unit.
 - **A6** — 2026-09-18 — design: the terminal arm persists before its wedge returns, so a resubmitted resolution
   binds the conflict set rather than the revision. _Supersedes:_ § D6 — the input-side staleness sentence.
   _Trigger:_ 8.1 terminal. _Work:_ 2.R. _Revalidated:_ verify-work-unit.
