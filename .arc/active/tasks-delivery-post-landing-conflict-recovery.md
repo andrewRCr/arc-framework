@@ -743,15 +743,10 @@ is a field on `diverged`, not a variant.
   close-time reader no longer refuses shared content by a field's absence — it tests for it, ahead of a
   comparison that an inadmissible snapshot passes.
 
-### `[ ]` **5.4 Re-point `eligibility.ts`'s accept and refuse split onto the overlap field**
+### `[x]` **5.4 Re-point `eligibility.ts`'s accept and refuse split onto the overlap field**
 
 - _Goal:_ The reader decides on the overlap rather than on a variant name, which is what lets one variant carry
   both an accepted and a refused case.
-
-- _Rationale:_ It accepts `disjoint-ahead` and refuses `overlapping-ahead` as `wrong-predecessor`. No single
-  variant name can carry that split — merging an accept and a refuse is the defect class this work unit removes,
-  and it would recur under `advanced` exactly as it would under `diverged`. This is why `diverged` is fail-closed
-  by default rather than by definition.
 
     - `[x]` **5.4.a Decide on the overlap field**
 
@@ -762,35 +757,21 @@ is a field on `diverged`, not a variant.
         - The ambiguous reason is deliberately not applicability's `merge-base-ambiguous`; one literal for both
           would re-merge the two routes the design keeps apart.
 
-    - `[ ]` **5.4.b Give the close-time reader its own overlap decision**
+    - `[x]` **5.4.b Give the close-time reader its own overlap decision**
 
         - _Goal:_ The second reader refuses a non-empty overlap because it tested for one, not as a side effect
           of a field being absent.
 
-        - The refusal itself lands in 5.3.a, because that is the task that retires the null branch standing in
-          for it and the protection may not lapse between them. What lands here is the reader's full
-          disposition around it: which arms and variants refuse, under which reason, and why the accept path
-          cannot be reached by falling through.
-        - The snapshot comparison is not that test and cannot be made into one. The snapshot arrives through the
-          request contract, and this read is taken over the member head and protected-base head that snapshot
-          carries — both pinned object ids. A snapshot whose relation already holds a non-empty overlap
-          reproduces identically and compares **equal**. That comparison proves the snapshot is consistent; it
-          never proves it is admissible.
-        - The close entry point is the only one that admits such a snapshot, which bounds the work: the mutation
-          path re-prepares through the prepare-time reader and inherits its refusal.
-        - Build `test-first` (one behavior at a time):
+        - The reader states which variants reach its accept and why each does, so none arrives there by falling
+          through: `rewound` diffs empty against the merge base and has no overlap that could refuse, `unchanged`
+          and `advanced` return before one is read, and `diverged` alone is decided by content. The stated
+          behaviors were covered as the refusal landed in 5.3.a and the empty-overlap close in 5.3.b.
 
-            - A submitted relation carrying a non-empty overlap is refused at close
-            - It is refused even when the fresh read reproduces it exactly and the comparison finds them equal
-            - An empty overlap still closes
+    - `[x]` **5.4.c Re-point both `chainBase` readers onto the migrated shape**
 
-    - `[ ]` **5.4.c Re-point both `chainBase` readers onto the migrated shape**
-
-        - The accept path observes the chain against `chainBase` and refuses `evidence-unavailable` when the
-          observation does not match; the second reader compares against the snapshot's own and refuses
-          `wrong-predecessor`. Once 5.3 carries `chainBase` unconditionally on `diverged` and 5.2 moves
-          `unrelated` out, the second reader's null branch is unreachable — remove it, and only after 5.4.b has
-          written out the overlap test it was standing in for.
+        - Both absent-base branches are gone, along with the nullable helper that was keeping them compiling;
+          each reader takes `chainBase` off the relation directly. What survives at the second reader is the
+          coordinate check it always was, now stated as one.
 
     - `[x]` **5.4.d Widen the remedy slot and convert the projection that reads it**
 
@@ -798,6 +779,12 @@ is a field on `diverged`, not a variant.
           emitted result union. A reason literal with no arm there does not degrade quietly as the remedy would:
           it fails the union parse outright and the refusal reaches the operator as an invalid service result.
         - The projection takes the observed tip from the refusal itself where no relation carries one.
+
+- _Outcome:_ The split rests on the overlap field at both readers, so one variant carries an accepted and a
+  refused case without a name having to mean either. The two conditions that are not about overlap at all left
+  under reasons of their own — one terminal, one recoverable — each carrying the observed tip itself, since
+  neither relates by a variant that could report it. The close-time accept is now reached by statement rather
+  than by a field's absence, and the branch that stood in for that statement is gone.
 
 ### `[ ]` **5.5 Update `PredecessorRelationSchema`'s literals through the request contract**
 

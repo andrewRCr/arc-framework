@@ -429,12 +429,10 @@ export async function prepareDeliveryEligibility(input: {
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     };
   }
-  const observedChainBase = relationChainBase(observedRelation);
-  const chainBase = observedChainBase === null
-    ? null
-    : observedRelation.kind === "unchanged" || observedRelation.kind === "advanced"
-      ? { head: protectedBase.head, tree: protectedBase.tree }
-      : await deps.observeRef(observedChainBase);
+  const observedChainBase = observedRelation.chainBase;
+  const chainBase = observedRelation.kind === "unchanged" || observedRelation.kind === "advanced"
+    ? { head: protectedBase.head, tree: protectedBase.tree }
+    : await deps.observeRef(observedChainBase);
   if (chainBase === null || chainBase.head !== observedChainBase) {
     return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
   }
@@ -657,8 +655,13 @@ async function closeMechanicalDeliveryEligibility(
       detail: "The reobserved predecessor relation does not match the prepared snapshot.",
     };
   }
-  const relationChainBaseHead = relationChainBase(currentRelation.relation);
-  if (relationChainBaseHead === null || snapshot.chainBase.head !== relationChainBaseHead) {
+  // Past the guard above every variant accepts, each on its own grounds rather than by omission: a member
+  // behind the tip diffs empty against the merge base, so `rewound` has no overlap that could refuse, and
+  // `unchanged` and `advanced` return before one is read at all. `diverged` is the only variant whose content
+  // decides, which is why it is the only one guarded. What remains is a coordinate check, not an admissibility
+  // one — that the chain base the snapshot pinned is the one the fresh read reaches.
+  const relationChainBaseHead = currentRelation.relation.chainBase;
+  if (snapshot.chainBase.head !== relationChainBaseHead) {
     return {
       status: "refused",
       reason: "wrong-predecessor",
@@ -734,17 +737,6 @@ async function closeMechanicalDeliveryEligibility(
     }
   }
   return { status: "eligible", snapshot };
-}
-
-/**
- * The coordinate a relation says the chain sits on.
- *
- * Interim: the declared result still admits a missing coordinate, which no variant produces now that every one
- * of them carries a base. It is what keeps both readers' absent-base branches compiling until those branches
- * are removed along with it.
- */
-function relationChainBase(relation: DeliveryPredecessorRelation): string | null {
-  return relation.chainBase;
 }
 
 function samePredecessorRelation(
