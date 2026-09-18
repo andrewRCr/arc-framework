@@ -131,10 +131,34 @@ export async function git(cwd: string, args: string[]): Promise<string> {
   return stdout.trim();
 }
 
-/** Delivery subcommands that print human output unless `--json` opts in. */
-const DELIVERY_HUMAN_DEFAULT = new Set([
-  "compose", "schema", "from-tasks", "from-branch", "abandon", "export", "import",
-]);
+/** Delivery command paths that print human output unless `--json` opts in. */
+const DELIVERY_HUMAN_DEFAULT = [
+  "delivery compose",
+  "delivery plan abandon",
+  "delivery plan from-branch",
+  "delivery plan from-tasks",
+  "delivery plan inventory schema",
+  "delivery transfer export",
+  "delivery transfer import",
+];
+
+/**
+ * Read the command path out of an invocation's leading bare words.
+ *
+ * Operands and options both end the path, so an operand value that happens to spell a
+ * subcommand cannot be mistaken for one.
+ *
+ * @param args - CLI arguments for the invocation.
+ * @returns The space-joined command path.
+ */
+function commandPath(args: readonly string[]): string {
+  const path: string[] = [];
+  for (const arg of args) {
+    if (!/^[a-z][a-z0-9-]*$/u.test(arg)) break;
+    path.push(arg);
+  }
+  return path.join(" ");
+}
 
 /**
  * Report whether an invocation writes a machine-readable payload to stdout.
@@ -146,7 +170,10 @@ const DELIVERY_HUMAN_DEFAULT = new Set([
  * @returns True when stdout carries a machine-readable payload.
  */
 function emitsMachineReadablePayload(args: readonly string[]): boolean {
-  if (args[0] === "delivery") return !args.some((arg) => DELIVERY_HUMAN_DEFAULT.has(arg));
+  const path = commandPath(args);
+  if (args[0] === "delivery") {
+    return !DELIVERY_HUMAN_DEFAULT.some((human) => path === human || path.startsWith(`${human} `));
+  }
   if (args[0] === "integrate") return args[1] === "checkpoint" || args[1] === "merge";
   if (args[0] === "base") return args[1] === "merge";
   if (args[0] !== "review") return false;

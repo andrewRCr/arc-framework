@@ -191,7 +191,7 @@ Every other boundary action stops. Dispatch only on `nextAction` from the status
 
 Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
-judgment option before `--json`; never narrow a delivery-status action to an agent-reconstructed member target.
+judgment option; never narrow a delivery-status action to an agent-reconstructed member target.
 
 `obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
 `terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
@@ -322,8 +322,7 @@ arc review checks await \
   --pull-request <action.handle.target.pullRequest> \
   --head-sha <action.handle.target.headSha> \
   --timeout-ms 10000 \
-  --poll-interval-ms 10000 \
-  --json
+  --poll-interval-ms 10000
 ```
 
 Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.

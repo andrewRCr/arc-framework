@@ -393,8 +393,7 @@ arc review checks await \
   --pull-request <action.handle.target.pullRequest> \
   --head-sha <action.handle.target.headSha> \
   --timeout-ms 10000 \
-  --poll-interval-ms 10000 \
-  --json
+  --poll-interval-ms 10000
 ```
 
 Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
