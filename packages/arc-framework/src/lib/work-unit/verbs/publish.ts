@@ -127,7 +127,7 @@ const CANDIDATE_REMEDY = (name: string): SpineRemedy => spineRemedy(
 const PRE_PUBLICATION_REMEDY = (name: string): SpineRemedy => spineRemedy(
   "Submission requires a pre-publication boundary written for the current reviewable content.",
   "Re-run pre-publication review",
-  ["arc", "review", "pre-publication", name, "--json"],
+  ["arc", "review", "pre-publication", name],
 );
 
 const RECONCILE_REMEDY = (name: string): SpineRemedy => spineRemedy(

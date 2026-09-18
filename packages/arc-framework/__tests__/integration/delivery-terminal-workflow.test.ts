@@ -65,7 +65,7 @@ describe("delivery terminal integration handoff", () => {
     ]);
     expect(installed).toBe(packaged);
     expect(installedPreparation).toBe(preparation);
-    const prePublication = preparation.indexOf("arc review pre-publication <wu> --json");
+    const prePublication = preparation.indexOf("arc review pre-publication <wu>");
     const reservation = preparation.indexOf("hosted-first reservation", prePublication);
     const publication = preparation.indexOf("arc publish {name} --json", reservation);
     const integrationHandoff = preparation.indexOf("After the transition commit", publication);

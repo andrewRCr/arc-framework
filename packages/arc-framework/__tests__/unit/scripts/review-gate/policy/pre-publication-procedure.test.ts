@@ -81,7 +81,7 @@ describe("integration boundary locus", () => {
       locus: "candidate-fix-pending",
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Resume the approved Candidate review fix response.",
       },
       policy: null,
@@ -131,7 +131,7 @@ describe("integration boundary locus", () => {
       locus: "hosted-review-pending",
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
       },
     });
   });
@@ -409,7 +409,7 @@ describe("integration boundary locus", () => {
       }),
       nextAction: {
         kind,
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Continue review.",
       },
     }).success).toBe(false);
@@ -445,7 +445,7 @@ describe("integration boundary locus", () => {
       ...delivery,
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Continue review.",
       },
     }).success).toBe(false);
@@ -477,7 +477,7 @@ describe("integration boundary locus", () => {
       reservation: carried,
       nextAction: {
         kind: "continue-pre-publication-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
       },
     });
   });
@@ -1003,7 +1003,7 @@ describe("projectPrePublicationReview", () => {
         locus: "candidate-review-pending",
         nextAction: {
           kind: "run-self-review",
-          command: "arc review pre-publication example --json",
+          command: "arc review pre-publication example",
           interactionText: "Run self-review.",
         },
       },

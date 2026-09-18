@@ -262,7 +262,7 @@ async function publishedAtLanding(
 
   expect((await runArc(["attest", WORK_UNIT, "--json"], repository, { env })).exitCode).toBe(0);
   const reviewed = await runArc(
-    ["review", "pre-publication", WORK_UNIT, "--self-review", "settled", "--json"],
+    ["review", "pre-publication", WORK_UNIT, "--self-review", "settled"],
     repository,
     { env },
   );

@@ -528,12 +528,12 @@ const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => 
   "merge-method-blocked": () => spineRemedy(
     "The configured merge method is allowed by host policy.",
     "Align the configured `merge.strategy` with the repository's allowed methods, then re-resolve",
-    ["arc", "review", "merge-method", "resolve", "--json"],
+    ["arc", "review", "merge-method", "resolve"],
   ),
   "hosted-reservation-pending": (workUnit) => spineRemedy(
     "A hosted review reserved before publication runs before its Candidate is checkpointed.",
     "Run the reserved hosted review to a verdict, then re-run",
-    ["arc", "review", "pre-publication", workUnit, "--json"],
+    ["arc", "review", "pre-publication", workUnit],
   ),
   "composition-unavailable": (workUnit) => spineRemedy(
     "The ready composition binds the exact satisfied Candidate head.",

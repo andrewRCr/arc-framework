@@ -1261,7 +1261,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "hosted-reservation-pending",
-        remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] },
+        remedy: { argv: ["arc", "review", "pre-publication", "example"] },
         payload: {
           requirement: { id: "hosted-review-reservation", state: "pending" },
         },

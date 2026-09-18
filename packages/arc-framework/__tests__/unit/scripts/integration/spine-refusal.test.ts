@@ -118,7 +118,7 @@ describe("spine refusal remedies", () => {
       "--json",
     ]);
     expect(prePublicationRemedy("corrupt-state", "example").argv)
-      .toEqual(["arc", "review", "pre-publication", "example", "--json"]);
+      .toEqual(["arc", "review", "pre-publication", "example"]);
   });
 
   it("renders argv with shell-safe quoting while retaining structured arguments", () => {
@@ -191,7 +191,7 @@ describe("spine refusal remedies", () => {
     expect(ReviewCommandErrorEnvelopeSchema.parse({
       ...refusal,
       remedy: prePublicationRemedy("corrupt-state", "example"),
-    })).toMatchObject({ remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] } });
+    })).toMatchObject({ remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
   });
 
   it("leaves the other review-family refusal envelopes unchanged", () => {

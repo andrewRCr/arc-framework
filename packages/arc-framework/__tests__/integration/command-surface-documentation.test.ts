@@ -142,7 +142,7 @@ describe("documented command surface", () => {
   });
 
   it("reads the command path out of an interpolated emitted literal", () => {
-    const emitted = emittedInvocations("const c = `arc review pre-publication ${workUnit} --json`;");
+    const emitted = emittedInvocations("const c = `arc review pre-publication ${workUnit}`;");
 
     expect(emitted.map((invocation) => invocation.words)).toEqual([["review", "pre-publication"]]);
   });

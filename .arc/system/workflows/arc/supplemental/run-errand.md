@@ -430,7 +430,7 @@ remote base all name the same exact head. Any tracked change continues through t
    Run `arc base drift --json` once immediately before approval composition. Continue only from a healthy reading
    whose `headOid` equals the exact Errand head; retain its `baseOid` as pre-approval evidence, not mutation authority.
    The terminal operation will perform its own post-approval observation. Invoke
-   `arc review merge-method resolve --json` once and continue only from `validated / use-method`. Retain the
+   `arc review merge-method resolve` once and continue only from `validated / use-method`. Retain the
    returned `method` and `policyFingerprint`; `blocked / stop` stops. Compose one strict `errandMergeRequest` from
    those returned values plus `schemaVersion: 1`, the strict Errand `slug`, `claimId`, `branch`, and `generation`,
    the exact `repository`, `pullRequest`, `baseRef`, `headRef`, and `headSha`, and the selected `lane`.

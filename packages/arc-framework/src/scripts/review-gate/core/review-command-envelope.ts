@@ -89,7 +89,7 @@ export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewPrePublication
 
 /** The idempotent pre-publication re-attempt — the resume point every refusal returns to. */
 function prePublicationResumeArgv(workUnit: string): readonly string[] {
-  return ["arc", "review", "pre-publication", workUnit, "--json"];
+  return ["arc", "review", "pre-publication", workUnit];
 }
 
 const PRE_PUBLICATION_REMEDIES: Record<

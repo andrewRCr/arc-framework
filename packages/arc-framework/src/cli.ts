@@ -1741,7 +1741,6 @@ reviewCmd
     "Merge-method stack position (non-delivery, intermediate, or top)",
     "non-delivery",
   )
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(async (options: ReviewMergeMethodResolveOptions) => {
     await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options);
   });
@@ -1756,7 +1755,6 @@ reviewCmd
   .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
   .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
   .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(async (options: ReviewChecksAwaitOptions) => {
     await (await import("./handlers/review.js")).handleReviewChecksAwait(options);
   });
@@ -1970,7 +1968,6 @@ reviewCmd
     "Per-lane review scope, frontline invocation, and approved ceiling override as JSON",
   )
   .option("--resume <token>", "Replay the exact prior pre-publication judgment inputs")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: () => true },
     async (context, name: string, options: ReviewPrePublicationOptions) => {

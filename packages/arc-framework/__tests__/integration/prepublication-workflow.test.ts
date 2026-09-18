@@ -17,7 +17,7 @@ describe("prepublication workflow boundary", () => {
         "utf8",
       );
 
-      expect(integrate).not.toContain("arc review pre-publication <wu> --json");
+      expect(integrate).not.toContain("arc review pre-publication <wu>");
       expect(integrate).toContain("**When to use:** `active/meta-{name}.md` shows `**State:** Integrating`");
       expect(integrate).toContain("### 1) Push the branch and open the PR");
       const reviewIteration = integrate.indexOf("### 2) Review iteration");
@@ -36,7 +36,7 @@ describe("prepublication workflow boundary", () => {
         "utf8",
       );
       expect(prepare).toContain("# Workflow: Prepare Work Unit for Publication");
-      expect(prepare).toContain("arc review pre-publication <wu> --json");
+      expect(prepare).toContain("arc review pre-publication <wu>");
       expect(prepare).toContain("arc review local prepare -");
       expect(prepare).toContain("arc publish {name} --json");
       expect(prepare).not.toContain("gh pr create");
@@ -52,7 +52,7 @@ describe("prepublication workflow boundary", () => {
       ]);
       const entry = prepare.indexOf("arc delivery entry inspect -");
       const privateCandidates = prepare.indexOf("Prepare private delivery candidates", entry);
-      const review = prepare.indexOf("arc review pre-publication <wu> --json", privateCandidates);
+      const review = prepare.indexOf("arc review pre-publication <wu>", privateCandidates);
       expect(entry).toBeGreaterThan(-1);
       expect(prepare).toContain('{"entryMode":"prepublication"}');
       expect(privateCandidates).toBeGreaterThan(entry);

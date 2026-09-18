@@ -183,7 +183,7 @@ const MERGE_REMEDIES: Record<
   "merge-method-moved": () => spineRemedy(
     "The merge method does not move after the checkpoint pinned it.",
     "Re-resolve the host merge-method policy",
-    ["arc", "review", "merge-method", "resolve", "--json"],
+    ["arc", "review", "merge-method", "resolve"],
   ),
   "drift-reconcile": (workUnit) => spineRemedy(
     "A merge lands only from an authoritatively clean base.",

@@ -965,7 +965,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       locus: "candidate-review-pending",
       nextAction: {
         kind: "run-self-review",
-        command: "arc review pre-publication foo --json",
+        command: "arc review pre-publication foo",
       },
     });
   });
