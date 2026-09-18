@@ -3,7 +3,7 @@
   "slug": "function-size-ratchet",
   "claimId": "8e769a3f154b5497fb79132c05bcc6dc",
   "createdAt": "2026-09-18T12:37:46.548Z",
-  "updatedAt": "2026-09-18T12:37:46.548Z",
+  "updatedAt": "2026-09-18T15:14:27.690Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Add max-lines-per-function as an error with a recorded bulk-suppressions baseline, so new oversized functions fail while the recorded debt can only shrink",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Backstop function and file size with a suppressions baseline before the debt grows further",
   "originEntrySourceDigest": "sha256:3f6b477713721c0f722d430a8897feb190762b6af42486a7dd63f28ea1bf3068",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/function-size-ratchet",
+    "headSha": "4048ef28d671541d346c32dc14ebaafc6eb0a7c7"
+  }
 }
