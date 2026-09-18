@@ -66,24 +66,37 @@ describe("checkpoint movement plan", () => {
   });
 
   /**
-   * A4 — the classifier this plan reads flattens an ambiguous base, an unrelated one and a failed read into
-   * one token, so all three took the answer that fits only the last: a rerun. Two of them are cleared by
-   * merging the base in, and the cause is what tells them apart.
+   * The classifier this plan reads flattens an ambiguous base, an unrelated one and a failed read into one
+   * token, so all three took the answer that fits only the last: a rerun. The cause is what tells them apart,
+   * and it splits them three ways rather than two — only the ambiguous pair is one the reconcile can reach.
    */
-  it.each([
-    ["shares no history with the branch", "unrelated" as const],
-    ["shares more than one merge base with it", "ambiguous" as const],
-  ])("reconciles a base that %s", (_label, movementCause) => {
-    expect(plan({ movement: "unknown", movementCause })).toEqual({
+  it("reconciles a base sharing more than one merge base with the branch", () => {
+    expect(plan({ movement: "unknown", movementCause: "ambiguous" })).toEqual({
       state: "reconcile",
       nextAction: "reconcile-base",
     });
   });
 
-  it("holds an unresolvable base to the same evidence bar as any other reconciliation", () => {
+  it("refuses a base sharing no history with the branch rather than reconciling it", () => {
+    // Git declines to join unrelated histories unless told to, and the append-only reconcile never tells it to.
+    expect(plan({ movement: "unknown", movementCause: "unrelated" })).toMatchObject({
+      state: "blocked",
+      reason: "base-unrelated",
+    });
+  });
+
+  it("refuses an absent ancestor whether or not the evidence would authorize a reconcile", () => {
+    // The evidence bar decides which reconcile runs; here there is no reconcile to authorize either way.
+    for (const integrationEvidenceComplete of [true, false]) {
+      expect(plan({ movement: "unknown", movementCause: "unrelated", integrationEvidenceComplete }))
+        .toMatchObject({ state: "blocked", reason: "base-unrelated" });
+    }
+  });
+
+  it("holds an ambiguous base to the same evidence bar as any other reconciliation", () => {
     expect(plan({
       movement: "unknown",
-      movementCause: "unrelated",
+      movementCause: "ambiguous",
       integrationEvidenceComplete: false,
     })).toMatchObject({ state: "blocked", reason: "unsafe-reconcile" });
   });

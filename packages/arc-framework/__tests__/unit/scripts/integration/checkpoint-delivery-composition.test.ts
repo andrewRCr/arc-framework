@@ -606,7 +606,7 @@ describe("delivery checkpoint composition", () => {
     });
   });
 
-  it("routes a branch and base sharing no history to reconciling the base", async () => {
+  it("routes a branch and base sharing no history to the join no reconcile performs", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
     const baseRevision = oid("d");
@@ -616,8 +616,8 @@ describe("delivery checkpoint composition", () => {
       exec: vi.fn(async () => { throw new Error("no read is reached"); }),
     });
 
-    // Both revisions of this pair can still move, so the merge that gives them a first common ancestor is a
-    // route that exists — unlike the rerun, which reads the same absent ancestry again.
+    // A route exists — unlike the rerun, which reads the same absent ancestry again — but it is not the
+    // append-only reconcile, which declines unrelated histories rather than joining them.
     await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
       mode: "authoritative",
       verdict: "reconcile",
@@ -642,14 +642,15 @@ describe("delivery checkpoint composition", () => {
       status: "unavailable",
       detail: "The branch and its base share no common ancestor, so nothing between them can be compared.",
       evidence: { baseRevision },
-      nextAction: { command: "reconcile-base", workUnit: plan.workUnitId },
+      nextAction: { command: "merge-unrelated", workUnit: plan.workUnitId },
     });
   });
 
   /**
-   * A4 — the branch-and-base pair is not a delivery fact. Every work unit has one, and the merge that clears
-   * it is the same merge either way, so the arms answering it belong above the guard that drops a work unit
-   * with no bound delivery terminal.
+   * The branch-and-base pair is not a delivery fact, and this classifier is not where a work unit without a
+   * bound terminal should meet it: answering here wraps that pair in a delivery refusal whose own remedy is a
+   * rerun of the checkpoint that raised it. The guard drops such a work unit first, and the movement plan
+   * downstream reads the same pair and answers it directly.
    */
   describe("a work unit with no bound delivery terminal", () => {
     type PairOverlap =
@@ -684,11 +685,10 @@ describe("delivery checkpoint composition", () => {
     });
 
     it.each([
-      ["shares no history with", { status: "unrelated" } as const,
-        "The branch and its base share no common ancestor, so nothing between them can be compared."],
-      ["shares more than one merge base with", { status: "ambiguous" } as const,
-        "The branch and its base share more than one merge base, so the overlap cannot be proved from one."],
-    ])("routes a base that %s the branch to reconciling it", async (_label, overlap, detail) => {
+      ["shares no history with", { status: "unrelated" } as const],
+      ["shares more than one merge base with", { status: "ambiguous" } as const],
+      ["resolves against", { status: "available" as const, substantivePaths: [], regenerablePaths: [] }],
+    ])("declines a base that %s the branch, whatever the pair reads", async (_label, overlap) => {
       mocks.resolveTerminalRecords.mockResolvedValue({ status: "unbound" });
       const dependencies = createIntegrationCheckpointDependencies({
         cwd: "/repository",
@@ -696,26 +696,7 @@ describe("delivery checkpoint composition", () => {
       });
 
       await expect(dependencies.classifyDeliveryDrift("example", unboundDrift(overlap)))
-        .resolves.toEqual({
-          status: "unavailable",
-          detail,
-          evidence: { baseRevision: oid("d") },
-          nextAction: { command: "reconcile-base", workUnit: "example" },
-        });
-    });
-
-    it("still declines every delivery-specific arm beneath the guard", async () => {
-      mocks.resolveTerminalRecords.mockResolvedValue({ status: "unbound" });
-      const dependencies = createIntegrationCheckpointDependencies({
-        cwd: "/repository",
-        exec: vi.fn(async () => { throw new Error("no read is reached"); }),
-      });
-
-      // The guard is unmoved: a pair that resolved has nothing here for a work unit delivery does not bind.
-      await expect(dependencies.classifyDeliveryDrift(
-        "example",
-        unboundDrift({ status: "available", substantivePaths: [], regenerablePaths: [] }),
-      )).resolves.toEqual({ status: "not-applicable" });
+        .resolves.toEqual({ status: "not-applicable" });
     });
   });
 
@@ -764,9 +745,9 @@ describe("delivery checkpoint composition", () => {
     })).resolves.toEqual({
       status: "unavailable",
       detail: "The durable baseline and the observed base share no common ancestor, so the base must be "
-        + "reconciled before a fresh baseline can establish one.",
+        + "joined to the branch before a fresh baseline can establish one.",
       evidence: { baseRevision, baselineRevision },
-      nextAction: { command: "reconcile-base", workUnit: plan.workUnitId },
+      nextAction: { command: "merge-unrelated", workUnit: plan.workUnitId },
     });
   });
 

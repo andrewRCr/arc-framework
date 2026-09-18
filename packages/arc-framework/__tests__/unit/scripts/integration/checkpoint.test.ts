@@ -600,6 +600,56 @@ describe("integration checkpoint", () => {
       });
   });
 
+  /**
+   * Leaves the branch and its base with no provable movement between them, by the stated cause.
+   *
+   * Both causes report the same movement token, and the whole checkpoint is the only place that shows which act
+   * an operator is actually sent to perform: the plan carries a reason, and the remedy answering it is chosen a
+   * layer above.
+   */
+  function unknownMovement(status: "ambiguous" | "unrelated") {
+    return {
+      ...CLEAN_DRIFT,
+      verdict: "reconcile" as const,
+      state: "diverged" as const,
+      behind: 1,
+      movement: "unknown" as const,
+      overlap: { status },
+      register: { kind: "attention" as const, text: "Base movement is unknown." },
+    };
+  }
+
+  it("hands back the hand merge when the branch and its base share no history", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => unknownMovement("unrelated");
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "base-unrelated",
+        remedy: {
+          invariant: "Base movement can be proved only between revisions with a common ancestor.",
+          argv: ["git", "merge", "--allow-unrelated-histories", oid("b")],
+        },
+      });
+  });
+
+  it("hands back the typed reconcile when the branch and its base share more than one merge base", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => unknownMovement("ambiguous");
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "reconcile",
+        nextAction: "reconcile-base",
+        reason: "base-reconcile-required",
+        remedy: {
+          argv: ["arc", "base", "merge", "--expected-base", oid("b"), "--expected-head", oid("c"), "--json"],
+        },
+      });
+  });
+
   it("blocks a work unit whose meta still owes its lifecycle artifacts", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;

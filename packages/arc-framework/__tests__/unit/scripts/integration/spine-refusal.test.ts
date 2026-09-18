@@ -6,6 +6,7 @@ import {
   IntegrationCheckpointResultSchema,
   CHECKPOINT_BLOCKED_REASONS,
   checkpointRemedy,
+  checkpointUnrelatedBaseRemedy,
 } from "../../../../src/scripts/integration/checkpoint.js";
 import { createRunConvergenceVerificationAction } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -24,7 +25,7 @@ import {
 
 describe("spine refusal remedies", () => {
   it("derives its reason coverage from the refusal schemas", () => {
-    expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(13);
+    expect(CHECKPOINT_BLOCKED_REASONS).toHaveLength(14);
     expect(MERGE_REFUSAL_REASONS).toHaveLength(16);
     expect(REVIEW_PRE_PUBLICATION_REFUSAL_CODES).toHaveLength(4);
     expect(new Set(CHECKPOINT_BLOCKED_REASONS).size).toBe(CHECKPOINT_BLOCKED_REASONS.length);
@@ -35,7 +36,10 @@ describe("spine refusal remedies", () => {
 
   it("names an invariant and one corrective command for every checkpoint refusal", () => {
     for (const reason of CHECKPOINT_BLOCKED_REASONS) {
-      if (reason === "candidate-convergence-pending") continue;
+      // Two refusals answer with something the workUnit-keyed table cannot build: the convergence arm carries a
+      // composed action, and an absent ancestor is joined by Git rather than by any `arc` verb. Both are
+      // asserted on their own below.
+      if (reason === "candidate-convergence-pending" || reason === "base-unrelated") continue;
       const remedy = SpineRemedySchema.parse(checkpointRemedy(reason, "example"));
 
       expect(remedy.invariant, reason).toMatch(/\.$/u);
@@ -43,6 +47,16 @@ describe("spine refusal remedies", () => {
       expect(remedy.text, reason).toContain(remedy.invariant);
       expect(remedy.text, reason).toContain(remedy.argv.join(" "));
     }
+  });
+
+  it("answers an absent common ancestor with the join no `arc` verb performs", () => {
+    const baseOid = "d".repeat(40);
+    const remedy = SpineRemedySchema.parse(checkpointUnrelatedBaseRemedy(baseOid));
+
+    expect(remedy.invariant).toMatch(/\.$/u);
+    expect(remedy.argv).toEqual(["git", "merge", "--allow-unrelated-histories", baseOid]);
+    expect(remedy.text).toContain(remedy.invariant);
+    expect(remedy.text).toContain(remedy.argv.join(" "));
   });
 
   it("names an invariant and one corrective command for every merge refusal", () => {

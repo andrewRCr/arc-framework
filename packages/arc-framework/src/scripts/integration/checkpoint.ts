@@ -109,7 +109,7 @@ export type CheckpointMovementPlan =
   | { state: "reconcile"; nextAction: "reconcile-base" | "reconcile-regenerable" }
   | {
       state: "blocked";
-      reason: "unsafe-reconcile" | "host-pending" | "host-refused" | "conflict";
+      reason: "unsafe-reconcile" | "host-pending" | "host-refused" | "conflict" | "base-unrelated";
       detail?: string;
       paths?: string[];
     };
@@ -142,15 +142,22 @@ export function composeCheckpointMovementPlan(input: {
     return { state: "blocked", reason: "unsafe-reconcile", detail: "Checkpoint evidence coordinates disagree." };
   }
   if (observation.movement === "unknown") {
-    // Split by cause rather than by the token the three share. A base that shares no ancestor with the branch,
-    // and one that shares two, are both answered by merging the base in; a read that failed is answered by
-    // reading again, and keeps the refusal that asks for it. The evidence bar is the one every mutating
-    // reconciliation below meets, so an unresolvable base does not get a cheaper route than an overlapping one.
-    const mergeClears = observation.movementCause === "ambiguous"
-      || observation.movementCause === "unrelated";
-    if (!mergeClears) {
+    // Split by cause rather than by the token the three share. Two merge bases collapse to one under the
+    // append-only reconcile; no merge base at all does not, because Git declines to join unrelated histories
+    // unless told to, and the reconcile never tells it to. A read that failed is answered by reading again,
+    // and keeps the refusal that asks for it.
+    if (observation.movementCause === "unrelated") {
+      return {
+        state: "blocked",
+        reason: "base-unrelated",
+        detail: "The branch and its base share no common ancestor, so no movement between them can be proved.",
+      };
+    }
+    if (observation.movementCause !== "ambiguous") {
       return { state: "blocked", reason: "unsafe-reconcile", detail: "Base movement is unknown." };
     }
+    // The evidence bar is the one every mutating reconciliation below meets, so an unresolvable base does not
+    // get a cheaper route than an overlapping one.
     return observation.integrationEvidenceComplete
       ? { state: "reconcile", nextAction: "reconcile-base" }
       : {
@@ -433,6 +440,15 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
   }),
   z.strictObject({
     ...CheckpointBlockedBaseShape,
+    reason: z.literal("base-unrelated"),
+    payload: z.strictObject({
+      drift: z.custom<BaseDriftResult>(),
+      observation: CheckpointMovementObservationSchema,
+      detail: z.string().min(1).optional(),
+    }),
+  }),
+  z.strictObject({
+    ...CheckpointBlockedBaseShape,
     reason: z.literal("host-pending"),
     payload: z.strictObject({ observation: CheckpointMovementObservationSchema, detail: z.string().min(1) }),
   }),
@@ -509,7 +525,8 @@ export type CheckpointBlockedReason = z.infer<typeof IntegrationCheckpointBlocke
 export const CHECKPOINT_BLOCKED_REASONS: readonly CheckpointBlockedReason[] =
   IntegrationCheckpointBlockedResultSchema.options.map((option) => option.shape.reason.value);
 
-type CheckpointRemedyReason = Exclude<CheckpointBlockedReason, "candidate-convergence-pending">;
+type CheckpointRemedyReason =
+  Exclude<CheckpointBlockedReason, "candidate-convergence-pending" | "base-unrelated">;
 
 const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => SpineRemedy> = {
   "drift-unavailable": (workUnit) => spineRemedy(
@@ -583,6 +600,26 @@ const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => 
  */
 export function checkpointRemedy(reason: CheckpointRemedyReason, workUnit: string): SpineRemedy {
   return CHECKPOINT_REMEDIES[reason](workUnit);
+}
+
+/**
+ * The remedy for a base sharing no history with the branch, which no ARC verb performs.
+ *
+ * `arc base merge` reconciles append-only and declines unrelated histories, so the join is the operator's. This
+ * is the remedy review status already reports for the same pair, kept identical so one condition reads one way
+ * wherever it surfaces. It leads with the observation rather than the command: a branch sharing no history with
+ * its base is more often a wrong base or a wrong clone than a merge waiting to happen, and the operator should
+ * recognize that before running anything.
+ *
+ * @param baseOid - The observed base revision to join, which the caller reads from its own drift observation.
+ * @returns The remedy naming the failed invariant and the one command that clears it.
+ */
+export function checkpointUnrelatedBaseRemedy(baseOid: string): SpineRemedy {
+  return spineRemedy(
+    "Base movement can be proved only between revisions with a common ancestor.",
+    "Confirm the branch is on the base it belongs to, then give the two one common ancestor and re-run",
+    ["git", "merge", "--allow-unrelated-histories", baseOid],
+  );
 }
 
 export const IntegrationCheckpointResultSchema = z.union([
@@ -749,9 +786,11 @@ export type DeliveryDriftClassificationResult =
          * What clears this refusal, which follows the pair being compared rather than the reader that asked.
          *
          * Where both revisions can move, an append-only merge leaves one merge base where there were two. Where
-         * one of them is pinned, that merge moves neither, so the baseline itself has to be retaken.
+         * one of them is pinned, that merge moves neither, so the baseline itself has to be retaken. Where the
+         * two share no ancestor at all, no append-only merge reaches them: Git declines to join unrelated
+         * histories unless told to, so the join is the operator's to perform.
          */
-        readonly command: "rerun-checkpoint" | "reconcile-base" | "rebaseline";
+        readonly command: "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated";
         readonly workUnit: string;
       };
     }
@@ -966,7 +1005,12 @@ export async function checkpointIntegration(
         reason: "delivery-terminal-blocked",
         detail: boundedCheckpointDetail(deliveryDrift.detail, "Delivery drift classification is unavailable."),
         coordinates,
-        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        // The classifier's own action is the answer whenever it names one no rerun can reach. Left at the
+        // default, the operator is handed back the checkpoint that just refused, with the command that clears
+        // the refusal one level down in the payload.
+        remedy: deliveryDrift.nextAction.command === "merge-unrelated"
+          ? checkpointUnrelatedBaseRemedy(drift.baseOid)
+          : checkpointRemedy("delivery-terminal-blocked", request.workUnit),
         payload: {
           status: "blocked",
           nextAction: "stop",
@@ -1064,7 +1108,9 @@ export async function checkpointIntegration(
           : "Exact movement evidence does not authorize checkpoint composition.",
       ),
       coordinates,
-      remedy: checkpointRemedy(movementPlan.reason, request.workUnit),
+      remedy: movementPlan.reason === "base-unrelated"
+        ? checkpointUnrelatedBaseRemedy(drift.baseOid)
+        : checkpointRemedy(movementPlan.reason, request.workUnit),
     };
     if (movementPlan.reason === "host-pending" || movementPlan.reason === "host-refused") {
       return IntegrationCheckpointResultSchema.parse({

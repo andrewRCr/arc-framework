@@ -338,7 +338,7 @@ function unavailableDeliveryDrift(
   workUnit: string,
   detail: string,
   evidence: DeliveryDriftClassificationEvidence,
-  command: "rerun-checkpoint" | "reconcile-base" | "rebaseline" = "rerun-checkpoint",
+  command: "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated" = "rerun-checkpoint",
 ) {
   return {
     status: "unavailable" as const,
@@ -527,21 +527,12 @@ export function createIntegrationCheckpointDependencies(input: {
       });
     },
     classifyDeliveryDrift: async (workUnit, drift) => {
-      // Answered before any delivery read. This is the branch-and-base pair, which every work unit has, and
-      // the merge that clears it is the same merge whether or not a delivery terminal is bound here. Left
-      // below the guard, both arms were reachable only for a work unit delivery already owned.
-      // Both revisions of this pair can move, so merging the base in is a route that exists here: it gives an
-      // unrelated pair its first common ancestor, as review status already reports for the same pair.
-      if (drift.overlap?.status === "unrelated") {
-        return unavailableDeliveryDrift(
-          workUnit,
-          "The branch and its base share no common ancestor, so nothing between them can be compared.",
-          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
-          "reconcile-base",
-        );
-      }
-      // The same merge leaves one merge base where there were two. Reporting either as an unreadable overlap
-      // would name a rerun that changes nothing.
+      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      // An unbound work unit is not this classifier's subject, and the branch-and-base pair it would report is
+      // the one the movement plan reads for itself. Answering here instead wraps that pair in a delivery
+      // refusal whose remedy is a rerun of the checkpoint that raised it.
+      if (records.status === "unbound") return { status: "not-applicable" };
+      // Both revisions of this pair can move, so merging the base in collapses two merge bases to one.
       if (drift.overlap?.status === "ambiguous") {
         return unavailableDeliveryDrift(
           workUnit,
@@ -550,8 +541,16 @@ export function createIntegrationCheckpointDependencies(input: {
           "reconcile-base",
         );
       }
-      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
-      if (records.status === "unbound") return { status: "not-applicable" };
+      // That merge is not this one. Git refuses to join unrelated histories without being told to, so the
+      // append-only reconcile cannot reach this pair at all and the operator performs the join by hand.
+      if (drift.overlap?.status === "unrelated") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The branch and its base share no common ancestor, so nothing between them can be compared.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+          "merge-unrelated",
+        );
+      }
       if (records.status === "unavailable") {
         return unavailableDeliveryDrift(
           workUnit,
@@ -630,14 +629,15 @@ export function createIntegrationCheckpointDependencies(input: {
       }
       // The baseline half of this pair is pinned, so a fresh baseline is what clears it — and that is exactly
       // what cannot clear an absent ancestor, since a baseline taken from a branch sharing no history with the
-      // base shares none either. Here alone the two pairs want the same first step.
+      // base shares none either. Here alone the two pairs want the same first step, and it is the hand merge:
+      // the append-only reconcile refuses unrelated histories rather than joining them.
       if (overlap.status === "unrelated") {
         return unavailableDeliveryDrift(
           workUnit,
-          "The durable baseline and the observed base share no common ancestor, so the base must be "
-            + "reconciled before a fresh baseline can establish one.",
+          "The durable baseline and the observed base share no common ancestor, so the base must be joined "
+            + "to the branch before a fresh baseline can establish one.",
           { baseRevision, baselineRevision },
-          "reconcile-base",
+          "merge-unrelated",
         );
       }
       // The merge above moves neither side of this pair, so the same two bases survive it. Only a fresh

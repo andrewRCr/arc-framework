@@ -955,19 +955,24 @@ to a verdict and carries the cause as a discriminant instead. See
           reconcile on each merge-cleared cause, the evidence bar refusing an incomplete one, and `unavailable`
           added to the fails-closed `it.each`.
 
-### `[ ]` **4.R4 Restore the shadowed route and keep `unrelated` terminal** — amendment A8
+### `[x]` **4.R4 Restore the shadowed route and keep `unrelated` terminal** — amendment A8
 
 - _Goal:_ A8 — Task 4.R3.b hoisted the base-resolution arms above the delivery-bound guard, so the unbound work
   unit criterion 12 names is answered `delivery-terminal-blocked` with a checkpoint rerun before 4.R3.a's split is
   reached at all; and 4.R3.a routed `unrelated` to `reconcile-base`, which D1 places as terminal.
 
-    - `[ ]` **4.R4.a Return the base-resolution arms below the delivery-bound guard**
+    - `[x]` **4.R4.a Return the base-resolution arms below the delivery-bound guard**
 
         - Unbound then answers `not-applicable` and falls through to the movement plan, where 4.R3.a's split
           already produces the merge remedy criterion 12 asks for. The hoist's stated rationale appears in no
           design statement, and its only delta for a bound work unit was a payload token with no consumer.
+        - _Outcome:_ Both arms sit below the `resolveTerminalRecords` read and its unbound guard again, so an
+          unbound work unit answers `not-applicable` for every overlap status alike. The comment at the guard now
+          states why the pair is not this classifier's to answer — doing so wraps it in a delivery refusal whose
+          own remedy is a rerun of the checkpoint that raised it. The unbound suite became one `it.each` over all
+          three statuses, which absorbed the control it used to carry separately.
 
-    - `[ ]` **4.R4.b Give `unrelated` a terminal disposition at the checkpoint and merge pairs**
+    - `[x]` **4.R4.b Give `unrelated` a terminal disposition at the checkpoint and merge pairs**
 
         - D1: "a terminal condition parked under the recoverable status is retried forever — the defect class this
           work unit removes, reintroduced one layer down." `arc base merge` runs `git merge` without
@@ -978,10 +983,22 @@ to a verdict and carries the cause as a discriminant instead. See
           readers name the hand merge `review-gate/status.ts` already ships for it rather than a disposition.
           `ambiguous` is unchanged. See `notes-delivery-post-landing-conflict-recovery.md` § A13.
 
-    - `[ ]` **4.R4.c Drive the criterion's own scenario end to end**
+        - _Outcome:_ `composeCheckpointMovementPlan` splits the unknown arm three ways instead of two: `unrelated`
+          blocks on a new `base-unrelated` reason, `ambiguous` keeps the reconcile it collapses under, and a
+          failed read keeps the refusal that asks for it again. `base-unrelated` is excluded from
+          `CHECKPOINT_REMEDIES` because its argv leads with `git`, not `arc`, and is rendered instead by an
+          exported `checkpointUnrelatedBaseRemedy` — one remedy text, reached from both the movement-plan block
+          and the delivery-terminal branch, so the two cannot drift. The delivery classifier's two `unrelated`
+          arms carry `merge-unrelated` in place of `reconcile-base`, which is what selects it there.
+
+    - `[x]` **4.R4.c Drive the criterion's own scenario end to end**
 
         - No test takes an ambiguous or unrelated base through `checkpointIntegration`. Both halves of Task 4.R3
           were proved only against the seam that hid the conflict between them.
+        - _Outcome:_ `checkpoint.test.ts` drives both causes through `checkpointIntegration` and asserts the
+          top-level `remedy.argv` each returns — the hand merge for an absent ancestor, the typed `arc base merge`
+          for two of them. That is the assertion the seam hid: the payload token and the remedy an operator is
+          actually handed are now proved against one another rather than separately.
 
 ### `[ ]` **4.R5 Give the errand-merge invalidation an action, not a sentence** — amendment A9
 
