@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/contribution-proof.js";
-import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
+import type { DeliveryEligibilityCloseDependencies } from "../../../src/lib/delivery/eligibility.js";
+import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 
+import {
+  closeDeliveryEligibilityForPublication,
+  prepareDeliveryEligibility,
+} from "../../../src/lib/delivery/eligibility.js";
 import {
   reconcileLinkedNativeDeliverySuffix,
 } from "../../../src/lib/delivery/native-landing.js";
@@ -919,5 +924,114 @@ describe("the terminal absorber's refusal remedy", () => {
 
     const texts = answers.map((answer) => answer.recommendedActionText);
     expect(new Set(texts).size).toBe(absorberRefusals.length);
+  });
+});
+
+/**
+ * Success Criterion 2 — new member heads receive fresh applicability, review and checks before landing.
+ *
+ * The settle rewrites member coordinates under the held reservation, so the gate result an operator carries
+ * into the next cycle was taken at a head that no longer exists. These drive the settle's own published state
+ * back through the readiness gate rather than asserting the rule on coordinates assembled by hand.
+ */
+describe("the landing cycle after a settled suffix", () => {
+  const targetRef = "refs/heads/delivery-target";
+
+  /** A clean settle: no collision to disclose, and every suffix member rewritten to its reobserved head. */
+  async function settledSuffix() {
+    const { bound, reconcileInput, observeRequest, observeRef } = linkedSuffixFixture();
+    const applied = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
+      absorbTop: async () => ({ status: "absorbed", head: "9".repeat(40), tree: "8".repeat(40) }),
+      publishTop: async () => ({ status: "published" }),
+      rewriteLocalRef: async () => ({ status: "rewritten" }),
+      stateStore: casStateStore().stateStore,
+    });
+    if (applied.status !== "applied") throw new Error(`expected a settle, got ${JSON.stringify(applied)}`);
+    return { before: bound, plan: reconcileInput.plan, settled: applied.state.value };
+  }
+
+  function eligibilityDependencies(
+    settled: DeliveryStateV1,
+    plan: DeliveryPlanV1,
+  ): DeliveryEligibilityCloseDependencies {
+    const tip = settled.target!.coordinates!;
+    const observed = new Map<string, { head: string; tree: string }>(settled.members.flatMap((member) => (
+      member.ref === null || member.coordinates === null
+        ? []
+        : [[member.ref, { head: member.coordinates.head, tree: member.coordinates.tree }] as const]
+    )));
+    observed.set(targetRef, { head: tip.head, tree: tip.tree });
+    return {
+      observeRef: vi.fn(async (ref: string) => observed.get(ref) ?? null),
+      readAncestry: vi.fn(async () => "ancestor" as const),
+      readOverlap: vi.fn(async () => ({
+        status: "available" as const,
+        mergeBase: tip.head,
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      })),
+      revalidateLifecycleContribution: vi.fn(async () => ({ status: "ok" as const })),
+      resolveLifecyclePaths: vi.fn(async ({ snapshot }) => snapshot.lifecyclePaths),
+      compareNormalizedCompleteness: vi.fn(async () => ({ status: "match" as const })),
+      readCurrentPlan: vi.fn(async () => plan),
+      resolveMember: vi.fn(async () => ({ status: "ok" as const, value: null })),
+      inspectCheckout: vi.fn(async () => null),
+    };
+  }
+
+  /** The remaining chain an operator would carry forward once the bottom member has landed. */
+  async function nextCycle() {
+    const { before, plan, settled } = await settledSuffix();
+    const deps = eligibilityDependencies(settled, plan);
+    const suffix = before.members.slice(1);
+    const candidates = suffix.map((member) => ({ deliverableId: member.deliverableId, ref: member.ref! }));
+    const prepared = await prepareDeliveryEligibility({
+      plan,
+      protectedBaseRef: targetRef,
+      topRef: suffix.at(-1)!.ref!,
+      memberOffset: 1,
+      candidates,
+      lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") {
+      throw new Error(`expected a prepared cycle, got ${JSON.stringify(prepared)}`);
+    }
+    return { deps, suffix, snapshot: prepared.snapshot };
+  }
+
+  it("refuses a gate result taken before the settle rewrote the member", async () => {
+    const { deps, suffix, snapshot } = await nextCycle();
+    const staleResults = suffix.map((member) => ({
+      deliverableId: member.deliverableId,
+      head: member.coordinates!.head,
+      tree: member.coordinates!.tree,
+      status: "passed" as const,
+    }));
+
+    // The premise of the check: the settle really did move the head the decision was taken at.
+    expect(staleResults[0]!.head).not.toBe(snapshot.members[0]!.head);
+
+    await expect(closeDeliveryEligibilityForPublication({ snapshot, gateResults: staleResults }, deps))
+      .resolves.toEqual({
+        status: "refused",
+        reason: "gate-result-stale",
+        deliverableId: suffix[0]!.deliverableId,
+      });
+  });
+
+  it("admits the cycle once the gates rerun on the heads the settle published", async () => {
+    const { deps, snapshot } = await nextCycle();
+    const freshResults = snapshot.members.map((member) => ({
+      deliverableId: member.deliverableId,
+      head: member.head,
+      tree: member.tree,
+      status: "passed" as const,
+    }));
+
+    await expect(closeDeliveryEligibilityForPublication({ snapshot, gateResults: freshResults }, deps))
+      .resolves.toMatchObject({ status: "eligible" });
   });
 });

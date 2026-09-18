@@ -286,15 +286,24 @@ acceptance is the existing `applicability-selection` transition, not a new waive
           supersedes its premise. Refusal on substance stays covered by the unrelated-member and resolved-clean
           cases.
 
-### `[ ]` **2.R2 Drive a settled member back through the landing readiness gate** — amendment A7
+### `[x]` **2.R2 Drive a settled member back through the landing readiness gate** — amendment A7
 
 - _Goal:_ A7 — the second success criterion holds in the code and nothing this work unit added proves it; the new
   suffix coverage stops at the applied status and its coordinates.
 
-    - `[ ]` **2.R2.a Assert fresh applicability, review and checks on a post-settle head**
+    - `[x]` **2.R2.a Assert fresh applicability, review and checks on a post-settle head**
 
         - The check drives a member the settle rewrote into the next landing cycle and asserts it refuses on a
           stale target rather than landing on the decision taken at the previous head.
+        - _Outcome:_ `describe("the landing cycle after a settled suffix")` settles the suffix, then feeds the
+          settle's own published state — not coordinates assembled by hand — into `prepareDeliveryEligibility`
+          and `closeDeliveryEligibilityForPublication`. A gate result carrying the pre-settle head refuses
+          `gate-result-stale` on that member; one carrying the head the settle published reaches `eligible`.
+        - _Outcome:_ The pair discriminates. With the staleness guard in `eligibility.ts` disabled, the refusal
+          case fails and the admission case still passes. The refusal test also asserts its own premise — that
+          the settle really did move the head the decision was taken at — so it cannot pass vacuously.
+        - _Outcome:_ The settle runs clean rather than through a disclosure. The rewrite that criterion 2 turns
+          on is the same either way, and the clean path leaves the check free of the collision fixtures.
 
 ## **Phase 3:** The decline route
 
