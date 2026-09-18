@@ -97,21 +97,6 @@ export async function readGitCandidateTargetBase(
   return { status: "resolved", base: sole.mergeBase };
 }
 
-/**
- * Resolve the sole historical base coordinate, raising the refusal rather than returning it.
- *
- * Every caller reached through here inherits one policy for a target recording more than one base, and each
- * sees it as exception text rather than as the result it is. It goes away once each call site reads the answer.
- *
- * @param input - The same coordinates the reader takes.
- * @returns The sole base coordinate.
- */
-export async function resolveGitCandidateTargetBase(input: GitCandidateTargetBaseInput): Promise<string> {
-  const resolution = await readGitCandidateTargetBase(input);
-  if (resolution.status !== "resolved") throw new Error(resolution.detail);
-  return resolution.base;
-}
-
 export interface GitCandidateEffectiveTargetInput {
   readonly cwd: string;
   readonly name: string;

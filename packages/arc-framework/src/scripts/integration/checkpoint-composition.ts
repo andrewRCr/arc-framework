@@ -37,7 +37,7 @@ import {
 } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import { collectGitCandidateSubject } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
@@ -1071,14 +1071,17 @@ export function createIntegrationCheckpointDependencies(input: {
         ownerTerminusAdvances,
       });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
-      const mergeBase = await resolveGitCandidateTargetBase({
+      const mergeBase = await readGitCandidateTargetBase({
         cwd: input.cwd,
         revision: currentness.recognizedRevision,
         baseBranch: configuredBase,
         baseRevision,
         exec: input.exec,
       });
-      const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase);
+      if (mergeBase.status !== "resolved") {
+        throw new Error("The delivery terminal's predecessor base is not a single coordinate.");
+      }
+      const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase.base);
       if (candidateCoordinate === null || predecessorCoordinate === null) {
         throw new Error("The delivery terminal delta coordinates are unavailable.");
       }

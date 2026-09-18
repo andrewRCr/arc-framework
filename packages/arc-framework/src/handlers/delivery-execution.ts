@@ -243,7 +243,7 @@ import {
 } from "../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
   collectGitCandidateSubject,
@@ -5921,13 +5921,27 @@ async function executeDeliveryCommand(
         if (coordinates === null || coordinates.head !== candidateTargetRevision) {
           return { status: "refused", reason: "candidate-coordinate-unavailable" };
         }
-        const base = await resolveGitCandidateTargetBase({
+        // The reason the eligibility readers already give this condition, because it is the same condition:
+        // the member and the revision it is measured against share more than one best ancestor, and merging
+        // the base in clears it. The coordinate reason a line above asserts something else — the Candidate's
+        // own coordinate, which was just read. No remedy rides along: this reader composes no merge command,
+        // and naming one it never derived would be worse than the operator reading the condition.
+        const comparisonBase = requestedPredecessorBase ? predecessorHead : baseRevision;
+        const base = await readGitCandidateTargetBase({
           cwd,
           revision: candidateTargetRevision,
           baseBranch: requestedPredecessorBase ? predecessorBranch : baseBranch,
-          baseRevision: requestedPredecessorBase ? predecessorHead : baseRevision,
+          baseRevision: comparisonBase,
           exec,
         });
+        if (base.status !== "resolved") {
+          return {
+            status: "refused",
+            reason: "ambiguous-predecessor-base",
+            observedTip: comparisonBase,
+            detail: base.detail,
+          };
+        }
         const projected = rebindDeliveryTerminalCoordinates({
           plan: currentPlan,
           state: currentState.value,
@@ -5942,7 +5956,7 @@ async function executeDeliveryCommand(
           repository: parsed.repository,
           protectedTargetRef: `refs/heads/${baseBranch}`,
           request: observedTop.request,
-          coordinates: { base, head: coordinates.head, tree: coordinates.tree },
+          coordinates: { base: base.base, head: coordinates.head, tree: coordinates.tree },
           ...(internalContext?.settledRecordEffectHead == null
             ? {}
             : { settledRecordEffectHead: internalContext.settledRecordEffectHead }),

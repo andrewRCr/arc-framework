@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   persistIntegrationCheckpointComposition: vi.fn(),
   resolveIdentity: vi.fn(),
   createUserSurfaceResolver: vi.fn(),
-  resolveGitCandidateTargetBase: vi.fn(),
+  readGitCandidateTargetBase: vi.fn(),
   readCandidateRecordVersion: vi.fn(),
   readCandidateRecordVersioned: vi.fn(),
   readConfigSettings: vi.fn(),
@@ -72,7 +72,7 @@ vi.mock("../../../../src/lib/work-unit/git-candidate-subject.js", async (importO
 vi.mock("../../../../src/lib/work-unit/git-candidate-effective-target.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/git-candidate-effective-target.js")>(),
   projectGitCandidateEffectiveTarget: mocks.projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase: mocks.resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase: mocks.readGitCandidateTargetBase,
 }));
 vi.mock("../../../../src/lib/work-unit/submission-boundary-store.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/submission-boundary-store.js")>(),
@@ -946,7 +946,7 @@ describe("delivery checkpoint composition", () => {
     mocks.projectCandidateCurrentness.mockReturnValue(currentness);
     mocks.projectGitCandidateEffectiveTarget.mockResolvedValue(effective);
     mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);
-    mocks.resolveGitCandidateTargetBase.mockResolvedValue(baseHead);
+    mocks.readGitCandidateTargetBase.mockResolvedValue({ status: "resolved", base: baseHead });
     mocks.readSubmissionBoundary.mockResolvedValue({
       candidateId,
       candidateSubjectDigest: subjectDigest,

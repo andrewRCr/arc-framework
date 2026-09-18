@@ -924,24 +924,26 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   that gave each consumer its own policy at Task 6.3. So the refusal is the ceremony's, standing beside its other
   preconditions, rather than a fourth arm of the verb's result.
 
-### `[ ]` **6.5 Propagate the target-base resolver's widened result across its five call sites**
+### `[x]` **6.5 Propagate the target-base resolver's widened result across its five call sites**
 
 - _Goal:_ The second propagation's consumers handle the new refusal too, so a reader converted through one
   propagation is not left unconverted through the other.
 
-- _Note:_ Five sites across four files, not covered by the collector's propagation.
-
-- _Note:_ `resolveGitCandidateTargetBase` is the raising wrapper Task 6.2.b left standing over
-  `readGitCandidateTargetBase`, and removing it is what finishes this task. Until it goes, the ledger records
-  the refusal as exception text — which is the half of Task 6.2.b's observation that task did not retire.
-
-- _Note:_ The review-status assertion Task 6.2.b extended pins the wrapper's text as the routed obligation's
-  `detail`. Converting the status reader moves it again, so decide what that reader composes and carry the
-  assertion to it, rather than re-editing the assertion to match whatever comes out.
-
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces
 
-    - `[ ]` **6.5.a Propagate through all five call sites**
+    - `[x]` **6.5.a Propagate through all five call sites**
+
+        - Three channels again. Review status blocks in its own words at both of its sites; the checkpoint and
+          respond readers raise, where each already raised for a subject it could not collect; and the reconcile
+          path returns `ambiguous-predecessor-base` — the reason the eligibility readers give this same
+          condition, and already an admitted arm of that command's result. The coordinate reason a line above it
+          asserts something else: the Candidate's own coordinate, which was just read.
+        - `resolveGitCandidateTargetBase` is gone, with no reference left in `src/` or `__tests__/`.
+
+- _Outcome:_ The assertion this task was warned about did not have to move. The wrapper's text was already in the
+  status reader's voice, beside its sibling literals, so what changed is that the reader composes the statement
+  instead of a catch-all reporting an exception — and a base that cannot be read at all still raises past it,
+  which is the distinction that catch-all had been hiding.
 
 ### `[ ]` **6.6 Adopt the relation at Candidate applicability**
 
@@ -1010,11 +1012,13 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 - _Goal:_ Batch-verify the enumerated surface: a two-merge-base history refuses typed at every converted reader,
   and both propagations reach every consuming call site.
 
-- _Note:_ Two gaps the phase does not close on its own. The three delivery-execution refusals are reached by the
-  compiler and by no case — none arranges an ambiguous base that deep in `executeDeliveryCommand`. And
-  attestation's ceremony refusal is proven for an Active work unit only; while Integrating or Shipped,
-  `inspectRepositoryDeliveryCandidateRenewal` runs ahead of the subject read, and which of the two answers first
-  over an ambiguous history was not established here. Do not assume either is covered from elsewhere.
+- _Note:_ Three gaps the phase does not close on its own. Four refusals in `executeDeliveryCommand` and one in
+  the respond reader are reached by the compiler and by no case — none arranges an ambiguous base that deep, and
+  the reconcile arm's `ambiguous-predecessor-base` emission has never been observed through the result schema, so
+  its field set is argued rather than seen. Attestation's ceremony refusal is proven for an Active work unit
+  only; while Integrating or Shipped, `inspectRepositoryDeliveryCandidateRenewal` runs ahead of the subject read,
+  and which of the two answers first over an ambiguous history was not established. And the checkpoint reader's
+  raise is preserved behavior, so no case distinguishes its wording from the wrapper's. Assume none is covered.
 
 ## **Phase 7:** Ancestry-aware readiness and per-term closeout
 

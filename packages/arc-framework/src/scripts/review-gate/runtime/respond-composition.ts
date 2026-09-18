@@ -20,7 +20,7 @@ import {
 } from "../../../lib/work-unit/candidate-attestation.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import {
   collectGitCandidateSubject,
@@ -221,12 +221,15 @@ export function createRespondDependencies(input: {
         reviewed: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>> & { state: "current" };
       }>;
       const baseBranch = (await settings())["branch.base"];
-      const reviewedBase = await resolveGitCandidateTargetBase({
+      const reviewedBase = await readGitCandidateTargetBase({
         cwd: input.cwd,
         revision: target.headSha,
         baseBranch,
         exec: input.exec,
       });
+      if (reviewedBase.status !== "resolved") {
+        throw new Error("The reviewed Candidate target's base is not a single coordinate.");
+      }
       for (const workUnit of candidates) {
         const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit);
         if (record === null || version === null) continue;
@@ -238,7 +241,7 @@ export function createRespondDependencies(input: {
             record: prefix,
             exec: input.exec,
             rawExec: rawGit,
-            target: { revision: target.headSha, currentBase: reviewedBase },
+            target: { revision: target.headSha, currentBase: reviewedBase.base },
           })));
         const reviewed = [...projections].reverse().find((projection) =>
           projection.state === "current" && projection.recognizedTarget.revision === target.headSha);

@@ -17,7 +17,7 @@ import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import {
   readSubmissionBoundaryVersioned,
@@ -390,18 +390,23 @@ export async function readRoutedObligation(
         }
         preparedTerminal = { deliverableId: terminal.deliverableId, stateHead: preparedTerminalHead };
       }
-      const historicalTarget = preparedTerminalHead === undefined
-        ? undefined
-        : {
-            revision: preparedTerminalHead,
-            currentBase: await resolveGitCandidateTargetBase({
-              cwd,
-              revision: preparedTerminalHead,
-              baseBranch,
-              ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
-              exec,
-            }),
-          };
+      // A target recording more than one base blocks the obligation in this reader's own words, beside the
+      // conditions above. It reached the same wording as a caught exception before; what changed is that the
+      // statement is composed here, where a base that cannot be read at all still raises past it.
+      let historicalTarget: { readonly revision: string; readonly currentBase: string } | undefined;
+      if (preparedTerminalHead !== undefined) {
+        const historicalBase = await readGitCandidateTargetBase({
+          cwd,
+          revision: preparedTerminalHead,
+          baseBranch,
+          ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
+          exec,
+        });
+        if (historicalBase.status !== "resolved") {
+          return { state: "blocked", detail: historicalBase.detail };
+        }
+        historicalTarget = { revision: preparedTerminalHead, currentBase: historicalBase.base };
+      }
       effective = await projectGitCandidateEffectiveTarget({
         cwd,
         name: workUnit,
@@ -451,13 +456,16 @@ export async function readRoutedObligation(
         headSha: candidateHead,
         ...(options.remote === undefined ? {} : { remote: options.remote }),
       });
-      const targetBase = await resolveGitCandidateTargetBase({
+      const targetBase = await readGitCandidateTargetBase({
         cwd,
         revision: candidateHead,
         baseBranch,
         baseRevision: currentBaseRevision,
         exec,
       });
+      if (targetBase.status !== "resolved") {
+        return { state: "blocked", detail: targetBase.detail };
+      }
       effective = await projectGitCandidateEffectiveTarget({
         cwd,
         name: workUnit,
@@ -465,7 +473,7 @@ export async function readRoutedObligation(
         record,
         exec,
         rawExec: createRawGitExec(cwd),
-        target: { revision: candidateHead, currentBase: targetBase },
+        target: { revision: candidateHead, currentBase: targetBase.base },
       });
     }
     if (effective.state !== "current"
