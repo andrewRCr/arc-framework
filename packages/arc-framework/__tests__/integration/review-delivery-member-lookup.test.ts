@@ -217,6 +217,112 @@ describe("repository delivery member lookup", () => {
       .resolves.toEqual({ status: "unbound" });
   });
 
+  it("resolves a deliverable identity to the member's recorded binding", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+
+    await expect(lookup.resolveMemberByIdentity({
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    })).resolves.toEqual({
+      status: "bound",
+      member: {
+        planId: plan.planId,
+        deliverableId: plan.members[0]!.deliverableId,
+        workUnitId: plan.workUnitId,
+        base: "3".repeat(40),
+        baseRef: "delivery-target",
+        headRef: "member-1",
+        head: "4".repeat(40),
+        candidateHead: "5".repeat(40),
+        isFinalMember: false,
+      },
+    });
+  });
+
+  it("reports a work unit no plan carries as a miss rather than an unavailability", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+
+    await expect(lookup.resolveMemberByIdentity({
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: "ordinary-work-unit",
+    })).resolves.toEqual({ status: "no-plan" });
+  });
+
+  it("reports a deliverable the resolved plan does not carry as an identity miss", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+
+    await expect(lookup.resolveMemberByIdentity({
+      planId: plan.planId,
+      deliverableId: deliveryPlanFixture(OTHER_PLAN_ID).members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    })).resolves.toEqual({ status: "not-in-plan" });
+  });
+
+  it("reports a planned member holding no binding as unbound inside its own plan", async () => {
+    const plan = deliveryPlanFixture();
+    const identity = {
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    };
+
+    const unpublished = await repository();
+    await publishPlan(unpublished.cwd, plan);
+    await expect(unpublished.lookup.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "in-plan-unbound" });
+
+    const uncoordinated = await repository();
+    const partial = deliveryStateFixture(plan);
+    partial.members[0]!.coordinates = null;
+    await publishPlan(uncoordinated.cwd, plan);
+    await publish(uncoordinated.cwd, partial);
+    await expect(uncoordinated.lookup.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "in-plan-unbound" });
+  });
+
+  it("reports several matching plans, an unreadable record, and a bare root as unavailable", async () => {
+    const plan = deliveryPlanFixture();
+    const identity = {
+      planId: plan.planId,
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    };
+
+    const duplicate = await repository();
+    await publishPlan(duplicate.cwd, plan);
+    await publishPlan(duplicate.cwd, deliveryPlanFixture(OTHER_PLAN_ID));
+    await expect(duplicate.lookup.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "unavailable" });
+
+    const unreadable = await repository();
+    await publishPlan(unreadable.cwd, plan);
+    await publish(unreadable.cwd, deliveryStateFixture(plan));
+    await chmod(stateDirectory(unreadable.cwd), 0o000);
+    try {
+      await expect(unreadable.lookup.resolveMemberByIdentity(identity))
+        .resolves.toEqual({ status: "unavailable" });
+    } finally {
+      await chmod(stateDirectory(unreadable.cwd), 0o700);
+    }
+
+    const bare = await mkdtemp(join(tmpdir(), "arc-review-delivery-identity-bare-"));
+    roots.push(bare);
+    const outsideRepository = new RepositoryDeliveryMemberLookup({ exec: makeGitExec(bare), cwd: bare });
+    await expect(outsideRepository.resolveMemberByIdentity(identity))
+      .resolves.toEqual({ status: "unavailable" });
+  });
+
   it("refuses an incomplete target set before resolving every retained member on a later read", async () => {
     const { cwd, lookup } = await repository();
     const plan = deliveryPlanFixture();

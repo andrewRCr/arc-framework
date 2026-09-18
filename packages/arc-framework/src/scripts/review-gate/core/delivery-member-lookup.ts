@@ -38,6 +38,40 @@ export interface DeliveryMemberLookup {
   resolveMemberByHead(headObjectId: string): Promise<DeliveryMemberLookupResult>;
 }
 
+/** The member identity a deliverable-keyed lookup is asked about. */
+export interface DeliveryMemberIdentity {
+  readonly planId: string;
+  readonly deliverableId: string;
+  readonly workUnitId: string;
+}
+
+/**
+ * Closed answer to one deliverable-keyed member lookup.
+ *
+ * Every miss keeps its own arm, because a caller acts differently on each: a
+ * member the plan holds with no binding, a deliverable the resolved plan does
+ * not hold, a work unit no plan carries, and an asserted plan that is not the
+ * resolved one are four distinct answers. Only `unavailable` reports that the
+ * read could not establish one.
+ */
+export type DeliveryMemberIdentityLookupResult =
+  | { readonly status: "bound"; readonly member: DeliveryMemberBinding }
+  | { readonly status: "in-plan-unbound" }
+  | { readonly status: "not-in-plan" }
+  | { readonly status: "no-plan" }
+  | { readonly status: "plan-mismatch" }
+  | { readonly status: "unavailable" };
+
+/**
+ * Member resolution keyed by the identity a caller already holds.
+ *
+ * Total by construction like the head-keyed lookup beside it, and separate from
+ * it so neither interface grows a second method.
+ */
+export interface DeliveryMemberIdentityLookup {
+  resolveMemberByIdentity(identity: DeliveryMemberIdentity): Promise<DeliveryMemberIdentityLookupResult>;
+}
+
 /** One retained member target available to hosted-review discharge. */
 export interface DeliveryDischargeTargetBinding {
   readonly planId: string;

@@ -19,6 +19,9 @@ import { createRawGitExec } from "../../../../lib/io-context.js";
 import type {
   DeliveryDischargeTargetLookup,
   DeliveryDischargeTargetLookupResult,
+  DeliveryMemberIdentity,
+  DeliveryMemberIdentityLookup,
+  DeliveryMemberIdentityLookupResult,
   DeliveryMemberLookup,
   DeliveryMemberLookupResult,
   DeliveryReservationRecordLookup,
@@ -33,8 +36,8 @@ function branchName(ref: string | null): string | null {
 }
 
 /** Delivery-member lookup backed by one repository's Git-common delivery state. */
-export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, DeliveryDischargeTargetLookup,
-DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
+export class RepositoryDeliveryMemberLookup implements DeliveryMemberLookup, DeliveryMemberIdentityLookup,
+DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
   private readonly plans: RepositoryDeliveryPlanStore<DeliveryPlanV1>;
   private readonly store: RepositoryDeliveryStateStore;
   private readonly transitionSource: DeliveryRenameTransitionSource;
@@ -116,6 +119,62 @@ DeliveryReservationRecordLookup, DeliveryTerminalRecordLookup {
         isFinalMember: current.members[current.members.length - 1]?.deliverableId === deliverableId,
       },
     };
+  }
+
+  /**
+   * Resolve the delivery member one caller-held identity names.
+   *
+   * @param identity - The asserted plan, deliverable, and work unit.
+   * @returns The member binding, the miss that holds, or `unavailable`.
+   */
+  async resolveMemberByIdentity(identity: DeliveryMemberIdentity): Promise<DeliveryMemberIdentityLookupResult> {
+    try {
+      const plans = await this.plans.enumerateCurrentReadOnly();
+      if (plans.status === "refused") return { status: "unavailable" };
+      const matching = plans.value.filter((candidate) => candidate.workUnitId === identity.workUnitId);
+      if (matching.length === 0) return { status: "no-plan" };
+      const plan = matching.length === 1 ? matching[0] : undefined;
+      if (plan === undefined) return { status: "unavailable" };
+      // Membership is asked of the plan rather than of state, so a work unit whose
+      // plan carries no state record still answers by deliverable rather than by
+      // the absence of any binding at all.
+      if (!plan.members.some((member) => member.deliverableId === identity.deliverableId)) {
+        return { status: "not-in-plan" };
+      }
+      const record = await this.store.read(plan.planId);
+      if (record.status === "refused") return { status: "unavailable" };
+      if (record.value === null) return { status: "in-plan-unbound" };
+      const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
+      if (coherence.status === "refused") return { status: "unavailable" };
+      const current = coherence.state;
+      // Coherence has already established that state carries the plan's members in
+      // the plan's order, so the miss below cannot hold; it keeps the port total.
+      const memberIndex = current.members.findIndex(
+        (candidate) => candidate.deliverableId === identity.deliverableId,
+      );
+      if (memberIndex < 0) return { status: "unavailable" };
+      const coordinates = current.members[memberIndex]?.coordinates ?? null;
+      if (coordinates === null) return { status: "in-plan-unbound" };
+      const baseRef = branchName(memberIndex === 0
+        ? current.target?.ref ?? null
+        : current.members[memberIndex - 1]?.ref ?? null);
+      return {
+        status: "bound",
+        member: {
+          planId: plan.planId,
+          deliverableId: identity.deliverableId,
+          workUnitId: current.workUnitId,
+          base: coordinates.base,
+          baseRef,
+          headRef: branchName(current.members[memberIndex]?.ref ?? null),
+          head: coordinates.head,
+          candidateHead: current.members.at(-1)?.coordinates?.head ?? null,
+          isFinalMember: current.members.at(-1)?.deliverableId === identity.deliverableId,
+        },
+      };
+    } catch {
+      return { status: "unavailable" };
+    }
   }
 
   /** Read every currently bound member target for one work unit without writing delivery state. */

@@ -1022,35 +1022,30 @@ names the observed condition for each of the fourteen conditions that currently 
 _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lookup interface;
 `resolveDischargeTargets` is eliminated because it relocates the conflation one reader over.
 
-### `[ ]` **7.1 Add the deliverable-keyed lookup as a fifth interface**
+### `[x]` **7.1 Add the deliverable-keyed lookup as a fifth interface**
 
 - _Goal:_ A caller holding a deliverable identity can resolve its member without keying on a head, through a
   result whose arms express every outcome readiness reports today.
 
-- _Rationale:_ `resolveTerminalRecords` already performs the plan read, state read, and coherence check the body
-  needs, so the route is that body behind a named method. Routing through it directly would widen a method named
-  for terminal integration by use rather than by design. Widening the member selector with an identity arm is the
-  recorded rejected alternative — it edits a predicate both live lookups share to reach the same result.
+    - `[x]` **7.1.a Author the method and its six-arm result**
 
-- _Note:_ The designated body does not supply every arm as written: it returns unbound at two distinct points and
-  unavailable when several plans match, and it never asserts a caller-supplied plan id. Folding any of those into
-  `unavailable` would repeat the defect that eliminated `resolveDischargeTargets` — answering _could not
-  establish_ where the truthful answer is _not bound_ — at the very reader this phase is fixing.
+        - `resolveMemberByIdentity` takes the route `resolveTerminalRecords` already takes — plan read, state
+          read, coherence check — behind its own name, and its `bound` arm reuses `DeliveryMemberBinding`, so the
+          final-member flag reaches the caller together with the plan, deliverable, work unit, and recorded head
+          rather than a coordinate alone.
+        - Membership is asked of the plan ahead of the state read. That ordering is what lets a plan carrying no
+          state record still answer by deliverable instead of collapsing every such member into one word.
 
-    - `[ ]` **7.1.a Author the method and its six-arm result**
+    - `[x]` **7.1.b Keep the lookup interface single-method**
 
-        - The `bound` arm carries the whole member readiness consumes — its plan, deliverable, work unit, and
-          final-member flag — not the coordinate alone. The flag feeds a separate terminal-member fact that the
-          inversion must not drop.
-        - Build `test-first` (one behavior at a time):
+        - The capability is its own `DeliveryMemberIdentityLookup`, so `DeliveryMemberLookup` still exposes only
+          `resolveMemberByHead` and the repository adapter implements a fifth interface beside the four.
 
-            - A bound member returns `bound` with its coordinate
-            - A member in the plan with no binding returns `in-plan-unbound`
-            - A deliverable absent from the resolved plan returns `not-in-plan`
-            - No plan carrying this work unit returns `no-plan`, a miss rather than an unavailability
-            - A refused read or several matching plans return `unavailable`
-
-    - `[ ]` **7.1.b Keep the lookup interface single-method**
+- _Outcome:_ The designated body's two `unbound` returns and one of its `unavailable` returns separate into four
+  arms, and the read order is what buys them: the plan enumeration answers `no-plan`, the plan's own member list
+  answers `not-in-plan` before any state is read, and only past both can a missing record or a null coordinate
+  mean `in-plan-unbound`. The sixth arm is authored and unreachable — nothing asserts a caller-supplied plan id
+  yet, which is what Task 7.2 adds.
 
 ### `[ ]` **7.2 Assert the caller-supplied plan id explicitly inside the new method**
 
