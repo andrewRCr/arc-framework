@@ -168,22 +168,31 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
   the type checker named it, so each new kind also carries the sentence closeout puts on it. The two surfaces
   stay in step by construction rather than by inspection.
 
-### `[ ]` **1.R2 Split the settlement-phase refusals by the cause they report** — amendment A12
+### `[x]` **1.R2 Split the settlement-phase refusals by the cause they report** — amendment A12
 
 - _Goal:_ A12 — Task 1.R branched the absorber remedies by reason and left both `settlement-phase-*` arms sharing
   one sentence. `operation-stale` is cleared by re-reading state, not by restoring the landing subject, and
   neither arm is referenced by any test.
 
-    - `[ ]` **1.R2.a Name the act each reachable settlement-phase cause needs**
+    - `[x]` **1.R2.a Name the act each reachable settlement-phase cause needs**
 
-        - Both emissions — the suffix phase and the terminal recording Task 3.R added — hand every cause "restore
-          the exact native landing subject before retrying settlement". `state-invalid` and `operation-stale` are
-          the reachable pair; the second is answered by re-reading state, which that sentence does not say.
+        - `DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES` in `operation.ts` keys one sentence to each refusal the
+          settlement transition can return, and both emissions in `native-landing.ts` read it. A stale record is
+          sent back to be re-read; an unreadable one, to repair. Reachability was re-derived rather than
+          assumed: the merge reconciler refuses a `prepared` phase before the settle runs, so `not-submitted`
+          and `wrong-operation` cannot arrive here — they carry answers anyway, because the map is total.
 
-    - `[ ]` **1.R2.b Cover the arms that had none**
+    - `[x]` **1.R2.b Cover the arms that had none**
 
-        - `settlement-phase` appears in no test in the tree. Cover at least `operation-stale` — the cause this
-          work unit's own Task 2.R hit during implementation, where the named act would not have cleared it.
+        - Three tests in `native-landing-suffix.test.ts`, mirroring the absorber block Task 1.R added: each
+          reachable cause is wedged through `unreachedSettlement`, which throws past the phase transition, so a
+          refusal raised anywhere else fails the test rather than satisfying it. The stale arm additionally
+          asserts the absent word — the shared sentence's "restore" is what it was answering with.
+
+- _Outcome:_ Keying the sentences to `Extract<…, { status: "refused" }>["reason"]` puts the same construction-time
+  guarantee on the settlement phase that the absorber already had: a fifth refusal reason stops compiling until
+  someone decides what clears it. The two surfaces that branch a native landing refusal by cause now do it the
+  same way.
 
 ## **Phase 2:** Terminal absorption conflict recovery
 

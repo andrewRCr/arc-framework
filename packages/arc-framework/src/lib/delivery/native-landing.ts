@@ -3,6 +3,7 @@
 import {
   attachDeliveryOperationEffectIdentity,
   beginNativeDeliverySettlement,
+  DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES,
   beginNativeDeliverySubmission,
   reconcileDeliveryOperation,
   reserveDeliveryOperation,
@@ -1556,8 +1557,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       return {
         status: "blocked",
         reason: `settlement-phase-${settling.reason}`,
-        recommendedActionText:
-          "Keep the reservation and restore the exact native landing subject before retrying settlement.",
+        recommendedActionText: DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES[settling.reason],
       };
     }
     const phasePublished = await dependencies.stateStore.publish(
@@ -1667,8 +1667,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       return {
         status: "blocked",
         reason: `settlement-phase-${recording.reason}`,
-        recommendedActionText:
-          "Keep the reservation and restore the exact native landing subject before retrying settlement.",
+        recommendedActionText: DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES[recording.reason],
       };
     }
     const recorded = await dependencies.stateStore.publish(

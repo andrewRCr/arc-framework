@@ -1007,6 +1007,71 @@ describe("the terminal absorber's refusal remedy", () => {
   });
 });
 
+describe("the settlement phase's refusal remedy", () => {
+  type SettlementRecord = { readonly revision: number; readonly value: DeliveryStateV1 };
+
+  /** The landing record advanced past the revision the reservation was written against. */
+  const movedPastTheReservation = (before: SettlementRecord) => ({
+    revision: before.revision + 1,
+    value: before.value,
+  });
+
+  /** The terminal member carries a head no schema read accepts, so the record no longer validates. */
+  const unreadableRecord = (before: SettlementRecord) => ({
+    revision: before.revision,
+    value: {
+      ...before.value,
+      members: before.value.members.map((member, index, all) => (
+        index === all.length - 1 && member.coordinates !== null
+          ? { ...member, coordinates: { ...member.coordinates, head: "not-a-sha" } }
+          : member
+      )),
+    },
+  });
+
+  // `unreachedSettlement` throws on every dependency past the phase transition, so a refusal that did not come
+  // from the transition itself fails loudly rather than being asserted into agreement.
+  const blockedBySettlementPhase = async (wedge: (before: SettlementRecord) => SettlementRecord) => {
+    const { reconcileInput, observeRequest, observeRef, unreachedSettlement } = linkedSuffixFixture();
+    const blocked = await reconcileLinkedNativeDeliverySuffix(
+      { ...reconcileInput, before: wedge(reconcileInput.before) },
+      {
+        observeRequest,
+        observeRef,
+        proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+        ...unreachedSettlement,
+      },
+    );
+    return blocked as { status: string; reason: string; recommendedActionText: string };
+  };
+
+  it("sends a moved landing record back to be re-read, not restored", async () => {
+    const blocked = await blockedBySettlementPhase(movedPastTheReservation);
+
+    expect(blocked).toMatchObject({ status: "blocked", reason: "settlement-phase-operation-stale" });
+    expect(blocked.recommendedActionText).toMatch(/re-read the landing state/);
+    // Restoring the landing subject is the act the shared sentence named, and it clears nothing here: the
+    // subject never moved, the revision did.
+    expect(blocked.recommendedActionText).not.toMatch(/restore/i);
+  });
+
+  it("sends an unreadable landing record to repair", async () => {
+    const blocked = await blockedBySettlementPhase(unreadableRecord);
+
+    expect(blocked).toMatchObject({ status: "blocked", reason: "settlement-phase-state-invalid" });
+    expect(blocked.recommendedActionText).toMatch(/repair the native landing record/);
+  });
+
+  it("answers the two causes a settled landing reaches in different words", async () => {
+    const [stale, invalid] = await Promise.all([
+      blockedBySettlementPhase(movedPastTheReservation),
+      blockedBySettlementPhase(unreadableRecord),
+    ]);
+
+    expect(stale!.recommendedActionText).not.toBe(invalid!.recommendedActionText);
+  });
+});
+
 /**
  * Success Criterion 2 — new member heads receive fresh applicability, review and checks before landing.
  *

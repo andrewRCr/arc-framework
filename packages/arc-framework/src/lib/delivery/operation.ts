@@ -603,6 +603,31 @@ export type BeginNativeDeliverySettlementResult =
     };
 
 /**
+ * What each settlement-phase refusal asks the operator to do, keyed by the condition the transition observed.
+ *
+ * The two a settled landing actually reaches want opposite acts. A record that no longer validates has to be
+ * repaired before anything can be written against it; a record that moved past the revision this settlement read
+ * is cleared by reobserving it, and telling the operator to restore a subject that never changed sends them
+ * after the wrong thing. The other two are carried so a fifth reason cannot be added without an answer.
+ */
+export const DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES: Record<
+  Extract<BeginNativeDeliverySettlementResult, { status: "refused" }>["reason"],
+  string
+> = {
+  "state-invalid":
+    "Keep the reservation and repair the native landing record, which no longer validates, before retrying "
+    + "settlement.",
+  "operation-stale":
+    "Keep the reservation and rerun `arc delivery native land-status` to re-read the landing state, which "
+    + "moved past the revision this settlement observed.",
+  "wrong-operation":
+    "Restore the exact native landing reservation before retrying settlement; the operation the landing record "
+    + "holds is not the one this settlement began under.",
+  "not-submitted":
+    "Submit the native landing before settling it; its reservation is still in the prepared phase.",
+};
+
+/**
  * Record the freshly observed remaining suffix on one submitted native reservation before its refs move.
  *
  * @param current - The exact reservation record the settlement observed its suffix under.
