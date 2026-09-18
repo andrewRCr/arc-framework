@@ -1131,11 +1131,26 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
           reach, required rather than optional in the retirement dependencies, and pinned to the resolved
           checkout at the one composition root that builds them.
 
-    - `[ ]` **7.5.b Give the pre-guard's five conditions distinct reasons**
+    - `[x]` **7.5.b Give the pre-guard's five conditions distinct reasons**
 
-    - `[ ]` **7.5.c Give the unobserved host request its own reason**
+        - The guard was one boolean over five conditions, so it had to be resequenced rather than split: the
+          absent terminal member is what the other four dereference, and only once it answers for itself can an
+          unbound ref, request, or coordinate answer for theirs. That first miss is unreachable past coherence
+          against the plan, and keeps the reader total rather than guarding a live case.
 
-    - `[ ]` **7.5.d Give the conjunction's eight terms distinct reasons**
+    - `[x]` **7.5.c Give the unobserved host request its own reason**
+
+        - The host withholds the request six ways and none of them is a reading of it, so a caller clears every
+          one by observing again rather than by correcting a field. The six keep one reason between them, which
+          is the sizing the design costed.
+
+    - `[x]` **7.5.d Give the conjunction's eight terms distinct reasons**
+
+        - Each term becomes its own guarded return in the order the conjunction evaluated them, so the first
+          failing term is the one reported and no later term's read runs against an input an earlier one already
+          refused. The relation's term reports a head that moved, which is exactly what reaching it means:
+          equality is settled before any ancestry answer is consulted, so the heads differ and what is
+          unestablished is only whether the difference is the advance this settles on.
 
     - `[ ]` **7.5.e Derive the emitted refusal's dispatchable remedy from the reason**
 

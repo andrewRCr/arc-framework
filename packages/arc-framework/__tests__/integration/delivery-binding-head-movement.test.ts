@@ -155,6 +155,6 @@ describe("delivery closeout against a terminal head that advanced under its bind
     expect(await closeoutAgainstMergedHead(forward, forward.advanced)).toEqual({ status: "closed-out" });
     // A head the bound head descends from is not that contribution, so it stays unsettled.
     expect(await closeoutAgainstMergedHead(behind, behind.base))
-      .toEqual({ status: "blocked", reason: "terminal-unsettled" });
+      .toEqual({ status: "blocked", reason: "terminal-head-moved" });
   });
 });

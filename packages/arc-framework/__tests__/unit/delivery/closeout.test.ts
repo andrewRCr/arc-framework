@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { closeoutCompletedDelivery } from "../../../src/lib/delivery/closeout.js";
+import {
+  closeoutCompletedDelivery,
+  type DeliveryCloseoutDependencies,
+} from "../../../src/lib/delivery/closeout.js";
 import { deriveDeliveryResidueLocators } from "../../../src/lib/delivery/residue-reaping.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import {
@@ -148,7 +151,7 @@ describe("delivery closeout", () => {
       remote: "origin",
     }, dependencies)).resolves.toMatchObject({
       status: "blocked",
-      reason: "terminal-unsettled",
+      reason: "terminal-not-merged",
     });
     expect({
       plans: fixture.plans.size,
@@ -161,6 +164,61 @@ describe("delivery closeout", () => {
       localMembers: fixture.state.members.slice(0, -1).map((member) => member.ref),
       remoteMembers: fixture.state.members.slice(0, -1).map((member) => member.ref),
     });
+  });
+
+  it("leaves the terminal prefix to the terminal conditions alone", async () => {
+    const blockedReason = async (
+      workUnitId: string,
+      dependencies: DeliveryCloseoutDependencies,
+    ): Promise<string> => {
+      const result = await closeoutCompletedDelivery(
+        { workUnitId, repository: "owner/repo", remote: "origin" },
+        dependencies,
+      );
+      if (result.status !== "blocked") throw new Error(`expected a blocked closeout, got ${result.status}`);
+      return result.reason;
+    };
+    const identity = closeoutFixture();
+    const planRefused = closeoutFixture();
+    const stateRefused = closeoutFixture();
+    const retireRefused = closeoutFixture();
+    const terminal = closeoutFixture();
+
+    const own = [
+      await blockedReason("Not A Slug", identity.dependencies),
+      await blockedReason(planRefused.plan.workUnitId, {
+        ...planRefused.dependencies,
+        planStore: {
+          ...planRefused.dependencies.planStore,
+          enumerateCurrent: async () => ({ status: "refused" as const, reason: "namespace-corrupt" as const }),
+        },
+      }),
+      await blockedReason(stateRefused.plan.workUnitId, {
+        ...stateRefused.dependencies,
+        stateStore: {
+          ...stateRefused.dependencies.stateStore,
+          read: async () => ({ status: "refused" as const, reason: "record-malformed" as const }),
+        },
+      }),
+      await blockedReason(retireRefused.plan.workUnitId, {
+        ...retireRefused.dependencies,
+        retirement: {
+          ...retireRefused.dependencies.retirement,
+          observeLocalRef: async () => ({ status: "refused" as const }),
+        },
+      }),
+    ];
+
+    // Closeout prefixes the reasons it raises itself and passes a terminal reason through bare, so the
+    // prefix is the whole of what tells a caller which of the two readers spoke.
+    expect(own.filter((reason) => reason.startsWith("terminal-"))).toEqual([]);
+    expect(await blockedReason(terminal.plan.workUnitId, {
+      ...terminal.dependencies,
+      retirement: {
+        ...terminal.dependencies.retirement,
+        readTerminalRequest: async () => ({ status: "absent" as const }),
+      },
+    })).toBe("terminal-request-unobserved");
   });
 
   it("reaps exact residue before retiring the state and plan", async () => {

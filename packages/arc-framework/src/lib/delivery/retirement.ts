@@ -31,9 +31,32 @@ export interface DeliveryRetirementDependencies {
   ) => Promise<DeliveryHostRequestObservation>;
 }
 
+/**
+ * Why one terminal is unsettled, naming the condition that holds rather than that some condition does.
+ *
+ * Every name carries the `terminal-` prefix, which is the shape that keeps these apart from the reasons
+ * closeout raises on its own behalf: it passes a terminal reason through bare and prefixes its own, so the
+ * two sets share one namespace and only the prefix tells a caller which reader spoke.
+ */
+export type DeliveryTerminalUnsettledReason =
+  | "terminal-member-absent"
+  | "terminal-ref-unbound"
+  | "terminal-request-unbound"
+  | "terminal-coordinates-unbound"
+  | "terminal-target-unbound"
+  | "terminal-request-unobserved"
+  | "terminal-provider-mismatch"
+  | "terminal-request-mismatch"
+  | "terminal-repository-mismatch"
+  | "terminal-head-repository-mismatch"
+  | "terminal-head-ref-mismatch"
+  | "terminal-head-moved"
+  | "terminal-base-ref-mismatch"
+  | "terminal-not-merged";
+
 export type DeliveryTerminalSettlementResult =
   | { readonly status: "settled" }
-  | { readonly status: "blocked"; readonly reason: "terminal-unsettled" };
+  | { readonly status: "blocked"; readonly reason: DeliveryTerminalUnsettledReason };
 
 export type DeliveryRetirementResult =
   | { readonly status: "retired"; readonly planIds: readonly string[] }
@@ -50,16 +73,40 @@ export async function verifyDeliveryTerminalSettlement(
   input: { readonly state: DeliveryStateV1; readonly repository: string },
   dependencies: Pick<DeliveryRetirementDependencies, "readAncestry" | "readTerminalRequest">,
 ): Promise<DeliveryTerminalSettlementResult> {
+  const blocked = (
+    reason: DeliveryTerminalUnsettledReason,
+  ): DeliveryTerminalSettlementResult => ({ status: "blocked", reason });
+
+  // Coherence against the plan has already established that state carries the plan's members, and a
+  // plan carries at least one, so the first miss below cannot hold; it keeps the reader total.
   const terminal = input.state.members.at(-1);
+  if (terminal === undefined) return blocked("terminal-member-absent");
+  if (terminal.ref === null) return blocked("terminal-ref-unbound");
+  if (terminal.changeRequest === null) return blocked("terminal-request-unbound");
+  if (terminal.coordinates === null) return blocked("terminal-coordinates-unbound");
   const targetRef = input.state.target?.ref;
-  if (terminal?.ref === null || terminal?.ref === undefined
-    || terminal.changeRequest === null || terminal.coordinates === null
-    || targetRef === undefined) {
-    return { status: "blocked", reason: "terminal-unsettled" };
-  }
+  if (targetRef === undefined) return blocked("terminal-target-unbound");
+
+  // The host withheld the request in more than one way, and none of them is a reading of the request:
+  // a caller acts on an absent, ambiguous, or unavailable observation by observing again, not by
+  // correcting a field. So the several withholdings keep one reason between them.
   const observed = await dependencies.readTerminalRequest(input.repository, terminal.changeRequest);
-  if (observed.status !== "observed") return { status: "blocked", reason: "terminal-unsettled" };
+  if (observed.status !== "observed") return blocked("terminal-request-unobserved");
   const request = observed.request;
+
+  if (request.binding.providerId !== terminal.changeRequest.providerId) {
+    return blocked("terminal-provider-mismatch");
+  }
+  if (request.binding.changeRequestId !== terminal.changeRequest.changeRequestId) {
+    return blocked("terminal-request-mismatch");
+  }
+  if (request.repository !== input.repository) return blocked("terminal-repository-mismatch");
+  if (request.headRepository !== input.repository) {
+    return blocked("terminal-head-repository-mismatch");
+  }
+  if (request.headRef !== terminal.ref.replace(/^refs\/heads\//u, "")) {
+    return blocked("terminal-head-ref-mismatch");
+  }
   const relation = classifyPredecessorRelation({
     boundHead: terminal.coordinates.head,
     observedHead: request.headSha,
@@ -70,16 +117,16 @@ export async function verifyDeliveryTerminalSettlement(
     observedIsAncestorOfBound: "unresolvable",
     mergeBaseCount: 1,
   });
-  return request.binding.providerId === terminal.changeRequest.providerId
-    && request.binding.changeRequestId === terminal.changeRequest.changeRequestId
-    && request.repository === input.repository
-    && request.headRepository === input.repository
-    && request.headRef === terminal.ref.replace(/^refs\/heads\//u, "")
-    && (relation.kind === "unchanged" || relation.kind === "advanced")
-    && request.baseRef === targetRef.replace(/^refs\/heads\//u, "")
-    && request.state === "merged"
-    ? { status: "settled" }
-    : { status: "blocked", reason: "terminal-unsettled" };
+  // Equality is settled before any ancestry answer is consulted, so reaching here means the heads
+  // differ; what is unestablished is whether the difference is the advance this settles on.
+  if (relation.kind !== "unchanged" && relation.kind !== "advanced") {
+    return blocked("terminal-head-moved");
+  }
+  if (request.baseRef !== targetRef.replace(/^refs\/heads\//u, "")) {
+    return blocked("terminal-base-ref-mismatch");
+  }
+  if (request.state !== "merged") return blocked("terminal-not-merged");
+  return { status: "settled" };
 }
 
 /** Retire one already-authoritatively-selected completed delivery record set. */
