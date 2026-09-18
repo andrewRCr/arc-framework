@@ -408,6 +408,15 @@ observation wholesale rather than reconciling it, so a re-run after a terminal w
 wrote with one it merely observed. Restructuring the inventory while leaving that replacement unexamined would
 leave a decision half-made in the code the amendment is already rewriting.
 
+Implementing it surfaced a third sentence in the same D9 paragraph the change falsifies: _"only a settle that
+proceeds to move refs publishes twice."_ The absorbed top's observed head does not exist until the absorb
+returns, so it cannot ride the member record, and the final publish is the one that clears the reservation — too
+late for either wedge the decline exists for. Its record therefore needs a publish of its own, between the
+absorb and the top publication. D9's pinned placement for the member record is untouched; what moves is the
+count, which the revision now states per arm. The alternative that preserves the count — absorbing ahead of the
+rewrite loop so one publish covers both — reorders the settle's irreversible local operations and contradicts
+the "Placement is exact" sentence directly above, which is a larger change than the one it saves.
+
 ### A4 — the integration checkpoint as a cause consumer
 
 Superseded, § Propagation surfaces: _"Only two reductions can receive a base-resolution arm, both on the

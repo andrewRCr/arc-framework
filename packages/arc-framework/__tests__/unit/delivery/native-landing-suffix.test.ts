@@ -12,6 +12,7 @@ import {
   reconcileLinkedNativeDeliverySuffix,
 } from "../../../src/lib/delivery/native-landing.js";
 import {
+  beginNativeDeliverySettlement,
   beginNativeDeliverySubmission,
   reserveDeliveryOperation,
   validateDeliveryActiveOperation,
@@ -75,8 +76,10 @@ describe("native delivery landing suffix settlement", () => {
       },
       stateStore: { publish: async (_id, value, expectedRevision) => {
         publishCount += 1;
-        const phasePublish = publishCount === 1;
-        if (publishCount > 2 || expectedRevision !== publishCount + 2 || provedHeads.size !== 2
+        // Two phase publishes now: the member record before the rewrite loop, then the absorbed top's own
+        // record between the absorb and the top publication. Only the third write lands after the top is up.
+        const phasePublish = publishCount <= 2;
+        if (publishCount > 3 || expectedRevision !== publishCount + 2 || provedHeads.size !== 2
           || (!phasePublish && !topPublished)) {
           return { status: "refused" as const, reason: "version-conflict" as const };
         }
@@ -87,7 +90,7 @@ describe("native delivery landing suffix settlement", () => {
     expect(result).toMatchObject({
       status: "applied",
       state: {
-        revision: 5,
+        revision: 6,
         value: {
           members: [
             {},
@@ -98,7 +101,7 @@ describe("native delivery landing suffix settlement", () => {
         },
       },
     });
-    expect(publishCount).toBe(2);
+    expect(publishCount).toBe(3);
     expect([...localHeads.values()]).toEqual(["a".repeat(40), "c".repeat(40)]);
 
     const rewriteLocalRef = vi.fn();
@@ -312,8 +315,8 @@ describe("native delivery landing suffix settlement", () => {
       },
     );
 
-    expect(result).toMatchObject({ status: "applied", state: { revision: 5 } });
-    expect(settlement.writes).toHaveLength(2);
+    expect(result).toMatchObject({ status: "applied", state: { revision: 6 } });
+    expect(settlement.writes).toHaveLength(3);
   });
 
   it("settles a resubmission the settle's own publish has since outrun", async () => {
@@ -359,6 +362,83 @@ describe("native delivery landing suffix settlement", () => {
     expect(settled.expectedRevision).toBe(3);
     expect(disclosed.resolutionInput.expectedStateRevision).toBe(3);
     expect(result).toMatchObject({ status: "applied" });
+  });
+
+  /**
+   * A1 — chain absorption rewrites the local terminal top under a lease of its own, and the observed suffix
+   * drops its last element by construction. A decline taken after the absorb has to find the top in the
+   * inventory it undoes, so the settle records it where it records the members.
+   */
+  /** The observed suffix a held native landing reservation records, narrowed off the operation union. */
+  function recordedSuffix(state: DeliveryStateV1) {
+    const operation = state.activeOperation;
+    if (operation === null || operation.kind !== "land" || operation.mode !== "native"
+      || operation.native === null || operation.native === undefined) {
+      throw new Error("expected a held native landing reservation");
+    }
+    return operation.native.observedSuffix;
+  }
+
+  async function wedgedPastTheAbsorb(publishTop: () => Promise<{ readonly status: "refused"; readonly reason: "collision" }>) {
+    const { bound, newTarget, reconcileInput, observeRequest, observeRef } = linkedSuffixFixture();
+    const settlement = reachedSettlement();
+    const blocked = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
+      observeRequest,
+      observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      ...settlement.deps,
+      publishTop,
+    });
+    if (blocked.status !== "blocked") throw new Error(`expected a wedge, got ${JSON.stringify(blocked)}`);
+    const recorded = settlement.writes.at(-1);
+    if (recorded === undefined) throw new Error("expected the settle to publish before wedging");
+    return {
+      bound, newTarget, blocked, absorbedTop: settlement.absorbedTop, recorded, writes: settlement.writes,
+    };
+  }
+
+  it("records the absorbed top beside the suffix it observed", async () => {
+    const { bound, newTarget, blocked, absorbedTop, recorded } = await wedgedPastTheAbsorb(
+      async () => ({ status: "refused" as const, reason: "collision" as const }),
+    );
+    const terminal = bound.members.at(-1)!;
+    const highest = movedSuffixCoordinates[1]!;
+
+    expect(blocked).toMatchObject({ status: "blocked", reason: "top-publish-collision" });
+    expect(recordedSuffix(recorded.value)).toEqual([
+      ...bound.members.slice(1, -1).map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: member.ref,
+        coordinates: {
+          ...movedSuffixCoordinates[index]!,
+          base: index === 0 ? newTarget.head : movedSuffixCoordinates[index - 1]!.head,
+        },
+      })),
+      {
+        deliverableId: terminal.deliverableId,
+        ref: terminal.ref,
+        coordinates: { base: highest.head, head: absorbedTop.head, tree: absorbedTop.tree },
+      },
+    ]);
+  });
+
+  it("keeps a head it already recorded when a later run reobserves the suffix", async () => {
+    const { bound, recorded, writes } = await wedgedPastTheAbsorb(
+      async () => ({ status: "refused" as const, reason: "collision" as const }),
+    );
+    const established = recordedSuffix(recorded.value)!;
+
+    // A rerun reobserves the members and knows nothing of the absorbed top. Reconciling keeps what the first
+    // run established; replacing would drop the one ref only ARC can put back.
+    const rerun = beginNativeDeliverySettlement(
+      { revision: recorded.expectedRevision + 1, value: recorded.value },
+      "operation-1",
+      established.filter((member) => member.deliverableId !== bound.members.at(-1)!.deliverableId),
+    );
+    if (rerun.status !== "begun") throw new Error(`expected a settlement phase, got ${rerun.reason}`);
+
+    expect(recordedSuffix(rerun.state)).toEqual(established);
+    expect(writes).toHaveLength(2);
   });
 
   it("carries a suffix resolution through to a terminal collision in the same settle", async () => {
@@ -462,10 +542,10 @@ describe("native delivery landing suffix settlement", () => {
         ...settlement.deps,
       });
 
-      expect(result).toMatchObject({ status: "applied", state: { revision: 5 } });
+      expect(result).toMatchObject({ status: "applied", state: { revision: 6 } });
       expect(result).not.toHaveProperty("conflicts");
       expect(result).not.toHaveProperty("resolutionInput");
-      expect(settlement.writes).toHaveLength(2);
+      expect(settlement.writes).toHaveLength(3);
     },
   );
 
@@ -634,8 +714,8 @@ describe("native delivery landing suffix settlement", () => {
       ...settlement.deps,
     });
 
-    expect(settlement.writes.map(({ expectedRevision }) => expectedRevision)).toEqual([3, 4]);
-    expect(result).toMatchObject({ status: "applied", state: { revision: 5 } });
+    expect(settlement.writes.map(({ expectedRevision }) => expectedRevision)).toEqual([3, 4, 5]);
+    expect(result).toMatchObject({ status: "applied", state: { revision: 6 } });
   });
 
   it("keeps the landed members and target at their post-landing coordinates", async () => {

@@ -1548,6 +1548,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
       };
     }
   }
+  let settled = input.before;
   let settleRevision = input.landed.revision;
   if (changedRefs.length > 0) {
     const settling = beginNativeDeliverySettlement(input.before, operation.operationId, observedSuffix);
@@ -1571,6 +1572,7 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
         recommendedActionText: "Re-read state; never overwrite a competing native landing settlement.",
       };
     }
+    settled = phasePublished.value;
     settleRevision = phasePublished.value.revision;
   }
   const externalRefRestorations: DeliveryProviderExternalRefRestoration[] = [];
@@ -1649,6 +1651,39 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
             ...DELIVERY_CHAIN_ABSORPTION_REMEDIES[absorbed.reason],
           };
     }
+    terminalCoordinates = {
+      base: highest.coordinates.head,
+      head: absorbed.head,
+      tree: absorbed.tree,
+    };
+    // The absorb has already rewritten the local top under a lease of its own, and the observed suffix drops
+    // the terminal by construction. Record it here — after the move, before the publication that can fail with
+    // it moved — so a decline taken from either wedge finds every ref the settle touched in one inventory.
+    const recording = beginNativeDeliverySettlement(settled, operation.operationId, [
+      ...observedSuffix,
+      { deliverableId: terminal.deliverableId, ref: terminal.ref, coordinates: terminalCoordinates },
+    ]);
+    if (recording.status === "refused") {
+      return {
+        status: "blocked",
+        reason: `settlement-phase-${recording.reason}`,
+        recommendedActionText:
+          "Keep the reservation and restore the exact native landing subject before retrying settlement.",
+      };
+    }
+    const recorded = await dependencies.stateStore.publish(
+      input.plan.planId,
+      recording.state,
+      settled.revision,
+    );
+    if (recorded.status !== "ok") {
+      return {
+        status: "blocked",
+        reason: "state-conflict",
+        recommendedActionText: "Re-read state; never overwrite a competing native landing settlement.",
+      };
+    }
+    settleRevision = recorded.value.revision;
     const publishedTop = await dependencies.publishTop({
       ref: terminal.ref,
       beforeHead: terminal.coordinates.head,
@@ -1662,11 +1697,6 @@ export async function reconcileLinkedNativeDeliverySuffix(input: {
           "Keep the reservation and restore the exact terminal remote ref before retrying settlement.",
       };
     }
-    terminalCoordinates = {
-      base: highest.coordinates.head,
-      head: absorbed.head,
-      tree: absorbed.tree,
-    };
   }
   const observedById = new Map(observedMembers.map((member) => [member.deliverableId, member]));
   const projected: DeliveryStateV1 = {

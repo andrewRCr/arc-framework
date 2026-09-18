@@ -1144,6 +1144,7 @@ describe("native delivery landing", () => {
       stateStore,
     })).resolves.toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     expect(proof).toHaveBeenCalledOnce();
-    expect(stateStore.publish).toHaveBeenCalledTimes(2);
+    // Three: the member record before the rewrite loop, the absorbed top's own record, then the settle.
+    expect(stateStore.publish).toHaveBeenCalledTimes(3);
   });
 });

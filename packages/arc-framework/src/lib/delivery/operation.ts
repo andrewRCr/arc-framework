@@ -607,9 +607,32 @@ export type BeginNativeDeliverySettlementResult =
  *
  * @param current - The exact reservation record the settlement observed its suffix under.
  * @param operationId - The reservation this settlement belongs to.
- * @param observedSuffix - The complete observed remaining suffix, in plan order.
+ * @param observedSuffix - The complete observed remaining suffix, in plan order. Entries the reservation has
+ *   already recorded are kept over their reobservation; entries it carries and this observation does not are
+ *   carried forward.
  * @returns The state to publish against `current.revision`, or a closed refusal.
  */
+/**
+ * Keep every coordinate the reservation already established, admitting only refs it has not recorded yet.
+ *
+ * A settlement that wedges past its first publish reruns from a fresh observation, and that observation cannot
+ * see what the earlier run wrote: the absorbed terminal top is outside the suffix slice, and a member ref moved
+ * by something other than ARC reads back as the head it now sits at. Replacing the record wholesale would swap
+ * a head ARC wrote for one it merely observed, and the head ARC wrote is the only restore target a decline has.
+ */
+function reconcileObservedSuffix(
+  recorded: readonly DeliveryNativeObservedSuffixMemberV1[] | undefined,
+  observed: readonly DeliveryNativeObservedSuffixMemberV1[],
+): readonly DeliveryNativeObservedSuffixMemberV1[] {
+  if (recorded === undefined || recorded.length === 0) return observed;
+  const established = new Map(recorded.map((member) => [member.deliverableId, member]));
+  const observedIds = new Set(observed.map((member) => member.deliverableId));
+  return [
+    ...observed.map((member) => established.get(member.deliverableId) ?? member),
+    ...recorded.filter((member) => !observedIds.has(member.deliverableId)),
+  ];
+}
+
 export function beginNativeDeliverySettlement(
   current: DeliveryRevisionedRecord<DeliveryStateV1>,
   operationId: string,
@@ -629,7 +652,11 @@ export function beginNativeDeliverySettlement(
     activeOperation: {
       ...active.operation,
       stateRevision: current.revision,
-      native: { ...active.operation.native, phase: "settling", observedSuffix },
+      native: {
+        ...active.operation.native,
+        phase: "settling",
+        observedSuffix: reconcileObservedSuffix(active.operation.native.observedSuffix, observedSuffix),
+      },
     },
   });
   return parsed.success

@@ -452,30 +452,54 @@ failed lease leaving the reservation held rather than half-released.
   release, or abandon a prepared reservation through reconcile — each by verb and typed result, where it named
   only a rerun that no longer clears the refusal it described.
 
-### `[ ]` **3.R Undo every ref the settle moved** — amendment A1
+### `[x]` **3.R Undo every ref the settle moved** — amendment A1
 
 - _Goal:_ A1 — chain absorption moves the local terminal top under a lease, Tasks 2.2 and 3.2 recorded only the
   member suffix, and 3.3's typed result therefore reports a release over a ref left standing.
 
-    - `[ ]` **3.R.a Record the absorbed terminal top beside the observed suffix**
+    - `[x]` **3.R.a Record the absorbed terminal top beside the observed suffix**
 
         - The settle's observation drops its last element by construction. The absorbed top is recorded with the
           same before-head and observed-head pair the members carry, so one inventory covers both.
+        - _Outcome:_ The top takes a phase publish of its own, between the absorb that moves it and the top
+          publication that can fail with it moved. Its observed head does not exist until the absorb returns, so
+          it cannot ride the member record, and the settle's final publish is the one that clears the
+          reservation — too late for either wedge the decline exists for.
+        - _Outcome:_ This makes a settle that moves members and absorbs a top publish three times rather than
+          two, which falsified a third D9 sentence (_"only a settle that proceeds to move refs publishes
+          twice"_). Revised in place under A1 per D7's propagation sweep; D9's pinned placement for the member
+          record is untouched. The alternative preserving the count — absorbing ahead of the rewrite loop —
+          contradicts the "Placement is exact" sentence directly above it.
+        - _Outcome:_ Four pre-existing write-count assertions moved with it (`native-landing-suffix.test.ts`
+          x3, `native-landing.test.ts` x1). Each is a mechanical consequence of the authorized change, not a
+          re-interpretation of what those tests assert.
 
-    - `[ ]` **3.R.b Reconcile the phase publish rather than replacing it**
+    - `[x]` **3.R.b Reconcile the phase publish rather than replacing it**
 
         - A re-run after a terminal wedge overwrites the recorded observation wholesale, which can replace a head
           ARC wrote with one it merely observed. The publish keeps what it already established.
+        - _Outcome:_ `reconcileObservedSuffix` in `operation.ts` keeps every entry the reservation already
+          recorded, admits refs it has not seen, and carries forward entries the fresh observation cannot see —
+          which is what lets a rerun after a terminal wedge keep the absorbed top it knows nothing about.
 
-    - `[ ]` **3.R.c Restore the top under its own lease, or name it left standing**
+    - `[x]` **3.R.c Restore the top under its own lease, or name it left standing**
 
         - The two-ended lease guard extends to the top ref unchanged. Where the lease cannot be met, the typed
           result names the ref under what it left standing rather than reporting a clean release.
+        - _Outcome:_ No change was needed at the guard. `restoreNativeDeliveryLandingRefs` is ref-agnostic and
+          `admitNativeDeliveryLandingRelease` derives its inventory from the recorded observation, so once 3.R.a
+          records the top it restores under the same two-ended lease and blocks naming it when that lease fails.
+          The defect was the inventory, not the guard — which is what A1 says.
 
-    - `[ ]` **3.R.d Cover a decline taken over an absorbed top**
+    - `[x]` **3.R.d Cover a decline taken over an absorbed top**
 
         - The reachable states are the top-publish refusal and the terminal state conflict, both of which hold the
           reservation with the top already moved.
+        - _Outcome:_ `wedgedPastTheAbsorb` drives both reachable wedges; an `it.each` over the pair asserts the
+          admitted inventory carries the top and that the release returns it to its pre-absorb head. A third
+          check displaces the top and asserts the release blocks naming that ref, writing no state.
+        - _Outcome:_ Verified RED: with the top removed from the recorded observation, all three fail and the
+          sixteen pre-existing decline checks stay green.
 
 ### `[x]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
 

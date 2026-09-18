@@ -400,6 +400,100 @@ describe("native delivery landing decline", () => {
     expect([...refs.table]).toEqual(moved.map(({ ref, beforeHead }) => [ref, beforeHead]));
   });
 
+  /**
+   * A1 — the settle also rewrites the local terminal top, under a lease of its own. Both wedges past that
+   * rewrite hold the reservation with the top already moved, so both are declines the inventory has to cover.
+   */
+  async function wedgedPastTheAbsorb(wedge: "top-publish" | "state-conflict") {
+    const fixture = linkedSuffixFixture();
+    const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
+    const store = casStateStore();
+    const moved: Array<{ ref: string; beforeHead: string; requestedHead: string }> = [];
+    const terminal = fixture.bound.members.at(-1)!;
+    const blocked = await reconcileLinkedNativeDeliverySuffix(fixture.reconcileInput, {
+      observeRequest: fixture.observeRequest,
+      observeRef: fixture.observeRef,
+      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
+      absorbTop: async () => ({ status: "absorbed", ...absorbedTop }),
+      publishTop: async () => (wedge === "top-publish"
+        ? { status: "refused", reason: "collision" }
+        : { status: "published" }),
+      rewriteLocalRef: async (input) => {
+        moved.push(input);
+        return { status: "rewritten" };
+      },
+      stateStore: {
+        // The state-conflict arm lets both phase records land and meets a competing write on the settle itself.
+        publish: async (planId, value, expectedRevision) => (
+          wedge === "state-conflict" && store.writes.length >= 2
+            ? { status: "refused", reason: "version-conflict" }
+            : store.stateStore.publish(planId, value, expectedRevision)
+        ),
+      },
+    });
+    const recorded = store.writes.at(-1);
+    if (blocked.status !== "blocked" || recorded === undefined) {
+      throw new Error(`expected a wedge past the absorb, got ${JSON.stringify(blocked)}`);
+    }
+    // The absorb moved the local top; the rewriter the settle used for members never saw it.
+    const heads = new Map([
+      ...moved.map(({ ref, requestedHead }) => [ref, requestedHead] as const),
+      [terminal.ref!, absorbedTop.head] as const,
+    ]);
+    return {
+      blocked,
+      heads,
+      moved,
+      topRef: terminal.ref!,
+      absorbedTop,
+      restoreTop: terminal.coordinates!.head,
+      planId: fixture.reconcileInput.plan.planId,
+      current: { revision: recorded.expectedRevision + 1, value: recorded.value },
+    };
+  }
+
+  it.each([
+    ["a refused top publication", "top-publish" as const, "top-publish-collision"],
+    ["a settle that met a competing write", "state-conflict" as const, "state-conflict"],
+  ])("restores the absorbed top after %s", async (_label, wedge, reason) => {
+    const { blocked, heads, moved, topRef, absorbedTop, restoreTop, planId, current }
+      = await wedgedPastTheAbsorb(wedge);
+    const refs = localRefTable(heads);
+
+    expect(blocked).toMatchObject({ status: "blocked", reason });
+
+    const admitted = await admittedDecline(planId, current);
+    expect(admitted.restorations).toEqual([
+      ...moved.map(({ ref, beforeHead, requestedHead }) => ({
+        ref, observedHead: requestedHead, restoreHead: beforeHead,
+      })),
+      { ref: topRef, observedHead: absorbedTop.head, restoreHead: restoreTop },
+    ]);
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted },
+      { ...refs, stateStore: casStateStore(current.revision).stateStore },
+    )).resolves.toMatchObject({ status: "released" });
+    expect(refs.table.get(topRef)).toBe(restoreTop);
+  });
+
+  it("holds the reservation when the absorbed top sits at neither end of its lease", async () => {
+    const { heads, topRef, absorbedTop, planId, current } = await wedgedPastTheAbsorb("top-publish");
+    heads.set(topRef, "f".repeat(40));
+    const store = casStateStore(current.revision);
+
+    await expect(releaseNativeDeliveryLanding(
+      { planId, current, admitted: await admittedDecline(planId, current) },
+      { ...localRefTable(heads), stateStore: store.stateStore },
+    )).resolves.toMatchObject({
+      status: "blocked",
+      reason: "local-ref-moved",
+      lease: { ref: topRef, expectedHead: absorbedTop.head, observedHead: "f".repeat(40) },
+    });
+    expect(store.writes).toEqual([]);
+  });
+
   it("writes no state at all when a restoration fails", async () => {
     const { moved, planId, current } = await wedgedSettlement();
     const heads = new Map(moved.map(({ ref, requestedHead }) => [ref, requestedHead]));

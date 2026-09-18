@@ -682,7 +682,12 @@ So the settle **phase-publishes the observed suffix coordinates into the held re
 rewrite loop**, composing the phase-publish precedent already in the same file: `beginNativeDeliverySubmission`
 publishes a phase state before the irreversible host effect for the same reason — so recovery has something to
 read. Placement is exact. Every conflict refusal returns before the rewrite loop, so the disclosure and
-resubmission paths still return before any state write; only a settle that proceeds to move refs publishes twice.
+resubmission paths still return before any state write; only a settle that proceeds to move refs publishes at
+all. **The absorbed top takes a phase publish of its own (A1)**, between the absorb that moves it and the
+publication that can fail with it moved: its observed head does not exist until the absorb returns, and the
+two-ended lease a decline restores it under needs that head exactly. The placement above is unchanged — the
+member record still lands immediately before the rewrite loop — so a settle that moves members and absorbs a
+top publishes three times, and one that only moves members still publishes twice.
 
 **Three moves, not one.** The precedent works because it makes all of them, and a phase publish that makes only
 the first corrupts the reservation rather than recording it:
