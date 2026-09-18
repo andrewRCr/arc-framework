@@ -786,25 +786,23 @@ is a field on `diverged`, not a variant.
   neither relates by a variant that could report it. The close-time accept is now reached by statement rather
   than by a field's absence, and the branch that stood in for that statement is gone.
 
-### `[ ]` **5.5 Update `PredecessorRelationSchema`'s literals through the request contract**
+### `[x]` **5.5 Update `PredecessorRelationSchema`'s literals through the request contract**
 
 - _Goal:_ The literals one verb writes and another reads back move together, so no close request carries a
   vocabulary the reader no longer knows.
 
-- _Rationale:_ The schema sits inside `EligibilitySnapshotSchema` inside `CloseSchema` — a request-contract
-  change, not a local rename. It has four consumers, not one: that nested request path, a refusal schema, an
-  emitted result arm, and a runtime `safeParse`. The library emits the relation on its refusals too, so the
-  operator-visible surface carries the same literals and migrates in the same change. The pre-public-release
-  posture settles the cost: unpublished project-owned
-  contracts may change in place and no compatibility alias is owed.
+    - `[x]` **5.5.a Move the literals through the nested request contract**
 
-    - `[ ]` **5.5.a Move the literals through the nested request contract**
+        - The schema is pinned to the library's own relation type, so a variant renamed or reshaped there stops
+          compiling here instead of being read back under a spelling this contract still recognizes.
+        - A variant merely _dropped_ stays assignable and slips past the compiler — verified, not assumed. What
+          catches that is a round-trip over relations the producer actually builds: removing one arm turns its
+          close request into `invalid-command-input`, which is this task's goal stated as a failure.
 
-        - Build `test-first` (one behavior at a time):
-
-            - A close request round-trips every migrated literal
-            - An emitted refusal carries the migrated literal on its relation
-            - The variant names derive from the type rather than being restated beside it
+- _Outcome:_ The two spellings can no longer come apart, and it takes both mechanisms to say so: the compiler
+  holds the names and shapes, and a round-trip over producer-built relations holds the arm set the compiler is
+  blind to. The literals themselves had already moved with the variants, so what landed here is the coupling
+  that keeps them moved.
 
 ## **Phase 6:** Reader adoption across the conversion set
 

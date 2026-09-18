@@ -24,6 +24,7 @@ import {
   prepareDeliveryEligibility,
   type DeliveryEligibilitySnapshot,
 } from "../lib/delivery/eligibility.js";
+import type { DeliveryPredecessorRelation } from "../lib/delivery/predecessor-relation.js";
 import {
   compareGitNormalizedDeliveryTrees,
   inspectDeliveryAuthoringCheckout,
@@ -372,10 +373,10 @@ const DeliveryOverlapSchema = z.strictObject({
   substantivePaths: z.array(z.string().min(1)),
   regenerablePaths: z.array(z.string().min(1)),
 });
-// Interim: these names are written out a second time rather than read off the relation they validate, so the
-// two can still drift. One verb writes them and another reads them back, which is why they move together here;
-// deriving them from the relation is what removes the second spelling for good.
-const PredecessorRelationSchema = z.discriminatedUnion("kind", [
+// Pinned to the library's own relation, so a variant renamed or reshaped there cannot be read back under a
+// spelling this contract still recognizes. A variant dropped here stays assignable and so slips past the
+// compiler; what catches that is the round-trip over relations the producer actually builds.
+const PredecessorRelationSchema: z.ZodType<DeliveryPredecessorRelation> = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("unchanged"),
     observedTip: GitObjectIdSchema,

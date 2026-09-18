@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
 import { GitCommonStateAccessError } from "../../../src/lib/git-common-state.js";
 import {
+  predecessorRelation,
+  type AncestryAnswer,
+} from "../../../src/lib/delivery/predecessor-relation.js";
+import {
   deliveryFourMemberStackPlanFixture,
   deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
@@ -39,6 +43,31 @@ function standaloneRewriteRequest(plan = deliveryStackPlanFixture()) {
     deliverableId: member.deliverableId,
     requested: { target: state.target, members: [{ ...member }] },
   };
+}
+
+const RELATION_KINDS = ["unchanged", "advanced", "rewound", "diverged"] as const;
+
+// Built by the library's own producer rather than hand-written, so a relation shape the request contract cannot
+// carry surfaces here instead of in the field.
+async function builtRelation(kind: (typeof RELATION_KINDS)[number]) {
+  const tip = "1".repeat(40);
+  const member = kind === "unchanged" ? tip : "8".repeat(40);
+  const read = await predecessorRelation({ memberHead: member, observedTip: tip }, {
+    readAncestry: async (ancestor: string): Promise<AncestryAnswer> => {
+      if (kind === "advanced") return ancestor === tip ? "ancestor" : "not-ancestor";
+      if (kind === "rewound") return ancestor === member ? "ancestor" : "not-ancestor";
+      return "not-ancestor";
+    },
+    readOverlap: async () => ({
+      status: "available" as const,
+      mergeBase: "9".repeat(40),
+      overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+    }),
+  });
+  if (read.status !== "resolved" || read.relation.kind !== kind) {
+    throw new Error(`fixture must build a ${kind} relation`);
+  }
+  return read.relation;
 }
 
 function eligibilityCloseRequest(plan = deliveryStackPlanFixture()) {
@@ -193,6 +222,33 @@ describe("delivery execution handler", () => {
         observedHead,
       },
       continuation: { kind: "terminal-explanation" },
+    });
+  });
+
+  it.each(RELATION_KINDS)("carries a %s relation in and back out through the close contract", async (kind) => {
+    const relation = await builtRelation(kind);
+    const request = eligibilityCloseRequest();
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-close", { input: "-", json: true }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        ...request,
+        snapshot: { ...request.snapshot, predecessorRelation: relation },
+      })),
+      // Echoed back on a refusal, so one assertion covers both directions: a request the contract cannot read
+      // never reaches this stub, and a relation it cannot emit is dropped before the operator sees it.
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "wrong-predecessor",
+        relation,
+        detail: "The reobserved predecessor relation does not match the prepared snapshot.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      relation,
     });
   });
 
