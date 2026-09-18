@@ -7,7 +7,7 @@
 # their own quality tooling.
 #
 # Three commands run in sequence on any staged TS change:
-# - eslint <staged files>  — eslint coverage, narrowed to what is being committed
+# - lint:ts:file <staged>  — eslint coverage, narrowed to what is being committed
 # - npm run typecheck      — production tsconfig (excludes __tests__/)
 # - npm run typecheck:test — tsconfig.test.json (covers __tests__/)
 #
@@ -19,10 +19,15 @@
 # whole-package run would have caught in them. The two tsc passes stay
 # whole-program: type errors surface in files a change did not touch.
 #
-# eslint runs from the repository root against package-relative paths; it
-# resolves packages/arc-framework/eslint.config.js from each linted file's
-# location, so the type-checked rule set applies exactly as `npm run lint:ts`
-# would apply it.
+# eslint goes through the npm script rather than a bare npx call, because the
+# recorded size/complexity floor in eslint-suppressions.json is keyed relative to
+# the directory eslint runs in. lint:ts:file runs with the package as its working
+# directory, so staged paths are made package-relative before they are passed; a
+# root-cwd run resolves no baseline and reports every recorded violation as new.
+#
+# This is narrower than `npm run lint:ts` in one direction: a per-file run cannot
+# prune, so a suppression the change made stale passes here and fails the
+# whole-project run in CI.
 #
 # Deliberately no --cache. This lints exactly the files that just changed, so
 # every entry is a miss by construction, and measurement confirms it saves
@@ -40,7 +45,7 @@ NC="$ARC_NC"
 staged_ts=()
 while IFS= read -r staged_file; do
     if [ -n "$staged_file" ]; then
-        staged_ts+=("$staged_file")
+        staged_ts+=("${staged_file#packages/arc-framework/}")
     fi
 done < <(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^packages/arc-framework/(src|__tests__)/.*\.ts$' || true)
@@ -51,8 +56,8 @@ fi
 
 failures=""
 
-if ! npx eslint "${staged_ts[@]}"; then
-    failures="${failures}lint:ts\n"
+if ! npm run -s lint:ts:file -- "${staged_ts[@]}"; then
+    failures="${failures}lint:ts:file\n"
 fi
 if ! npm run -s typecheck; then
     failures="${failures}typecheck\n"
