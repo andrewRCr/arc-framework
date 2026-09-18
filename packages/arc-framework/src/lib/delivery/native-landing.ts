@@ -589,7 +589,7 @@ export type ReconcileReservedNativeDeliveryMergeResult =
         readonly consequence: string;
       };
       readonly submitAction: {
-        readonly command: "arc delivery native land-submit - --json";
+        readonly command: "arc delivery native land-submit -";
         readonly input: {
           readonly planId: string;
           readonly operationId: string;
@@ -678,7 +678,7 @@ export async function reconcileReservedNativeDeliveryMerge(input: {
         consequence: nativeLandingConsequence(operation.native.arm),
       },
       submitAction: {
-        command: "arc delivery native land-submit - --json",
+        command: "arc delivery native land-submit -",
         input: {
           planId: input.planId,
           operationId: operation.operationId,

@@ -93,7 +93,7 @@ describe("delivery execution handler", () => {
   ] as const)("rejects caller-authored standalone rewrite authority from %s", async (_label, authority) => {
     const execute = vi.fn();
     const write = vi.fn();
-    await handleDeliveryExecution("rewrite", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("rewrite", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({ ...standaloneRewriteRequest(), ...authority })),
       execute,
       write,
@@ -119,7 +119,7 @@ describe("delivery execution handler", () => {
   it("carries a non-default remote into standalone rewrite execution", async () => {
     const request = { ...standaloneRewriteRequest(), remote: "upstream" };
     const execute = vi.fn().mockRejectedValue(new Error("adapter failed"));
-    await handleDeliveryExecution("rewrite", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("rewrite", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute,
       write: vi.fn(),
@@ -132,7 +132,7 @@ describe("delivery execution handler", () => {
   it("preserves a bounded standalone rewrite failure and decisive requested coordinates", async () => {
     const request = standaloneRewriteRequest();
     const write = vi.fn();
-    await handleDeliveryExecution("rewrite", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("rewrite", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute: vi.fn().mockRejectedValue(new Error(`adapter\nfailed ${"x".repeat(5_000)}`)),
       write,
@@ -159,7 +159,7 @@ describe("delivery execution handler", () => {
     const request = eligibilityCloseRequest();
     const observedHead = "9".repeat(40);
     const write = vi.fn();
-    await handleDeliveryExecution("eligibility-close", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("eligibility-close", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute: vi.fn().mockResolvedValue({
         status: "refused",
@@ -229,7 +229,7 @@ describe("delivery execution handler", () => {
               remote: "origin",
             };
       const write = vi.fn();
-      await handleDeliveryExecution(command, { input: "-", json: true }, undefined, {
+      await handleDeliveryExecution(command, { input: "-" }, undefined, {
         readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
         execute: vi.fn().mockResolvedValue({ status: "refused", reason: "lifecycle-paths-moved" }),
         write,
@@ -261,7 +261,7 @@ describe("delivery execution handler", () => {
       },
     };
     const write = vi.fn();
-    await handleDeliveryExecution("land-apply", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("land-apply", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         approved: {
@@ -295,7 +295,7 @@ describe("delivery execution handler", () => {
     const write = vi.fn();
     const recommendedActionText =
       "Delivery closeout is complete for `delivery-plan-record`. Continue with ordinary work-unit teardown.";
-    await handleDeliveryExecution("closeout", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("closeout", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         workUnitId: "delivery-plan-record",
         repository: "owner/repo",
@@ -327,7 +327,7 @@ describe("delivery execution handler", () => {
     const write = vi.fn();
     const recommendedActionText =
       "Delivery closeout stopped: reap-candidate-head-mismatch. Resolve the exact reported state and rerun closeout.";
-    await handleDeliveryExecution("closeout", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("closeout", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         workUnitId: plan.workUnitId,
         repository: "owner/repo",
@@ -363,7 +363,7 @@ describe("delivery execution handler", () => {
       gatePath: `/repo/.git/arc/delivery-gates/${plan.planId}/${member.chunkKey}`,
     }));
     const write = vi.fn();
-    await handleDeliveryExecution("authoring-locate", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("authoring-locate", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({ planId: plan.planId })),
       execute: vi.fn().mockResolvedValue({ status: "located", planId: plan.planId, locators }),
       write,
@@ -400,7 +400,7 @@ describe("delivery execution handler", () => {
       requestedTree: "2".repeat(40),
     };
     const write = vi.fn();
-    await handleDeliveryExecution("authoring-rematerialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("authoring-rematerialize", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute: vi.fn().mockResolvedValue({ status: "rematerialized" }),
       write,
@@ -437,7 +437,7 @@ describe("delivery execution handler", () => {
       requiredAncestorHeads: ["1".repeat(40)],
     };
     const write = vi.fn();
-    await handleDeliveryExecution("authoring-rebind", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("authoring-rebind", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute: vi.fn().mockResolvedValue({ status: "already-rebound", replayed: true }),
       write,
@@ -455,7 +455,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn();
     const write = vi.fn();
     const setExitCode = vi.fn();
-    await handleDeliveryExecution("authoring-rebind", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("authoring-rebind", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: deliveryStackPlanFixture().planId,
         ref: "refs/arc/delivery-candidates/plan/first",
@@ -501,7 +501,7 @@ describe("delivery execution handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
     const execute = vi.fn().mockResolvedValue({ status: "prepared", snapshot });
-    await handleDeliveryExecution("eligibility-prepare", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("eligibility-prepare", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         protectedBaseRef: "refs/heads/main",
@@ -527,7 +527,7 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn();
     const write = vi.fn();
-    await handleDeliveryExecution("eligibility-prepare", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("eligibility-prepare", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         protectedBaseRef: "refs/heads/main",
@@ -694,7 +694,7 @@ describe("delivery execution handler", () => {
     const plannedSuffix = plan.members.slice(0, -1).map(({ deliverableId }) => deliverableId);
     const write = vi.fn();
 
-    await handleDeliveryExecution("refresh-plan", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-plan", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -742,7 +742,7 @@ describe("delivery execution handler", () => {
       recommendedActionText: "Publish the selected member, refresh externally, then adopt.",
     };
     const planWrite = vi.fn();
-    await handleDeliveryExecution("review-fix-plan", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("review-fix-plan", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(planRequest),
       execute: vi.fn().mockResolvedValue(planned),
       write: planWrite,
@@ -764,7 +764,7 @@ describe("delivery execution handler", () => {
       recommendedActionText: "Refresh externally, then adopt.",
     };
     const publishWrite = vi.fn();
-    await handleDeliveryExecution("review-fix-publish", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("review-fix-publish", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         selectedDeliverableId,
@@ -790,7 +790,7 @@ describe("delivery execution handler", () => {
       nextAction: "dispatch" as const,
       action: {
         kind: "delivery-review-fix-publish" as const,
-        argv: ["arc", "delivery", "review-fix", "publish", "-", "--json"] as const,
+        argv: ["arc", "delivery", "review-fix", "publish", "-"] as const,
         input: {
           planId: "11111111-1111-4111-8111-111111111111",
           selectedDeliverableId,
@@ -803,7 +803,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn().mockResolvedValue(result);
     const write = vi.fn();
 
-    await handleDeliveryExecution("review-fix-continue" as never, { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("review-fix-continue" as never, { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute,
       write,
@@ -871,7 +871,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn().mockResolvedValue(acknowledged);
     const write = vi.fn();
 
-    await handleDeliveryExecution("review-fix-acknowledge", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("review-fix-acknowledge", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute,
       write,
@@ -895,7 +895,7 @@ describe("delivery execution handler", () => {
     });
     const write = vi.fn();
 
-    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -948,7 +948,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn().mockResolvedValue(result);
     const write = vi.fn();
 
-    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute,
       write,
@@ -978,7 +978,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn();
     const invalidInputWrite = vi.fn();
 
-    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -998,7 +998,7 @@ describe("delivery execution handler", () => {
     });
 
     const invalidOutputWrite = vi.fn();
-    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1037,7 +1037,7 @@ describe("delivery execution handler", () => {
     const freshExecute = vi.fn().mockResolvedValue(applied);
     const freshWrite = vi.fn();
 
-    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-execute", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1076,7 +1076,7 @@ describe("delivery execution handler", () => {
       reservation: { revision: 4, value: reservation },
     };
     const recoveryWrite = vi.fn();
-    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-execute", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1102,7 +1102,7 @@ describe("delivery execution handler", () => {
         "The provider-refresh reservation remains active. Run `arc delivery reconcile` and retry its exact selector.",
     };
     const blockedWrite = vi.fn();
-    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-execute", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1130,7 +1130,7 @@ describe("delivery execution handler", () => {
         + "one exact two-parent absorption commit, then run `arc delivery reconcile` and retry its exact selector.",
     };
     const conflictWrite = vi.fn();
-    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-execute", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1158,7 +1158,7 @@ describe("delivery execution handler", () => {
     };
     const write = vi.fn();
 
-    await handleDeliveryExecution("refresh-execute", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-execute", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1182,7 +1182,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn();
     const write = vi.fn();
 
-    await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1208,7 +1208,7 @@ describe("delivery execution handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
-    await handleDeliveryExecution("native-land-status", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-status", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: "123e4567-e89b-42d3-a456-426614174000",
         request: {
@@ -1258,7 +1258,7 @@ describe("delivery execution handler", () => {
         consequence: "Land only the displayed bottom member at its exact head.",
       },
       submitAction: {
-        command: "arc delivery native land-submit - --json" as const,
+        command: "arc delivery native land-submit -" as const,
         input: {
           planId: plan.planId,
           operationId: "operation-1",
@@ -1284,7 +1284,7 @@ describe("delivery execution handler", () => {
 
     for (const entry of cases) {
       const write = vi.fn();
-      await handleDeliveryExecution(entry.command, { input: "-", json: true }, undefined, {
+      await handleDeliveryExecution(entry.command, { input: "-" }, undefined, {
         readText: vi.fn().mockResolvedValue(JSON.stringify(entry.input)),
         execute: vi.fn().mockResolvedValue(result),
         write,
@@ -1316,7 +1316,7 @@ describe("delivery execution handler", () => {
     });
     let output = "";
 
-    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-link", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -1365,7 +1365,7 @@ describe("delivery execution handler", () => {
     });
     let output = "";
 
-    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-link", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -1409,7 +1409,7 @@ describe("delivery execution handler", () => {
     }));
     let output = "";
 
-    await handleDeliveryExecution("native-link", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-link", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -1462,7 +1462,7 @@ describe("delivery execution handler", () => {
           }
         : { planId: plan.planId, repository: "owner/repo", members: [] };
 
-      await handleDeliveryExecution(command, { input: "-", json: true }, undefined, {
+      await handleDeliveryExecution(command, { input: "-" }, undefined, {
         readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
         execute,
         write,
@@ -1491,7 +1491,7 @@ describe("delivery execution handler", () => {
     });
     const acceptedWrite = vi.fn();
 
-    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-select", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute,
       write: acceptedWrite,
@@ -1505,7 +1505,7 @@ describe("delivery execution handler", () => {
 
     const rejectedExecute = vi.fn();
     const rejectedWrite = vi.fn();
-    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-select", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({ ...request, members: state.members.slice(0, -1) })),
       execute: rejectedExecute,
       write: rejectedWrite,
@@ -1519,7 +1519,7 @@ describe("delivery execution handler", () => {
 
     const rejectedFactsExecute = vi.fn();
     const rejectedFactsWrite = vi.fn();
-    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-select", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         ...request,
         facts: {
@@ -1564,7 +1564,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn().mockResolvedValue({ status: "blocked", reason: "fixture" });
     const acceptedWrite = vi.fn();
 
-    await handleDeliveryExecution("native-land-prepare", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-prepare", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute,
       write: acceptedWrite,
@@ -1574,7 +1574,7 @@ describe("delivery execution handler", () => {
 
     const rejectedExecute = vi.fn();
     const rejectedWrite = vi.fn();
-    await handleDeliveryExecution("native-land-prepare", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-prepare", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({ ...request, baseRef: "refs/heads/main" })),
       execute: rejectedExecute,
       write: rejectedWrite,
@@ -1615,7 +1615,7 @@ describe("delivery execution handler", () => {
       },
     });
     const write = vi.fn();
-    await handleDeliveryExecution("top-remedy", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("top-remedy", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: state.planId,
         action: "retarget",
@@ -1645,7 +1645,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn().mockResolvedValue({ status: "materialized" });
     const write = vi.fn();
 
-    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         plan,
         snapshot: {
@@ -1682,7 +1682,7 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const write = vi.fn();
 
-    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -1730,7 +1730,7 @@ describe("delivery execution handler", () => {
     };
     const rejected = vi.fn();
     const rejectedWrite = vi.fn();
-    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify(baseRequest)),
       execute: rejected,
       write: rejectedWrite,
@@ -1743,7 +1743,7 @@ describe("delivery execution handler", () => {
     });
 
     const accepted = vi.fn().mockResolvedValue({ status: "refused", reason: "checkout-moved" });
-    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         ...baseRequest,
         terminalPresentation: {
@@ -1761,7 +1761,7 @@ describe("delivery execution handler", () => {
   it("rejects caller-authored reconciliation evidence", async () => {
     const execute = vi.fn();
     const write = vi.fn();
-    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: "123e4567-e89b-42d3-a456-426614174000",
         observation: { outcome: "applied" },
@@ -1782,7 +1782,7 @@ describe("delivery execution handler", () => {
     const execute = vi.fn();
     const write = vi.fn();
 
-    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: state.planId,
         repository: "owner/repo",
@@ -1814,7 +1814,7 @@ describe("delivery execution handler", () => {
     };
     const write = vi.fn();
 
-    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: state.planId,
         repository: "owner/repo",
@@ -1849,7 +1849,7 @@ describe("delivery execution handler", () => {
     };
     const write = vi.fn();
 
-    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         repository: "owner/repo",
@@ -1923,7 +1923,7 @@ describe("delivery execution handler", () => {
         recommendedActionText: `Rerun the exact ${entry.action} action.`,
       };
       const write = vi.fn();
-      await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+      await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
         readText: vi.fn().mockResolvedValue(request),
         execute: vi.fn().mockResolvedValue(result),
         write,
@@ -1937,7 +1937,7 @@ describe("delivery execution handler", () => {
     }
 
     const write = vi.fn();
-    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(request),
       execute: vi.fn().mockResolvedValue({
         status: "retryable",
@@ -1967,7 +1967,7 @@ describe("delivery execution handler", () => {
       remote: "origin",
     });
     const blockedWrite = vi.fn();
-    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(request),
       execute: vi.fn().mockResolvedValue({
         status: "blocked",
@@ -1985,7 +1985,7 @@ describe("delivery execution handler", () => {
     });
 
     const refusedWrite = vi.fn();
-    await handleDeliveryExecution("reconcile", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(request),
       execute: vi.fn().mockResolvedValue({
         status: "refused",
@@ -2012,7 +2012,7 @@ describe("delivery execution handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
-    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -2065,7 +2065,7 @@ describe("delivery execution handler", () => {
     });
     const write = vi.fn();
 
-    await handleDeliveryExecution("publish", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("publish", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(request),
       execute: vi.fn().mockResolvedValue({
         status: "refused",
@@ -2087,7 +2087,7 @@ describe("delivery execution handler", () => {
     const plan = deliveryStackPlanFixture();
     const execute = vi.fn().mockResolvedValue({ status: "refused", reason: "candidate-moved" });
     const write = vi.fn();
-    await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("rematerialize", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -2110,7 +2110,7 @@ describe("delivery execution handler", () => {
   it("preserves an exact full-rematerialization eligibility refusal", async () => {
     const plan = deliveryStackPlanFixture();
     const write = vi.fn();
-    await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("rematerialize", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",
@@ -2171,7 +2171,7 @@ describe("delivery execution handler", () => {
       },
     });
     const write = vi.fn();
-    await handleDeliveryExecution("rematerialize", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("rematerialize", { input: "-" }, undefined, {
       readText: vi.fn().mockResolvedValue(JSON.stringify({
         planId: plan.planId,
         protectedBaseRef: "refs/heads/main",

@@ -25,7 +25,7 @@ describe("delivery discovered-entry workflow", () => {
     expect(content).toContain("Render `laterEntryCostText` and `recommendedActionText` verbatim when present");
     expect(content).toContain("invokes `publicationAction.command` unchanged before reading position");
     expect(content).toContain("`authoring-required / author-correction`");
-    expect(content).toContain("arc delivery review-fix continue - --json");
+    expect(content).toContain("arc delivery review-fix continue -");
     expect(content).toContain("`refused` stops before every eligibility or mutation verb");
     expect(content).toContain("never parses headings, derives members, or re-decides cohesion");
 
@@ -48,7 +48,7 @@ describe("delivery discovered-entry workflow", () => {
     const packaged = contents[0]!;
     const installed = contents[1]!;
     expect(installed).toBe(packaged);
-    const inspect = packaged.indexOf("arc delivery entry inspect - --json");
+    const inspect = packaged.indexOf("arc delivery entry inspect -");
     const implementation = packaged.indexOf("**One task at a time:**");
     expect(inspect).toBeGreaterThan(-1);
     expect(inspect).toBeLessThan(implementation);

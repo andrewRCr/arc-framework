@@ -189,10 +189,10 @@ async function runArcWithStdin(
 ): Promise<HandlerRunResult> {
   if (suiteMode === "e2e") return runBuiltArcWithStdin(args, cwd, input, options);
   return runHandlerAt(cwd, async () => {
-    const path = args.filter((arg) => arg !== "-" && arg !== "--json").join(" ");
+    const path = args.filter((arg) => arg !== "-").join(" ");
     const readText = async () => input;
     if (path === "delivery entry inspect") {
-      await handleDeliveryEntryInspect({ input: "-", json: true }, machineContext(), { readText });
+      await handleDeliveryEntryInspect({ input: "-" }, machineContext(), { readText });
       return;
     }
     if (path === "review local prepare") {
@@ -1854,7 +1854,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     try {
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
       const correction = await runArcWithStdin(
-        ["delivery", "entry", "inspect", "-", "--json"],
+        ["delivery", "entry", "inspect", "-"],
         origin,
         `${JSON.stringify({ entryMode: "execution" })}\n`,
       );
@@ -1914,7 +1914,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       await git(origin, ["commit", "-m", "record converged verification"]);
 
       const integrating = await runArcWithStdin(
-        ["delivery", "entry", "inspect", "-", "--json"],
+        ["delivery", "entry", "inspect", "-"],
         origin,
         `${JSON.stringify({ entryMode: "integrating" })}\n`,
       );

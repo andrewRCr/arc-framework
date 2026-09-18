@@ -50,7 +50,7 @@ describe("prepublication workflow boundary", () => {
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
         readFile(resolve(root, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
       ]);
-      const entry = prepare.indexOf("arc delivery entry inspect - --json");
+      const entry = prepare.indexOf("arc delivery entry inspect -");
       const privateCandidates = prepare.indexOf("Prepare private delivery candidates", entry);
       const review = prepare.indexOf("arc review pre-publication <wu> --json", privateCandidates);
       expect(entry).toBeGreaterThan(-1);
@@ -67,10 +67,10 @@ describe("prepublication workflow boundary", () => {
       );
 
       const preparation = delivery.indexOf("## Prepare private delivery candidates");
-      const locate = delivery.indexOf("arc delivery authoring locate - --json", preparation);
-      const eligibilityPrepare = delivery.indexOf("arc delivery eligibility prepare - --json", locate);
-      const eligibilityClose = delivery.indexOf("arc delivery eligibility close - --json", eligibilityPrepare);
-      const publish = delivery.indexOf("arc delivery publish - --json", eligibilityClose);
+      const locate = delivery.indexOf("arc delivery authoring locate -", preparation);
+      const eligibilityPrepare = delivery.indexOf("arc delivery eligibility prepare -", locate);
+      const eligibilityClose = delivery.indexOf("arc delivery eligibility close -", eligibilityPrepare);
+      const publish = delivery.indexOf("arc delivery publish -", eligibilityClose);
       for (const position of [preparation, locate, eligibilityPrepare, eligibilityClose, publish]) {
         expect(position).toBeGreaterThan(-1);
       }
@@ -115,7 +115,7 @@ describe("prepublication workflow boundary", () => {
       expect(verification.slice(recordedAttention, tierThree))
         .toMatch(/metrics when the resolver\s+supplies them/u);
 
-      const locate = delivery.indexOf("arc delivery authoring locate - --json");
+      const locate = delivery.indexOf("arc delivery authoring locate -");
       const materializedScale = delivery.indexOf("arc review chunking resolve -", locate);
       const tierTwo = delivery.indexOf("complete Tier 2 command set", locate);
       expect(materializedScale).toBeGreaterThan(locate);

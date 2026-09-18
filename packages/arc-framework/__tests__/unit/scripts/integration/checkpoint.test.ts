@@ -800,7 +800,7 @@ describe("integration checkpoint", () => {
         nextAction: "retarget",
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "delivery", "top-remedy", "-", "--json"],
+          argv: ["arc", "delivery", "top-remedy", "-"],
           stdin: {
             planId: PLAN_ID,
             action: "retarget",
@@ -861,7 +861,7 @@ describe("integration checkpoint", () => {
         nextAction: action,
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "delivery", "top-remedy", "-", "--json"],
+          argv: ["arc", "delivery", "top-remedy", "-"],
           stdin: { planId: PLAN_ID, action, repository: "owner/repo", protectedBaseRef: "main" },
         },
       });
@@ -945,7 +945,7 @@ describe("integration checkpoint", () => {
         nextAction: "reconcile-delivery-state",
         reason: "delivery-terminal-rebind-required",
         remedy: {
-          argv: ["arc", "delivery", "reconcile", "-", "--json"],
+          argv: ["arc", "delivery", "reconcile", "-"],
           stdin: { planId: PLAN_ID, repository: "owner/repo" },
         },
         payload: {

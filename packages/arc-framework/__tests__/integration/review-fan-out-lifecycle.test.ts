@@ -2473,7 +2473,7 @@ describe("hosted review fan-out lifecycle", () => {
       payload: {
         deliveryMember: first,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository, remote: "origin" },
         },
         hostedSettlementPlan: {

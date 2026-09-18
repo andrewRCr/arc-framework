@@ -61,14 +61,14 @@ When the status result is `integrating`, classify delivery intent before resolvi
 performing any push:
 
 ```bash
-printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect - --json
+printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect -
 ```
 
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
 `resolve-delivery-status` resumes at Step 2's provider-neutral delivery-status reduction with its exact
 `deliveryStatusAction`; only a downstream explicit review action represents review work;
 do not resolve a singleton change request or enter delivery publication / position reconciliation.
-`review-fix-verification-required` invokes `arc delivery review-fix continue - --json` with only the repository and
+`review-fix-verification-required` invokes `arc delivery review-fix continue -` with only the repository and
 remote identities, then follows the resumable correction procedure in `deliver-stack.md`; do not enter whole-WU
 verification, Frontline, or singleton prepublication.
 `candidate-verification-required` leaves this workflow for Candidate verification closeout; it synthesizes no
@@ -229,7 +229,7 @@ arc review terminus accept -
 selector-free correction procedure with only the repository and remote identities:
 
 ```bash
-printf '%s\n' '{"repository":"{repositoryRef}","remote":"origin"}' | arc delivery review-fix continue - --json
+printf '%s\n' '{"repository":"{repositoryRef}","remote":"origin"}' | arc delivery review-fix continue -
 ```
 
 The procedure performs any owed terminal-coordinate rebind before returning the first outstanding member.
@@ -730,7 +730,7 @@ Invoke delivery closeout with the exact current change-request repository bound 
 ```
 
 ```bash
-arc delivery closeout - --json
+arc delivery closeout -
 ```
 
 `closed-out` renders `recommendedActionText` and continues. `blocked` renders `recommendedActionText` and stops;

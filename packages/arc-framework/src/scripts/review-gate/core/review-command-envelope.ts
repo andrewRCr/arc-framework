@@ -683,7 +683,7 @@ const DeliveryMemberResponsePayloadSchema = z.strictObject({
 const DeliveryCorrectionActionSchema = z.strictObject({
   argv: z.tuple([
     z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
-    z.literal("-"), z.literal("--json"),
+    z.literal("-"),
   ]),
   input: z.strictObject({
     repository: z.string().trim().min(1),

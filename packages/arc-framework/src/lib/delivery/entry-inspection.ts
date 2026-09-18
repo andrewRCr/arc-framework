@@ -40,7 +40,7 @@ import {
 } from "./review-fix-verification.js";
 
 /** Selector-free continuation the member-correction route enters. */
-const MEMBER_CORRECTION_COMMAND = "arc delivery review-fix continue - --json";
+const MEMBER_CORRECTION_COMMAND = "arc delivery review-fix continue -";
 
 const AttendedDeliveryEntryInspectionRequestSchema = z.strictObject({
   workUnitId: SlugSchema,

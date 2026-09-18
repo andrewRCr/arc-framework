@@ -850,7 +850,7 @@ function deliveryTerminalDisposition(
       remedy: spineRemedy(
         "The terminal delivery request targets the protected base before integration.",
         "Apply the exact observed failure-only remedy",
-        ["arc", "delivery", "top-remedy", "-", "--json"],
+        ["arc", "delivery", "top-remedy", "-"],
         {
           planId: delivery.planId,
           action: delivery.nextAction,
@@ -1231,7 +1231,7 @@ export async function checkpointIntegration(
         remedy: spineRemedy(
           "Delivery terminal state is rebound through the existing exact reconciliation operation.",
           "Reconcile delivery state, then rerun the checkpoint",
-          ["arc", "delivery", "reconcile", "-", "--json"],
+          ["arc", "delivery", "reconcile", "-"],
           {
             planId: delivery.planId,
             repository: delivery.repository,

@@ -115,19 +115,19 @@ describe("packaged delivery workflow", () => {
     const positionRequest = reviewSection.indexOf(
       '{"planId":"<planId>","repository":"<repositoryRef>","remote":"origin"}',
     );
-    const positionRead = reviewSection.indexOf("arc delivery position - --json");
+    const positionRead = reviewSection.indexOf("arc delivery position -");
     expect(positionRequest).toBeGreaterThan(-1);
     expect(positionRequest).toBeLessThan(positionRead);
     expect(reviewSection.slice(positionRequest, positionRead)).not.toContain("facts");
     expect(reviewSection).toMatch(
-      /position - --json[\s\S]*Dispatch only on its typed route[\s\S]*review-member[\s\S]*teardown-member[\s\S]*terminal-handoff/u,
+      /position -[\s\S]*Dispatch only on its typed route[\s\S]*review-member[\s\S]*teardown-member[\s\S]*terminal-handoff/u,
     );
     const positionDispatch = reviewSection.slice(
       positionRead,
       reviewSection.indexOf("For `review-member`", positionRead),
     );
     expect(positionDispatch).toMatch(
-      /operation-active[\s\S]*arc delivery reconcile - --json[\s\S]*Every other\s+refusal\s+stops/u,
+      /operation-active[\s\S]*arc delivery reconcile -[\s\S]*Every other\s+refusal\s+stops/u,
     );
     expect(positionDispatch).toMatch(
       /review-fix-routing-required[\s\S]*review-fix continue[\s\S]*no member or operation selector[\s\S]*Every other\s+refusal\s+stops/iu,
@@ -183,7 +183,7 @@ describe("packaged delivery workflow", () => {
       /workflow-interlock[\s\S]*exact conflict and restoration offer[\s\S]*approval[\s\S]*resolutionInput[\s\S]*conflictResolution/iu,
     );
     expect(refreshTail).toMatch(/decline[\s\S]*observedHead[\s\S]*restoreHead[\s\S]*exact Git lease/iu);
-    const controller = reviewSection.indexOf("arc delivery review-fix continue - --json", refreshAdopt);
+    const controller = reviewSection.indexOf("arc delivery review-fix continue -", refreshAdopt);
     const verification = reviewSection.indexOf("### Complete a review-fix verification continuation", controller);
     const teardown = reviewSection.indexOf("arc delivery teardown", verification);
     expect(controller).toBeGreaterThan(refreshAdopt);
@@ -294,7 +294,7 @@ describe("packaged delivery workflow", () => {
       expect(workflow).toContain("`review-fix-verification-required`");
       expect(workflow).toContain("selector-free");
       expect(workflow).toContain("invoke its `resumeAction`");
-      expect(workflow).not.toContain("arc delivery review-fix acknowledge - --json");
+      expect(workflow).not.toContain("arc delivery review-fix acknowledge -");
       const closeTask = workflow.indexOf("Mark the task `[x]`");
       const resume = workflow.indexOf("invoke its `resumeAction`", closeTask);
       const renew = workflow.indexOf("Candidate-renewal authority action", resume);
