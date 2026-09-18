@@ -743,18 +743,28 @@ function samePredecessorRelation(
   left: DeliveryPredecessorRelation,
   right: DeliveryPredecessorRelation,
 ): boolean {
-  if (left.kind !== right.kind || left.observedTip !== right.observedTip) return false;
-  if (left.kind === "unchanged" && right.kind === "unchanged") return left.chainBase === right.chainBase;
-  if (left.kind === "advanced" && right.kind === "advanced") return left.chainBase === right.chainBase;
-  if (left.kind === "rewound" && right.kind === "rewound") {
-    return left.chainBase === right.chainBase && left.mergeBase === right.mergeBase
-      && sameOverlap(left.overlap, right.overlap);
+  // The coordinates every variant carries are compared once, ahead of the kind, so each arm below states
+  // only what its own variant adds to them.
+  if (left.observedTip !== right.observedTip || left.chainBase !== right.chainBase) return false;
+  switch (left.kind) {
+    case "unchanged":
+      return right.kind === "unchanged";
+    case "advanced":
+      return right.kind === "advanced";
+    case "rewound":
+      return right.kind === "rewound" && sameMergeBasedRelation(left, right);
+    case "diverged":
+      return right.kind === "diverged" && sameMergeBasedRelation(left, right)
+        && left.mergeBaseCount === right.mergeBaseCount;
   }
-  if (left.kind === "diverged" && right.kind === "diverged") {
-    return left.chainBase === right.chainBase && left.mergeBase === right.mergeBase
-      && left.mergeBaseCount === right.mergeBaseCount && sameOverlap(left.overlap, right.overlap);
-  }
-  return false;
+}
+
+/** The merge base and overlap shared by the two variants that name one. */
+function sameMergeBasedRelation(
+  left: Extract<DeliveryPredecessorRelation, { readonly mergeBase: string }>,
+  right: Extract<DeliveryPredecessorRelation, { readonly mergeBase: string }>,
+): boolean {
+  return left.mergeBase === right.mergeBase && sameOverlap(left.overlap, right.overlap);
 }
 
 function sameOverlap(

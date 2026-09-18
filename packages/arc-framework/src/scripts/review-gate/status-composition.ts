@@ -7,7 +7,7 @@ import {
   BaseMovementObservationSchema,
   type EvidenceOverlapObservation,
 } from "../../lib/evidence-applicability/index.js";
-import { analyzeRevisionOverlap } from "../../lib/git/base-overlap.js";
+import { analyzeRevisionOverlap, type RevisionOverlapResult } from "../../lib/git/base-overlap.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
@@ -146,6 +146,37 @@ async function resolveDeliveryMemberScopeSelection(input: {
   throw new Error(`Delivery-member review chunking returned ${resolution.disposition}.`);
 }
 
+/**
+ * Carry one overlap analysis across into the observation the review status records.
+ *
+ * The crossing is stated arm by arm: an arm added to the analysis is a decision here rather than a value
+ * landing on whichever branch it resembles, which matters because the arms that establish nothing carry no
+ * paths and an empty path list is the strongest accept downstream.
+ *
+ * @param overlap - The analysis as the Git boundary returned it.
+ * @returns The observation arm that analysis establishes.
+ */
+function normalizeBaseOverlapObservation(overlap: RevisionOverlapResult): EvidenceOverlapObservation {
+  switch (overlap.status) {
+    case "available":
+      return overlap.overlap;
+    case "ambiguous":
+    case "unrelated":
+      return { status: overlap.status };
+    case "unavailable":
+      return {
+        status: "unavailable",
+        reason: overlap.reason === "merge-base-failed"
+          ? "merge-base-failed"
+          : overlap.reason === "left-diff-failed"
+            ? "branch-diff-failed"
+            : overlap.reason === "right-diff-failed"
+              ? "base-diff-failed"
+              : "classification-failed",
+      };
+  }
+}
+
 export async function readBasePosition(input: {
   cwd: string;
   exec: GitExec;
@@ -218,20 +249,6 @@ export async function readBasePosition(input: {
       ? workUnitPathTreatmentContext(input.subject.workUnitId)
       : {},
   });
-  const observedOverlap: EvidenceOverlapObservation = overlap.status === "available"
-    ? overlap.overlap
-    : overlap.status === "ambiguous" || overlap.status === "unrelated"
-      ? { status: overlap.status }
-      : {
-          status: "unavailable",
-          reason: overlap.reason === "merge-base-failed"
-            ? "merge-base-failed"
-            : overlap.reason === "left-diff-failed"
-              ? "branch-diff-failed"
-              : overlap.reason === "right-diff-failed"
-                ? "base-diff-failed"
-                : "classification-failed",
-        };
   return {
     currentBaseOid,
     baseContained,
@@ -242,7 +259,7 @@ export async function readBasePosition(input: {
         base: currentBaseOid,
         head: input.headSha,
       },
-      overlap: observedOverlap,
+      overlap: normalizeBaseOverlapObservation(overlap),
     }),
     ...(overlap.status === "available" ? {} : { baseMovementDetail: overlap.detail }),
   };

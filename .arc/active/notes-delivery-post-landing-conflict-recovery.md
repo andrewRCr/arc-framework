@@ -7,6 +7,7 @@
 - [Propagation surfaces](#propagation-surfaces)
 - [Reader inventory — the full sweep](#reader-inventory--the-full-sweep)
 - [Pinned probes — the eight holds](#pinned-probes--the-eight-holds)
+- [The overlap and relation vocabulary](#the-overlap-and-relation-vocabulary--inputs-for-its-re-authoring)
 
 ---
 

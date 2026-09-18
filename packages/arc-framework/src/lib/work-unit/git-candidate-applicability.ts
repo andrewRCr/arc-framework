@@ -148,6 +148,35 @@ export interface GitCandidateApplicabilityInput {
   readonly observeEndpoints: () => Promise<{ candidateHead: string; baseHead: string }>;
 }
 
+/**
+ * Read every best common ancestor of the pinned baseline and the observed base.
+ *
+ * A pair with none reports none rather than raising: having no ancestor is an answer about the pair, which
+ * the caller states in its own words, and it reaches this reader as two different Git outcomes.
+ *
+ * @param exec - The Git boundary.
+ * @param baselineRevision - The pinned baseline target revision.
+ * @param currentBase - The independently observed base revision.
+ * @returns Every ancestor the pair has, or nothing when it has none.
+ */
+async function readBaselineMergeBases(
+  exec: RawGitExec,
+  baselineRevision: string,
+  currentBase: string,
+): Promise<readonly string[] | null> {
+  const args = ["merge-base", "--all", baselineRevision, currentBase];
+  let result;
+  try {
+    result = await exec(args, { objectAccess: "local-only" });
+  } catch (error) {
+    const rejected = normalizeGitRejection(error, { command: "git", args });
+    if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") return null;
+    throw rejected;
+  }
+  const mergeBases = decodeLines(result.stdout);
+  return mergeBases.length === 0 ? null : mergeBases;
+}
+
 /** Derive D4 structural facts from exact current Git endpoints and classify the Candidate target. */
 export async function projectGitCandidateApplicability(
   input: GitCandidateApplicabilityInput,
@@ -159,21 +188,12 @@ export async function projectGitCandidateApplicability(
     if (request.baselineTarget.subject.subjectDigest === request.currentTarget.subject.subjectDigest) {
       return classifyCandidateApplicability(request, null);
     }
-    const mergeBaseArgs = [
-      "merge-base", "--all", request.baselineTarget.revision, request.currentBase,
-    ];
-    let mergeBaseResult;
-    try {
-      mergeBaseResult = await input.exec(mergeBaseArgs, { objectAccess: "local-only" });
-    } catch (error) {
-      const rejected = normalizeGitRejection(error, { command: "git", args: mergeBaseArgs });
-      if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") {
-        return unavailable(request, "merge-base-missing", "No baseline-to-current merge base is available.");
-      }
-      throw rejected;
-    }
-    const mergeBases = decodeLines(mergeBaseResult.stdout);
-    if (mergeBases.length === 0) {
+    const mergeBases = await readBaselineMergeBases(
+      input.exec,
+      request.baselineTarget.revision,
+      request.currentBase,
+    );
+    if (mergeBases === null) {
       return unavailable(request, "merge-base-missing", "No baseline-to-current merge base is available.");
     }
     // How the base moved under the pinned baseline, named by topology rather than inferred from the count.

@@ -2152,6 +2152,52 @@ async function revalidateIntermediateDeliveryMergePolicy(
     : { status: "refused" };
 }
 
+/** The Candidate subject collected at one exact revision, as the terminal correction reads it. */
+type CollectedCandidateTarget =
+  Extract<Awaited<ReturnType<typeof collectGitCandidateSubject>>, { status: "collected" }>["target"];
+
+/**
+ * Resolve the corrected terminal head and the Candidate subject collected at it.
+ *
+ * The head must append to the head the record already binds — an unmoved or unrelated HEAD is the correction
+ * not having been made rather than a subject that could not be read, so the two refuse separately.
+ *
+ * @param input - The Git boundaries, the collection inputs, and the terminal head the correction must append to.
+ * @returns The collected target, or the reason the observed head supplied none.
+ */
+async function resolveTerminalCorrectionTarget(input: {
+  readonly localExec: Parameters<typeof observeDeliveryEligibilityRef>[0];
+  readonly exec: Parameters<typeof collectGitCandidateSubject>[0]["exec"];
+  readonly cwd: string;
+  readonly workUnitId: string;
+  readonly baseBranch: string;
+  readonly baseRevision: Parameters<typeof collectGitCandidateSubject>[0]["baseRevision"];
+  readonly recordedTerminalHead: string;
+}): Promise<
+  | { readonly status: "collected"; readonly target: CollectedCandidateTarget }
+  | {
+      readonly status: "refused";
+      readonly reason: "terminal-correction-not-append-only" | "candidate-verification-unavailable";
+    }
+> {
+  const head = await observeDeliveryEligibilityRef(input.localExec, "HEAD");
+  if (head === null || head.head === input.recordedTerminalHead
+    || await readAncestry(input.localExec, input.recordedTerminalHead, head.head) !== "ancestor") {
+    return { status: "refused", reason: "terminal-correction-not-append-only" };
+  }
+  const collected = await collectGitCandidateSubject({
+    cwd: input.cwd,
+    name: input.workUnitId,
+    baseBranch: input.baseBranch,
+    baseRevision: input.baseRevision,
+    revision: head.head,
+    exec: input.exec,
+  });
+  return collected.status === "collected"
+    ? { status: "collected", target: collected.target }
+    : { status: "refused", reason: "candidate-verification-unavailable" };
+}
+
 async function executeDeliveryCommand(
   command: DeliveryExecutionCommand,
   request: unknown,
@@ -5868,7 +5914,9 @@ async function executeDeliveryCommand(
             if (baseline.target.revision === retainedHead) {
               return { revision: retainedHead, baselineRelation: "exact" as const };
             }
-            if (await readAncestry(localExec, baseline.target.revision, retainedHead) !== "ancestor") return null;
+            if (await readAncestry(localExec, baseline.target.revision, retainedHead) !== "ancestor") {
+              return "candidate-not-current" as const;
+            }
             if (matchingPendingVerification) {
               return { revision: retainedHead, baselineRelation: "ancestor" as const };
             }
@@ -5880,36 +5928,29 @@ async function executeDeliveryCommand(
               revision: retainedHead,
               exec,
             });
-            // Its own value rather than the null below: null is the digests having been compared and found
-            // different, and a subject that was never collected reached no comparison at all.
-            if (retainedCollection.status !== "collected") return "unavailable" as const;
+            // Its own reason rather than the mismatch below: that one is the digests having been compared
+            // and found different, and a subject that was never collected reached no comparison at all.
+            if (retainedCollection.status !== "collected") return "candidate-verification-unavailable" as const;
             return retainedCollection.target.subject.subjectDigest === baseline.target.subject.subjectDigest
               ? { revision: retainedHead, baselineRelation: "equivalent" as const }
-              : null;
+              : "candidate-not-current" as const;
           })();
-          if (retainedTerminalTarget === "unavailable") {
-            return { status: "refused", reason: "candidate-verification-unavailable" };
+          if (typeof retainedTerminalTarget === "string") {
+            return { status: "refused", reason: retainedTerminalTarget };
           }
-          if (retainedTerminalTarget === null) {
-            return { status: "refused", reason: "candidate-not-current" };
-          }
-          const head = await observeDeliveryEligibilityRef(localExec, "HEAD");
-          if (head === null || head.head === terminal.coordinates.head
-            || await readAncestry(localExec, terminal.coordinates.head, head.head) !== "ancestor") {
-            return { status: "refused", reason: "terminal-correction-not-append-only" };
-          }
-          const collectedCurrent = await collectGitCandidateSubject({
+          const corrected = await resolveTerminalCorrectionTarget({
+            localExec,
+            exec,
             cwd,
-            name: currentPlan.workUnitId,
+            workUnitId: currentPlan.workUnitId,
             baseBranch,
             baseRevision,
-            revision: head.head,
-            exec,
+            recordedTerminalHead: terminal.coordinates.head,
           });
-          if (collectedCurrent.status !== "collected") {
-            return { status: "refused", reason: "candidate-verification-unavailable" };
+          if (corrected.status === "refused") {
+            return { status: "refused", reason: corrected.reason };
           }
-          const currentTarget = collectedCurrent.target;
+          const currentTarget = corrected.target;
           const projectedTarget = effective.state === "current"
             ? {
                 revision: effective.recognizedTarget.revision,

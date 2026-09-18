@@ -11,7 +11,7 @@ import {
   type DeliveryRenameEvidenceAuthority,
   type DeliveryRenameTransitionSource,
 } from "../../../../lib/delivery/plan-resolution.js";
-import type { DeliveryPlanV1 } from "../../../../lib/delivery/schema.js";
+import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../../lib/delivery/schema.js";
 import { validateDeliveryStateAgainstPlan } from "../../../../lib/delivery/state.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../../lib/git-common-state.js";
@@ -19,6 +19,7 @@ import { createRawGitExec } from "../../../../lib/io-context.js";
 import type {
   DeliveryDischargeTargetLookup,
   DeliveryDischargeTargetLookupResult,
+  DeliveryMemberBinding,
   DeliveryMemberIdentity,
   DeliveryMemberIdentityLookup,
   DeliveryMemberIdentityLookupResult,
@@ -33,6 +34,57 @@ import type {
 function branchName(ref: string | null): string | null {
   if (ref === null) return null;
   return ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : ref;
+}
+
+/** What one coherent delivery state establishes about the member an exact deliverable id names. */
+type DeliveryMemberBindingProjection =
+  | { readonly status: "bound"; readonly member: DeliveryMemberBinding }
+  | { readonly status: "absent" }
+  | { readonly status: "unbound" };
+
+/**
+ * Project the member one deliverable id names out of one already-coherent delivery state.
+ *
+ * Reports only what the state establishes — that the member is bound, that the state carries no such member,
+ * or that it carries one with no recorded coordinates. The two lookups above distinguish those misses
+ * differently, so neither disposition is decided here.
+ *
+ * @param input - The coherent state and the identity coordinates the binding carries through.
+ * @returns The binding, or which of the two misses holds.
+ */
+function projectDeliveryMemberBinding(input: {
+  readonly state: DeliveryStateV1;
+  readonly planId: string;
+  readonly deliverableId: string;
+  readonly workUnitId: string;
+}): DeliveryMemberBindingProjection {
+  const members = input.state.members;
+  const memberIndex = members.findIndex((candidate) => candidate.deliverableId === input.deliverableId);
+  const member = memberIndex < 0 ? undefined : members[memberIndex];
+  if (member === undefined) return { status: "absent" };
+  if (member.coordinates === null) return { status: "unbound" };
+  const terminal = members.at(-1);
+  return {
+    status: "bound",
+    member: {
+      planId: input.planId,
+      deliverableId: input.deliverableId,
+      workUnitId: input.workUnitId,
+      base: member.coordinates.base,
+      baseRef: branchName(predecessorMemberRef(input.state, memberIndex)),
+      headRef: branchName(member.ref),
+      head: member.coordinates.head,
+      candidateHead: terminal?.coordinates?.head ?? null,
+      isFinalMember: terminal?.deliverableId === input.deliverableId,
+    },
+  };
+}
+
+/** The ref one member sits on — the target's for the first member, its predecessor's for every other. */
+function predecessorMemberRef(state: DeliveryStateV1, memberIndex: number): string | null {
+  return memberIndex === 0
+    ? state.target?.ref ?? null
+    : state.members[memberIndex - 1]?.ref ?? null;
 }
 
 /** Delivery-member lookup backed by one repository's Git-common delivery state. */
@@ -93,32 +145,17 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
     if (plan === undefined) return { status: "unavailable" };
     const coherence = validateDeliveryStateAgainstPlan(state, plan);
     if (coherence.status === "refused") return { status: "unavailable" };
-    const current = coherence.state;
     // The store selects only on recorded coordinates, so a match always carries
-    // them; the fallback keeps the port total rather than guarding a real case.
-    const memberIndex = current.members.findIndex((candidate) => candidate.deliverableId === deliverableId);
-    const coordinates = current.members[memberIndex]?.coordinates ?? null;
-    const candidateHead = current.members.at(-1)?.coordinates?.head ?? null;
-    if (memberIndex < 0 || coordinates === null) {
-      return { status: "unavailable" };
-    }
-    const baseRef = branchName(memberIndex === 0
-      ? current.target?.ref ?? null
-      : current.members[memberIndex - 1]?.ref ?? null);
-    return {
-      status: "resolved",
-      member: {
-        planId,
-        deliverableId,
-        workUnitId,
-        base: coordinates.base,
-        baseRef,
-        headRef: branchName(current.members[memberIndex]?.ref ?? null),
-        head: coordinates.head,
-        candidateHead,
-        isFinalMember: current.members[current.members.length - 1]?.deliverableId === deliverableId,
-      },
-    };
+    // them; both misses keep the port total rather than guarding a real case.
+    const projected = projectDeliveryMemberBinding({
+      state: coherence.state,
+      planId,
+      deliverableId,
+      workUnitId,
+    });
+    return projected.status === "bound"
+      ? { status: "resolved", member: projected.member }
+      : { status: "unavailable" };
   }
 
   /**
@@ -152,32 +189,18 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
       if (record.value === null) return { status: "in-plan-unbound" };
       const coherence = validateDeliveryStateAgainstPlan(record.value.value, plan);
       if (coherence.status === "refused") return { status: "unavailable" };
-      const current = coherence.state;
       // Coherence has already established that state carries the plan's members in
-      // the plan's order, so the miss below cannot hold; it keeps the port total.
-      const memberIndex = current.members.findIndex(
-        (candidate) => candidate.deliverableId === identity.deliverableId,
-      );
-      if (memberIndex < 0) return { status: "unavailable" };
-      const coordinates = current.members[memberIndex]?.coordinates ?? null;
-      if (coordinates === null) return { status: "in-plan-unbound" };
-      const baseRef = branchName(memberIndex === 0
-        ? current.target?.ref ?? null
-        : current.members[memberIndex - 1]?.ref ?? null);
-      return {
-        status: "bound",
-        member: {
-          planId: plan.planId,
-          deliverableId: identity.deliverableId,
-          workUnitId: current.workUnitId,
-          base: coordinates.base,
-          baseRef,
-          headRef: branchName(current.members[memberIndex]?.ref ?? null),
-          head: coordinates.head,
-          candidateHead: current.members.at(-1)?.coordinates?.head ?? null,
-          isFinalMember: current.members.at(-1)?.deliverableId === identity.deliverableId,
-        },
-      };
+      // the plan's order, so the absent miss cannot hold; it keeps the port total.
+      const projected = projectDeliveryMemberBinding({
+        state: coherence.state,
+        planId: plan.planId,
+        deliverableId: identity.deliverableId,
+        workUnitId: coherence.state.workUnitId,
+      });
+      if (projected.status === "absent") return { status: "unavailable" };
+      return projected.status === "unbound"
+        ? { status: "in-plan-unbound" }
+        : { status: "bound", member: projected.member };
     } catch {
       return { status: "unavailable" };
     }

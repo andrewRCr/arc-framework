@@ -822,6 +822,105 @@ export type AdmitNativeDeliveryLandingReleaseResult =
     }
   | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
 
+/** One held land reservation, narrowed to the kind the decline and its effect observer both read. */
+type HeldNativeLandingOperation = Extract<
+  NonNullable<DeliveryStateV1["activeOperation"]>,
+  { readonly kind: "land" }
+>;
+
+/** What one submitted native landing effect turns out to have done, as the decline needs to read it. */
+type NativeLandingEffectDisposition =
+  | { readonly status: "landed" }
+  | { readonly status: "nothing-landed" }
+  | { readonly status: "blocked"; readonly reason: string; readonly recommendedActionText: string };
+
+/** The two effects that settled neither way, each keeping the reservation for its own explicit recovery. */
+const unsettledNativeLandingEffect = (
+  outcome: "partial-landed" | "ambiguous",
+): NativeLandingEffectDisposition => outcome === "partial-landed"
+  ? {
+      status: "blocked",
+      reason: "partial-landed",
+      recommendedActionText:
+        "Keep the reservation; a partly landed native effect is recovered explicitly before it can be declined.",
+    }
+  : {
+      status: "blocked",
+      reason: "ambiguous-result",
+      recommendedActionText:
+        "Keep the reservation and resolve the contradictory native effect from fresh host facts before declining it.",
+    };
+
+/**
+ * Observe what one submitted native landing effect did, so the decline acts on a settled fact.
+ *
+ * A reservation whose submission outran its persistence is read from the exact selected-member facts alone;
+ * every other one polls its persisted identity first and reads those facts only to classify the result.
+ *
+ * @param operation - The exact held land reservation, already matched to the request.
+ * @param repository - The repository the reservation names.
+ * @param dependencies - The persisted-identity effect poll and the exact selected-member fact observer.
+ * @returns That the effect landed, that nothing landed, or the refusal that leaves the reservation held.
+ */
+async function observeNativeLandingEffectDisposition(
+  operation: HeldNativeLandingOperation,
+  repository: string,
+  dependencies: {
+    readonly host: Pick<DeliveryNativeMergeHostPort, "observeNativeMerge">;
+    readonly observeEffect: () => Promise<DeliveryNativeEffectFacts>;
+  },
+): Promise<NativeLandingEffectDisposition> {
+  if (operation.effectIdentity === null) {
+    const facts = await dependencies.observeEffect();
+    if (facts.outcome === "all-landed") return { status: "landed" };
+    return facts.outcome === "none-landed"
+      ? {
+          status: "blocked",
+          reason: "submission-before-persist-unresolved",
+          recommendedActionText:
+            "Keep the reservation and resolve the synchronous native effect from fresh host facts; "
+            + "a submission that outran its persistence is not a landing this verb can decline.",
+        }
+      : unsettledNativeLandingEffect(facts.outcome === "partial-landed" ? "partial-landed" : "ambiguous");
+  }
+  const polled = await dependencies.host.observeNativeMerge({
+    repository,
+    topChangeRequestId: operation.effect.changeRequestId,
+    topHeadSha: operation.effect.headSha,
+    mergeAction: "direct_merge",
+    mergeMethod: "merge",
+    effectIdentity: operation.effectIdentity.effectId,
+  });
+  if (polled.status === "pending") {
+    return {
+      status: "blocked",
+      reason: "effect-pending",
+      recommendedActionText:
+        "Keep the reservation and poll the persisted native effect to a result before declining the landing.",
+    };
+  }
+  if (polled.status === "enqueued") {
+    return {
+      status: "blocked",
+      reason: "effect-enqueued",
+      recommendedActionText:
+        "Keep the reservation until the queued native effect reaches a result; a queued merge may still land.",
+    };
+  }
+  if (polled.status === "refused") {
+    return {
+      status: "blocked",
+      reason: polled.reason,
+      recommendedActionText:
+        "Keep the reservation and restore a readable native effect identity before declining the landing.",
+    };
+  }
+  const classification = classifyDeliveryNativeEffect(polled, await dependencies.observeEffect());
+  if (classification.status === "applied") return { status: "landed" };
+  if (classification.status === "not-applied") return { status: "nothing-landed" };
+  return unsettledNativeLandingEffect(classification.status);
+}
+
 /**
  * Admit only a settled native landing reservation to release, refusing every unsettled one.
  *
@@ -872,85 +971,15 @@ export async function admitNativeDeliveryLandingRelease(input: {
         + "which preserves the reservation and re-presents the landing for a deliberate choice.",
     };
   }
-  const preRewriteHeads = new Map(input.current.value.members.map(
-    ({ deliverableId, coordinates }) => [deliverableId, coordinates?.head],
-  ));
-  const releaseAdmitted = {
-    status: "admitted",
-    operationId: operation.operationId,
-    effect: operation.effect,
-    before: operation.before,
-    affectedDeliverableIds: operation.affectedDeliverableIds,
-    restorations: (operation.native?.observedSuffix ?? []).flatMap(({ deliverableId, ref, coordinates }) => {
-      const restoreHead = preRewriteHeads.get(deliverableId);
-      return restoreHead === undefined || restoreHead === coordinates.head
-        ? []
-        : [{ ref, observedHead: coordinates.head, restoreHead }];
-    }),
-  } as const;
-  const unsettled = (
-    outcome: "partial-landed" | "ambiguous",
-  ): AdmitNativeDeliveryLandingReleaseResult => outcome === "partial-landed"
-    ? {
-        status: "blocked",
-        reason: "partial-landed",
-        recommendedActionText:
-          "Keep the reservation; a partly landed native effect is recovered explicitly before it can be declined.",
-      }
-    : {
-        status: "blocked",
-        reason: "ambiguous-result",
-        recommendedActionText:
-          "Keep the reservation and resolve the contradictory native effect from fresh host facts before declining it.",
-      };
-  if (operation.effectIdentity === null) {
-    const facts = await dependencies.observeEffect();
-    if (facts.outcome === "all-landed") return releaseAdmitted;
-    return facts.outcome === "none-landed"
-      ? {
-          status: "blocked",
-          reason: "submission-before-persist-unresolved",
-          recommendedActionText:
-            "Keep the reservation and resolve the synchronous native effect from fresh host facts; "
-            + "a submission that outran its persistence is not a landing this verb can decline.",
-        }
-      : unsettled(facts.outcome === "partial-landed" ? "partial-landed" : "ambiguous");
-  }
-  const polled = await dependencies.host.observeNativeMerge({
-    repository: input.repository,
-    topChangeRequestId: operation.effect.changeRequestId,
-    topHeadSha: operation.effect.headSha,
-    mergeAction: "direct_merge",
-    mergeMethod: "merge",
-    effectIdentity: operation.effectIdentity.effectId,
-  });
-  if (polled.status === "pending") {
+  const disposition = await observeNativeLandingEffectDisposition(operation, input.repository, dependencies);
+  if (disposition.status === "blocked") {
     return {
       status: "blocked",
-      reason: "effect-pending",
-      recommendedActionText:
-        "Keep the reservation and poll the persisted native effect to a result before declining the landing.",
+      reason: disposition.reason,
+      recommendedActionText: disposition.recommendedActionText,
     };
   }
-  if (polled.status === "enqueued") {
-    return {
-      status: "blocked",
-      reason: "effect-enqueued",
-      recommendedActionText:
-        "Keep the reservation until the queued native effect reaches a result; a queued merge may still land.",
-    };
-  }
-  if (polled.status === "refused") {
-    return {
-      status: "blocked",
-      reason: polled.reason,
-      recommendedActionText:
-        "Keep the reservation and restore a readable native effect identity before declining the landing.",
-    };
-  }
-  const classification = classifyDeliveryNativeEffect(polled, await dependencies.observeEffect());
-  if (classification.status === "applied") return releaseAdmitted;
-  if (classification.status === "not-applied") {
+  if (disposition.status === "nothing-landed") {
     return {
       status: "retryable",
       transition: "preserved",
@@ -967,9 +996,24 @@ export async function admitNativeDeliveryLandingRelease(input: {
         + "reservation for the exact native landing subject.",
     };
   }
-  return unsettled(classification.status);
+  // Read before the restorations below, which name the head each moved ref returns to.
+  const preRewriteHeads = new Map(input.current.value.members.map(
+    ({ deliverableId, coordinates }) => [deliverableId, coordinates?.head],
+  ));
+  return {
+    status: "admitted",
+    operationId: operation.operationId,
+    effect: operation.effect,
+    before: operation.before,
+    affectedDeliverableIds: operation.affectedDeliverableIds,
+    restorations: (operation.native?.observedSuffix ?? []).flatMap(({ deliverableId, ref, coordinates }) => {
+      const restoreHead = preRewriteHeads.get(deliverableId);
+      return restoreHead === undefined || restoreHead === coordinates.head
+        ? []
+        : [{ ref, observedHead: coordinates.head, restoreHead }];
+    }),
+  };
 }
-
 
 export type DeliveryNativeLocalRefObservation =
   | { readonly status: "absent" }
