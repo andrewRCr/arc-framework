@@ -48,7 +48,7 @@ describe("delivery discovered-entry workflow", () => {
     const packaged = contents[0]!;
     const installed = contents[1]!;
     expect(installed).toBe(packaged);
-    const inspect = packaged.indexOf("arc delivery entry inspect --input - --json");
+    const inspect = packaged.indexOf("arc delivery entry inspect - --json");
     const implementation = packaged.indexOf("**One task at a time:**");
     expect(inspect).toBeGreaterThan(-1);
     expect(inspect).toBeLessThan(implementation);

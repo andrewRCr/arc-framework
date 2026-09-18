@@ -813,12 +813,12 @@ delivery.command("closeout").description("Reap completed delivery residue and re
 
 delivery.command("entry").description("Inspect the operator-invoked delivery entry route")
   .command("inspect").description("Read authoritative delivery intent and binding facts")
-  .option("--input <path>", "Strict attended judgment JSON path, or - for standard input")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .option("--json", "Emit the strict entry route as JSON")
   .action(withInteractionContext(
     { machineReadable: () => true },
-    async (context, opts: DeliveryEntryInspectOptions) => {
-      await (await import("./handlers/delivery-entry.js")).handleDeliveryEntryInspect(opts, context);
+    async (context, input: string, opts: Omit<DeliveryEntryInspectOptions, "input">) => {
+      await (await import("./handlers/delivery-entry.js")).handleDeliveryEntryInspect({ ...opts, input }, context);
     },
   ));
 

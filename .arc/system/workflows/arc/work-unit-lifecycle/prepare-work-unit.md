@@ -36,7 +36,7 @@ recovery project this state as `sessionType: prepublication` with `workflow: pre
 Before composing review, inspect whether the Candidate has plan-owned private member targets:
 
 ```bash
-printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect --input - --json
+printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect - --json
 ```
 
 Dispatch only on the typed result. `not-applicable` continues ordinary singleton preparation.

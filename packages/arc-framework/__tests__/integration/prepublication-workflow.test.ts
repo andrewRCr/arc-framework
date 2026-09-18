@@ -50,7 +50,7 @@ describe("prepublication workflow boundary", () => {
         readFile(resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"), "utf8"),
         readFile(resolve(root, "system/workflows/arc/supplemental/deliver-stack.md"), "utf8"),
       ]);
-      const entry = prepare.indexOf("arc delivery entry inspect --input - --json");
+      const entry = prepare.indexOf("arc delivery entry inspect - --json");
       const privateCandidates = prepare.indexOf("Prepare private delivery candidates", entry);
       const review = prepare.indexOf("arc review pre-publication <wu> --json", privateCandidates);
       expect(entry).toBeGreaterThan(-1);

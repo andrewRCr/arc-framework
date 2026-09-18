@@ -21,7 +21,7 @@ arc:
 Before implementing the current task, inspect whether an already-bound delivery requires correction routing:
 
 ```bash
-printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect --input - --json
+printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect - --json
 ```
 
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required`,

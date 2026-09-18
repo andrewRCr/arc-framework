@@ -29,7 +29,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "delivery checks observe", args: ["delivery", "checks", "observe", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "invalid-input" } },
   { commandPath: "delivery eligibility close", args: ["delivery", "eligibility", "close", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery eligibility prepare", args: ["delivery", "eligibility", "prepare", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
-  { commandPath: "delivery entry inspect", args: ["delivery", "entry", "inspect", "--input", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery entry inspect", args: ["delivery", "entry", "inspect", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery land apply", args: ["delivery", "land", "apply", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery land prepare", args: ["delivery", "land", "prepare", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery native land-prepare", args: ["delivery", "native", "land-prepare", "-", "--json"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },

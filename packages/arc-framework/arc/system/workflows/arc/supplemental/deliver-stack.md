@@ -31,7 +31,7 @@ branch names, task-list tables, or provider order.
 Run the delivery-owned read before eligibility or mutation:
 
 ```bash
-arc delivery entry inspect --input - --json
+arc delivery entry inspect - --json
 ```
 
 The request carries either the attended `assess-boundary-fit` disposition (plus confirmation when a provisional plan

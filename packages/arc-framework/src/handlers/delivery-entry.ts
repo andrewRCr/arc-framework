@@ -8,6 +8,7 @@ import { z } from "zod";
 import { parseMetaFile } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
+  declareCliOperandSite,
   declareCliOptionSite,
   declareInteractionSite,
   type CommandInputDeclaration,
@@ -39,17 +40,17 @@ export interface DeliveryEntryInspectOptions { readonly input?: string; readonly
 export const deliveryEntryCommandInputRegistration = {
   commandPath: "delivery entry inspect",
   schema: OptionsSchema,
-  schemaFields: { "option.input": "input", "option.json": "json" },
+  schemaFields: { "operand.input": "input", "option.json": "json" },
 } as const satisfies CommandInputRegistration;
 
 export const deliveryEntryCommandInputPolicyDeclarations = [{
   commandPath: "delivery entry inspect",
   aliases: [],
   sites: [
-    declareCliOptionSite("input", {
+    declareCliOperandSite("input", {
       acquisition: "handler-required", schemaOwnership: "owned", schemaField: "input",
       cancellation: "not-applicable",
-      automation: { noInput: "read-explicit-stdin", flags: ["--input"], acceptedSyntax: ["--input <json-path>", "--input -"] },
+      automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["<json-path>", "-"] },
       mutationBoundary: "delivery entry context validation", subprocess: "explicit-stdin",
     }),
     declareCliOptionSite("json", {
