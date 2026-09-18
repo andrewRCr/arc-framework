@@ -503,7 +503,7 @@ const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => 
   "host-refused": () => spineRemedy(
     "Host admission must permit the exact change request and coordinates.",
     "Resolve the reported host policy refusal before retrying",
-    ["arc", "review", "status", "--json"],
+    ["arc", "review", "status"],
   ),
   conflict: () => spineRemedy(
     "The exact base and head must be Git-mergeable without substantive conflicts.",
@@ -1119,7 +1119,6 @@ export async function checkpointIntegration(
           "--expected-base", observation.feasibility.base,
           "--expected-head", candidate.recognizedRevision,
           ...(movementPlan.nextAction === "reconcile-regenerable" ? ["--regenerate-roadmap"] : []),
-          "--json",
         ],
       ),
       payload: { drift, observation, candidateHead: candidate.recognizedRevision },

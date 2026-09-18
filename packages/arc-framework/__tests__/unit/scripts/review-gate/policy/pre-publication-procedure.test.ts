@@ -148,7 +148,7 @@ describe("integration boundary locus", () => {
       nextAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
       },
     });
   });
@@ -179,7 +179,7 @@ describe("integration boundary locus", () => {
       nextAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resolve the retained delivery status.",
       },
     });
@@ -208,6 +208,31 @@ describe("integration boundary locus", () => {
       locus: "delivery-status-required",
       nextAction: {
         kind: "resolve-delivery-status",
+        interactionText: "Resolve the retained delivery status.",
+      },
+    });
+  });
+
+  it("reads a persisted delivery action forward past the retired `--json` flag", () => {
+    const current = projectPublicationBoundary({
+      workUnit: "example",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      branch: "feat/example",
+      reservation: deliveryReservation(),
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
+    });
+    const persisted = {
+      ...current,
+      nextAction: { ...current.nextAction, command: `${current.nextAction.command} --json` },
+    };
+
+    expect(IntegrationBoundaryLocusSchema.safeParse(persisted).success).toBe(false);
+    expect(parseIntegrationBoundaryLocus(persisted)).toMatchObject({
+      locus: "delivery-status-required",
+      nextAction: {
+        kind: "resolve-delivery-status",
+        workUnitId: "example",
+        command: "arc review status --work-unit example",
         interactionText: "Resolve the retained delivery status.",
       },
     });
@@ -269,7 +294,7 @@ describe("integration boundary locus", () => {
       nextAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resolve the retained delivery status.",
       },
       policy: null,
@@ -429,7 +454,7 @@ describe("integration boundary locus", () => {
       nextAction: {
         kind: "continue-hosted-review",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resume hosted review.",
       },
     }).success).toBe(false);

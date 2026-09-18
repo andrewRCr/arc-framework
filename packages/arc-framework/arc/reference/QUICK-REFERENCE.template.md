@@ -259,8 +259,8 @@ arc attest <name> --json [--new-root]
 # --last-completed / --action override the task-list and boundary reads the verb makes on its own
 arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
 # Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
-arc integrate checkpoint <name> [--json]
-arc integrate merge <name> --checkpoint <handle> [--json]
+arc integrate checkpoint <name>
+arc integrate merge <name> --checkpoint <handle>
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 

@@ -1081,7 +1081,7 @@ describe("delivery review-fix continuation projection", () => {
             deliveryStatusAction: {
               kind: "resolve-delivery-status" as const,
               workUnitId: plan.workUnitId,
-              command: `arc review status --work-unit ${plan.workUnitId} --json`,
+              command: `arc review status --work-unit ${plan.workUnitId}`,
               interactionText: recommendedActionText,
             },
             recommendedActionText,

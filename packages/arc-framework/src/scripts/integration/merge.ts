@@ -248,12 +248,12 @@ export function mergeRemedy(
       ? spineRemedy(
           "Host admission must resolve for the exact approved target.",
           "Retry the exact checkpoint merge",
-          ["arc", "integrate", "merge", workUnit, "--checkpoint", handle, "--json"],
+          ["arc", "integrate", "merge", workUnit, "--checkpoint", handle],
         )
       : spineRemedy(
           "An ambiguous mutating request is confirmed before another merge attempt.",
           "Retry the exact checkpoint merge to confirm or resume",
-          ["arc", "integrate", "merge", workUnit, "--checkpoint", handle, "--json"],
+          ["arc", "integrate", "merge", workUnit, "--checkpoint", handle],
         );
   }
   if (reason === "base-currentness-required" && reconcileCoordinates !== undefined) {
@@ -266,7 +266,6 @@ export function mergeRemedy(
         "arc", "base", "merge",
         "--expected-base", expectedBase,
         "--expected-head", expectedHead,
-        "--json",
       ],
     );
   }
@@ -316,15 +315,14 @@ export const IntegrationMergeResultSchema = z.union([
       const executable = result.reason === "base-currentness-required"
         && expectedBase !== null
         && expectedHead !== null
-        && argv.length === 8
+        && argv.length === 7
         && argv[0] === "arc"
         && argv[1] === "base"
         && argv[2] === "merge"
         && argv[3] === "--expected-base"
         && argv[4] === expectedBase
         && argv[5] === "--expected-head"
-        && argv[6] === expectedHead
-        && argv[7] === "--json";
+        && argv[6] === expectedHead;
       if (!executable) {
         context.addIssue({
           code: "custom",
@@ -672,7 +670,7 @@ export async function mergeIntegration(
             "Retry the same checkpoint after external check progress",
             [
               "arc", "integrate", "merge", request.workUnit,
-              "--checkpoint", request.checkpointHandle, "--json",
+              "--checkpoint", request.checkpointHandle,
             ],
           ),
         },
@@ -704,7 +702,7 @@ export async function mergeIntegration(
             "Retry the same checkpoint after host evidence is available",
             [
               "arc", "integrate", "merge", request.workUnit,
-              "--checkpoint", request.checkpointHandle, "--json",
+              "--checkpoint", request.checkpointHandle,
             ],
           ),
         },

@@ -41,7 +41,7 @@ export const ContinueHostedReviewActionSchema = z.strictObject({
   workUnitId: SlugSchema,
   ...ActionFields,
 }).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
     context.addIssue({
       code: "custom",
       path: ["command"],
@@ -54,7 +54,7 @@ export const ResolveDeliveryStatusActionSchema = z.strictObject({
   workUnitId: SlugSchema,
   ...ActionFields,
 }).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
     context.addIssue({
       code: "custom",
       path: ["command"],
@@ -365,12 +365,33 @@ export const IntegrationBoundaryLocusSchema = z.union([
 ]);
 export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSchema>;
 
+/**
+ * Read a durable record forward past the retired `arc review status --json` flag.
+ *
+ * Records written before the flag was dropped pin it into `nextAction.command`, which the action
+ * schemas match exactly and which operators are told to invoke verbatim.
+ */
+function normalizeRetiredStatusFlag(input: unknown): unknown {
+  if (typeof input !== "object" || input === null) return input;
+  const record = input as { nextAction?: unknown };
+  const action = record.nextAction;
+  if (typeof action !== "object" || action === null) return input;
+  const command = (action as { command?: unknown }).command;
+  if (typeof command !== "string") return input;
+  if (!command.startsWith("arc review status ") || !command.endsWith(" --json")) return input;
+  return {
+    ...record,
+    nextAction: { ...action, command: command.slice(0, -" --json".length) },
+  };
+}
+
 /** Parse one structural integration boundary. */
 export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBoundaryLocus {
-  const canonical = IntegrationBoundaryLocusSchema.safeParse(input);
+  const normalized = normalizeRetiredStatusFlag(input);
+  const canonical = IntegrationBoundaryLocusSchema.safeParse(normalized);
   if (canonical.success) return canonical.data;
   const legacy = LegacyHostedReviewPendingBoundarySchema.safeParse(input);
-  if (!legacy.success) return IntegrationBoundaryLocusSchema.parse(input);
+  if (!legacy.success) return IntegrationBoundaryLocusSchema.parse(normalized);
   return DeliveryStatusRequiredBoundarySchema.parse({
     ...legacy.data,
     locus: "delivery-status-required",
@@ -378,7 +399,7 @@ export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBounda
       ...legacy.data.nextAction,
       kind: "resolve-delivery-status",
       workUnitId: legacy.data.workUnit,
-      command: `arc review status --work-unit ${legacy.data.workUnit} --json`,
+      command: `arc review status --work-unit ${legacy.data.workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
   });
@@ -541,7 +562,7 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
           ? "continue-pre-publication-review"
           : "continue-publication",
       command: deliveryHosted
-        ? `arc review status --work-unit ${value.workUnit} --json`
+        ? `arc review status --work-unit ${value.workUnit}`
         : hosted
           ? `arc review pre-publication ${value.workUnit}`
         : `git push -u origin ${value.branch}`,
@@ -603,7 +624,7 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
     nextAction: {
       kind: "resolve-delivery-status",
       workUnitId: workUnit,
-      command: `arc review status --work-unit ${workUnit} --json`,
+      command: `arc review status --work-unit ${workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
     policy: null,

@@ -67,7 +67,7 @@ describe("delivery entry handler", () => {
       deliveryStatusAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resume hosted member review.",
       },
       recommendedActionText: "Resume hosted member review.",

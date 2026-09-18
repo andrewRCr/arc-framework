@@ -70,10 +70,10 @@ describe("evidence applicability workflow fire-points", () => {
   it("invokes checkpoint and terminal merge once and dispatches their supplied continuations", async () => {
     const workflow = await readPair(workflows.integrate);
 
-    expect(occurrences(workflow, "arc integrate checkpoint {name} --json")).toBe(1);
+    expect(occurrences(workflow, "arc integrate checkpoint {name}")).toBe(1);
     expect(occurrences(
       workflow,
-      "arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json",
+      "arc integrate merge {name} --checkpoint {payload.checkpointHandle}",
     )).toBe(1);
     expect(workflow).toMatch(/state[^\n]+nextAction[\s\S]*supplied next\s+action/iu);
     expect(workflow).toContain("`queue-not-atomic`");

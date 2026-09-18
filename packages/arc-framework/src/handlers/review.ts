@@ -509,7 +509,6 @@ export interface ReviewChangeRequestResolveOptions {
   headRef: string;
   headSha: string;
   requireRemote?: boolean;
-  json?: boolean;
 }
 
 export interface ReviewChangeRequestResolveHandlerDependencies {
@@ -701,7 +700,6 @@ export interface ReviewStatusOptions {
   ceilingOverride?: string;
   coverage?: HostedReviewCoverage;
   source?: string;
-  json?: boolean;
 }
 
 export interface ReviewStatusHandlerDependencies {
@@ -804,8 +802,8 @@ export async function handleReviewStatus(
         "Review status requires repository-local ARC state.",
         "Change to the target ARC project, then re-run",
         "target" in parsed.data
-          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
-          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target)]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId],
       ),
     }))}\n`);
     dependencies.setExitCode(1);
@@ -834,8 +832,8 @@ export async function handleReviewStatus(
         "Review status could not read its repository or host evidence.",
         "Resolve the operational failure, then re-run",
         "target" in parsed.data
-          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
-          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target)]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId],
       ),
     }))}\n`);
     dependencies.setExitCode(1);

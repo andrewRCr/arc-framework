@@ -91,12 +91,12 @@ describe("integration current-WU reconcile workflow", () => {
     const step = content.slice(start, end);
     const orderedSurfaces = [
       "arc wu reconcile {name} --apply --json",
-      "arc integrate checkpoint {name} --json",
+      "arc integrate checkpoint {name}",
       "checkpoint's supplied `remedy.argv` unchanged",
       "payload.interlockSurface.machineEvidence.text",
       "**Extension report** · `#pre-merge`",
       "`integration-interlock`:",
-      "arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json",
+      "arc integrate merge {name} --checkpoint {payload.checkpointHandle}",
     ];
 
     expect(start).toBeGreaterThan(-1);

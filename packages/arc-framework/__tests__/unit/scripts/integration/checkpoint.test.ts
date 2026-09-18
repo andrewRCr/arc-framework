@@ -292,7 +292,6 @@ describe("integration checkpoint", () => {
             "arc", "base", "merge",
             "--expected-base", oid("b"),
             "--expected-head", oid("c"),
-            "--json",
           ],
         },
         payload: {
@@ -380,7 +379,6 @@ describe("integration checkpoint", () => {
             "--expected-base", oid("b"),
             "--expected-head", oid("c"),
             "--regenerate-roadmap",
-            "--json",
           ],
         },
         payload: { candidateHead: oid("c") },
@@ -405,7 +403,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         reason: "host-pending",
         payload: { detail: "Host is still computing exact admission." },
-        remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
       });
   });
 
@@ -592,7 +590,7 @@ describe("integration checkpoint", () => {
           text: expect.stringContaining(
             "Resolve the reported authoritative drift failure, then re-run the checkpoint",
           ),
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
           drift: { verdict: "unavailable", unavailableReason: "fetch-failed" },
@@ -737,8 +735,8 @@ describe("integration checkpoint", () => {
         remedy: {
           invariant: "The ready composition binds the exact satisfied Candidate head.",
           text: "The ready composition binds the exact satisfied Candidate head. Resolve the reported composition "
-            + "failure, then re-run: `arc integrate checkpoint example --json`.",
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+            + "failure, then re-run: `arc integrate checkpoint example`.",
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
           expectedRecordVersion: digest("a"),
@@ -920,7 +918,7 @@ describe("integration checkpoint", () => {
         nextAction: "stop",
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
           nextAction: "retarget",

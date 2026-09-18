@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { createGitExec } from "../lib/io-context.js";
@@ -48,24 +48,6 @@ const integrationMergeInputRegistration = {
   schemaFields: { "operand.name": "name", "option.checkpoint": "checkpoint" },
 } satisfies CommandInputRegistration;
 
-const integrationCheckpointJsonPolicy = declareCliOptionSite("json", {
-  acquisition: "machine-mode",
-  schemaOwnership: "none",
-  cancellation: "not-applicable",
-  automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-  mutationBoundary: "output selection",
-  subprocess: "none",
-});
-
-const integrationMergeJsonPolicy = declareCliOptionSite("json", {
-  acquisition: "machine-mode",
-  schemaOwnership: "none",
-  cancellation: "not-applicable",
-  automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-  mutationBoundary: "output selection",
-  subprocess: "none",
-});
-
 /** Command-input schema registrations owned by integration procedures. */
 export const integrationCommandInputRegistrations = [
   integrationCheckpointInputRegistration,
@@ -76,20 +58,18 @@ export const integrationCommandInputRegistrations = [
 export const integrationCommandInputPolicyDeclarations = [{
   commandPath: "integrate checkpoint",
   aliases: [],
-  sites: [integrationCheckpointJsonPolicy],
+  sites: [],
 }, {
   commandPath: "integrate merge",
   aliases: [],
-  sites: [integrationMergeJsonPolicy],
+  sites: [],
 }] as const satisfies readonly CommandInputDeclaration[];
 
-export interface IntegrationCheckpointOptions {
-  json?: boolean;
-}
+/** `arc integrate checkpoint` takes no options; the verb always emits its typed verdict. */
+export type IntegrationCheckpointOptions = Record<string, never>;
 
 export interface IntegrationMergeOptions {
   checkpoint: string;
-  json?: boolean;
 }
 
 export interface IntegrationCheckpointHandlerDependencies {

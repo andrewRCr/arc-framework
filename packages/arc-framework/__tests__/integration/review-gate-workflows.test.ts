@@ -695,7 +695,7 @@ describe("trusted review-gate workflows", () => {
     );
     expect(compactReview).toContain("`ready / local-prepare`");
     expect(compactReview).toContain("Owner-directed review stop (open PR only)");
-    expect(compactReview).toContain("arc review status --target <targetRef> --json");
+    expect(compactReview).toContain("arc review status --target <targetRef>");
     expect(compactReview).toContain("at least one completed same-claim standard-review pass");
     expect(compactReview).toContain("an authorized fix remains unfinished");
     expect(compactReview).toContain("`review-required`: this is Owner acceptance");
@@ -849,15 +849,15 @@ describe("trusted review-gate workflows", () => {
     );
     expect(packageIntegration.match(/arc base drift --json/gu)?.length ?? 0)
       .toBeGreaterThan(gate.match(/arc base drift --json/gu)?.length ?? 0);
-    const checkpoint = gate.indexOf("arc integrate checkpoint {name} --json");
+    const checkpoint = gate.indexOf("arc integrate checkpoint {name}");
     const baseMerge = gate.indexOf("checkpoint's supplied `remedy.argv` unchanged");
     const reconcile = gate.indexOf("arc wu reconcile {name} --apply --json");
-    const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
+    const merge = gate.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     expect(reconcile).toBeGreaterThan(-1);
     expect(checkpoint).toBeGreaterThan(reconcile);
     expect(baseMerge).toBeGreaterThan(checkpoint);
     expect(merge).toBeGreaterThan(baseMerge);
-    expect(gate).not.toContain("arc review status --target '{targetRef}' --json");
+    expect(gate).not.toContain("arc review status --target '{targetRef}'");
     expect(gate).toMatch(/checkpoint now owns Candidate applicability,[\s\S]*review status/u);
     expect(gate).toContain("`base-moved / rerun-checkpoint`");
     expect(gate).not.toContain("arc review checks await");
@@ -1087,7 +1087,7 @@ describe("trusted review-gate workflows", () => {
   it("dominates every work-unit lifecycle merge command with products and a final interlock", async () => {
     const directory = resolve(root, "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle");
     const requiredProduct = new Map([
-      ["integrate-work-unit.md", "arc integrate checkpoint {name} --json"],
+      ["integrate-work-unit.md", "arc integrate checkpoint {name}"],
       ["park-work-unit.md", "arc park"],
       ["resume-work-unit.md", "arc resume"],
     ]);

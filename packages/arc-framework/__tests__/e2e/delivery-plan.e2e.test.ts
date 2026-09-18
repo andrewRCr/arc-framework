@@ -950,7 +950,6 @@ describe("arc delivery", () => {
           headRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
           headSha: nativeMembers[0]!.headSha,
         }),
-        "--json",
       ],
       repository,
       { env },

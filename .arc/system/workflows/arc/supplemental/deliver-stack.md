@@ -301,7 +301,7 @@ The vehicle binds the review to the exact head supplied by delivery; no second m
 review evidence exists. Resolve its exact open change request and pass the resolver's `targetRef` to:
 
 ```bash
-arc review status --target '{targetRef}' --json
+arc review status --target '{targetRef}'
 ```
 
 No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
@@ -314,7 +314,7 @@ carrier.
 After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
 
 ```bash
-arc review status --target '{targetRef}' --source <hosted-source-id> --json
+arc review status --target '{targetRef}' --source <hosted-source-id>
 ```
 
 The source-less form retains the automatic chunked route.
@@ -323,7 +323,7 @@ The default action requests complete coverage. When a typed applicability recomm
 supplemental hosted pass, request it from the same first-outstanding member position instead of editing an action:
 
 ```bash
-arc review status --target '{targetRef}' --coverage incremental --json
+arc review status --target '{targetRef}' --coverage incremental
 ```
 
 Pass the returned action unchanged. Re-enter without `--coverage` after the supplemental attempt concludes; an
@@ -334,7 +334,7 @@ Only explicit approval of that exact consequence admits one additional pass; on 
 with the returned consequence serialized unchanged:
 
 ```bash
-arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
+arc review status --target '{targetRef}' --ceiling-override '{consequence}'
 ```
 
 `review-hosted-request` means pass the returned action unchanged to:

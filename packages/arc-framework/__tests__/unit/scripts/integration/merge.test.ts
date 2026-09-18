@@ -446,7 +446,6 @@ describe("integration merge", () => {
           "arc", "base", "merge",
           "--expected-base", oid("b"),
           "--expected-head", oid("c"),
-          "--json",
         ],
       },
       payload: {
@@ -854,7 +853,7 @@ describe("integration merge", () => {
         checks: [{ name: "merge-ok", state: "pending" }],
         diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
         retry: {
-          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle, "--json"],
+          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle],
         },
       },
     });
@@ -905,7 +904,7 @@ describe("integration merge", () => {
         checks: [{ name: "merge-ok", state: "pending" }],
         diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
         retry: {
-          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle, "--json"],
+          argv: ["arc", "integrate", "merge", "example", "--checkpoint", checkpointHandle],
         },
       },
     });

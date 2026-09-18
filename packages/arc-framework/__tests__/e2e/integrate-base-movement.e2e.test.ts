@@ -349,7 +349,7 @@ async function runCheckpoint(
   fixture: LandingFixture,
   env: Record<string, string> = fixture.env,
 ): Promise<Record<string, unknown>> {
-  const run = await runArc(["integrate", "checkpoint", WORK_UNIT, "--json"], fixture.repository, { env });
+  const run = await runArc(["integrate", "checkpoint", WORK_UNIT], fixture.repository, { env });
   return JSON.parse(run.stdout) as Record<string, unknown>;
 }
 
@@ -364,7 +364,7 @@ async function mintHandle(fixture: LandingFixture): Promise<string> {
 
 async function runMerge(fixture: LandingFixture, handle: string): Promise<Record<string, unknown>> {
   const run = await runArc(
-    ["integrate", "merge", WORK_UNIT, "--checkpoint", handle, "--json"],
+    ["integrate", "merge", WORK_UNIT, "--checkpoint", handle],
     fixture.repository,
     { env: fixture.env },
   );

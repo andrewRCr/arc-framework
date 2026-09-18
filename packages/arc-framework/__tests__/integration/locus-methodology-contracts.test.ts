@@ -122,7 +122,7 @@ describe("locus methodology contracts", () => {
       );
 
       expect(handoff).toContain(
-        "arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json",
+        "arc review change-request resolve --head-ref <branch> --head-sha <head-sha>",
       );
       expect(handoff).toContain("`merged-at-head / complete` → **merged-clean**");
       expect(handoff).toContain("`open / reuse-change-request` → **still-pending**");

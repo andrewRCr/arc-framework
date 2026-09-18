@@ -43,7 +43,7 @@ describe("base merge handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
-    await handleBaseMerge({ expectedBase: "HEAD", expectedHead: headOid, json: true }, undefined, {
+    await handleBaseMerge({ expectedBase: "HEAD", expectedHead: headOid }, undefined, {
       write,
       setExitCode,
     });
@@ -69,7 +69,7 @@ describe("base merge handler", () => {
     const setExitCode = vi.fn();
     const merge = vi.fn();
 
-    await handleBaseMerge({ expectedBase: oid, expectedHead: headOid, json: true }, undefined, {
+    await handleBaseMerge({ expectedBase: oid, expectedHead: headOid }, undefined, {
       resolveRoot: () => null,
       merge,
       write,

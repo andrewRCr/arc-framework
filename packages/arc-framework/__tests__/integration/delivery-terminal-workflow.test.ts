@@ -14,11 +14,11 @@ describe("delivery terminal integration handoff", () => {
     expect(installed).toBe(packaged);
     expect(packaged).not.toContain("    - validate-criteria");
     expect(packaged).not.toContain("arc delivery terminal attach");
-    expect(packaged.split("arc integrate checkpoint {name} --json")).toHaveLength(2);
+    expect(packaged.split("arc integrate checkpoint {name}")).toHaveLength(2);
     expect(packaged.split("> `integration-interlock`: Stop after the ready evidence")).toHaveLength(2);
-    const checkpoint = packaged.indexOf("arc integrate checkpoint {name} --json");
+    const checkpoint = packaged.indexOf("arc integrate checkpoint {name}");
     const interlock = packaged.indexOf("> `integration-interlock`: Stop after the ready evidence", checkpoint);
-    const merge = packaged.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
+    const merge = packaged.indexOf("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     const resume = packaged.indexOf("**Skip the merge when the PR is already merged**");
     const close = packaged.indexOf("arc user close {name}", merge);
     const deliveryCloseout = packaged.indexOf("arc delivery closeout -", close);

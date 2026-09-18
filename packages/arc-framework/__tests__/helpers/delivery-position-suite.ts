@@ -190,8 +190,8 @@ async function runArc(
       return;
     }
     if (args[0] === "review" && args[1] === "status" && args[2] === "--work-unit"
-      && args[3] !== undefined && args[4] === "--json") {
-      await handleReviewStatus({ workUnit: args[3], json: true }, machineContext());
+      && args[3] !== undefined && args[4] === undefined) {
+      await handleReviewStatus({ workUnit: args[3] }, machineContext());
       return;
     }
     throw new Error(`Unsupported handler command: ${command}`);
@@ -2544,7 +2544,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     )) as { candidateSubjectDigest: string };
     expect(boundaryAfterCarry.candidateSubjectDigest).toBe(candidateTarget.subject.subjectDigest);
     const archivedStatus = await runArc(
-      ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
+      ["review", "status", "--work-unit", fixture.plan.workUnitId],
       archivedCheckout,
       { env: fixture.env },
     );
@@ -2685,7 +2685,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
 
     const stalePublication = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );
@@ -2709,7 +2709,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     const pendingRebind = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );
@@ -2763,7 +2763,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       boundaryPath: resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
     });
     const refreshedStatus = await runArc(
-      ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
+      ["review", "status", "--work-unit", fixture.plan.workUnitId],
       archivedCheckout,
       { env: fixture.env },
     );
@@ -2802,7 +2802,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       .resolves.toEqual({ status: "none" });
 
     const publicationRebind = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );
@@ -2830,7 +2830,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       .resolves.toEqual({ status: "none" });
 
     const converged = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );

@@ -52,8 +52,6 @@ export interface BaseMergeOptions {
   expectedHead: string;
   /** Apply the checkpoint-authorized readiness-projection conflict remedy. */
   regenerateRoadmap?: boolean;
-  /** Emit the typed merge outcome as JSON. */
-  json?: boolean;
 }
 
 const baseJsonPolicy = declareCliOptionSite("json", {
@@ -80,7 +78,7 @@ const baseRegenerateRoadmapPolicy = declareCliOptionSite("regenerate-roadmap", {
 /** Machine-output policies owned by the base command adapters. */
 export const baseCommandInputPolicyDeclarations = [
   { commandPath: "base drift", aliases: [], sites: [baseJsonPolicy] },
-  { commandPath: "base merge", aliases: [], sites: [baseJsonPolicy, baseRegenerateRoadmapPolicy] },
+  { commandPath: "base merge", aliases: [], sites: [baseRegenerateRoadmapPolicy] },
   { commandPath: "base sync", aliases: [], sites: [baseJsonPolicy] },
 ] satisfies readonly CommandInputDeclaration[];
 

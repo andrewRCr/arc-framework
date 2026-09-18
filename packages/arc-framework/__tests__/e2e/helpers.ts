@@ -147,10 +147,14 @@ const DELIVERY_HUMAN_DEFAULT = new Set([
  */
 function emitsMachineReadablePayload(args: readonly string[]): boolean {
   if (args[0] === "delivery") return !args.some((arg) => DELIVERY_HUMAN_DEFAULT.has(arg));
+  if (args[0] === "integrate") return args[1] === "checkpoint" || args[1] === "merge";
+  if (args[0] === "base") return args[1] === "merge";
   if (args[0] !== "review") return false;
   return args[1] === "pre-publication"
+    || args[1] === "status"
     || (args[1] === "merge-method" && args[2] === "resolve")
-    || (args[1] === "checks" && args[2] === "await");
+    || (args[1] === "checks" && args[2] === "await")
+    || (args[1] === "change-request" && args[2] === "resolve");
 }
 
 /**

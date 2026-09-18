@@ -924,7 +924,7 @@ describe("handleReviewStatus", () => {
       nextAction: "run-review" as const,
     }));
 
-    await handleReviewStatus({ workUnit: "example", json: true }, undefined, {
+    await handleReviewStatus({ workUnit: "example" }, undefined, {
       resolveRoot: () => "/repo",
       resolve,
       resolveWorkUnit,
@@ -985,7 +985,6 @@ describe("handleReviewStatus", () => {
     await handleReviewStatus({
       workUnit: "example",
       source: "codex-pr",
-      json: true,
     }, undefined, {
       resolveRoot: () => "/repo",
       resolve: vi.fn(),
@@ -1037,7 +1036,6 @@ describe("handleReviewStatus", () => {
     await handleReviewStatus({
       target: JSON.stringify(statusTarget),
       source: "codex-pr",
-      json: true,
     }, undefined, {
       resolveRoot: () => "/repo",
       resolve,
@@ -1073,7 +1071,6 @@ describe("handleReviewStatus", () => {
       target: JSON.stringify(statusTarget),
       ceilingOverride: JSON.stringify(ceilingOverride),
       coverage: "incremental",
-      json: true,
     }, undefined, {
       resolveRoot: () => "/repo",
       resolve: async (_root, request) => ({
@@ -1178,7 +1175,7 @@ describe("handleReviewTerminusAccept", () => {
       nextAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resume review.",
       },
       policy: null,

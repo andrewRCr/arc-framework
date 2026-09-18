@@ -419,9 +419,8 @@ integrateCmd.action(() => {
 integrateCmd
   .command("checkpoint <name>")
   .description("Compose one typed integration-readiness verdict")
-  .requiredOption("--json", "Emit the typed checkpoint verdict as JSON")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, name: string, opts: IntegrationCheckpointOptions) => {
       await (await import("./handlers/integration.js")).handleIntegrationCheckpoint(name, opts, context);
     },
@@ -431,9 +430,8 @@ integrateCmd
   .command("merge <name>")
   .description("Execute one approved integration checkpoint and merge its exact head")
   .requiredOption("--checkpoint <handle>", "Opaque checkpoint handle returned by integrate checkpoint")
-  .requiredOption("--json", "Emit the typed merge verdict as JSON")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, name: string, opts: IntegrationMergeOptions) => {
       await (await import("./handlers/integration.js")).handleIntegrationMerge(name, opts, context);
     },
@@ -746,9 +744,8 @@ baseCmd
   .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
   .requiredOption("--expected-head <oid>", "Exact Candidate head approved by the checkpoint")
   .option("--regenerate-roadmap", "Apply the checkpoint-authorized ROADMAP-only conflict remedy")
-  .requiredOption("--json", "Emit the typed merge outcome as JSON")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, opts: BaseMergeOptions) => {
       await (await import("./handlers/base.js")).handleBaseMerge(opts, context);
     },
@@ -1688,9 +1685,8 @@ reviewCmd
   .requiredOption("--head-ref <branch>", "Proposed branch name")
   .requiredOption("--head-sha <oid>", "Exact Git object ID for the proposed head")
   .option("--require-remote", "Require the remote branch to match the exact head")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, options: ReviewChangeRequestResolveOptions) => {
       await (await import("./handlers/review.js")).handleReviewChangeRequestResolve(options, context);
     },
@@ -1704,9 +1700,8 @@ reviewCmd
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
   .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, options: ReviewStatusOptions) => {
       await (await import("./handlers/review.js")).handleReviewStatus(options, context);
     },

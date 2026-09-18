@@ -58,29 +58,30 @@ describe("runCli", () => {
     expect(result.stderr).toContain("arc integrate checkpoint");
   });
 
-  it("requires machine mode and emits typed missing-project refusals for integration mutators", async () => {
+  it("emits typed missing-project refusals for integration mutators and rejects `--json`", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "arc-integration-cli-outside-"));
     const oid = "a".repeat(40);
     const checkpoint = `checkpoint-v1:${oid}:sha256:${"b".repeat(64)}`;
     try {
-      for (const args of [
-        ["integrate", "checkpoint", "example", "--json"],
-        ["integrate", "merge", "example", "--checkpoint", checkpoint, "--json"],
-        ["base", "merge", "--expected-base", oid, "--expected-head", oid, "--json"],
-      ]) {
-        const result = await runCli(args, { cwd });
-        expect(result.exitCode).toBe(1);
-        expect(JSON.parse(result.stdout)).toMatchObject({ state: "blocked", nextAction: "stop" });
-      }
-
       for (const args of [
         ["integrate", "checkpoint", "example"],
         ["integrate", "merge", "example", "--checkpoint", checkpoint],
         ["base", "merge", "--expected-base", oid, "--expected-head", oid],
       ]) {
         const result = await runCli(args, { cwd });
+        expect(result.exitCode).toBe(1);
+        expect(JSON.parse(result.stdout)).toMatchObject({ state: "blocked", nextAction: "stop" });
+      }
+
+      // These verbs always emit their typed result, so the retired flag is no longer accepted.
+      for (const args of [
+        ["integrate", "checkpoint", "example", "--json"],
+        ["integrate", "merge", "example", "--checkpoint", checkpoint, "--json"],
+        ["base", "merge", "--expected-base", oid, "--expected-head", oid, "--json"],
+      ]) {
+        const result = await runCli(args, { cwd });
         expect(result.exitCode).not.toBe(0);
-        expect(result.stderr).toContain("required option '--json'");
+        expect(result.stderr).toContain("unknown option '--json'");
       }
     } finally {
       await rm(cwd, { recursive: true, force: true });

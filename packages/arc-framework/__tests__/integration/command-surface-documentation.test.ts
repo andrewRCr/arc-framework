@@ -148,7 +148,7 @@ describe("documented command surface", () => {
   });
 
   it("reads a corrective command path out of structured argv", () => {
-    const emitted = emittedInvocations('const remedy = { argv: ["arc", "review", "status", "--json"] };');
+    const emitted = emittedInvocations('const remedy = { argv: ["arc", "review", "status"] };');
 
     expect(emitted.map((invocation) => invocation.words)).toEqual([["review", "status"]]);
   });

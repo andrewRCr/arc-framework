@@ -255,7 +255,7 @@ remote base all name the same exact head. Any tracked change continues through t
 3. **Resolve the Errand PR** before creation. Invoke the exact-head resolver:
 
    ```bash
-   arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json
+   arc review change-request resolve --head-ref <branch> --head-sha <head-sha>
    ```
 
    Follow only its typed state and action:
@@ -277,7 +277,7 @@ remote base all name the same exact head. Any tracked change continues through t
    Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
 
    Immediately before creation, re-invoke
-   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote --json` with the
+   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote` with the
    current head and dispatch on its typed state again. Continue only from `none / create-change-request`. This
    pre-create validation requires the remote branch itself to carry the exact creation head, including after any
    hook action.
@@ -379,7 +379,7 @@ remote base all name the same exact head. Any tracked change continues through t
 
    **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
    spending, or redirects an `approval-required / obtain-ceiling-override` decision, present one exact offer before
-   treating that direction as approval. Re-read `arc review status --target <targetRef> --json` to validate the
+   treating that direction as approval. Re-read `arc review status --target <targetRef>` to validate the
    current Errand binding; `review-required` is expected, but a refusal or pending/response action stops. Name the
    current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
    standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since
