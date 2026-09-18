@@ -852,24 +852,44 @@ to a verdict and carries the cause as a discriminant instead. See
           `_Corrected in 4.R2 (A3):_` line rather than being silently rewritten — its `[x]` marker and its
           original claim both stand, per D6.
 
-### `[ ]` **4.R3 Give the unbound work unit the route 4.8 names** — amendment A4
+### `[x]` **4.R3 Give the unbound work unit the route 4.8 names** — amendment A4
 
 - _Goal:_ A4 — Task 4.8's arms sit behind a guard that returns not-applicable whenever the terminal records are
   unbound, so the ordinary work unit reaches the checkpoint's own rerun instead.
 
-    - `[ ]` **4.R3.a Carry the base-resolution cause into the checkpoint's movement plan**
+    - `[x]` **4.R3.a Carry the base-resolution cause into the checkpoint's movement plan**
 
         - The plan reads a movement classifier that flattens ambiguous, unrelated and unavailable into one token,
           so the cause has to reach it before any arm can tell them apart.
+        - _Outcome:_ `CheckpointMovementObservationSchema` carries an optional `movementCause`, supplied at both
+          construction sites — the checkpoint's and the final merge plan's — by one exported
+          `checkpointMovementCause` reader over the drift's own overlap status. The unknown arm now splits on it:
+          an ambiguous base and an unrelated one route to `reconcile-base`, and an unavailable one keeps the
+          refusal that asks for the read again. Both merge-cleared arms sit behind the complete-integration-
+          evidence bar every mutating reconciliation below them meets, so an unresolvable base does not get a
+          cheaper route than an overlapping one. `composeIntegrationFinalPlan`'s drift `Pick` widened to include
+          `overlap`, which made the omission a compile error at its one caller and its fixture.
 
-    - `[ ]` **4.R3.b Answer the pair above the delivery-bound guard**
+    - `[x]` **4.R3.b Answer the pair above the delivery-bound guard**
 
         - The reconcile route applies to the branch-and-base pair, which every work unit has. The delivery guard
           stays where it is for the delivery-specific arms beneath it.
+        - _Outcome:_ `classifyDeliveryDrift`'s two base-resolution arms moved above the `resolveTerminalRecords`
+          read and the unbound guard that follows it. The merge that clears the pair is the same merge whether or
+          not a delivery terminal is bound here, so neither arm has a reason to read delivery state first; below
+          the guard, both were reachable only for a work unit whose delivery was already owned. Every
+          delivery-specific arm beneath — the unavailable records, the unavailable overlap, and the terminal
+          comparisons — is unmoved.
 
-    - `[ ]` **4.R3.c Cover a work unit with no bound terminal**
+    - `[x]` **4.R3.c Cover a work unit with no bound terminal**
 
         - Both arms are proved on the unbound vehicle, which is the one that routes into the loop.
+        - _Outcome:_ `checkpoint-delivery-composition.test.ts` gains a suite that pins `resolveTerminalRecords`
+          to `unbound` and an `exec` that throws if reached, proving both arms reach `reconcile-base` without a
+          delivery read; RED at `not-applicable` before the hoist. Its control holds the guard in place: a pair
+          whose overlap is available still declines. `checkpoint-movement.test.ts` covers the plan's side —
+          reconcile on each merge-cleared cause, the evidence bar refusing an incomplete one, and `unavailable`
+          added to the fails-closed `it.each`.
 
 ## **Phase 5:** The predecessor relation and vocabulary migration
 

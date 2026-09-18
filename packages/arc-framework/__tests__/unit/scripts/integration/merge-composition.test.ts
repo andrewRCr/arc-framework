@@ -46,6 +46,7 @@ describe("integration merge composition", () => {
         headOid: oid("d"),
         movement: "disjoint",
         integrationEvidence: null,
+        overlap: null,
       },
       target,
       feasibility: { state: "clean", base: oid("b"), head: target.headSha },

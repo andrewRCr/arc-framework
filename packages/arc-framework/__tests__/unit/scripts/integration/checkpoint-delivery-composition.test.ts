@@ -646,6 +646,79 @@ describe("delivery checkpoint composition", () => {
     });
   });
 
+  /**
+   * A4 — the branch-and-base pair is not a delivery fact. Every work unit has one, and the merge that clears
+   * it is the same merge either way, so the arms answering it belong above the guard that drops a work unit
+   * with no bound delivery terminal.
+   */
+  describe("a work unit with no bound delivery terminal", () => {
+    type PairOverlap =
+      | { readonly status: "unrelated" }
+      | { readonly status: "ambiguous" }
+      | {
+          readonly status: "available";
+          readonly substantivePaths: string[];
+          readonly regenerablePaths: string[];
+        };
+
+    const unboundDrift = (overlap: PairOverlap) => ({
+      mode: "authoritative" as const,
+      verdict: "reconcile" as const,
+      state: "diverged" as const,
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: oid("d"),
+      headOid: oid("c"),
+      movement: "unknown" as const,
+      integrationEvidence: {
+        coverage: "complete" as const,
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap,
+      register: null,
+    });
+
+    it.each([
+      ["shares no history with", { status: "unrelated" } as const,
+        "The branch and its base share no common ancestor, so nothing between them can be compared."],
+      ["shares more than one merge base with", { status: "ambiguous" } as const,
+        "The branch and its base share more than one merge base, so the overlap cannot be proved from one."],
+    ])("routes a base that %s the branch to reconciling it", async (_label, overlap, detail) => {
+      mocks.resolveTerminalRecords.mockResolvedValue({ status: "unbound" });
+      const dependencies = createIntegrationCheckpointDependencies({
+        cwd: "/repository",
+        exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+      });
+
+      await expect(dependencies.classifyDeliveryDrift("example", unboundDrift(overlap)))
+        .resolves.toEqual({
+          status: "unavailable",
+          detail,
+          evidence: { baseRevision: oid("d") },
+          nextAction: { command: "reconcile-base", workUnit: "example" },
+        });
+    });
+
+    it("still declines every delivery-specific arm beneath the guard", async () => {
+      mocks.resolveTerminalRecords.mockResolvedValue({ status: "unbound" });
+      const dependencies = createIntegrationCheckpointDependencies({
+        cwd: "/repository",
+        exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+      });
+
+      // The guard is unmoved: a pair that resolved has nothing here for a work unit delivery does not bind.
+      await expect(dependencies.classifyDeliveryDrift(
+        "example",
+        unboundDrift({ status: "available", substantivePaths: [], regenerablePaths: [] }),
+      )).resolves.toEqual({ status: "not-applicable" });
+    });
+  });
+
   it("routes a pinned-baseline pair sharing no history through the base before the baseline", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);

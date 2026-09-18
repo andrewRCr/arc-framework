@@ -65,8 +65,32 @@ describe("checkpoint movement plan", () => {
     })).toEqual({ state: "blocked", reason: "host-refused", detail: "Policy refusal." });
   });
 
+  /**
+   * A4 — the classifier this plan reads flattens an ambiguous base, an unrelated one and a failed read into
+   * one token, so all three took the answer that fits only the last: a rerun. Two of them are cleared by
+   * merging the base in, and the cause is what tells them apart.
+   */
+  it.each([
+    ["shares no history with the branch", "unrelated" as const],
+    ["shares more than one merge base with it", "ambiguous" as const],
+  ])("reconciles a base that %s", (_label, movementCause) => {
+    expect(plan({ movement: "unknown", movementCause })).toEqual({
+      state: "reconcile",
+      nextAction: "reconcile-base",
+    });
+  });
+
+  it("holds an unresolvable base to the same evidence bar as any other reconciliation", () => {
+    expect(plan({
+      movement: "unknown",
+      movementCause: "unrelated",
+      integrationEvidenceComplete: false,
+    })).toMatchObject({ state: "blocked", reason: "unsafe-reconcile" });
+  });
+
   it.each([
     { movement: "unknown" },
+    { movement: "unknown", movementCause: "unavailable" },
     { feasibility: { state: "unavailable", ...coordinates, detail: "Git unavailable." } },
     { feasibility: { state: "clean", base: oid("c"), head: coordinates.head } },
     { admission: { state: "mergeable", ...admissionCoordinates, head: oid("c") } },

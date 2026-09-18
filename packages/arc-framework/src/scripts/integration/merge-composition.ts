@@ -53,7 +53,11 @@ import { createRespondDependencies } from "../review-gate/runtime/respond-compos
 import { respondToReviewCommand } from "../review-gate/runtime/respond-command.js";
 import { confirmCandidateResponseAction } from "./candidate-response-confirmation.js";
 import { readIntegrationCheckpointComposition } from "./checkpoint-store.js";
-import { composeCheckpointMovementPlan, CheckpointMovementObservationSchema } from "./checkpoint.js";
+import {
+  checkpointMovementCause,
+  composeCheckpointMovementPlan,
+  CheckpointMovementObservationSchema,
+} from "./checkpoint.js";
 import {
   IntegrationBindingChangedError,
   type IntegrationFinalPlan,
@@ -83,7 +87,7 @@ const GitHubMergeConfirmationSchema = z.object({
 export function composeIntegrationFinalPlan(input: {
   readonly drift: Pick<
     BaseDriftResult,
-    "verdict" | "baseOid" | "headOid" | "movement" | "integrationEvidence"
+    "verdict" | "baseOid" | "headOid" | "movement" | "integrationEvidence" | "overlap"
   >;
   readonly target: IntegrationMergeTarget;
   readonly feasibility: GitMergeFeasibility;
@@ -104,6 +108,7 @@ export function composeIntegrationFinalPlan(input: {
   }
   const observation = CheckpointMovementObservationSchema.parse({
     movement: drift.movement,
+    ...checkpointMovementCause(drift.overlap?.status),
     integrationEvidenceComplete: drift.integrationEvidence?.coverage === "complete",
     feasibility: input.feasibility,
     admission: input.admission,

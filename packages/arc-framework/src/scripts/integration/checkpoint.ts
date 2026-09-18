@@ -95,6 +95,9 @@ export type IntegrationLifecycleSummary = z.infer<typeof IntegrationLifecycleSum
 
 export const CheckpointMovementObservationSchema = z.strictObject({
   movement: z.enum(["disjoint", "overlapping", "unknown"]),
+  // What left the movement unknown. The classifier reports one token for three conditions, and two of them —
+  // an ambiguous base and an unrelated one — are cleared by a merge rather than by reading again.
+  movementCause: z.enum(["ambiguous", "unrelated", "unavailable"]).optional(),
   integrationEvidenceComplete: z.boolean(),
   feasibility: GitMergeFeasibilitySchema,
   admission: ChangeRequestMergeObservationSchema,
@@ -118,6 +121,15 @@ function coordinatesAgree(
   return feasibility.base === admission.base && feasibility.head === admission.head;
 }
 
+/** Carry what left a movement unknown, for the arms that can tell the three conditions apart. */
+export function checkpointMovementCause(
+  status: string | undefined,
+): { movementCause?: "ambiguous" | "unrelated" | "unavailable" } {
+  return status === "ambiguous" || status === "unrelated" || status === "unavailable"
+    ? { movementCause: status }
+    : {};
+}
+
 /** Reduce movement, feasibility, admission, and mutation evidence to one continuation. */
 export function composeCheckpointMovementPlan(input: {
   movement: BaseMovement;
@@ -130,7 +142,22 @@ export function composeCheckpointMovementPlan(input: {
     return { state: "blocked", reason: "unsafe-reconcile", detail: "Checkpoint evidence coordinates disagree." };
   }
   if (observation.movement === "unknown") {
-    return { state: "blocked", reason: "unsafe-reconcile", detail: "Base movement is unknown." };
+    // Split by cause rather than by the token the three share. A base that shares no ancestor with the branch,
+    // and one that shares two, are both answered by merging the base in; a read that failed is answered by
+    // reading again, and keeps the refusal that asks for it. The evidence bar is the one every mutating
+    // reconciliation below meets, so an unresolvable base does not get a cheaper route than an overlapping one.
+    const mergeClears = observation.movementCause === "ambiguous"
+      || observation.movementCause === "unrelated";
+    if (!mergeClears) {
+      return { state: "blocked", reason: "unsafe-reconcile", detail: "Base movement is unknown." };
+    }
+    return observation.integrationEvidenceComplete
+      ? { state: "reconcile", nextAction: "reconcile-base" }
+      : {
+          state: "blocked",
+          reason: "unsafe-reconcile",
+          detail: "A mutating reconciliation requires complete integration evidence.",
+        };
   }
   if (observation.feasibility.state === "unavailable") {
     return { state: "blocked", reason: "unsafe-reconcile", detail: observation.feasibility.detail };
@@ -1001,6 +1028,7 @@ export async function checkpointIntegration(
   const observed = await dependencies.readMovementObservation(request.workUnit, drift);
   const observation = CheckpointMovementObservationSchema.parse({
     movement: drift.movement,
+    ...checkpointMovementCause(drift.overlap?.status),
     integrationEvidenceComplete: drift.integrationEvidence?.coverage === "complete",
     feasibility: observed.feasibility,
     admission: observed.admission,

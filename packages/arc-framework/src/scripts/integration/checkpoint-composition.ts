@@ -527,15 +527,9 @@ export function createIntegrationCheckpointDependencies(input: {
       });
     },
     classifyDeliveryDrift: async (workUnit, drift) => {
-      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
-      if (records.status === "unbound") return { status: "not-applicable" };
-      if (records.status === "unavailable") {
-        return unavailableDeliveryDrift(
-          workUnit,
-          "The delivery terminal records are unavailable.",
-          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
-        );
-      }
+      // Answered before any delivery read. This is the branch-and-base pair, which every work unit has, and
+      // the merge that clears it is the same merge whether or not a delivery terminal is bound here. Left
+      // below the guard, both arms were reachable only for a work unit delivery already owned.
       // Both revisions of this pair can move, so merging the base in is a route that exists here: it gives an
       // unrelated pair its first common ancestor, as review status already reports for the same pair.
       if (drift.overlap?.status === "unrelated") {
@@ -554,6 +548,15 @@ export function createIntegrationCheckpointDependencies(input: {
           "The branch and its base share more than one merge base, so the overlap cannot be proved from one.",
           drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
           "reconcile-base",
+        );
+      }
+      const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      if (records.status === "unbound") return { status: "not-applicable" };
+      if (records.status === "unavailable") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The delivery terminal records are unavailable.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
         );
       }
       if (drift.overlap?.status !== "available") {
