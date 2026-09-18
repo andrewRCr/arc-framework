@@ -71,6 +71,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | handoff-optimization                | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening         | P3       | andrew | —          | architecture-remediation   |
 | lib-layer-type-extraction           | P3       | andrew | —          | architecture-remediation   |
+| oversized-function-remediation      | P3       | andrew | —          | architecture-remediation   |
 | schema-introspection-layer          | P3       | andrew | —          | architecture-remediation   |
 | sync-handler-decomposition          | P3       | andrew | —          | architecture-remediation   |
 | user-sync-module-split              | P3       | andrew | —          | architecture-remediation   |

@@ -165,8 +165,10 @@ Zero violations or errors on each. Commands, config, and tooling:
 
 - **Markdown lint** — `lint:md` over the worktree; `lint:md:staged` certifies the index and is authoritative at
   pre-commit. Config `.markdownlint-cli2.jsonc`.
-- **Code lint** — `lint:ts`, config `packages/arc-framework/eslint.config.js` (typescript-eslint
-  recommended-type-checked); `lint:sh`, which requires a system-installed `shellcheck` on developer machines.
+- **Code lint** — `lint:ts` for the whole package, `lint:ts:file` for named paths; config
+  `packages/arc-framework/eslint.config.js` (typescript-eslint recommended-type-checked, plus size and
+  complexity limits baselined in `eslint-suppressions.json` — see DEV-RULES.PROJECT § Size and complexity
+  baseline). `lint:sh` requires a system-installed `shellcheck` on developer machines.
 - **Type checking** — `typecheck` for source (`packages/arc-framework/tsconfig.json`, strict, excludes
   `__tests__`), `typecheck:test` for tests (`tsconfig.test.json`), or `typecheck:all` for both.
 - **Tests** — `npm test` for the routine unit + integration lane, `test:changed` for affected unit tests, and
@@ -193,9 +195,10 @@ npm run -s lint:arc:triggers
 npm run -s lint:arc:domain-rules
 npm run -s lint:arc:section-refs
 
-# TypeScript lint — per changed file or directory
-# (invoke eslint directly; `npm run lint:ts -- <path>` appends to the full set rather than narrowing it)
-npx eslint packages/arc-framework/src/path/to/file.ts
+# TypeScript lint — per changed file or directory; paths are package-relative
+# (`npm run lint:ts -- <path>` appends to the full set rather than narrowing it. Run eslint by hand only
+# from the package directory: the size/complexity baseline is keyed to that working directory.)
+npm run -s lint:ts:file -- src/path/to/file.ts
 
 # Affected unit tests — resolves committed and uncommitted changes against main...HEAD
 # Empty selection is a non-passing outcome

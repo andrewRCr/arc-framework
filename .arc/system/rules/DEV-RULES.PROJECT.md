@@ -26,6 +26,35 @@ Four gate behaviors that reference does not carry, each of which fails quietly:
 - `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
   not evidence that the changed code passed.
 
+### Size and complexity baseline
+
+`src/**` gates on function length, file length, cyclomatic complexity, nesting depth, and nested callbacks;
+`__tests__/**` gates on file length only, because `describe` bodies make a per-function limit meaningless there.
+The thresholds live in `eslint.config.js`, which is their only authority. Violations that predate the gate are
+recorded in `packages/arc-framework/eslint-suppressions.json`, which the lint run reads automatically.
+
+That record is a **floor — "no worse than this" — not a backlog.** It bounds new debt; reducing what it already
+holds is separate, owned work, and nothing about the record's size is a commitment.
+
+Four behaviors decide whether the gate tells the truth:
+
+- **Run it through the npm scripts.** Baseline keys are relative to the directory ESLint runs in, so a bare
+  `npx eslint <path>` from the repository root finds no baseline and reports every recorded violation as new.
+  `lint:ts` and `lint:ts:file` both run with the package as their working directory.
+- **Only a whole-project run can shrink the record.** Pruning examines just the files in the current run, so a
+  per-file run can never notice that a violation was fixed. After reducing one, run `lint:ts` — it exits 2 and
+  names the unused suppression — then re-run it with `--prune-suppressions` and commit the shrunk record.
+- **A new violation surfaces its whole bucket.** Suppressions count violations per file per rule, never per
+  line, so exceeding a recorded count reports _every_ violation of that rule in the file. The one at the new
+  code is the one to fix; the others are pre-existing and are not evidence that the change broke them.
+- **Never re-run `--suppress-rule` to clear a red gate.** That records the new violation as permanent debt,
+  which is the one thing the record exists to prevent.
+
+The record cannot see two things, and both close by remediation rather than by more gate. An already-recorded
+unit can grow worse while its count stays put. And a swap is invisible: fix one violation of a rule in a file
+while adding another of the same rule to the same file, and the bucket stays exactly full — the run stays green
+and pruning finds nothing to report.
+
 ### Selecting what to run
 
 Zero tolerance governs what must **pass**, not how often each check is **re-executed**. Two conditions narrow a
