@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkpointIntegration,
+  CheckpointAmbiguousBaseError,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
@@ -229,20 +230,20 @@ describe("integration checkpoint", () => {
       });
   });
 
-  it("returns a typed refusal when applicability selector composition fails", async () => {
+  /** The bounded decision that routes the checkpoint into composing an applicability resolution selector. */
+  function boundedApplicabilityDecision() {
     const subject = (source: string) => createCandidateSubjectSnapshot([{
       path: "src/example.ts",
       mode: "100644",
       digest: canonicalDigest({ source }),
       treatment: "reviewable",
     }]);
-    const request = {
+    const decision = classifyCandidateApplicability({
       candidateId: digest("c"),
       baselineTarget: { revision: oid("a"), subject: subject("prior") },
       currentTarget: { revision: oid("c"), subject: subject("current") },
       currentBase: oid("b"),
-    };
-    const decision = classifyCandidateApplicability(request, {
+    }, {
       endpoints: {
         before: {
           predecessor: { head: oid("1"), tree: oid("2") },
@@ -256,6 +257,11 @@ describe("integration checkpoint", () => {
       proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
     });
     if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
+    return decision;
+  }
+
+  it("returns a typed refusal when applicability selector composition fails", async () => {
+    const decision = boundedApplicabilityDecision();
 
     for (const drift of ["reconcile", "clean"] as const) {
       const deps = dependencies();
@@ -273,6 +279,46 @@ describe("integration checkpoint", () => {
           payload: { detail: "The Candidate applicability decision is no longer current." },
         });
     }
+  });
+
+  it("names the merge when a selector stops on a base the branch does not resolve against", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readCandidate = async () => boundedApplicabilityDecision();
+    deps.composeCandidateApplicabilityResolutionSelector = async () => {
+      throw new CheckpointAmbiguousBaseError("The selector's subject has more than one base coordinate.");
+    };
+
+    // The ordinary composition refusal invites a rerun, and a rerun reads the same history and stops the same
+    // way. Only the merge that collapses the pair changes the answer, so the refusal has to ask for it.
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The selector's subject has more than one base coordinate.",
+        remedy: {
+          invariant: "A checkpoint composes over the one revision the branch contributes against, which a "
+            + "history leaving two equally good ancestors does not name.",
+          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+        },
+      });
+  });
+
+  it("names the same merge when delivery composition stops on it", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.composeDelivery = async () => {
+      throw new CheckpointAmbiguousBaseError("The delivery terminal's predecessor base is not one coordinate.");
+    };
+
+    // The second raise reaches a different catch, so proving one proves nothing about the other.
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The delivery terminal's predecessor base is not one coordinate.",
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+      });
   });
 
   it("returns a safe behind-base verdict with the validated facts", async () => {

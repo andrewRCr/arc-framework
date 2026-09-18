@@ -43,6 +43,7 @@ import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-l
 import {
   composeDeliveryMemberTarget,
   deriveLocalReviewTargetFromCoordinates,
+  LocalTargetDerivationError,
 } from "../hosts/local/repository-target.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import { CandidateBoundMemberFixAuthoringSchema } from "../core/review-command-envelope.js";
@@ -228,7 +229,13 @@ export function createRespondDependencies(input: {
         exec: input.exec,
       });
       if (reviewedBase.status !== "resolved") {
-        throw new Error("The reviewed Candidate target's base is not a single coordinate.");
+        // Under the boundary's own precondition type, not an anonymous failure: a history leaving two equally
+        // good ancestors is a fact about the repository the operator can act on, and reporting it as an
+        // unexplained error tells them the respond failed and nothing about what stopped it.
+        throw new LocalTargetDerivationError(
+          "ambiguous-merge-base",
+          "The reviewed Candidate target's base is not a single coordinate.",
+        );
       }
       for (const workUnit of candidates) {
         const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit);
@@ -275,7 +282,10 @@ export function createRespondDependencies(input: {
         }),
       ]);
       if (collected.status !== "collected") {
-        throw new Error("The Candidate fix target's subject could not be collected.");
+        throw new LocalTargetDerivationError(
+          "ambiguous-merge-base",
+          "The Candidate fix target's subject could not be collected.",
+        );
       }
       const current = collected.target;
       const candidateFixTarget = await deriveLocalReviewTargetFromCoordinates({

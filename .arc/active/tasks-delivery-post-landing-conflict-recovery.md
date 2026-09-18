@@ -1388,26 +1388,41 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   target it declared — and only this one needed the decision, because a hold whose `target` the design rejects
   and whose `observed` it keeps has no route to red at all.
 
-### `[ ]` **6.R Refuse typed where the widened results are re-narrowed to throws** — amendment A10
+### `[x]` **6.R Refuse typed where the widened results are re-narrowed to throws** — amendment A10
 
 - _Goal:_ A10 — Tasks 6.3 and 6.5 required every consumer of the widened results to handle the new refusal under
   its own failure policy. Three consumers instead throw untyped, and one discards the detail in a bare `catch`.
 
-    - `[ ]` **6.R.a Carry the cause and a clearing remedy at `handlers/candidate.ts`**
+    - `[x]` **6.R.a Carry the cause and a clearing remedy at `handlers/candidate.ts`**
 
         - `:159` throws `new Error(collected.detail)` and `:413`'s bare `catch {` emits `execution-failed` with no
           detail and no remedy, discarding a cause produced one frame away. The same work unit explains the same
           history precisely at `arc attest` (`lifecycle.ts:2771-2794`), which is the pattern to apply.
+        - _Outcome:_ The raise became `CandidateSubjectUncollectableError`, exported beside the collection type
+          that names the condition, so the boundary can tell it from an ordinary failure. `execution-unavailable`
+          gained optional `detail` and `remedy`, and the catch fills both only for that type — covered by a
+          control proving an ordinary failure inherits neither. The remedy names the merge and returns the
+          operator to the checkpoint, which is the sole composer of these selectors; re-running the resolution
+          would re-derive the same selection against the same history.
 
-    - `[ ]` **6.R.b Type the two `respond-composition.ts` refusals**
+    - `[x]` **6.R.b Type the two `respond-composition.ts` refusals**
 
         - `:224` and `:265` throw plain Errors that no consumer catches; they reach `handlers/review.ts` as
           `unexpected-failure` with empty diagnostics.
+        - _Outcome:_ Both raise `LocalTargetDerivationError("ambiguous-merge-base", ...)`, the stable precondition
+          the review boundary already maps to `invalid-input` with a `base-resolved` diagnostic. The class gained
+          an optional detail parameter so each site keeps its own locus instead of collapsing to the reason token.
+          Driven at integration tier over a real two-merge-base repository for the reviewed-target read;
+          the fix-target read shares the raise but needs a bound Candidate record to reach, so it is carried.
 
-    - `[ ]` **6.R.c Name an act the composition failures can clear**
+    - `[x]` **6.R.c Name an act the composition failures can clear**
 
         - `checkpoint-composition.ts:761` and `:1077` reach `composition-unavailable`, whose remedy is a bare
           checkpoint rerun that cannot collapse two merge bases.
+        - _Outcome:_ Both raise `CheckpointAmbiguousBaseError`, and the two catches that answer them — the
+          selector arm's and the composition try's — swap the bare rerun for a remedy whose correction names the
+          merge first. The command stays the rerun, since merging the base in is what makes it succeed; that is
+          the difference from an absent ancestor, where no `arc` verb reaches the pair at all.
 
 ### `[x]` **6.8 Exhaust the conversion set** — validate exit criterion at segment scope
 

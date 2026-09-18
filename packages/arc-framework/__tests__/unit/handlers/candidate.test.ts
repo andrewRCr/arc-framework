@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { handleCandidateApplicabilityResolve } from "../../../src/handlers/candidate.js";
+import { CandidateSubjectUncollectableError } from "../../../src/lib/work-unit/git-candidate-subject.js";
 import { classifyReviewContributionApplicability } from
   "../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 
@@ -299,6 +300,69 @@ describe("handleCandidateApplicabilityResolve", () => {
     });
 
     expect(mutationApplied).toBe(false);
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "execution-failed",
+    });
+    expect(exitCodes).toEqual([1]);
+  });
+
+  it("carries the cause and the act that clears it when no subject can be collected", async () => {
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
+      readText: async () => JSON.stringify(makeRequest()),
+      execute: async () => {
+        throw new CandidateSubjectUncollectableError(
+          "merge-base-ambiguous",
+          "The branch and its base leave two equally good ancestors.",
+        );
+      },
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    // The cause is produced one frame away, and a bare failure discards it along with the only thing that
+    // clears it — re-running the same resolution reads the same history and stops the same way.
+    expect(JSON.parse(output.join(""))).toEqual({
+      schemaVersion: 1,
+      mode: "candidate-applicability-resolve",
+      state: "execution-unavailable",
+      nextAction: "stop",
+      reason: "execution-failed",
+      detail: "The branch and its base leave two equally good ancestors.",
+      remedy: {
+        invariant: "An applicability selection binds what the branch contributes over one base, which a history "
+          + "leaving two equally good ancestors does not name.",
+        text: expect.any(String),
+        argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+      },
+    });
+    expect(exitCodes).toEqual([1]);
+  });
+
+  it("keeps an ordinary execution failure closed, with no cause to carry", async () => {
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+
+    await handleCandidateApplicabilityResolve("example", "-", undefined, {
+      resolveRoot: () => "/repo",
+      resolveMutationOwner: async () => ({ status: "unowned" }),
+      resolveCompletedWorkUnits: async () => ["example"],
+      readText: async () => JSON.stringify(makeRequest()),
+      execute: async () => { throw new Error("Candidate mutation refused: active-work-unit-mismatch"); },
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+
+    // The control: a failure the merge cannot clear must not inherit the merge's remedy.
     expect(JSON.parse(output.join(""))).toEqual({
       schemaVersion: 1,
       mode: "candidate-applicability-resolve",

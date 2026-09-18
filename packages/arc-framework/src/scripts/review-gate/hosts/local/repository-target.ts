@@ -26,8 +26,12 @@ export type LocalTargetInvalidReason =
 export class LocalTargetDerivationError extends Error {
   readonly code = "invalid-input" as const;
 
-  constructor(public readonly reason: LocalTargetInvalidReason) {
-    super(reason);
+  /**
+   * @param reason - The stable precondition the boundary reports and routes on.
+   * @param detail - Where the precondition was observed, when the reason alone does not locate it.
+   */
+  constructor(public readonly reason: LocalTargetInvalidReason, detail: string = reason) {
+    super(detail);
     this.name = "LocalTargetDerivationError";
   }
 }

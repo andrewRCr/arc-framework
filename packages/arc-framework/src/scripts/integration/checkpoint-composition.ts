@@ -110,6 +110,7 @@ import {
   projectPublicationBoundary,
 } from "../review-gate/policy/integration-boundary-locus.js";
 import {
+  CheckpointAmbiguousBaseError,
   CheckpointReadyCompositionSchema,
   HOSTED_REVIEW_REQUIREMENT_ID,
   IntegrationLifecycleSummarySchema,
@@ -767,7 +768,11 @@ export function createIntegrationCheckpointDependencies(input: {
         revision: decision.currentTarget.revision,
       });
       if (collected.status !== "collected") {
-        throw new Error("The Candidate applicability selector's subject could not be collected.");
+        // Under its own type: the checkpoint refusal above this decides what to ask for, and the rerun it
+        // otherwise names reads the same history and stops here again.
+        throw new CheckpointAmbiguousBaseError(
+          "The Candidate applicability selector's subject could not be collected.",
+        );
       }
       const currentTarget = collected.target;
       const priorTarget = reduceCandidateDurableBaseline(value.record).target;
@@ -1082,7 +1087,9 @@ export function createIntegrationCheckpointDependencies(input: {
         exec: input.exec,
       });
       if (mergeBase.status !== "resolved") {
-        throw new Error("The delivery terminal's predecessor base is not a single coordinate.");
+        throw new CheckpointAmbiguousBaseError(
+          "The delivery terminal's predecessor base is not a single coordinate.",
+        );
       }
       const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase.base);
       if (candidateCoordinate === null || predecessorCoordinate === null) {

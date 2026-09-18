@@ -34,6 +34,20 @@ export interface CollectGitCandidateTargetInput {
   readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
 }
 
+/**
+ * Raised where a caller must classify one exact subject and the branch's history names none.
+ *
+ * The collection itself refuses typed, but a caller that has nothing to classify without one cannot carry that
+ * refusal onward as a result. Raising it under its own type is what keeps the reason and the collection's own
+ * words reaching the boundary that reports them, instead of arriving as an anonymous failure a frame later.
+ */
+export class CandidateSubjectUncollectableError extends Error {
+  constructor(public readonly reason: "merge-base-ambiguous", detail: string) {
+    super(detail);
+    this.name = "CandidateSubjectUncollectableError";
+  }
+}
+
 /** A collected subject, or the reason the branch and its base leave no single revision to collect one against. */
 export type CandidateSubjectCollection =
   | { readonly status: "collected"; readonly target: CandidateLineageTarget }

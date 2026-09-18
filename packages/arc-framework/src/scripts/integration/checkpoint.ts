@@ -614,6 +614,38 @@ export function checkpointRemedy(reason: CheckpointRemedyReason, workUnit: strin
  * @param baseOid - The observed base revision to join, which the caller reads from its own drift observation.
  * @returns The remedy naming the failed invariant and the one command that clears it.
  */
+/**
+ * A checkpoint composition stopped because the branch and its base leave two equally good ancestors.
+ *
+ * Naming it apart from an ordinary composition failure is what lets the refusal ask for the merge. The
+ * composition refusal's own remedy is the checkpoint rerun, and a rerun reads the same history and stops in the
+ * same place — so on this cause the rerun alone is a remedy that provably cannot clear what it answers.
+ */
+export class CheckpointAmbiguousBaseError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = "CheckpointAmbiguousBaseError";
+  }
+}
+
+/**
+ * The remedy for a composition that found two best common ancestors where it needed one.
+ *
+ * Unlike an absent ancestor, this pair is joined by the merge the reconcile already performs, so the command
+ * stays the checkpoint rerun and the correction names the act that has to precede it.
+ *
+ * @param workUnit - The work unit whose checkpoint stopped.
+ * @returns The remedy naming the failed invariant and the command to run once it is satisfied.
+ */
+export function checkpointAmbiguousBaseRemedy(workUnit: string): SpineRemedy {
+  return spineRemedy(
+    "A checkpoint composes over the one revision the branch contributes against, which a history leaving two "
+    + "equally good ancestors does not name.",
+    "Merge the configured base into the branch, then re-run",
+    checkpointResumeArgv(workUnit),
+  );
+}
+
 export function checkpointUnrelatedBaseRemedy(baseOid: string): SpineRemedy {
   return spineRemedy(
     "Base movement can be proved only between revisions with a common ancestor.",
@@ -731,6 +763,8 @@ export function checkpointInputRefusal(detail: string): IntegrationCheckpointRes
  *
  * @param workUnit - The validated work-unit slug.
  * @param detail - Dependency failure detail safe to expose in the result payload.
+ * @param coordinates - Observed base and head, where the caller established them.
+ * @param remedy - The act the caller proved clears this failure, when the ordinary rerun does not.
  * @returns A schema-valid refusal that routes back through checkpoint composition.
  */
 export function checkpointOperationRefusal(
@@ -740,6 +774,7 @@ export function checkpointOperationRefusal(
     observedBaseOid: null,
     observedHeadOid: null,
   },
+  remedy?: SpineRemedy,
 ): IntegrationCheckpointResult {
   const stableDetail = boundedCheckpointDetail(detail, "The integration checkpoint operation failed.");
   return IntegrationCheckpointResultSchema.parse({
@@ -751,7 +786,7 @@ export function checkpointOperationRefusal(
     reason: "composition-unavailable",
     detail: stableDetail,
     coordinates,
-    remedy: checkpointRemedy("composition-unavailable", workUnit),
+    remedy: remedy ?? checkpointRemedy("composition-unavailable", workUnit),
     payload: { detail: stableDetail },
   });
 }
@@ -904,6 +939,9 @@ async function candidateApplicabilityResult(
       base.workUnit,
       error instanceof Error ? error.message : String(error),
       coordinates,
+      error instanceof CheckpointAmbiguousBaseError
+        ? checkpointAmbiguousBaseRemedy(base.workUnit)
+        : undefined,
     );
   }
 }
@@ -1550,7 +1588,9 @@ export async function checkpointIntegration(
       detail: boundedCheckpointDetail(error instanceof Error ? error.message : String(error),
         "Checkpoint composition failed without diagnostic detail."),
       coordinates,
-      remedy: checkpointRemedy("composition-unavailable", request.workUnit),
+      remedy: error instanceof CheckpointAmbiguousBaseError
+        ? checkpointAmbiguousBaseRemedy(request.workUnit)
+        : checkpointRemedy("composition-unavailable", request.workUnit),
       payload: {
         detail: boundedCheckpointDetail(error instanceof Error ? error.message : String(error),
           "Checkpoint composition failed without diagnostic detail."),
