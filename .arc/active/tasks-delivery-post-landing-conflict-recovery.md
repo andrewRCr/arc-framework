@@ -966,24 +966,10 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   What the plan did not anticipate is where the cost landed instead: the unit stubs answered the new containment
   question with the `--all` reply, which placed an ambiguous pair as an append-only advance.
 
-### `[ ]` **6.7 Replace the four history-shape holds with plain assertions**
+### `[x]` **6.7 Replace the four history-shape holds with plain assertions**
 
 - _Goal:_ The history-shape probe file asserts the settled behavior at every hold it carries, with none left
   asserting nothing.
-
-- _Note:_ The committed-arm subject and the digest sibling go red as neither-shape, so each replacement asserts
-  what the design produces rather than what the hold awaited; the staged arm reaches its declared target. The
-  Candidate applicability hold goes red by neither route — the design keeps its observed refusal, including the
-  `detail` the hold names verbatim — so nothing forces its replacement and it is retired deliberately. Dropping
-  it as redundant against the digest hold is rejected on evidence, as is making the ancestor pick deterministic.
-
-- _Finding:_ Neither of those two can take the neither-shape route at all. Each names one field over a two-valued
-  space — `paths` is whichever half the ancestor pick exposes, `differs` is a boolean — so every result matches
-  one shape or the other, leaving the spent-hold route as the only red one. The digest sibling has taken it once
-  already with nothing fixed: the two arms write identical content deliberately, so the digests agree whenever
-  the pick lands on the branch-side ancestor, and the probe file records the same varying pick in its own comment
-  on the staged arm. What each replacement asserts is unchanged; what does not hold is the trigger, and both can
-  go red before this phase runs. Surfaced during Task 3.6.
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
@@ -998,13 +984,17 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 
         - Taken at Task 6.1 with its sibling, by the spent route its `target` declared: the staged arm refuses.
 
-    - `[ ]` **6.7.c Retire the Candidate applicability hold deliberately**
+    - `[x]` **6.7.c Retire the Candidate applicability hold deliberately**
 
-        - Identify it by its shapes, not its title. The title reads like this work unit's goal, while its
-          `target` is the resolve-branch expectation the design rejects and its `observed` — an unavailable
-          classification that stops — is the refusal the design keeps, `detail` included.
-        - Because it can never fire, it asserts nothing about the behavior it names; the replacement asserts
-          that kept refusal.
+        - Its `target` awaited the applicable classification the design rejects and its `observed` is the
+          refusal the design keeps, `detail` included — so no run could redden it. The replacement asserts that
+          refusal over the same arrangement the file's other boundaries are read against, leaving the
+          cardinality and remedy asserted where they were added.
+
+- _Outcome:_ The file carries no hold at all now, so the boundary story it tells is asserted end to end rather
+  than partly held. Three of the four went red on their own — two reporting themselves spent, one reaching the
+  target it declared — and only this one needed the decision, because a hold whose `target` the design rejects
+  and whose `observed` it keeps has no route to red at all.
 
 ### `[ ]` **6.8 Exhaust the conversion set** — validate exit criterion at segment scope
 

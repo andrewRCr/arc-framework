@@ -46,7 +46,6 @@ import {
   makeGitExec,
 } from "../helpers/integration.js";
 import { setupMultiClone } from "../helpers/multi-clone.js";
-import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -254,17 +253,13 @@ describe("Candidate applicability over an ambiguous history", () => {
       }),
     });
 
-    expectPinnedObservation(projected, {
-      behavior: "Two equally good merge bases leave the contribution provable from either one, so "
-        + "applicability should reach the applicable classification rather than report that it cannot "
-        + "classify the Candidate at all.",
-      observed: {
-        state: "classification-unavailable",
-        nextAction: "stop",
-        reason: "merge-base-ambiguous",
-        detail: "Multiple baseline-to-current merge bases are available.",
-      },
-      target: { state: "applicable" },
+    // Either ancestor would prove a contribution, and the pinned pair carries nothing naming which was
+    // meant — so the classification stops instead of resolving to whichever side the pick exposes.
+    expect(projected).toMatchObject({
+      state: "classification-unavailable",
+      nextAction: "stop",
+      reason: "merge-base-ambiguous",
+      detail: "Multiple baseline-to-current merge bases are available.",
     });
   });
 });
