@@ -144,6 +144,8 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 - _Goal:_ A5 — the shared refusal guidance Task 1.5 corrected hands every absorber reason the same "restore the
   exact terminal top" remedy, which cannot clear a dirty worktree or a top that is not checked out.
 
+    - _Amended in:_ 1.R2 (A12)
+
     - `[x]` **1.R.a Branch the remedy by absorber reason**
 
         - `DELIVERY_CHAIN_ABSORPTION_REMEDIES` in `chain-absorption.ts` keys a typed remedy and its operator
@@ -165,6 +167,23 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 - _Outcome:_ Widening `DeliveryTerminalRemedy` left closeout's total `TERMINAL_REMEDY_ACTIONS` incomplete and
   the type checker named it, so each new kind also carries the sentence closeout puts on it. The two surfaces
   stay in step by construction rather than by inspection.
+
+### `[ ]` **1.R2 Split the settlement-phase refusals by the cause they report** — amendment A12
+
+- _Goal:_ A12 — Task 1.R branched the absorber remedies by reason and left both `settlement-phase-*` arms sharing
+  one sentence. `operation-stale` is cleared by re-reading state, not by restoring the landing subject, and
+  neither arm is referenced by any test.
+
+    - `[ ]` **1.R2.a Name the act each reachable settlement-phase cause needs**
+
+        - Both emissions — the suffix phase and the terminal recording Task 3.R added — hand every cause "restore
+          the exact native landing subject before retrying settlement". `state-invalid` and `operation-stale` are
+          the reachable pair; the second is answered by re-reading state, which that sentence does not say.
+
+    - `[ ]` **1.R2.b Cover the arms that had none**
+
+        - `settlement-phase` appears in no test in the tree. Cover at least `operation-stale` — the cause this
+          work unit's own Task 2.R hit during implementation, where the named act would not have cleared it.
 
 ## **Phase 2:** Terminal absorption conflict recovery
 
@@ -457,6 +476,8 @@ failed lease leaving the reservation held rather than half-released.
 - _Goal:_ A1 — chain absorption moves the local terminal top under a lease, Tasks 2.2 and 3.2 recorded only the
   member suffix, and 3.3's typed result therefore reports a release over a ref left standing.
 
+    - _Amended in:_ 3.R2 (A11)
+
     - `[x]` **3.R.a Record the absorbed terminal top beside the observed suffix**
 
         - The settle's observation drops its last element by construction. The absorbed top is recorded with the
@@ -500,6 +521,22 @@ failed lease leaving the reservation held rather than half-released.
           check displaces the top and asserts the release blocks naming that ref, writing no state.
         - _Outcome:_ Verified RED: with the top removed from the recorded observation, all three fail and the
           sixteen pre-existing decline checks stay green.
+
+### `[ ]` **3.R2 Name the remote terminal top the decline leaves standing** — amendment A11
+
+- _Goal:_ A11 — Task 3.R closed the local half of the settle's inventory, and the remote terminal ref `publishTop`
+  moves under its own lease is neither restored nor named when the final publish fails behind it.
+
+    - `[ ]` **3.R2.a Carry the standing remote top in the typed result**
+
+        - Criterion 7 asks the result to name what it restored **and what it left standing**.
+          `ReleaseNativeDeliveryLandingResult` has a slot for the first and none for the second. Disclosure rather
+          than restoration: the shipped workflow declares the decline local-only and D9 keeps it there, so naming
+          the ref is the correction that stays inside the boundary.
+
+    - `[ ]` **3.R2.b Cover the interleaving that reaches it**
+
+        - A successful `publishTop` followed by a failed final publish has no case today.
 
 ### `[x]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
 
@@ -758,6 +795,8 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Goal:_ A base sharing no history with what it is compared against names a remedy that can clear it, at both
   pairs, rather than the rerun that cannot.
 
+    - _Amended in:_ 4.R4 (A8)
+
 - _Rationale:_ Folded in from the finding recorded on Task 4.6, which scoped the ambiguous arm alone. This arm
   became reachable at Task 4.3, when the layer below stopped folding it into an unreadable read, and no task in
   this phase had assigned it a route — so both sites answer it today with a rerun that changes nothing, which is
@@ -786,6 +825,8 @@ to a verdict and carries the cause as a discriminant instead. See
 
 - _Goal:_ A2 — Task 4.4's review-status path answers a pre-terminal member before it reaches the unrelated arm,
   and Task 4.5's second reduction ships its projection without the applicability that carries the remedy.
+
+    - _Amended in:_ 4.R5 (A9)
 
     - `[x]` **4.R.a Order the base-resolution arms ahead of the member-binding guard**
 
@@ -857,6 +898,8 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Goal:_ A4 — Task 4.8's arms sit behind a guard that returns not-applicable whenever the terminal records are
   unbound, so the ordinary work unit reaches the checkpoint's own rerun instead.
 
+    - _Amended in:_ 4.R4 (A8)
+
     - `[x]` **4.R3.a Carry the base-resolution cause into the checkpoint's movement plan**
 
         - The plan reads a movement classifier that flattens ambiguous, unrelated and unavailable into one token,
@@ -890,6 +933,41 @@ to a verdict and carries the cause as a discriminant instead. See
           whose overlap is available still declines. `checkpoint-movement.test.ts` covers the plan's side —
           reconcile on each merge-cleared cause, the evidence bar refusing an incomplete one, and `unavailable`
           added to the fails-closed `it.each`.
+
+### `[ ]` **4.R4 Restore the shadowed route and keep `unrelated` terminal** — amendment A8
+
+- _Goal:_ A8 — Task 4.R3.b hoisted the base-resolution arms above the delivery-bound guard, so the unbound work
+  unit criterion 12 names is answered `delivery-terminal-blocked` with a checkpoint rerun before 4.R3.a's split is
+  reached at all; and 4.R3.a routed `unrelated` to `reconcile-base`, which D1 places as terminal.
+
+    - `[ ]` **4.R4.a Return the base-resolution arms below the delivery-bound guard**
+
+        - Unbound then answers `not-applicable` and falls through to the movement plan, where 4.R3.a's split
+          already produces the merge remedy criterion 12 asks for. The hoist's stated rationale appears in no
+          design statement, and its only delta for a bound work unit was a payload token with no consumer.
+
+    - `[ ]` **4.R4.b Give `unrelated` a terminal disposition at the checkpoint and merge pairs**
+
+        - D1: "a terminal condition parked under the recoverable status is retried forever — the defect class this
+          work unit removes, reintroduced one layer down." `arc base merge` runs `git merge` without
+          `--allow-unrelated-histories` and cannot clear the pair. `ambiguous` keeps the route, since git collapses
+          a criss-cross through a virtual base.
+
+    - `[ ]` **4.R4.c Drive the criterion's own scenario end to end**
+
+        - No test takes an ambiguous or unrelated base through `checkpointIntegration`. Both halves of Task 4.R3
+          were proved only against the seam that hid the conflict between them.
+
+### `[ ]` **4.R5 Give the errand-merge invalidation an action, not a sentence** — amendment A9
+
+- _Goal:_ A9 — Task 4.R.b carried the base-resolution cause into the second reduction's projection and left the
+  continuation a terminal explanation asking for fresh approval, which reduces identically over the same pair.
+
+    - `[ ]` **4.R5.a Emit a remedy continuation on the base-resolution causes**
+
+        - The continuation union already carries `{kind: "remedy", remedy: SpineRemedySchema}` beside the terminal
+          explanation, and D10 requires the typed action rather than a sentence. The plan reduces from live drift,
+          so a freshly approved request over an unchanged pair returns the same invalidation.
 
 ## **Phase 5:** The predecessor relation and vocabulary migration
 
@@ -1140,6 +1218,8 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 - _Goal:_ Every consumer of the widened collector result handles the new refusal explicitly, each applying its own
   failure policy rather than inheriting one baked into the resolver.
 
+    - _Amended in:_ 6.R (A10)
+
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces
 
     - `[x]` **6.3.a Propagate through the direct call sites**
@@ -1190,6 +1270,8 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 
 - _Goal:_ The second propagation's consumers handle the new refusal too, so a reader converted through one
   propagation is not left unconverted through the other.
+
+    - _Amended in:_ 6.R (A10)
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces
 
@@ -1257,6 +1339,27 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   than partly held. Three of the four went red on their own — two reporting themselves spent, one reaching the
   target it declared — and only this one needed the decision, because a hold whose `target` the design rejects
   and whose `observed` it keeps has no route to red at all.
+
+### `[ ]` **6.R Refuse typed where the widened results are re-narrowed to throws** — amendment A10
+
+- _Goal:_ A10 — Tasks 6.3 and 6.5 required every consumer of the widened results to handle the new refusal under
+  its own failure policy. Three consumers instead throw untyped, and one discards the detail in a bare `catch`.
+
+    - `[ ]` **6.R.a Carry the cause and a clearing remedy at `handlers/candidate.ts`**
+
+        - `:159` throws `new Error(collected.detail)` and `:413`'s bare `catch {` emits `execution-failed` with no
+          detail and no remedy, discarding a cause produced one frame away. The same work unit explains the same
+          history precisely at `arc attest` (`lifecycle.ts:2771-2794`), which is the pattern to apply.
+
+    - `[ ]` **6.R.b Type the two `respond-composition.ts` refusals**
+
+        - `:224` and `:265` throw plain Errors that no consumer catches; they reach `handlers/review.ts` as
+          `unexpected-failure` with empty diagnostics.
+
+    - `[ ]` **6.R.c Name an act the composition failures can clear**
+
+        - `checkpoint-composition.ts:761` and `:1077` reach `composition-unavailable`, whose remedy is a bare
+          checkpoint rerun that cannot collapse two merge bases.
 
 ### `[x]` **6.8 Exhaust the conversion set** — validate exit criterion at segment scope
 

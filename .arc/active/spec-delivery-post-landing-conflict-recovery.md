@@ -1083,5 +1083,16 @@ does not reopen it on the same inputs.
   _Trigger:_ 8.1 terminal. _Work:_ 2.R. _Revalidated:_ verify-work-unit.
 - **A7** — 2026-09-18 — task: a check drives a post-settle member back through the landing readiness gate.
   _Supersedes:_ none. _Trigger:_ 8.1 terminal. _Work:_ 2.R2. _Revalidated:_ verify-work-unit.
+- **A8** — 2026-09-18 — task: the unbound work unit reaches the movement plan's route, and `unrelated` keeps the
+  terminal disposition D1 gives it. _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 4.R4.
+  _Revalidated:_ verify-work-unit.
+- **A9** — 2026-09-18 — task: the second reduction's invalidation carries a typed action beside the cause.
+  _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 4.R5. _Revalidated:_ verify-work-unit.
+- **A10** — 2026-09-18 — task: the widened results' remaining consumers refuse typed rather than throwing.
+  _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 6.R. _Revalidated:_ verify-work-unit.
+- **A11** — 2026-09-18 — task: the decline names the remote terminal top it leaves standing.
+  _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 3.R2. _Revalidated:_ verify-work-unit.
+- **A12** — 2026-09-18 — task: each settlement-phase refusal names the act its own cause needs.
+  _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 1.R2. _Revalidated:_ verify-work-unit.
 
 ---
