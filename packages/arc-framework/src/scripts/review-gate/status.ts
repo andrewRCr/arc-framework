@@ -1176,7 +1176,13 @@ export async function resolveReviewStatus(
     && movement.baseMovement.coordinates.base === base.currentBaseOid
     && movement.baseMovement.coordinates.head === exactMember.target.headSha;
   if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries) {
-    if (preTerminalMember) {
+    // Both base-resolution causes are answered ahead of the member-binding guard below. That guard requires an
+    // available overlap, which is exactly what neither cause leaves, so it would otherwise fire first and
+    // return a rerun of the read that produced the condition — the one remedy neither cause can clear. Whether
+    // the pair shares an ancestor, or shares two, is a fact about the pair that no member-binding read changes.
+    const baseResolutionDecides = movement.baseMovementCause === "unrelated"
+      || movement.baseMovementCause === "ambiguous";
+    if (preTerminalMember && !baseResolutionDecides) {
       if (!memberMovementBound) {
         return {
           ...base,

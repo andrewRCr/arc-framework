@@ -930,6 +930,34 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });
 
+  it("carries the cause through the base-currentness re-read, as its sibling arm does", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => {
+      state.mergeCalls += 1;
+      return { state: "base-currentness-required", target, detail: "The host requires the current base." };
+    };
+    value.readFinalPlan = async (_target, override) => override?.state === "base-currentness-required"
+      ? {
+          ...directPlan(),
+          reviewApplicability: {
+            verdict: "fresh",
+            residual: null,
+            reason: "overlap-unrelated-base",
+            judgmentRequired: false,
+          },
+        }
+      : directPlan();
+
+    // The same verdict reached through the re-read after a host currentness refusal. The cause is what tells
+    // the operator the base shares no history with the branch, and it dies at this boundary unless carried.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "review-applicability-fresh",
+      applicability: { verdict: "fresh", reason: "overlap-unrelated-base" },
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
+  });
+
   it("re-holds after a definitive provider operation failure", async () => {
     const { value, state } = dependencies();
     value.mergePinned = async (target) => {

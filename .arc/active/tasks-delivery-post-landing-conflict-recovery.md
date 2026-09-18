@@ -780,25 +780,42 @@ to a verdict and carries the cause as a discriminant instead. See
   the same prerequisite at either pair, so the two differ in what has to follow the merge rather than in whether
   one is called for at all.
 
-### `[ ]` **4.R Reach the operator with the cause at both reductions** — amendment A2
+### `[x]` **4.R Reach the operator with the cause at both reductions** — amendment A2
 
 - _Goal:_ A2 — Task 4.4's review-status path answers a pre-terminal member before it reaches the unrelated arm,
   and Task 4.5's second reduction ships its projection without the applicability that carries the remedy.
 
-    - `[ ]` **4.R.a Order the base-resolution arms ahead of the member-binding guard**
+    - `[x]` **4.R.a Order the base-resolution arms ahead of the member-binding guard**
 
         - The member-binding guard requires an available overlap, which an ambiguous or unrelated base is not, so
           it returns a rerun of the same read before the terminal statement can fire. An unrelated base is a fact
           about the pair that no member-binding read changes, so it is answered first.
+        - _Outcome:_ Both causes are ordered ahead of the guard, not only the unrelated one. The guard's
+          `reviewStatusRetryRemedy` is a rerun of the read that produced the condition, which an ambiguous base
+          cannot clear either — so an ambiguous base under a pre-terminal member now takes the same
+          `base-moved` / `rerun-checkpoint` arm a target-only request does, which Task 4.5.c fixed as its route.
+        - _Outcome:_ The guard itself is untouched. A pre-terminal member whose base resolved and whose movement
+          did not bind still reports `status-unavailable` with the same detail and remedy.
 
-    - `[ ]` **4.R.b Carry the applicability through the re-read projection**
+    - `[x]` **4.R.b Carry the applicability through the re-read projection**
 
         - The base-currentness re-read arm omits the argument its sibling passes, dropping the normalized cause
           and the remedy derived from it.
+        - _Outcome:_ `errand-merge.ts`'s `review-applicability-fresh` arm under `base-currentness-required` now
+          passes `currentnessPlan.reviewApplicability` to `invalidatedResult`, as the arm reached without a host
+          currentness refusal already did. One argument; the projection already carried the optional field.
 
-    - `[ ]` **4.R.c Cover the delivery-member vehicle**
+    - `[x]` **4.R.c Cover the delivery-member vehicle**
 
         - Every unrelated-base check runs on a singleton today, which is why the member arm shipped unobserved.
+        - _Outcome:_ Three checks over a pre-terminal delivery member in `status.test.ts`: an unrelated base
+          reaches the terminal statement, an ambiguous one reaches the checkpoint, and — as the control that
+          proves the fixture reaches the guard at all — a resolved base whose member movement does not bind
+          still reports `status-unavailable`. The control passed before the fix and the other two were RED with
+          reason `status-unavailable`, which is the defect verbatim.
+        - _Outcome:_ Written as unit checks against the stubbed status port rather than in the integration lane.
+          The integration fixture builds a real repository, host stub and attestation around a singleton; the
+          arm under test is the conjunction branch, which that fixture is documented as deliberately avoiding.
 
 ### `[ ]` **4.R2 Assert the remedy the replaced hold named** — amendment A3
 

@@ -990,6 +990,7 @@ export async function mergeErrand(
           "The final evidence requires fresh review and exact integration approval.",
           currentnessPlan.target,
           currentnessPlan.baseOid,
+          currentnessPlan.reviewApplicability,
         ),
       );
     }
