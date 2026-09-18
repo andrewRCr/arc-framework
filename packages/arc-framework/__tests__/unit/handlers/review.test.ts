@@ -1775,6 +1775,7 @@ describe("handleReviewLocalPrepare", () => {
     ["dirty-worktree", "clean-worktree"],
     ["non-commit-head", "commit-head"],
     ["unresolved-base", "base-resolved"],
+    ["ambiguous-merge-base", "base-resolved"],
   ] as const)("emits a typed invalid-input envelope for the %s precondition", async (
     reason,
     precondition,

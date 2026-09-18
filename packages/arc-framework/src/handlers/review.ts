@@ -2328,6 +2328,7 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
       return "clean-worktree" as const;
     case "non-commit-head":
       return "commit-head" as const;
+    case "ambiguous-merge-base":
     case "invalid-base":
     case "no-merge-base":
     case "unresolved-base":

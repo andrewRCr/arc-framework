@@ -836,15 +836,10 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   there is now refused, so `arrangeAmbiguousMergeBase` gained a deferred base push and the fixture publishes the
   second ancestor after attestation — the order a real Candidate reaches that state in anyway.
 
-### `[ ]` **6.2 Adopt the resolver at the overlap, effective-target, and repository-target readers**
+### `[x]` **6.2 Adopt the resolver at the overlap, effective-target, and repository-target readers**
 
 - _Goal:_ Each of the three records or diffs from one refused-or-resolved base, and the local review host stops
   examining a change set derived from an arbitrary ancestor.
-
-- _Rationale:_ `repository-target.ts` is the strongest trace in the set — its silently picked base becomes
-  `diffBaseSha` and `diffBaseTree`, the local review host's diff base, asserted in the gate's identity module and
-  used to compute the reviewed change set as `base..head`. It maps into `LocalTargetDerivationError`'s existing
-  closed reason set, beside the `no-merge-base` reason it already carries; no new error family.
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions
 
@@ -862,21 +857,21 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
         - `resolveGitCandidateTargetBase` stays on as the raising wrapper for its five call sites, so what the
           ledger records is still exception text until Task 6.5; what moved is which condition it names.
 
-    - `[ ]` **6.2.c Adopt at the repository target and map into the existing reason set**
+    - `[x]` **6.2.c Adopt at the repository target and map into the existing reason set**
 
-        - This reader reports failure by raising `LocalTargetDerivationError`, so the new reason is raised
-          through that typed error rather than returned — the channel it already uses, and no new error family.
-        - One consumer maps this reason set to review preconditions through a switch with no default arm, so a
-          new member returns undefined rather than a precondition. Give it the base-resolved precondition its
-          neighbouring base reasons already return.
-        - The reason is a **new member** of `LocalTargetInvalidReason`, not a reuse of `no-merge-base`. Reusing it
-          would conflate "no common ancestor" with "two equally good bases" at the strongest traced reader in the
-          set — the conflation this phase removes. Adding the member is a contract change for every consumer
-          switching on the enum.
-        - Build `test-first` (one behavior at a time):
+        - `ambiguous-merge-base` is a new member of `LocalTargetInvalidReason`, raised through the typed error
+          the reader already uses. It is named for its neighbour `no-merge-base` rather than for the
+          `merge-base-ambiguous` the other converted readers carry: a consumer switching on this enum reads the
+          two side by side, and the pair is the distinction the phase exists to keep.
+        - The unconverted member returns worse than the undefined precondition the plan expected. The diagnostic
+          is strict, so `precondition: undefined` fails the envelope's own parse and the handler raises a schema
+          error in place of emitting anything — the operator gets no typed refusal at all rather than an
+          incomplete one.
 
-            - A two-base history refuses with the new ambiguous reason, distinct from `no-merge-base`
-            - The local review host examines no change set derived from an arbitrary ancestor
+- _Outcome:_ Each of the three took a different channel, which is what D4's per-reader allocation predicts and a
+  shape-based one would have flattened: the overlap analyzer needed nothing, the effective-target reader answers
+  through a widened result, and the repository target raises through the closed error it already had. No new
+  error family, and no reader left picking.
 
 ### `[ ]` **6.3 Propagate the collector's widened result across its eleven call sites**
 

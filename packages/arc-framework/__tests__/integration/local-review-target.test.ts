@@ -72,6 +72,40 @@ describe("canonical local review target derivation", () => {
     await expectInvalid(nonCommit, "non-commit-head");
   });
 
+  it("tells a history with two best bases from one with none, deriving from neither", async () => {
+    // Two merges of the same pair in opposite parent orders — the one shape that leaves two best common
+    // ancestors with neither reachable from the other, so no single base defines the change set.
+    const ambiguous = await createRepository();
+    await git(ambiguous, "switch", "-c", "feature");
+    await writeFile(join(ambiguous, "feature.txt"), "feature\n", "utf8");
+    await git(ambiguous, "add", "feature.txt");
+    await git(ambiguous, "commit", "-m", "feature side");
+    const featureSide = await git(ambiguous, "rev-parse", "HEAD");
+    await git(ambiguous, "switch", "main");
+    await writeFile(join(ambiguous, "base.txt"), "base\n", "utf8");
+    await git(ambiguous, "add", "base.txt");
+    await git(ambiguous, "commit", "-m", "base side");
+    const baseSide = await git(ambiguous, "rev-parse", "HEAD");
+    await git(ambiguous, "switch", "feature");
+    await git(ambiguous, "merge", "--no-ff", "-m", "feature merge", baseSide);
+    await git(ambiguous, "switch", "main");
+    await git(ambiguous, "merge", "--no-ff", "-m", "base merge", featureSide);
+    await git(ambiguous, "switch", "feature");
+
+    await expectInvalid(ambiguous, "ambiguous-merge-base");
+
+    // The same channel, a different condition: a branch sharing no ancestor with the base has no
+    // comparison point at all, where the one above has two. Reading them as one reason would put the
+    // reviewed change set back on whichever of the two an unrecorded choice exposed.
+    const unrelated = await createRepository();
+    await git(unrelated, "switch", "--orphan", "unrelated");
+    await writeFile(join(unrelated, "other.txt"), "other\n", "utf8");
+    await git(unrelated, "add", "other.txt");
+    await git(unrelated, "commit", "-m", "unrelated root");
+
+    await expectInvalid(unrelated, "no-merge-base");
+  });
+
   it("derives exact commits, merge base, and trees from a clean repository", async () => {
     const root = await createRepository();
     await git(root, "switch", "-c", "feature");
