@@ -285,6 +285,12 @@ describe("review status over a history leaving two merge bases", () => {
       state: "base-moved",
       nextAction: "rerun-checkpoint",
       baseMovementDetail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
+      // The obligation blocks on the same history for its own reason, and says which condition held rather
+      // than reporting that the target has no base at all — the reading a zero-base history would get.
+      routedObligation: {
+        state: "blocked",
+        detail: "The Candidate target has more than one base coordinate.",
+      },
     });
   });
 

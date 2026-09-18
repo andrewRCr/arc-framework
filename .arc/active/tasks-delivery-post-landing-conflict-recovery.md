@@ -848,15 +848,19 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions
 
-    - `[ ]` **6.2.a Adopt at the overlap analyzer**
+    - `[x]` **6.2.a Adopt at the overlap analyzer**
 
-    - `[ ]` **6.2.b Adopt at the effective-target reader**
+        - Already taken at Task 4.1.a, which routed `analyzeRevisionOverlapWithClassifier` through the resolver
+          in place of its own `--all` read; Tasks 4.2 through 4.5 then carried both distinctions out of it.
+          Nothing remained here.
 
-        - Its untyped throw currently carries "The Candidate target has no sole base coordinate." — the same
-          string the ledger records as a blocked obligation's `detail`, so the surfaced message is exception text
-          rather than a result.
-        - Typing it moves the `routedObligation.detail` that Task 4.7 deliberately left unpinned; extend that
-          assertion here rather than re-editing it.
+    - `[x]` **6.2.b Adopt at the effective-target reader**
+
+        - `readGitCandidateTargetBase` answers `resolved` or a `merge-base-ambiguous` refusal, dropping the
+          reader's own `--all` parse. A target with no base at all still raises, apart from one recording more
+          than one — the two readings the single throw had been giving the same words.
+        - `resolveGitCandidateTargetBase` stays on as the raising wrapper for its five call sites, so what the
+          ledger records is still exception text until Task 6.5; what moved is which condition it names.
 
     - `[ ]` **6.2.c Adopt at the repository target and map into the existing reason set**
 
@@ -915,6 +919,14 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   propagation is not left unconverted through the other.
 
 - _Note:_ Five sites across four files, not covered by the collector's propagation.
+
+- _Note:_ `resolveGitCandidateTargetBase` is the raising wrapper Task 6.2.b left standing over
+  `readGitCandidateTargetBase`, and removing it is what finishes this task. Until it goes, the ledger records
+  the refusal as exception text — which is the half of Task 6.2.b's observation that task did not retire.
+
+- _Note:_ The review-status assertion Task 6.2.b extended pins the wrapper's text as the routed obligation's
+  `detail`. Converting the status reader moves it again, so decide what that reader composes and carry the
+  assertion to it, rather than re-editing the assertion to match whatever comes out.
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces
 
