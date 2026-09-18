@@ -372,29 +372,33 @@ const DeliveryOverlapSchema = z.strictObject({
   substantivePaths: z.array(z.string().min(1)),
   regenerablePaths: z.array(z.string().min(1)),
 });
+// Interim: these names are written out a second time rather than read off the relation they validate, so the
+// two can still drift. One verb writes them and another reads them back, which is why they move together here;
+// deriving them from the relation is what removes the second spelling for good.
 const PredecessorRelationSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("exact"),
+    kind: z.literal("unchanged"),
     observedTip: GitObjectIdSchema,
     chainBase: GitObjectIdSchema,
   }),
   z.strictObject({
-    kind: z.literal("disjoint-ahead"),
+    kind: z.literal("advanced"),
+    observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("rewound"),
     observedTip: GitObjectIdSchema,
     chainBase: GitObjectIdSchema,
     mergeBase: GitObjectIdSchema,
     overlap: DeliveryOverlapSchema,
   }),
   z.strictObject({
-    kind: z.literal("overlapping-ahead"),
+    kind: z.literal("diverged"),
     observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema.optional(),
     mergeBase: GitObjectIdSchema,
     overlap: DeliveryOverlapSchema,
-  }),
-  z.strictObject({
-    kind: z.literal("unrelated"),
-    observedTip: GitObjectIdSchema,
-    detail: z.string().min(1),
   }),
 ]);
 const EligibilitySnapshotSchema = z.strictObject({

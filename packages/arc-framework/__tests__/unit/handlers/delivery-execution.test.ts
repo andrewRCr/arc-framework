@@ -50,7 +50,7 @@ function eligibilityCloseRequest(plan = deliveryStackPlanFixture()) {
     protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
     chainBase: { head: "1".repeat(40), tree: "2".repeat(40) },
     predecessorRelation: {
-      kind: "exact" as const,
+      kind: "advanced" as const,
       observedTip: "1".repeat(40),
       chainBase: "1".repeat(40),
     },
@@ -484,7 +484,7 @@ describe("delivery execution handler", () => {
       protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
       chainBase: { head: "1".repeat(40), tree: "2".repeat(40) },
       predecessorRelation: {
-        kind: "exact",
+        kind: "advanced",
         observedTip: "1".repeat(40),
         chainBase: "1".repeat(40),
       },

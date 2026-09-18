@@ -153,7 +153,7 @@ describe("disjoint delivery eligibility", () => {
     expect(prepared.snapshot).toMatchObject({
       protectedBase: { head: observedTip },
       chainBase: { head: chainBase },
-      predecessorRelation: { kind: "disjoint-ahead", observedTip, chainBase },
+      predecessorRelation: { kind: "diverged", observedTip, chainBase },
     });
     await expect(closeDeliveryEligibility(prepared.snapshot, dependencies))
       .resolves.toMatchObject({ status: "eligible" });

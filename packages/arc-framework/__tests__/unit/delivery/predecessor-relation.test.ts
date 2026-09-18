@@ -20,24 +20,47 @@ function dependencies(): PredecessorRelationDependencies {
 }
 
 describe("predecessor relation", () => {
-  it("returns exact when the observed tip is an ancestor of the member", async () => {
+  it("reports a member built on top of the tip as an append-only advance", async () => {
     const deps = dependencies();
-    deps.readAncestry = vi.fn(async () => "ancestor" as const);
+    deps.readAncestry = vi.fn(async (ancestor: string) =>
+      ancestor === oid("c") ? "ancestor" as const : "not-ancestor" as const);
 
     await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, deps)).resolves.toEqual({
       status: "resolved",
-      relation: { kind: "exact", observedTip: oid("c"), chainBase: oid("c") },
+      relation: { kind: "advanced", observedTip: oid("c"), chainBase: oid("c") },
     });
     expect(deps.readOverlap).not.toHaveBeenCalled();
   });
 
-  it("returns disjoint-ahead with the merge base as chain base", async () => {
+  it("reports a member behind the tip as rewound rather than as a pair that diverged", async () => {
+    const deps = dependencies();
+    deps.readAncestry = vi.fn(async (ancestor: string) =>
+      ancestor === oid("b") ? "ancestor" as const : "not-ancestor" as const);
+    deps.readOverlap = vi.fn(async () => ({
+      status: "available" as const,
+      mergeBase: oid("b"),
+      overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+    }));
+
+    await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, deps)).resolves.toEqual({
+      status: "resolved",
+      relation: {
+        kind: "rewound",
+        observedTip: oid("c"),
+        chainBase: oid("b"),
+        mergeBase: oid("b"),
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+    });
+  });
+
+  it("reports an empty overlap that is not behind the tip as diverged, with a chain base", async () => {
     await expect(predecessorRelation({
       memberHead: oid("b"), observedTip: oid("c"),
     }, dependencies())).resolves.toEqual({
       status: "resolved",
       relation: {
-        kind: "disjoint-ahead",
+        kind: "diverged",
         observedTip: oid("c"),
         chainBase: oid("a"),
         mergeBase: oid("a"),
@@ -46,7 +69,7 @@ describe("predecessor relation", () => {
     });
   });
 
-  it("returns overlapping-ahead when substantive paths intersect", async () => {
+  it("names no chain base on a diverged pair whose substantive paths intersect", async () => {
     const deps = dependencies();
     deps.readOverlap = vi.fn(async () => ({
       status: "available" as const,
@@ -58,13 +81,17 @@ describe("predecessor relation", () => {
       },
     }));
 
-    await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, deps)).resolves.toMatchObject({
+    await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, deps)).resolves.toEqual({
       status: "resolved",
       relation: {
-        kind: "overlapping-ahead",
+        kind: "diverged",
         observedTip: oid("c"),
         mergeBase: oid("a"),
-        overlap: { substantivePaths: ["src/shared.ts"] },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [".arc/backlog/ROADMAP.md"],
+        },
       },
     });
   });
@@ -120,12 +147,9 @@ describe("predecessor relation", () => {
       detail: "The revisions have no common ancestor.",
     }));
     await expect(predecessorRelation({ memberHead: oid("b"), observedTip: oid("c") }, unrelated)).resolves.toEqual({
-      status: "resolved",
-      relation: {
-        kind: "unrelated",
-        observedTip: oid("c"),
-        detail: "The revisions have no common ancestor.",
-      },
+      status: "unrelated",
+      observedTip: oid("c"),
+      detail: "The revisions have no common ancestor.",
     });
 
     const unavailable = dependencies();

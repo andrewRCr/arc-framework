@@ -562,7 +562,7 @@ async function createHarness(
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
     chainBase: { head: baseHead, tree: baseTree },
-    predecessorRelation: { kind: "exact", observedTip: baseHead, chainBase: baseHead },
+    predecessorRelation: { kind: "advanced", observedTip: baseHead, chainBase: baseHead },
     top: { ref: "refs/heads/prior-top", head: priorSecond, tree: priorSecondTree },
     members: [
       {
@@ -770,7 +770,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
     chainBase: { head: baseHead, tree: baseTree },
-    predecessorRelation: { kind: "exact", observedTip: baseHead, chainBase: baseHead },
+    predecessorRelation: { kind: "advanced", observedTip: baseHead, chainBase: baseHead },
     top: { ref: "refs/heads/feat/delivery-plan-record", head: heads.at(-1)!, tree: trees.at(-1)! },
     members: plan.members.map((planned, index) => ({
       deliverableId: planned.deliverableId,

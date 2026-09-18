@@ -681,43 +681,40 @@ is a field on `diverged`, not a variant.
   than beside it, and widening the read is a compiler event at every consumer — both eligibility readers took one
   here, fail-closed, pending the dispositions 5.4 states.
 
-### `[ ]` **5.2 Migrate `predecessor-relation.ts` onto the relation's vocabulary**
+### `[x]` **5.2 Migrate `predecessor-relation.ts` onto the relation's vocabulary**
 
 - _Goal:_ The tree holds one ordered-pair spelling, so the defect class this work unit removes cannot recur under
   a second name.
 
-- _Rationale:_ `exact` collapses `unchanged` and `advanced` — the same defect class. `overlapping-ahead` becomes
-  `diverged`; `disjoint-ahead` becomes `diverged` too, except where the merge base equals the member head and the
-  overlap is necessarily empty, which is `rewound`. So this arm splits on ancestry direction rather than being
-  renamed wholesale. `overlapping-ahead` has no matching case: a member behind the tip diffs empty against the
-  merge base, so its overlap can never be the non-empty one.
+    - `[x]` **5.2.a Split `exact` into `unchanged` and `advanced`**
 
-    - `[ ]` **5.2.a Split `exact` into `unchanged` and `advanced`**
+        - Wired by role rather than by name: the observed tip is the bound element and the member head is the
+          observed one, so a member ahead of the tip is `advanced` and one behind it is `rewound`. Equal heads
+          report `unchanged`, a state the real close path reaches and the collapsed name could not report.
 
-        - This call site reads ancestry as "is the observed tip an ancestor of the member head", so the
-          tip plays the classifier's bound element and the member head plays the observed one — the inverse of
-          what the local variable names suggest. Wire by that role assignment, not by name, or `advanced` and
-          `rewound` invert here while Phase 7's readers use the opposite assignment.
+    - `[x]` **5.2.b Map `overlapping-ahead` onto `diverged`**
 
-    - `[ ]` **5.2.b Map `overlapping-ahead` onto `diverged`**
+        - The arm keeps its merge base and overlap and loses only its name. Because the accepted case merges into
+          the same name, the reader it fed now decides on the shared content instead.
 
-    - `[ ]` **5.2.c Split `disjoint-ahead` on ancestry direction**
+    - `[x]` **5.2.c Split `disjoint-ahead` on ancestry direction**
 
-        - State how the split is detected before writing it: the wrapper performs one ancestry read today, in
-          one direction, which cannot distinguish the member-behind-tip case on its own. Either add the second
-          ancestry read or use the merge-base-equals-member-head equality the design names. Both are sound; they
-          differ in how many Git reads the wrapper performs, so the choice is stated rather than left to
-          whoever implements it.
-        - Build `test-first` (one behavior at a time):
+        - Detected by a second ancestry read, not by the merge-base equality: the classifier answers from both
+          directions, and the equality shortcut settles whether the member is behind the tip without producing
+          the answer the classifier asks for. The cost is one added read on the branch that was already reading
+          an overlap.
 
-            - A member behind the tip reports `rewound`
-            - A member with an empty overlap that is not behind the tip reports `diverged`
+    - `[x]` **5.2.d Map `unrelated` onto the resolver's arm rather than a seventh variant**
 
-    - `[ ]` **5.2.d Map `unrelated` onto the resolver's arm rather than a seventh variant**
+        - The variant left the relation for the read's own arm, so the refusal that named it alongside a
+          shared-content pair shed that condition and now carries no relation — there is no variant left to
+          report a pair that relates by nothing.
 
-        - "No common ancestor" is a fact the base resolver establishes before the classifier runs, and the
-          classifier reads no Git — so the relation keeps six variants and the terminal outcome stays separated
-          from the recoverable ones.
+- _Outcome:_ One spelling remains, and the compiler walked to every place the old one was read. Because the
+  accepted and the refused case now share `diverged`, the prepare-time reader decides on the content the pair
+  shares rather than on the name, and `samePredecessorRelation` moved with the variants as the callsite it is.
+  Two spellings are deliberately still standing: the request contract restates its literals rather than deriving
+  them, and `diverged` carries a chain base only where the pair shares nothing — 5.5.a and 5.3.a own them.
 
 ### `[ ]` **5.3 Migrate `samePredecessorRelation` and the payload destinations with the variants**
 

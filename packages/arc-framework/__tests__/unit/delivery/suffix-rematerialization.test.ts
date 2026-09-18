@@ -38,7 +38,7 @@ function fixture() {
     protectedBase: { ref: target.ref, ...target.coordinates! },
     chainBase: target.coordinates!,
     predecessorRelation: {
-      kind: "exact",
+      kind: "advanced",
       observedTip: target.coordinates!.head,
       chainBase: target.coordinates!.head,
     },
@@ -391,7 +391,7 @@ describe("delivery suffix rematerialization", () => {
       ...snapshot,
       protectedBase: { ref: snapshot.protectedBase.ref, ...observedTip },
       predecessorRelation: {
-        kind: "disjoint-ahead",
+        kind: "diverged",
         observedTip: observedTip.head,
         chainBase: snapshot.chainBase.head,
         mergeBase: snapshot.chainBase.head,
@@ -428,7 +428,7 @@ describe("delivery suffix rematerialization", () => {
       protectedBase: { ref: target.ref, ...target.coordinates! },
       chainBase: target.coordinates!,
       predecessorRelation: {
-        kind: "exact",
+        kind: "advanced",
         observedTip: target.coordinates!.head,
         chainBase: target.coordinates!.head,
       },
@@ -543,7 +543,7 @@ describe("delivery suffix rematerialization", () => {
       protectedBase: { ref: target.ref, ...target.coordinates! },
       chainBase: target.coordinates!,
       predecessorRelation: {
-        kind: "exact",
+        kind: "advanced",
         observedTip: target.coordinates!.head,
         chainBase: target.coordinates!.head,
       },
@@ -834,7 +834,7 @@ describe("delivery suffix rematerialization", () => {
       protectedBase: { ref: target.ref, ...target.coordinates! },
       chainBase: target.coordinates!,
       predecessorRelation: {
-        kind: "exact",
+        kind: "advanced",
         observedTip: target.coordinates!.head,
         chainBase: target.coordinates!.head,
       },

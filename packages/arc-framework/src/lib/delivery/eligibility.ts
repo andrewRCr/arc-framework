@@ -385,30 +385,41 @@ export async function prepareDeliveryEligibility(input: {
       detail: predecessorRead.detail,
     };
   }
+  // Interim: a pair sharing no lineage refuses under the reason a pair that merely diverged takes. A rebuild
+  // does clear it, so the refusal is not wrong — but the two causes stay merged until this reader's own terminal
+  // reason lands, and the tip it carries has nowhere of its own to ride yet.
+  if (predecessorRead.status === "unrelated") {
+    return {
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: firstCandidate.deliverableId,
+      detail: `${predecessorRead.detail} Rebuild the delivery chain from a common lineage; no safe automated `
+        + "rebuild command is available.",
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    };
+  }
   const observedRelation = predecessorRead.relation;
-  if (observedRelation.kind === "overlapping-ahead" || observedRelation.kind === "unrelated") {
+  // One variant now carries both the accepted and the refused case, so the decision reads the content the pair
+  // was found to share rather than the name the pair was given.
+  if (observedRelation.kind === "diverged" && observedRelation.overlap.substantivePaths.length > 0) {
     return {
       status: "refused",
       reason: "wrong-predecessor",
       deliverableId: firstCandidate.deliverableId,
       relation: observedRelation,
-      ...(observedRelation.kind === "overlapping-ahead"
-        ? {
-            paths: observedRelation.overlap.substantivePaths,
-            detail: "The observed protected-base movement overlaps this delivery member. Rebuild the delivery "
-              + "chain against the observed tip; no safe automated rebuild command is available.",
-          }
-        : {
-            detail: `${observedRelation.detail} Rebuild the delivery chain from a common lineage; no safe automated `
-              + "rebuild command is available.",
-          }),
+      paths: observedRelation.overlap.substantivePaths,
+      detail: "The observed protected-base movement overlaps this delivery member. Rebuild the delivery "
+        + "chain against the observed tip; no safe automated rebuild command is available.",
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     };
   }
-  const chainBase = observedRelation.kind === "exact"
-    ? { head: protectedBase.head, tree: protectedBase.tree }
-    : await deps.observeRef(observedRelation.chainBase);
-  if (chainBase === null || chainBase.head !== observedRelation.chainBase) {
+  const observedChainBase = relationChainBase(observedRelation);
+  const chainBase = observedChainBase === null
+    ? null
+    : observedRelation.kind === "unchanged" || observedRelation.kind === "advanced"
+      ? { head: protectedBase.head, tree: protectedBase.tree }
+      : await deps.observeRef(observedChainBase);
+  if (chainBase === null || chainBase.head !== observedChainBase) {
     return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
   }
   const lifecyclePaths = [...new Set(input.lifecyclePaths)].sort(byteSort);
@@ -589,6 +600,14 @@ async function closeMechanicalDeliveryEligibility(
   if (currentRelation.status === "ambiguous") {
     return { status: "refused", reason: "evidence-unavailable", detail: currentRelation.detail };
   }
+  if (currentRelation.status === "unrelated") {
+    return {
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: firstMember.deliverableId,
+      detail: currentRelation.detail,
+    };
+  }
   if (!samePredecessorRelation(currentRelation.relation, snapshot.predecessorRelation)) {
     return {
       status: "refused",
@@ -598,10 +617,7 @@ async function closeMechanicalDeliveryEligibility(
       detail: "The reobserved predecessor relation does not match the prepared snapshot.",
     };
   }
-  const relationChainBaseHead = currentRelation.relation.kind === "exact"
-    || currentRelation.relation.kind === "disjoint-ahead"
-    ? currentRelation.relation.chainBase
-    : null;
+  const relationChainBaseHead = relationChainBase(currentRelation.relation);
   if (relationChainBaseHead === null || snapshot.chainBase.head !== relationChainBaseHead) {
     return {
       status: "refused",
@@ -680,19 +696,30 @@ async function closeMechanicalDeliveryEligibility(
   return { status: "eligible", snapshot };
 }
 
+/**
+ * The coordinate a relation says the chain sits on, where it says one at all.
+ *
+ * A pair found to share changed content names no base to proceed from, and the absent field is what reports
+ * that — so a reader observing the chain gets `null` rather than a coordinate it would have to trust.
+ */
+function relationChainBase(relation: DeliveryPredecessorRelation): string | null {
+  return relation.kind === "diverged" ? relation.chainBase ?? null : relation.chainBase;
+}
+
 function samePredecessorRelation(
   left: DeliveryPredecessorRelation,
   right: DeliveryPredecessorRelation,
 ): boolean {
   if (left.kind !== right.kind || left.observedTip !== right.observedTip) return false;
-  if (left.kind === "exact" && right.kind === "exact") return left.chainBase === right.chainBase;
-  if (left.kind === "unrelated" && right.kind === "unrelated") return left.detail === right.detail;
-  if (left.kind === "disjoint-ahead" && right.kind === "disjoint-ahead") {
+  if (left.kind === "unchanged" && right.kind === "unchanged") return left.chainBase === right.chainBase;
+  if (left.kind === "advanced" && right.kind === "advanced") return left.chainBase === right.chainBase;
+  if (left.kind === "rewound" && right.kind === "rewound") {
     return left.chainBase === right.chainBase && left.mergeBase === right.mergeBase
       && sameOverlap(left.overlap, right.overlap);
   }
-  if (left.kind === "overlapping-ahead" && right.kind === "overlapping-ahead") {
-    return left.mergeBase === right.mergeBase && sameOverlap(left.overlap, right.overlap);
+  if (left.kind === "diverged" && right.kind === "diverged") {
+    return left.chainBase === right.chainBase && left.mergeBase === right.mergeBase
+      && sameOverlap(left.overlap, right.overlap);
   }
   return false;
 }

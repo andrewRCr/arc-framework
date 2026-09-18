@@ -330,7 +330,7 @@ describe("arc delivery", () => {
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
           chainBase: { head, tree },
-          predecessorRelation: { kind: "exact", observedTip: head, chainBase: head },
+          predecessorRelation: { kind: "unchanged", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
@@ -388,7 +388,7 @@ describe("arc delivery", () => {
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
           chainBase: { head, tree },
-          predecessorRelation: { kind: "exact", observedTip: head, chainBase: head },
+          predecessorRelation: { kind: "unchanged", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,

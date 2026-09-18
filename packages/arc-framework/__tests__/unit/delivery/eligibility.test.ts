@@ -31,7 +31,13 @@ function dependencies(): DeliveryEligibilityCloseDependencies {
   ]);
   return {
     observeRef: vi.fn(async (ref: string) => coordinates.get(ref) ?? null),
-    readAncestry: vi.fn(async () => "ancestor" as const),
+    // The chain is stacked on the protected base, so ancestry runs one way along it: a, then b, then c.
+    readAncestry: vi.fn(async (ancestor: string, descendant: string) => {
+      const chain = [oid("a"), oid("b"), oid("c")];
+      const from = chain.indexOf(ancestor);
+      const to = chain.indexOf(descendant);
+      return from >= 0 && to >= 0 && from <= to ? "ancestor" as const : "not-ancestor" as const;
+    }),
     readOverlap: vi.fn(async () => ({
       status: "available" as const,
       mergeBase: oid("a"),
@@ -92,8 +98,12 @@ describe("prepareDeliveryEligibility", () => {
       ["candidate/second", { head: oid("c"), tree: oid("4") }],
       [oid("a"), { head: oid("a"), tree: oid("1") }],
     ]).get(ref) ?? null);
+    // The base moved to a revision the member does not sit on, so neither contains the other in either
+    // direction; everything else on the chain still runs one way.
     deps.readAncestry = vi.fn(async (ancestor, descendant) => (
-      ancestor === oid("e") && descendant === oid("b") ? "not-ancestor" as const : "ancestor" as const
+      (ancestor === oid("e") && descendant === oid("b")) || (ancestor === oid("b") && descendant === oid("e"))
+        ? "not-ancestor" as const
+        : "ancestor" as const
     ));
 
     const prepared = await prepareDeliveryEligibility({
@@ -109,7 +119,7 @@ describe("prepareDeliveryEligibility", () => {
         protectedBase: { ref: "main", head: oid("e"), tree: oid("5") },
         chainBase: { head: oid("a"), tree: oid("1") },
         predecessorRelation: {
-          kind: "disjoint-ahead",
+          kind: "diverged",
           observedTip: oid("e"),
           chainBase: oid("a"),
           mergeBase: oid("a"),
@@ -235,7 +245,7 @@ describe("prepareDeliveryEligibility", () => {
       reason: "wrong-predecessor",
       deliverableId: plan.members[0]!.deliverableId,
       relation: {
-        kind: "overlapping-ahead",
+        kind: "diverged",
         observedTip: oid("a"),
         mergeBase: oid("a"),
         overlap: { substantivePaths: ["src/shared.ts"] },
@@ -268,19 +278,18 @@ describe("prepareDeliveryEligibility", () => {
       detail: "The revisions have no common ancestor.",
     }));
 
-    await expect(prepareDeliveryEligibility({
+    const refusal = await prepareDeliveryEligibility({
       plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
-    }, deps)).resolves.toMatchObject({
+    }, deps);
+    expect(refusal).toMatchObject({
       status: "refused",
       reason: "wrong-predecessor",
       deliverableId: plan.members[0]!.deliverableId,
-      relation: {
-        kind: "unrelated",
-        observedTip: oid("a"),
-        detail: "The revisions have no common ancestor.",
-      },
+      detail: expect.stringContaining("The revisions have no common ancestor."),
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     });
+    // A pair sharing no lineage relates by nothing, so the refusal carries no variant to report it with.
+    expect(refusal).not.toHaveProperty("relation");
   });
 
   it("refuses an empty non-terminal candidate by exact head or tree identity", async () => {
@@ -671,7 +680,7 @@ describe("eligibility observation bracket", () => {
     const tampered = {
       ...prepared.snapshot,
       predecessorRelation: {
-        kind: "disjoint-ahead" as const,
+        kind: "diverged" as const,
         observedTip: prepared.snapshot.protectedBase.head,
         chainBase: oid("f"),
         mergeBase: oid("f"),

@@ -57,21 +57,28 @@ export function classifyPredecessorRelation(input: {
 }
 
 export type DeliveryPredecessorRelation =
-  | { readonly kind: "exact"; readonly observedTip: string; readonly chainBase: string }
+  | { readonly kind: "unchanged"; readonly observedTip: string; readonly chainBase: string }
+  | { readonly kind: "advanced"; readonly observedTip: string; readonly chainBase: string }
   | {
-      readonly kind: "disjoint-ahead";
+      readonly kind: "rewound";
       readonly observedTip: string;
       readonly chainBase: string;
       readonly mergeBase: string;
       readonly overlap: AvailableOverlap["overlap"];
     }
   | {
-      readonly kind: "overlapping-ahead";
+      readonly kind: "diverged";
       readonly observedTip: string;
+      /**
+       * Absent where the pair was read at a base the member does not sit on top of.
+       *
+       * Carrying it on every diverged pair is what retires the close-time reader's null branch, and that branch
+       * is the only thing refusing a non-empty overlap there — so the two move together, not here.
+       */
+      readonly chainBase?: string;
       readonly mergeBase: string;
       readonly overlap: AvailableOverlap["overlap"];
-    }
-  | { readonly kind: "unrelated"; readonly observedTip: string; readonly detail: string };
+    };
 
 export type PredecessorRelationRead =
   | { readonly status: "resolved"; readonly relation: DeliveryPredecessorRelation }
@@ -86,6 +93,7 @@ export type PredecessorRelationRead =
         readonly automatedCommand: readonly string[];
       };
     }
+  | { readonly status: "unrelated"; readonly observedTip: string; readonly detail: string }
   | { readonly status: "unavailable"; readonly detail: string };
 
 export interface PredecessorRelationDependencies {
@@ -94,24 +102,44 @@ export interface PredecessorRelationDependencies {
 }
 
 /**
- * Classify one delivery member against an independently observed protected-base tip.
+ * Relate one delivery member to an independently observed protected-base tip.
+ *
+ * The tip is the bound element of the pair and the member head is the observed one, which is the inverse of what
+ * the names suggest: the question is whether the member still sits on top of the tip it was built against, so a
+ * member ahead of the tip is the append-only advance and a member behind it is the rewind.
+ *
+ * Both ancestry directions are read, because the classification needs both: one answer places a pair only when
+ * it is positive, and a pair where neither revision contains the other is what a single read cannot tell from a
+ * read that failed. Only a pair whose relation names a merge base is read for one.
  *
  * @param input - Exact member and observed-tip revisions.
  * @param deps - Exact ancestry and overlap readers.
- * @returns The established predecessor relation, or precise unavailable evidence.
+ * @returns The established predecessor relation, or the arm naming why there is none to establish.
  */
 export async function predecessorRelation(
   input: { readonly memberHead: string; readonly observedTip: string },
   deps: PredecessorRelationDependencies,
 ): Promise<PredecessorRelationRead> {
-  const ancestry = await deps.readAncestry(input.observedTip, input.memberHead);
-  if (ancestry === "unresolvable") {
+  const [tipInMember, memberInTip] = await Promise.all([
+    deps.readAncestry(input.observedTip, input.memberHead),
+    deps.readAncestry(input.memberHead, input.observedTip),
+  ]);
+  const variant = classifyPredecessorRelation({
+    boundHead: input.observedTip,
+    observedHead: input.memberHead,
+    boundIsAncestorOfObserved: tipInMember,
+    observedIsAncestorOfBound: memberInTip,
+    // An overlap resolves from exactly one base, since a pair leaving more than one leaves by the ambiguous arm
+    // below before any relation is built. One is therefore the count every pair reaching a relation is read at.
+    mergeBaseCount: 1,
+  });
+  if (variant.kind === "unknown") {
     return { status: "unavailable", detail: "The observed tip ancestry could not be established." };
   }
-  if (ancestry === "ancestor") {
+  if (variant.kind === "unchanged" || variant.kind === "advanced") {
     return {
       status: "resolved",
-      relation: { kind: "exact", observedTip: input.observedTip, chainBase: input.observedTip },
+      relation: { kind: variant.kind, observedTip: input.observedTip, chainBase: input.observedTip },
     };
   }
 
@@ -132,16 +160,13 @@ export async function predecessorRelation(
     return { status: "unavailable", detail: overlap.detail };
   }
   if (overlap.status === "unrelated") {
-    return {
-      status: "resolved",
-      relation: { kind: "unrelated", observedTip: input.observedTip, detail: overlap.detail },
-    };
+    return { status: "unrelated", observedTip: input.observedTip, detail: overlap.detail };
   }
-  if (overlap.overlap.substantivePaths.length === 0) {
+  if (variant.kind === "rewound") {
     return {
       status: "resolved",
       relation: {
-        kind: "disjoint-ahead",
+        kind: "rewound",
         observedTip: input.observedTip,
         chainBase: overlap.mergeBase,
         mergeBase: overlap.mergeBase,
@@ -152,8 +177,12 @@ export async function predecessorRelation(
   return {
     status: "resolved",
     relation: {
-      kind: "overlapping-ahead",
+      kind: "diverged",
       observedTip: input.observedTip,
+      // The chain base rides only where the pair shares no changed content, which is where the reader below
+      // observes the chain from it. Where they do share content, nothing downstream may proceed from a base,
+      // and the absent field is what says so until the refusal is written out.
+      ...(overlap.overlap.substantivePaths.length === 0 ? { chainBase: overlap.mergeBase } : {}),
       mergeBase: overlap.mergeBase,
       overlap: overlap.overlap,
     },
