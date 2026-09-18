@@ -566,7 +566,7 @@ failed lease leaving the reservation held rather than half-released.
   absorbed on the next `land-status`, and a separate wedged landing releases by decline with the reservation held
   on a failed lease.
 
-    - _Amended in:_ 3.R (A1)
+    - _Amended in:_ 3.R (A1), 3.R2 (A11)
 
 - _Outcome:_ Planned as a validation pass over existing coverage, executed as a build: no fixture reached suffix
   settlement at all, so `delivery-native-suffix-e2e.ts` and `delivery-native-suffix.e2e.test.ts` are both new.
@@ -816,7 +816,7 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Goal:_ A base sharing no history with what it is compared against names a remedy that can clear it, at both
   pairs, rather than the rerun that cannot.
 
-    - _Amended in:_ 4.R4 (A8)
+    - _Amended in:_ 4.R4 (A8, A13)
 
 - _Rationale:_ Folded in from the finding recorded on Task 4.6, which scoped the ambiguous arm alone. This arm
   became reachable at Task 4.3, when the layer below stopped folding it into an unreadable read, and no task in
@@ -919,7 +919,7 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Goal:_ A4 — Task 4.8's arms sit behind a guard that returns not-applicable whenever the terminal records are
   unbound, so the ordinary work unit reaches the checkpoint's own rerun instead.
 
-    - _Amended in:_ 4.R4 (A8)
+    - _Amended in:_ 4.R4 (A8, A13)
 
     - `[x]` **4.R3.a Carry the base-resolution cause into the checkpoint's movement plan**
 
@@ -1428,6 +1428,8 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
 
 - _Goal:_ Batch-verify the enumerated surface: a two-merge-base history refuses typed at every converted reader,
   and both propagations reach every consuming call site.
+
+    - _Amended in:_ 6.R (A10)
 
 - _Outcome:_ The criterion's two halves take different proofs, which is what sizes the gaps the plan could not.
   Readers must be observed refusing — all six are, each over a real two-base history — while call sites must

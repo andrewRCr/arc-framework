@@ -497,3 +497,39 @@ condition rather than the command, and the operator is expected to recognize a s
 One route was considered and rejected as out of scope: adding `--allow-unrelated-histories` to `mergeAppendOnly`
 would make the superseded routing correct and cost nothing here, but it changes what `arc base merge` means for
 every caller — a scope expansion for the Owner to weigh separately, not a correction this amendment may absorb.
+
+### A13's propagation sweep, both directions
+
+Bounded to what references the superseded element — D1's `unrelated` disposition — plus the evidence already
+recorded for it. Every hit and its disposition:
+
+**Revised in this batch.**
+
+- § Cross-cutting Considerations, _Refusal recoverability_: "`unavailable` is recoverable and `unrelated` is
+  terminal" was the sentence resting directly on the superseded row. Marked at the locus.
+- `base-overlap.ts`'s `resolveSoleMergeBase` doc comment carried the same disposition as the resolver's own
+  statement of what each arm leaves a caller. It reads as clearable-by-hand now; no amendment id, since planning
+  ids do not go in code.
+- Tasks 4.8 and 4.R3 both record the routing A8 superseded, so both `_Amended in:_` lines name A13 beside it —
+  a reader needs the replacement, not only the retraction.
+
+**Unaffected, checked.**
+
+- § D3's `resolver unrelated` row keeps "rebuild from a common lineage — no automated command". A different pair:
+  giving a member head and the protected-base tip a common ancestor does not make the member a valid predecessor,
+  so the rebuild is the act, and the row already declines to invite a retry.
+- Success Criteria 11 and 12 are satisfied rather than contradicted — 11 admits either a clearing remedy or a
+  terminal statement, and the hand merge is the first limb.
+- The movement observation's `movementCause` comment says both causes are cleared by a merge rather than by
+  reading again. Still exactly true; the amendment split which merge, not whether one is called for.
+- `base-drift-register.ts`'s degraded text for `unrelated` points at the checkpoint, which is now where the
+  operator is handed the join. Correct as it stands.
+- Phase 5, 6 and 7 exit criteria reference the ambiguous refusal surface, not this disposition.
+
+**Backward, over evidence already recorded.** Two segment verifiers passed over behavior a later amendment
+changed, so each takes the additive line rather than a rewritten outcome: 3.6 certified the decline whose result
+contract A11 widened, and 6.8's "carried rather than uncovered" conclusion is the one A10 reopened at three
+consumers. A12's settlement-phase refusals are revision-race arms 3.6's wedge scenarios never reach, so its
+evidence is untouched.
+
+Nothing reopened a design question, so the sweep exits with no detour.

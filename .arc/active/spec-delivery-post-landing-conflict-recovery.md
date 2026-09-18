@@ -968,9 +968,10 @@ writes are preserved, and interrupted retries converge without resubmitting a la
 **Refusal recoverability.** Every refusal this design touches must distinguish terminal failure from a
 recoverable stop, preserve a safe retry route, report the observed condition, name an actionable typed remedy,
 and keep the success path reachable after repair. Of D1's arms, `unavailable` is recoverable and `unrelated` is
-terminal; `ambiguous` is recoverable **per coordinate pair** — by merging the base in at a `(head, base)` pair,
-by re-baselining at a pinned-durable-baseline pair, and by the restart route where an append-only merge is not
-permitted. D13's per-term reasons are what let closeout satisfy the report-the-observed-condition clause at all.
+recoverable by hand merge only, since no `arc` verb joins unrelated histories (A13); `ambiguous` is recoverable
+**per coordinate pair** — by merging the base in at a `(head, base)` pair, by re-baselining at a
+pinned-durable-baseline pair, and by the restart route where an append-only merge is not permitted. D13's
+per-term reasons are what let closeout satisfy the report-the-observed-condition clause at all.
 Verification covers both the refusal and successful continuation after repair.
 
 **Merge-queue compatibility, carried as a constraint.** A queue is a head-mover, and a rebase-style submit

@@ -65,8 +65,9 @@ export type SoleMergeBaseResult =
  *
  * Reads every best common ancestor rather than the one Git would otherwise choose, so a history leaving more
  * than one is reported as leaving more than one instead of resolving to whichever side that choice exposes.
- * The arms split on what a caller can do next — `ambiguous` and `unavailable` are recoverable while `unrelated`
- * is terminal — and each caller applies its own failure policy, so none is baked in here.
+ * The arms split on what a caller can do next — `ambiguous` and `unavailable` are cleared by a command, while
+ * `unrelated` is cleared only by a merge the operator performs by hand — and each caller applies its own failure
+ * policy, so none is baked in here.
  *
  * @param options - The Git boundary and the two revisions to relate.
  * @returns The sole base, or the arm naming why there is not exactly one. Never throws.
