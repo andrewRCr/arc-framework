@@ -152,6 +152,9 @@ deliverable ID plus the ordinary terminal request as `terminalPresentation`:
 ```
 
 `summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
+Author the terminal `title` as an ordinary Conventional Commits subject: in a multi-member delivery it is also the
+source of the delivery-wide identity, so the verb takes its type from there and refuses
+(`terminal-title-not-conventional`) when it is not an admitted conventional subject.
 Supply that complete presentation set with the plan ID, repository locators, the same candidate refs and checkout
 locators, and the same `gateResults` list to the sole initial mutation verb:
 
@@ -166,10 +169,13 @@ every member ref before opening any request: delivery refs in plan order, the co
 ordinary top-branch push, then
 requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the originating branch
 over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request
-opens under the configured hold; the landing sequence releases that lock only after readiness. The verb derives
-non-terminal titles from the canonical plan and uses authored presentation only when creating a missing request; an
-exact existing request is adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact
-publication retry.
+opens under the configured hold; the landing sequence releases that lock only after readiness. The verb composes every
+request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` — one shared type and
+scope taken from the authored terminal title, positions from the canonical plan, and non-terminal summaries from the
+plan's member titles — so delivery identity and the complete range stay visible even when the host cannot link the
+requests natively. A one-member delivery is not a stack and keeps its authored title unchanged. Authored
+presentation is used only when creating a missing request; an exact existing request is adopted unchanged. A
+failed request step retains its reservation for `reconcile` or an exact publication retry.
 
 After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:

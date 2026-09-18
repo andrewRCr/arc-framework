@@ -122,6 +122,6 @@ describe("lifecycle review driver", () => {
     expect(packaged).toContain("## Delivery-Member Variant");
     expect(packaged).toContain("Do not add a `Delivery` field");
     expect(packaged).toContain("Design is content-gated for delivery members");
-    expect(packaged).toContain("{work-unit-slug} [{position}/{total}]: {member title}");
+    expect(packaged).toContain("{type}({work-unit-slug}): [{position}/{total}] {member title}");
   });
 });

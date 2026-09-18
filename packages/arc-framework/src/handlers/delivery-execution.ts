@@ -5309,7 +5309,10 @@ async function executeDeliveryCommand(
               readonly presentations: DeliveryPublicationPresentations;
             };
           }
-        | { readonly status: "refused"; readonly reason: "snapshot-mismatch" | "presentation-mismatch" }
+        | {
+            readonly status: "refused";
+            readonly reason: "snapshot-mismatch" | "presentation-mismatch" | "terminal-title-not-conventional";
+          }
       > => {
         const derived = deriveDeliveryMaterialization(plan, snapshot);
         if (derived.status !== "derived") return Promise.resolve(derived);
