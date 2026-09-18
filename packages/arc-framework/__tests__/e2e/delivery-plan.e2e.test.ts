@@ -54,10 +54,10 @@ describe("arc delivery", () => {
   it("registers compose and plan abandon from the built entry point", async () => {
     const entryHelp = await runArc(["delivery", "entry", "inspect", "--help"], repository);
     expect(entryHelp).toMatchObject({ exitCode: 0 });
-    expect(entryHelp.stdout).toContain("--input <path>");
+    expect(entryHelp.stdout).toContain("Strict JSON request path, or - for standard input");
     await writeFile(join(repository, "invalid-entry.json"), "{}\n");
     const invalidEntry = await runArc([
-      "delivery", "entry", "inspect", "--input", "invalid-entry.json", "--json",
+      "delivery", "entry", "inspect", "invalid-entry.json", "--json",
     ], repository);
     expect(invalidEntry.exitCode).toBe(1);
     expect(JSON.parse(invalidEntry.stdout)).toMatchObject({
@@ -436,12 +436,8 @@ describe("arc delivery", () => {
     const invocations = invocationsByWorkflow.flat();
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);
-      if (invocation.startsWith("arc delivery entry inspect ")) {
-        expect(invocation).toContain("--input - --json");
-      } else {
-        expect(invocation).not.toContain("--input");
-        expect(args).toContain("-");
-      }
+      expect(invocation).not.toContain("--input");
+      expect(args).toContain("-");
       const result = await runArcWithStdin(args, repository, "{}\n");
       expect(result.stderr).not.toMatch(/unknown option|missing required argument/iu);
       expect(JSON.parse(result.stdout)).toMatchObject({
@@ -1151,7 +1147,7 @@ describe("arc delivery", () => {
     await expect(readdir(deliveryNamespace)).rejects.toMatchObject({ code: "ENOENT" });
 
     const inspected = await runArc([
-      "delivery", "entry", "inspect", "--input", "delivery-entry.json", "--json",
+      "delivery", "entry", "inspect", "delivery-entry.json", "--json",
     ], repository);
     expect(inspected.exitCode, inspected.stderr).toBe(0);
     expect(JSON.parse(inspected.stdout)).toMatchObject({

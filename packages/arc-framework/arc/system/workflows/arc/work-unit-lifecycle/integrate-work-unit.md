@@ -61,7 +61,7 @@ When the status result is `integrating`, classify delivery intent before resolvi
 performing any push:
 
 ```bash
-printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input - --json
+printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect - --json
 ```
 
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.

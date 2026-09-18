@@ -70,7 +70,7 @@ describe("delivery terminal integration handoff", () => {
     const publication = preparation.indexOf("arc publish {name} --json", reservation);
     const integrationHandoff = preparation.indexOf("After the transition commit", publication);
     const status = packaged.indexOf("arc status {name} --json");
-    const inspect = packaged.indexOf("arc delivery entry inspect --input - --json");
+    const inspect = packaged.indexOf("arc delivery entry inspect - --json");
     const singletonResolution = packaged.indexOf("arc review change-request resolve --head-ref");
     const push = packaged.indexOf("**Push the WU branch upstream.**");
 
