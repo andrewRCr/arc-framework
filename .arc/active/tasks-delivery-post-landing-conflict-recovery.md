@@ -91,6 +91,8 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 - _Goal:_ A resolution that canonicalizes identically to a freshly derived one settles the landing under the
   reservation already held; anything else refuses `conflict-resolution-mismatch` without claiming clearance.
 
+    - _Amended in:_ 2.R (A6)
+
     - `[x]` **1.4.a Compare the supplied resolution against a freshly derived one**
 
         - The disclosure now derives `resolutionInput` first and branches on whether one was supplied, mirroring the
@@ -111,6 +113,8 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 - _Goal:_ Neither the suffix-proof arm nor the terminal-absorption arm names a remedy that cannot clear its own
   refusal, and both state that the reservation is kept. Amended after Task 1.1: the unmoved-suffix arm settles
   rather than refusing, so no arm this function returns directs a rerun that cannot clear it.
+
+    - _Amended in:_ 1.R (A5)
 
     - `[x]` **1.5.a Replace the unclearable remedy on both arms**
 
@@ -134,6 +138,23 @@ See `notes-delivery-post-landing-conflict-recovery.md` § Recorded exclusions.
 
 - _Outcome:_ Every refusal this function returns now names a repair that changes what the next run observes,
   rather than a bare rerun over unchanged refs.
+
+### `[ ]` **1.R Name a clearing remedy on each absorber refusal** — amendment A5
+
+- _Goal:_ A5 — the shared refusal guidance Task 1.5 corrected hands every absorber reason the same "restore the
+  exact terminal top" remedy, which cannot clear a dirty worktree or a top that is not checked out.
+
+    - `[ ]` **1.R.a Branch the remedy by absorber reason**
+
+        - `worktree-dirty`, `top-not-checked-out`, `coordinate-invalid`, `top-moved` and `absorption-unavailable`
+          all reach one arm today. Each names the condition it can actually clear; the typed reason is unchanged.
+        - The engineering standard is the floor: a recoverable refusal preserves a safe retry route and names an
+          actionable remedy, and a guard-only dead end is not one.
+
+    - `[ ]` **1.R.b Cover each reason's remedy**
+
+        - One assertion per reason that the named remedy addresses that reason, so a later arm cannot inherit a
+          remedy for a condition it does not have.
 
 ## **Phase 2:** Terminal absorption conflict recovery
 
@@ -171,6 +192,8 @@ acceptance is the existing `applicability-selection` transition, not a new waive
 - _Goal:_ Refs ARC moved itself come back with this refusal, which returns after the local member-ref rewrite —
   unlike the suffix arm, which returns before it and has nothing to restore.
 
+    - _Amended in:_ 3.R (A1)
+
     - `[x]` **2.2.a Emit the restorations with the terminal refusal**
 
         - Each rewrite records its own undo as it lands, so the refusal returns one entry per ref actually
@@ -204,6 +227,8 @@ acceptance is the existing `applicability-selection` transition, not a new waive
 - _Goal:_ Accepting an operator-absorbed terminal head is expressed by the transition that already carries the
   disclosure, the accepting identity, and a binding that dies when the content is rewritten — no record is minted.
 
+    - _Amended in:_ 2.R2 (A7)
+
     - `[x]` **2.4.a Exercise the selection over an operator-absorbed top**
 
         - The dispatch reaching `decision-required` and its `fresh` reduction with `judgmentRequired: false` were
@@ -216,6 +241,32 @@ acceptance is the existing `applicability-selection` transition, not a new waive
   selection binds a revision and subject digest, so a later head falls back to a fresh decision rather than
   inheriting the earlier one. Reconstructing the two guards — advancing on `covered` alone, and letting an
   accepted selection outlive its subject — turns each claim red, so neither rides on the probe's narrative.
+
+### `[ ]` **2.R Bind a resubmitted resolution to its conflict set** — amendment A6
+
+- _Goal:_ A6 — the terminal arm's phase publish advances the revision Task 1.4's clearance check pins, so a
+  byte-identical resubmission is refused for a mismatch on a value the protocol itself moved.
+
+    - `[ ]` **2.R.a Drop the state revision from the resolution's clearance comparison**
+
+        - The comparison keeps every member digest and the conflict set it answers; what it stops carrying is the
+          revision, which the settle advances between disclosure and resubmission.
+        - The check stays exact: moving an unrelated member, or resolving when clean, still refuses.
+
+    - `[ ]` **2.R.b Prove a suffix collision and a terminal collision together**
+
+        - Neither lane covers the pair today — the end-to-end terminal fixture has a clean suffix, and no unit
+          test supplies a resolution across a terminal wedge. That pair is where the staleness surfaces.
+
+### `[ ]` **2.R2 Drive a settled member back through the landing readiness gate** — amendment A7
+
+- _Goal:_ A7 — the second success criterion holds in the code and nothing this work unit added proves it; the new
+  suffix coverage stops at the applied status and its coordinates.
+
+    - `[ ]` **2.R2.a Assert fresh applicability, review and checks on a post-settle head**
+
+        - The check drives a member the settle rewrote into the next landing cycle and asserts it refuses on a
+          stale target rather than landing on the decision taken at the previous head.
 
 ## **Phase 3:** The decline route
 
@@ -263,6 +314,8 @@ failed lease leaving the reservation held rather than half-released.
 - _Goal:_ Every ref ARC rewrote goes back under a lease check, which keeps the decline clear of the
   rebase-and-force prohibition.
 
+    - _Amended in:_ 3.R (A1)
+
     - `[x]` **3.2.a Phase-publish the observed suffix before the rewrite loop**
 
         - The publish sits immediately before the first rewrite, so every suffix-proof refusal and disclosure —
@@ -301,6 +354,8 @@ failed lease leaving the reservation held rather than half-released.
 
 - _Goal:_ The reservation is released at the exact revision, and the result names what was restored and what was
   deliberately left standing — the landing the host performed is not reversed.
+
+    - _Amended in:_ 3.R (A1)
 
     - `[x]` **3.3.a Publish the clear at the exact revision**
 
@@ -360,12 +415,39 @@ failed lease leaving the reservation held rather than half-released.
   release, or abandon a prepared reservation through reconcile — each by verb and typed result, where it named
   only a rerun that no longer clears the refusal it described.
 
+### `[ ]` **3.R Undo every ref the settle moved** — amendment A1
+
+- _Goal:_ A1 — chain absorption moves the local terminal top under a lease, Tasks 2.2 and 3.2 recorded only the
+  member suffix, and 3.3's typed result therefore reports a release over a ref left standing.
+
+    - `[ ]` **3.R.a Record the absorbed terminal top beside the observed suffix**
+
+        - The settle's observation drops its last element by construction. The absorbed top is recorded with the
+          same before-head and observed-head pair the members carry, so one inventory covers both.
+
+    - `[ ]` **3.R.b Reconcile the phase publish rather than replacing it**
+
+        - A re-run after a terminal wedge overwrites the recorded observation wholesale, which can replace a head
+          ARC wrote with one it merely observed. The publish keeps what it already established.
+
+    - `[ ]` **3.R.c Restore the top under its own lease, or name it left standing**
+
+        - The two-ended lease guard extends to the top ref unchanged. Where the lease cannot be met, the typed
+          result names the ref under what it left standing rather than reporting a clean release.
+
+    - `[ ]` **3.R.d Cover a decline taken over an absorbed top**
+
+        - The reachable states are the top-publish refusal and the terminal state conflict, both of which hold the
+          reservation with the top already moved.
+
 ### `[x]` **3.6 Settle and release a wedged landing** — validate exit criterion at segment scope
 
 - _Goal:_ Exercise the segment's capability end to end against each wedge it opens: a suffix-wedged landing
   settles by resubmitted resolution, a terminal-wedged landing settles by the hand merge its disclosure names,
   absorbed on the next `land-status`, and a separate wedged landing releases by decline with the reservation held
   on a failed lease.
+
+    - _Amended in:_ 3.R (A1)
 
 - _Outcome:_ Planned as a validation pass over existing coverage, executed as a build: no fixture reached suffix
   settlement at all, so `delivery-native-suffix-e2e.ts` and `delivery-native-suffix.e2e.test.ts` are both new.
@@ -459,6 +541,8 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Goal:_ The third layer stops re-collapsing the pair, so the review-status reader reports the same distinction
   the analyzer established.
 
+    - _Amended in:_ 4.R (A2)
+
     - `[x]` **4.4.a Carry both arms through the observation schema and its two consumers**
 
         - Both land as peer statuses carrying no fields, so the base-movement observation and the base-merge
@@ -498,6 +582,8 @@ to a verdict and carries the cause as a discriminant instead. See
   the forcing point. It is not the only constructor: the `not-applicable` arm has a separate origin on the three
   delta causes that read no base, and those causes cannot reach a base-resolution arm. Convert the conversion and
   leave that constant alone.
+
+    - _Amended in:_ 4.R (A2), 4.R2 (A3)
 
     - `[x]` **4.5.a Make the conversion this layer's forcing point**
 
@@ -590,6 +676,8 @@ to a verdict and carries the cause as a discriminant instead. See
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
+    - _Amended in:_ 4.R2 (A3)
+
     - `[x]` **4.7.a Replace the drift-overlap hold**
 
         - Taken in Task 4.3, where the behavior moved. The hold now asserts the peer `ambiguous` status plus
@@ -619,6 +707,8 @@ to a verdict and carries the cause as a discriminant instead. See
   not read as a one-step remedy that provably cannot succeed. Settle that shape in the task rather than assuming
   the ambiguous arm's answer carries over.
 
+    - _Amended in:_ 4.R3 (A4)
+
     - `[x]` **4.8.a Route the unrelated arm at both checkpoint pairs**
 
         - Both pairs dispatch `reconcile-base`, and the details differ rather than the routes: at the pinned
@@ -628,6 +718,64 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Outcome:_ The per-pair distinction Task 4.6 established does not extend to this arm. An absent ancestor has
   the same prerequisite at either pair, so the two differ in what has to follow the merge rather than in whether
   one is called for at all.
+
+### `[ ]` **4.R Reach the operator with the cause at both reductions** — amendment A2
+
+- _Goal:_ A2 — Task 4.4's review-status path answers a pre-terminal member before it reaches the unrelated arm,
+  and Task 4.5's second reduction ships its projection without the applicability that carries the remedy.
+
+    - `[ ]` **4.R.a Order the base-resolution arms ahead of the member-binding guard**
+
+        - The member-binding guard requires an available overlap, which an ambiguous or unrelated base is not, so
+          it returns a rerun of the same read before the terminal statement can fire. An unrelated base is a fact
+          about the pair that no member-binding read changes, so it is answered first.
+
+    - `[ ]` **4.R.b Carry the applicability through the re-read projection**
+
+        - The base-currentness re-read arm omits the argument its sibling passes, dropping the normalized cause
+          and the remedy derived from it.
+
+    - `[ ]` **4.R.c Cover the delivery-member vehicle**
+
+        - Every unrelated-base check runs on a singleton today, which is why the member arm shipped unobserved.
+
+### `[ ]` **4.R2 Assert the remedy the replaced hold named** — amendment A3
+
+- _Goal:_ A3 — Task 4.7's replacement for the review-status hold compares an argv list of a different length, so
+  it passes for a correct remedy, a wrong one, and no remedy at all.
+
+    - `[ ]` **4.R2.a Replace the vacuous comparison with one that can fail**
+
+        - The assertion names the remedy actually offered, so it discriminates the condition it was written for.
+
+    - `[ ]` **4.R2.b Keep the normalized cause split at the other-movement arm**
+
+        - Task 4.5's reducer splits the cause and one arm folds it back to a single token. No composer reaches it
+          today; it re-collapses the distinction the reduction exists to carry.
+
+    - `[ ]` **4.R2.c Correct the checkpoint claim in 4.5.c and its test comment**
+
+        - Both state that merging the base in is the route offered at the checkpoint. Until A4 lands that is true
+          of no vehicle, and the comment sits in a probe file this boundary owns.
+
+### `[ ]` **4.R3 Give the unbound work unit the route 4.8 names** — amendment A4
+
+- _Goal:_ A4 — Task 4.8's arms sit behind a guard that returns not-applicable whenever the terminal records are
+  unbound, so the ordinary work unit reaches the checkpoint's own rerun instead.
+
+    - `[ ]` **4.R3.a Carry the base-resolution cause into the checkpoint's movement plan**
+
+        - The plan reads a movement classifier that flattens ambiguous, unrelated and unavailable into one token,
+          so the cause has to reach it before any arm can tell them apart.
+
+    - `[ ]` **4.R3.b Answer the pair above the delivery-bound guard**
+
+        - The reconcile route applies to the branch-and-base pair, which every work unit has. The delivery guard
+          stays where it is for the delivery-specific arms beneath it.
+
+    - `[ ]` **4.R3.c Cover a work unit with no bound terminal**
+
+        - Both arms are proved on the unbound vehicle, which is the one that routes into the loop.
 
 ## **Phase 5:** The predecessor relation and vocabulary migration
 
@@ -1063,6 +1211,8 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
 - _Goal:_ A stale binding and an absent binding become distinguishable, because the reader now finds the member
   and then compares its recorded head against the observed one.
 
+    - _Amended in:_ 7.R (A5)
+
     - `[x]` **7.3.a Resolve by deliverable identity**
 
         - The reader hands the vehicle's own three fields to the deliverable-keyed lookup, renaming the work unit
@@ -1179,10 +1329,22 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   reporting the hold spent rather than neither-shape. That empties the last of the four probe files this boundary
   owns, so no `expectPinnedObservation` call remains in any of them.
 
+### `[ ]` **7.R Report only the relation the read established** — amendment A5
+
+- _Goal:_ A5 — Task 7.3's readiness comparison leaves one direction unresolvable by construction and still emits
+  a stale reason asserting the head under review does not descend from the bound one.
+
+    - `[ ]` **7.R.a State the unread direction as unread**
+
+        - The reason distinguishes a relation that was read and disagreed from one the read could not establish;
+          the recorded exclusion already names the different remedy the second case needs.
+
 ### `[x]` **7.7 Distinguish a stale binding from an absent one** — validate exit criterion at segment scope
 
 - _Goal:_ Exercise the segment's capability: a member whose head advanced reports a stale binding at review
   readiness, and closeout names the observed condition rather than one shared word.
+
+    - _Amended in:_ 7.R (A5)
 
 - _Outcome:_ Both halves hold. Readiness answers three ways where one word stood, and the direction of the
   movement decides which: a head descending from the binding is admitted — the reading the probe declared and
@@ -1202,17 +1364,17 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
 
 ## Success Criteria
 
-- `[ ]` A real overlapping base change that prevents the host's rebase of a successor yields an exact actionable
+- `[x]` A real overlapping base change that prevents the host's rebase of a successor yields an exact actionable
   resolution offer, and approved successor and top resolutions settle the retained operation and continue the
   delivery.
-- `[ ]` New member heads receive fresh applicability, review, and checks before landing.
-- `[ ]` Stale decisions, undisclosed divergence, ref collisions, incomplete suffix observations, and ambiguous
+- `[x]` New member heads receive fresh applicability, review, and checks before landing.
+- `[x]` Stale decisions, undisclosed divergence, ref collisions, incomplete suffix observations, and ambiguous
   host results still refuse without claiming clearance.
-- `[ ]` A two-merge-base history produces a typed refusal at every converted reader — no silent pick, and no
+- `[x]` A two-merge-base history produces a typed refusal at every converted reader — no silent pick, and no
   subject, digest, or overlap derived from an arbitrary ancestor.
-- `[ ]` A stale binding and an absent binding are distinguishable at review readiness, and closeout reports a
+- `[x]` A stale binding and an absent binding are distinguishable at review readiness, and closeout reports a
   distinct reason for each of the fourteen conditions that currently reach `terminal-unsettled`.
-- `[ ]` Resolving a disclosed terminal collision by hand merge settles the landing, and the native arm's refusal
+- `[x]` Resolving a disclosed terminal collision by hand merge settles the landing, and the native arm's refusal
   returns a populated `conflictPreparation` whose `parents.refreshedPredecessor` names the required merge parent.
 - `[ ]` `delivery native land-release` takes the exact reservation selector, restores every ref ARC moved by
   lease, publishes `activeOperation: null` at the exact revision, and returns a typed result naming what it
@@ -1220,13 +1382,17 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   held.
 - `[ ]` No `expectPinnedObservation` hold remains in the four probe files this boundary owns, and the suite is
   green with none of them asserting nothing.
-- `[ ]` `predecessor-relation.ts` exports no second ordered-pair spelling and no caller reads its `exact` arm.
-- `[ ]` The shipped `deliver-stack.md` describes the protocol as changed — no instruction to settle a suffix
+- `[x]` `predecessor-relation.ts` exports no second ordered-pair spelling and no caller reads its `exact` arm.
+- `[x]` The shipped `deliver-stack.md` describes the protocol as changed — no instruction to settle a suffix
   reconciliation refusal by rerunning `land-status` without resubmitting, and the decline verb present in the
   native landing lifecycle it drives.
 - `[ ]` An ambiguous or unrelated base reaches the operator with a remedy that can clear it, or with a terminal
   statement that stops inviting one, at both eligibility readers and both reductions that can receive the
   normalized cause — none reporting a retry it cannot satisfy, and none shipping with its remedy dropped in
   projection.
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
+- `[ ]` On a work unit with no bound delivery terminal, an ambiguous or unrelated base reaches the integration
+  checkpoint with a remedy that can clear it, rather than a rerun of the checkpoint that reported it.
+- `[ ]` Every refusal arm this work unit newly routes an operator into names a remedy that can clear its own
+  condition, and review readiness states only the relation its own read established.

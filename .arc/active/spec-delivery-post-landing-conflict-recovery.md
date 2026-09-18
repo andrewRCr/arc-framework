@@ -512,11 +512,14 @@ Adopt the disclose-and-resubmit protocol ARC already runs on the provider path, 
    Digesting the projected state or the conflict set alone would each answer that differently, so the choice is
    part of the contract rather than an implementation detail.
 
-**Nothing is persisted on the input side**, so nothing can go stale; what survives the wait is the reservation
-already durable in `activeOperation`. Arrival needs no new operation, and the only state-schema addition is the
-one D9 owns for the decline's lease, not one this protocol requires — the native path
-consumes the resubmitted disclosure in the same `land-status` call that settles, at the same revision, because
-every conflict refusal returns before any state write. Adoption is the conflict collection, the
+**Nothing is persisted on the input side of this arm** (A6), so nothing here can go stale; what survives the
+wait is the reservation already durable in `activeOperation`. Arrival needs no new operation, and the only
+state-schema addition is the one D9 owns for the decline's lease, not one this protocol requires — the native
+path consumes the resubmitted disclosure in the same `land-status` call that settles, at the same revision,
+because every suffix conflict refusal returns before any state write. **D7's terminal arm does persist first**
+(A6): its phase publish advances the state revision before the wedge returns, so a resolution pinned to the
+pre-publish revision cannot match on resubmission. The resubmitted resolution therefore binds the conflict set
+it answers, not the revision that carried it. Adoption is the conflict collection, the
 disclosure, and a scope discriminant on the `native-land-status` request.
 
 The approval fires on genuine collisions only: identical trees take the `tree-equality` fast path and clean
@@ -664,7 +667,8 @@ reservation's value with `activeOperation: null` at its exact revision. Compose 
 it — including its refuse-before-publish ordering, which is the no-half-release rule already proven. What
 transfers is the undo → refuse → publish **tail** alone: the precedent mints its own teardown reservation before
 undoing, which the decline must not do, since it acts against a reservation already held. What else differs is the
-inventory undone: candidate refs and gates there, local member refs here.
+inventory undone: candidate refs and gates there, local member refs **and the absorbed terminal top** here
+(A1) — every ref the settle moved under a lease, which is the inventory Success Criterion 7 names.
 
 **The restoration target is durable; the lease is not, so the settle records it.** The single state write lands
 after the member-ref rewrite, so while the reservation is held the persisted state still carries pre-rewrite
@@ -1026,6 +1030,10 @@ and syncs to the project copy, never a copy between them.
     statement that stops inviting one — at both readers that refuse the pair (D3) and at both reductions that can
     receive the normalized cause (D1). No such refusal reports a recoverable-looking retry it cannot satisfy, and
     none ships with its remedy dropped in projection.
+12. On a work unit with no bound delivery terminal, an ambiguous or unrelated base reaches the integration
+    checkpoint with a remedy that can clear it, rather than a rerun of the checkpoint that reported it. (A4)
+13. Every refusal arm this work unit newly routes an operator into names a remedy that can clear its own
+    condition, and review readiness states only the relation its own read established. (A5)
 
 ## Open Questions
 
@@ -1047,5 +1055,27 @@ does not reopen it on the same inputs.
   head classifies as `diverged` or `rewound`. No probe simulates a rebase-style submit strategy — adopting a merge
   queue is a Non-Goal, every enumerated row moves the head from inside ARC, and no observed failure asks for one.
   The absence of end-to-end external-mover coverage is therefore deliberate and recorded, not an oversight.
+
+## Amendments
+
+- **A1** — 2026-09-18 — design: the decline's restoration inventory includes the absorbed terminal top, not
+  member refs alone. _Supersedes:_ § D9 — the inventory-undone sentence. _Trigger:_ 8.1 terminal. _Work:_ 3.R.
+  _Revalidated:_ verify-work-unit.
+- **A2** — 2026-09-18 — task: the normalized base-resolution cause reaches the operator at both reductions.
+  _Supersedes:_ none. _Trigger:_ 8.1 terminal. _Work:_ 4.R. _Revalidated:_ verify-work-unit.
+- **A3** — 2026-09-18 — task: the retired review-status hold's replacement asserts the remedy it names.
+  _Supersedes:_ none. _Trigger:_ 8.1 terminal. _Work:_ 4.R2. _Revalidated:_ verify-work-unit.
+- **A4** — 2026-09-18 — design: the integration checkpoint receives the base-resolution cause, so a work unit
+  with no bound terminal reaches the route D1 carries. _Supersedes:_ `notes-delivery-post-landing-conflict-recovery.md`
+  § Propagation surfaces — the two-reduction enumeration. _Trigger:_ 8.1 terminal. _Work:_ 4.R3.
+  _Revalidated:_ verify-work-unit.
+- **A5** — 2026-09-18 — spec-depth: each refusal this work unit newly makes reachable names a clearing remedy
+  and states only what it read. _Supersedes:_ none. _Trigger:_ 8.1 terminal. _Work:_ 1.R, 7.R.
+  _Revalidated:_ verify-work-unit.
+- **A6** — 2026-09-18 — design: the terminal arm persists before its wedge returns, so a resubmitted resolution
+  binds the conflict set rather than the revision. _Supersedes:_ § D6 — the input-side staleness sentence.
+  _Trigger:_ 8.1 terminal. _Work:_ 2.R. _Revalidated:_ verify-work-unit.
+- **A7** — 2026-09-18 — task: a check drives a post-settle member back through the landing readiness gate.
+  _Supersedes:_ none. _Trigger:_ 8.1 terminal. _Work:_ 2.R2. _Revalidated:_ verify-work-unit.
 
 ---

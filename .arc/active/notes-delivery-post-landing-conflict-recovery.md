@@ -219,10 +219,11 @@ review-status path. Editing only the first layer leaves both affected pins obser
 
 The fourth layer is the normalized verdict space, reached only through `normalizeOverlap` (`compose.ts`) — the
 sole conversion into it, though not its sole constructor: the `not-applicable` arm has its own origin on the
-three delta causes that read no base. Only two reductions can receive a base-resolution arm, both on the
-`base-movement` cause: `review-gate/status.ts` and `scripts/integration/errand-merge-composition.ts`. Candidate
-applicability is not one of them — it refuses an ambiguous base at its own `merge-base --all` read, ahead of any
-reduction.
+three delta causes that read no base. Two reductions receive a base-resolution arm on the
+`base-movement` cause: `review-gate/status.ts` and `scripts/integration/errand-merge-composition.ts`. The
+integration checkpoint is a third consumer (A4) — not a reduction, but the surface that answers a work unit with
+no bound delivery terminal, which neither reduction reaches. Candidate applicability is not a consumer at all —
+it refuses an ambiguous base at its own `merge-base --all` read, ahead of any reduction.
 
 Two consumers of the second layer take the same shape and neither is the register alone: `base-drift-register.ts`
 and `base-distance.ts`'s movement classifier both test the unavailable status and then dereference a path field.
@@ -382,3 +383,51 @@ adversarial passes found four defects that reached the fail-open or state-corrup
 introduced by repairs to earlier findings, all three in this vocabulary's territory. Phases 1-3, 6 and 7 came
 through settled and were verified against source repeatedly; their residual is specification detail that surfaces
 loudly during implementation.
+
+---
+
+## Amendment reasoning
+
+Keyed by the spec's `## Amendments` log. Only the arms whose reasoning exceeds a line are recorded here; the
+superseded text is quoted so the design body can read as the current design without losing what it replaced.
+
+### A1 — the decline's restoration inventory
+
+Superseded, § D9: _"What else differs is the inventory undone: candidate refs and gates there, local member refs
+here."_
+
+The sentence reads as a scope decision and was executed as one, but what the settle actually moves falsifies it.
+Chain absorption rewrites the local terminal top under a lease of its own, and the suffix the settle records
+excludes it by construction — the slice that builds the observed suffix drops its last element. The decline
+therefore restores the members, leaves the top standing, and reports that it released. Success Criterion 7
+already required "every ref ARC moved by lease", so the criterion and the design disagreed; the criterion is
+pre-commitment text and governs. What the settle moves is what the decline undoes.
+
+The same publish carries a second decision this amendment settles: the phase publish replaces the recorded
+observation wholesale rather than reconciling it, so a re-run after a terminal wedge can overwrite a head ARC
+wrote with one it merely observed. Restructuring the inventory while leaving that replacement unexamined would
+leave a decision half-made in the code the amendment is already rewriting.
+
+### A4 — the integration checkpoint as a cause consumer
+
+Superseded, § Propagation surfaces: _"Only two reductions can receive a base-resolution arm, both on the
+`base-movement` cause."_
+
+The enumeration is accurate about reductions and wrong about reach. Both reductions answer a work unit that has
+a bound delivery terminal. The ordinary work unit has none — and it is exactly the one review status routes to
+the checkpoint, which reads a movement classifier that flattens ambiguous, unrelated and unavailable into one
+`unknown` and answers with a rerun of itself. Task 4.8 already set out to give that pair a route at both
+checkpoint pairs; the arms it authored sit behind a guard that returns before them whenever the terminal records
+are unbound, so the route exists and is unreachable on the only vehicle that needs it. Admitting the checkpoint
+as a third consumer is what makes 4.8's stated outcome true, rather than new scope.
+
+### A6 — the terminal arm persists before its wedge returns
+
+Superseded, § D6: _"Nothing is persisted on the input side, so nothing can go stale."_
+
+True of the suffix arm, which returns before any state write, and the sentence was derived there. The terminal
+arm publishes its phase transition before the wedge returns, which advances the state revision the resolution
+pins. An operator who resubmits the byte-identical resolution the disclosure asked for is then refused for a
+mismatch on a revision that moved underneath them, with nothing about the conflict set changed. Binding the
+resolution to the conflict set it answers, rather than to the revision that carried it, keeps the clearance
+check exact while removing the dependence on a value the protocol itself moves.
