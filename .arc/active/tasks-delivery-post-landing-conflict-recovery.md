@@ -1087,23 +1087,22 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   the process is in — is what the first run got wrong. The readiness probe reached its declared target here
   rather than at Task 7.6, so 7.6.a landed in this increment.
 
-### `[ ]` **7.4 Retire `delivery-member-mismatch` and emit the arm-specific outcomes**
+### `[x]` **7.4 Retire `delivery-member-mismatch` and emit the arm-specific outcomes**
 
 - _Goal:_ The reader stops emitting one code three times over, discriminated only by path, and each surviving
   outcome carries its own remedy.
 
-- _Rationale:_ Of its three emissions the work-unit one becomes tautological because it is the lookup key, the
-  deliverable one becomes the `not-in-plan` arm under its own remedy, and the plan one survives as the explicit
-  assertion under a renamed identity — so the code itself stops being emitted at all. Treat that as a user-facing
-  surface change, not an internal rename.
+    - `[x]` **7.4.a Drop the tautological emission and route the other two**
 
-    - `[ ]` **7.4.a Drop the tautological emission and route the other two**
+        - The three emissions become `delivery-plan-absent`, `delivery-plan-mismatch`, and
+          `delivery-member-not-in-plan`. Each keeps the path it had and each names the act that clears it —
+          reserve a plan, re-read the plan id, re-read the deliverable id — so no remedy directs a caller at
+          inputs that never reach what failed. The retired code is emitted nowhere in source.
 
-        - Build `test-first` (one behavior at a time):
-
-            - A deliverable miss reports `not-in-plan` with its own remedy
-            - A plan mismatch reports the renamed identity
-            - No path emits the retired code
+- _Outcome:_ The work-unit emission was tautological only as a comparison. Resolving by the key does retire the
+  post-hoc check, but _no plan carries this work unit_ is a real miss that had no emission of its own before, and
+  it takes the retired path — so the three codes out are not the three codes in: two are renamed survivors and
+  one is new.
 
 ### `[ ]` **7.5 Give each of closeout's fourteen conditions a distinct reason and typed remedy**
 

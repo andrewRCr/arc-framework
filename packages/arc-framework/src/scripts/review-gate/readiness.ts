@@ -515,25 +515,30 @@ async function evaluateDeliveryMember(
       "Delivery state is unavailable, so the member could not be authenticated.",
     )];
   }
+  // Each miss is cleared by a different act, so each names its own: one shared code could only carry a
+  // remedy directing two of the three at inputs that never reach what failed.
   if (resolution.status === "no-plan") {
     return [fact(
-      "delivery-member-mismatch",
+      "delivery-plan-absent",
       "vehicle.workUnitSlug",
-      "No delivery plan carries the asserted work unit.",
+      "No delivery plan carries the asserted work unit. Reserve one for it, or review this change under "
+      + "the work unit's own vehicle.",
     )];
   }
   if (resolution.status === "plan-mismatch") {
     return [fact(
-      "delivery-member-mismatch",
+      "delivery-plan-mismatch",
       "vehicle.planId",
-      "The work unit's delivery plan is not the asserted plan.",
+      "The work unit's delivery plan is not the asserted plan. Re-read the plan id from the current "
+      + "delivery plan and resubmit.",
     )];
   }
   if (resolution.status === "not-in-plan") {
     return [fact(
-      "delivery-member-mismatch",
+      "delivery-member-not-in-plan",
       "vehicle.deliverableId",
-      "The resolved delivery plan does not carry the asserted deliverable.",
+      "The resolved delivery plan does not carry the asserted deliverable. Re-read the deliverable id "
+      + "from the plan's members and resubmit.",
     )];
   }
   if (resolution.status === "in-plan-unbound") {

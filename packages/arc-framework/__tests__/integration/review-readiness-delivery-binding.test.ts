@@ -203,7 +203,7 @@ describe("readiness delivery binding at its composition roots", () => {
     // carries the member with no head recorded for it.
     expect(resolvedFromUnbound).toMatchObject({
       state: "invalid",
-      diagnostics: [{ code: "delivery-member-mismatch" }],
+      diagnostics: [{ code: "delivery-plan-absent" }],
     });
   });
 
@@ -228,7 +228,7 @@ describe("readiness delivery binding at its composition roots", () => {
       state: "blocked",
       payload: { reason: "readiness-failed" },
       diagnostics: expect.arrayContaining([
-        expect.objectContaining({ code: "delivery-member-mismatch" }),
+        expect.objectContaining({ code: "delivery-plan-absent" }),
       ]),
     });
   });

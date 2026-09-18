@@ -954,10 +954,15 @@ describe("delivery-member authentication against delivery state", () => {
   });
 
   it.each([
-    ["no plan carries the work unit", { status: "no-plan" } as const, "vehicle.workUnitSlug"],
-    ["the resolved plan is another", { status: "plan-mismatch" } as const, "vehicle.planId"],
-    ["the plan omits the deliverable", { status: "not-in-plan" } as const, "vehicle.deliverableId"],
-  ])("refuses an identity miss where %s, naming its own path", async (_case, answer, path) => {
+    ["no plan carries the work unit", { status: "no-plan" } as const, "delivery-plan-absent", "vehicle.workUnitSlug"],
+    ["the resolved plan is another", { status: "plan-mismatch" } as const, "delivery-plan-mismatch", "vehicle.planId"],
+    [
+      "the plan omits the deliverable",
+      { status: "not-in-plan" } as const,
+      "delivery-member-not-in-plan",
+      "vehicle.deliverableId",
+    ],
+  ])("refuses an identity miss where %s under its own code", async (_case, answer, code, path) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
@@ -965,8 +970,42 @@ describe("delivery-member authentication against delivery state", () => {
 
     expect(result).toMatchObject({
       state: "invalid",
-      payload: { facts: [{ code: "delivery-member-mismatch", path }] },
+      payload: { facts: [{ code, path }] },
     });
+  });
+
+  it.each([
+    ["no-plan", { status: "no-plan" } as const],
+    ["plan-mismatch", { status: "plan-mismatch" } as const],
+    ["not-in-plan", { status: "not-in-plan" } as const],
+  ])("names a route out of the %s miss rather than the condition alone", async (_case, answer) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
+    );
+
+    expect(result.state).toBe("invalid");
+    if (result.state !== "invalid") return;
+    // Each miss is cleared differently, so a shared remedy would direct two of the three at inputs that
+    // cannot reach what failed — the same defect as sharing one code.
+    expect(result.payload.facts[0]?.message).toMatch(/Reserve|Re-read/u);
+  });
+
+  it("emits the retired shared code on no identity miss at all", async () => {
+    for (const answer of [
+      { status: "no-plan" } as const,
+      { status: "plan-mismatch" } as const,
+      { status: "not-in-plan" } as const,
+      { status: "in-plan-unbound" } as const,
+      { status: "unavailable" } as const,
+    ]) {
+      const result = await evaluateReviewReadiness(
+        readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+        { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
+      );
+
+      expect(JSON.stringify(result)).not.toContain("delivery-member-mismatch");
+    }
   });
 
   it("reports at most one identity miss, because the lookup answers with one arm", async () => {
@@ -984,7 +1023,7 @@ describe("delivery-member authentication against delivery state", () => {
 
     expect(result).toMatchObject({
       state: "invalid",
-      payload: { facts: [{ code: "delivery-member-mismatch", path: "vehicle.workUnitSlug" }] },
+      payload: { facts: [{ code: "delivery-plan-absent", path: "vehicle.workUnitSlug" }] },
     });
   });
 
