@@ -160,6 +160,12 @@ Scope decisions this work unit made deliberately. Each is a thing a later reader
   `github-refresh.ts` (one of its two), `committed-progress.ts`, `hosted-reservation-discharge.ts`.
 - **Two decomposition call sites** reached the read-all-then-refuse shape independently under a third spelling of
   the reason code, with no observed failure behind either.
+- **An unresolvable ancestry read is not a fifteenth terminal condition.** The forward-only read classifies both
+  `not-ancestor` and `unresolvable` as `unknown`, so a merged head that genuinely does not descend from the bound
+  one and a merged head whose objects are simply not fetched locally both report `terminal-head-moved` and both
+  draw the rebind act — where the second clears by fetching and rerunning instead. Fourteen conditions is the
+  design's own sizing and review readiness collapses the same pair under `delivery-member-stale`, so the two
+  readers agree rather than one lagging; splitting the pair is a forward amendment, not a gap left behind here.
 - **`git-contribution-proof.ts` and `git-review-contribution-applicability.ts`** are allocated but not converted,
   on the absence of a traced defect. Both already return typed reasons, but that alone does not separate them from
   the converted set: `git-review-contribution-applicability.ts` is the same code shape line for line as

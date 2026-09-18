@@ -10,6 +10,7 @@ import {
   deliveryThreeMemberStackPlanFixture,
   deliveryThreeMemberStackPlanForWorkUnitFixture,
 } from "../../fixtures/delivery-plan.js";
+import type { DeliveryHostRequestObservation } from "../../../src/lib/delivery/host.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 function closeoutFixture(storedWorkUnitId?: string) {
@@ -121,6 +122,93 @@ function closeoutFixture(storedWorkUnitId?: string) {
     currentState: () => stateRecord,
   };
 }
+
+/** One deviation from the exactly-settled arrangement, carried through the closeout verb itself. */
+interface CloseoutDeviation {
+  readonly state?: (state: DeliveryStateV1) => DeliveryStateV1;
+  readonly request?: Record<string, unknown>;
+  readonly observation?: DeliveryHostRequestObservation;
+}
+
+function withTerminal(
+  state: DeliveryStateV1,
+  patch: Partial<DeliveryStateV1["members"][number]>,
+): DeliveryStateV1 {
+  return {
+    ...state,
+    members: state.members.map((member, index) =>
+      index === state.members.length - 1 ? { ...member, ...patch } : member),
+  };
+}
+
+async function closeoutWith(deviation: CloseoutDeviation): Promise<string> {
+  const fixture = closeoutFixture();
+  const terminal = fixture.state.members.at(-1)!;
+  const dependencies: DeliveryCloseoutDependencies = {
+    ...fixture.dependencies,
+    stateStore: {
+      ...fixture.dependencies.stateStore,
+      read: async () => ({
+        status: "ok" as const,
+        value: {
+          revision: 7,
+          value: deviation.state === undefined ? fixture.state : deviation.state(fixture.state),
+        },
+      }),
+    },
+    retirement: {
+      ...fixture.dependencies.retirement,
+      readTerminalRequest: async () => deviation.observation ?? ({
+        status: "observed" as const,
+        request: {
+          binding: terminal.changeRequest!,
+          repository: "owner/repo",
+          headRepository: "owner/repo",
+          headRef: "feat/delivery-plan-record",
+          headSha: terminal.coordinates!.head,
+          baseRef: "delivery-target",
+          state: "merged" as const,
+          draft: false,
+          ...deviation.request,
+        },
+      }),
+    },
+  };
+  const result = await closeoutCompletedDelivery(
+    { workUnitId: fixture.plan.workUnitId, repository: "owner/repo", remote: "origin" },
+    dependencies,
+  );
+  if (result.status !== "blocked") throw new Error(`expected a blocked closeout, got ${result.status}`);
+  return result.reason;
+}
+
+describe("delivery closeout over every terminal condition", () => {
+  it.each<[string, CloseoutDeviation]>([
+    ["terminal-ref-unbound", { state: (state) => withTerminal(state, { ref: null }) }],
+    ["terminal-request-unbound", { state: (state) => withTerminal(state, { changeRequest: null }) }],
+    ["terminal-coordinates-unbound", { state: (state) => withTerminal(state, { coordinates: null }) }],
+    ["terminal-target-unbound", { state: (state) => ({ ...state, target: null }) }],
+    ["terminal-request-unobserved", { observation: { status: "absent" } }],
+    ["terminal-provider-mismatch", { request: { binding: { providerId: "gitlab", changeRequestId: "401" } } }],
+    ["terminal-request-mismatch", { request: { binding: { providerId: "github", changeRequestId: "402" } } }],
+    ["terminal-repository-mismatch", { request: { repository: "other/repo" } }],
+    ["terminal-head-repository-mismatch", { request: { headRepository: "fork/repo" } }],
+    ["terminal-head-ref-mismatch", { request: { headRef: "feat/some-other-record" } }],
+    ["terminal-head-moved", { request: { headSha: "a".repeat(40) } }],
+    ["terminal-base-ref-mismatch", { request: { baseRef: "some-other-target" } }],
+    ["terminal-not-merged", { request: { state: "open" } }],
+  ])("carries %s out of the verb under its own name", async (reason, deviation) => {
+    await expect(closeoutWith(deviation)).resolves.toBe(reason);
+  });
+
+  it("never reaches the fourteenth condition, because coherence answers for it first", async () => {
+    // A state carrying no terminal member carries none of the plan's members either, and closeout
+    // compares the two sequences before it verifies anything. The condition stays named so the
+    // settlement reader is total over its own input, not because this verb can produce it.
+    await expect(closeoutWith({ state: (state) => ({ ...state, members: [] }) }))
+      .resolves.toBe("state-plan-mismatch");
+  });
+});
 
 describe("delivery closeout", () => {
   it("verifies the exact terminal request before reaping residue", async () => {

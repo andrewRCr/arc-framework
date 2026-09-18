@@ -1179,10 +1179,20 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   reporting the hold spent rather than neither-shape. That empties the last of the four probe files this boundary
   owns, so no `expectPinnedObservation` call remains in any of them.
 
-### `[ ]` **7.7 Distinguish a stale binding from an absent one** — validate exit criterion at segment scope
+### `[x]` **7.7 Distinguish a stale binding from an absent one** — validate exit criterion at segment scope
 
 - _Goal:_ Exercise the segment's capability: a member whose head advanced reports a stale binding at review
   readiness, and closeout names the observed condition rather than one shared word.
+
+- _Outcome:_ Both halves hold. Readiness answers three ways where one word stood, and the direction of the
+  movement decides which: a head descending from the binding is admitted — the reading the probe declared and
+  the relation table carries — while a head the binding does not contain is stale, and a member the plan holds
+  with nothing recorded is unbound. The head-keyed lookup collapsed three situations, not two, so the case that
+  opened this work unit clears by admission while the distinction it named is carried by the other two answers.
+  Closeout carries thirteen conditions out of the verb under their own names; the fourteenth is answered by plan
+  coherence before the reader runs, so it stays named to keep that reader total rather than because this verb
+  can reach it. One residual is recorded in `notes-delivery-post-landing-conflict-recovery.md` § Recorded
+  exclusions.
 
 ## **Phase 8:** Verification
 
