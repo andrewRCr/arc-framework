@@ -13,12 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** Planning — overlap and relation vocabulary authored whole, Phases 4-5 regenerated against
-  it, audit findings folded, task list finalized at `Heavy` and activated
-- **Next Task:** Task 1.1 — Collect the complete member-suffix conflict set (line ~18)
+- **Last Completed:** Phase 7 — ancestry-aware readiness and per-term closeout (Tasks 7.1-7.7)
+- **Next Task:** Task 8.1 — Complete verification (line ~1198)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — compose the provider conflict collector through an adapter; build test-first
+- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md`; every implementation phase is closed
 
 - **PR URL:** [none]
 - **Completed:** [none]
