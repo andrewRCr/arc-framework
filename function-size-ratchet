@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "function-size-ratchet",
+  "claimId": "8e769a3f154b5497fb79132c05bcc6dc",
+  "createdAt": "2026-09-18T12:37:46.548Z",
+  "updatedAt": "2026-09-18T12:37:46.548Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add max-lines-per-function as an error with a recorded bulk-suppressions baseline, so new oversized functions fail while the recorded debt can only shrink",
+  "branch": "chore/function-size-ratchet",
+  "origin": "inbox",
+  "originEntry": "Backstop function and file size with a suppressions baseline before the debt grows further",
+  "originEntrySourceDigest": "sha256:3f6b477713721c0f722d430a8897feb190762b6af42486a7dd63f28ea1bf3068",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
