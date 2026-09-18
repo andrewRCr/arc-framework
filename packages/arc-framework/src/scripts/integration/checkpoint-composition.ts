@@ -39,7 +39,7 @@ import {
   projectGitCandidateEffectiveTarget,
   resolveGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
-import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
+import { collectGitCandidateSubject } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
 import { inspectRepositoryDeliveryCandidateRenewal } from "../../lib/delivery/repository-entry.js";
 import {
@@ -755,7 +755,7 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The Candidate applicability decision is no longer current.");
       }
       const config = await settings();
-      const currentTarget = await collectGitCandidateTarget({
+      const collected = await collectGitCandidateSubject({
         cwd: input.cwd,
         name: workUnit,
         baseBranch: config.settings["branch.base"],
@@ -763,6 +763,10 @@ export function createIntegrationCheckpointDependencies(input: {
         exec: input.exec,
         revision: decision.currentTarget.revision,
       });
+      if (collected.status !== "collected") {
+        throw new Error("The Candidate applicability selector's subject could not be collected.");
+      }
+      const currentTarget = collected.target;
       const priorTarget = reduceCandidateDurableBaseline(value.record).target;
       if (priorTarget.revision !== decision.baselineTarget.revision
         || priorTarget.subject.subjectDigest !== decision.baselineTarget.subjectDigest

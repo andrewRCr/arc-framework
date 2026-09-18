@@ -47,7 +47,7 @@ import {
   resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
   resolveSubmissionBoundaryPath,
@@ -348,7 +348,7 @@ async function installCandidate(
   expectedVersion: string | null,
   supersedes?: string,
 ): Promise<CandidateManagedRecordV1> {
-  const target = await collectGitCandidateTarget({
+  const target = await collectCandidateSubjectTarget({
     cwd: harness.root,
     name: harness.plan.workUnitId,
     baseBranch: "main",
@@ -841,7 +841,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
   if (published.status !== "published") throw new Error("expected eight-member request publication");
   const topHead = heads.at(-1);
   if (topHead === undefined) throw new Error("missing eight-member terminal head");
-  const target = await collectGitCandidateTarget({
+  const target = await collectCandidateSubjectTarget({
     cwd: root,
     name: plan.workUnitId,
     baseBranch: "main",
@@ -1495,7 +1495,7 @@ describe("hosted review fan-out lifecycle", () => {
     if (sourceCandidate.record === null || sourceCandidate.version === null) {
       throw new Error("source Candidate must exist");
     }
-    const renewedTarget = await collectGitCandidateTarget({
+    const renewedTarget = await collectCandidateSubjectTarget({
       cwd: harness.root,
       name: harness.plan.workUnitId,
       baseBranch: "main",
@@ -1990,7 +1990,7 @@ describe("hosted review fan-out lifecycle", () => {
     await mkdir(join(harness.root, ".arc", "active"), { recursive: true });
     await writeFile(join(harness.root, taskPath), "# Closed task\n", "utf8");
     await git(harness.root, ["add", taskPath]);
-    const staged = await collectGitCandidateTarget({
+    const staged = await collectCandidateSubjectTarget({
       cwd: harness.root,
       name: harness.plan.workUnitId,
       baseBranch: "main",
@@ -2069,7 +2069,7 @@ describe("hosted review fan-out lifecycle", () => {
     if (beforeReroot.record === null || beforeReroot.version === null) {
       throw new Error("Candidate must exist before re-rooting");
     }
-    const verifiedTarget = await collectGitCandidateTarget({
+    const verifiedTarget = await collectCandidateSubjectTarget({
       cwd: harness.root,
       name: harness.plan.workUnitId,
       baseBranch: "main",

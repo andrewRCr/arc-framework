@@ -23,7 +23,7 @@ import {
   resolveGitCandidateTargetBase,
 } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../../../lib/work-unit/git-candidate-subject.js";
 import {
@@ -250,7 +250,7 @@ export function createRespondDependencies(input: {
       const selected = matching[0];
       if (selected === undefined) return null;
       const currentSettings = await settings();
-      const [effective, current, unstagedReviewablePaths] = await Promise.all([
+      const [effective, collected, unstagedReviewablePaths] = await Promise.all([
         projectGitCandidateEffectiveTarget({
           cwd: input.cwd,
           name: selected.workUnit,
@@ -259,7 +259,7 @@ export function createRespondDependencies(input: {
           exec: input.exec,
           rawExec: rawGit,
         }),
-        collectGitCandidateTarget({
+        collectGitCandidateSubject({
           cwd: input.cwd,
           name: selected.workUnit,
           baseBranch: currentSettings["branch.base"],
@@ -271,6 +271,10 @@ export function createRespondDependencies(input: {
           exec: input.exec,
         }),
       ]);
+      if (collected.status !== "collected") {
+        throw new Error("The Candidate fix target's subject could not be collected.");
+      }
+      const current = collected.target;
       const candidateFixTarget = await deriveLocalReviewTargetFromCoordinates({
         exec: input.exec,
         cwd: input.cwd,

@@ -246,7 +246,7 @@ import {
   resolveGitCandidateTargetBase,
 } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
@@ -3919,10 +3919,11 @@ async function executeDeliveryCommand(
       }
       const verifiedRevision = checkoutCoordinates.head === terminal.head ? undefined : terminal.head;
       const committedCandidatePath = resolveCandidateRecordRelativePath(planRead.value.workUnitId);
-      const [candidate, currentTarget, unstagedReviewablePaths, actor, boundarySnapshot, committedPredecessorRecord] =
-        await Promise.all([
+      const [
+        candidate, collectedTarget, unstagedReviewablePaths, actor, boundarySnapshot, committedPredecessorRecord,
+      ] = await Promise.all([
         readCandidateRecordVersioned(cwd, planRead.value.workUnitId),
-        collectGitCandidateTarget({
+        collectGitCandidateSubject({
           cwd,
           name: planRead.value.workUnitId,
           baseBranch: settings["branch.base"],
@@ -3943,6 +3944,12 @@ async function executeDeliveryCommand(
       if (candidate.record === null || candidate.version === null) {
         return { status: "refused", reason: "candidate-record-unavailable" };
       }
+      // Unavailable rather than not-current: no comparison was reached, so nothing here establishes that the
+      // Candidate moved. Reading it as movement would report a settled Candidate as a stale one.
+      if (collectedTarget.status !== "collected") {
+        return { status: "refused", reason: "candidate-verification-unavailable" };
+      }
+      const currentTarget = collectedTarget.target;
       if (boundarySnapshot.boundary === null) {
         return { status: "refused", reason: "public-boundary-unavailable" };
       }
@@ -5837,7 +5844,7 @@ async function executeDeliveryCommand(
             if (matchingPendingVerification) {
               return { revision: retainedHead, baselineRelation: "ancestor" as const };
             }
-            const retainedTarget = await collectGitCandidateTarget({
+            const retainedCollection = await collectGitCandidateSubject({
               cwd,
               name: currentPlan.workUnitId,
               baseBranch,
@@ -5845,10 +5852,16 @@ async function executeDeliveryCommand(
               revision: retainedHead,
               exec,
             });
-            return retainedTarget.subject.subjectDigest === baseline.target.subject.subjectDigest
+            // Its own value rather than the null below: null is the digests having been compared and found
+            // different, and a subject that was never collected reached no comparison at all.
+            if (retainedCollection.status !== "collected") return "unavailable" as const;
+            return retainedCollection.target.subject.subjectDigest === baseline.target.subject.subjectDigest
               ? { revision: retainedHead, baselineRelation: "equivalent" as const }
               : null;
           })();
+          if (retainedTerminalTarget === "unavailable") {
+            return { status: "refused", reason: "candidate-verification-unavailable" };
+          }
           if (retainedTerminalTarget === null) {
             return { status: "refused", reason: "candidate-not-current" };
           }
@@ -5857,7 +5870,7 @@ async function executeDeliveryCommand(
             || await readAncestry(localExec, terminal.coordinates.head, head.head) !== "ancestor") {
             return { status: "refused", reason: "terminal-correction-not-append-only" };
           }
-          const currentTarget = await collectGitCandidateTarget({
+          const collectedCurrent = await collectGitCandidateSubject({
             cwd,
             name: currentPlan.workUnitId,
             baseBranch,
@@ -5865,6 +5878,10 @@ async function executeDeliveryCommand(
             revision: head.head,
             exec,
           });
+          if (collectedCurrent.status !== "collected") {
+            return { status: "refused", reason: "candidate-verification-unavailable" };
+          }
+          const currentTarget = collectedCurrent.target;
           const projectedTarget = effective.state === "current"
             ? {
                 revision: effective.recognizedTarget.revision,

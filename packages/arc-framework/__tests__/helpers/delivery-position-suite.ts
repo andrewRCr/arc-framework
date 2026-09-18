@@ -1,5 +1,6 @@
 /** Shared registration for delivery-position handler checks and its retained real-CLI smoke. */
 
+import { collectCandidateSubjectTarget } from "./candidate-subject.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -60,7 +61,6 @@ import {
 } from "../../src/lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
 import {
-  collectGitCandidateTarget,
   resolveGitCandidateBaseRevision,
 } from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
@@ -880,7 +880,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
 
-    const candidateTarget = await collectGitCandidateTarget({
+    const candidateTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
       name: workUnitId,
       baseBranch: "main",
@@ -1433,7 +1433,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       },
     }, topState.value.revision)).toMatchObject({ status: "ok" });
 
-    const candidateTarget = await collectGitCandidateTarget({
+    const candidateTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
       name: fixture.plan.workUnitId,
       baseBranch: "main",
@@ -1811,7 +1811,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "### `[ ]` **1.1 Finish the correction**",
       "",
     ].join("\n"));
-    const candidateTarget = await collectGitCandidateTarget({
+    const candidateTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
       name: workUnitId,
       baseBranch: "main",
@@ -2312,7 +2312,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         }],
       }, 0);
     }
-    const candidateTarget = await collectGitCandidateTarget({
+    const candidateTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
       name: fixture.plan.workUnitId,
       baseBranch: "main",
@@ -2321,7 +2321,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       exec: createExecaGitExec(),
     });
     const durableRevision = await git(fixture.repository, ["rev-parse", `${reviewedTerminalHead}^`]);
-    const durableTarget = await collectGitCandidateTarget({
+    const durableTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
       name: fixture.plan.workUnitId,
       baseBranch: "main",
@@ -2635,7 +2635,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       baseBranch: "main",
       exec: createExecaGitExec(),
     });
-    const currentTarget = await collectGitCandidateTarget({
+    const currentTarget = await collectCandidateSubjectTarget({
       cwd: archivedCheckout,
       name: fixture.plan.workUnitId,
       baseBranch: "main",
@@ -3037,7 +3037,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "",
     ].join("\n"));
     await git(fixture.repository, ["switch", "-c", "member-3", current.value.value.members.at(-1)!.coordinates!.head]);
-    const candidateTarget = await collectGitCandidateTarget({
+    const candidateTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
       name: fixture.plan.workUnitId,
       baseBranch: "main",
@@ -3381,7 +3381,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const pendingCandidateBytes = await readFile(candidatePath, "utf8");
     const pendingCandidate = JSON.parse(pendingCandidateBytes) as CandidateManagedRecordV1;
     const pendingBaseline = reduceCandidateDurableBaseline(pendingCandidate);
-    const pendingCurrentTarget = await collectGitCandidateTarget({
+    const pendingCurrentTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
       name: fixture.plan.workUnitId,
       baseBranch: "main",

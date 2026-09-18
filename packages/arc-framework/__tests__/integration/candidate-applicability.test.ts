@@ -17,7 +17,7 @@ import {
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
 import { projectGitCandidateEffectiveTarget } from
   "../../src/lib/work-unit/git-candidate-effective-target.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
@@ -57,7 +57,7 @@ describe("Candidate applicability against Git", () => {
     await run(["add", "feature.txt"]);
     await run(["commit", "-m", "feature"]);
     const candidateHead = await run(["rev-parse", "HEAD"]);
-    const target = await collectGitCandidateTarget({
+    const target = await collectCandidateSubjectTarget({
       cwd: repository,
       name: "example",
       baseBranch: "main",

@@ -143,7 +143,7 @@ import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js"
 import { CandidateVerificationEvidenceRefSchema } from
   "../lib/work-unit/candidate-attestation.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
@@ -2775,12 +2775,18 @@ export async function handleAttest(
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
       readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
-      currentTarget: (slug) => collectGitCandidateTarget({
-        cwd: base.cwd,
-        name: slug,
-        baseBranch: settings["branch.base"],
-        exec: base.io.exec,
-      }),
+      currentTarget: async (slug) => {
+        const collected = await collectGitCandidateSubject({
+          cwd: base.cwd,
+          name: slug,
+          baseBranch: settings["branch.base"],
+          exec: base.io.exec,
+        });
+        // Attestation asks for a target and this dependency answers with one or not at all, so the refusal
+        // leaves here raised. It reads as a ceremony outcome once attestation itself can carry one.
+        if (collected.status !== "collected") throw new Error(collected.detail);
+        return collected.target;
+      },
       effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
         cwd: base.cwd,
         name: slug,

@@ -269,23 +269,6 @@ export async function collectGitCandidateSubject(
   };
 }
 
-/**
- * Collect the subject, raising a refusal rather than returning it.
- *
- * Every caller reached through here inherits one policy for a base that resolves to no single revision, which
- * is the policy the reader itself used to hold. It goes away once each call site applies its own.
- *
- * @param input - The same collection input the reader takes.
- * @returns The collected subject.
- */
-export async function collectGitCandidateTarget(
-  input: CollectGitCandidateTargetInput,
-): Promise<CandidateLineageTarget> {
-  const collected = await collectGitCandidateSubject(input);
-  if (collected.status !== "collected") throw new Error(collected.detail);
-  return collected.target;
-}
-
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }

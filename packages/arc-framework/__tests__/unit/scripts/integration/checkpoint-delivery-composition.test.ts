@@ -19,7 +19,7 @@ import { createStandardReviewReservation } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const mocks = vi.hoisted(() => ({
-  collectGitCandidateTarget: vi.fn(),
+  collectGitCandidateSubject: vi.fn(),
   composeDeliveryCheckpointArm: vi.fn(),
   createHostedReservationDischargeReader: vi.fn(),
   projectEffectiveCandidateCurrentness: vi.fn(),
@@ -67,7 +67,7 @@ vi.mock("../../../../src/lib/work-unit/candidate-record-store.js", async (import
 }));
 vi.mock("../../../../src/lib/work-unit/git-candidate-subject.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/git-candidate-subject.js")>(),
-  collectGitCandidateTarget: mocks.collectGitCandidateTarget,
+  collectGitCandidateSubject: mocks.collectGitCandidateSubject,
 }));
 vi.mock("../../../../src/lib/work-unit/git-candidate-effective-target.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/git-candidate-effective-target.js")>(),
@@ -236,7 +236,10 @@ describe("delivery checkpoint composition", () => {
       record: candidateRecord(plan.workUnitId, candidateHead),
       version: `sha256:${"e".repeat(64)}`,
     });
-    mocks.collectGitCandidateTarget.mockResolvedValue({ subject: { subjectDigest } });
+    mocks.collectGitCandidateSubject.mockResolvedValue({
+      status: "collected",
+      target: { subject: { subjectDigest } },
+    });
     mocks.projectCandidateCurrentness.mockReturnValue(currentness);
     mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);
     mocks.projectGitCandidateEffectiveTarget.mockResolvedValue(effective);
@@ -936,7 +939,10 @@ describe("delivery checkpoint composition", () => {
       record: { candidateId },
       version: oid("1"),
     });
-    mocks.collectGitCandidateTarget.mockResolvedValue({ subject: { subjectDigest } });
+    mocks.collectGitCandidateSubject.mockResolvedValue({
+      status: "collected",
+      target: { subject: { subjectDigest } },
+    });
     mocks.projectCandidateCurrentness.mockReturnValue(currentness);
     mocks.projectGitCandidateEffectiveTarget.mockResolvedValue(effective);
     mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);

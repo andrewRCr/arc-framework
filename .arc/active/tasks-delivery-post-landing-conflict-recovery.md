@@ -873,23 +873,38 @@ recorded exclusions. See `notes-delivery-post-landing-conflict-recovery.md` § R
   through a widened result, and the repository target raises through the closed error it already had. No new
   error family, and no reader left picking.
 
-### `[ ]` **6.3 Propagate the collector's widened result across its eleven call sites**
+### `[x]` **6.3 Propagate the collector's widened result across its eleven call sites**
 
 - _Goal:_ Every consumer of the widened collector result handles the new refusal explicitly, each applying its own
   failure policy rather than inheriting one baked into the resolver.
 
-- _Note:_ Eleven sites across seven consuming files, two of which are injected dependency lambdas rather than
-  direct calls. Re-derive the enumeration rather than trusting it if the tree has moved.
-
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Propagation surfaces
 
-    - `[ ]` **6.3.a Propagate through the direct call sites**
+    - `[x]` **6.3.a Propagate through the direct call sites**
 
-    - `[ ]` **6.3.b Propagate through the injected dependency lambdas**
+        - Nine, and they do not all answer alike. The three in delivery execution return a typed refusal;
+          the effective-target, checkpoint-composition, and respond-composition readers raise, because every
+          arm of what each returns names a current target by digest and a subject never collected has none.
+        - `candidate-verification-unavailable` rather than `candidate-not-current`: a reason is reusable when
+          what it asserts is true of the refusal, and not-current asserts a comparison this path never reached.
+          Reading it as movement would report a settled Candidate as a stale one.
 
-    - `[ ]` **6.3.c Convert the terminal record advance proof's arm to no-proof**
+    - `[x]` **6.3.b Propagate through the injected dependency lambdas**
 
-        - Carrying the reason onward is deliberately not required there.
+        - Attestation and applicability each ask for one exact target, so their dependencies answer with one or
+          not at all and the refusal leaves both lambdas raised. Each names the condition where it is decided
+          rather than inheriting a policy from the reader.
+
+    - `[x]` **6.3.c Convert the terminal record advance proof's arm to no-proof**
+
+        - A subject that could not be collected proves no advance, and a movement nothing proves is exactly the
+          one that keeps no public review — so the absent proof is the whole answer and carries no reason.
+
+- _Outcome:_ Removing the raising wrapper is what forced the pass, but not what the pass was: the compiler
+  enumerated the sites and each then had to be read for what its own result can say. Most still raise, which is
+  the point of the exercise rather than a failure of it — the decision and the words are now local, and a later
+  reader confronts the arm instead of inheriting it. Test fixtures that only want a subject take one shared
+  helper, so the raise a fixture inherits is visibly a fixture's and not a consumer's.
 
 ### `[ ]` **6.4 Admit attestation's new refusal at the lifecycle ceremony**
 

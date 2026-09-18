@@ -272,10 +272,10 @@ vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
 }));
-const mockCollectGitCandidateTarget = vi.fn();
+const mockCollectGitCandidateSubject = vi.fn();
 const mockCollectUnstagedReviewablePaths = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-candidate-subject.js", () => ({
-  collectGitCandidateTarget: (...a: unknown[]) => mockCollectGitCandidateTarget(...a),
+  collectGitCandidateSubject: (...a: unknown[]) => mockCollectGitCandidateSubject(...a),
   collectUnstagedReviewablePaths: (...a: unknown[]) => mockCollectUnstagedReviewablePaths(...a),
 }));
 const mockRunAttest = vi.fn();
@@ -457,7 +457,10 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
-  mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
+  mockCollectGitCandidateSubject.mockResolvedValue({
+    status: "collected",
+    target: { revision: "a".repeat(40), subject: {} },
+  });
   mockProjectGitCandidateEffectiveTarget.mockResolvedValue({
     state: "current",
     candidateId,

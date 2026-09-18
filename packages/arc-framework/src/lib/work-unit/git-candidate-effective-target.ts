@@ -19,9 +19,22 @@ import {
 } from "./candidate-effective-target.js";
 import { projectGitCandidateApplicability } from "./git-candidate-applicability.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   resolveGitCandidateBaseRevision,
+  type CandidateSubjectCollection,
 } from "./git-candidate-subject.js";
+
+/**
+ * The collected subject, or this projection's own answer for one it could not collect: a raise.
+ *
+ * Every arm the projection can return names a current target by revision and subject digest, so a subject that
+ * was never collected has no reading here — not even a non-applicable one, which would need the same digest to
+ * say so. Filling that slot from the durable baseline would put a target in a typed result that nothing observed.
+ */
+function collectedSubject(collection: CandidateSubjectCollection) {
+  if (collection.status !== "collected") throw new Error(collection.detail);
+  return collection.target;
+}
 
 async function readCommit(input: {
   cwd: string;
@@ -136,22 +149,22 @@ export async function projectGitCandidateEffectiveTarget(
     return { candidateHead, baseHead };
   };
   const observed = await observeEndpoints();
-  const committed = await collectGitCandidateTarget({
+  const committed = collectedSubject(await collectGitCandidateSubject({
     cwd: input.cwd,
     name: input.name,
     baseBranch: input.baseBranch,
     baseRevision: observed.baseHead,
     exec: input.exec,
     revision: observed.candidateHead,
-  });
+  }));
   if (input.target === undefined) {
-    const staged = await collectGitCandidateTarget({
+    const staged = collectedSubject(await collectGitCandidateSubject({
       cwd: input.cwd,
       name: input.name,
       baseBranch: input.baseBranch,
       baseRevision: observed.baseHead,
       exec: input.exec,
-    });
+    }));
     const stagedCurrentness = projectCandidateCurrentness({ record: input.record, current: staged });
     if (stagedCurrentness.status === "current") {
       const reobserved = {

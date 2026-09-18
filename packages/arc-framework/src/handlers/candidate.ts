@@ -33,7 +33,7 @@ import {
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../lib/work-unit/git-candidate-applicability.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
 import type { CandidateMutationOwner } from "../lib/work-unit/candidate-mutation-owner.js";
@@ -145,14 +145,20 @@ async function executeCandidateApplicabilityResolution(
     baseBranch,
     exec: git,
   });
-  const currentTarget = async (baseRevision: string) => collectGitCandidateTarget({
-    cwd: root,
-    name,
-    baseBranch,
-    baseRevision,
-    exec: git,
-    revision: await readObjectId("HEAD^{commit}"),
-  });
+  const currentTarget = async (baseRevision: string) => {
+    const collected = await collectGitCandidateSubject({
+      cwd: root,
+      name,
+      baseBranch,
+      baseRevision,
+      exec: git,
+      revision: await readObjectId("HEAD^{commit}"),
+    });
+    // Applicability is asked to classify one exact target, so a subject it has no reading for is not a
+    // classification this resolution can reach — it raises here rather than classifying something else.
+    if (collected.status !== "collected") throw new Error(collected.detail);
+    return collected.target;
+  };
   const writeRecord = async (
     record: Parameters<typeof writeCandidateRecord>[2],
     expectedVersion: string,

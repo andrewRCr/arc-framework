@@ -5,10 +5,11 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { projectGitDeliveryTerminalCoordinateAdvance } from
-  "../../src/lib/delivery/public-review-continuation-git.js";
-import { collectGitCandidateTarget } from
-  "../../src/lib/work-unit/git-candidate-subject.js";
+import {
+  projectGitDeliveryTerminalCoordinateAdvance,
+  projectGitDeliveryTerminalRecordAdvance,
+} from "../../src/lib/delivery/public-review-continuation-git.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import type { CandidateEffectiveCurrentProjection } from
   "../../src/lib/work-unit/candidate-effective-target.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
@@ -24,6 +25,49 @@ async function git(root: string, args: string[]): Promise<string> {
 }
 
 describe("delivery public-review continuation Git proof", () => {
+  it("proves no advance over a history whose subject cannot be collected", async () => {
+    const cwd = await createTempRepo("arc-delivery-public-review-ambiguous-");
+    roots.push(cwd);
+    const exec = makeGitExec(cwd);
+    await writeFile(join(cwd, "README.md"), "base\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "base"]);
+
+    // Two merges of the same pair in opposite parent orders, so the terminal and its base share two best
+    // common ancestors and no subject can be collected against either.
+    await git(cwd, ["switch", "-c", "feat/example"]);
+    await writeFile(join(cwd, "branch.ts"), "export const branch = 1;\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "branch side"]);
+    const branchSide = await git(cwd, ["rev-parse", "HEAD"]);
+    await git(cwd, ["switch", "main"]);
+    await writeFile(join(cwd, "base.ts"), "export const base = 1;\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "base side"]);
+    const baseSide = await git(cwd, ["rev-parse", "HEAD"]);
+    await git(cwd, ["switch", "feat/example"]);
+    await git(cwd, ["merge", "--no-ff", "-m", "branch merge", baseSide]);
+    const priorHead = await git(cwd, ["rev-parse", "HEAD"]);
+    await git(cwd, ["switch", "main"]);
+    await git(cwd, ["merge", "--no-ff", "-m", "base merge", branchSide]);
+    await git(cwd, ["switch", "feat/example"]);
+    await writeFile(join(cwd, "record.ts"), "export const record = 1;\n", "utf8");
+    await git(cwd, ["add", "."]);
+    await git(cwd, ["commit", "-m", "operational record"]);
+    const currentHead = await git(cwd, ["rev-parse", "HEAD"]);
+
+    // The proof is carried or it is absent; there is no slot on it for why one could not be established,
+    // and a movement nothing proves is exactly a movement that keeps no public review.
+    await expect(projectGitDeliveryTerminalRecordAdvance({
+      cwd,
+      exec,
+      workUnitId: "example",
+      baseBranch: "main",
+      priorHead,
+      currentHead,
+    })).resolves.toBeUndefined();
+  });
+
   it("preserves a state anchor at or below a freshly attested Candidate root", async () => {
     const cwd = await createTempRepo("arc-delivery-public-review-reroot-");
     roots.push(cwd);
@@ -56,7 +100,7 @@ describe("delivery public-review continuation Git proof", () => {
     await git(cwd, ["commit", "-m", "record Candidate"]);
     const currentHead = await git(cwd, ["rev-parse", "HEAD"]);
     const [baseline, current] = await Promise.all([
-      collectGitCandidateTarget({
+      collectCandidateSubjectTarget({
         cwd,
         name: "example",
         baseBranch: "main",
@@ -64,7 +108,7 @@ describe("delivery public-review continuation Git proof", () => {
         revision: baselineHead,
         exec,
       }),
-      collectGitCandidateTarget({
+      collectCandidateSubjectTarget({
         cwd,
         name: "example",
         baseBranch: "main",
@@ -200,10 +244,10 @@ describe("delivery public-review continuation Git proof", () => {
     expect(resolvedTree).not.toBe(await git(cwd, ["rev-parse", `${refreshedMember}^{tree}`]));
 
     const [baseline, current] = await Promise.all([
-      collectGitCandidateTarget({
+      collectCandidateSubjectTarget({
         cwd, name: "example", baseBranch: "main", baseRevision: baseHead, revision: baselineHead, exec,
       }),
-      collectGitCandidateTarget({
+      collectCandidateSubjectTarget({
         cwd, name: "example", baseBranch: "main", baseRevision: baseHead, revision: currentHead, exec,
       }),
     ]);
@@ -270,7 +314,7 @@ describe("delivery public-review continuation Git proof", () => {
     const currentHead = await git(cwd, ["rev-parse", "HEAD"]);
 
     const [baseline, current] = await Promise.all([
-      collectGitCandidateTarget({
+      collectCandidateSubjectTarget({
         cwd,
         name: "example",
         baseBranch: "main",
@@ -278,7 +322,7 @@ describe("delivery public-review continuation Git proof", () => {
         revision: baselineHead,
         exec,
       }),
-      collectGitCandidateTarget({
+      collectCandidateSubjectTarget({
         cwd,
         name: "example",
         baseBranch: "main",
@@ -353,7 +397,7 @@ describe("delivery public-review continuation Git proof", () => {
     );
     await git(cwd, ["add", "."]);
     await git(cwd, ["commit", "-m", "record changed candidate"]);
-    const changedCurrent = await collectGitCandidateTarget({
+    const changedCurrent = await collectCandidateSubjectTarget({
       cwd,
       name: "example",
       baseBranch: "main",

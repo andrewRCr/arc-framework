@@ -28,7 +28,7 @@ import {
   parseCandidateManagedRecord,
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import {
   projectCandidateDeltaVerification,
@@ -423,7 +423,7 @@ describe("attest → pre-publication → publish", () => {
     const record = parseCandidateManagedRecord(await readFile(candidatePath, "utf8"));
     expect(record).not.toBeNull();
     if (record === null) return;
-    const current = await collectGitCandidateTarget({
+    const current = await collectCandidateSubjectTarget({
       cwd: repository,
       name: "example",
       baseBranch: "main",
