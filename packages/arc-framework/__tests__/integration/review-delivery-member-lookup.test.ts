@@ -323,6 +323,24 @@ describe("repository delivery member lookup", () => {
       .resolves.toEqual({ status: "unavailable" });
   });
 
+  it("admits the resolved plan in any case and refuses an asserted plan it is not", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryPlanFixture();
+    await publishPlan(cwd, plan);
+    await publish(cwd, deliveryStateFixture(plan));
+    const member = {
+      deliverableId: plan.members[0]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    };
+
+    await expect(lookup.resolveMemberByIdentity({ ...member, planId: OTHER_PLAN_ID }))
+      .resolves.toEqual({ status: "plan-mismatch" });
+    await expect(lookup.resolveMemberByIdentity({ ...member, planId: plan.planId }))
+      .resolves.toMatchObject({ status: "bound" });
+    await expect(lookup.resolveMemberByIdentity({ ...member, planId: plan.planId.toUpperCase() }))
+      .resolves.toMatchObject({ status: "bound" });
+  });
+
   it("refuses an incomplete target set before resolving every retained member on a later read", async () => {
     const { cwd, lookup } = await repository();
     const plan = deliveryPlanFixture();

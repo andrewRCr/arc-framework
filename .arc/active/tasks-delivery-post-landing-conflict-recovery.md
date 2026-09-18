@@ -1047,25 +1047,16 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   mean `in-plan-unbound`. The sixth arm is authored and unreachable — nothing asserts a caller-supplied plan id
   yet, which is what Task 7.2 adds.
 
-### `[ ]` **7.2 Assert the caller-supplied plan id explicitly inside the new method**
+### `[x]` **7.2 Assert the caller-supplied plan id explicitly inside the new method**
 
 - _Goal:_ A request naming the wrong plan is refused as a plan mismatch rather than passing unchecked or arriving
   as a deliverable miss.
 
-- _Rationale:_ The designated body filters on the work unit alone and derives the plan id from that filter — it
-  never asserts a caller-supplied one. Leaving it implicit would drop a live validation, and folding it in beside
-  the deliverable miss would reintroduce the cause-conflation this work unit exists to remove.
+    - `[x]` **7.2.a Assert the plan id and return `plan-mismatch`**
 
-    - `[ ]` **7.2.a Assert the plan id and return `plan-mismatch`**
-
-        - The live comparison lowercases both plan ids, while the deliverable and work-unit comparisons beside it
-          are exact. Preserve the case-insensitive compare when the assertion moves, or a request differing only
-          in case starts refusing where it is admitted today.
-        - Build `test-first` (one behavior at a time):
-
-            - A request naming another plan returns `plan-mismatch`
-            - A request naming the resolved plan proceeds
-            - A request whose plan id differs only in case still proceeds
+        - The assertion sits between the single-plan resolution and the deliverable membership check, so a wrong
+          plan refuses as a mismatch rather than arriving as a deliverable miss. Plan ids compare without case
+          while the deliverable and work unit beside them compare exactly, which preserves today's admission.
 
 ### `[ ]` **7.3 Invert review readiness to resolve by identity, then compare by relation**
 

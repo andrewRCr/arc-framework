@@ -135,6 +135,12 @@ DeliveryDischargeTargetLookup, DeliveryReservationRecordLookup, DeliveryTerminal
       if (matching.length === 0) return { status: "no-plan" };
       const plan = matching.length === 1 ? matching[0] : undefined;
       if (plan === undefined) return { status: "unavailable" };
+      // The plan id is compared without case while the deliverable and work unit
+      // beside it are compared exactly, which is the admission callers already
+      // have: narrowing it here would start refusing requests admitted today.
+      if (plan.planId.toLowerCase() !== identity.planId.toLowerCase()) {
+        return { status: "plan-mismatch" };
+      }
       // Membership is asked of the plan rather than of state, so a work unit whose
       // plan carries no state record still answers by deliverable rather than by
       // the absence of any binding at all.
