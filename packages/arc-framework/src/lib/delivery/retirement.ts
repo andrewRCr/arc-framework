@@ -2,6 +2,7 @@
 
 import type { DeliveryHostRequestObservation } from "./host.js";
 import type { DeliveryPlanStore, DeliveryStateStore } from "./ports.js";
+import { classifyPredecessorRelation, type AncestryAnswer } from "./predecessor-relation.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 import type { CanonicalDigest } from "../kernel/index.js";
 import { validateDeliveryStateAgainstPlan } from "./state.js";
@@ -16,6 +17,14 @@ export interface DeliveryRetirementDependencies {
   readonly stateStore: Pick<DeliveryStateStore<DeliveryStateV1>, "read" | "remove">;
   readonly observeLocalRef: (ref: string) => Promise<DeliveryRefObservation>;
   readonly observeRemoteRef: (ref: string) => Promise<DeliveryRefObservation>;
+  /**
+   * Ancestry between the head a terminal member records and the head the host reports merged.
+   *
+   * Required rather than optional, because a branch that advanced before merging is the ordinary
+   * case here: a caller that omitted the read would go on refusing every such terminal, which is
+   * the condition this boundary exists to settle rather than a safe default to fall back on.
+   */
+  readonly readAncestry: (ancestor: string, descendant: string) => Promise<AncestryAnswer>;
   readonly readTerminalRequest: (
     repository: string,
     binding: NonNullable<DeliveryStateV1["members"][number]["changeRequest"]>,
@@ -34,12 +43,12 @@ export type DeliveryRetirementResult =
  * Verify the exact terminal host request bound by one delivery state.
  *
  * @param input - Explicit repository identity and the state carrying terminal coordinates.
- * @param readTerminalRequest - Fresh host observation boundary.
+ * @param dependencies - Fresh host observation and ancestry boundaries.
  * @returns Exact settlement or a closed terminal refusal.
  */
 export async function verifyDeliveryTerminalSettlement(
   input: { readonly state: DeliveryStateV1; readonly repository: string },
-  readTerminalRequest: DeliveryRetirementDependencies["readTerminalRequest"],
+  dependencies: Pick<DeliveryRetirementDependencies, "readAncestry" | "readTerminalRequest">,
 ): Promise<DeliveryTerminalSettlementResult> {
   const terminal = input.state.members.at(-1);
   const targetRef = input.state.target?.ref;
@@ -48,15 +57,25 @@ export async function verifyDeliveryTerminalSettlement(
     || targetRef === undefined) {
     return { status: "blocked", reason: "terminal-unsettled" };
   }
-  const observed = await readTerminalRequest(input.repository, terminal.changeRequest);
-  const request = observed.status === "observed" ? observed.request : null;
-  return request !== null
-    && request.binding.providerId === terminal.changeRequest.providerId
+  const observed = await dependencies.readTerminalRequest(input.repository, terminal.changeRequest);
+  if (observed.status !== "observed") return { status: "blocked", reason: "terminal-unsettled" };
+  const request = observed.request;
+  const relation = classifyPredecessorRelation({
+    boundHead: terminal.coordinates.head,
+    observedHead: request.headSha,
+    boundIsAncestorOfObserved: await dependencies.readAncestry(terminal.coordinates.head, request.headSha),
+    // Only the append-only advance is admissible, so the reverse direction is never read. Leaving it
+    // unestablished also keeps `diverged` unreachable, which is the one variant carrying the
+    // cardinality below, so no count is ever read.
+    observedIsAncestorOfBound: "unresolvable",
+    mergeBaseCount: 1,
+  });
+  return request.binding.providerId === terminal.changeRequest.providerId
     && request.binding.changeRequestId === terminal.changeRequest.changeRequestId
     && request.repository === input.repository
     && request.headRepository === input.repository
     && request.headRef === terminal.ref.replace(/^refs\/heads\//u, "")
-    && request.headSha === terminal.coordinates.head
+    && (relation.kind === "unchanged" || relation.kind === "advanced")
     && request.baseRef === targetRef.replace(/^refs\/heads\//u, "")
     && request.state === "merged"
     ? { status: "settled" }
@@ -134,7 +153,7 @@ export async function retireCompletedDeliveryRecords(
 
     const terminal = await verifyDeliveryTerminalSettlement(
       { state: bound.state, repository: input.repository },
-      dependencies.readTerminalRequest,
+      dependencies,
     );
     if (terminal.status === "blocked") {
       return { ...terminal, planId: bound.plan.planId };

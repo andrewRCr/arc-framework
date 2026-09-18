@@ -1123,9 +1123,13 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   carries. The typed remedy is the second contract addition: it lands on the emitted closeout refusal, derived
   from the reason, replacing the prose remedy there.
 
-    - `[ ]` **7.5.a Replace the equality term with the relation**
+    - `[x]` **7.5.a Replace the equality term with the relation**
 
-        - The ancestry-blind term is the conjunction's head-equality comparison.
+        - The head-equality term becomes the relation's admission: a terminal merged at a descendant of the head
+          it binds is the same landed contribution and settles, while every other reading — an ancestry the read
+          could not establish included — stays unsettled. The reader is a second authority the library could not
+          reach, required rather than optional in the retirement dependencies, and pinned to the resolved
+          checkout at the one composition root that builds them.
 
     - `[ ]` **7.5.b Give the pre-guard's five conditions distinct reasons**
 
@@ -1150,13 +1154,9 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
             - A moved head is distinguishable from a wrong base ref
             - A merged-past-the-bound-head terminal returns closed-out rather than unsettled
 
-### `[ ]` **7.6 Replace the review-readiness binding and terminal head-movement holds**
+### `[x]` **7.6 Replace the review-readiness binding and terminal head-movement holds**
 
 - _Goal:_ Both probe files assert the settled behavior, leaving no hold in the four files this boundary owns.
-
-- _Note:_ Both reach their declared targets, so the helper reports each hold spent and the replacement asserts
-  that target — the readiness binding asserts the stale-versus-absent distinction, the head movement asserts the
-  ancestry verdict.
 
 - **Additional Context:** `notes-delivery-post-landing-conflict-recovery.md` § Pinned probes — the eight holds
 
@@ -1167,7 +1167,16 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
           reading the target implies: a head its binding does not contain is refused as its own condition,
           distinct from a member the plan holds with nothing recorded for it.
 
-    - `[ ]` **7.6.b Replace the terminal head-movement hold**
+    - `[x]` **7.6.b Replace the terminal head-movement hold** — landed with Task 7.5.a
+
+        - Correcting the comparison is what reaches the hold's declared target, so the helper reported it spent
+          in that same change. The replacement asserts that target and the reading it implies beside it: a head
+          merged behind the one the record binds is not the landed contribution and stays unsettled.
+
+- _Outcome:_ Neither hold took a pass of its own. Each went red in the increment that corrected the reader it
+  held — the readiness binding at Task 7.3, the head movement at Task 7.5.a — and by the same route, the helper
+  reporting the hold spent rather than neither-shape. That empties the last of the four probe files this boundary
+  owns, so no `expectPinnedObservation` call remains in any of them.
 
 ### `[ ]` **7.7 Distinguish a stale binding from an absent one** — validate exit criterion at segment scope
 

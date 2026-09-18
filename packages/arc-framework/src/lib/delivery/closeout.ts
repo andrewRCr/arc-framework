@@ -100,7 +100,7 @@ export async function closeoutCompletedDelivery(
     }
     const terminal = await verifyDeliveryTerminalSettlement(
       { state: current.current.value, repository: input.repository },
-      dependencies.retirement.readTerminalRequest,
+      dependencies.retirement,
     );
     if (terminal.status === "blocked") {
       return blocked(terminal.reason, { planId: current.plan.planId });

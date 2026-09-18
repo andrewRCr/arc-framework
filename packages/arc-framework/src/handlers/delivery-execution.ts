@@ -4104,6 +4104,13 @@ async function executeDeliveryCommand(
       retirement: {
         observeLocalRef: (ref) => observeDeliveryLocalRef(exec, ref),
         observeRemoteRef: (ref) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
+        // Pinned to the resolved checkout, because the ancestry answer must come from the repository
+        // this composition root bound rather than whatever directory the process is running in.
+        readAncestry: (ancestor, descendant) => readAncestry(
+          (command, args, options) => exec(command, args, { ...options, cwd }),
+          ancestor,
+          descendant,
+        ),
         readTerminalRequest: (repository, binding) => host.readRequest(repository, binding),
       },
     });

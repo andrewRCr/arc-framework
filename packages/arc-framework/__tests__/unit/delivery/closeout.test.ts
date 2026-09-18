@@ -96,6 +96,10 @@ function closeoutFixture(storedWorkUnitId?: string) {
         observeRemoteRef: async (ref: string) => remoteMembers.has(ref)
           ? { status: "observed" as const, head: state.members.find((member) => member.ref === ref)!.coordinates!.head }
           : { status: "absent" as const },
+        // The fixtures bind one exact head, so identity is the only relation they model; a distinct
+        // pair is one this fixture establishes nothing about.
+        readAncestry: async (ancestor: string, descendant: string) =>
+          ancestor === descendant ? "ancestor" as const : "not-ancestor" as const,
         readTerminalRequest: async () => ({
           status: "observed" as const,
           request: {

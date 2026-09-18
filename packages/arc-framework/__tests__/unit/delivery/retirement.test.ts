@@ -68,6 +68,10 @@ function retirementDependencies(fixture: ReturnType<typeof completedRecordsFixtu
     },
     observeLocalRef: async () => ({ status: "absent" as const }),
     observeRemoteRef: async () => ({ status: "absent" as const }),
+    // The fixture binds one exact head, so identity is the only relation it models; a distinct pair
+    // is one this fixture establishes nothing about.
+    readAncestry: async (ancestor: string, descendant: string) =>
+      ancestor === descendant ? "ancestor" as const : "not-ancestor" as const,
     readTerminalRequest: async () => ({ status: "observed" as const, request: fixture.request }),
   };
 }
@@ -180,6 +184,35 @@ describe("delivery record retirement", () => {
       });
       expect({ plans: fixture.plans.size, states: fixture.states.size }).toEqual({ plans: 2, states: 1 });
     }
+  });
+
+  it("retires a terminal the host merged at a descendant of the head it binds", async () => {
+    const fixture = completedRecordsFixture();
+    const bound = fixture.state.members.at(-1)!.coordinates!.head;
+    const merged = "a".repeat(40);
+    fixture.request = { ...fixture.request, headSha: merged };
+
+    await expect(retireCompletedDeliveryRecords(retirementInput(fixture), {
+      ...retirementDependencies(fixture),
+      // Answers the one ordered pair the settlement is entitled to ask about, so a read taken in the
+      // other direction — or of another pair — reaches the refusal rather than this admission.
+      readAncestry: async (ancestor: string, descendant: string) =>
+        ancestor === bound && descendant === merged ? "ancestor" as const : "not-ancestor" as const,
+    })).resolves.toEqual({
+      status: "retired",
+      planIds: [fixture.plan.planId, fixture.orphan.planId],
+    });
+  });
+
+  it("refuses a moved terminal head no ancestry read places", async () => {
+    const fixture = completedRecordsFixture();
+    fixture.request = { ...fixture.request, headSha: "a".repeat(40) };
+
+    await expect(retireCompletedDeliveryRecords(retirementInput(fixture), {
+      ...retirementDependencies(fixture),
+      readAncestry: async () => "unresolvable" as const,
+    })).resolves.toMatchObject({ status: "blocked", reason: "terminal-unsettled" });
+    expect({ plans: fixture.plans.size, states: fixture.states.size }).toEqual({ plans: 2, states: 1 });
   });
 
   it("retries through orphan plans after exact state removal", async () => {
