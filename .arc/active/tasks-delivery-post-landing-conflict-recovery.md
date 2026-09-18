@@ -716,26 +716,10 @@ is a field on `diverged`, not a variant.
   Two spellings are deliberately still standing: the request contract restates its literals rather than deriving
   them, and `diverged` carries a chain base only where the pair shares nothing — 5.5.a and 5.3.a own them.
 
-### `[ ]` **5.3 Migrate `samePredecessorRelation` and the payload destinations with the variants**
+### `[x]` **5.3 Migrate `samePredecessorRelation` and the payload destinations with the variants**
 
 - _Goal:_ Every payload field a variant carries today stays reachable after the migration, and the comparison
   that reads them field by field moves with the variants rather than after them.
-
-- _Rationale:_ `exact` carries `chainBase`; `disjoint-ahead` carries `chainBase`, `mergeBase`, and `overlap`;
-  `overlapping-ahead` carries `mergeBase` and `overlap` but no `chainBase`. `eligibility.ts` consumes `chainBase`
-  as the coordinate it observes the chain against at two readers, so it must stay reachable for every arm that
-  carries it today.
-
-- _Shape:_ The migrated payload, stated once so no later task infers it. `unchanged` and `advanced` carry
-  `chainBase`. `rewound` carries `chainBase`, `mergeBase`, and `overlap` — it is the ancestry-direction half of
-  today's `disjoint-ahead`, so it keeps that arm's payload, and its `chainBase` is what makes the second reader's
-  null branch unreachable. `diverged` carries `chainBase`, `mergeBase`, `overlap`, and cardinality. `absent` and
-  `unknown` carry neither base nor overlap and sit outside the read's resolved arm (5.1), so no eligibility
-  reader receives one. **`overlap` stays on the relation** rather than moving to the reader
-  result: the field-by-field comparison reads it there, and moving it would narrow that comparison silently.
-
-- _Note:_ `sameOverlap` compares path arrays order-sensitively by index. Preserve that behavior as-is — it is not
-  this work unit's to change — but do not widen its reach while migrating around it.
 
     - `[x]` **5.3.a Carry `chainBase` unconditionally on `diverged`, with the close-time overlap test alongside**
 
@@ -745,15 +729,19 @@ is a field on `diverged`, not a variant.
           which a snapshot carrying its own overlap passes.
         - With the field total and that refusal unwritten, a submitted overlap closed `eligible`.
 
-    - `[ ]` **5.3.b Migrate the field-by-field comparison with the variants**
+    - `[x]` **5.3.b Migrate the field-by-field comparison with the variants**
 
-        - Remove the `unrelated` branch rather than migrating it: that variant leaves the relation for the
-          resolver's arm, so there is no migrated kind for it to compare.
-        - Build `test-first` (one behavior at a time):
+        - The comparison reads the merge-base count alongside the coordinates, and the field it reads rides the
+          relation the producer builds — taken off the classified variant rather than restated beside it.
+        - The `unrelated` branch was already gone: 5.2 removed it as a forced callsite when that variant left the
+          relation for the read's own arm.
 
-            - Two equal migrated relations compare equal across every payload field
-            - A cardinality difference on `diverged` compares unequal
-            - A `chainBase` difference on `diverged` compares unequal
+- _Outcome:_ Every field the retired vocabulary carried is reachable on the migrated one, and the comparison that
+  reads them field by field moved with it rather than after it. `diverged` gained a total `chainBase` and the
+  merge-base count; on this path the count is always one, since a pair leaving more than one base leaves by the
+  ambiguous arm before any relation is built, so a value above one first arrives with Task 6.6's adoption. The
+  close-time reader no longer refuses shared content by a field's absence — it tests for it, ahead of a
+  comparison that an inadmissible snapshot passes.
 
 ### `[ ]` **5.4 Re-point `eligibility.ts`'s accept and refuse split onto the overlap field**
 

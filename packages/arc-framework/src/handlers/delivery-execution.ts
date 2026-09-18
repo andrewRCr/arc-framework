@@ -398,6 +398,7 @@ const PredecessorRelationSchema = z.discriminatedUnion("kind", [
     observedTip: GitObjectIdSchema,
     chainBase: GitObjectIdSchema,
     mergeBase: GitObjectIdSchema,
+    mergeBaseCount: z.number().int().positive(),
     overlap: DeliveryOverlapSchema,
   }),
 ]);

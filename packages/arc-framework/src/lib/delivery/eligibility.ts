@@ -738,7 +738,7 @@ function samePredecessorRelation(
   }
   if (left.kind === "diverged" && right.kind === "diverged") {
     return left.chainBase === right.chainBase && left.mergeBase === right.mergeBase
-      && sameOverlap(left.overlap, right.overlap);
+      && left.mergeBaseCount === right.mergeBaseCount && sameOverlap(left.overlap, right.overlap);
   }
   return false;
 }

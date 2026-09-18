@@ -395,6 +395,7 @@ describe("delivery suffix rematerialization", () => {
         observedTip: observedTip.head,
         chainBase: snapshot.chainBase.head,
         mergeBase: snapshot.chainBase.head,
+        mergeBaseCount: 1,
         overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
       },
     };

@@ -123,6 +123,7 @@ describe("prepareDeliveryEligibility", () => {
           observedTip: oid("e"),
           chainBase: oid("a"),
           mergeBase: oid("a"),
+          mergeBaseCount: 1,
         },
         regenerablePaths: [".arc/backlog/ROADMAP.md"],
       },
@@ -248,6 +249,7 @@ describe("prepareDeliveryEligibility", () => {
         kind: "diverged",
         observedTip: oid("a"),
         mergeBase: oid("a"),
+        mergeBaseCount: 1,
         overlap: { substantivePaths: ["src/shared.ts"] },
       },
       paths: ["src/shared.ts"],
@@ -684,6 +686,7 @@ describe("eligibility observation bracket", () => {
         observedTip: prepared.snapshot.protectedBase.head,
         chainBase: oid("f"),
         mergeBase: oid("f"),
+        mergeBaseCount: 1,
         overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
       },
     };
@@ -722,6 +725,7 @@ describe("eligibility observation bracket", () => {
         observedTip: prepared.snapshot.protectedBase.head,
         chainBase: oid("a"),
         mergeBase: oid("a"),
+        mergeBaseCount: 1,
         overlap,
       },
     }, deps)).resolves.toMatchObject({
@@ -732,6 +736,78 @@ describe("eligibility observation bracket", () => {
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     });
     expect(completeness).not.toHaveBeenCalled();
+  });
+
+  // A base that moved to a revision the member does not sit on, sharing no changed content with it. The fresh
+  // read reproduces exactly the relation returned here, so each test below varies one field of a submitted copy.
+  function divergedReread(deps: DeliveryEligibilityCloseDependencies) {
+    const overlap = {
+      status: "available" as const,
+      substantivePaths: [] as string[],
+      regenerablePaths: [] as string[],
+    };
+    deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    deps.readOverlap = vi.fn(async () => ({ status: "available" as const, mergeBase: oid("a"), overlap }));
+    return {
+      kind: "diverged" as const,
+      observedTip: oid("a"),
+      chainBase: oid("a"),
+      mergeBase: oid("a"),
+      mergeBaseCount: 1,
+      overlap,
+    };
+  }
+
+  it("reads the merge-base count a submitted relation claims, not only the coordinates around it", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const relation = divergedReread(deps);
+
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      predecessorRelation: { ...relation, mergeBaseCount: 2 },
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
+    });
+  });
+
+  it("reads the chain base a diverged relation carries, which no later coordinate check re-reads", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const relation = divergedReread(deps);
+
+    // The checks after the comparison read the chain base off the fresh relation, so a substituted one reaches
+    // them unchanged; only reading the submitted copy field by field tells the two apart.
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      predecessorRelation: { ...relation, chainBase: oid("f") },
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
+    });
+  });
+
+  it("closes a diverged relation the fresh read matches in every payload field", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const snapshot = { ...prepared.snapshot, predecessorRelation: divergedReread(deps) };
+
+    await expect(closeDeliveryEligibility(snapshot, deps)).resolves.toEqual({ status: "eligible", snapshot });
   });
 
   it("rejects a resolvable substituted chain-base coordinate before completeness", async () => {

@@ -71,6 +71,7 @@ export type DeliveryPredecessorRelation =
       readonly observedTip: string;
       readonly chainBase: string;
       readonly mergeBase: string;
+      readonly mergeBaseCount: number;
       readonly overlap: AvailableOverlap["overlap"];
     };
 
@@ -177,6 +178,9 @@ export async function predecessorRelation(
       // still agree on, so it is equally the base the chain sits on and the base the pair was measured from.
       chainBase: overlap.mergeBase,
       mergeBase: overlap.mergeBase,
+      // Read off the variant that was classified rather than restated here, so the count a pair was placed at
+      // and the count it carries cannot come apart.
+      mergeBaseCount: variant.mergeBaseCount,
       overlap: overlap.overlap,
     },
   };

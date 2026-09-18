@@ -73,6 +73,7 @@ describe("deriveDeliveryMaterialization", () => {
         observedTip: "9".repeat(40),
         chainBase: chainHead,
         mergeBase: chainHead,
+        mergeBaseCount: 1,
         overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
       },
     };
@@ -289,6 +290,7 @@ describe("delivery materialization orchestration", () => {
         observedTip: observedHead,
         chainBase: chainHead,
         mergeBase: chainHead,
+        mergeBaseCount: 1,
         overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
       },
     };

@@ -64,6 +64,7 @@ describe("predecessor relation", () => {
         observedTip: oid("c"),
         chainBase: oid("a"),
         mergeBase: oid("a"),
+        mergeBaseCount: 1,
         overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
       },
     });
@@ -88,6 +89,7 @@ describe("predecessor relation", () => {
         observedTip: oid("c"),
         chainBase: oid("a"),
         mergeBase: oid("a"),
+        mergeBaseCount: 1,
         overlap: {
           status: "available",
           substantivePaths: ["src/shared.ts"],
