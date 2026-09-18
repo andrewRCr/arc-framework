@@ -45,8 +45,10 @@ Four behaviors decide whether the gate tells the truth:
   per-file run can never notice that a violation was fixed. After reducing one, run `lint:ts` — it exits 2 and
   names the unused suppression — then re-run it with `--prune-suppressions` and commit the shrunk record.
 - **A new violation surfaces its whole bucket.** Suppressions count violations per file per rule, never per
-  line, so exceeding a recorded count reports _every_ violation of that rule in the file. The one at the new
-  code is the one to fix; the others are pre-existing and are not evidence that the change broke them.
+  line, so exceeding a recorded count reports _every_ violation of that rule in the file. Attribute by diff:
+  the violations on lines the branch changed are its own, and the rest are pre-existing. The count delta
+  against the recorded entry is only the minimum the gate will accept — it under-reports a change that fixed
+  one violation while adding two.
 - **Never re-run `--suppress-rule` to clear a red gate.** That records the new violation as permanent debt,
   which is the one thing the record exists to prevent.
 
@@ -137,6 +139,10 @@ guard-only dead ends.
   (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
 - TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
   describing the module's purpose
+- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cyclomatic
+  complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
+  ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the
+  authority
 
 ## Self-Hosting Defects
 
