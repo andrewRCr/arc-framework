@@ -1,8 +1,8 @@
 # Metadata: delivery-post-landing-conflict-recovery
 
-| **State** | **Owner** | **Branch** | **Class** | **Priority** |
-| --------- | --------- | ---------- | --------- | ------------ |
-| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                                     | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/delivery-post-landing-conflict-recovery` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:c0431c7098306fa8a3a91c70b0a8614288079eadee370f3d0177a5827de87605`
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
-- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/656>
-- **Completed:** 2026-09-18
+- **PR URL:** [none]
+- **Completed:** [none]
 
 ## Release Notes Entry
 
