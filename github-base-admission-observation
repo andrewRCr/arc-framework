@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "github-base-admission-observation",
+  "claimId": "a5bbfad959153fcce2cc4248fb342122",
+  "createdAt": "2026-09-19T16:26:06.995Z",
+  "updatedAt": "2026-09-19T16:26:06.995Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve exact current-base merge admission without treating GitHub PR base.sha as live base authority.",
+  "branch": "chore/github-base-admission-observation",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
