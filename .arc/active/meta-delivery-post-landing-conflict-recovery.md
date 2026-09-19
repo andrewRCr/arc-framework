@@ -11,13 +11,14 @@
 - **Design:** `spec-delivery-post-landing-conflict-recovery.md`
 - **Task List:** `tasks-delivery-post-landing-conflict-recovery.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:759e04f0e7036c49daea5ae9fbf12698152de4d5bd5929903baf0e264a5bdaf7`
 
-- **Current Workflow:** [none]
-- **Last Completed:** verify-work-unit Step 1 — clean, self-review, Tier 3 green (`a3ab1fe55`)
-- **Next Task:** Task 8.1 — Complete verification (line ~1199)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** verify-work-unit Step 2 — validate the 13 Success Criteria at work-unit scope, then Step 3 attest
+- **Next Action:** Candidate review pending — run pre-publication review
 
 - **PR URL:** [none]
 - **Completed:** [none]
