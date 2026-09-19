@@ -31,7 +31,7 @@ describe("native delivery suffix settlement", () => {
 
   const send = async (verb: string, fixture: NativeSuffixStackFixture, request: unknown, mode?: string) => (
     runArcWithStdin(
-      ["delivery", "native", verb, "-", "--json"],
+      ["delivery", "native", verb, "-"],
       repository,
       `${JSON.stringify(request)}\n`,
       { env: mode === undefined ? fixture.env : { ...fixture.env, ARC_FAKE_GH_MODE: mode } },

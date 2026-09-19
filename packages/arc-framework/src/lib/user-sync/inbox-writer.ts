@@ -118,6 +118,61 @@ function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
   return located.entries;
 }
 
+/** The `_Key:_` an entry-body descriptor line declares, or null when the line declares none. */
+function descriptorKey(line: string | undefined): string | null {
+  return /^- (_[^_]+:_)/u.exec(line ?? "")?.[1] ?? null;
+}
+
+/** Render one body line for a diagnostic, bounding an arbitrarily long descriptor. */
+function describeLine(line: string | undefined): string {
+  if (line === undefined) return "nothing";
+  const trimmed = line.trim();
+  if (trimmed === "") return "a blank line";
+  return `'${trimmed.length > 60 ? `${trimmed.slice(0, 57)}...` : trimmed}'`;
+}
+
+/**
+ * Name the single grammar rule an entry's disposition block violates.
+ *
+ * The caller has already established that the block is non-empty and malformed; this only decides
+ * which rule to report. Each branch names the offending descriptor and the correction, because the
+ * bare state is not actionable from the refusal alone.
+ *
+ * @param body - Entry body lines, excluding the heading.
+ * @param dispositionIndices - Body indices of every `- _Disposition:_` line.
+ * @param dispatchIndices - Body indices of every `- _Dispatch:_` line.
+ * @returns One sentence naming the violated rule and its correction.
+ */
+function dispositionDefect(
+  body: readonly string[],
+  dispositionIndices: readonly number[],
+  dispatchIndices: readonly number[],
+): string {
+  if (dispositionIndices.length > 1) {
+    return `'_Disposition:_' appears ${dispositionIndices.length} times at body lines `
+      + `${dispositionIndices.join(", ")}; keep exactly one`;
+  }
+  if (dispatchIndices.length !== 0) {
+    return dispositionIndices.length === 0
+      ? `'_Dispatch:_' at body line ${dispatchIndices[0]} is a retired field with no '_Disposition:_'; `
+        + `replace it with ${DISPOSITION_LINE}`
+      : `'_Dispatch:_' at body line ${dispatchIndices[0]} cannot accompany '_Disposition:_'; remove it`;
+  }
+  if (body[0] !== "") {
+    return `the heading must be followed by one blank line, but body line 0 is ${describeLine(body[0])}`;
+  }
+  const dispositionIndex = dispositionIndices[0] as number;
+  if (dispositionIndex !== 1) {
+    const displacing = descriptorKey(body[1]);
+    return displacing === null
+      ? `'_Disposition:_' must be the first descriptor, at body line 1, but sits at line ${dispositionIndex} `
+        + `behind ${describeLine(body[1])}`
+      : `descriptor '${displacing}' precedes '_Disposition:_' at body line 1; `
+        + `move '${displacing}' after the disposition`;
+  }
+  return `'_Disposition:_' must read exactly ${DISPOSITION_LINE}, but body line 1 is ${describeLine(body[1])}`;
+}
+
 function executeBoundMark(
   lines: readonly string[],
   entry: LocatedInboxEntry,
@@ -134,7 +189,10 @@ function executeBoundMark(
     || body[0] !== ""
     || body[1] !== DISPOSITION_LINE
   ) {
-    throw new Error(`Malformed USER-INBOX disposition fields for '${entry.title}'.`);
+    throw new Error(
+      `Malformed USER-INBOX disposition fields for '${entry.title}': `
+      + `${dispositionDefect(body, dispositionIndices, dispatchIndices)}.`,
+    );
   }
   return { insertedLineCount: 2 };
 }

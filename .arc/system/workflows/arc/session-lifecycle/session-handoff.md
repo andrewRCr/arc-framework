@@ -664,7 +664,7 @@ Resolve each candidate branch's exact local head with
 (never block on CI):
 
 ```bash
-arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json
+arc review change-request resolve --head-ref <branch> --head-sha <head-sha>
 ```
 
 An unavailable local head is **failed / blocked**; never substitute a host-reported or remembered head.

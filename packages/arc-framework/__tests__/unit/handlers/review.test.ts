@@ -130,7 +130,7 @@ describe("handleReviewMergeMethodResolve", () => {
   it("emits the live validation result for the configured method", async () => {
     const write = vi.fn();
     const readConfiguredMethod = vi.fn(async () => "squash" as const);
-    await handleReviewMergeMethodResolve({ json: true, stackPosition: "top" }, {
+    await handleReviewMergeMethodResolve({ stackPosition: "top" }, {
       resolveRoot: () => "/repo",
       readConfiguredMethod,
       resolve: async (method, stackPosition) => ({
@@ -159,7 +159,7 @@ describe("handleReviewMergeMethodResolve", () => {
   it("fails closed with a schema-valid result outside an ARC project", async () => {
     const write = vi.fn();
     const readConfiguredMethod = vi.fn();
-    await handleReviewMergeMethodResolve({ json: true }, {
+    await handleReviewMergeMethodResolve({}, {
       resolveRoot: () => null,
       readConfiguredMethod,
       write,
@@ -178,7 +178,7 @@ describe("handleReviewMergeMethodResolve", () => {
 
   it("fails closed on an invalid stack position", async () => {
     const write = vi.fn();
-    await handleReviewMergeMethodResolve({ json: true, stackPosition: "middle" }, {
+    await handleReviewMergeMethodResolve({ stackPosition: "middle" }, {
       resolveRoot: () => "/repo",
       readConfiguredMethod: async () => "merge",
       resolve: async (_method, stackPosition) => ({
@@ -216,7 +216,7 @@ describe("handleReviewChecksAwait", () => {
       headSha: "not-an-oid",
       timeoutMs: "2000",
       pollIntervalMs: "500",
-      json: true,
+      
     }, { awaitChecks, write, setExitCode });
 
     expect(awaitChecks).not.toHaveBeenCalled();
@@ -237,7 +237,7 @@ describe("handleReviewChecksAwait", () => {
       headSha: "a".repeat(40),
       timeoutMs: "2000",
       pollIntervalMs: "500",
-      json: true,
+      
     }, {
       awaitChecks: async () => ({
         schemaVersion: 1,
@@ -924,7 +924,7 @@ describe("handleReviewStatus", () => {
       nextAction: "run-review" as const,
     }));
 
-    await handleReviewStatus({ workUnit: "example", json: true }, undefined, {
+    await handleReviewStatus({ workUnit: "example" }, undefined, {
       resolveRoot: () => "/repo",
       resolve,
       resolveWorkUnit,
@@ -985,7 +985,6 @@ describe("handleReviewStatus", () => {
     await handleReviewStatus({
       workUnit: "example",
       source: "codex-pr",
-      json: true,
     }, undefined, {
       resolveRoot: () => "/repo",
       resolve: vi.fn(),
@@ -1037,7 +1036,6 @@ describe("handleReviewStatus", () => {
     await handleReviewStatus({
       target: JSON.stringify(statusTarget),
       source: "codex-pr",
-      json: true,
     }, undefined, {
       resolveRoot: () => "/repo",
       resolve,
@@ -1073,7 +1071,6 @@ describe("handleReviewStatus", () => {
       target: JSON.stringify(statusTarget),
       ceilingOverride: JSON.stringify(ceilingOverride),
       coverage: "incremental",
-      json: true,
     }, undefined, {
       resolveRoot: () => "/repo",
       resolve: async (_root, request) => ({
@@ -1178,7 +1175,7 @@ describe("handleReviewTerminusAccept", () => {
       nextAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resume review.",
       },
       policy: null,
@@ -2176,7 +2173,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as Record<string, unknown>;
     expect(envelope).toMatchObject({
@@ -2198,7 +2195,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     // The digest travels with the boundary because submission authorizes against it: a boundary
     // recording only its Candidate identity could not tell a settled review from a superseded one.
@@ -2219,7 +2216,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-review-pending",
@@ -2244,7 +2241,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(dependencies.persistBoundary).toHaveBeenCalledWith("/repo", expect.objectContaining({
       locus: "candidate-convergence-verification-pending",
@@ -2259,7 +2256,7 @@ describe("handleReviewPrePublication", () => {
       }),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
@@ -2273,7 +2270,7 @@ describe("handleReviewPrePublication", () => {
 
     await handleReviewPrePublication(
       "example",
-      { json: true, selfReview: "settled" },
+      { selfReview: "settled" },
       boundary({ compose }),
     );
 
@@ -2292,7 +2289,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(dependencies.warn).toHaveBeenCalledWith(
       "the standard lane has no durable progress at this head\n",
@@ -2306,7 +2303,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ compose });
 
-    await handleReviewPrePublication("example", { json: true, selfReview: "done" }, dependencies);
+    await handleReviewPrePublication("example", { selfReview: "done" }, dependencies);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -2325,7 +2322,7 @@ describe("handleReviewPrePublication", () => {
 
     await handleReviewPrePublication(
       "example",
-      { json: true, changeSet: "-", lanes: "lanes.json" },
+      { changeSet: "-", lanes: "lanes.json" },
       dependencies,
     );
 
@@ -2343,7 +2340,7 @@ describe("handleReviewPrePublication", () => {
     const readText = vi.fn();
     const dependencies = boundary({ compose, readText });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(readText).not.toHaveBeenCalled();
     expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
@@ -2367,7 +2364,7 @@ describe("handleReviewPrePublication", () => {
 
     await handleReviewPrePublication(
       "example",
-      { json: true, changeSet: "change.json", lanes: "lanes.json" },
+      { changeSet: "change.json", lanes: "lanes.json" },
       first,
     );
 
@@ -2380,7 +2377,7 @@ describe("handleReviewPrePublication", () => {
     const readText = vi.fn();
     const second = boundary({ compose, readText });
 
-    await handleReviewPrePublication("example", { json: true, resume: token }, second);
+    await handleReviewPrePublication("example", { resume: token }, second);
 
     expect(readText).not.toHaveBeenCalled();
     expect(compose).toHaveBeenCalledWith("/repo", expect.objectContaining({
@@ -2412,7 +2409,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request: findingsRequest, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { json: true, lanes: "lanes.json" }, dependencies);
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       locus: string;
@@ -2458,7 +2455,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request: readyRequest, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { json: true, lanes: "lanes.json" }, dependencies);
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
@@ -2501,7 +2498,7 @@ describe("handleReviewPrePublication", () => {
       compose: vi.fn(async () => ({ status: "composed", request: nextRequest, advisories: [] })),
     });
 
-    await handleReviewPrePublication("example", { json: true, resume }, dependencies);
+    await handleReviewPrePublication("example", { resume }, dependencies);
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
@@ -2520,7 +2517,7 @@ describe("handleReviewPrePublication", () => {
     const readText = vi.fn();
     const dependencies = boundary({ compose, readText });
 
-    await handleReviewPrePublication("example", { json: true, changeSet: "-", lanes: "-" }, dependencies);
+    await handleReviewPrePublication("example", { changeSet: "-", lanes: "-" }, dependencies);
 
     expect(readText).not.toHaveBeenCalled();
     expect(compose).not.toHaveBeenCalled();
@@ -2535,7 +2532,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ compose, readText: async () => "{ not json" });
 
-    await handleReviewPrePublication("example", { json: true, [option]: "facts.json" }, dependencies);
+    await handleReviewPrePublication("example", { [option]: "facts.json" }, dependencies);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -2552,7 +2549,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
@@ -2570,7 +2567,7 @@ describe("handleReviewPrePublication", () => {
       })),
     });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "review-pre-publication",
@@ -2584,7 +2581,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ resolveRoot: () => null, compose });
 
-    await handleReviewPrePublication("example", { json: true }, dependencies);
+    await handleReviewPrePublication("example", {}, dependencies);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
@@ -2595,8 +2592,8 @@ describe("handleReviewPrePublication", () => {
 
   it.each([
     ["an unreadable request", { json: true, selfReview: "done" }, {}],
-    ["an unresolvable repository", { json: true }, { resolveRoot: () => null }],
-    ["a refused composition", { json: true }, {
+    ["an unresolvable repository", {}, { resolveRoot: () => null }],
+    ["a refused composition", {}, {
       compose: vi.fn(async () => ({ status: "refused", reason: "No managed Candidate record exists." })),
     }],
   ] as const)("names the resume command on %s", async (_case, options, overrides) => {
@@ -2605,7 +2602,7 @@ describe("handleReviewPrePublication", () => {
     await handleReviewPrePublication("example", options, dependencies);
 
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
-      remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] },
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] },
     });
   });
 
@@ -2613,7 +2610,7 @@ describe("handleReviewPrePublication", () => {
     const compose = vi.fn();
     const dependencies = boundary({ compose });
 
-    await handleReviewPrePublication("Not A Slug", { json: true }, dependencies);
+    await handleReviewPrePublication("Not A Slug", {}, dependencies);
 
     expect(compose).not.toHaveBeenCalled();
     expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({

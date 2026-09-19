@@ -172,7 +172,7 @@ function deliveryReviewFixConflictStop(
     paths: result.paths,
     conflictPreparation: result.conflictPreparation,
     resumeAction: {
-      argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+      argv: ["arc", "delivery", "review-fix", "continue", "-"],
       input: { repository: actionInput.repository, remote: actionInput.remote },
     },
     effectLog,

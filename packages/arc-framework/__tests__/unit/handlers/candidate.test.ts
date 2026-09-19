@@ -342,7 +342,7 @@ describe("handleCandidateApplicabilityResolve", () => {
         invariant: "An applicability selection binds what the branch contributes over one base, which a history "
           + "leaving two equally good ancestors does not name.",
         text: expect.any(String),
-        argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+        argv: ["arc", "integrate", "checkpoint", "example"],
       },
     });
     expect(exitCodes).toEqual([1]);

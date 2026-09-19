@@ -248,6 +248,53 @@ describe("mutateInboxEntries", () => {
     expect(listing.diagnostics).toEqual([expect.stringMatching(/Malformed USER-INBOX disposition fields/)]);
   });
 
+  it("names the offending descriptor and rule for each disposition-grammar defect", () => {
+    const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
+    const marked = mutateInboxEntries(INBOX, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ]).content;
+    /** The one diagnostic `listExecuteBoundInboxEntries` reports for a malformed first entry. */
+    const defect = (content: string): string => {
+      const [first] = listExecuteBoundInboxEntries(content).diagnostics;
+      return first ?? "";
+    };
+
+    // The recurring field defect: a descriptor added ahead of the managed field displaces it from
+    // body line 1. Naming only the entry is not actionable, so the key and the move are both stated.
+    expect(defect(marked.replace(
+      "\n\n- _Disposition:_ `execute-bound`",
+      "\n\n- _Blocked by:_ something\n\n- _Disposition:_ `execute-bound`",
+    ))).toBe(
+      "Malformed USER-INBOX disposition fields for 'First atomic': descriptor '_Blocked by:_' precedes "
+      + "'_Disposition:_' at body line 1; move '_Blocked by:_' after the disposition.",
+    );
+
+    expect(defect(marked.replace(
+      "- _Disposition:_ `execute-bound`",
+      "- _Disposition:_ `execute-bound`\n\n- _Disposition:_ `execute-bound`",
+    ))).toContain("'_Disposition:_' appears 2 times at body lines 1, 3; keep exactly one");
+
+    expect(defect(marked.replace(
+      "- _Disposition:_ `execute-bound`",
+      "- _Disposition:_ `execute-bound`\n- _Dispatch:_ `dispatch-7`",
+    ))).toContain("'_Dispatch:_' at body line 2 cannot accompany '_Disposition:_'; remove it");
+
+    expect(defect(INBOX.replace(
+      "### `[ ]` **First atomic**\n",
+      "### `[ ]` **First atomic**\n- _Dispatch:_ `dispatch-7`\n",
+    ))).toContain("is a retired field with no '_Disposition:_'");
+
+    expect(defect(INBOX.replace(
+      "### `[ ]` **First atomic**\n",
+      "### `[ ]` **First atomic**\n- _Disposition:_ `execute-bound`\n",
+    ))).toContain("the heading must be followed by one blank line, but body line 0 is");
+
+    expect(defect(marked.replace(
+      "- _Disposition:_ `execute-bound`",
+      "- _Disposition:_ `deferred`",
+    ))).toContain("must read exactly - _Disposition:_ `execute-bound`, but body line 1 is");
+  });
+
   it("keeps well-formed execute-bound entries when a sibling heading is malformed", () => {
     const firstDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     const secondDigest = inboxEntrySourceDigest(INBOX, "Second atomic");

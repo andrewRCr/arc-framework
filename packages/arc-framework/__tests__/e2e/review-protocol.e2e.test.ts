@@ -261,7 +261,6 @@ describe("built review protocol", () => {
       "status",
       "--target",
       JSON.stringify(target),
-      "--json",
     ], root);
 
     expect(result.exitCode).toBe(1);
@@ -271,7 +270,7 @@ describe("built review protocol", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target)] },
     });
   });
 

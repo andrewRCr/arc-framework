@@ -61,14 +61,14 @@ When the status result is `integrating`, classify delivery intent before resolvi
 performing any push:
 
 ```bash
-printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect --input - --json
+printf '%s\n' '{"entryMode":"integrating"}' | arc delivery entry inspect -
 ```
 
 Dispatch only on the returned route. `not-applicable` continues ordinary singleton integration below.
 `resolve-delivery-status` resumes at Step 2's provider-neutral delivery-status reduction with its exact
 `deliveryStatusAction`; only a downstream explicit review action represents review work;
 do not resolve a singleton change request or enter delivery publication / position reconciliation.
-`review-fix-verification-required` invokes `arc delivery review-fix continue - --json` with only the repository and
+`review-fix-verification-required` invokes `arc delivery review-fix continue -` with only the repository and
 remote identities, then follows the resumable correction procedure in `deliver-stack.md`; do not enter whole-WU
 verification, Frontline, or singleton prepublication.
 `candidate-verification-required` leaves this workflow for Candidate verification closeout; it synthesizes no
@@ -88,7 +88,7 @@ publication, state binding, member pull requests, and the landing window. `refus
 entry dispatch on the `shipped` tail, which has already crossed initial publication.
 
 Resolve the branch head, then invoke
-`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`. Follow its typed state:
+`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha}`. Follow its typed state:
 
 | Resolver and change-request state              | Demonstrably already ran             | Resume at                                                       |
 | ---------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- |
@@ -121,7 +121,7 @@ actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
 **Push the WU branch upstream.** Re-entry from the no-PR resume row starts here; pushing an unchanged branch is
 idempotent, so both transitioned-but-unpushed and pushed-but-uncreated interruptions use this same resume action.
 
-Invoke `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --json`. `none /
+Invoke `arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha}`. `none /
 create-change-request` continues below; `open / reuse-change-request` proceeds to Step 2; `closed-unmerged /
 reopen-change-request` reopens before Step 2; `merged-at-head / complete` enters the merged tail. Every other typed
 action stops. This resolver call is the pre-create exact-head validation.
@@ -133,7 +133,7 @@ is active, execute its numbered `.actions` in authored order. Halt before later 
 whenever an open PR already exists.
 
 Immediately before creation, re-resolve the current head with
-`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --require-remote --json`.
+`arc review change-request resolve --head-ref {type}/{name} --head-sha {head-sha} --require-remote`.
 Continue only from `none / create-change-request`; every other typed action dispatches as above. This exact replay
 requires the remote branch itself to carry the creation head, including after any hook action.
 
@@ -185,13 +185,13 @@ must match the current Candidate and carries the ordered sources and exact oblig
   `integrationBoundary.nextAction.command` and continue only from `ready / hosted-request`; the returned policy
   preserves the reservation without rerunning chunking or source ordering and supplies `policy.payload.sourceId`
   plus the authorized `policy.payload.pass`. Bind the open pull request, resolve its exact current `targetRef`, and
-  invoke `arc review status --target '{targetRef}' --json`.
+  invoke `arc review status --target '{targetRef}'`.
 
 Every other boundary action stops. Dispatch only on `nextAction` from the status result.
 
 Throughout this iteration, **re-enter status** means preserve the same status scope: execute the WU-scoped boundary
 command again for a delivery, or use the exact `targetRef` command for an ordinary singleton. Append an authorized
-judgment option before `--json`; never narrow a delivery-status action to an agent-reconstructed member target.
+judgment option; never narrow a delivery-status action to an agent-reconstructed member target.
 
 `obtain-ceiling-override` renders the exact `consequence` and, when present for a delivery member, the exact
 `terminusAction.offer.interactionText`, then stops without requesting. Only explicit approval of the consequence admits
@@ -199,13 +199,13 @@ one additional pass; on approval, re-enter the same status scope with the return
 For a delivery, use:
 
 ```bash
-arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --ceiling-override '{consequence}' --json
+arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --ceiling-override '{consequence}'
 ```
 
 For an ordinary singleton, use:
 
 ```bash
-arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
+arc review status --target '{targetRef}' --ceiling-override '{consequence}'
 ```
 
 A `review-hosted-request` or `review-local-prepare` result may also carry `terminusAction` after an earlier complete
@@ -229,7 +229,7 @@ arc review terminus accept -
 selector-free correction procedure with only the repository and remote identities:
 
 ```bash
-printf '%s\n' '{"repository":"{repositoryRef}","remote":"origin"}' | arc delivery review-fix continue - --json
+printf '%s\n' '{"repository":"{repositoryRef}","remote":"origin"}' | arc delivery review-fix continue -
 ```
 
 The procedure performs any owed terminal-coordinate rebind before returning the first outstanding member.
@@ -322,8 +322,7 @@ arc review checks await \
   --pull-request <action.handle.target.pullRequest> \
   --head-sha <action.handle.target.headSha> \
   --timeout-ms 10000 \
-  --poll-interval-ms 10000 \
-  --json
+  --poll-interval-ms 10000
 ```
 
 Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
@@ -376,13 +375,13 @@ When a supplied action requires a hosted supplemental review for an ordinary sin
 target:
 
 ```bash
-arc review status --target '{targetRef}' --coverage incremental --json
+arc review status --target '{targetRef}' --coverage incremental
 ```
 
 For a delivery, let WU status select the current first-outstanding member without reconstructing it:
 
 ```bash
-arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --coverage incremental --json
+arc review status --work-unit '{integrationBoundary.nextAction.workUnitId}' --coverage incremental
 ```
 
 Pass the returned action unchanged; it carries `coverage: incremental`. After the supplemental attempt concludes,
@@ -541,7 +540,7 @@ Restart this step. The correction changed the head, so no checkpoint evidence ca
 Invoke the checkpoint:
 
 ```bash
-arc integrate checkpoint {name} --json
+arc integrate checkpoint {name}
 ```
 
 Invoke the checkpoint once per entry. Dispatch only on its typed `state` / `nextAction`, render the supplied next
@@ -693,7 +692,7 @@ After approval, if the interlock surfaced required checks as not green, do not i
 authorized checkpoint and re-enter once they are green. If required checks were green at the interlock, invoke:
 
 ```bash
-arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json
+arc integrate merge {name} --checkpoint {payload.checkpointHandle}
 ```
 
 `merged / complete` proceeds to the tail. `awaiting-checks / retry` keeps the checkpoint and draft lock; surface
@@ -730,7 +729,7 @@ Invoke delivery closeout with the exact current change-request repository bound 
 ```
 
 ```bash
-arc delivery closeout - --json
+arc delivery closeout -
 ```
 
 `closed-out` renders `recommendedActionText` and continues. `blocked` renders `recommendedActionText` and stops;

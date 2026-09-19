@@ -1056,7 +1056,7 @@ describe("native delivery landing", () => {
           + "observation and the host prefix snapshot.",
       },
       submitAction: {
-        command: "arc delivery native land-submit - --json",
+        command: "arc delivery native land-submit -",
         input: {
           planId: plan.planId,
           operationId: "operation-1",

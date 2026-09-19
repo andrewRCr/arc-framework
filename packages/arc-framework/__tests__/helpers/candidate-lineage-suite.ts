@@ -173,7 +173,7 @@ async function runArc(args: string[], cwd: string): Promise<HandlerRunResult> {
       return;
     }
     if (args[0] === "review" && args[1] === "pre-publication" && args[2] !== undefined) {
-      await handleReviewPrePublication(args[2], { json: args.includes("--json") }, {}, machineContext());
+      await handleReviewPrePublication(args[2], {}, {}, machineContext());
       return;
     }
     throw new Error(`Unsupported handler command: ${command}`);
@@ -189,10 +189,10 @@ async function runArcWithStdin(
 ): Promise<HandlerRunResult> {
   if (suiteMode === "e2e") return runBuiltArcWithStdin(args, cwd, input, options);
   return runHandlerAt(cwd, async () => {
-    const path = args.filter((arg) => arg !== "-" && arg !== "--json" && arg !== "--input").join(" ");
+    const path = args.filter((arg) => arg !== "-").join(" ");
     const readText = async () => input;
     if (path === "delivery entry inspect") {
-      await handleDeliveryEntryInspect({ input: "-", json: true }, machineContext(), { readText });
+      await handleDeliveryEntryInspect({ input: "-" }, machineContext(), { readText });
       return;
     }
     if (path === "review local prepare") {
@@ -801,7 +801,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     const candidateHead = await git(root, ["rev-parse", "HEAD^{commit}"]);
     await git(root, ["config", "--add", "arc.frontlineSources", "coderabbit-cli"]);
     const prePublication = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       root,
     );
     expect(prePublication.exitCode, prePublication.stderr || prePublication.stdout).toBe(0);
@@ -997,7 +997,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["commit", "-m", "apply approved fix"]);
 
     const resumed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       root,
     );
     expect(resumed.exitCode, resumed.stderr || resumed.stdout).toBe(0);
@@ -1155,7 +1155,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
         },
       }],
     });
-    const resumed = await runArc(["review", "pre-publication", "example", "--json"], root);
+    const resumed = await runArc(["review", "pre-publication", "example"], root);
     expect(resumed.exitCode, resumed.stderr || resumed.stdout).toBe(0);
     expect(JSON.parse(resumed.stdout)).toMatchObject({
       locus: "candidate-review-pending",
@@ -1433,7 +1433,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await git(root, ["add", "reviewed.txt"]);
     await git(root, ["commit", "-m", "unexplained implementation"]);
 
-    const prePublication = await runArc(["review", "pre-publication", "example", "--json"], root);
+    const prePublication = await runArc(["review", "pre-publication", "example"], root);
     expect(prePublication.exitCode).toBe(1);
     expect(JSON.parse(prePublication.stdout)).toMatchObject({
       error: { code: "candidate-unexplained-delta" },
@@ -1854,7 +1854,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     try {
       await expectStationaryWorkUnitLocus(origin, operationCheckouts);
       const correction = await runArcWithStdin(
-        ["delivery", "entry", "inspect", "--input", "-", "--json"],
+        ["delivery", "entry", "inspect", "-"],
         origin,
         `${JSON.stringify({ entryMode: "execution" })}\n`,
       );
@@ -1914,7 +1914,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       await git(origin, ["commit", "-m", "record converged verification"]);
 
       const integrating = await runArcWithStdin(
-        ["delivery", "entry", "inspect", "--input", "-", "--json"],
+        ["delivery", "entry", "inspect", "-"],
         origin,
         `${JSON.stringify({ entryMode: "integrating" })}\n`,
       );

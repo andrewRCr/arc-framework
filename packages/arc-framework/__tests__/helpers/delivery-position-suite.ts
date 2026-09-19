@@ -190,8 +190,8 @@ async function runArc(
       return;
     }
     if (args[0] === "review" && args[1] === "status" && args[2] === "--work-unit"
-      && args[3] !== undefined && args[4] === "--json") {
-      await handleReviewStatus({ workUnit: args[3], json: true }, machineContext());
+      && args[3] !== undefined && args[4] === undefined) {
+      await handleReviewStatus({ workUnit: args[3] }, machineContext());
       return;
     }
     throw new Error(`Unsupported handler command: ${command}`);
@@ -206,17 +206,17 @@ async function runArcWithStdin(
   options: HandlerInvocationOptions = {},
 ): Promise<HandlerRunResult> {
   return runHandlerAt(cwd, async () => {
-    const path = args.filter((arg) => arg !== "-" && arg !== "--json" && arg !== "--input").join(" ");
+    const path = args.filter((arg) => arg !== "-").join(" ");
     const readText = async () => input;
     if (path === "delivery entry inspect") {
-      await handleDeliveryEntryInspect({ input: "-", json: true }, machineContext(), { readText });
+      await handleDeliveryEntryInspect({ input: "-" }, machineContext(), { readText });
       return;
     }
     const deliveryCommand = deliveryCommands[path];
     if (deliveryCommand !== undefined) {
       await handleDeliveryExecution(
         deliveryCommand,
-        { input: "-", json: true },
+        { input: "-" },
         machineContext(),
         { readText },
       );
@@ -1019,7 +1019,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     const entry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
@@ -1049,7 +1049,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const result = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -1089,7 +1089,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         checkoutPath: fixture.repository,
       },
       resumeAction: {
-        argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+        argv: ["arc", "delivery", "review-fix", "continue", "-"],
         input: { repository: "owner/repo", remote: "origin" },
       },
     });
@@ -1355,7 +1355,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       && record.fixAuthorization !== null
     ))).toHaveLength(2);
     const discardedSettlement = await runArcWithStdin(
-      ["delivery", "refresh", "adopt", "-", "--json"],
+      ["delivery", "refresh", "adopt", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -1384,7 +1384,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const pendingHostLog = join(fixture.repository, "pending-native-host.log");
     await writeFile(pendingHostLog, "");
     const linked = await runArcWithStdin(
-      ["delivery", "native", "link", "-", "--json"],
+      ["delivery", "native", "link", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -1402,7 +1402,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     expect(await readFile(pendingHostLog, "utf8")).toBe("");
     const unlinked = await runArcWithStdin(
-      ["delivery", "native", "unlink", "-", "--json"],
+      ["delivery", "native", "unlink", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -1541,7 +1541,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       throw new Error("terminal coordinates must rebind onto the installed fixture commit");
     }
     const entered = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
@@ -1569,7 +1569,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const controlled = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -1589,7 +1589,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       resumeAction: {
-        argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+        argv: ["arc", "delivery", "review-fix", "continue", "-"],
         input: { repository: "owner/repo", remote: "origin" },
       },
     });
@@ -1603,7 +1603,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect(reboundHead).not.toBe(continuation.verification.target.head);
 
     const unpublishedControlled = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
@@ -1633,7 +1633,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect(preRebindTerminal?.coordinates?.head).toBe(continuation.verification.target.head);
 
     const reboundControlled = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
@@ -1651,7 +1651,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     expect(reboundContinuation.verification.target).not.toEqual(continuation.verification.target);
     const reboundEntry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_TERMINAL_REF: workUnitBranch } },
@@ -1701,7 +1701,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]);
     await unlink(boundaryPath);
     const missingBoundary = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -1719,7 +1719,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       .toBe(stagedBeforeBoundaryRefusal);
     await writeFile(boundaryPath, boundaryBytes);
     const resumed = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -1732,7 +1732,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       boundaryCarry: { candidateId: candidate.attestation.candidateId },
     });
     const replayed = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -1761,7 +1761,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const recoveredEntry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
@@ -2074,7 +2074,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ).appendDispositionRecord(advanced.record);
 
     const resumed = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -2110,7 +2110,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("composes fresh facts and returns the exact clean position", async () => {
     const fixture = await positionFixture();
     const result = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -2134,7 +2134,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("keeps retained landed bindings outside public refresh and review-fix subjects", async () => {
     const fixture = await positionFixture("landed-prefix");
     const refresh = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -2154,7 +2154,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const reviewFix = await runArcWithStdin(
-      ["delivery", "review-fix", "plan", "-", "--json"],
+      ["delivery", "review-fix", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -2524,7 +2524,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       },
     });
     const carriedBoundary = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       archivedCheckout,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -2544,7 +2544,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     )) as { candidateSubjectDigest: string };
     expect(boundaryAfterCarry.candidateSubjectDigest).toBe(candidateTarget.subject.subjectDigest);
     const archivedStatus = await runArc(
-      ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
+      ["review", "status", "--work-unit", fixture.plan.workUnitId],
       archivedCheckout,
       { env: fixture.env },
     );
@@ -2586,7 +2586,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
 
     const result = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       archivedCheckout,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -2685,7 +2685,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await git(archivedCheckout, ["push", "origin", `HEAD:refs/heads/${branch}`]);
 
     const stalePublication = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );
@@ -2709,7 +2709,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     const pendingRebind = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );
@@ -2720,7 +2720,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const reboundAfterSelection = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       archivedCheckout,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -2763,7 +2763,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       boundaryPath: resolveSubmissionBoundaryPath(fixture.plan.workUnitId),
     });
     const refreshedStatus = await runArc(
-      ["review", "status", "--work-unit", fixture.plan.workUnitId, "--json"],
+      ["review", "status", "--work-unit", fixture.plan.workUnitId],
       archivedCheckout,
       { env: fixture.env },
     );
@@ -2802,7 +2802,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       .resolves.toEqual({ status: "none" });
 
     const publicationRebind = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );
@@ -2813,7 +2813,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const reboundAfterPublication = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       archivedCheckout,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -2830,7 +2830,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       .resolves.toEqual({ status: "none" });
 
     const converged = await runBuiltArc(
-      ["integrate", "checkpoint", fixture.plan.workUnitId, "--json"],
+      ["integrate", "checkpoint", fixture.plan.workUnitId],
       archivedCheckout,
       { env: checkpointEnv },
     );
@@ -2844,7 +2844,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("routes review-fix planning through an append-only terminal authoring advance", async () => {
     const fixture = await positionFixture("terminal-authoring");
     const position = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -2861,7 +2861,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const reviewFix = await runArcWithStdin(
-      ["delivery", "review-fix", "plan", "-", "--json"],
+      ["delivery", "review-fix", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -2885,7 +2885,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture("registered-terminal-authoring");
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const reviewFix = await runArcWithStdin(
-      ["delivery", "review-fix", "plan", "-", "--json"],
+      ["delivery", "review-fix", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -2905,7 +2905,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const refresh = await runArcWithStdin(
-      ["delivery", "refresh", "execute", "-", "--json"],
+      ["delivery", "refresh", "execute", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -2923,7 +2923,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const completeRemainder = await runArcWithStdin(
-      ["delivery", "refresh", "execute", "-", "--json"],
+      ["delivery", "refresh", "execute", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -2945,7 +2945,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture("registered-local-terminal-authoring");
     const selectedDeliverableId = fixture.plan.members[1]!.deliverableId;
     const refresh = await runArcWithStdin(
-      ["delivery", "refresh", "execute", "-", "--json"],
+      ["delivery", "refresh", "execute", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -3234,7 +3234,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     const prepared = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -3260,7 +3260,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const correctionHead = await git(locator.gatePath, ["rev-parse", "HEAD"]);
 
     const continued = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -3305,7 +3305,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await git(fixture.repository, ["commit", "--no-verify", "-m", "reopen correction task"]);
 
     const superseded = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -3328,7 +3328,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect(supersedingVerificationStop.verification.target.head)
       .not.toBe(verificationStop.verification.target.head);
     const supersedingEntry = await runArcWithStdin(
-      ["delivery", "entry", "inspect", "--input", "-", "--json"],
+      ["delivery", "entry", "inspect", "-"],
       fixture.repository,
       `${JSON.stringify({ entryMode: "integrating" })}\n`,
       { env: fixture.env },
@@ -3415,7 +3415,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
     ]);
     const refusedPendingReplacement = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -3455,7 +3455,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
     ]);
     const refusedPendingSuffix = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -3477,7 +3477,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]);
 
     const acknowledged = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -3527,7 +3527,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]);
 
     const unprovedResume = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -3546,7 +3546,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const refusedReplay = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -3583,7 +3583,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
     ]);
     const refusedTrailingReplay = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -3605,7 +3605,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
     ]);
     const replayedAcknowledgement = await runArcWithStdin(
-      ["delivery", "review-fix", "acknowledge", "-", "--json"],
+      ["delivery", "review-fix", "acknowledge", "-"],
       fixture.repository,
       `${JSON.stringify(acknowledgementRequest)}\n`,
       { env: fixture.env },
@@ -3647,7 +3647,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "M  .arc/system/.internal/candidates/delivery-plan-record.json",
     ]);
     const resumed = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({
         repository: "owner/repo",
@@ -3818,7 +3818,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     }, 0);
 
     const responseApplicability = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -3853,7 +3853,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       recordEffect: { path: string; digest: string };
     };
     const replayedResponse = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({
         repository: "owner/repo",
@@ -3891,7 +3891,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       now: "2026-08-31T12:14:00Z",
     });
     const continuedAfterResponseSettlement = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -3972,7 +3972,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     }
 
     const resumedWithRetainedAttempts = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: fixture.env },
@@ -4038,7 +4038,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]);
 
     const continuedAfterBatch = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({
         repository: "owner/repo",
@@ -4221,7 +4221,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const continuedAfterLocal = await runArcWithStdin(
-      ["delivery", "review-fix", "continue", "-", "--json"],
+      ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...fixture.env, ARC_FAKE_SMALL_REVIEW_NUMSTAT: "1" } },
@@ -4319,7 +4319,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
 
     for (let replay = 0; replay < 2; replay += 1) {
       const awaiting = await runArcWithStdin(
-        ["delivery", "review-fix", "continue", "-", "--json"],
+        ["delivery", "review-fix", "continue", "-"],
         fixture.repository,
         `${JSON.stringify({ repository: "owner/repo", remote: "origin" })}\n`,
         { env: fixture.env },
@@ -4340,7 +4340,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture();
     const selectedDeliverableId = fixture.plan.members.at(-1)!.deliverableId;
     const result = await runArcWithStdin(
-      ["delivery", "review-fix", "plan", "-", "--json"],
+      ["delivery", "review-fix", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -4367,7 +4367,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture("terminal-authoring");
     const selectedDeliverableId = fixture.plan.members.at(-1)!.deliverableId;
     const result = await runArcWithStdin(
-      ["delivery", "review-fix", "plan", "-", "--json"],
+      ["delivery", "review-fix", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -4401,7 +4401,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const dependentDeliverableId = fixture.plan.members[1]!.deliverableId;
     const result = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -4433,7 +4433,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       mechanics: "operator-initiated",
     } as const;
     const missing = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       fixture.repository,
       `${JSON.stringify(request)}\n`,
       { env: fixture.env },
@@ -4445,7 +4445,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const complete = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         ...request,
@@ -4460,7 +4460,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const wrong = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         ...request,
@@ -4478,7 +4478,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
 
     const unchanged = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       fixture.repository,
       `${JSON.stringify({
         ...request,
@@ -4500,7 +4500,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture("selected-change-external-refresh");
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const result = await runArcWithStdin(
-      ["delivery", "refresh", "adopt", "-", "--json"],
+      ["delivery", "refresh", "adopt", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -4544,7 +4544,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture("selected-change-external-refresh");
     const before = await fixture.states.read(fixture.plan.planId);
     const result = await runArcWithStdin(
-      ["delivery", "refresh", "adopt", "-", "--json"],
+      ["delivery", "refresh", "adopt", "-"],
       fixture.repository,
       `${JSON.stringify({
         planId: fixture.plan.planId,
@@ -4566,7 +4566,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("clears an unapplied selected review fix while terminal authoring remains append-only", async () => {
     const fixture = await positionFixture("selected-change-terminal-authoring-before");
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -4628,7 +4628,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await git(fixture.repository, ["push", "origin", "HEAD:refs/heads/main"]);
 
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -4651,7 +4651,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture("selected-change-terminal-authoring-applied");
     const selectedDeliverableId = fixture.plan.members[0]!.deliverableId;
     const result = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -4680,7 +4680,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("returns a typed refusal when fresh observation is unavailable", async () => {
     const fixture = await positionFixture();
     const result = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: { ...fixture.env, ARC_FAKE_TARGET_UNAVAILABLE: "1" } },
@@ -4697,7 +4697,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("keeps a freshly recoverable active operation on the reconciliation route", async () => {
     const fixture = await positionFixture("review-fix");
     const result = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -4718,7 +4718,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("routes an interrupted native landing to reconciliation before fresh observation", async () => {
     const fixture = await positionFixture("native");
     const result = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: { ...fixture.env, ARC_FAKE_TARGET_UNAVAILABLE: "1" } },
@@ -4742,7 +4742,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
   it("routes a partially published provider refresh to reconciliation before fresh observation", async () => {
     const fixture = await positionFixture("provider-refresh-partial");
     const result = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },
@@ -4767,7 +4767,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const fixture = await positionFixture("terminal-authoring");
 
     const positioned = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       fixture.repository,
       `${fixture.request}\n`,
       { env: fixture.env },

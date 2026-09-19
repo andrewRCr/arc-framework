@@ -1169,7 +1169,7 @@ describe("inspectDeliveryEntry — non-current Candidate classification", () => 
         {
           kind: "member-correction",
           nextAction: "plan-review-fix",
-          command: "arc delivery review-fix continue - --json",
+          command: "arc delivery review-fix continue -",
         },
       ],
     });
@@ -1182,7 +1182,7 @@ describe("inspectDeliveryEntry — non-current Candidate classification", () => 
       recommendedActionText: expect.stringContaining("verification closeout"),
     });
     expect(result).toMatchObject({
-      recommendedActionText: expect.stringContaining("arc delivery review-fix continue - --json"),
+      recommendedActionText: expect.stringContaining("arc delivery review-fix continue -"),
     });
   });
 

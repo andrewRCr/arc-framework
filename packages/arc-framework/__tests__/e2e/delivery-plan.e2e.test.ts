@@ -54,10 +54,10 @@ describe("arc delivery", () => {
   it("registers compose and plan abandon from the built entry point", async () => {
     const entryHelp = await runArc(["delivery", "entry", "inspect", "--help"], repository);
     expect(entryHelp).toMatchObject({ exitCode: 0 });
-    expect(entryHelp.stdout).toContain("--input <path>");
+    expect(entryHelp.stdout).toContain("Strict JSON request path, or - for standard input");
     await writeFile(join(repository, "invalid-entry.json"), "{}\n");
     const invalidEntry = await runArc([
-      "delivery", "entry", "inspect", "--input", "invalid-entry.json", "--json",
+      "delivery", "entry", "inspect", "invalid-entry.json",
     ], repository);
     expect(invalidEntry.exitCode).toBe(1);
     expect(JSON.parse(invalidEntry.stdout)).toMatchObject({
@@ -95,7 +95,7 @@ describe("arc delivery", () => {
     }
     await writeFile(join(repository, "invalid-execution.json"), "{}\n");
     const invalidExecution = await runArc([
-      "delivery", "position", "invalid-execution.json", "--json",
+      "delivery", "position", "invalid-execution.json",
     ], repository);
     expect(invalidExecution.exitCode).toBe(1);
     expect(JSON.parse(invalidExecution.stdout)).toMatchObject({
@@ -207,7 +207,7 @@ describe("arc delivery", () => {
     const env = { PATH: `${fakeBin}:${process.env.PATH ?? ""}` };
 
     const closed = await runArc([
-      "delivery", "closeout", "delivery-closeout.json", "--json",
+      "delivery", "closeout", "delivery-closeout.json",
     ], repository, { env });
     expect(closed.exitCode, closed.stderr).toBe(0);
     expect(JSON.parse(closed.stdout)).toMatchObject({
@@ -226,7 +226,7 @@ describe("arc delivery", () => {
     expect(await git(repository, ["rev-parse", "--verify", "refs/heads/main"])).toBe(head);
 
     const replay = await runArc([
-      "delivery", "closeout", "delivery-closeout.json", "--json",
+      "delivery", "closeout", "delivery-closeout.json",
     ], repository, { env });
     expect(replay.exitCode, replay.stderr).toBe(0);
     expect(JSON.parse(replay.stdout)).toMatchObject({ status: "closed-out", planIds: [] });
@@ -263,7 +263,7 @@ describe("arc delivery", () => {
     };
 
     const incomplete = await runArcWithStdin([
-      "delivery", "eligibility", "prepare", "-", "--json",
+      "delivery", "eligibility", "prepare", "-",
     ], repository, `${JSON.stringify(request)}\n`);
     expect(incomplete.exitCode, incomplete.stderr).toBe(1);
     expect(JSON.parse(incomplete.stdout)).toMatchObject({
@@ -273,7 +273,7 @@ describe("arc delivery", () => {
     });
 
     const canonical = await runArcWithStdin([
-      "delivery", "eligibility", "prepare", "-", "--json",
+      "delivery", "eligibility", "prepare", "-",
     ], repository, `${JSON.stringify({ ...request, lifecyclePaths: canonicalPaths })}\n`);
     expect(canonical.exitCode, canonical.stderr).toBe(0);
     expect(JSON.parse(canonical.stdout)).toMatchObject({
@@ -347,7 +347,7 @@ describe("arc delivery", () => {
       await chmod(stateDirectory, 0o500);
       try {
         const result = await runArc([
-          "delivery", "eligibility", "close", "eligibility-close.json", "--json",
+          "delivery", "eligibility", "close", "eligibility-close.json",
         ], repository);
         expect(result.exitCode, result.stderr || result.stdout).toBe(0);
         expect(JSON.parse(result.stdout)).toMatchObject({
@@ -405,7 +405,7 @@ describe("arc delivery", () => {
       await chmod(stateDirectory, 0o500);
       try {
         const result = await runArc([
-          "delivery", "eligibility", "close", "eligibility-close.json", "--json",
+          "delivery", "eligibility", "close", "eligibility-close.json",
         ], repository);
         expect(result.exitCode, result.stderr).toBe(1);
         expect(JSON.parse(result.stdout)).toMatchObject({
@@ -429,19 +429,16 @@ describe("arc delivery", () => {
       ), "utf8"),
     ]);
     const invocationsByWorkflow = workflows.map(
-      (workflow) => workflow.match(/^arc delivery .+ --json$/gmu) ?? [],
+      (workflow) => workflow.match(/^arc delivery .+$/gmu) ?? [],
     );
     expect(invocationsByWorkflow[0]?.length).toBeGreaterThan(0);
-    expect(invocationsByWorkflow[1]).toEqual(["arc delivery closeout - --json"]);
+    expect(invocationsByWorkflow[1]).toEqual(["arc delivery closeout -"]);
     const invocations = invocationsByWorkflow.flat();
     for (const invocation of invocations) {
       const args = invocation.split(" ").slice(1);
-      if (invocation.startsWith("arc delivery entry inspect ")) {
-        expect(invocation).toContain("--input - --json");
-      } else {
-        expect(invocation).not.toContain("--input");
-        expect(args).toContain("-");
-      }
+      expect(invocation).not.toContain("--input");
+      expect(invocation).not.toContain("--json");
+      expect(args).toContain("-");
       const result = await runArcWithStdin(args, repository, "{}\n");
       expect(result.stderr).not.toMatch(/unknown option|missing required argument/iu);
       expect(JSON.parse(result.stdout)).toMatchObject({
@@ -699,7 +696,7 @@ describe("arc delivery", () => {
     };
 
     const nativeRefreshDefault = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       repository,
       `${JSON.stringify({
         planId: plan.planId,
@@ -717,7 +714,7 @@ describe("arc delivery", () => {
     });
 
     const externalFallback = await runArcWithStdin(
-      ["delivery", "refresh", "plan", "-", "--json"],
+      ["delivery", "refresh", "plan", "-"],
       repository,
       `${JSON.stringify({
         planId: plan.planId,
@@ -736,7 +733,7 @@ describe("arc delivery", () => {
     });
 
     const singleton = await runArcWithStdin(
-      ["delivery", "native", "land-select", "-", "--json"],
+      ["delivery", "native", "land-select", "-"],
       repository,
       `${JSON.stringify(request)}\n`,
       { env },
@@ -751,7 +748,7 @@ describe("arc delivery", () => {
     });
 
     const atomic = await runArcWithStdin(
-      ["delivery", "native", "land-select", "-", "--json"],
+      ["delivery", "native", "land-select", "-"],
       repository,
       `${JSON.stringify({ ...request, explicitAtomic: true })}\n`,
       { env },
@@ -772,7 +769,7 @@ describe("arc delivery", () => {
     });
 
     const unsupported = await runArcWithStdin(
-      ["delivery", "native", "land-select", "-", "--json"],
+      ["delivery", "native", "land-select", "-"],
       repository,
       `${JSON.stringify({ ...request, explicitAtomic: true })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "unsupported" } },
@@ -781,7 +778,7 @@ describe("arc delivery", () => {
     expect(JSON.parse(unsupported.stdout)).toMatchObject({ status: "blocked", reason: "unsupported" });
 
     const unreviewedSequential = await runArcWithStdin(
-      ["delivery", "land", "prepare", "-", "--json"],
+      ["delivery", "land", "prepare", "-"],
       repository,
       `${JSON.stringify({
         planId: plan.planId,
@@ -815,7 +812,7 @@ describe("arc delivery", () => {
       treeRoot: repository,
     };
     const flattenedPrepare = await runArcWithStdin(
-      ["delivery", "native", "land-prepare", "-", "--json"],
+      ["delivery", "native", "land-prepare", "-"],
       repository,
       `${JSON.stringify(prepareRequest)}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "flattened" } },
@@ -830,7 +827,7 @@ describe("arc delivery", () => {
     });
 
     const unreviewed = await runArcWithStdin(
-      ["delivery", "native", "land-prepare", "-", "--json"],
+      ["delivery", "native", "land-prepare", "-"],
       repository,
       `${JSON.stringify(prepareRequest)}\n`,
       { env },
@@ -932,7 +929,7 @@ describe("arc delivery", () => {
     }), null);
 
     const prepared = await runArcWithStdin(
-      ["delivery", "native", "land-prepare", "-", "--json"],
+      ["delivery", "native", "land-prepare", "-"],
       repository,
       `${JSON.stringify(prepareRequest)}\n`,
       { env },
@@ -953,7 +950,6 @@ describe("arc delivery", () => {
           headRef: state.members[0]!.ref!.replace(/^refs\/heads\//u, ""),
           headSha: nativeMembers[0]!.headSha,
         }),
-        "--json",
       ],
       repository,
       { env },
@@ -970,7 +966,7 @@ describe("arc delivery", () => {
     const preparedStatePath = join(states, `${plan.planId}.json`);
     const preparedState = await readFile(preparedStatePath, "utf8");
     const recovered = await runArcWithStdin(
-      ["delivery", "reconcile", "-", "--json"],
+      ["delivery", "reconcile", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, repository: "owner/repo", remote: "origin" })}\n`,
       { env: { ...env, ARC_FAKE_FAIL_HOST_ACCESS: "1" } },
@@ -1009,7 +1005,7 @@ describe("arc delivery", () => {
           + "observation and the host prefix snapshot.",
       },
       submitAction: {
-        command: "arc delivery native land-submit - --json",
+        command: "arc delivery native land-submit -",
         input: expectedSubmitRequest,
       },
       recommendedActionText:
@@ -1019,7 +1015,7 @@ describe("arc delivery", () => {
     expect(await readFile(preparedStatePath, "utf8")).toBe(preparedState);
     const submitRequest = recoveredResult.submitAction.input;
     const flattenedSubmit = await runArcWithStdin(
-      ["delivery", "native", "land-submit", "-", "--json"],
+      ["delivery", "native", "land-submit", "-"],
       repository,
       `${JSON.stringify(submitRequest)}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "flattened" } },
@@ -1036,7 +1032,7 @@ describe("arc delivery", () => {
     const terminalCorrectionHead = await git(repository, ["rev-parse", "HEAD"]);
 
     const submitted = await runArcWithStdin(
-      ["delivery", "native", "land-submit", "-", "--json"],
+      ["delivery", "native", "land-submit", "-"],
       repository,
       `${JSON.stringify(submitRequest)}\n`,
       { env: { ...env, ARC_FAKE_TERMINAL_HEAD: terminalCorrectionHead } },
@@ -1049,7 +1045,7 @@ describe("arc delivery", () => {
     await git(repository, ["reset", "--hard", top.coordinates!.head]);
 
     const divergentLanding = await runArcWithStdin(
-      ["delivery", "native", "land-status", "-", "--json"],
+      ["delivery", "native", "land-status", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "divergent-landed" } },
@@ -1062,7 +1058,7 @@ describe("arc delivery", () => {
 
     await git(repository, ["update-ref", "refs/heads/main", landedTargetHead]);
     const landed = await runArcWithStdin(
-      ["delivery", "native", "land-status", "-", "--json"],
+      ["delivery", "native", "land-status", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, request: expectedSubmitRequest.request, remote: "origin" })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "landed" } },
@@ -1075,7 +1071,7 @@ describe("arc delivery", () => {
 
     const positionInput = { planId: plan.planId, repository: "owner/repo", remote: "origin" };
     const terminalPosition = await runArcWithStdin(
-      ["delivery", "position", "-", "--json"],
+      ["delivery", "position", "-"],
       repository,
       `${JSON.stringify(positionInput)}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "settled" } },
@@ -1092,7 +1088,7 @@ describe("arc delivery", () => {
     });
 
     const terminalHandoff = await runArcWithStdin(
-      ["delivery", "teardown", "-", "--json"],
+      ["delivery", "teardown", "-"],
       repository,
       `${JSON.stringify({
         ...positionInput,
@@ -1109,7 +1105,7 @@ describe("arc delivery", () => {
     });
 
     const degraded = await runArcWithStdin(
-      ["delivery", "native", "unlink", "-", "--json"],
+      ["delivery", "native", "unlink", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId, repository: "owner/repo", members: nativeMembers })}\n`,
       { env: { ...env, ARC_FAKE_GH_MODE: "degrade", ARC_FAKE_GH_COUNTER: counter } },
@@ -1151,7 +1147,7 @@ describe("arc delivery", () => {
     await expect(readdir(deliveryNamespace)).rejects.toMatchObject({ code: "ENOENT" });
 
     const inspected = await runArc([
-      "delivery", "entry", "inspect", "--input", "delivery-entry.json", "--json",
+      "delivery", "entry", "inspect", "delivery-entry.json",
     ], repository);
     expect(inspected.exitCode, inspected.stderr).toBe(0);
     expect(JSON.parse(inspected.stdout)).toMatchObject({

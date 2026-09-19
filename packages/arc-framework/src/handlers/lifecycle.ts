@@ -1898,7 +1898,7 @@ export async function handlePublish(
       spineRemedy(
         "Submission requires a settled pre-publication boundary.",
         "Resolve the pre-publication lanes",
-        ["arc", "review", "pre-publication", target, "--json"],
+        ["arc", "review", "pre-publication", target],
       ),
       input.json === true,
     );

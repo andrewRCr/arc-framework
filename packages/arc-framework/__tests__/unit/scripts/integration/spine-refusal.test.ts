@@ -69,7 +69,7 @@ describe("spine refusal remedies", () => {
    * neither, and only a re-pinned baseline changes the shape — which is why neither remedy is the other's.
    */
   it.each([
-    [checkpointAmbiguousBaseRemedy("example"), ["arc", "integrate", "checkpoint", "example", "--json"]],
+    [checkpointAmbiguousBaseRemedy("example"), ["arc", "integrate", "checkpoint", "example"]],
     [checkpointRebaselineRemedy("example"), ["arc", "attest", "example", "--new-root"]],
   ])("answers an ambiguous pair with the act that reaches it %#", (composed, argv) => {
     const remedy = SpineRemedySchema.parse(composed);
@@ -139,7 +139,7 @@ describe("spine refusal remedies", () => {
         "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
       ]);
     expect(mergeRemedy("head-mismatch", "example").argv)
-      .toEqual(["arc", "integrate", "checkpoint", "example", "--json"]);
+      .toEqual(["arc", "integrate", "checkpoint", "example"]);
     expect(mergeRemedy(
       "base-currentness-required",
       "example",
@@ -150,16 +150,14 @@ describe("spine refusal remedies", () => {
       "arc", "base", "merge",
       "--expected-base", "b".repeat(40),
       "--expected-head", "c".repeat(40),
-      "--json",
     ]);
     expect(prePublicationRemedy("corrupt-state", "example").argv)
-      .toEqual(["arc", "review", "pre-publication", "example", "--json"]);
+      .toEqual(["arc", "review", "pre-publication", "example"]);
   });
 
   it("renders argv with shell-safe quoting while retaining structured arguments", () => {
     const remedy = spineRemedy("The target is exact.", "Retry", [
-      "arc", "review", "status", "--target", "owner's target with spaces", "--json",
-    ]);
+      "arc", "review", "status", "--target", "owner's target with spaces", ]);
 
     expect(remedy.argv[4]).toBe("owner's target with spaces");
     expect(remedy.text).toContain("'owner'\"'\"'s target with spaces'");
@@ -226,7 +224,7 @@ describe("spine refusal remedies", () => {
     expect(ReviewCommandErrorEnvelopeSchema.parse({
       ...refusal,
       remedy: prePublicationRemedy("corrupt-state", "example"),
-    })).toMatchObject({ remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] } });
+    })).toMatchObject({ remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
   });
 
   it("leaves the other review-family refusal envelopes unchanged", () => {

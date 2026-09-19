@@ -300,7 +300,7 @@ describe("integration checkpoint", () => {
         remedy: {
           invariant: "A checkpoint composes over the one revision the branch contributes against, which a "
             + "history leaving two equally good ancestors does not name.",
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
       });
   });
@@ -318,7 +318,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         reason: "composition-unavailable",
         detail: "The delivery terminal's predecessor base is not one coordinate.",
-        remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
       });
   });
 
@@ -339,7 +339,6 @@ describe("integration checkpoint", () => {
             "arc", "base", "merge",
             "--expected-base", oid("b"),
             "--expected-head", oid("c"),
-            "--json",
           ],
         },
         payload: {
@@ -427,7 +426,6 @@ describe("integration checkpoint", () => {
             "--expected-base", oid("b"),
             "--expected-head", oid("c"),
             "--regenerate-roadmap",
-            "--json",
           ],
         },
         payload: { candidateHead: oid("c") },
@@ -452,7 +450,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         reason: "host-pending",
         payload: { detail: "Host is still computing exact admission." },
-        remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
       });
   });
 
@@ -559,12 +557,12 @@ describe("integration checkpoint", () => {
     [
       "rerun-checkpoint",
       "Apply the returned delivery remedy or resolve its reported evidence, then re-run",
-      ["arc", "integrate", "checkpoint", "example", "--json"],
+      ["arc", "integrate", "checkpoint", "example"],
     ],
     [
       "reconcile-base",
       "Merge the configured base into the branch, then re-run",
-      ["arc", "integrate", "checkpoint", "example", "--json"],
+      ["arc", "integrate", "checkpoint", "example"],
     ],
     [
       "merge-unrelated",
@@ -687,7 +685,7 @@ describe("integration checkpoint", () => {
           text: expect.stringContaining(
             "Resolve the reported authoritative drift failure, then re-run the checkpoint",
           ),
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
           drift: { verdict: "unavailable", unavailableReason: "fetch-failed" },
@@ -740,7 +738,7 @@ describe("integration checkpoint", () => {
         nextAction: "reconcile-base",
         reason: "base-reconcile-required",
         remedy: {
-          argv: ["arc", "base", "merge", "--expected-base", oid("b"), "--expected-head", oid("c"), "--json"],
+          argv: ["arc", "base", "merge", "--expected-base", oid("b"), "--expected-head", oid("c")],
         },
       });
   });
@@ -882,8 +880,8 @@ describe("integration checkpoint", () => {
         remedy: {
           invariant: "The ready composition binds the exact satisfied Candidate head.",
           text: "The ready composition binds the exact satisfied Candidate head. Resolve the reported composition "
-            + "failure, then re-run: `arc integrate checkpoint example --json`.",
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+            + "failure, then re-run: `arc integrate checkpoint example`.",
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
           expectedRecordVersion: digest("a"),
@@ -945,7 +943,7 @@ describe("integration checkpoint", () => {
         nextAction: "retarget",
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "delivery", "top-remedy", "-", "--json"],
+          argv: ["arc", "delivery", "top-remedy", "-"],
           stdin: {
             planId: PLAN_ID,
             action: "retarget",
@@ -1006,7 +1004,7 @@ describe("integration checkpoint", () => {
         nextAction: action,
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "delivery", "top-remedy", "-", "--json"],
+          argv: ["arc", "delivery", "top-remedy", "-"],
           stdin: { planId: PLAN_ID, action, repository: "owner/repo", protectedBaseRef: "main" },
         },
       });
@@ -1065,7 +1063,7 @@ describe("integration checkpoint", () => {
         nextAction: "stop",
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
           nextAction: "retarget",
@@ -1090,7 +1088,7 @@ describe("integration checkpoint", () => {
         nextAction: "reconcile-delivery-state",
         reason: "delivery-terminal-rebind-required",
         remedy: {
-          argv: ["arc", "delivery", "reconcile", "-", "--json"],
+          argv: ["arc", "delivery", "reconcile", "-"],
           stdin: { planId: PLAN_ID, repository: "owner/repo" },
         },
         payload: {
@@ -1406,7 +1404,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "hosted-reservation-pending",
-        remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] },
+        remedy: { argv: ["arc", "review", "pre-publication", "example"] },
         payload: {
           requirement: { id: "hosted-review-reservation", state: "pending" },
         },

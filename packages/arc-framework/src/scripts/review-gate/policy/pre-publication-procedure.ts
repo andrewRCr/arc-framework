@@ -317,7 +317,7 @@ function action(
   }
   const value = {
     kind,
-    command: `arc review pre-publication ${workUnit} --json`,
+    command: `arc review pre-publication ${workUnit}`,
     interactionText,
   };
   return kind === "run-self-review"

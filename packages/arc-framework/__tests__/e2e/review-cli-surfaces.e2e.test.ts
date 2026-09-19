@@ -152,7 +152,6 @@ describe("packaged review CLI surfaces", () => {
       "feat/example",
       "--head-sha",
       "not-an-oid",
-      "--json",
     ], { cwd: fixtureRoot });
 
     expect(result.exitCode).toBe(64);
@@ -198,7 +197,6 @@ exec "${realGit}" "$@"
       "feat/example",
       "--head-sha",
       "a".repeat(40),
-      "--json",
     ], {
       cwd: fixtureRoot,
       env: { PATH: `${bin}:${process.env.PATH ?? ""}` },

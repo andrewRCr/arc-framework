@@ -661,7 +661,6 @@ async function statusThroughHandler(
     ...(ceilingOverride === undefined ? {} : { ceilingOverride: JSON.stringify(ceilingOverride) }),
     ...(coverage === undefined ? {} : { coverage }),
     ...(sourceId === undefined ? {} : { source: sourceId }),
-    json: true,
   }, undefined, {
     resolveRoot: () => harness.root,
     resolve: (root, input) => resolveReviewStatus(input, {
@@ -701,7 +700,7 @@ async function workUnitStatusThroughHandler(
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
-  await handleReviewStatus({ workUnit: harness.plan.workUnitId, json: true }, undefined, {
+  await handleReviewStatus({ workUnit: harness.plan.workUnitId }, undefined, {
     resolveRoot: () => harness.root,
     resolveWorkUnit: async () => {
       const status = await statusThroughHandler(harness, target);
@@ -2473,7 +2472,7 @@ describe("hosted review fan-out lifecycle", () => {
       payload: {
         deliveryMember: first,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository, remote: "origin" },
         },
         hostedSettlementPlan: {

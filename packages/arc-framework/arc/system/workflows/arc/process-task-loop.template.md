@@ -21,12 +21,12 @@ arc:
 Before implementing the current task, inspect whether an already-bound delivery requires correction routing:
 
 ```bash
-printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect --input - --json
+printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect -
 ```
 
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required`,
 `review-fix-verification-required`, and a correction-owned `resume-bound` invoke the selector-free
-`arc delivery review-fix continue - --json` procedure in
+`arc delivery review-fix continue -` procedure in
 [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md). It derives the exact member, operation, verification,
 and acknowledgment from canonical state; dispatch its machine actions and re-enter it without reconstructing a
 selector. `canonicalize-provisional` resumes the matching

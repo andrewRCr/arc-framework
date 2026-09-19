@@ -131,6 +131,59 @@ export async function git(cwd: string, args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+/** Delivery command paths that print human output unless `--json` opts in. */
+const DELIVERY_HUMAN_DEFAULT = [
+  "delivery compose",
+  "delivery plan abandon",
+  "delivery plan from-branch",
+  "delivery plan from-tasks",
+  "delivery plan inventory schema",
+  "delivery transfer export",
+  "delivery transfer import",
+];
+
+/**
+ * Read the command path out of an invocation's leading bare words.
+ *
+ * Operands and options both end the path, so an operand value that happens to spell a
+ * subcommand cannot be mistaken for one.
+ *
+ * @param args - CLI arguments for the invocation.
+ * @returns The space-joined command path.
+ */
+function commandPath(args: readonly string[]): string {
+  const path: string[] = [];
+  for (const arg of args) {
+    if (!/^[a-z][a-z0-9-]*$/u.test(arg)) break;
+    path.push(arg);
+  }
+  return path.join(" ");
+}
+
+/**
+ * Report whether an invocation writes a machine-readable payload to stdout.
+ *
+ * Some commands emit JSON unconditionally and so declare no `--json`; their argv carries
+ * nothing else that marks the payload, so the command itself is the signal.
+ *
+ * @param args - CLI arguments for the invocation.
+ * @returns True when stdout carries a machine-readable payload.
+ */
+function emitsMachineReadablePayload(args: readonly string[]): boolean {
+  const path = commandPath(args);
+  if (args[0] === "delivery") {
+    return !DELIVERY_HUMAN_DEFAULT.some((human) => path === human || path.startsWith(`${human} `));
+  }
+  if (args[0] === "integrate") return args[1] === "checkpoint" || args[1] === "merge";
+  if (args[0] === "base") return args[1] === "merge";
+  if (args[0] !== "review") return false;
+  return args[1] === "pre-publication"
+    || args[1] === "status"
+    || (args[1] === "merge-method" && args[2] === "resolve")
+    || (args[1] === "checks" && args[2] === "await")
+    || (args[1] === "change-request" && args[2] === "resolve");
+}
+
 /**
  * Invoke the built CLI as a subprocess.
  *
@@ -150,11 +203,11 @@ export async function runArc(
 ): Promise<RunResult> {
   assertCliBuilt();
   // JSON contracts need a clean stdout channel. On Linux, `script` allocates a
-  // pseudo-TTY whose transcript merges stderr into the captured stdout, so a
-  // self-hosting stale-build warn would prefix `--json` payloads and break
-  // `JSON.parse`. Route JSON invocations through the non-TTY helper; keep the
-  // TTY path for interactive clack/TUI coverage.
-  if (args.includes("--json")) {
+  // pseudo-TTY whose transcript merges stderr into the captured stdout, so an
+  // advisory or warn would prefix a JSON payload and break `JSON.parse`. Route
+  // machine-readable invocations through the non-TTY helper; keep the TTY path
+  // for interactive clack/TUI coverage.
+  if (args.includes("--json") || emitsMachineReadablePayload(args)) {
     return runArcNoTty(args, cwd, options);
   }
   const timeout = options?.timeout ?? 30_000;

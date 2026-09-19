@@ -389,7 +389,7 @@ describe("eligibility observation bracket", () => {
       prepareMutation: async ({ plan: current }) => {
         const presentations = resolveDeliveryMemberPresentations(current, current.members.slice(0, -1).map(
           (member) => ({ deliverableId: member.deliverableId, summary: `Review ${member.title}.` }),
-        ));
+        ), { type: "feat", breaking: false, description: "publish the work unit" });
         return presentations.status === "resolved"
           ? { status: "prepared" as const, value: presentations.value }
           : presentations;

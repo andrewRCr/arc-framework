@@ -451,7 +451,7 @@ describe("the integration checkpoint over an ambiguous history", () => {
     const root = await attestedThenCrossed();
 
     const run = await runHandlerAt(root, async () => {
-      await handleIntegrationCheckpoint(WORK_UNIT, { json: true }, machineContext(), {
+      await handleIntegrationCheckpoint(WORK_UNIT, {}, machineContext(), {
         checkpoint: withHostedObservation(root),
       });
     });
@@ -471,6 +471,6 @@ describe("the integration checkpoint over an ambiguous history", () => {
       detail: "The revisions have more than one best merge base.",
     });
     expect(result.remedy.text).toContain("Merge the configured base into the branch, then re-run");
-    expect(result.remedy.argv).toEqual(["arc", "integrate", "checkpoint", WORK_UNIT, "--json"]);
+    expect(result.remedy.argv).toEqual(["arc", "integrate", "checkpoint", WORK_UNIT]);
   });
 });

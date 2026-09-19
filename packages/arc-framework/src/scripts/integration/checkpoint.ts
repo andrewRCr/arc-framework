@@ -576,7 +576,7 @@ const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => 
   "host-refused": () => spineRemedy(
     "Host admission must permit the exact change request and coordinates.",
     "Resolve the reported host policy refusal before retrying",
-    ["arc", "review", "status", "--json"],
+    ["arc", "review", "status"],
   ),
   conflict: () => spineRemedy(
     "The exact base and head must be Git-mergeable without substantive conflicts.",
@@ -601,12 +601,12 @@ const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => 
   "merge-method-blocked": () => spineRemedy(
     "The configured merge method is allowed by host policy.",
     "Align the configured `merge.strategy` with the repository's allowed methods, then re-resolve",
-    ["arc", "review", "merge-method", "resolve", "--json"],
+    ["arc", "review", "merge-method", "resolve"],
   ),
   "hosted-reservation-pending": (workUnit) => spineRemedy(
     "A hosted review reserved before publication runs before its Candidate is checkpointed.",
     "Run the reserved hosted review to a verdict, then re-run",
-    ["arc", "review", "pre-publication", workUnit, "--json"],
+    ["arc", "review", "pre-publication", workUnit],
   ),
   "composition-unavailable": (workUnit) => spineRemedy(
     "The ready composition binds the exact satisfied Candidate head.",
@@ -1026,7 +1026,7 @@ function deliveryTerminalDisposition(
       remedy: spineRemedy(
         "The terminal delivery request targets the protected base before integration.",
         "Apply the exact observed failure-only remedy",
-        ["arc", "delivery", "top-remedy", "-", "--json"],
+        ["arc", "delivery", "top-remedy", "-"],
         {
           planId: delivery.planId,
           action: delivery.nextAction,
@@ -1316,7 +1316,6 @@ export async function checkpointIntegration(
           "--expected-base", observation.feasibility.base,
           "--expected-head", candidate.recognizedRevision,
           ...(movementPlan.nextAction === "reconcile-regenerable" ? ["--regenerate-roadmap"] : []),
-          "--json",
         ],
       ),
       payload: { drift, observation, candidateHead: candidate.recognizedRevision },
@@ -1428,7 +1427,7 @@ export async function checkpointIntegration(
         remedy: spineRemedy(
           "Delivery terminal state is rebound through the existing exact reconciliation operation.",
           "Reconcile delivery state, then rerun the checkpoint",
-          ["arc", "delivery", "reconcile", "-", "--json"],
+          ["arc", "delivery", "reconcile", "-"],
           {
             planId: delivery.planId,
             repository: delivery.repository,

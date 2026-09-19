@@ -79,12 +79,12 @@ describe("hosted review fan-out workflow", () => {
     );
     expectTypedProgression(section);
     expect(section).toMatch(/typed settled variant\s+without a\s+conjunction is also authoritative/iu);
-    expect(packaged.indexOf("arc delivery native land-prepare - --json"))
+    expect(packaged.indexOf("arc delivery native land-prepare -"))
       .toBeGreaterThan(packaged.indexOf("arc review status"));
-    expect(packaged.indexOf("arc delivery land prepare - --json"))
+    expect(packaged.indexOf("arc delivery land prepare -"))
       .toBeGreaterThan(packaged.indexOf("arc review status"));
-    expect(packaged.indexOf("arc delivery land apply - --json"))
-      .toBeGreaterThan(packaged.indexOf("arc delivery land prepare - --json"));
+    expect(packaged.indexOf("arc delivery land apply -"))
+      .toBeGreaterThan(packaged.indexOf("arc delivery land prepare -"));
   });
 
   it("keeps package/project parity and typed progression in the integration workflow", async () => {
@@ -122,7 +122,7 @@ describe("hosted review fan-out workflow", () => {
       "`review-hosted-request` means",
     );
     const recordedTerminus = terminusSection.indexOf("`recorded / commit-boundary`");
-    const correctionResume = terminusSection.indexOf("arc delivery review-fix continue - --json");
+    const correctionResume = terminusSection.indexOf("arc delivery review-fix continue -");
     const exactReplay = terminusSection.indexOf("`exact-replay / continue`");
     expect(recordedTerminus).toBeGreaterThanOrEqual(0);
     expect(correctionResume).toBeGreaterThan(recordedTerminus);

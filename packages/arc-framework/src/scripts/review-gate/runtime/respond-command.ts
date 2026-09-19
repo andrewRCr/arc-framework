@@ -1365,7 +1365,7 @@ export async function respondToReviewCommand(
         fixAuthorization: plan.fixAuthorization,
         deliveryMember,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository, remote: "origin" },
         },
         ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),

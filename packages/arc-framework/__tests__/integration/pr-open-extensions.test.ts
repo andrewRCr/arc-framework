@@ -67,7 +67,7 @@ describe("PR-open lifecycle extensions", () => {
     const preOpen = workflow.indexOf("Immediately before creation");
     const create = workflow.indexOf("gh pr create");
     const postOpen = workflow.indexOf("compose `openedChangeRequest");
-    const checkpoint = workflow.indexOf("arc integrate checkpoint {name} --json");
+    const checkpoint = workflow.indexOf("arc integrate checkpoint {name}");
     const finalHead = workflow.indexOf("payload.interlockSurface.machineEvidence.text", checkpoint);
     const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", finalHead);
     const mergeInterlock = workflow.indexOf("`integration-interlock`", preMerge);
@@ -212,7 +212,7 @@ describe("PR-open lifecycle extensions", () => {
       workflow.indexOf("4. **Enter the open PR.**"),
     );
     expect(resolution).toContain(
-      "arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json",
+      "arc review change-request resolve --head-ref <branch> --head-sha <head-sha>",
     );
     for (const disposition of [
       "`none / create-change-request`",
@@ -244,7 +244,7 @@ describe("PR-open lifecycle extensions", () => {
     );
     const hook = creation.indexOf("If `pre-pr-open` is active");
     const guard = creation.indexOf(
-      "`arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote --json`",
+      "`arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote`",
     );
     const create = creation.indexOf("gh pr create --base");
 

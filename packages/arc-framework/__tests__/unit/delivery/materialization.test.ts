@@ -164,6 +164,8 @@ describe("deriveDeliveryMaterialization", () => {
   });
 });
 
+const titleIdentity = { type: "feat", breaking: false, description: "publish the work unit" } as const;
+
 describe("describeDeliveryMemberPresentation", () => {
   it("combines the deterministic member title with authored reviewer context", () => {
     const plan = deliveryThreeMemberStackPlanFixture();
@@ -180,9 +182,10 @@ describe("describeDeliveryMemberPresentation", () => {
         ],
         designReference: "spec-example.md",
       },
+      titleIdentity,
     ))
       .toEqual({
-        title: `${plan.workUnitId} [2/3]: ${second.title}`,
+        title: `feat(${plan.workUnitId}): [2/3] ${second.title}`,
         body: [
           "**Design:** `spec-example.md`",
           "",
@@ -206,8 +209,9 @@ describe("describeDeliveryMemberPresentation", () => {
       plan,
       { deliverableId: first.deliverableId, chunkKey: first.chunkKey },
       { deliverableId: first.deliverableId, summary: "Establishes the boundary for choosing stacked delivery." },
+      titleIdentity,
     )).toEqual({
-      title: `${plan.workUnitId} [1/3]: ${first.title}`,
+      title: `feat(${plan.workUnitId}): [1/3] ${first.title}`,
       body: [
         "## Summary",
         "",
@@ -218,6 +222,7 @@ describe("describeDeliveryMemberPresentation", () => {
       plan,
       { deliverableId: "missing", chunkKey: "orphan" },
       { deliverableId: "missing", summary: "Orphaned presentation." },
+      titleIdentity,
     )).toThrow(/outside the delivery plan/u);
   });
 
@@ -227,7 +232,8 @@ describe("describeDeliveryMemberPresentation", () => {
       deliverableId: member.deliverableId,
       summary: `Review ${member.title}.`,
     }));
-    expect(resolveDeliveryMemberPresentations(plan, presentations)).toMatchObject({ status: "resolved" });
+    expect(resolveDeliveryMemberPresentations(plan, presentations, titleIdentity))
+      .toMatchObject({ status: "resolved" });
 
     for (const invalid of [
       presentations.slice(0, 1),
@@ -235,7 +241,7 @@ describe("describeDeliveryMemberPresentation", () => {
       [...presentations, { deliverableId: plan.members.at(-1)!.deliverableId, summary: "Terminal." }],
       [presentations[0]!, { deliverableId: "foreign", summary: "Foreign." }],
     ]) {
-      expect(resolveDeliveryMemberPresentations(plan, invalid))
+      expect(resolveDeliveryMemberPresentations(plan, invalid, titleIdentity))
         .toEqual({ status: "refused", reason: "presentation-mismatch" });
     }
   });
@@ -253,7 +259,7 @@ describe("describeDeliveryMemberPresentation", () => {
     expect(resolveDeliveryMemberPresentations(malformed, plan.members.slice(0, -1).map((member) => ({
       deliverableId: member.deliverableId,
       summary: `Review ${member.title}.`,
-    })))).toEqual({ status: "refused", reason: "presentation-mismatch" });
+    })), titleIdentity)).toEqual({ status: "refused", reason: "presentation-mismatch" });
     expect(first.title).not.toContain("\n");
   });
 
@@ -272,6 +278,80 @@ describe("describeDeliveryMemberPresentation", () => {
       title: "feat(delivery): publish\nwork unit",
       body: "Publish the complete work unit.",
     })).toEqual({ status: "refused", reason: "presentation-mismatch" });
+  });
+
+  it("carries one shared identity and truthful position onto every request including the terminal", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    const resolved = resolveDeliveryPublicationPresentations(plan, members, {
+      title: "feat(delivery): publish the work unit",
+      body: "Publish the complete work unit.",
+    });
+    expect(resolved).toMatchObject({ status: "resolved" });
+    if (resolved.status !== "resolved") return;
+
+    expect(resolved.value.terminal.title).toBe(`feat(${plan.workUnitId}): [3/3] publish the work unit`);
+    expect(resolved.value.terminal.body).toBe("Publish the complete work unit.");
+    expect(plan.members.slice(0, -1).map(
+      (member) => resolved.value.members.get(member.deliverableId)?.title,
+    )).toEqual([
+      `feat(${plan.workUnitId}): [1/3] ${plan.members[0]!.title}`,
+      `feat(${plan.workUnitId}): [2/3] ${plan.members[1]!.title}`,
+    ]);
+  });
+
+  it("keeps a breaking marker on the terminal without propagating it to members", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    const resolved = resolveDeliveryPublicationPresentations(plan, members, {
+      title: "refactor(delivery)!: rework the publication surface",
+      body: "Rework the publication surface.",
+    });
+    expect(resolved).toMatchObject({ status: "resolved" });
+    if (resolved.status !== "resolved") return;
+
+    expect(resolved.value.terminal.title)
+      .toBe(`refactor(${plan.workUnitId})!: [3/3] rework the publication surface`);
+    expect(resolved.value.members.get(plan.members[0]!.deliverableId)?.title)
+      .toBe(`refactor(${plan.workUnitId}): [1/3] ${plan.members[0]!.title}`);
+  });
+
+  it("refuses a terminal title that is not an admitted conventional subject", () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const members = plan.members.slice(0, -1).map((member) => ({
+      deliverableId: member.deliverableId,
+      summary: `Review ${member.title}.`,
+    }));
+
+    for (const title of ["Publish: the work unit", "publish the work unit", "wip(delivery): publish"]) {
+      expect(resolveDeliveryPublicationPresentations(plan, members, {
+        title,
+        body: "Publish the complete work unit.",
+      })).toEqual({ status: "refused", reason: "terminal-title-not-conventional" });
+    }
+  });
+
+  it("leaves a one-member delivery title unchanged because it is not a stack", () => {
+    const plan = deliverySingleMemberStackPlanFixture();
+    expect(plan.members).toHaveLength(1);
+
+    const resolved = resolveDeliveryPublicationPresentations(plan, [], {
+      title: "Publish the lone member",
+      body: "Publish the complete work unit.",
+    });
+    expect(resolved).toMatchObject({ status: "resolved" });
+    if (resolved.status !== "resolved") return;
+
+    expect(resolved.value.terminal.title).toBe("Publish the lone member");
+    expect(resolved.value.members.size).toBe(0);
   });
 });
 
@@ -653,10 +733,11 @@ describe("delivery materialization orchestration", () => {
       repository: "andrewRCr/arc-framework",
       draft: true,
       terminalPresentation: { title: "feat: publish example", body: "## Summary\n\nPublish the work unit." },
-      memberPresentation: (materialized) => describeDeliveryMemberPresentation(plan, materialized, authored),
+      memberPresentation: (materialized) =>
+        describeDeliveryMemberPresentation(plan, materialized, authored, titleIdentity),
     })).resolves.toMatchObject({ status: "published" });
     expect(opened.get(derived.value.members[0]!.ref!.replace("refs/heads/", ""))).toMatchObject({
-      title: `${plan.workUnitId} [1/2]: ${member.title}`,
+      title: `feat(${plan.workUnitId}): [1/2] ${member.title}`,
       body: [
         "## Summary",
         "",

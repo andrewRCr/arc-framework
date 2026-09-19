@@ -67,7 +67,7 @@ describe("delivery entry handler", () => {
       deliveryStatusAction: {
         kind: "resolve-delivery-status",
         workUnitId: "example",
-        command: "arc review status --work-unit example --json",
+        command: "arc review status --work-unit example",
         interactionText: "Resume hosted member review.",
       },
       recommendedActionText: "Resume hosted member review.",
@@ -78,7 +78,7 @@ describe("delivery entry handler", () => {
     },
   ])("preserves the $status route through its strict envelope", async (result) => {
     const deps = dependencies(result);
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toEqual({
       schemaVersion: 1,
@@ -93,7 +93,7 @@ describe("delivery entry handler", () => {
   it("rejects malformed attended input before reading delivery facts", async () => {
     const deps = dependencies({ status: "not-applicable" });
     vi.mocked(deps.readText).mockResolvedValue("{}");
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(deps.inspect).not.toHaveBeenCalled();
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({
@@ -110,7 +110,7 @@ describe("delivery entry handler", () => {
     });
     vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "integrating" }));
 
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "integrating" }, undefined);
     expect(deps.setExitCode).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe("delivery entry handler", () => {
     });
     vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "execution" }));
 
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "execution" }, undefined);
     expect(deps.setExitCode).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe("delivery entry handler", () => {
     });
     vi.mocked(deps.readText).mockResolvedValue(JSON.stringify({ entryMode: "prepublication" }));
 
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(deps.inspect).toHaveBeenCalledWith({ entryMode: "prepublication" }, undefined);
     expect(deps.setExitCode).not.toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe("delivery entry handler", () => {
       provisionalDisposition: "not-applicable",
     }));
 
-    await handleDeliveryEntryInspect({ input: "-", json: true }, undefined, deps);
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
 
     expect(deps.inspect).not.toHaveBeenCalled();
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({

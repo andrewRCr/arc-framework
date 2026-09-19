@@ -6,7 +6,6 @@ import { z } from "zod";
 
 import {
   declareCliOperandSite,
-  declareCliOptionSite,
   declareInteractionSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
@@ -22,17 +21,16 @@ import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/
 import { hostedGhRunner } from "../scripts/review-gate/hosted/gh-process.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 
-const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
+const OptionsSchema = z.strictObject({ input: z.string().min(1) });
 
 export interface DeliveryMemberChecksOptions {
   readonly input?: string;
-  readonly json?: boolean;
 }
 
 export const deliveryMemberChecksCommandInputRegistration = {
   commandPath: "delivery checks observe",
   schema: OptionsSchema,
-  schemaFields: { "operand.input": "input", "option.json": "json" },
+  schemaFields: { "operand.input": "input" },
 } as const satisfies CommandInputRegistration;
 
 export const deliveryMemberChecksCommandInputPolicyDeclarations = [{
@@ -47,15 +45,6 @@ export const deliveryMemberChecksCommandInputPolicyDeclarations = [{
       automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["<json-path>", "-"] },
       mutationBoundary: "delivery-member check request validation",
       subprocess: "explicit-stdin",
-    }),
-    declareCliOptionSite("json", {
-      acquisition: "machine-mode",
-      schemaOwnership: "owned",
-      schemaField: "json",
-      cancellation: "not-applicable",
-      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-      mutationBoundary: "output selection",
-      subprocess: "none",
     }),
     declareInteractionSite(
       { file: "handlers/delivery-member-checks.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
@@ -168,7 +157,7 @@ export async function handleDeliveryMemberChecksObserve(
       remedy: spineRemedy(
         "Required-check status must be readable for the exact delivery member.",
         "Resolve the host read failure, then re-run",
-        ["arc", "delivery", "checks", "observe", parsedOptions.data.input, "--json"],
+        ["arc", "delivery", "checks", "observe", parsedOptions.data.input],
       ),
     }, 1);
   }

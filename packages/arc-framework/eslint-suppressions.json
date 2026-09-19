@@ -1564,7 +1564,7 @@
   },
   "src/scripts/integration/merge.ts": {
     "complexity": {
-      "count": 2
+      "count": 1
     },
     "max-lines": {
       "count": 1
