@@ -364,11 +364,6 @@ describe("native delivery landing suffix settlement", () => {
     expect(result).toMatchObject({ status: "applied" });
   });
 
-  /**
-   * A1 — chain absorption rewrites the local terminal top under a lease of its own, and the observed suffix
-   * drops its last element by construction. A decline taken after the absorb has to find the top in the
-   * inventory it undoes, so the settle records it where it records the members.
-   */
   /** The observed suffix a held native landing reservation records, narrowed off the operation union. */
   function recordedSuffix(state: DeliveryStateV1) {
     const operation = state.activeOperation;
@@ -397,6 +392,11 @@ describe("native delivery landing suffix settlement", () => {
     };
   }
 
+  /**
+   * Chain absorption rewrites the local terminal top under a lease of its own, and the observed suffix drops
+   * its last element by construction. A decline taken after the absorb has to find the top in the inventory
+   * it undoes, so the settle records it where it records the members.
+   */
   it("records the absorbed top beside the suffix it observed", async () => {
     const { bound, newTarget, blocked, absorbedTop, recorded } = await wedgedPastTheAbsorb(
       async () => ({ status: "refused" as const, reason: "collision" as const }),

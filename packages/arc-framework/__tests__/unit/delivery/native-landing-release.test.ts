@@ -476,7 +476,7 @@ describe("native delivery landing decline", () => {
   });
 
   /**
-   * A1 — the settle also rewrites the local terminal top, under a lease of its own. Both wedges past that
+   * The settle also rewrites the local terminal top, under a lease of its own. Both wedges past that
    * rewrite hold the reservation with the top already moved, so both are declines the inventory has to cover.
    */
   async function wedgedPastTheAbsorb(wedge: "top-publish" | "state-conflict") {
