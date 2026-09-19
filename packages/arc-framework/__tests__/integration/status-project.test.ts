@@ -210,6 +210,54 @@ describe("arc status --project", () => {
     },
   );
 
+  it.each(["Planning", "Active"] as const)(
+    "keeps a committed Shipped record authoritative over a lingering %s ref",
+    async (lingeringState) => {
+      repo = await createTempRepo(`arc-status-slug-shipped-${lingeringState.toLowerCase()}-`);
+      remote = `${repo}-origin.git`;
+      const slug = "swept-status";
+      const planningBranch = `plan/${slug}`;
+      const deliveryBranch = `feat/${slug}`;
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+      await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
+      await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
+      await mkdir(join(repo, ".arc", "system"), { recursive: true });
+      await writeFile(join(repo, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+      await commitAll(repo, "scaffold swept status");
+
+      await execFileAsync("git", ["switch", "-c", planningBranch], { cwd: repo });
+      const activePath = join(repo, ".arc", "active", `meta-${slug}.md`);
+      await mkdir(join(repo, ".arc", "active"), { recursive: true });
+      await writeFile(activePath, meta(slug, lingeringState, planningBranch));
+      await commitAll(repo, "plan swept status");
+      await execFileAsync("git", ["push", "-u", "origin", planningBranch], { cwd: repo });
+
+      await execFileAsync("git", ["switch", "-c", deliveryBranch], { cwd: repo });
+      await execFileAsync("git", ["branch", "-D", planningBranch], { cwd: repo });
+      await writeFile(activePath, meta(slug, "Integrating", deliveryBranch));
+      await commitAll(repo, "integrate swept status");
+      const completedDir = join(repo, ".arc", "completed", "2026-q3", `01_${slug}`);
+      const completedPath = join(completedDir, `meta-${slug}.md`);
+      await mkdir(completedDir, { recursive: true });
+      await execFileAsync("git", ["mv", activePath, completedPath], { cwd: repo });
+      await writeFile(completedPath, meta(slug, "Shipped", deliveryBranch));
+      await commitAll(repo, "archive swept status");
+
+      const output = JSON.parse(await runSlug(repo, slug, { json: true }));
+
+      expect(output).toMatchObject({
+        slug,
+        position: { phase: "Shipped", location: "completed" },
+        state: "shipped",
+        occupied: false,
+        shipped: true,
+      });
+      expect(output.warnings).toContain(
+        `Branch \`${deliveryBranch}\` has no errand record or active work-unit meta; cleanup may be required.`,
+      );
+    },
+  );
+
   it("uses --fetch as a live-membership upgrade while keeping slug queries local by default", async () => {
     repo = await createTempRepo("arc-status-slug-fetch-");
     remote = `${repo}-origin.git`;
