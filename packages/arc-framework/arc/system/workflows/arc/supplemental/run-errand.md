@@ -434,6 +434,35 @@ remote base all name the same exact head. Any tracked change continues through t
    those returned values plus `schemaVersion: 1`, the strict Errand `slug`, `claimId`, `branch`, and `generation`,
    the exact `repository`, `pullRequest`, `baseRef`, `headRef`, and `headSha`, and the selected `lane`.
 
+   ```json
+   {
+     "schemaVersion": 1,
+     "identity": {
+       "slug": "<errand-slug>",
+       "claimId": "<claim-id>",
+       "branch": "<errand-branch>",
+       "generation": "errand-v1/<errand-slug>/<claim-id>"
+     },
+     "approvedTarget": {
+       "repository": "<owner>/<name>",
+       "pullRequest": 123,
+       "baseRef": "<base-ref>",
+       "headRef": "<errand-branch>",
+       "headSha": "<head-sha>"
+     },
+     "lane": "reviewed",
+     "mergeMethod": {
+       "method": "<resolved-method>",
+       "policyFingerprint": "<resolved-policy-fingerprint>"
+     }
+   }
+   ```
+
+   Two fields are composed rather than read, and the request refuses when either disagrees. `generation` is
+   always `errand-v1/<slug>/<claim-id>` built from the two identity fields beside it, and `identity.branch` and
+   `approvedTarget.headRef` must name the same branch. `lane` is the value the lane classifier selected, and
+   `method` and `policyFingerprint` are the resolver's returned values, never chosen here.
+
    Under an Owner-directed review stop, `review-required` remains expected; a status refusal or pending/response
    action stops. Recheck the accepted Errand claim, PR, base OID, head, and known review/response state before the
    integration interlock. A changed coordinate (including base OID or Errand claim), new finding, or unfinished fix
