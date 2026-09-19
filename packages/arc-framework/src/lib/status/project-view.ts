@@ -48,7 +48,11 @@ export interface ProjectViewFs {
 export type ProjectReadinessLocation = "active" | "planned" | "provisional" | "completed";
 
 /** Source family that contributed a project-readiness record. */
-export type ProjectReadinessSourceKind = "active-meta" | "backlog-stub" | "completed-index";
+export type ProjectReadinessSourceKind =
+  | "active-meta"
+  | "backlog-stub"
+  | "completed-index"
+  | "in-flight-meta";
 
 /** Provenance for one source candidate that contributed to a merged record. */
 export interface ProjectReadinessRecordSource {
@@ -480,12 +484,40 @@ function isParkedPointer(candidate: ProjectReadinessRecordCandidate): boolean {
   return candidate.scheduling === "parked" || (candidate.location === "planned" && candidate.state === "Active");
 }
 
+function isBranchObservation(candidate: ProjectReadinessRecordCandidate): boolean {
+  return candidate.source?.kind === "in-flight-meta";
+}
+
+function isTerminalOperationalRecord(candidate: ProjectReadinessRecordCandidate): boolean {
+  return candidate.location === "completed" && candidate.state === "Shipped";
+}
+
+function firstByExistingPrecedence(
+  candidates: readonly ProjectReadinessRecordCandidate[],
+): ProjectReadinessRecordCandidate | undefined {
+  return [...candidates].sort(compareCandidates)[0];
+}
+
+function selectRecordCandidate(
+  group: readonly ProjectReadinessRecordCandidate[],
+): ProjectReadinessRecordCandidate {
+  const operational = firstByExistingPrecedence(group.filter((candidate) => !isBranchObservation(candidate)));
+  const observed = firstByExistingPrecedence(group.filter(isBranchObservation));
+  if (operational === undefined) {
+    if (observed === undefined) throw new Error("project-readiness merge requires a non-empty group");
+    return observed;
+  }
+  if (operational.location === "active" || isTerminalOperationalRecord(operational)) return operational;
+  return observed ?? operational;
+}
+
 /**
  * Merge source candidates into one slug-keyed project-readiness record set.
  *
- * At-ref active metas win the row-field precedence over backlog stubs and completed
- * records. Parking is an axis overlay: a planned Active pointer owns scheduling
- * tier membership even when an active meta supplies the row fields.
+ * Operational records first resolve through their existing lifecycle precedence. A
+ * branch-observed meta may supplement a backlog-only or absent operational record,
+ * but cannot resurrect a terminal Shipped record. Parking remains an axis overlay
+ * except when the authoritative winner is terminal.
  */
 export function mergeProjectReadinessRecords(
   candidates: readonly ProjectReadinessRecordCandidate[],
@@ -499,14 +531,15 @@ export function mergeProjectReadinessRecords(
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([, group]) => {
       const ordered = [...group].sort(compareCandidates);
-      const winner = ordered[0];
-      if (winner === undefined) throw new Error("project-readiness merge requires a non-empty group");
-      const parked = group.some(isParkedPointer);
+      const winner = selectRecordCandidate(group);
+      const sources = [winner, ...ordered.filter((candidate) => candidate !== winner)]
+        .map((candidate) => candidate.source ?? sourceFor(candidate.location, undefined));
+      const parked = !isTerminalOperationalRecord(winner) && group.some(isParkedPointer);
       const source = winner.source ?? sourceFor(winner.location, undefined);
       return {
         ...winner,
         source,
-        sources: ordered.map((candidate) => candidate.source ?? sourceFor(candidate.location, undefined)),
+        sources,
         ...(parked ? { location: "planned" as const, scheduling: "parked" as const } : {}),
       };
     });
@@ -540,7 +573,7 @@ function inFlightEntryToCandidate(entry: InFlightEntry): ProjectReadinessRecordC
     priority: validatePriority(entry.priority ?? null),
     dependsOn: [...entry.dependsOn],
     ...(entry.cohort !== undefined ? { cohort: entry.cohort } : {}),
-    source: sourceFor("active", `${ref}:${metaPath}`),
+    source: { kind: "in-flight-meta", location: "active", path: `${ref}:${metaPath}` },
     ...(entry.scheduling === "parked" ? { scheduling: "parked" as const } : {}),
   };
 }

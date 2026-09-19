@@ -348,6 +348,7 @@ describe("disjoint delivery eligibility", () => {
             state: "mergeable",
             repository: "owner/repository",
             changeRequest: 43,
+            baseRef: "main",
             base: observedTip,
             head: terminalHead,
           },

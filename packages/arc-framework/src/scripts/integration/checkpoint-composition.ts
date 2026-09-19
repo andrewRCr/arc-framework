@@ -716,6 +716,7 @@ export function createIntegrationCheckpointDependencies(input: {
       const coordinates = {
         repository: changeRequest.targetRef.repository,
         changeRequest: changeRequest.candidate.number,
+        baseRef: changeRequest.candidate.baseRefName,
         base: drift.baseOid,
         head: changeRequest.targetRef.headSha,
       };
@@ -736,6 +737,7 @@ export function createIntegrationCheckpointDependencies(input: {
         || feasibility.head !== coordinates.head
         || admission.repository !== coordinates.repository
         || admission.changeRequest !== coordinates.changeRequest
+        || admission.baseRef !== coordinates.baseRef
         || admission.base !== coordinates.base
         || admission.head !== coordinates.head
       ) {

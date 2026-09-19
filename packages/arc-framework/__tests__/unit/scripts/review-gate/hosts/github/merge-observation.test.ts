@@ -4,7 +4,13 @@ import type { HostedProcessRunner } from "../../../../../../src/scripts/review-g
 import { createGhChangeRequestMergeObservationPort } from "../../../../../../src/scripts/review-gate/hosts/github/merge-observation.js";
 
 const oid = (character: string): string => character.repeat(40);
-const coordinates = { repository: "owner/repo", changeRequest: 42, base: oid("a"), head: oid("b") };
+const coordinates = {
+  repository: "owner/repo",
+  changeRequest: 42,
+  baseRef: "main",
+  base: oid("a"),
+  head: oid("b"),
+};
 
 function pull(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -35,6 +41,27 @@ describe("GitHub merge-observation port", () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts exact current-base parents when the pull base SHA lags its named ref", async () => {
+    const run = vi.fn(async (args: string[]) => {
+      const endpoint = args.at(-1) ?? "";
+      if (endpoint.endsWith("/pulls/42")) {
+        return output(pull({ base: { ref: coordinates.baseRef, sha: oid("d") } }));
+      }
+      if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+      if (endpoint.includes("/rules/branches/main")) return output([[]]);
+      if (endpoint.includes("/commits/")) {
+        return output({ parents: [{ sha: coordinates.base }, { sha: coordinates.head }] });
+      }
+      throw new Error(`unexpected command: ${args.join(" ")}`);
+    });
+    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
+      ...coordinates,
+      state: "mergeable",
+    });
+  });
+
   it.each(["classic", "ruleset"] as const)("establishes strict currentness from explicit %s policy", async (kind) => {
     const run = vi.fn(async (args: string[]) => {
       const endpoint = args.at(-1) ?? "";
@@ -60,7 +87,9 @@ describe("GitHub merge-observation port", () => {
   it("prioritizes strict currentness over an exact test merge for a behind head", async () => {
     const run = vi.fn(async (args: string[]) => {
       const endpoint = args.at(-1) ?? "";
-      if (endpoint.endsWith("/pulls/42")) return output(pull());
+      if (endpoint.endsWith("/pulls/42")) {
+        return output(pull({ base: { ref: coordinates.baseRef, sha: oid("d") } }));
+      }
       if (endpoint.endsWith("/branches/main")) return output({
         protection: { required_status_checks: { contexts: [], strict: true } },
       });
@@ -96,7 +125,7 @@ describe("GitHub merge-observation port", () => {
 
   it("rejects stale coordinates and malformed test-merge parents", async () => {
     const moved = createGhChangeRequestMergeObservationPort({
-      run: async () => output(pull({ head: { sha: oid("d") } })),
+      run: async () => output(pull({ base: { ref: "release", sha: coordinates.base } })),
     });
     await expect(moved.observe(coordinates)).resolves.toMatchObject({
       state: "unresolved", detail: expect.stringContaining("coordinates moved"),
@@ -109,6 +138,19 @@ describe("GitHub merge-observation port", () => {
     });
     await expect(malformed.observe(coordinates, { baseContained: true })).resolves.toMatchObject({
       state: "unresolved", detail: expect.stringContaining("parents did not match"),
+    });
+  });
+
+  it("rejects reversed test-merge parents", async () => {
+    const port = createGhChangeRequestMergeObservationPort({
+      run: async (args) => args.at(-1)?.includes("/commits/") === true
+        ? output({ parents: [{ sha: coordinates.head }, { sha: coordinates.base }] })
+        : output(pull()),
+    });
+
+    await expect(port.observe(coordinates, { baseContained: true })).resolves.toMatchObject({
+      state: "unresolved",
+      detail: expect.stringContaining("parents did not match"),
     });
   });
 

@@ -752,6 +752,114 @@ The contract should distinguish findings that have no review thread.
     }
   });
 
+  it("bounds supplemental file groups to their enclosing details section", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: `**Actionable comments posted: 1**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep the boundary explicit.**
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+Nested provider guidance is not a file group.
+
+\`999\`: _🔴 Critical_
+
+<!-- cr-comment:v1:feedfacefeedfacefeedface -->
+
+</details>
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>
+
+<details>
+<summary>🤖 Prompt to fix review comments</summary>
+
+Provider guidance outside the supplemental section.
+
+</details>
+
+<details>
+<summary>ℹ️ Review info</summary>
+
+<details>
+<summary>📒 Files selected for processing (7)</summary>
+</details>
+
+<details>
+<summary>💤 Files with no reviewable changes (1)</summary>
+</details>
+
+</details>`,
+      })]),
+      readThreads: () => Promise.resolve([
+        findingThread("_🟡 Minor_ Align the recovered boundary action."),
+      ]),
+    }));
+
+    const result = await adapter.observeHandle(target);
+    expect(result).toMatchObject({
+      kind: "findings",
+      findings: [
+        { origin: "review-thread", locus: "src/a.ts:7" },
+        { origin: "review-body", severity: "minor", locus: "src/a.ts:7-9" },
+      ],
+    });
+    if (result.kind !== "findings") return;
+    const reviewBodyFinding = result.findings.find((finding) => finding.origin === "review-body");
+    expect(reviewBodyFinding?.body).toContain("Nested provider guidance is not a file group.");
+    expect(reviewBodyFinding?.body).toContain("cr-comment:v1:feedfacefeedfacefeedface");
+  });
+
+  it("ignores details tags inside Markdown code and behind active escapes", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: `**Actionable comments posted: 0**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep Markdown code examples out of the structural stack.**
+
+The inline literal \`<details>\` is finding content.
+
+The escaped literal \\<details> is finding content.
+
+\`\`\`html
+<details>
+\`\`\`
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ origin: "review-body", locus: "src/a.ts:7-9" }],
+    });
+  });
+
   it("normalizes outside-diff comments under the same no-settlement contract", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
@@ -853,12 +961,16 @@ This finding has no inline review thread.
   it("rejects supplemental findings that contain only locus and severity metadata", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
-        body: `<summary>⚠️ Outside diff comments (1)</summary>
-<summary>src/legacy.ts (1)</summary>
+        body: `<details>
+<summary>⚠️ Outside diff comments (1)</summary><blockquote>
+<details>
+<summary>src/legacy.ts (1)</summary><blockquote>
 
 \`12\`: _🩺 Stability & Availability_ | _🟡 Minor_
 
-<!-- cr-comment:v1:1234567890abcdef12345678 -->`,
+<!-- cr-comment:v1:1234567890abcdef12345678 -->
+</blockquote></details>
+</blockquote></details>`,
       })]),
     }));
 
@@ -873,12 +985,16 @@ This finding has no inline review thread.
   it("identifies the supplemental finding component that could not be parsed", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
-        body: `<summary>⚠️ Outside diff comments (1)</summary>
-<summary>src/legacy.ts (1)</summary>
+        body: `<details>
+<summary>⚠️ Outside diff comments (1)</summary><blockquote>
+<details>
+<summary>src/legacy.ts (1)</summary><blockquote>
 
 line 12: _🩺 Stability & Availability_ | _🟡 Minor_
 
-<!-- cr-comment:v1:1234567890abcdef12345678 -->`,
+<!-- cr-comment:v1:1234567890abcdef12345678 -->
+</blockquote></details>
+</blockquote></details>`,
       })]),
     }));
 
