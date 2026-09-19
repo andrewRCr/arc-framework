@@ -541,6 +541,85 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
+  it("carries the cause that required fresh review into the result the operator reads", async () => {
+    const { value } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      reviewApplicability: {
+        verdict: "fresh",
+        residual: null,
+        reason: "overlap-ambiguous-base",
+        judgmentRequired: false,
+      },
+    });
+
+    // Fresh review is the verdict either way; which base reading produced it is what the operator acts on,
+    // and it is the thing that stops at this boundary unless the result carries it.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "review-applicability-fresh",
+      applicability: { verdict: "fresh", reason: "overlap-ambiguous-base" },
+    });
+  });
+
+  it("sends an absent common ancestor to the join, not back around the approval loop", async () => {
+    const { value } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      reviewApplicability: {
+        verdict: "fresh",
+        residual: null,
+        reason: "overlap-unrelated-base",
+        judgmentRequired: false,
+      },
+    });
+
+    // Recomposing the request reduces over the same pair and returns the same invalidation, so the explanation
+    // that asks for one is a loop. No `arc` verb clears this reading: the append-only reconcile declines
+    // unrelated histories rather than joining them, so the operator performs the join.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "request-approval",
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          invariant: "Base movement can be proved only between revisions with a common ancestor.",
+          argv: ["git", "merge", "--allow-unrelated-histories", oid("b")],
+        },
+      },
+    });
+  });
+
+  it("sends a second merge base to the typed reconcile that collapses it", async () => {
+    const { value } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      reviewApplicability: {
+        verdict: "fresh",
+        residual: null,
+        reason: "overlap-ambiguous-base",
+        judgmentRequired: false,
+      },
+    });
+
+    // The opposite act from its sibling: merging the base in collapses two merge bases to one, which is exactly
+    // what the append-only reconcile already does, so this pair keeps the route that clears it.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      nextAction: "request-approval",
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", approvedTarget.headSha,
+          ],
+        },
+      },
+    });
+  });
+
   it("returns typed unavailable drift evidence before mutation", async () => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
@@ -906,6 +985,34 @@ describe("Errand merge operation", () => {
       state: "applicability-judgment-required",
       nextAction: "assess-applicability",
       reason: "bounded-review-residual",
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
+  });
+
+  it("carries the cause through the base-currentness re-read, as its sibling arm does", async () => {
+    const { value, state } = dependencies();
+    value.mergePinned = async (target) => {
+      state.mergeCalls += 1;
+      return { state: "base-currentness-required", target, detail: "The host requires the current base." };
+    };
+    value.readFinalPlan = async (_target, override) => override?.state === "base-currentness-required"
+      ? {
+          ...directPlan(),
+          reviewApplicability: {
+            verdict: "fresh",
+            residual: null,
+            reason: "overlap-unrelated-base",
+            judgmentRequired: false,
+          },
+        }
+      : directPlan();
+
+    // The same verdict reached through the re-read after a host currentness refusal. The cause is what tells
+    // the operator the base shares no history with the branch, and it dies at this boundary unless carried.
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "invalidated",
+      reason: "review-applicability-fresh",
+      applicability: { verdict: "fresh", reason: "overlap-unrelated-base" },
     });
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 1 });
   });

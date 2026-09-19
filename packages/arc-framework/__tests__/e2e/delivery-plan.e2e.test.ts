@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCandidateAttestation, type CandidateManagedRecordV1 } from
   "../../src/lib/work-unit/candidate-attestation.js";
 import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { createGitExec } from "../../src/lib/io-context.js";
 import { projectDeliveryPublicReviewContinuation } from
@@ -330,7 +330,7 @@ describe("arc delivery", () => {
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
           chainBase: { head, tree },
-          predecessorRelation: { kind: "exact", observedTip: head, chainBase: head },
+          predecessorRelation: { kind: "unchanged", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
@@ -388,7 +388,7 @@ describe("arc delivery", () => {
           planDigest: plan.planDigest,
           protectedBase: { ref: `refs/heads/${branch}`, head, tree },
           chainBase: { head, tree },
-          predecessorRelation: { kind: "exact", observedTip: head, chainBase: head },
+          predecessorRelation: { kind: "unchanged", observedTip: head, chainBase: head },
           top: { ref: topRef, head, tree },
           members: [{
             deliverableId: plan.members[0]!.deliverableId,
@@ -843,7 +843,7 @@ describe("arc delivery", () => {
 
     const top = state.members.at(-1)!;
     const exec = createGitExec();
-    const candidateTarget = await collectGitCandidateTarget({
+    const candidateTarget = await collectCandidateSubjectTarget({
       cwd: repository,
       name: plan.workUnitId,
       baseBranch: "main",

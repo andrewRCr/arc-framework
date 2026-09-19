@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   BoundedEvidenceResidualSchema,
+  EvidenceApplicabilityResultSchema,
   type EvidenceApplicabilityResult,
 } from "../../lib/evidence-applicability/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -154,6 +155,8 @@ export const ErrandMergeResultSchema = z.discriminatedUnion("state", [
       "merge-method-moved",
       "review-applicability-fresh",
     ]),
+    /** The reduction that invalidated the request, when one did — it names what a fresh approval must answer. */
+    applicability: EvidenceApplicabilityResultSchema.optional(),
   }),
   z.strictObject({
     ...nonSuccess,
@@ -252,12 +255,56 @@ function mergedResult(
   });
 }
 
+/**
+ * Name the act a base reading needs, when one of the two base-resolution causes produced the invalidation.
+ *
+ * Both survive a recomposed request untouched: they describe the pair itself, and neither approving the same
+ * request again nor reducing over it again alters the pair — so the explanation asking for fresh approval sends
+ * the operator around a loop that returns here. The two want opposite acts. Merging the base in collapses a
+ * second merge base to one, which is what the append-only reconcile already does; it cannot reach an absent one
+ * at all, because Git declines to join unrelated histories unless told to and the reconcile never tells it to.
+ *
+ * @param applicability - The reduction that invalidated the request, when one did.
+ * @param baseOid - The observed base revision, or null when no base observation was established.
+ * @param headSha - The approved Errand head a typed reconcile must preserve.
+ * @returns The continuation the cause calls for, or null when no base reading decided this invalidation.
+ */
+function baseResolutionContinuation(
+  applicability: EvidenceApplicabilityResult | undefined,
+  baseOid: string | null,
+  headSha: string,
+): z.infer<typeof continuation> | null {
+  if (baseOid === null) return null;
+  if (applicability?.reason === "overlap-unrelated-base") {
+    return {
+      kind: "remedy",
+      remedy: spineRemedy(
+        "Base movement can be proved only between revisions with a common ancestor.",
+        "Confirm the Errand is on the base it belongs to, then give the two one common ancestor and compose a "
+        + "fresh approved merge request",
+        ["git", "merge", "--allow-unrelated-histories", baseOid],
+      ),
+    };
+  }
+  if (applicability?.reason !== "overlap-ambiguous-base") return null;
+  return {
+    kind: "remedy",
+    remedy: spineRemedy(
+      "A base sharing more than one merge base with the branch proves no single comparison.",
+      "Collapse the pair onto one merge base with the typed reconcile, then compose a fresh approved merge "
+      + "request",
+      ["arc", "base", "merge", "--expected-base", baseOid, "--expected-head", headSha],
+    ),
+  };
+}
+
 function invalidatedResult(
   request: ErrandMergeRequest,
   reason: Extract<ErrandMergeResult, { state: "invalidated" }>["reason"],
   detail: string,
   observedTarget: IntegrationMergeTarget | null,
   observedBaseOid: string | null,
+  applicability?: EvidenceApplicabilityResult,
 ): Extract<ErrandMergeResult, { state: "invalidated" }> {
   const result = ErrandMergeResultSchema.parse({
     schemaVersion: 1,
@@ -270,10 +317,12 @@ function invalidatedResult(
     approvedTarget: request.approvedTarget,
     lane: request.lane,
     coordinates: { observedTarget, observedBaseOid },
-    continuation: {
-      kind: "terminal-explanation",
-      terminalExplanation: "Recompose the exact Errand merge request and obtain fresh approval.",
-    },
+    ...(applicability === undefined ? {} : { applicability }),
+    continuation: baseResolutionContinuation(applicability, observedBaseOid, request.approvedTarget.headSha)
+      ?? {
+        kind: "terminal-explanation",
+        terminalExplanation: "Recompose the exact Errand merge request and obtain fresh approval.",
+      },
   });
   if (result.state !== "invalidated") throw new Error("Invalid Errand merge invalidation projection.");
   return result;
@@ -601,6 +650,7 @@ export async function mergeErrand(
       "The final evidence requires fresh review and exact integration approval.",
       final.target,
       final.baseOid,
+      final.reviewApplicability,
     );
   }
   if (final.reviewApplicability.verdict === "carries" && final.plan.state === "reconcile") {
@@ -983,6 +1033,7 @@ export async function mergeErrand(
           "The final evidence requires fresh review and exact integration approval.",
           currentnessPlan.target,
           currentnessPlan.baseOid,
+          currentnessPlan.reviewApplicability,
         ),
       );
     }

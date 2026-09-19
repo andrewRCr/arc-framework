@@ -276,10 +276,10 @@ vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
 }));
-const mockCollectGitCandidateTarget = vi.fn();
+const mockCollectGitCandidateSubject = vi.fn();
 const mockCollectUnstagedReviewablePaths = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-candidate-subject.js", () => ({
-  collectGitCandidateTarget: (...a: unknown[]) => mockCollectGitCandidateTarget(...a),
+  collectGitCandidateSubject: (...a: unknown[]) => mockCollectGitCandidateSubject(...a),
   collectUnstagedReviewablePaths: (...a: unknown[]) => mockCollectUnstagedReviewablePaths(...a),
 }));
 const mockRunAttest = vi.fn();
@@ -461,7 +461,10 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
-  mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
+  mockCollectGitCandidateSubject.mockResolvedValue({
+    status: "collected",
+    target: { revision: "a".repeat(40), subject: {} },
+  });
   mockProjectGitCandidateEffectiveTarget.mockResolvedValue({
     state: "current",
     candidateId,
@@ -2170,5 +2173,25 @@ describe("handleAttest", () => {
     expect(reason).toContain("src/file-4.ts");
     expect(reason).not.toContain("src/file-5.ts");
     expect(reason).toContain("and 3 more");
+  });
+
+  it("refuses without attesting when the branch and its base leave no single base to collect against", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectGitCandidateSubject.mockResolvedValueOnce({
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The revisions have more than one best merge base.",
+    });
+
+    await handleAttest("foo", { json: true });
+
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.reason).toContain("merge-base-ambiguous");
+    expect(refusal.reason).toContain("The revisions have more than one best merge base.");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(mockRunAttest).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });

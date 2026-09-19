@@ -16,6 +16,8 @@ const PARENT_B = "e".repeat(40);
 interface MockOptions {
   distance?: string;
   fetchFails?: boolean;
+  /** Raw `merge-base --all` output, or "none" for the exit-1 no-common-ancestor rejection. */
+  mergeBases?: string;
 }
 
 function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] } {
@@ -33,7 +35,12 @@ function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] 
     if (args.join(" ") === "rev-parse --verify HEAD^{commit}") return { stdout: `${HEAD_OID}\n` };
     if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${BASE_OID}\n` };
     if (args[0] === "rev-list") return { stdout: options.distance ?? "0\t0\n" };
-    if (args[0] === "merge-base") return { stdout: `${PARENT_A}\n` };
+    if (args[0] === "merge-base") {
+      if (options.mergeBases === "none") {
+        throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 1 });
+      }
+      return { stdout: options.mergeBases ?? `${PARENT_A}\n` };
+    }
     if (args[0] === "diff") return { stdout: "shared.ts\0" };
     if (args[0] === "log") {
       return { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` };
@@ -333,6 +340,20 @@ describe("base drift raw-distance boundary", () => {
       movement: "overlapping",
       overlap: { status: "available", substantivePaths: ["shared.ts"] },
     });
+  });
+
+  it("classifies a history leaving more than one base as unknown movement", async () => {
+    const { exec } = gitMock({ distance: "1\t1\n", mergeBases: `${PARENT_A}\n${PARENT_B}\n` });
+    const result = await runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" });
+
+    expect(result).toMatchObject({ movement: "unknown", overlap: { status: "ambiguous" } });
+  });
+
+  it("classifies a history sharing no ancestor as unknown movement", async () => {
+    const { exec } = gitMock({ distance: "1\t1\n", mergeBases: "none" });
+    const result = await runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" });
+
+    expect(result).toMatchObject({ movement: "unknown", overlap: { status: "unrelated" } });
   });
 
   it("keeps a healthy reconcile verdict when the resolver factory fails", async () => {

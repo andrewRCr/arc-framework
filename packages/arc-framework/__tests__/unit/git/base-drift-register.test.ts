@@ -72,3 +72,25 @@ describe("base-drift register composition", () => {
     expect(result.text).not.toContain("requires reconciliation before integration");
   });
 });
+
+describe("base-drift register composition over a base that cannot be compared from", () => {
+  const unavailableText = "overlap analysis was unavailable";
+
+  it("narrates a history leaving more than one base in its own terms", () => {
+    const result = composeBaseDriftRegister("main", 4, complete, { status: "ambiguous" }, "unknown");
+
+    expect(result.kind).toBe("degraded");
+    expect(result.text).toContain("more than one merge base");
+    expect(result.text).toContain("Movement is unknown.");
+    expect(result.text).not.toContain(unavailableText);
+  });
+
+  it("narrates a history sharing no ancestor in its own terms", () => {
+    const result = composeBaseDriftRegister("main", 4, complete, { status: "unrelated" }, "unknown");
+
+    expect(result.kind).toBe("degraded");
+    expect(result.text).toContain("no common ancestor");
+    expect(result.text).toContain("Movement is unknown.");
+    expect(result.text).not.toContain(unavailableText);
+  });
+});

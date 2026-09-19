@@ -29,6 +29,16 @@ function request(currentSubject = subject("current")) {
   };
 }
 
+/**
+ * How Git answers `--is-ancestor` for a pair where neither side contains the other: exit 1, no output.
+ *
+ * Every fixture here pins a merge base distinct from both revisions, which is exactly that pair — so a stub
+ * answering the containment question any other way would place these cases on a topology they do not have.
+ */
+const notAncestor = (): never => {
+  throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
+};
+
 function mechanicalReapplyExec(): RawGitExec {
   const trees = new Map([
     [oid("1"), oid("2")],
@@ -38,6 +48,7 @@ function mechanicalReapplyExec(): RawGitExec {
   ]);
   return async (args) => {
     if (args.join(" ") === `merge-base --all ${oid("a")} ${oid("b")}`) return result(`${oid("1")}\n`);
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor();
     if (args[0] === "rev-parse" && args[1] === "--verify") {
       const expression = args[2] ?? "";
       if (expression === "HEAD^{commit}") return result(`${oid("c")}\n`);
@@ -104,6 +115,7 @@ describe("Git Candidate applicability", () => {
 
   it("stops as unavailable when the baseline-to-current merge base is ambiguous", async () => {
     const exec: RawGitExec = async (args) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor();
       if (args[0] === "merge-base") return result(`${oid("1")}\n${oid("2")}\n`);
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
     };
@@ -116,6 +128,31 @@ describe("Git Candidate applicability", () => {
       state: "classification-unavailable",
       nextAction: "stop",
       reason: "merge-base-ambiguous",
+    });
+  });
+
+  /**
+   * An exit code other than 1 is not Git answering "no" — it is Git failing to answer. The containment
+   * question stays open, so the classification stops rather than reading the silence as divergence.
+   */
+  it("stops when the containment question cannot be answered at all", async () => {
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+        throw { exitCode: 128, stdout: bytes(""), stderr: bytes("fatal: bad object\n") };
+      }
+      if (args[0] === "merge-base") return result(`${oid("1")}\n`);
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(projectGitCandidateApplicability({
+      request: request(),
+      exec,
+      observeEndpoints: async () => ({ candidateHead: oid("c"), baseHead: oid("b") }),
+    })).resolves.toMatchObject({
+      state: "classification-failed",
+      nextAction: "stop",
+      reason: "git-failure",
+      detail: "The baseline-to-base ancestry could not be established.",
     });
   });
 

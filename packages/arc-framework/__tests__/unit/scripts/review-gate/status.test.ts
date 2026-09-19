@@ -2252,3 +2252,117 @@ describe("review status", () => {
     });
   });
 });
+
+/**
+ * The hold at the review-status reduction, on the vehicle every existing check skips.
+ *
+ * A pre-terminal delivery member is answered by a guard that requires an available overlap. An ambiguous or an
+ * unrelated base is exactly the pair that has none, so the guard fired first and returned a rerun of the read
+ * that produced the condition — the one remedy neither cause can clear.
+ */
+describe("review status over a pre-terminal delivery member whose base will not resolve", () => {
+  /** The exact member the status target names, held short of the terminal so the guard is the one in play. */
+  function preTerminalConjunction() {
+    return {
+      kind: "delivery" as const,
+      status: "outstanding" as const,
+      members: [
+        {
+          position: 1,
+          memberCount: 2,
+          chunkKey: "member-1",
+          title: "Member 1",
+          target: { repository: target.repository, pullRequest: 41, headSha: target.headSha },
+          vehicle: { ...memberVehicle, head: target.headSha },
+          state: "discharged" as const,
+          detail: "The member review is discharged.",
+          progress: conjunctionMemberProgress,
+        },
+        {
+          position: 2,
+          memberCount: 2,
+          chunkKey: "member-2",
+          title: "Member 2",
+          target: { repository: target.repository, pullRequest: 42, headSha: oid("e") },
+          vehicle: { ...memberVehicle, deliverableId: `sha256:${"e".repeat(64)}`, head: oid("e") },
+          state: "outstanding" as const,
+          detail: "The member review is pending.",
+          progress: conjunctionMemberProgress,
+        },
+      ],
+    };
+  }
+
+  const secondVehicle = { ...memberVehicle, deliverableId: `sha256:${"e".repeat(64)}`, head: oid("e") };
+  const secondTarget = { repository: target.repository, pullRequest: 42, headSha: oid("e") };
+  const pendingSecondMember = {
+    state: "review-required" as const,
+    detail: "The member review is pending.",
+    conjunction: preTerminalConjunction(),
+    awaitAction: {
+      ...hostedAwaitAction,
+      handle: { ...hostedAwaitAction.handle, target: secondTarget, vehicle: secondVehicle },
+    },
+  };
+
+  const unresolvableBase = (overlap: { status: "ambiguous" } | { status: "unrelated" }) => port({
+    baseContained: false,
+    routedObligation: pendingSecondMember,
+    baseMovement: {
+      coordinates: {
+        repository: target.repository,
+        changeRequest: 41,
+        base: oid("b"),
+        head: target.headSha,
+      },
+      overlap,
+    },
+  });
+
+  it("states an unrelated base as terminal rather than as unavailable member movement", async () => {
+    const status = await resolveReviewStatus({ target }, unresolvableBase({ status: "unrelated" }));
+
+    // No member-binding read changes whether the pair shares an ancestor, so the fact about the pair is
+    // answered before the guard that cannot bind it.
+    expect(status).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "base-unrelated",
+      baseMovementCause: "unrelated",
+    });
+    expect(status).not.toMatchObject({ reason: "status-unavailable" });
+  });
+
+  it("sends an ambiguous base to the checkpoint rather than to a rerun of this read", async () => {
+    const status = await resolveReviewStatus({ target }, unresolvableBase({ status: "ambiguous" }));
+
+    expect(status).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      baseMovementCause: "ambiguous",
+    });
+  });
+
+  it("still reports unavailable member movement when the base resolved and the member did not bind", async () => {
+    const status = await resolveReviewStatus({ target }, port({
+      baseContained: false,
+      routedObligation: pendingSecondMember,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 99,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "available", substantivePaths: ["src/example.ts"], regenerablePaths: [] },
+      },
+    }));
+
+    expect(status).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail: "Pre-terminal delivery-member base movement is unavailable for the exact selected request.",
+    });
+  });
+});

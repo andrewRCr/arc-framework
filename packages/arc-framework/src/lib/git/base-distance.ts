@@ -321,8 +321,14 @@ async function analyzeAvailableBase(options: AnalyzeAvailableBaseOptions): Promi
 }
 
 function classifyBaseMovement(overlap: NonNullable<BaseDriftResult["overlap"]>): BaseMovement {
-  if (overlap.status === "unavailable") return "unknown";
-  return overlap.substantivePaths.length === 0 ? "disjoint" : "overlapping";
+  switch (overlap.status) {
+    case "available":
+      return overlap.substantivePaths.length === 0 ? "disjoint" : "overlapping";
+    case "ambiguous":
+    case "unrelated":
+    case "unavailable":
+      return "unknown";
+  }
 }
 
 function resolveResolver(

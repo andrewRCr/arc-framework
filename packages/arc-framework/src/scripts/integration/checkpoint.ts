@@ -18,6 +18,7 @@ import {
   CandidateApplicabilityResolutionSelectorSchema,
   type CandidateApplicabilityResolutionSelector,
 } from "../../lib/work-unit/candidate-applicability-resolution.js";
+import { CandidateSubjectUncollectableError } from "../../lib/work-unit/git-candidate-subject.js";
 import {
   MergeMethodSchema,
   MergeMethodStackPositionSchema,
@@ -95,18 +96,31 @@ export type IntegrationLifecycleSummary = z.infer<typeof IntegrationLifecycleSum
 
 export const CheckpointMovementObservationSchema = z.strictObject({
   movement: z.enum(["disjoint", "overlapping", "unknown"]),
+  // What left the movement unknown. The classifier reports one token for three conditions, and two of them —
+  // an ambiguous base and an unrelated one — are cleared by a merge rather than by reading again.
+  movementCause: z.enum(["ambiguous", "unrelated", "unavailable"]).optional(),
   integrationEvidenceComplete: z.boolean(),
   feasibility: GitMergeFeasibilitySchema,
   admission: ChangeRequestMergeObservationSchema,
 });
 export type CheckpointMovementObservation = z.infer<typeof CheckpointMovementObservationSchema>;
 
+/**
+ * What clears a delivery drift refusal, which follows the pair being compared rather than the reader asking.
+ *
+ * Where both revisions can move, an append-only merge leaves one merge base where there were two. Where one of
+ * them is pinned, that merge moves neither, so the baseline itself has to be retaken. Where the two share no
+ * ancestor at all, no append-only merge reaches them: Git declines to join unrelated histories unless told to,
+ * so the join is the operator's to perform. Only a condition a fresh read can settle resumes at the checkpoint.
+ */
+export type DeliveryClassifierCommand = "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated";
+
 export type CheckpointMovementPlan =
   | { state: "proceed" }
   | { state: "reconcile"; nextAction: "reconcile-base" | "reconcile-regenerable" }
   | {
       state: "blocked";
-      reason: "unsafe-reconcile" | "host-pending" | "host-refused" | "conflict";
+      reason: "unsafe-reconcile" | "host-pending" | "host-refused" | "conflict" | "base-unrelated";
       detail?: string;
       paths?: string[];
     };
@@ -116,6 +130,41 @@ function coordinatesAgree(
   admission: ChangeRequestMergeObservation,
 ): boolean {
   return feasibility.base === admission.base && feasibility.head === admission.head;
+}
+
+/** Carry what left a movement unknown, for the arms that can tell the three conditions apart. */
+export function checkpointMovementCause(
+  status: string | undefined,
+): { movementCause?: "ambiguous" | "unrelated" | "unavailable" } {
+  return status === "ambiguous" || status === "unrelated" || status === "unavailable"
+    ? { movementCause: status }
+    : {};
+}
+
+/**
+ * The readings every mutating reconciliation is held to, whatever the movement between the pair came to.
+ *
+ * The merge that collapses two best ancestors to one is an ordinary merge: it conflicts, and it is admitted
+ * or refused, on the same terms as the reconciliation an overlapping base gets. Reading them in one place
+ * ahead of any reconcile is what keeps a history that proves no overlap from buying a route past them.
+ *
+ * @param observation - The parsed movement observation, whose coordinates the caller has already agreed.
+ * @returns The refusal the readings require, or `null` when none of them stops this pair.
+ */
+function mutatingReconciliationBar(observation: CheckpointMovementObservation): CheckpointMovementPlan | null {
+  if (observation.feasibility.state === "unavailable") {
+    return { state: "blocked", reason: "unsafe-reconcile", detail: observation.feasibility.detail };
+  }
+  if (observation.feasibility.state === "substantive-conflict") {
+    return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
+  }
+  if (observation.admission.state === "unresolved") {
+    return { state: "blocked", reason: "host-pending", detail: observation.admission.detail };
+  }
+  if (observation.admission.state === "refused") {
+    return { state: "blocked", reason: "host-refused", detail: observation.admission.detail };
+  }
+  return null;
 }
 
 /** Reduce movement, feasibility, admission, and mutation evidence to one continuation. */
@@ -130,19 +179,33 @@ export function composeCheckpointMovementPlan(input: {
     return { state: "blocked", reason: "unsafe-reconcile", detail: "Checkpoint evidence coordinates disagree." };
   }
   if (observation.movement === "unknown") {
-    return { state: "blocked", reason: "unsafe-reconcile", detail: "Base movement is unknown." };
+    // Split by cause rather than by the token the three share. Two merge bases collapse to one under the
+    // append-only reconcile; no merge base at all does not, because Git declines to join unrelated histories
+    // unless told to, and the reconcile never tells it to. A read that failed is answered by reading again,
+    // and keeps the refusal that asks for it.
+    if (observation.movementCause === "unrelated") {
+      return {
+        state: "blocked",
+        reason: "base-unrelated",
+        detail: "The branch and its base share no common ancestor, so no movement between them can be proved.",
+      };
+    }
+    if (observation.movementCause !== "ambiguous") {
+      return { state: "blocked", reason: "unsafe-reconcile", detail: "Base movement is unknown." };
+    }
   }
-  if (observation.feasibility.state === "unavailable") {
-    return { state: "blocked", reason: "unsafe-reconcile", detail: observation.feasibility.detail };
-  }
-  if (observation.feasibility.state === "substantive-conflict") {
-    return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
-  }
-  if (observation.admission.state === "unresolved") {
-    return { state: "blocked", reason: "host-pending", detail: observation.admission.detail };
-  }
-  if (observation.admission.state === "refused") {
-    return { state: "blocked", reason: "host-refused", detail: observation.admission.detail };
+  const barred = mutatingReconciliationBar(observation);
+  if (barred !== null) return barred;
+  if (observation.movement === "unknown") {
+    // The pair has no provable overlap to reconcile against, so the merge is the whole remedy — and it meets
+    // the evidence bar every other mutating reconciliation meets before it is allowed to run.
+    return observation.integrationEvidenceComplete
+      ? { state: "reconcile", nextAction: "reconcile-base" }
+      : {
+          state: "blocked",
+          reason: "unsafe-reconcile",
+          detail: "A mutating reconciliation requires complete integration evidence.",
+        };
   }
   const reconcileAction = observation.feasibility.state === "regenerable-conflict"
     ? "reconcile-regenerable"
@@ -406,6 +469,15 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
   }),
   z.strictObject({
     ...CheckpointBlockedBaseShape,
+    reason: z.literal("base-unrelated"),
+    payload: z.strictObject({
+      drift: z.custom<BaseDriftResult>(),
+      observation: CheckpointMovementObservationSchema,
+      detail: z.string().min(1).optional(),
+    }),
+  }),
+  z.strictObject({
+    ...CheckpointBlockedBaseShape,
     reason: z.literal("host-pending"),
     payload: z.strictObject({ observation: CheckpointMovementObservationSchema, detail: z.string().min(1) }),
   }),
@@ -482,7 +554,8 @@ export type CheckpointBlockedReason = z.infer<typeof IntegrationCheckpointBlocke
 export const CHECKPOINT_BLOCKED_REASONS: readonly CheckpointBlockedReason[] =
   IntegrationCheckpointBlockedResultSchema.options.map((option) => option.shape.reason.value);
 
-type CheckpointRemedyReason = Exclude<CheckpointBlockedReason, "candidate-convergence-pending">;
+type CheckpointRemedyReason =
+  Exclude<CheckpointBlockedReason, "candidate-convergence-pending" | "base-unrelated">;
 
 const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => SpineRemedy> = {
   "drift-unavailable": (workUnit) => spineRemedy(
@@ -556,6 +629,104 @@ const CHECKPOINT_REMEDIES: Record<CheckpointRemedyReason, (workUnit: string) => 
  */
 export function checkpointRemedy(reason: CheckpointRemedyReason, workUnit: string): SpineRemedy {
   return CHECKPOINT_REMEDIES[reason](workUnit);
+}
+
+/**
+ * A checkpoint composition stopped because the branch and its base leave two equally good ancestors.
+ *
+ * Naming it apart from an ordinary composition failure is what lets the refusal ask for the merge. The
+ * composition refusal's own remedy is the checkpoint rerun, and a rerun reads the same history and stops in the
+ * same place — so on this cause the rerun alone is a remedy that provably cannot clear what it answers.
+ */
+export class CheckpointAmbiguousBaseError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = "CheckpointAmbiguousBaseError";
+  }
+}
+
+/**
+ * The remedy for a composition that found two best common ancestors where it needed one.
+ *
+ * Unlike an absent ancestor, this pair is joined by the merge the reconcile already performs, so the command
+ * stays the checkpoint rerun and the correction names the act that has to precede it.
+ *
+ * @param workUnit - The work unit whose checkpoint stopped.
+ * @returns The remedy naming the failed invariant and the command to run once it is satisfied.
+ */
+export function checkpointAmbiguousBaseRemedy(workUnit: string): SpineRemedy {
+  return spineRemedy(
+    "A checkpoint composes over the one revision the branch contributes against, which a history leaving two "
+    + "equally good ancestors does not name.",
+    "Merge the configured base into the branch, then re-run",
+    checkpointResumeArgv(workUnit),
+  );
+}
+
+/**
+ * The remedy for a durable baseline that leaves two best ancestors against the observed base.
+ *
+ * Merging the base in is the one remedy this pair cannot take. Both of its revisions are fixed — the baseline
+ * is reduced from a durable managed record and the base is observed — so an append-only merge advances the
+ * branch and leaves the compared pair, and its two best ancestors, exactly where they were. Re-pinning the
+ * baseline is what moves one of them, so the remedy names the re-rooting rather than a rerun that would read
+ * the identical pair and stop here again.
+ *
+ * @param workUnit - The work unit whose checkpoint stopped.
+ * @returns The remedy naming the failed invariant and the transition that re-pins the baseline.
+ */
+export function checkpointRebaselineRemedy(workUnit: string): SpineRemedy {
+  return spineRemedy(
+    "A Candidate composes against a durable baseline naming one best ancestor with the observed base.",
+    "Re-pin the durable baseline over freshly verified content by rooting a new lineage",
+    attestNewRootArgv(workUnit),
+  );
+}
+
+/**
+ * The act the delivery drift classifier named, as the refusal the operator can act on.
+ *
+ * Three of the four are cleared by doing something other than running this command again, and each names a
+ * different act: two joins the checkpoint will not perform on the operator's behalf, and a baseline that has
+ * to be retaken because no merge moves either revision of its pair. Only the unnamed act resumes here, so only
+ * it keeps the rerun.
+ *
+ * @param command - The act the classifier named for the pair it compared.
+ * @param workUnit - The work unit whose checkpoint stopped.
+ * @param baseOid - The observed base revision, which the hand join needs by name.
+ * @returns The remedy for that act.
+ */
+function deliveryClassifierRemedy(
+  command: DeliveryClassifierCommand,
+  workUnit: string,
+  baseOid: string,
+): SpineRemedy {
+  switch (command) {
+    case "merge-unrelated": return checkpointUnrelatedBaseRemedy(baseOid);
+    case "reconcile-base": return checkpointAmbiguousBaseRemedy(workUnit);
+    case "rebaseline": return checkpointRebaselineRemedy(workUnit);
+    case "rerun-checkpoint": return checkpointRemedy("delivery-terminal-blocked", workUnit);
+  }
+}
+
+/**
+ * The remedy for a base sharing no history with the branch, which no ARC verb performs.
+ *
+ * `arc base merge` reconciles append-only and declines unrelated histories, so the join is the operator's. This
+ * is the remedy review status already reports for the same pair, kept identical so one condition reads one way
+ * wherever it surfaces. It leads with the observation rather than the command: a branch sharing no history with
+ * its base is more often a wrong base or a wrong clone than a merge waiting to happen, and the operator should
+ * recognize that before running anything.
+ *
+ * @param baseOid - The observed base revision to join, which the caller reads from its own drift observation.
+ * @returns The remedy naming the failed invariant and the one command that clears it.
+ */
+export function checkpointUnrelatedBaseRemedy(baseOid: string): SpineRemedy {
+  return spineRemedy(
+    "Base movement can be proved only between revisions with a common ancestor.",
+    "Confirm the branch is on the base it belongs to, then give the two one common ancestor and re-run",
+    ["git", "merge", "--allow-unrelated-histories", baseOid],
+  );
 }
 
 export const IntegrationCheckpointResultSchema = z.union([
@@ -667,6 +838,8 @@ export function checkpointInputRefusal(detail: string): IntegrationCheckpointRes
  *
  * @param workUnit - The validated work-unit slug.
  * @param detail - Dependency failure detail safe to expose in the result payload.
+ * @param coordinates - Observed base and head, where the caller established them.
+ * @param remedy - The act the caller proved clears this failure, when the ordinary rerun does not.
  * @returns A schema-valid refusal that routes back through checkpoint composition.
  */
 export function checkpointOperationRefusal(
@@ -676,6 +849,7 @@ export function checkpointOperationRefusal(
     observedBaseOid: null,
     observedHeadOid: null,
   },
+  remedy?: SpineRemedy,
 ): IntegrationCheckpointResult {
   const stableDetail = boundedCheckpointDetail(detail, "The integration checkpoint operation failed.");
   return IntegrationCheckpointResultSchema.parse({
@@ -687,7 +861,7 @@ export function checkpointOperationRefusal(
     reason: "composition-unavailable",
     detail: stableDetail,
     coordinates,
-    remedy: checkpointRemedy("composition-unavailable", workUnit),
+    remedy: remedy ?? checkpointRemedy("composition-unavailable", workUnit),
     payload: { detail: stableDetail },
   });
 }
@@ -718,7 +892,8 @@ export type DeliveryDriftClassificationResult =
       readonly detail: string;
       readonly evidence: DeliveryDriftClassificationEvidence;
       readonly nextAction: {
-        readonly command: "rerun-checkpoint";
+        /** What clears this refusal, which follows the pair being compared rather than the reader that asked. */
+        readonly command: DeliveryClassifierCommand;
         readonly workUnit: string;
       };
     }
@@ -832,6 +1007,9 @@ async function candidateApplicabilityResult(
       base.workUnit,
       error instanceof Error ? error.message : String(error),
       coordinates,
+      error instanceof CheckpointAmbiguousBaseError
+        ? checkpointAmbiguousBaseRemedy(base.workUnit)
+        : undefined,
     );
   }
 }
@@ -933,7 +1111,10 @@ export async function checkpointIntegration(
         reason: "delivery-terminal-blocked",
         detail: boundedCheckpointDetail(deliveryDrift.detail, "Delivery drift classification is unavailable."),
         coordinates,
-        remedy: checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        // The classifier's own act is the answer, because three of the four are not this command again. The
+        // payload carries the act as a token nothing in the tree reads, so the remedy is the only place an
+        // operator meets it.
+        remedy: deliveryClassifierRemedy(deliveryDrift.nextAction.command, request.workUnit, drift.baseOid),
         payload: {
           status: "blocked",
           nextAction: "stop",
@@ -995,6 +1176,7 @@ export async function checkpointIntegration(
   const observed = await dependencies.readMovementObservation(request.workUnit, drift);
   const observation = CheckpointMovementObservationSchema.parse({
     movement: drift.movement,
+    ...checkpointMovementCause(drift.overlap?.status),
     integrationEvidenceComplete: drift.integrationEvidence?.coverage === "complete",
     feasibility: observed.feasibility,
     admission: observed.admission,
@@ -1030,7 +1212,9 @@ export async function checkpointIntegration(
           : "Exact movement evidence does not authorize checkpoint composition.",
       ),
       coordinates,
-      remedy: checkpointRemedy(movementPlan.reason, request.workUnit),
+      remedy: movementPlan.reason === "base-unrelated"
+        ? checkpointUnrelatedBaseRemedy(drift.baseOid)
+        : checkpointRemedy(movementPlan.reason, request.workUnit),
     };
     if (movementPlan.reason === "host-pending" || movementPlan.reason === "host-refused") {
       return IntegrationCheckpointResultSchema.parse({
@@ -1050,7 +1234,22 @@ export async function checkpointIntegration(
     });
   }
   if (movementPlan.state === "reconcile") {
-    const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
+    // The reconcile route reads the Candidate's effective target, which resolves the same two revisions the
+    // drift above just classified. When that pair leaves two best ancestors the read refuses for the reason
+    // the plan is already answering, so the refusal has to carry the merge rather than the rerun that reaches
+    // this same stop. Every other failure keeps the composition's own answer.
+    let candidate: Awaited<ReturnType<IntegrationCheckpointDependencies["readCandidate"]>>;
+    try {
+      candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
+    } catch (error) {
+      if (!(error instanceof CandidateSubjectUncollectableError)) throw error;
+      return checkpointOperationRefusal(
+        request.workUnit,
+        error.message,
+        coordinates,
+        checkpointAmbiguousBaseRemedy(request.workUnit),
+      );
+    }
     if (candidate === null) {
       return IntegrationCheckpointResultSchema.parse({
         ...base,
@@ -1469,7 +1668,9 @@ export async function checkpointIntegration(
       detail: boundedCheckpointDetail(error instanceof Error ? error.message : String(error),
         "Checkpoint composition failed without diagnostic detail."),
       coordinates,
-      remedy: checkpointRemedy("composition-unavailable", request.workUnit),
+      remedy: error instanceof CheckpointAmbiguousBaseError
+        ? checkpointAmbiguousBaseRemedy(request.workUnit)
+        : checkpointRemedy("composition-unavailable", request.workUnit),
       payload: {
         detail: boundedCheckpointDetail(error instanceof Error ? error.message : String(error),
           "Checkpoint composition failed without diagnostic detail."),

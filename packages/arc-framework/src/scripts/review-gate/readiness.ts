@@ -2,14 +2,24 @@
  * Exact-head, vehicle-aware lifecycle readiness over a caller-supplied tree.
  *
  * The checker reads lifecycle products beneath the supplied root. It does not
- * infer state from the caller's checkout, Git refs, or fail-soft indexes.
+ * infer state from the caller's checkout or fail-soft indexes.
  *
- * A `delivery-member` vehicle adds one further authority source, outside that
- * root: the delivery lookup its caller supplies, which reads the Git-common
- * delivery state of the repository the caller's composition root resolved.
- * Delivery state is repository-common rather than a tree product, so the
- * binding cannot come from the request. Nothing else here reads outside the
- * supplied root.
+ * A `delivery-member` vehicle adds two further authority sources, both outside
+ * that root and both supplied by the caller's composition root: the delivery
+ * lookup, which reads the Git-common delivery state of the repository that root
+ * resolved, and ancestry reads over the heads that state records. Delivery state
+ * is repository-common rather than a tree product and ancestry is a property of
+ * the object graph, so neither can come from the request. No other vehicle reads
+ * outside the supplied root.
+ *
+ * The member a request names is selected from the identity the request asserts,
+ * so ancestry is what ties that member to the head under review — and one read
+ * cannot do it alone. Members stack, which makes every later member's head a
+ * descendant of this one's, so a read placing the head under review above this
+ * member's recorded head admits every member above it too. The advance is
+ * therefore bounded from both sides: above this member's recorded head, and
+ * below the next bound member's. A head that has reached the successor belongs
+ * to the successor, and reviews under its vehicle.
  *
  * The supplied checkout belongs to the attended operator. This reader checks
  * lifecycle completeness; it does not impose symlink, containment, or
@@ -33,8 +43,15 @@ import { z } from "zod";
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
+import {
+  classifyPredecessorRelation,
+  type AncestryAnswer,
+} from "../../lib/delivery/predecessor-relation.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
-import type { DeliveryMemberLookup } from "./core/delivery-member-lookup.js";
+import type {
+  DeliveryMemberBinding,
+  DeliveryMemberIdentityLookup,
+} from "./core/delivery-member-lookup.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
@@ -158,7 +175,17 @@ export interface ReviewReadinessDependencies {
    * closed as `delivery-state-unavailable` when it is absent. The `work-unit`
    * and `errand` arms never consult it.
    */
-  deliveryMemberLookup?: DeliveryMemberLookup;
+  deliveryMemberLookup?: DeliveryMemberIdentityLookup;
+  /**
+   * Ancestry between the head a member records and the head under review.
+   *
+   * Supplied by the same composition root as the lookup, for the same reason: no
+   * repository reaches this module through its request. Its absence is not fatal,
+   * because a member recording the head under review needs no read to be admitted
+   * and one whose head moved cannot be admitted without one — so an absent reader
+   * answers `unresolvable` and the movement simply stays unadmitted.
+   */
+  readDeliveryAncestry?(ancestor: string, descendant: string): Promise<AncestryAnswer>;
 }
 
 const DEFAULT_FS: ReviewReadinessFs = {
@@ -472,11 +499,61 @@ export function lifecycleArtifactFacts(content: string, path: string): ReviewRea
   return [...completionFacts(content, path), ...releaseNotesFacts(content, path)];
 }
 
+/**
+ * Bound one admitted advance from above, against every member head bound over this one.
+ *
+ * Only an advance is asked: a head under review that is the member's recorded head is that member's by
+ * identity, and needs nothing further. A head placed above it, though, could be any head bound above it, so
+ * without this read a later member's head would be admitted under an earlier member's vehicle.
+ *
+ * Every bound head above is read, not just the nearest, because their order is not guaranteed: an approved
+ * review fix republishes one member's coordinates alone, so a member two positions up can record a head that
+ * no longer descends from the one immediately above. A read of the nearest alone would clear exactly that
+ * head. Containment is reflexive, so a head under review that *is* one of these is caught wherever it sits.
+ *
+ * A member with nothing bound above it is admitted unread: there is no recorded sibling head for the head
+ * under review to be, so this bound has nothing to compare it against.
+ *
+ * @param member - The resolved binding, carrying the heads bound above it that the same read established.
+ * @param observedHead - The head under review.
+ * @param readAncestry - The ancestry reader, absent when the composition root supplied none.
+ * @returns One fact when the advance is unbounded or could not be bounded; empty when the bound holds.
+ */
+async function successorBoundFacts(
+  member: DeliveryMemberBinding,
+  observedHead: string,
+  readAncestry: ReviewReadinessDependencies["readDeliveryAncestry"],
+): Promise<readonly ReviewReadinessFact[]> {
+  if (member.successorHeads.length === 0) return [];
+  const answers = readAncestry === undefined
+    ? member.successorHeads.map(() => "unresolvable" as const)
+    : await Promise.all(member.successorHeads.map((head) => readAncestry(head, observedHead)));
+  if (answers.every((answer) => answer === "not-ancestor")) return [];
+  // The same split the read below this member's head keeps, and in the same order of specificity: one head
+  // demonstrably carried settles it whatever the others said, and only a set with nothing carried and
+  // something unread falls to the weaker reason. Naming the first for the second would send an operator to a
+  // vehicle that may not be theirs; naming the second for the first would hide a refusal that was established.
+  return [answers.includes("ancestor")
+    ? fact(
+      "delivery-member-successor-reached",
+      "vehicle.deliverableId",
+      "The head under review carries the recorded head of a delivery member bound above this one, so it is "
+      + "not this member's head. Review it under the member that records it.",
+    )
+    : fact(
+      "delivery-member-successor-unavailable",
+      "pullRequest.headSha",
+      "The head under review is ahead of this member's recorded head, and whether it carries the recorded "
+      + "head of a member bound above it could not be read. Fetch those members' recorded heads and rerun.",
+    )];
+}
+
 async function evaluateDeliveryMember(
   request: ReviewReadinessRequest & {
     vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
   },
-  lookup: DeliveryMemberLookup | undefined,
+  lookup: DeliveryMemberIdentityLookup | undefined,
+  readAncestry: ReviewReadinessDependencies["readDeliveryAncestry"],
 ): Promise<ReviewReadinessFact[]> {
   if (lookup === undefined) {
     return [fact(
@@ -485,7 +562,13 @@ async function evaluateDeliveryMember(
       "Delivery state is unavailable, so the member could not be authenticated.",
     )];
   }
-  const resolution = await lookup.resolveMemberByHead(request.pullRequest.headSha);
+  const resolution = await lookup.resolveMemberByIdentity({
+    planId: request.vehicle.planId,
+    deliverableId: request.vehicle.deliverableId,
+    // One identity under two spellings: the vehicle names the work unit by slug and
+    // the delivery record names it by id, so the hand-off renames rather than converts.
+    workUnitId: request.vehicle.workUnitSlug,
+  });
   if (resolution.status === "unavailable") {
     return [fact(
       "delivery-state-unavailable",
@@ -493,36 +576,81 @@ async function evaluateDeliveryMember(
       "Delivery state is unavailable, so the member could not be authenticated.",
     )];
   }
-  if (resolution.status === "unbound") {
+  // Each miss is cleared by a different act, so each names its own: one shared code could only carry a
+  // remedy directing two of the three at inputs that never reach what failed.
+  if (resolution.status === "no-plan") {
+    return [fact(
+      "delivery-plan-absent",
+      "vehicle.workUnitSlug",
+      "No delivery plan carries the asserted work unit. Reserve one for it, or review this change under "
+      + "the work unit's own vehicle.",
+    )];
+  }
+  if (resolution.status === "plan-mismatch") {
+    return [fact(
+      "delivery-plan-mismatch",
+      "vehicle.planId",
+      "The work unit's delivery plan is not the asserted plan. Re-read the plan id from the current "
+      + "delivery plan and resubmit.",
+    )];
+  }
+  if (resolution.status === "not-in-plan") {
+    return [fact(
+      "delivery-member-not-in-plan",
+      "vehicle.deliverableId",
+      "The resolved delivery plan does not carry the asserted deliverable. Re-read the deliverable id "
+      + "from the plan's members and resubmit.",
+    )];
+  }
+  if (resolution.status === "in-plan-unbound") {
     return [fact(
       "delivery-member-unbound",
       "pullRequest.headSha",
-      "The pull request's exact live head is bound to no delivery member.",
+      "The delivery plan carries this member, and no binding records a head for it.",
     )];
   }
+  const member = resolution.member;
   const facts: ReviewReadinessFact[] = [];
-  if (resolution.member.planId.toLowerCase() !== request.vehicle.planId.toLowerCase()) {
-    facts.push(fact(
-      "delivery-member-mismatch",
-      "vehicle.planId",
-      "The head's owning plan does not match the asserted plan.",
-    ));
+  // Held rather than passed straight through, because it is the answer the refusal below reports. With the
+  // reverse direction never read, `unknown` is the only non-admitting variant this call can produce, so the
+  // classifier hands back one token for a direction that was read and said no and a direction nobody could
+  // read. Only the first is a statement about the member's head.
+  const boundIsAncestorOfObserved = readAncestry === undefined
+    ? "unresolvable"
+    : await readAncestry(member.head, request.pullRequest.headSha);
+  const relation = classifyPredecessorRelation({
+    boundHead: member.head,
+    observedHead: request.pullRequest.headSha,
+    boundIsAncestorOfObserved,
+    // Only the append-only advance is admissible here, and it is bounded from above below, so the reverse
+    // direction is never read. Leaving it unestablished also keeps `diverged` unreachable, which is the one
+    // variant carrying the cardinality below, so no count is ever read.
+    observedIsAncestorOfBound: "unresolvable",
+    mergeBaseCount: 1,
+  });
+  if (relation.kind !== "unchanged" && relation.kind !== "advanced") {
+    // Both refusals leave the member unadmitted; they differ in what they assert and therefore in what clears
+    // them. A binding the read placed behind the head under review is answered by rebinding it. A binding the
+    // read could not place is answered by making the read succeed — the objects are commonly just not fetched
+    // here — and saying it moved would name a repair for a movement nobody observed.
+    facts.push(boundIsAncestorOfObserved === "not-ancestor"
+      ? fact(
+        "delivery-member-stale",
+        "pullRequest.headSha",
+        "The member's recorded head is not the head under review, and the head under review does not "
+        + "descend from it.",
+      )
+      : fact(
+        "delivery-member-relation-unavailable",
+        "pullRequest.headSha",
+        "The member's recorded head is not the head under review, and whether the head under review "
+        + "descends from it could not be read. Fetch the member's recorded head and rerun.",
+      ));
   }
-  if (resolution.member.deliverableId !== request.vehicle.deliverableId) {
-    facts.push(fact(
-      "delivery-member-mismatch",
-      "vehicle.deliverableId",
-      "The head's delivery member does not match the asserted deliverable.",
-    ));
+  if (relation.kind === "advanced") {
+    facts.push(...await successorBoundFacts(member, request.pullRequest.headSha, readAncestry));
   }
-  if (resolution.member.workUnitId !== request.vehicle.workUnitSlug) {
-    facts.push(fact(
-      "delivery-member-mismatch",
-      "vehicle.workUnitSlug",
-      "The head's owning work unit does not match the asserted work unit.",
-    ));
-  }
-  if (resolution.member.isFinalMember) {
+  if (member.isFinalMember) {
     facts.push(fact(
       "delivery-member-terminal",
       "vehicle.deliverableId",
@@ -933,6 +1061,7 @@ export async function evaluateReviewReadiness(
         vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
       },
       overrides.deliveryMemberLookup,
+      overrides.readDeliveryAncestry,
     );
     return memberFacts.length === 0 ? ready(request) : invalid(request, memberFacts);
   }

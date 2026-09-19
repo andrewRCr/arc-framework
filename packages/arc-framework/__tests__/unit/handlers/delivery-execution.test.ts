@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
 import { GitCommonStateAccessError } from "../../../src/lib/git-common-state.js";
 import {
+  predecessorRelation,
+  type AncestryAnswer,
+} from "../../../src/lib/delivery/predecessor-relation.js";
+import {
   deliveryFourMemberStackPlanFixture,
   deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
@@ -41,6 +45,31 @@ function standaloneRewriteRequest(plan = deliveryStackPlanFixture()) {
   };
 }
 
+const RELATION_KINDS = ["unchanged", "advanced", "rewound", "diverged"] as const;
+
+// Built by the library's own producer rather than hand-written, so a relation shape the request contract cannot
+// carry surfaces here instead of in the field.
+async function builtRelation(kind: (typeof RELATION_KINDS)[number]) {
+  const tip = "1".repeat(40);
+  const member = kind === "unchanged" ? tip : "8".repeat(40);
+  const read = await predecessorRelation({ memberHead: member, observedTip: tip }, {
+    readAncestry: async (ancestor: string): Promise<AncestryAnswer> => {
+      if (kind === "advanced") return ancestor === tip ? "ancestor" : "not-ancestor";
+      if (kind === "rewound") return ancestor === member ? "ancestor" : "not-ancestor";
+      return "not-ancestor";
+    },
+    readOverlap: async () => ({
+      status: "available" as const,
+      mergeBase: "9".repeat(40),
+      overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+    }),
+  });
+  if (read.status !== "resolved" || read.relation.kind !== kind) {
+    throw new Error(`fixture must build a ${kind} relation`);
+  }
+  return read.relation;
+}
+
 function eligibilityCloseRequest(plan = deliveryStackPlanFixture()) {
   const snapshot = {
     planId: plan.planId,
@@ -50,7 +79,7 @@ function eligibilityCloseRequest(plan = deliveryStackPlanFixture()) {
     protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
     chainBase: { head: "1".repeat(40), tree: "2".repeat(40) },
     predecessorRelation: {
-      kind: "exact" as const,
+      kind: "advanced" as const,
       observedTip: "1".repeat(40),
       chainBase: "1".repeat(40),
     },
@@ -193,6 +222,81 @@ describe("delivery execution handler", () => {
         observedHead,
       },
       continuation: { kind: "terminal-explanation" },
+    });
+  });
+
+  it.each(RELATION_KINDS)("carries a %s relation in and back out through the close contract", async (kind) => {
+    const relation = await builtRelation(kind);
+    const request = eligibilityCloseRequest();
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-close", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        ...request,
+        snapshot: { ...request.snapshot, predecessorRelation: relation },
+      })),
+      // Echoed back on a refusal, so one assertion covers both directions: a request the contract cannot read
+      // never reaches this stub, and a relation it cannot emit is dropped before the operator sees it.
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "wrong-predecessor",
+        relation,
+        detail: "The reobserved predecessor relation does not match the prepared snapshot.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      relation,
+    });
+  });
+
+  it("preserves the base-merge remedy an ambiguous predecessor refusal recovers through", async () => {
+    const request = eligibilityCloseRequest();
+    const observedTip = "9".repeat(40);
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-close", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "ambiguous-predecessor-base",
+        deliverableId: request.snapshot.members[0]!.deliverableId,
+        observedTip,
+        detail: "The revisions have multiple best merge bases.",
+        remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", observedTip] },
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", observedTip] },
+    });
+  });
+
+  it("reports the observed tip of a terminal refusal that relates by no variant at all", async () => {
+    const request = eligibilityCloseRequest();
+    const observedTip = "9".repeat(40);
+    const write = vi.fn();
+    await handleDeliveryExecution("eligibility-close", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "unrelated-predecessor",
+        deliverableId: request.snapshot.members[0]!.deliverableId,
+        observedTip,
+        detail: "The revisions have no common ancestor.",
+        remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "unrelated-predecessor",
+      coordinates: { observedHead: observedTip },
     });
   });
 
@@ -355,6 +459,42 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("carries a terminal condition's act through the strict result envelope", async () => {
+    const plan = deliveryStackPlanFixture();
+    const write = vi.fn();
+    const recommendedActionText =
+      "Delivery closeout stopped for `delivery-plan-record`: terminal-head-moved. Rebind the terminal member "
+      + "to the request and head the host actually holds, then close out again.";
+    await handleDeliveryExecution("closeout", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        workUnitId: plan.workUnitId,
+        repository: "owner/repo",
+        remote: "upstream",
+      })),
+      execute: vi.fn().mockResolvedValue({
+        status: "blocked",
+        reason: "terminal-head-moved",
+        planId: plan.planId,
+        remedy: { kind: "delivery-member-rebind-required", automatedCommand: null },
+        recommendedActionText,
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    // The envelope is strict, so an act the schema does not admit reaches the caller as a service fault
+    // rather than as the refusal that named it.
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery closeout",
+      status: "blocked",
+      reason: "terminal-head-moved",
+      planId: plan.planId,
+      remedy: { kind: "delivery-member-rebind-required", automatedCommand: null },
+      recommendedActionText,
+    });
+  });
+
   it("preserves deterministic authoring locators through a strict read-only verb", async () => {
     const plan = deliveryStackPlanFixture();
     const locators = plan.members.map((member) => ({
@@ -484,7 +624,7 @@ describe("delivery execution handler", () => {
       protectedBase: { ref: "refs/heads/main", head: "1".repeat(40), tree: "2".repeat(40) },
       chainBase: { head: "1".repeat(40), tree: "2".repeat(40) },
       predecessorRelation: {
-        kind: "exact",
+        kind: "advanced",
         observedTip: "1".repeat(40),
         chainBase: "1".repeat(40),
       },
@@ -1233,6 +1373,141 @@ describe("delivery execution handler", () => {
     });
     expect(setExitCode).not.toHaveBeenCalled();
   });
+
+  it("carries the decline route to the verb that clears an unapplied native effect", async () => {
+    const planId = "123e4567-e89b-42d3-a456-426614174000";
+    const result = {
+      status: "retryable" as const,
+      transition: "preserved" as const,
+      action: "delivery-native-land-status" as const,
+      selector: {
+        planId,
+        operationKind: "land" as const,
+        operationId: "operation-1",
+        affectedDeliverableIds: [`sha256:${"a".repeat(64)}`],
+        mode: "native" as const,
+      },
+      recommendedActionText: "Rerun `arc delivery native land-status` for the exact native landing subject.",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId, repository: "owner/repo", remote: "origin", operationId: "operation-1",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native land-release",
+      ...result,
+    });
+  });
+
+  it("refuses a decline request that names no reservation to abandon", async () => {
+    const write = vi.fn();
+    const execute = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: "123e4567-e89b-42d3-a456-426614174000", repository: "owner/repo", remote: "origin",
+      })),
+      execute,
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      command: "delivery native land-release",
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
+  it("preserves the released decline, its restorations, and the landing it left standing", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const result = {
+      status: "released" as const,
+      state: { revision: 5, value: state },
+      restorations: [
+        { ref: "refs/heads/member-2", observedHead: "a".repeat(40), restoreHead: "5".repeat(40) },
+      ],
+      standingRemoteTop: { ref: "refs/heads/member-3", head: "9".repeat(40) },
+      landed: {
+        effect: {
+          providerId: "github",
+          repository: "owner/repo",
+          changeRequestId: "41",
+          headSha: "b".repeat(40),
+          baseRef: "delivery-target",
+          targetRef: "refs/heads/delivery-target",
+          strategy: "merge" as const,
+          mergePolicy: {
+            repository: "owner/repo",
+            stackPosition: "intermediate" as const,
+            method: "merge" as const,
+            allowedMethods: ["merge"],
+            policyFingerprint: `sha256:${"a".repeat(64)}`,
+          },
+        },
+        affectedDeliverableIds: [plan.members[0]!.deliverableId],
+      },
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId, repository: "owner/repo", remote: "origin", operationId: "operation-1",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native land-release",
+      ...result,
+    });
+  });
+
+  it("preserves the failed decline lease, so the operator sees the head that held it", async () => {
+    const result = {
+      status: "blocked" as const,
+      reason: "local-ref-moved",
+      lease: {
+        ref: "refs/heads/member-2",
+        expectedHead: "a".repeat(40),
+        observedHead: "f".repeat(40),
+      },
+      recommendedActionText: "Restore the exact local member-ref subject before declining the landing again.",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-release", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        repository: "owner/repo",
+        remote: "origin",
+        operationId: "operation-1",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery native land-release",
+      ...result,
+    });
+  });
+
 
   it("preserves a prepared native submit action through native status and general reconciliation", async () => {
     const plan = deliveryStackPlanFixture();
@@ -2002,6 +2277,40 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("preserves a reconcile base refusal that names no deliverable and carries no merge command", async () => {
+    const request = JSON.stringify({
+      planId: "123e4567-e89b-42d3-a456-426614174000",
+      repository: "andrewRCr/arc-framework",
+      remote: "origin",
+    });
+    const observedTip = "7".repeat(40);
+    const write = vi.fn();
+
+    await handleDeliveryExecution("reconcile", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(request),
+      execute: vi.fn().mockResolvedValue({
+        status: "refused",
+        reason: "ambiguous-predecessor-base",
+        observedTip,
+        detail: "The Candidate target has more than one base coordinate.",
+      }),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    // The eligibility readers reach this reason holding a deliverable and a merge command to name; the
+    // reconcile reader derives neither, so the envelope has to admit the reason without them. An envelope
+    // that does not degrades the refusal to a service fault, which names no condition an operator can clear.
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: "delivery reconcile",
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      observedTip,
+      detail: "The Candidate target has more than one base coordinate.",
+    });
+  });
+
   it("preserves lifecycle-contribution refusal evidence through the strict result envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const deliverableId = plan.members[0]!.deliverableId;
@@ -2205,4 +2514,235 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it("passes a native suffix disclosure through the result union without ref restorations", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const conflicts = [
+      { deliverableId: plan.members[1]!.deliverableId, paths: ["src/second.ts"] },
+      { deliverableId: plan.members[2]!.deliverableId, paths: ["src/third.ts"] },
+    ];
+    const result = {
+      status: "conflict-resolution-required" as const,
+      conflicts,
+      resolutionInput: {
+        planId: plan.planId,
+        scope: { kind: "native-suffix" as const, operationId: "operation-1" },
+        expectedStateRevision: 2,
+        observedSuffixDigest: `sha256:${"b".repeat(64)}`,
+        conflicts,
+      },
+      recommendedActionText: "Resolve the listed member paths, then resubmit this resolution.",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        request: {
+          repository: "owner/repo", topChangeRequestId: "42", topHeadSha: "a".repeat(40),
+          mergeAction: "direct_merge", mergeMethod: "merge",
+        },
+        remote: "origin",
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    const envelope = JSON.parse(write.mock.calls[0]?.[0] as string) as Record<string, unknown>;
+    expect(envelope).toEqual({ schemaVersion: 1, command: "delivery native land-status", ...result });
+    expect(envelope).not.toHaveProperty("externalRefRestorations");
+  });
+
+  it("admits the native conflict scope only on a resubmitted resolution", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const nativeScope = { kind: "native-suffix", operationId: "operation-1" };
+
+    const planWrite = vi.fn();
+    const planExecute = vi.fn();
+    await handleDeliveryExecution("refresh-plan", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId, repository: "owner/repo", trigger: { kind: "operator-choice" },
+        scope: nativeScope, remote: "origin",
+      })),
+      execute: planExecute,
+      write: planWrite,
+      setExitCode: vi.fn(),
+    });
+    expect(planExecute).not.toHaveBeenCalled();
+    expect(JSON.parse(planWrite.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+
+    const adoptExecute = vi.fn().mockResolvedValue({ status: "retryable", recommendedActionText: "Retry." });
+    await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId, repository: "owner/repo", remote: "origin",
+        conflictResolution: {
+          planId: plan.planId,
+          scope: nativeScope,
+          expectedStateRevision: 2,
+          observedSuffixDigest: `sha256:${"b".repeat(64)}`,
+          conflicts: [{ deliverableId: plan.members[1]!.deliverableId, paths: ["src/second.ts"] }],
+        },
+      })),
+      execute: adoptExecute,
+      write: vi.fn(),
+      setExitCode: vi.fn(),
+    });
+    expect(adoptExecute).toHaveBeenCalledOnce();
+  });
+
+  it("carries a resubmitted native resolution to the settle path", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const conflicts = [{ deliverableId: plan.members[1]!.deliverableId, paths: ["src/second.ts"] }];
+    const result = {
+      status: "conflict-resolution-required" as const,
+      conflicts,
+      resolutionInput: {
+        planId: plan.planId,
+        scope: { kind: "native-suffix" as const, operationId: "operation-1" },
+        expectedStateRevision: 2,
+        observedSuffixDigest: `sha256:${"b".repeat(64)}`,
+        conflicts,
+      },
+      recommendedActionText: "Resolve the listed member paths, then resubmit this resolution.",
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        request: {
+          repository: "owner/repo", topChangeRequestId: "42", topHeadSha: "a".repeat(40),
+          mergeAction: "direct_merge", mergeMethod: "merge",
+        },
+        remote: "origin",
+        conflictResolution: result.resolutionInput,
+      })),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1, command: "delivery native land-status", ...result,
+    });
+  });
+
+  it("refuses a dependent-scoped resolution on the native status request", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const write = vi.fn();
+    const settled = { status: "applied" as const, state: { revision: 3, value: deliveryStateFixture() } };
+
+    await handleDeliveryExecution("native-land-status", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        request: {
+          repository: "owner/repo", topChangeRequestId: "42", topHeadSha: "a".repeat(40),
+          mergeAction: "direct_merge", mergeMethod: "merge",
+        },
+        remote: "origin",
+        conflictResolution: {
+          planId: plan.planId,
+          scope: { kind: "dependent-suffix", selectedDeliverableId: plan.members[1]!.deliverableId },
+          expectedStateRevision: 2,
+          observedSuffixDigest: `sha256:${"b".repeat(64)}`,
+          conflicts: [{ deliverableId: plan.members[1]!.deliverableId, paths: ["src/second.ts"] }],
+        },
+      })),
+      execute: vi.fn().mockResolvedValue(settled),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      status: "refused",
+      reason: "invalid-command-input",
+    });
+  });
+
+  const nativeStatusRequest = (planId: string) => JSON.stringify({
+    planId,
+    request: {
+      repository: "owner/repo", topChangeRequestId: "42", topHeadSha: "a".repeat(40),
+      mergeAction: "direct_merge", mergeMethod: "merge",
+    },
+    remote: "origin",
+  });
+
+  const terminalConflictRefusal = {
+    status: "blocked" as const,
+    reason: "contribution-conflicted" as const,
+    paths: ["docs/top.md"],
+    guidance: "Merge the highest member into the checked-out terminal top by hand.",
+  };
+
+  it("carries the terminal conflict disclosure through the native status envelope", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const result = {
+      ...terminalConflictRefusal,
+      conflictPreparation: {
+        topRef: "refs/heads/member-4",
+        logicalMergeBase: "6".repeat(40),
+        parents: { top: "7".repeat(40), refreshedPredecessor: "c".repeat(40) },
+        mergeTree: {
+          argv: [
+            "git", "merge-tree", "--write-tree", "--merge-base", "6".repeat(40),
+            "--name-only", "-z", "--no-messages", "7".repeat(40), "c".repeat(40),
+          ],
+        },
+      },
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(nativeStatusRequest(plan.planId)),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1, command: "delivery native land-status", ...result,
+    });
+  });
+
+  it("carries the restorations for refs moved before the terminal conflict", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const result = {
+      ...terminalConflictRefusal,
+      externalRefRestorations: [
+        { ref: "refs/heads/member-2", observedHead: "a".repeat(40), restoreHead: "5".repeat(40) },
+      ],
+    };
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(nativeStatusRequest(plan.planId)),
+      execute: vi.fn().mockResolvedValue(result),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1, command: "delivery native land-status", ...result,
+    });
+  });
+
+  it("carries a terminal conflict refusal that discloses neither preparation nor restorations", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const write = vi.fn();
+
+    await handleDeliveryExecution("native-land-status", { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(nativeStatusRequest(plan.planId)),
+      execute: vi.fn().mockResolvedValue(terminalConflictRefusal),
+      write,
+      setExitCode: vi.fn(),
+    });
+
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1, command: "delivery native land-status", ...terminalConflictRefusal,
+    });
+  });
 });

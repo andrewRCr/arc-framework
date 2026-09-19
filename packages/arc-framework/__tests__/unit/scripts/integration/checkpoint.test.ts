@@ -4,10 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkpointIntegration,
+  CheckpointAmbiguousBaseError,
+  type DeliveryClassifierCommand,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
+import { CandidateSubjectUncollectableError } from "../../../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
@@ -230,20 +233,20 @@ describe("integration checkpoint", () => {
       });
   });
 
-  it("returns a typed refusal when applicability selector composition fails", async () => {
+  /** The bounded decision that routes the checkpoint into composing an applicability resolution selector. */
+  function boundedApplicabilityDecision() {
     const subject = (source: string) => createCandidateSubjectSnapshot([{
       path: "src/example.ts",
       mode: "100644",
       digest: canonicalDigest({ source }),
       treatment: "reviewable",
     }]);
-    const request = {
+    const decision = classifyCandidateApplicability({
       candidateId: digest("c"),
       baselineTarget: { revision: oid("a"), subject: subject("prior") },
       currentTarget: { revision: oid("c"), subject: subject("current") },
       currentBase: oid("b"),
-    };
-    const decision = classifyCandidateApplicability(request, {
+    }, {
       endpoints: {
         before: {
           predecessor: { head: oid("1"), tree: oid("2") },
@@ -257,6 +260,11 @@ describe("integration checkpoint", () => {
       proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
     });
     if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
+    return decision;
+  }
+
+  it("returns a typed refusal when applicability selector composition fails", async () => {
+    const decision = boundedApplicabilityDecision();
 
     for (const drift of ["reconcile", "clean"] as const) {
       const deps = dependencies();
@@ -274,6 +282,46 @@ describe("integration checkpoint", () => {
           payload: { detail: "The Candidate applicability decision is no longer current." },
         });
     }
+  });
+
+  it("names the merge when a selector stops on a base the branch does not resolve against", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readCandidate = async () => boundedApplicabilityDecision();
+    deps.composeCandidateApplicabilityResolutionSelector = async () => {
+      throw new CheckpointAmbiguousBaseError("The selector's subject has more than one base coordinate.");
+    };
+
+    // The ordinary composition refusal invites a rerun, and a rerun reads the same history and stops the same
+    // way. Only the merge that collapses the pair changes the answer, so the refusal has to ask for it.
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The selector's subject has more than one base coordinate.",
+        remedy: {
+          invariant: "A checkpoint composes over the one revision the branch contributes against, which a "
+            + "history leaving two equally good ancestors does not name.",
+          argv: ["arc", "integrate", "checkpoint", "example"],
+        },
+      });
+  });
+
+  it("names the same merge when delivery composition stops on it", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.composeDelivery = async () => {
+      throw new CheckpointAmbiguousBaseError("The delivery terminal's predecessor base is not one coordinate.");
+    };
+
+    // The second raise reaches a different catch, so proving one proves nothing about the other.
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The delivery terminal's predecessor base is not one coordinate.",
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
+      });
   });
 
   it("returns a safe behind-base verdict with the validated facts", async () => {
@@ -502,6 +550,54 @@ describe("integration checkpoint", () => {
     expect(events).toEqual([]);
   });
 
+  /**
+   * The classifier names four acts and the refusal beside them has to be the act each one names.
+   *
+   * Three of them are reached by doing something other than running this command again: two merges the
+   * checkpoint cannot perform for the operator, and a baseline that has to be re-pinned because both revisions
+   * of its pair are fixed and no merge moves either. Only the unnamed act resumes here.
+   */
+  it.each<[DeliveryClassifierCommand, string, readonly string[]]>([
+    [
+      "rerun-checkpoint",
+      "Apply the returned delivery remedy or resolve its reported evidence, then re-run",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+    [
+      "reconcile-base",
+      "Merge the configured base into the branch, then re-run",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+    [
+      "merge-unrelated",
+      "give the two one common ancestor and re-run",
+      ["git", "merge", "--allow-unrelated-histories", oid("b")],
+    ],
+    [
+      "rebaseline",
+      "Re-pin the durable baseline over freshly verified content by rooting a new lineage",
+      ["arc", "attest", "example", "--new-root"],
+    ],
+  ])("hands back the act a classifier naming %s reports, not the command that reported it", async (
+    command,
+    correction,
+    argv,
+  ) => {
+    const deps = dependencies();
+    deps.classifyDeliveryDrift = async () => ({
+      status: "unavailable",
+      detail: "The delivery predecessor coordinate is unavailable.",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+      nextAction: { command, workUnit: "example" },
+    });
+
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+
+    expect(result).toMatchObject({ state: "blocked", reason: "delivery-terminal-blocked" });
+    expect(result).toHaveProperty("remedy.argv", argv);
+    expect((result as { remedy: { text: string } }).remedy.text).toContain(correction);
+  });
+
   it("preserves terminal predecessor-overlap evidence and explanation", async () => {
     const deps = dependencies();
     deps.classifyDeliveryDrift = async () => ({
@@ -598,6 +694,64 @@ describe("integration checkpoint", () => {
         },
         payload: {
           drift: { verdict: "unavailable", unavailableReason: "fetch-failed" },
+        },
+      });
+  });
+
+  /**
+   * Leaves the branch and its base with no provable movement between them, by the stated cause.
+   *
+   * Both causes report the same movement token, and the whole checkpoint is the only place that shows which act
+   * an operator is actually sent to perform: the plan carries a reason, and the remedy answering it is chosen a
+   * layer above.
+   */
+  function unknownMovement(status: "ambiguous" | "unrelated") {
+    return {
+      ...CLEAN_DRIFT,
+      verdict: "reconcile" as const,
+      state: "diverged" as const,
+      behind: 1,
+      movement: "unknown" as const,
+      overlap: { status },
+      register: { kind: "attention" as const, text: "Base movement is unknown." },
+    };
+  }
+
+  it("hands back the hand merge when the branch and its base share no history", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => unknownMovement("unrelated");
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "base-unrelated",
+        remedy: {
+          invariant: "Base movement can be proved only between revisions with a common ancestor.",
+          argv: ["git", "merge", "--allow-unrelated-histories", oid("b")],
+        },
+      });
+  });
+
+  it("refuses the whole command when the branch and its base share more than one merge base", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => unknownMovement("ambiguous");
+    // The subject reader answers this history the way the repository does: it cannot collect against a pair
+    // naming two best ancestors, so the command never reaches the movement plan's reconcile arm.
+    deps.readCandidate = async () => {
+      throw new CandidateSubjectUncollectableError(
+        "merge-base-ambiguous",
+        "The revisions have more than one best merge base.",
+      );
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The revisions have more than one best merge base.",
+        remedy: {
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
       });
   });

@@ -38,6 +38,22 @@ export function composeBaseDriftRegister(
         + `(${overlap.reason}). Movement is ${movement}. ${checkpoint}`,
     };
   }
+
+  if (overlap.status === "ambiguous") {
+    return {
+      kind: "degraded",
+      text: `Base \`${base}\` is ${behind} commit(s) ahead, but it and this branch share more than one merge `
+        + `base, so overlap cannot be proved from one of them. Movement is ${movement}. ${checkpoint}`,
+    };
+  }
+
+  if (overlap.status === "unrelated") {
+    return {
+      kind: "degraded",
+      text: `Base \`${base}\` is ${behind} commit(s) ahead, but it and this branch have no common ancestor. `
+        + `Movement is ${movement}. ${checkpoint}`,
+    };
+  }
   if (limitation !== null) {
     return {
       kind: "degraded",

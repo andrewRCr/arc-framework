@@ -45,6 +45,7 @@ const devBuildRefreshSubprocessPolicy = {
 const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
   "delivery native link",
   "delivery native land-prepare",
+  "delivery native land-release",
   "delivery native land-select",
   "delivery native land-status",
   "delivery native land-submit",
@@ -80,6 +81,7 @@ const rawGitCommandPaths = [
   "delivery land prepare",
   "delivery native link",
   "delivery native land-prepare",
+  "delivery native land-release",
   "delivery native land-select",
   "delivery native land-status",
   "delivery native land-submit",

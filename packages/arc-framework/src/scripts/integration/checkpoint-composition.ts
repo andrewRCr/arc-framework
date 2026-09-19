@@ -37,9 +37,9 @@ import {
 } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
-import { collectGitCandidateTarget } from "../../lib/work-unit/git-candidate-subject.js";
+import { collectGitCandidateSubject } from "../../lib/work-unit/git-candidate-subject.js";
 import { proveGitDeliveryContribution } from "../../lib/delivery/git-contribution-proof.js";
 import { inspectRepositoryDeliveryCandidateRenewal } from "../../lib/delivery/repository-entry.js";
 import {
@@ -110,12 +110,14 @@ import {
   projectPublicationBoundary,
 } from "../review-gate/policy/integration-boundary-locus.js";
 import {
+  CheckpointAmbiguousBaseError,
   CheckpointReadyCompositionSchema,
   HOSTED_REVIEW_REQUIREMENT_ID,
   IntegrationLifecycleSummarySchema,
   ValidatedMergeMethodSchema,
   type IntegrationCheckpointDependencies,
   type IntegrationLifecycleSummary,
+  type DeliveryClassifierCommand,
   type DeliveryDriftClassificationEvidence,
 } from "./checkpoint.js";
 import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
@@ -338,12 +340,13 @@ function unavailableDeliveryDrift(
   workUnit: string,
   detail: string,
   evidence: DeliveryDriftClassificationEvidence,
+  command: DeliveryClassifierCommand = "rerun-checkpoint",
 ) {
   return {
     status: "unavailable" as const,
     detail,
     evidence,
-    nextAction: { command: "rerun-checkpoint" as const, workUnit },
+    nextAction: { command, workUnit },
   };
 }
 
@@ -527,12 +530,38 @@ export function createIntegrationCheckpointDependencies(input: {
     },
     classifyDeliveryDrift: async (workUnit, drift) => {
       const records = await deliveryLookup.resolveTerminalRecords(workUnit);
+      // An unbound work unit is not this classifier's subject, and the branch-and-base pair it would report is
+      // the one the movement plan reads for itself. Answering here instead wraps that pair in a delivery
+      // refusal whose remedy is a rerun of the checkpoint that raised it.
       if (records.status === "unbound") return { status: "not-applicable" };
+      // Ahead of either base reading, as it was before the pair was given a route here. Both readings are
+      // true whatever the records say, but neither is this classifier's answer until the records it
+      // classifies against can be read — reported first, they send an operator to merge on evidence that
+      // never established this classification applies.
       if (records.status === "unavailable") {
         return unavailableDeliveryDrift(
           workUnit,
           "The delivery terminal records are unavailable.",
           drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+        );
+      }
+      // Both revisions of this pair can move, so merging the base in collapses two merge bases to one.
+      if (drift.overlap?.status === "ambiguous") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The branch and its base share more than one merge base, so the overlap cannot be proved from one.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+          "reconcile-base",
+        );
+      }
+      // That merge is not this one. Git refuses to join unrelated histories without being told to, so the
+      // append-only reconcile cannot reach this pair at all and the operator performs the join by hand.
+      if (drift.overlap?.status === "unrelated") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The branch and its base share no common ancestor, so nothing between them can be compared.",
+          drift.baseOid === null ? {} : { baseRevision: drift.baseOid },
+          "merge-unrelated",
         );
       }
       if (drift.overlap?.status !== "available") {
@@ -603,6 +632,30 @@ export function createIntegrationCheckpointDependencies(input: {
           baseRevision,
           baselineRevision,
         });
+      }
+      // The baseline half of this pair is pinned, so a fresh baseline is what clears it — and that is exactly
+      // what cannot clear an absent ancestor, since a baseline taken from a branch sharing no history with the
+      // base shares none either. Here alone the two pairs want the same first step, and it is the hand merge:
+      // the append-only reconcile refuses unrelated histories rather than joining them.
+      if (overlap.status === "unrelated") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The durable baseline and the observed base share no common ancestor, so the base must be joined "
+            + "to the branch before a fresh baseline can establish one.",
+          { baseRevision, baselineRevision },
+          "merge-unrelated",
+        );
+      }
+      // The merge above moves neither side of this pair, so the same two bases survive it. Only a fresh
+      // baseline can collapse them.
+      if (overlap.status === "ambiguous") {
+        return unavailableDeliveryDrift(
+          workUnit,
+          "The durable baseline and the observed base share more than one merge base, and merging the base "
+            + "in moves neither of them.",
+          { baseRevision, baselineRevision },
+          "rebaseline",
+        );
       }
       if (overlap.status !== "available") {
         return unavailableDeliveryDrift(workUnit, overlap.detail, {
@@ -713,7 +766,7 @@ export function createIntegrationCheckpointDependencies(input: {
         throw new Error("The Candidate applicability decision is no longer current.");
       }
       const config = await settings();
-      const currentTarget = await collectGitCandidateTarget({
+      const collected = await collectGitCandidateSubject({
         cwd: input.cwd,
         name: workUnit,
         baseBranch: config.settings["branch.base"],
@@ -721,6 +774,14 @@ export function createIntegrationCheckpointDependencies(input: {
         exec: input.exec,
         revision: decision.currentTarget.revision,
       });
+      if (collected.status !== "collected") {
+        // Under its own type: the checkpoint refusal above this decides what to ask for, and the rerun it
+        // otherwise names reads the same history and stops here again.
+        throw new CheckpointAmbiguousBaseError(
+          "The Candidate applicability selector's subject could not be collected.",
+        );
+      }
+      const currentTarget = collected.target;
       const priorTarget = reduceCandidateDurableBaseline(value.record).target;
       if (priorTarget.revision !== decision.baselineTarget.revision
         || priorTarget.subject.subjectDigest !== decision.baselineTarget.subjectDigest
@@ -1025,14 +1086,19 @@ export function createIntegrationCheckpointDependencies(input: {
         ownerTerminusAdvances,
       });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
-      const mergeBase = await resolveGitCandidateTargetBase({
+      const mergeBase = await readGitCandidateTargetBase({
         cwd: input.cwd,
         revision: currentness.recognizedRevision,
         baseBranch: configuredBase,
         baseRevision,
         exec: input.exec,
       });
-      const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase);
+      if (mergeBase.status !== "resolved") {
+        throw new CheckpointAmbiguousBaseError(
+          "The delivery terminal's predecessor base is not a single coordinate.",
+        );
+      }
+      const predecessorCoordinate = await readCoordinate(input.exec, input.cwd, mergeBase.base);
       if (candidateCoordinate === null || predecessorCoordinate === null) {
         throw new Error("The delivery terminal delta coordinates are unavailable.");
       }

@@ -615,6 +615,14 @@ describe("delivery suffix reconciliation", () => {
       },
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
     })).resolves.toEqual({ status: "refused", reason: "conflict-resolution-mismatch" });
+    await expect(adoptExternalDeliverySuffixRefresh({
+      ...common,
+      conflictResolution: {
+        ...offered.resolutionInput,
+        scope: { kind: "native-suffix", operationId: "operation-1" },
+      },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    })).resolves.toEqual({ status: "refused", reason: "conflict-resolution-mismatch" });
 
     await expect(adoptExternalDeliverySuffixRefresh({
       ...common,

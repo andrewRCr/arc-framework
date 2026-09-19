@@ -480,15 +480,62 @@ arc delivery reconcile -
 A recovered `prepared` reservation makes no provider observation: it re-presents the exact member/head set and
 consequence behind the same integration interlock, then invokes its returned `submitAction` unchanged after approval.
 A recovered `submitting` reservation never resubmits: a persisted identity returns to polling, while a missing
-identity is resolved only from exact all/partial/none/ambiguous effect facts.
+identity is resolved only from exact all/partial/none/ambiguous effect facts. A recovered `settling` reservation —
+an applied effect whose suffix settlement was interrupted after local member refs moved — also never resubmits: it
+returns to polling on its persisted identity and re-enters settlement from freshly observed facts.
 
 Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
 effect and exact `none-landed` observation, returns to preparation and a new interlock. `pending`, `partial-landed`,
-unavailable, expired, contradictory, or ambiguous results stop with the reservation intact. A suffix reconciliation
-refusal likewise retains that reservation; rerun `land-status` to reobserve and settle it without resubmitting. An
-`applied` result is returned only after a `linked-single` result settles the complete recognized suffix-retarget path,
-including contribution proof before new-head review admission, or a `linked-atomic` result performs its final
-no-suffix state write.
+unavailable, expired, contradictory, or ambiguous results stop with the reservation intact. An `applied` result is
+returned only after a `linked-single` result settles the complete recognized suffix-retarget path, including
+contribution proof before new-head review admission, or a `linked-atomic` result performs its final no-suffix state
+write.
+
+### Settle a disclosed suffix collision
+
+A suffix reconciliation refusal retains the reservation. Never resubmit the effect to clear one — the landing has
+already applied. Dispatch only on the typed result:
+
+- `conflict-resolution-required` — carries `conflicts` and a `resolutionInput`. The operator chooses: resubmit that
+  `resolutionInput` unchanged as `conflictResolution` on `arc delivery native land-status` to accept the listed
+  collisions under the held reservation, or resolve the listed member paths and rerun `land-status` with no
+  resolution to settle the reobserved suffix.
+- `blocked / conflict-resolution-mismatch` — the resubmitted resolution does not match the suffix observed now.
+  Rerun `land-status` with no resolution for the current disclosure, then resubmit that one unchanged.
+- `blocked / contribution-conflicted` carrying `conflictPreparation` — the terminal top could not absorb the highest
+  member. Merge the highest member into the checked-out terminal top by hand, resolving the listed `paths`;
+  `conflictPreparation` supplies the merge parents and the logical merge base, and its `mergeTree.argv` lists the
+  collisions. Rerun `land-status` to absorb the merged top.
+- every other refusal keeps the reservation and stops.
+
+### Decline a settled landing
+
+An operator who will not adopt a settled landing releases its reservation rather than settling it. The decline
+restores every local ref the settlement moved — the member refs and, once the absorber has run, the terminal
+top; it never reverses the landing the host performed.
+
+```bash
+arc delivery native land-release -
+```
+
+The request carries the plan, repository, remote, and the `operationId` of the held reservation. Dispatch only on
+the typed result:
+
+- `released` — the reservation is cleared. `restorations` lists every local ref put back with the head it
+  returned to; `landed` names the effect and the members it covers, all of which stay landed. A non-null
+  `standingRemoteTop` names the terminal ref the settlement published outward and the head it wrote there — the
+  decline is local-only, so read that ref and decide what it should carry before continuing.
+- `retryable / preserved / delivery-native-land-status` — nothing landed, so there is nothing to decline. Rerun
+  `land-status`, which owns that reconciliation.
+- `blocked` carrying a `lease` — a local ref the settlement moved is not where it left it, or could not be read at
+  all. The refusal names the ref, and both heads when it observed one; nothing was written and the reservation
+  still stands. A ref that moved is cleared by restoring it; a ref reported absent, malformed, or unreadable
+  carries no observed head and is cleared by making that ref readable first. Then rerun the decline.
+- `blocked / reservation-not-submitted` — a prepared reservation submitted no effect to decline; take it back
+  through `arc delivery reconcile`, which preserves the reservation and re-presents the landing for a
+  deliberate choice.
+- every other refusal keeps the reservation and stops. A pending, queued, partly landed, or contradictory effect is
+  never declined.
 
 ## Review and land the current member
 

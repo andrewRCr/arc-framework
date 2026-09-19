@@ -6,7 +6,7 @@ import type { CandidateEffectiveCurrentProjection } from
   "../work-unit/candidate-effective-target.js";
 import { readAncestry, readCommit } from "../work-unit/git-decomposition-object-readers.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   resolveGitCandidateBaseRevision,
 } from "../work-unit/git-candidate-subject.js";
 import type { DeliveryTerminalCoordinateAdvanceProof } from
@@ -45,8 +45,8 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
     baseBranch: input.baseBranch,
     exec: localExec,
   });
-  const [priorTarget, currentTarget, priorTree, currentTree] = await Promise.all([
-    collectGitCandidateTarget({
+  const [priorSubject, currentSubject, priorTree, currentTree] = await Promise.all([
+    collectGitCandidateSubject({
       cwd: input.cwd,
       name: input.workUnitId,
       baseBranch: input.baseBranch,
@@ -54,7 +54,7 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
       revision: input.priorHead,
       exec: localExec,
     }),
-    collectGitCandidateTarget({
+    collectGitCandidateSubject({
       cwd: input.cwd,
       name: input.workUnitId,
       baseBranch: input.baseBranch,
@@ -65,10 +65,13 @@ export async function projectGitDeliveryTerminalRecordAdvance(input: {
     localExec("git", ["rev-parse", `${input.priorHead}^{tree}`]),
     localExec("git", ["rev-parse", `${input.currentHead}^{tree}`]),
   ]);
+  // A subject that could not be collected proves no advance, and this arm carries a proof or it carries
+  // nothing at all — there is no slot on it for the reason one was not established.
+  if (priorSubject.status !== "collected" || currentSubject.status !== "collected") return undefined;
   if (!deliveryTerminalRecordAdvanceIsRepresented({
     ancestry,
-    priorSubjectDigest: priorTarget.subject.subjectDigest,
-    currentSubjectDigest: currentTarget.subject.subjectDigest,
+    priorSubjectDigest: priorSubject.target.subject.subjectDigest,
+    currentSubjectDigest: currentSubject.target.subject.subjectDigest,
   })) return undefined;
   const resolvedPriorTree = priorTree.stdout.trim();
   const resolvedCurrentTree = currentTree.stdout.trim();

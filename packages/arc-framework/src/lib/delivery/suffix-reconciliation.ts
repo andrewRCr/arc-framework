@@ -55,10 +55,15 @@ export interface DeliveryProviderRefreshConflict {
 /** Response-owned selector for one exact dependent-suffix conflict decision. */
 export interface DeliveryProviderConflictResolutionInput {
   readonly planId: string;
-  readonly scope: {
-    readonly kind: "dependent-suffix";
-    readonly selectedDeliverableId: string;
-  };
+  readonly scope:
+    | {
+        readonly kind: "dependent-suffix";
+        readonly selectedDeliverableId: string;
+      }
+    | {
+        readonly kind: "native-suffix";
+        readonly operationId: string;
+      };
   readonly expectedStateRevision: number;
   readonly observedSuffixDigest: string;
   readonly conflicts: readonly DeliveryProviderRefreshConflict[];
@@ -757,11 +762,13 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   if (input.current.value.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
-  if (input.conflictResolution !== undefined && (
+  const suppliedResolution = input.conflictResolution;
+  if (suppliedResolution !== undefined && (
     input.selectedDeliverableId === undefined
-    || input.conflictResolution.planId !== input.plan.planId
-    || input.conflictResolution.scope.selectedDeliverableId !== input.selectedDeliverableId
-    || input.conflictResolution.expectedStateRevision !== input.current.revision
+    || suppliedResolution.scope.kind !== "dependent-suffix"
+    || suppliedResolution.planId !== input.plan.planId
+    || suppliedResolution.scope.selectedDeliverableId !== input.selectedDeliverableId
+    || suppliedResolution.expectedStateRevision !== input.current.revision
   )) {
     return { status: "refused", reason: "conflict-resolution-mismatch" };
   }

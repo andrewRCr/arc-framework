@@ -7,7 +7,19 @@ import type { RevisionOverlapResult } from "../git/base-overlap.js";
 import {
   predecessorRelation,
   type DeliveryPredecessorRelation,
+  type PredecessorRelationRead,
 } from "./predecessor-relation.js";
+
+/** The merge that collapses a pair's several best bases to one, which is what clears an ambiguous read. */
+type DeliveryBaseMergeRemedy = Extract<PredecessorRelationRead, { readonly status: "ambiguous" }>["remedy"];
+
+/** What both readers tell an operator whose member and observed tip changed the same content. */
+const OVERLAPPING_MOVEMENT_DETAIL = "The observed protected-base movement overlaps this delivery member. "
+  + "Rebuild the delivery chain against the observed tip; no safe automated rebuild command is available.";
+
+/** What both readers append for a pair that shares no lineage at all, which no retry can change. */
+const UNRELATED_LINEAGE_REMEDY_DETAIL = " Rebuild the delivery chain from a common lineage; no safe automated "
+  + "rebuild command is available.";
 
 /** Exact ref coordinates pinned during one eligibility observation window. */
 export interface DeliveryEligibilityCoordinates {
@@ -157,6 +169,8 @@ export interface DeliveryEligibilityRefusal {
     | "direct-delivery-ref"
     | "candidate-unavailable"
     | "wrong-predecessor"
+    | "unrelated-predecessor"
+    | "ambiguous-predecessor-base"
     | "empty-candidate"
     | "lifecycle-contribution"
     | "checkout-dirty"
@@ -179,6 +193,8 @@ export interface DeliveryEligibilityRefusal {
   /** Every mismatching lifecycle-contribution path; present only for `lifecycle-contribution` refusals. */
   readonly paths?: readonly string[];
   readonly relation?: DeliveryPredecessorRelation;
+  /** The independently observed protected-base tip, for the arms that carry no relation to report it on. */
+  readonly observedTip?: string;
   readonly detail?: string;
   readonly source?: {
     readonly ref: string;
@@ -193,10 +209,9 @@ export interface DeliveryEligibilityRefusal {
     readonly candidates: readonly { readonly deliverableId: string; readonly ref: string }[];
     readonly lifecyclePaths: readonly string[];
   };
-  readonly remedy?: {
-    readonly kind: "delivery-authoring-rebuild-required";
-    readonly automatedCommand: null;
-  };
+  readonly remedy?:
+    | { readonly kind: "delivery-authoring-rebuild-required"; readonly automatedCommand: null }
+    | DeliveryBaseMergeRemedy;
 }
 
 /** Dependencies that keep plan and lifecycle discovery inside one mutation observation window. */
@@ -374,30 +389,51 @@ export async function prepareDeliveryEligibility(input: {
   if (predecessorRead.status === "unavailable") {
     return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
   }
+  // A recoverable condition, and the merge the read already composed is what recovers it — so it takes neither
+  // the unreadable-evidence reason, which invites a retry that cannot clear it, nor the accept path, which an
+  // absent overlap would otherwise hand it: the multi-base branch returns before an overlap is ever computed.
+  if (predecessorRead.status === "ambiguous") {
+    return {
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      deliverableId: firstCandidate.deliverableId,
+      observedTip: predecessorRead.observedTip,
+      detail: predecessorRead.detail,
+      remedy: predecessorRead.remedy,
+    };
+  }
+  // Terminal: no rebuild against the observed tip helps a pair that shares no lineage with it, so it refuses
+  // apart from the pair that merely diverged rather than under that pair's recoverable reason. It relates by
+  // nothing, so there is no relation to report the condition on and the tip rides the refusal itself.
+  if (predecessorRead.status === "unrelated") {
+    return {
+      status: "refused",
+      reason: "unrelated-predecessor",
+      deliverableId: firstCandidate.deliverableId,
+      observedTip: predecessorRead.observedTip,
+      detail: predecessorRead.detail + UNRELATED_LINEAGE_REMEDY_DETAIL,
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    };
+  }
   const observedRelation = predecessorRead.relation;
-  if (observedRelation.kind === "overlapping-ahead" || observedRelation.kind === "unrelated") {
+  // One variant now carries both the accepted and the refused case, so the decision reads the content the pair
+  // was found to share rather than the name the pair was given.
+  if (observedRelation.kind === "diverged" && observedRelation.overlap.substantivePaths.length > 0) {
     return {
       status: "refused",
       reason: "wrong-predecessor",
       deliverableId: firstCandidate.deliverableId,
       relation: observedRelation,
-      ...(observedRelation.kind === "overlapping-ahead"
-        ? {
-            paths: observedRelation.overlap.substantivePaths,
-            detail: "The observed protected-base movement overlaps this delivery member. Rebuild the delivery "
-              + "chain against the observed tip; no safe automated rebuild command is available.",
-          }
-        : {
-            detail: `${observedRelation.detail} Rebuild the delivery chain from a common lineage; no safe automated `
-              + "rebuild command is available.",
-          }),
+      paths: observedRelation.overlap.substantivePaths,
+      detail: OVERLAPPING_MOVEMENT_DETAIL,
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
     };
   }
-  const chainBase = observedRelation.kind === "exact"
+  const observedChainBase = observedRelation.chainBase;
+  const chainBase = observedRelation.kind === "unchanged" || observedRelation.kind === "advanced"
     ? { head: protectedBase.head, tree: protectedBase.tree }
-    : await deps.observeRef(observedRelation.chainBase);
-  if (chainBase === null || chainBase.head !== observedRelation.chainBase) {
+    : await deps.observeRef(observedChainBase);
+  if (chainBase === null || chainBase.head !== observedChainBase) {
     return { status: "refused", reason: "evidence-unavailable", deliverableId: firstCandidate.deliverableId };
   }
   const lifecyclePaths = [...new Set(input.lifecyclePaths)].sort(byteSort);
@@ -573,6 +609,43 @@ async function closeMechanicalDeliveryEligibility(
     }),
   });
   if (currentRelation.status === "unavailable") return { status: "refused", reason: "evidence-unavailable" };
+  // Both non-resolved arms take the same dispositions here as at the prepare-time reader: each states its own,
+  // rather than one widened "not resolved" guard parking a terminal and a recoverable cause under one reason.
+  if (currentRelation.status === "ambiguous") {
+    return {
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      deliverableId: firstMember.deliverableId,
+      observedTip: currentRelation.observedTip,
+      detail: currentRelation.detail,
+      remedy: currentRelation.remedy,
+    };
+  }
+  if (currentRelation.status === "unrelated") {
+    return {
+      status: "refused",
+      reason: "unrelated-predecessor",
+      deliverableId: firstMember.deliverableId,
+      observedTip: currentRelation.observedTip,
+      detail: currentRelation.detail + UNRELATED_LINEAGE_REMEDY_DETAIL,
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    };
+  }
+  // Read from the fresh observation rather than from the relation the snapshot carries, and decided before the
+  // comparison below rather than after it: a snapshot holding content it may not proceed over reobserves
+  // identically and compares equal, so consistency with it establishes nothing about whether it may close.
+  if (currentRelation.relation.kind === "diverged"
+    && currentRelation.relation.overlap.substantivePaths.length > 0) {
+    return {
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: firstMember.deliverableId,
+      relation: currentRelation.relation,
+      paths: currentRelation.relation.overlap.substantivePaths,
+      detail: OVERLAPPING_MOVEMENT_DETAIL,
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    };
+  }
   if (!samePredecessorRelation(currentRelation.relation, snapshot.predecessorRelation)) {
     return {
       status: "refused",
@@ -582,11 +655,13 @@ async function closeMechanicalDeliveryEligibility(
       detail: "The reobserved predecessor relation does not match the prepared snapshot.",
     };
   }
-  const relationChainBaseHead = currentRelation.relation.kind === "exact"
-    || currentRelation.relation.kind === "disjoint-ahead"
-    ? currentRelation.relation.chainBase
-    : null;
-  if (relationChainBaseHead === null || snapshot.chainBase.head !== relationChainBaseHead) {
+  // Past the guard above every variant accepts, each on its own grounds rather than by omission: a member
+  // behind the tip diffs empty against the merge base, so `rewound` has no overlap that could refuse, and
+  // `unchanged` and `advanced` return before one is read at all. `diverged` is the only variant whose content
+  // decides, which is why it is the only one guarded. What remains is a coordinate check, not an admissibility
+  // one — that the chain base the snapshot pinned is the one the fresh read reaches.
+  const relationChainBaseHead = currentRelation.relation.chainBase;
+  if (snapshot.chainBase.head !== relationChainBaseHead) {
     return {
       status: "refused",
       reason: "wrong-predecessor",
@@ -668,17 +743,28 @@ function samePredecessorRelation(
   left: DeliveryPredecessorRelation,
   right: DeliveryPredecessorRelation,
 ): boolean {
-  if (left.kind !== right.kind || left.observedTip !== right.observedTip) return false;
-  if (left.kind === "exact" && right.kind === "exact") return left.chainBase === right.chainBase;
-  if (left.kind === "unrelated" && right.kind === "unrelated") return left.detail === right.detail;
-  if (left.kind === "disjoint-ahead" && right.kind === "disjoint-ahead") {
-    return left.chainBase === right.chainBase && left.mergeBase === right.mergeBase
-      && sameOverlap(left.overlap, right.overlap);
+  // The coordinates every variant carries are compared once, ahead of the kind, so each arm below states
+  // only what its own variant adds to them.
+  if (left.observedTip !== right.observedTip || left.chainBase !== right.chainBase) return false;
+  switch (left.kind) {
+    case "unchanged":
+      return right.kind === "unchanged";
+    case "advanced":
+      return right.kind === "advanced";
+    case "rewound":
+      return right.kind === "rewound" && sameMergeBasedRelation(left, right);
+    case "diverged":
+      return right.kind === "diverged" && sameMergeBasedRelation(left, right)
+        && left.mergeBaseCount === right.mergeBaseCount;
   }
-  if (left.kind === "overlapping-ahead" && right.kind === "overlapping-ahead") {
-    return left.mergeBase === right.mergeBase && sameOverlap(left.overlap, right.overlap);
-  }
-  return false;
+}
+
+/** The merge base and overlap shared by the two variants that name one. */
+function sameMergeBasedRelation(
+  left: Extract<DeliveryPredecessorRelation, { readonly mergeBase: string }>,
+  right: Extract<DeliveryPredecessorRelation, { readonly mergeBase: string }>,
+): boolean {
+  return left.mergeBase === right.mergeBase && sameOverlap(left.overlap, right.overlap);
 }
 
 function sameOverlap(

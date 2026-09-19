@@ -23,6 +23,7 @@ import {
   prepareDeliveryEligibility,
   type DeliveryEligibilitySnapshot,
 } from "../lib/delivery/eligibility.js";
+import type { DeliveryPredecessorRelation } from "../lib/delivery/predecessor-relation.js";
 import {
   compareGitNormalizedDeliveryTrees,
   inspectDeliveryAuthoringCheckout,
@@ -90,6 +91,7 @@ import {
 import {
   DeliveryCanonicalDigestSchema,
   DeliveryChangeRequestV1Schema,
+  DeliveryLandEffectV1Schema,
   DeliveryMergePolicyBindingV1Schema,
   DeliveryOperationSnapshotV1Schema,
   DeliveryPlanIdSchema,
@@ -203,11 +205,13 @@ import {
   observeDeliveryNativeStack,
 } from "../lib/delivery/native-stack.js";
 import {
+  admitNativeDeliveryLandingRelease,
   deriveNativeDeliveryMemberChain,
   deriveNativeDeliveryRegisteredRemainder,
   preflightSequentialDeliveryLanding,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
+  releaseNativeDeliveryLanding,
   reserveNativeDeliveryLanding,
   selectNativeDeliveryLandingArm,
   submitReservedNativeDeliveryMerge,
@@ -238,10 +242,10 @@ import {
 } from "../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
@@ -368,29 +372,34 @@ const DeliveryOverlapSchema = z.strictObject({
   substantivePaths: z.array(z.string().min(1)),
   regenerablePaths: z.array(z.string().min(1)),
 });
-const PredecessorRelationSchema = z.discriminatedUnion("kind", [
+// Pinned to the library's own relation, so a variant renamed or reshaped there cannot be read back under a
+// spelling this contract still recognizes. A variant dropped here stays assignable and so slips past the
+// compiler; what catches that is the round-trip over relations the producer actually builds.
+const PredecessorRelationSchema: z.ZodType<DeliveryPredecessorRelation> = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("exact"),
+    kind: z.literal("unchanged"),
     observedTip: GitObjectIdSchema,
     chainBase: GitObjectIdSchema,
   }),
   z.strictObject({
-    kind: z.literal("disjoint-ahead"),
+    kind: z.literal("advanced"),
+    observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("rewound"),
     observedTip: GitObjectIdSchema,
     chainBase: GitObjectIdSchema,
     mergeBase: GitObjectIdSchema,
     overlap: DeliveryOverlapSchema,
   }),
   z.strictObject({
-    kind: z.literal("overlapping-ahead"),
+    kind: z.literal("diverged"),
     observedTip: GitObjectIdSchema,
+    chainBase: GitObjectIdSchema,
     mergeBase: GitObjectIdSchema,
+    mergeBaseCount: z.number().int().positive(),
     overlap: DeliveryOverlapSchema,
-  }),
-  z.strictObject({
-    kind: z.literal("unrelated"),
-    observedTip: GitObjectIdSchema,
-    detail: z.string().min(1),
   }),
 ]);
 const EligibilitySnapshotSchema = z.strictObject({
@@ -423,6 +432,19 @@ const DeliveryEligibilitySourceMovedSchema = z.strictObject({
     lifecyclePaths: z.array(z.string().min(1)),
   }),
 });
+const DeliveryAuthoringRebuildRemedySchema = z.strictObject({
+  kind: z.literal("delivery-authoring-rebuild-required"),
+  automatedCommand: z.null(),
+});
+const DeliveryBaseMergeRemedySchema = z.strictObject({
+  kind: z.literal("delivery-base-merge-required"),
+  automatedCommand: z.array(z.string().min(1)).min(1),
+});
+/** Every remedy an eligibility refusal may carry; a kind absent here is dropped rather than reported. */
+const DeliveryRefusalRemedySchema = z.union([
+  DeliveryAuthoringRebuildRemedySchema,
+  DeliveryBaseMergeRemedySchema,
+]);
 const DeliveryWrongPredecessorSchema = z.strictObject({
   status: z.literal("refused"),
   reason: z.literal("wrong-predecessor"),
@@ -430,10 +452,24 @@ const DeliveryWrongPredecessorSchema = z.strictObject({
   relation: PredecessorRelationSchema,
   paths: z.array(z.string().min(1)).optional(),
   detail: z.string().min(1).max(1_000),
-  remedy: z.strictObject({
-    kind: z.literal("delivery-authoring-rebuild-required"),
-    automatedCommand: z.null(),
-  }).optional(),
+  remedy: DeliveryAuthoringRebuildRemedySchema.optional(),
+});
+// Neither arm relates by a variant, so each reports the observed tip itself rather than off a relation.
+const DeliveryUnrelatedPredecessorSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("unrelated-predecessor"),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  observedTip: GitObjectIdSchema,
+  detail: z.string().min(1).max(1_000),
+  remedy: DeliveryAuthoringRebuildRemedySchema.optional(),
+});
+const DeliveryAmbiguousPredecessorBaseSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.literal("ambiguous-predecessor-base"),
+  deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  observedTip: GitObjectIdSchema,
+  detail: z.string().min(1).max(1_000),
+  remedy: DeliveryBaseMergeRemedySchema.optional(),
 });
 
 const PrepareSchema = z.strictObject({
@@ -608,11 +644,6 @@ const NativeSubmitSchema = z.strictObject({
   planId: DeliveryPlanIdSchema, operationId: z.string().min(1), request: NativeMergeRequestSchema,
   treeRoot: z.string().min(1), remote: z.string().min(1).default("origin"),
 });
-const NativeStatusSchema = z.strictObject({
-  planId: DeliveryPlanIdSchema,
-  request: NativeMergeRequestSchema,
-  remote: z.string().min(1).default("origin"),
-});
 const NativePreparedRecoveryResultSchema = z.strictObject({
   status: z.literal("prepared"),
   transition: z.literal("preserved"),
@@ -653,12 +684,35 @@ const RefreshConflictSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
   paths: z.array(z.string().min(1)).min(1),
 });
+const NativeSuffixConflictScopeSchema = z.strictObject({
+  kind: z.literal("native-suffix"),
+  operationId: z.string().min(1),
+});
+const ConflictResolutionScopeSchema = z.discriminatedUnion("kind", [
+  DependentRefreshExecutionScopeSchema,
+  NativeSuffixConflictScopeSchema,
+]);
 const RefreshConflictResolutionSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
-  scope: DependentRefreshExecutionScopeSchema,
+  scope: ConflictResolutionScopeSchema,
   expectedStateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   observedSuffixDigest: DeliveryCanonicalDigestSchema,
   conflicts: z.array(RefreshConflictSchema).min(1),
+});
+const NativeSuffixConflictResolutionSchema = RefreshConflictResolutionSchema.extend({
+  scope: NativeSuffixConflictScopeSchema,
+});
+const NativeStatusSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  request: NativeMergeRequestSchema,
+  remote: z.string().min(1).default("origin"),
+  conflictResolution: NativeSuffixConflictResolutionSchema.optional(),
+});
+const NativeReleaseSchema = z.strictObject({
+  planId: DeliveryPlanIdSchema,
+  repository: z.string().min(1),
+  remote: z.string().min(1).default("origin"),
+  operationId: z.string().min(1),
 });
 const DeliveryTerminalConflictPreparationSchema = z.strictObject({
   topRef: z.string().min(1),
@@ -678,6 +732,11 @@ const DeliveryTerminalConflictPreparationSchema = z.strictObject({
     path: z.string().min(1),
     head: GitObjectIdSchema,
   }).optional(),
+});
+const ExternalRefRestorationSchema = z.strictObject({
+  ref: z.string().min(1),
+  observedHead: GitObjectIdSchema,
+  restoreHead: GitObjectIdSchema,
 });
 const RefreshPlanSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
@@ -774,6 +833,7 @@ const RequestSchemas = {
   "native-land-prepare": NativePrepareSchema,
   "native-land-submit": NativeSubmitSchema,
   "native-land-status": NativeStatusSchema,
+  "native-land-release": NativeReleaseSchema,
   "refresh-plan": RefreshPlanSchema,
   "refresh-execute": RefreshExecuteSchema,
   "refresh-adopt": RefreshAdoptSchema,
@@ -807,6 +867,8 @@ const BlockedContributionRefusalSchema = z.strictObject({
   reason: ContributionPathReasonSchema,
   paths: z.array(z.string()),
   guidance: z.string().min(1),
+  conflictPreparation: DeliveryTerminalConflictPreparationSchema.optional(),
+  externalRefRestorations: z.array(ExternalRefRestorationSchema).optional(),
 });
 const ContributionVerdictSchema = z.strictObject({
   deliverableId: DeliveryCanonicalDigestSchema,
@@ -836,11 +898,30 @@ const DeliveryTopRemedyRefusalSchema = z.strictObject({
     protectedBaseRef: z.string().min(1),
   }),
 });
+/** Carried only on a terminal condition; closeout's own reasons keep their remedy as prose. */
+const DeliveryTerminalRemedySchema = z.strictObject({
+  kind: z.enum([
+    "delivery-record-repair-required",
+    "delivery-member-rebind-required",
+    "delivery-member-publication-required",
+    "delivery-host-reobservation-required",
+    "delivery-closeout-repository-correction-required",
+    "delivery-request-retarget-required",
+    "delivery-terminal-landing-required",
+    "delivery-terminal-checkout-required",
+    "delivery-terminal-restore-required",
+    "delivery-terminal-hand-merge-required",
+    "delivery-terminal-absorption-retry-required",
+    "delivery-worktree-clean-required",
+  ]),
+  automatedCommand: z.null(),
+});
 const DeliveryCloseoutBlockedSchema = z.strictObject({
   status: z.literal("blocked"),
   reason: z.string().min(1),
   planId: DeliveryPlanIdSchema.optional(),
   deliverableId: DeliveryCanonicalDigestSchema.optional(),
+  remedy: DeliveryTerminalRemedySchema.optional(),
   recommendedActionText: z.string().min(1),
 });
 const OperationalStateAccessRefusalSchema = z.strictObject({
@@ -1200,7 +1281,7 @@ const OwnedDeliveryPublicFailureSchema = z.strictObject({
   source: DeliveryEligibilitySourceMovedSchema.shape.source.optional(),
   nextAction: DeliveryEligibilitySourceMovedSchema.shape.nextAction.optional(),
   relation: PredecessorRelationSchema.optional(),
-  remedy: DeliveryWrongPredecessorSchema.shape.remedy.optional(),
+  remedy: DeliveryRefusalRemedySchema.optional(),
   continuation: OwnedDeliveryFailureContinuationSchema,
 });
 
@@ -1222,6 +1303,8 @@ const ResultSchema = z.union([
   NativeMemberNotReadyResultSchema,
   DeliveryEligibilitySourceMovedSchema,
   DeliveryWrongPredecessorSchema,
+  DeliveryUnrelatedPredecessorSchema,
+  DeliveryAmbiguousPredecessorBaseSchema,
   z.strictObject({ status: z.literal("prepared"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({ status: z.literal("eligible"), snapshot: EligibilitySnapshotSchema }),
   z.strictObject({
@@ -1245,6 +1328,19 @@ const ResultSchema = z.union([
   z.strictObject({ status: z.literal("already-rebound"), replayed: z.literal(true) }),
   z.strictObject({ status: z.literal("materialized"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
   z.strictObject({ status: z.literal("published"), state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }) }),
+  z.strictObject({
+    status: z.literal("released"),
+    state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
+    restorations: z.array(ExternalRefRestorationSchema),
+    standingRemoteTop: z.strictObject({
+      ref: z.string().min(1),
+      head: GitObjectIdSchema,
+    }).nullable(),
+    landed: z.strictObject({
+      effect: DeliveryLandEffectV1Schema,
+      affectedDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
+    }),
+  }),
   z.strictObject({
     status: z.enum(["acknowledged", "already-acknowledged"]),
     state: z.strictObject({ revision: z.number().int().positive(), value: DeliveryStateV1Schema }),
@@ -1358,11 +1454,13 @@ const ResultSchema = z.union([
     status: z.literal("conflict-resolution-required"),
     conflicts: z.array(RefreshConflictSchema).min(1),
     resolutionInput: RefreshConflictResolutionSchema,
-    externalRefRestorations: z.array(z.strictObject({
-      ref: z.string().min(1),
-      observedHead: GitObjectIdSchema,
-      restoreHead: GitObjectIdSchema,
-    })).min(1),
+    externalRefRestorations: z.array(ExternalRefRestorationSchema).min(1),
+    recommendedActionText: z.string().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("conflict-resolution-required"),
+    conflicts: z.array(RefreshConflictSchema).min(1),
+    resolutionInput: RefreshConflictResolutionSchema,
     recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
@@ -1418,6 +1516,16 @@ const ResultSchema = z.union([
     reason: z.literal("top-remedy-required"),
     nextAction: z.literal("reopen-and-retarget"),
     top: DeliveryTopRemedyRefusalSchema,
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reason: z.string().min(1),
+    lease: z.strictObject({
+      ref: z.string().min(1),
+      expectedHead: GitObjectIdSchema,
+      observedHead: GitObjectIdSchema.nullable(),
+    }),
+    recommendedActionText: z.string().min(1),
   }),
   z.strictObject({
     status: z.literal("blocked"),
@@ -1767,7 +1875,7 @@ function ownedDeliveryFailure(
   const preservedSource = DeliveryEligibilitySourceMovedSchema.shape.source.safeParse(result.source);
   const preservedNextAction = DeliveryEligibilitySourceMovedSchema.shape.nextAction.safeParse(result.nextAction);
   const preservedRelation = PredecessorRelationSchema.safeParse(result.relation);
-  const preservedRemedy = DeliveryWrongPredecessorSchema.shape.remedy.safeParse(result.remedy);
+  const preservedRemedy = DeliveryRefusalRemedySchema.safeParse(result.remedy);
   return OwnedDeliveryPublicFailureSchema.parse({
     status: result.status === "blocked" ? "blocked" : "refused",
     reason,
@@ -1782,7 +1890,7 @@ function ownedDeliveryFailure(
       snapshotTopHead: oidOrNull(snapshotTop.head),
       requestedBase: oidOrNull(requestedCoordinates.base),
       requestedHead: oidOrNull(requestedCoordinates.head ?? finalGate.head),
-      observedHead: oidOrNull(observed.head ?? relation.observedTip),
+      observedHead: oidOrNull(observed.head ?? relation.observedTip ?? result.observedTip),
     },
     ...(deliverableId.success ? { deliverableId: deliverableId.data } : {}),
     ...(Array.isArray(result.paths)
@@ -2039,6 +2147,52 @@ async function revalidateIntermediateDeliveryMergePolicy(
   return current !== null && canonicalize(current) === canonicalize(binding)
     ? { status: "exact" }
     : { status: "refused" };
+}
+
+/** The Candidate subject collected at one exact revision, as the terminal correction reads it. */
+type CollectedCandidateTarget =
+  Extract<Awaited<ReturnType<typeof collectGitCandidateSubject>>, { status: "collected" }>["target"];
+
+/**
+ * Resolve the corrected terminal head and the Candidate subject collected at it.
+ *
+ * The head must append to the head the record already binds — an unmoved or unrelated HEAD is the correction
+ * not having been made rather than a subject that could not be read, so the two refuse separately.
+ *
+ * @param input - The Git boundaries, the collection inputs, and the terminal head the correction must append to.
+ * @returns The collected target, or the reason the observed head supplied none.
+ */
+async function resolveTerminalCorrectionTarget(input: {
+  readonly localExec: Parameters<typeof observeDeliveryEligibilityRef>[0];
+  readonly exec: Parameters<typeof collectGitCandidateSubject>[0]["exec"];
+  readonly cwd: string;
+  readonly workUnitId: string;
+  readonly baseBranch: string;
+  readonly baseRevision: Parameters<typeof collectGitCandidateSubject>[0]["baseRevision"];
+  readonly recordedTerminalHead: string;
+}): Promise<
+  | { readonly status: "collected"; readonly target: CollectedCandidateTarget }
+  | {
+      readonly status: "refused";
+      readonly reason: "terminal-correction-not-append-only" | "candidate-verification-unavailable";
+    }
+> {
+  const head = await observeDeliveryEligibilityRef(input.localExec, "HEAD");
+  if (head === null || head.head === input.recordedTerminalHead
+    || await readAncestry(input.localExec, input.recordedTerminalHead, head.head) !== "ancestor") {
+    return { status: "refused", reason: "terminal-correction-not-append-only" };
+  }
+  const collected = await collectGitCandidateSubject({
+    cwd: input.cwd,
+    name: input.workUnitId,
+    baseBranch: input.baseBranch,
+    baseRevision: input.baseRevision,
+    revision: head.head,
+    exec: input.exec,
+  });
+  return collected.status === "collected"
+    ? { status: "collected", target: collected.target }
+    : { status: "refused", reason: "candidate-verification-unavailable" };
 }
 
 async function executeDeliveryCommand(
@@ -3822,10 +3976,11 @@ async function executeDeliveryCommand(
       }
       const verifiedRevision = checkoutCoordinates.head === terminal.head ? undefined : terminal.head;
       const committedCandidatePath = resolveCandidateRecordRelativePath(planRead.value.workUnitId);
-      const [candidate, currentTarget, unstagedReviewablePaths, actor, boundarySnapshot, committedPredecessorRecord] =
-        await Promise.all([
+      const [
+        candidate, collectedTarget, unstagedReviewablePaths, actor, boundarySnapshot, committedPredecessorRecord,
+      ] = await Promise.all([
         readCandidateRecordVersioned(cwd, planRead.value.workUnitId),
-        collectGitCandidateTarget({
+        collectGitCandidateSubject({
           cwd,
           name: planRead.value.workUnitId,
           baseBranch: settings["branch.base"],
@@ -3846,6 +4001,12 @@ async function executeDeliveryCommand(
       if (candidate.record === null || candidate.version === null) {
         return { status: "refused", reason: "candidate-record-unavailable" };
       }
+      // Unavailable rather than not-current: no comparison was reached, so nothing here establishes that the
+      // Candidate moved. Reading it as movement would report a settled Candidate as a stale one.
+      if (collectedTarget.status !== "collected") {
+        return { status: "refused", reason: "candidate-verification-unavailable" };
+      }
+      const currentTarget = collectedTarget.target;
       if (boundarySnapshot.boundary === null) {
         return { status: "refused", reason: "public-boundary-unavailable" };
       }
@@ -4000,6 +4161,13 @@ async function executeDeliveryCommand(
       retirement: {
         observeLocalRef: (ref) => observeDeliveryLocalRef(exec, ref),
         observeRemoteRef: (ref) => observeDeliveryRemoteRef(exec, parsed.remote, ref),
+        // Pinned to the resolved checkout, because the ancestry answer must come from the repository
+        // this composition root bound rather than whatever directory the process is running in.
+        readAncestry: (ancestor, descendant) => readAncestry(
+          (command, args, options) => exec(command, args, { ...options, cwd }),
+          ancestor,
+          descendant,
+        ),
         readTerminalRequest: (repository, binding) => host.readRequest(repository, binding),
       },
     });
@@ -4011,6 +4179,7 @@ async function executeDeliveryCommand(
     repository: string,
     protectedTargetRef: string,
     remote: string,
+    conflictResolution?: z.infer<typeof NativeSuffixConflictResolutionSchema>,
   ) => {
     const host = new GhDeliveryHostPort(hostedGhRunner);
     const rawExec = createRawGitExec(cwd);
@@ -4020,6 +4189,7 @@ async function executeDeliveryCommand(
       landed,
       repository,
       protectedTargetRef,
+      conflictResolution,
     }, {
       observeRequest: (binding) => host.readRequest(repository, binding),
       observeRef: async (ref) => {
@@ -5004,6 +5174,34 @@ async function executeDeliveryCommand(
       })),
     });
   }
+  if (command === "native-land-release") {
+    const parsed = NativeReleaseSchema.parse(request);
+    const stateRead = await stateStore.read(parsed.planId);
+    if (stateRead.status !== "ok" || stateRead.value === null) {
+      return { status: "blocked", reason: "delivery-unavailable", recommendedActionText: "Restore canonical delivery state before continuing." };
+    }
+    const current = stateRead.value;
+    const operation = current.value.activeOperation;
+    const landing = operation !== null && operation.kind === "land" ? operation : null;
+    const host = new GhDeliveryHostPort(hostedGhRunner);
+    const admitted = await admitNativeDeliveryLandingRelease({
+      planId: parsed.planId,
+      current,
+      operationId: parsed.operationId,
+      repository: parsed.repository,
+    }, {
+      host,
+      observeEffect: async () => landing === null
+        ? { outcome: "ambiguous" }
+        : observeNativeDeliveryEffect(host, current.value, parsed.repository, landing, exec, cwd, parsed.remote),
+    });
+    if (admitted.status !== "admitted") return admitted;
+    return releaseNativeDeliveryLanding({ planId: parsed.planId, current, admitted }, {
+      observeLocalRef: (ref) => observeDeliveryLocalRef(exec, ref),
+      rewriteLocalRef: (input) => rewriteDeliveryLocalRef({ exec, ...input }),
+      stateStore,
+    });
+  }
   if (command === "native-land-prepare" || command === "native-land-submit" || command === "native-land-status") {
     const parsed = (command === "native-land-prepare" ? NativePrepareSchema
       : command === "native-land-submit" ? NativeSubmitSchema : NativeStatusSchema).parse(request);
@@ -5242,6 +5440,7 @@ async function executeDeliveryCommand(
       status.request.repository,
       operation.effect.targetRef,
       status.remote,
+      status.conflictResolution,
     );
   }
 
@@ -5499,7 +5698,14 @@ async function executeDeliveryCommand(
             deliverableId: input.deliverableId,
             workUnitSlug: input.workUnitId,
           },
-        }, { deliveryMemberLookup: memberLookup });
+        }, {
+          deliveryMemberLookup: memberLookup,
+          readDeliveryAncestry: (ancestor, descendant) => readAncestry(
+            (command, args, options) => exec(command, args, { ...options, cwd }),
+            ancestor,
+            descendant,
+          ),
+        });
         if (checked.state !== "ready") {
           return { status: "refused" as const, reason: "review-readiness-invalid" as const };
         }
@@ -5708,11 +5914,13 @@ async function executeDeliveryCommand(
             if (baseline.target.revision === retainedHead) {
               return { revision: retainedHead, baselineRelation: "exact" as const };
             }
-            if (await readAncestry(localExec, baseline.target.revision, retainedHead) !== "ancestor") return null;
+            if (await readAncestry(localExec, baseline.target.revision, retainedHead) !== "ancestor") {
+              return "candidate-not-current" as const;
+            }
             if (matchingPendingVerification) {
               return { revision: retainedHead, baselineRelation: "ancestor" as const };
             }
-            const retainedTarget = await collectGitCandidateTarget({
+            const retainedCollection = await collectGitCandidateSubject({
               cwd,
               name: currentPlan.workUnitId,
               baseBranch,
@@ -5720,26 +5928,29 @@ async function executeDeliveryCommand(
               revision: retainedHead,
               exec,
             });
-            return retainedTarget.subject.subjectDigest === baseline.target.subject.subjectDigest
+            // Its own reason rather than the mismatch below: that one is the digests having been compared
+            // and found different, and a subject that was never collected reached no comparison at all.
+            if (retainedCollection.status !== "collected") return "candidate-verification-unavailable" as const;
+            return retainedCollection.target.subject.subjectDigest === baseline.target.subject.subjectDigest
               ? { revision: retainedHead, baselineRelation: "equivalent" as const }
-              : null;
+              : "candidate-not-current" as const;
           })();
-          if (retainedTerminalTarget === null) {
-            return { status: "refused", reason: "candidate-not-current" };
+          if (typeof retainedTerminalTarget === "string") {
+            return { status: "refused", reason: retainedTerminalTarget };
           }
-          const head = await observeDeliveryEligibilityRef(localExec, "HEAD");
-          if (head === null || head.head === terminal.coordinates.head
-            || await readAncestry(localExec, terminal.coordinates.head, head.head) !== "ancestor") {
-            return { status: "refused", reason: "terminal-correction-not-append-only" };
-          }
-          const currentTarget = await collectGitCandidateTarget({
+          const corrected = await resolveTerminalCorrectionTarget({
+            localExec,
+            exec,
             cwd,
-            name: currentPlan.workUnitId,
+            workUnitId: currentPlan.workUnitId,
             baseBranch,
             baseRevision,
-            revision: head.head,
-            exec,
+            recordedTerminalHead: terminal.coordinates.head,
           });
+          if (corrected.status === "refused") {
+            return { status: "refused", reason: corrected.reason };
+          }
+          const currentTarget = corrected.target;
           const projectedTarget = effective.state === "current"
             ? {
                 revision: effective.recognizedTarget.revision,
@@ -5779,13 +5990,32 @@ async function executeDeliveryCommand(
         if (coordinates === null || coordinates.head !== candidateTargetRevision) {
           return { status: "refused", reason: "candidate-coordinate-unavailable" };
         }
-        const base = await resolveGitCandidateTargetBase({
+        // The reason the eligibility readers already give this condition, because it is the same condition:
+        // the member and the revision it is measured against share more than one best ancestor, and merging
+        // the base in clears it. The coordinate reason a line above asserts something else — the Candidate's
+        // own coordinate, which was just read. The remedy rides along for the same reason the reason does:
+        // the tip just read is the revision a merge collapses the pair onto, so the refusal names the act
+        // that clears it rather than leaving the operator to derive it.
+        const comparisonBase = requestedPredecessorBase ? predecessorHead : baseRevision;
+        const base = await readGitCandidateTargetBase({
           cwd,
           revision: candidateTargetRevision,
           baseBranch: requestedPredecessorBase ? predecessorBranch : baseBranch,
-          baseRevision: requestedPredecessorBase ? predecessorHead : baseRevision,
+          baseRevision: comparisonBase,
           exec,
         });
+        if (base.status !== "resolved") {
+          return {
+            status: "refused",
+            reason: "ambiguous-predecessor-base",
+            observedTip: comparisonBase,
+            detail: base.detail,
+            remedy: {
+              kind: "delivery-base-merge-required",
+              automatedCommand: ["git", "merge", comparisonBase],
+            },
+          };
+        }
         const projected = rebindDeliveryTerminalCoordinates({
           plan: currentPlan,
           state: currentState.value,
@@ -5800,7 +6030,7 @@ async function executeDeliveryCommand(
           repository: parsed.repository,
           protectedTargetRef: `refs/heads/${baseBranch}`,
           request: observedTop.request,
-          coordinates: { base, head: coordinates.head, tree: coordinates.tree },
+          coordinates: { base: base.base, head: coordinates.head, tree: coordinates.tree },
           ...(internalContext?.settledRecordEffectHead == null
             ? {}
             : { settledRecordEffectHead: internalContext.settledRecordEffectHead }),
