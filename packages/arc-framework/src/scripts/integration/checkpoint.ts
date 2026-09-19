@@ -701,10 +701,12 @@ function deliveryClassifierRemedy(
   workUnit: string,
   baseOid: string,
 ): SpineRemedy {
-  if (command === "merge-unrelated") return checkpointUnrelatedBaseRemedy(baseOid);
-  if (command === "reconcile-base") return checkpointAmbiguousBaseRemedy(workUnit);
-  if (command === "rebaseline") return checkpointRebaselineRemedy(workUnit);
-  return checkpointRemedy("delivery-terminal-blocked", workUnit);
+  switch (command) {
+    case "merge-unrelated": return checkpointUnrelatedBaseRemedy(baseOid);
+    case "reconcile-base": return checkpointAmbiguousBaseRemedy(workUnit);
+    case "rebaseline": return checkpointRebaselineRemedy(workUnit);
+    case "rerun-checkpoint": return checkpointRemedy("delivery-terminal-blocked", workUnit);
+  }
 }
 
 /**

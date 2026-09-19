@@ -509,7 +509,8 @@ already applied. Dispatch only on the typed result:
 ### Decline a settled landing
 
 An operator who will not adopt a settled landing releases its reservation rather than settling it. The decline
-restores the local member refs the settlement moved; it never reverses the landing the host performed.
+restores every local ref the settlement moved — the member refs and, once the absorber has run, the terminal
+top; it never reverses the landing the host performed.
 
 ```bash
 arc delivery native land-release -
@@ -518,17 +519,18 @@ arc delivery native land-release -
 The request carries the plan, repository, remote, and the `operationId` of the held reservation. Dispatch only on
 the typed result:
 
-- `released` — the reservation is cleared. `restorations` lists every local member ref put back with the head it
+- `released` — the reservation is cleared. `restorations` lists every local ref put back with the head it
   returned to; `landed` names the effect and the members it covers, all of which stay landed. A non-null
   `standingRemoteTop` names the terminal ref the settlement published outward and the head it wrote there — the
   decline is local-only, so read that ref and decide what it should carry before continuing.
 - `retryable / preserved / delivery-native-land-status` — nothing landed, so there is nothing to decline. Rerun
   `land-status`, which owns that reconciliation.
-- `blocked` carrying a `lease` — a local member ref no longer sits where the settlement left it. The refusal names
+- `blocked` carrying a `lease` — a local ref the settlement moved no longer sits where it left it. The refusal names
   the ref and both heads, nothing was written, and the reservation still stands. Restore that ref and rerun the
   decline.
-- `blocked / reservation-not-submitted` — a prepared reservation submitted no effect to decline; abandon it through
-  `arc delivery reconcile`, which preserves the reservation and re-presents the landing for a deliberate choice.
+- `blocked / reservation-not-submitted` — a prepared reservation submitted no effect to decline; take it back
+  through `arc delivery reconcile`, which preserves the reservation and re-presents the landing for a
+  deliberate choice.
 - every other refusal keeps the reservation and stops. A pending, queued, partly landed, or contradictory effect is
   never declined.
 

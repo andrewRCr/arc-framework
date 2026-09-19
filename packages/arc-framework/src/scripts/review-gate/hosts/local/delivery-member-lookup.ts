@@ -75,6 +75,11 @@ function projectDeliveryMemberBinding(input: {
       headRef: branchName(member.ref),
       head: member.coordinates.head,
       candidateHead: terminal?.coordinates?.head ?? null,
+      // The nearest *bound* successor rather than the immediate one: an unbound member records no head to
+      // stack on, so taking the first that does keeps the bound derived from the state as read instead of
+      // from an assumption that members bind in order.
+      successorHead: members.slice(memberIndex + 1).find((later) => later.coordinates !== null)
+        ?.coordinates?.head ?? null,
       isFinalMember: terminal?.deliverableId === input.deliverableId,
     },
   };

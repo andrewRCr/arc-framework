@@ -238,6 +238,7 @@ describe("repository delivery member lookup", () => {
         headRef: "member-1",
         head: "4".repeat(40),
         candidateHead: "5".repeat(40),
+        successorHead: "5".repeat(40),
         isFinalMember: false,
       },
     });
@@ -415,6 +416,7 @@ describe("repository delivery member lookup", () => {
         headRef: "delivery/example/member-0",
         head: FIRST_HEAD,
         candidateHead: SECOND_HEAD,
+        successorHead: SECOND_HEAD,
         isFinalMember: false,
       },
     });
@@ -436,6 +438,8 @@ describe("repository delivery member lookup", () => {
       member: {
         head: FIRST_HEAD,
         candidateHead: null,
+        // The member above records no head, so there is none to stack under either.
+        successorHead: null,
         isFinalMember: false,
       },
     });

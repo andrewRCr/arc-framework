@@ -84,7 +84,11 @@ function ambiguous(
     reason: "merge-base-ambiguous",
     detail: "Multiple baseline-to-current merge bases are available.",
     mergeBaseCount,
-    remedy: { kind: "candidate-rebaseline-required" },
+    remedy: {
+      kind: "candidate-rebaseline-required",
+      text:
+        "Re-pin the durable baseline over freshly verified content by rooting a new lineage. No merge clears this pair: both compared elements are fixed, so an append-only merge leaves their two best ancestors where they were.",
+    },
   });
 }
 

@@ -20,6 +20,9 @@ import {
   readGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
 import {
+  CandidateSubjectUncollectableError,
+} from "../../lib/work-unit/git-candidate-subject.js";
+import {
   readSubmissionBoundaryVersioned,
 } from "../../lib/work-unit/submission-boundary-store.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
@@ -305,6 +308,27 @@ export async function ensureCandidateHeadAvailable(input: {
  * @param target - The exact change-request target the obligation is reported for.
  * @returns The obligation state and the evidence sentence naming what decided it.
  */
+/**
+ * Project the effective target, reporting a subject the branch and its base leave uncollectable as this
+ * reader's own blocked statement.
+ *
+ * The projection raises that condition rather than returning it, so without this the one repository fact
+ * the operator could act on would leave the reader as an unexplained failure.
+ */
+async function projectEffectiveTargetOrUncollectable(
+  input: Parameters<typeof projectGitCandidateEffectiveTarget>[0],
+): Promise<
+  | { readonly ok: true; readonly effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>> }
+  | { readonly ok: false; readonly detail: string }
+> {
+  try {
+    return { ok: true, effective: await projectGitCandidateEffectiveTarget(input) };
+  } catch (error) {
+    if (!(error instanceof CandidateSubjectUncollectableError)) throw error;
+    return { ok: false, detail: error.message };
+  }
+}
+
 export async function readRoutedObligation(
   cwd: string,
   exec: GitExec,
@@ -408,8 +432,7 @@ export async function readRoutedObligation(
         preparedTerminal = { deliverableId: terminal.deliverableId, stateHead: preparedTerminalHead };
       }
       // A target recording more than one base blocks the obligation in this reader's own words, beside the
-      // conditions above. It reached the same wording as a caught exception before; what changed is that the
-      // statement is composed here, where a base that cannot be read at all still raises past it.
+      // conditions above. A base that cannot be read at all still raises past this point.
       let historicalTarget: { readonly revision: string; readonly currentBase: string } | undefined;
       if (preparedTerminalHead !== undefined) {
         const historicalBase = await readGitCandidateTargetBase({
@@ -424,7 +447,7 @@ export async function readRoutedObligation(
         }
         historicalTarget = { revision: preparedTerminalHead, currentBase: historicalBase.base };
       }
-      effective = await projectGitCandidateEffectiveTarget({
+      const projectedHistorical = await projectEffectiveTargetOrUncollectable({
         cwd,
         name: workUnit,
         baseBranch,
@@ -436,6 +459,8 @@ export async function readRoutedObligation(
         rawExec: createRawGitExec(cwd),
         ...(historicalTarget === undefined ? {} : { target: historicalTarget }),
       });
+      if (!projectedHistorical.ok) return { state: "blocked", detail: projectedHistorical.detail };
+      effective = projectedHistorical.effective;
       if (effective.state !== "current") {
         return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
       }
@@ -483,7 +508,7 @@ export async function readRoutedObligation(
       if (targetBase.status !== "resolved") {
         return { state: "blocked", detail: targetBase.detail };
       }
-      effective = await projectGitCandidateEffectiveTarget({
+      const projectedCurrent = await projectEffectiveTargetOrUncollectable({
         cwd,
         name: workUnit,
         baseBranch,
@@ -492,6 +517,8 @@ export async function readRoutedObligation(
         rawExec: createRawGitExec(cwd),
         target: { revision: candidateHead, currentBase: targetBase.base },
       });
+      if (!projectedCurrent.ok) return { state: "blocked", detail: projectedCurrent.detail };
+      effective = projectedCurrent.effective;
     }
     if (effective.state !== "current"
       || (correctiveContinuation === undefined && effective.recognizedTarget.revision !== candidateHead)) {

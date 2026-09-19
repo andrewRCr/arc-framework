@@ -274,6 +274,47 @@ describe("native delivery landing decline", () => {
     expect(rewriteLocalRef).not.toHaveBeenCalled();
   });
 
+  const pendingRestoration = {
+    ref: "refs/heads/delivery/example/one",
+    observedHead: "a".repeat(40),
+    restoreHead: "b".repeat(40),
+  };
+
+  /**
+   * A ref the restore cannot read is not a ref that moved, and the decline has to say which it met: one is
+   * cleared by putting the ref back, the others by making the read succeed at all.
+   */
+  it.each([
+    ["is absent", { status: "absent" as const }, "local-ref-absent"],
+    ["reads malformed", { status: "refused" as const, reason: "malformed" as const }, "local-ref-malformed"],
+    ["is unavailable", { status: "refused" as const, reason: "unavailable" as const }, "local-ref-unavailable"],
+  ])("refuses the restoration when the local ref %s", async (_label, observation, expected) => {
+    const rewriteLocalRef = vi.fn();
+
+    await expect(restoreNativeDeliveryLandingRefs([pendingRestoration], {
+      observeLocalRef: async () => observation,
+      rewriteLocalRef,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: expected,
+      ref: pendingRestoration.ref,
+      expectedHead: pendingRestoration.observedHead,
+      observedHead: null,
+    });
+    expect(rewriteLocalRef).not.toHaveBeenCalled();
+  });
+
+  it("names a rewrite refusal that carries no reason of its own", async () => {
+    await expect(restoreNativeDeliveryLandingRefs([pendingRestoration], {
+      observeLocalRef: async () => ({ status: "observed" as const, head: pendingRestoration.observedHead }),
+      rewriteLocalRef: async () => ({ status: "refused" as const }),
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "local-ref-refused",
+      ref: pendingRestoration.ref,
+    });
+  });
+
   async function admittedDecline(
     planId: string,
     current: { readonly revision: number; readonly value: DeliveryStateV1 },

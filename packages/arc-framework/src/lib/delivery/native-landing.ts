@@ -1005,8 +1005,9 @@ export async function admitNativeDeliveryLandingRelease(input: {
       status: "blocked",
       reason: "reservation-not-submitted",
       recommendedActionText:
-        "A prepared native landing has submitted no effect to decline; abandon it with `arc delivery reconcile`, "
-        + "which preserves the reservation and re-presents the landing for a deliberate choice.",
+        "A prepared native landing has submitted no effect to decline; take it back through "
+        + "`arc delivery reconcile`, which preserves the reservation and re-presents the landing for a "
+        + "deliberate choice.",
     };
   }
   const disposition = await observeNativeLandingEffectDisposition(operation, input.repository, dependencies);

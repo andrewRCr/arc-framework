@@ -13,6 +13,14 @@ export interface DeliveryMemberBinding {
   readonly headRef: string | null;
   readonly head: string;
   readonly candidateHead: string | null;
+  /**
+   * The recorded head of the next bound member after this one, or `null` when none is bound.
+   *
+   * Members stack, so every later member's head contains this one. A head under review that has reached this
+   * revision therefore belongs to a member further up the stack, and reading it bounds an admitted advance from
+   * above the way this member's own head bounds it from below.
+   */
+  readonly successorHead: string | null;
   readonly isFinalMember: boolean;
 }
 

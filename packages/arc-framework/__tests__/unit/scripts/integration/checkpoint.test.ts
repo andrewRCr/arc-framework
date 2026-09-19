@@ -10,6 +10,7 @@ import {
 } from "../../../../src/scripts/integration/checkpoint.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
+import { CandidateSubjectUncollectableError } from "../../../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
@@ -728,17 +729,25 @@ describe("integration checkpoint", () => {
       });
   });
 
-  it("hands back the typed reconcile when the branch and its base share more than one merge base", async () => {
+  it("refuses the whole command when the branch and its base share more than one merge base", async () => {
     const deps = dependencies();
     deps.readDrift = async () => unknownMovement("ambiguous");
+    // The subject reader answers this history the way the repository does: it cannot collect against a pair
+    // naming two best ancestors, so the command never reaches the movement plan's reconcile arm.
+    deps.readCandidate = async () => {
+      throw new CandidateSubjectUncollectableError(
+        "merge-base-ambiguous",
+        "The revisions have more than one best merge base.",
+      );
+    };
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
-        state: "reconcile",
-        nextAction: "reconcile-base",
-        reason: "base-reconcile-required",
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The revisions have more than one best merge base.",
         remedy: {
-          argv: ["arc", "base", "merge", "--expected-base", oid("b"), "--expected-head", oid("c")],
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
       });
   });

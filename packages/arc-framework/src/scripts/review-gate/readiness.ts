@@ -7,10 +7,19 @@
  * A `delivery-member` vehicle adds two further authority sources, both outside
  * that root and both supplied by the caller's composition root: the delivery
  * lookup, which reads the Git-common delivery state of the repository that root
- * resolved, and an ancestry read relating the head a member records to the head
- * under review. Delivery state is repository-common rather than a tree product
- * and ancestry is a property of the object graph, so neither can come from the
- * request. No other vehicle reads outside the supplied root.
+ * resolved, and ancestry reads over the heads that state records. Delivery state
+ * is repository-common rather than a tree product and ancestry is a property of
+ * the object graph, so neither can come from the request. No other vehicle reads
+ * outside the supplied root.
+ *
+ * The member a request names is selected from the identity the request asserts,
+ * so ancestry is what ties that member to the head under review — and one read
+ * cannot do it alone. Members stack, which makes every later member's head a
+ * descendant of this one's, so a read placing the head under review above this
+ * member's recorded head admits every member above it too. The advance is
+ * therefore bounded from both sides: above this member's recorded head, and
+ * below the next bound member's. A head that has reached the successor belongs
+ * to the successor, and reviews under its vehicle.
  *
  * The supplied checkout belongs to the attended operator. This reader checks
  * lifecycle completeness; it does not impose symlink, containment, or
@@ -39,7 +48,10 @@ import {
   type AncestryAnswer,
 } from "../../lib/delivery/predecessor-relation.js";
 import { resolveLifecyclePosition } from "../../lib/work-unit/lifecycle-state.js";
-import type { DeliveryMemberIdentityLookup } from "./core/delivery-member-lookup.js";
+import type {
+  DeliveryMemberBinding,
+  DeliveryMemberIdentityLookup,
+} from "./core/delivery-member-lookup.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
 const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
@@ -487,6 +499,50 @@ export function lifecycleArtifactFacts(content: string, path: string): ReviewRea
   return [...completionFacts(content, path), ...releaseNotesFacts(content, path)];
 }
 
+/**
+ * Bound one admitted advance from above, against the next bound member's recorded head.
+ *
+ * Only an advance is asked: a head under review that is the member's recorded head is that member's by
+ * identity, and needs nothing further. A head placed above it, though, is placed above every member above it
+ * as well, so without this read a later member's head would be admitted under an earlier member's vehicle.
+ *
+ * A member with no bound successor is admitted unread. There is no recorded sibling head for the head under
+ * review to be, so there is nothing for this bound to compare it against — the exposure needs a successor the
+ * state already binds.
+ *
+ * @param member - The resolved binding, carrying the successor head the same read established.
+ * @param observedHead - The head under review.
+ * @param readAncestry - The ancestry reader, absent when the composition root supplied none.
+ * @returns One fact when the advance is unbounded or could not be bounded; empty when the bound holds.
+ */
+async function successorBoundFacts(
+  member: DeliveryMemberBinding,
+  observedHead: string,
+  readAncestry: ReviewReadinessDependencies["readDeliveryAncestry"],
+): Promise<readonly ReviewReadinessFact[]> {
+  if (member.successorHead === null) return [];
+  const successorReached = readAncestry === undefined
+    ? "unresolvable"
+    : await readAncestry(member.successorHead, observedHead);
+  if (successorReached === "not-ancestor") return [];
+  // The same split the read below this member's head keeps: a successor the head under review demonstrably
+  // carries is answered by reviewing under that member, and one nobody could place is answered by making the
+  // read succeed. Naming the first for the second would send an operator to a vehicle that may not be theirs.
+  return [successorReached === "ancestor"
+    ? fact(
+      "delivery-member-successor-reached",
+      "vehicle.deliverableId",
+      "The head under review carries the next delivery member's recorded head, so it is not this member's "
+      + "head. Review it under the member that records it.",
+    )
+    : fact(
+      "delivery-member-successor-unavailable",
+      "pullRequest.headSha",
+      "The head under review is ahead of this member's recorded head, and whether it carries the next "
+      + "member's recorded head could not be read. Fetch the next member's recorded head and rerun.",
+    )];
+}
+
 async function evaluateDeliveryMember(
   request: ReviewReadinessRequest & {
     vehicle: { kind: "delivery-member"; planId: string; deliverableId: string; workUnitSlug: string };
@@ -561,9 +617,9 @@ async function evaluateDeliveryMember(
     boundHead: member.head,
     observedHead: request.pullRequest.headSha,
     boundIsAncestorOfObserved,
-    // Only the append-only advance is admissible here, so the reverse direction is
-    // never read. Leaving it unestablished also keeps `diverged` unreachable, which
-    // is the one variant carrying the cardinality below, so no count is ever read.
+    // Only the append-only advance is admissible here, and it is bounded from above below, so the reverse
+    // direction is never read. Leaving it unestablished also keeps `diverged` unreachable, which is the one
+    // variant carrying the cardinality below, so no count is ever read.
     observedIsAncestorOfBound: "unresolvable",
     mergeBaseCount: 1,
   });
@@ -585,6 +641,9 @@ async function evaluateDeliveryMember(
         "The member's recorded head is not the head under review, and whether the head under review "
         + "descends from it could not be read. Fetch the member's recorded head and rerun.",
       ));
+  }
+  if (relation.kind === "advanced") {
+    facts.push(...await successorBoundFacts(member, request.pullRequest.headSha, readAncestry));
   }
   if (member.isFinalMember) {
     facts.push(fact(

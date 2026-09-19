@@ -756,9 +756,11 @@ the draft recorded it — each is a single `expectPinnedObservation` call to rep
 - **Neither shape** — the declared `target` states the resolve-branch expectation the design rejects, so the
   awaited value never arrives and the helper reports that neither shape describes the result. The replacement
   asserts **what the design produces**, never what the hold awaited. The committed-arm subject, the digest sibling,
-  the drift overlap, and the review status are here.
-- **Neither** — the Candidate applicability hold. Its `observed` is the refusal the design keeps, so it stays
-  green and nothing forces its replacement; it is retired deliberately, on the reading below.
+  and the drift overlap are here.
+- **Neither** — the Candidate applicability hold and the review-status hold. Each one's `observed` is the refusal
+  the design keeps, so neither goes red and nothing forces its replacement; both are retired deliberately. The
+  applicability hold is the one read twice below; the review-status hold sat in the same position, and its
+  replacement asserts the base-movement half while leaving the routed obligation unasserted.
 
 Per hold:
 

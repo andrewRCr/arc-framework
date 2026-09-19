@@ -14,6 +14,7 @@ import {
 } from "../../../src/lib/delivery/native-landing.js";
 import {
   attachDeliveryOperationEffectIdentity,
+  beginNativeDeliverySettlement,
   beginNativeDeliverySubmission,
   reserveDeliveryOperation,
 } from "../../../src/lib/delivery/operation.js";
@@ -583,6 +584,28 @@ describe("native delivery landing", () => {
       reason: "submission-before-persist-unresolved",
     });
     expect(replayHost.submitNativeMerge).not.toHaveBeenCalled();
+
+    // Once the settle has begun the same reservation must not submit again either. The settling phase is
+    // reachable with no identity attached — a provider that merged synchronously never returned one — which
+    // is the only way past the pending arm above, so the refusal has to name the settle rather than the
+    // unresolved submission.
+    const settlingMembers = members.map(({ deliverableId, ref, coordinates }) => {
+      if (ref === null || coordinates === null) throw new Error(`fixture member is unbound: ${deliverableId}`);
+      return { deliverableId, ref, coordinates };
+    });
+    const settling = beginNativeDeliverySettlement(submittingRecord, "operation-1", settlingMembers);
+    if (settling.status === "refused") throw new Error(`fixture settlement failed: ${settling.reason}`);
+    const settlingHost = { submitNativeMerge: vi.fn(), observeNativeMerge: vi.fn() };
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: { revision: record.revision + 1, value: settling.state },
+      operationId: "operation-1",
+      request,
+    }, { ...dependencies, host: settlingHost })).resolves.toMatchObject({
+      status: "blocked",
+      reason: "settlement-in-flight",
+    });
+    expect(settlingHost.submitNativeMerge).not.toHaveBeenCalled();
 
     await expect(submitReservedNativeDeliveryMerge({
       planId: plan.planId,

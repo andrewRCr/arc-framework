@@ -84,6 +84,8 @@ export type CandidateApplicabilityStructuralFacts = z.infer<
  */
 export const CandidateRebaselineRemedySchema = z.strictObject({
   kind: z.literal("candidate-rebaseline-required"),
+  /** The clearing act in the operator's own terms, for a reader that renders this rather than branching on it. */
+  text: z.string().min(1),
 });
 export type CandidateRebaselineRemedy = z.infer<typeof CandidateRebaselineRemedySchema>;
 

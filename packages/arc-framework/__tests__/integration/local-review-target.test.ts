@@ -343,6 +343,7 @@ describe("member-coordinate target derivation", () => {
         workUnitId: "owning-work-unit",
         baseRef: "main",
         candidateHead: overrides.head,
+        successorHead: null,
         isFinalMember: false,
         ...overrides,
         headRef: overrides.headRef === undefined ? "delivery/plan/member-1" : overrides.headRef,

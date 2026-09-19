@@ -5993,8 +5993,9 @@ async function executeDeliveryCommand(
         // The reason the eligibility readers already give this condition, because it is the same condition:
         // the member and the revision it is measured against share more than one best ancestor, and merging
         // the base in clears it. The coordinate reason a line above asserts something else — the Candidate's
-        // own coordinate, which was just read. No remedy rides along: this reader composes no merge command,
-        // and naming one it never derived would be worse than the operator reading the condition.
+        // own coordinate, which was just read. The remedy rides along for the same reason the reason does:
+        // the tip just read is the revision a merge collapses the pair onto, so the refusal names the act
+        // that clears it rather than leaving the operator to derive it.
         const comparisonBase = requestedPredecessorBase ? predecessorHead : baseRevision;
         const base = await readGitCandidateTargetBase({
           cwd,
@@ -6009,6 +6010,10 @@ async function executeDeliveryCommand(
             reason: "ambiguous-predecessor-base",
             observedTip: comparisonBase,
             detail: base.detail,
+            remedy: {
+              kind: "delivery-base-merge-required",
+              automatedCommand: ["git", "merge", comparisonBase],
+            },
           };
         }
         const projected = rebindDeliveryTerminalCoordinates({

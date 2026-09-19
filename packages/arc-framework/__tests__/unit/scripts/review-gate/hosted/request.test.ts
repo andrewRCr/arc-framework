@@ -34,6 +34,7 @@ const DELIVERY_MEMBER = {
   headRef: "delivery/plan-1/member-1",
   head: HEAD,
   candidateHead: HEAD,
+  successorHead: null,
   isFinalMember: false,
 };
 

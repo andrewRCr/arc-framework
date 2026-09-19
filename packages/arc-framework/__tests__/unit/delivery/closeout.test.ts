@@ -295,7 +295,7 @@ describe("delivery closeout", () => {
       reason: "terminal-head-moved",
       remedy: { kind: "delivery-member-rebind-required", automatedCommand: null },
     });
-    // The pair D13 names reaches the caller as two acts, not one sentence sending both at the same rerun.
+    // The pair reaches the caller as two acts, not one sentence sending both at the same rerun.
     expect(baseWrong).toMatchObject({
       status: "blocked",
       reason: "terminal-base-ref-mismatch",

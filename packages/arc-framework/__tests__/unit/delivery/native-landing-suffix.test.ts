@@ -1073,7 +1073,7 @@ describe("the settlement phase's refusal remedy", () => {
 });
 
 /**
- * Success Criterion 2 — new member heads receive fresh applicability, review and checks before landing.
+ * New member heads receive fresh applicability, review and checks before landing.
  *
  * The settle rewrites member coordinates under the held reservation, so the gate result an operator carries
  * into the next cycle was taken at a head that no longer exists. These drive the settle's own published state

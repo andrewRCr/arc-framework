@@ -153,7 +153,7 @@ describe("terminal settlement conditions", () => {
   });
 
   it("separates a head that moved from a base ref that is wrong", async () => {
-    // The pair D13 names: both were one word before, and a caller acts on them differently — one
+    // The two refusals stay distinct because a caller acts on them differently — one
     // re-reads the landed head, the other retargets the request.
     const moved = await settle({ request: { headSha: "a".repeat(40) } });
     const rebased = await settle({ request: { baseRef: "some-other-target" } });

@@ -914,7 +914,7 @@ to a verdict and carries the cause as a discriminant instead. See
         - _Outcome:_ Both corrected to say the ambiguous arm asserts the route taken, not a remedy waiting at
           its end, and to name 4.R3 as what gives the checkpoint one. 4.5.c's text carries a
           `_Corrected in 4.R2 (A3):_` line rather than being silently rewritten — its `[x]` marker and its
-          original claim both stand, per D6.
+          original claim both stand.
 
 ### `[x]` **4.R3 Give the unbound work unit the route 4.8 names** — amendment A4
 

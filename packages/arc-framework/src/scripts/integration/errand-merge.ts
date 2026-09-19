@@ -293,7 +293,7 @@ function baseResolutionContinuation(
       "A base sharing more than one merge base with the branch proves no single comparison.",
       "Collapse the pair onto one merge base with the typed reconcile, then compose a fresh approved merge "
       + "request",
-      ["arc", "base", "merge", "--expected-base", baseOid, "--expected-head", headSha, "--json"],
+      ["arc", "base", "merge", "--expected-base", baseOid, "--expected-head", headSha],
     ),
   };
 }

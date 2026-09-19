@@ -613,7 +613,6 @@ describe("Errand merge operation", () => {
             "arc", "base", "merge",
             "--expected-base", oid("b"),
             "--expected-head", approvedTarget.headSha,
-            "--json",
           ],
         },
       },

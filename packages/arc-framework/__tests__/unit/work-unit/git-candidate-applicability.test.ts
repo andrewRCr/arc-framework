@@ -131,6 +131,31 @@ describe("Git Candidate applicability", () => {
     });
   });
 
+  /**
+   * An exit code other than 1 is not Git answering "no" — it is Git failing to answer. The containment
+   * question stays open, so the classification stops rather than reading the silence as divergence.
+   */
+  it("stops when the containment question cannot be answered at all", async () => {
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+        throw { exitCode: 128, stdout: bytes(""), stderr: bytes("fatal: bad object\n") };
+      }
+      if (args[0] === "merge-base") return result(`${oid("1")}\n`);
+      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(projectGitCandidateApplicability({
+      request: request(),
+      exec,
+      observeEndpoints: async () => ({ candidateHead: oid("c"), baseHead: oid("b") }),
+    })).resolves.toMatchObject({
+      state: "classification-failed",
+      nextAction: "stop",
+      reason: "git-failure",
+      detail: "The baseline-to-base ancestry could not be established.",
+    });
+  });
+
   it("stops malformed merge-base evidence separately from Git failure", async () => {
     const exec: RawGitExec = async (args) => {
       if (args[0] === "merge-base") return result("not-an-object-id\n");

@@ -2254,7 +2254,7 @@ describe("review status", () => {
 });
 
 /**
- * C11 at the review-status reduction, on the vehicle every existing check skips.
+ * The hold at the review-status reduction, on the vehicle every existing check skips.
  *
  * A pre-terminal delivery member is answered by a guard that requires an available overlap. An ambiguous or an
  * unrelated base is exactly the pair that has none, so the guard fired first and returned a rerun of the read

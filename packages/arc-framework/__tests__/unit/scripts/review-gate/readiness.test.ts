@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
@@ -15,6 +15,7 @@ import {
 } from "../../../../src/scripts/review-gate/readiness.js";
 
 const SHA = "a".repeat(40);
+const SUCCESSOR_SHA = "f".repeat(40);
 const ROOT = "/tree";
 const PLAN_ID = "3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 const DELIVERABLE_ID = `sha256:${"b".repeat(64)}`;
@@ -137,9 +138,11 @@ function resolvedMember(
     deliverableId: string;
     workUnitId: string;
     head: string;
+    successorHead: string | null;
     isFinalMember: boolean;
   }> = {},
 ): DeliveryMemberIdentityLookupResult {
+  const isFinalMember = overrides.isFinalMember ?? false;
   return {
     status: "bound",
     member: {
@@ -151,7 +154,10 @@ function resolvedMember(
       headRef: "delivery/demo/member-1",
       head: SHA,
       candidateHead: SHA,
-      isFinalMember: false,
+      // Stacked by default, because that is what a non-final member is: one with a member bound on top of it.
+      // The plan's last member is the one with nothing above, so it carries no successor head to be bounded by.
+      successorHead: isFinalMember ? null : SUCCESSOR_SHA,
+      isFinalMember,
       ...overrides,
     },
   };
@@ -1057,11 +1063,64 @@ describe("delivery-member authentication against delivery state", () => {
       {
         fs: buildFs({}),
         deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        // Two reads, not one: the head under review sits above this member's recorded head and below the
+        // next member's, which is the only span that belongs to this member alone.
+        readDeliveryAncestry: async (ancestor) => ancestor === SUCCESSOR_SHA ? "not-ancestor" : "ancestor",
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  /**
+   * Members stack, so a head placed above one member's recorded head is placed above every earlier member's
+   * too. Without the upper bound the member selected from the request's own identity would admit a sibling's
+   * head, and the review of one member's change request would be credited to another's vehicle.
+   */
+  it.each([
+    ["carries the next member's recorded head", "ancestor" as const,
+      "delivery-member-successor-reached", "vehicle.deliverableId"],
+    ["cannot be placed against it", "unresolvable" as const,
+      "delivery-member-successor-unavailable", "pullRequest.headSha"],
+  ])("refuses an advance that %s", async (_case, successorAnswer, code, path) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        readDeliveryAncestry: async (ancestor) => ancestor === SUCCESSOR_SHA ? successorAnswer : "ancestor",
+      },
+    );
+
+    expect(result).toMatchObject({ state: "invalid", payload: { facts: [{ code, path }] } });
+  });
+
+  it("admits an advance over a member the state binds no successor above", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40), successorHead: null })),
+        // Answering every read "ancestor" would refuse if anything were compared. Nothing is: with no
+        // successor head recorded there is no sibling head the head under review could be.
         readDeliveryAncestry: async () => "ancestor",
       },
     );
 
     expect(result.state).toBe("ready");
+  });
+
+  it("leaves an exact member head admitted without reading for a successor", async () => {
+    const readDeliveryAncestry = vi.fn(async () => "ancestor" as const);
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()), readDeliveryAncestry },
+    );
+
+    // The head under review is this member's recorded head, which is identity rather than topology, so the
+    // bound has nothing to add and the successor is never asked about.
+    expect(result.state).toBe("ready");
+    expect(readDeliveryAncestry).not.toHaveBeenCalledWith(SUCCESSOR_SHA, expect.anything());
   });
 
   // One read and two refusals. Both leave the member unadmitted, so a single code reads as harmless until the

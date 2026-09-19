@@ -1,4 +1,9 @@
-/** Planning probe: does an operator-resolved terminal absorption reach a covered applicability decision? */
+/**
+ * An operator-resolved terminal absorption reaches a covered applicability decision that advances the
+ * baseline, settles the same decision on a bounded check, and stops carrying the acceptance once the
+ * accepted content is rewritten. The absorption's parent pair stays in Git while the residual reported
+ * is the resolution rather than the absorbed content.
+ */
 
 import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";

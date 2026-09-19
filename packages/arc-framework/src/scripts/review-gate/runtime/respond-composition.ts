@@ -23,6 +23,7 @@ import {
   readGitCandidateTargetBase,
 } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import {
+  CandidateSubjectUncollectableError,
   collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../../../lib/work-unit/git-candidate-subject.js";
@@ -53,6 +54,20 @@ import {
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
 } from "../../../handlers/candidate-mutation-owner.js";
+
+/**
+ * Report a subject the branch and its base leave uncollectable under the boundary's own precondition type.
+ *
+ * The projection raises this condition rather than returning it, so a caller awaiting it beside the
+ * collection never reaches the collection's own arm. Naming it here keeps the reader told which repository
+ * condition stopped the derivation instead of that something failed.
+ */
+function rethrowUncollectableSubject(error: unknown): never {
+  if (error instanceof CandidateSubjectUncollectableError) {
+    throw new LocalTargetDerivationError("ambiguous-merge-base", error.message);
+  }
+  throw error;
+}
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
 export function createRespondDependencies(input: {
@@ -280,7 +295,7 @@ export function createRespondDependencies(input: {
           name: selected.workUnit,
           exec: input.exec,
         }),
-      ]);
+      ]).catch(rethrowUncollectableSubject);
       if (collected.status !== "collected") {
         throw new LocalTargetDerivationError(
           "ambiguous-merge-base",
