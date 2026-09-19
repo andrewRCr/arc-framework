@@ -38,11 +38,18 @@ import { resolveUserIdentity } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
+  REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID,
   REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID,
   REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID,
+  REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID,
+  REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID,
+  REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID,
+  REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID,
+  REVIEW_READINESS_REQUEST_SCHEMA_ID,
   REVIEW_REDUCE_REQUEST_SCHEMA_ID,
   REVIEW_RESOLVE_REQUEST_SCHEMA_ID,
   REVIEW_RESPOND_REQUEST_SCHEMA_ID,
+  REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID,
 } from "../scripts/review-gate/request-command-schemas.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
@@ -352,18 +359,14 @@ function reviewDiscoverableCommandInputSchema() {
 /** Request-source operand schema shared by the review handlers' own validation. */
 export const ReviewCommandInputSchema = reviewCommandInputSchema();
 
-/** Canonical paths of the review commands sharing the JSON request-source operand. */
-const REVIEW_JSON_COMMAND_PATHS = [
-  "review readiness",
-  "review frontline resolve",
-  "review hosted settle",
-  "review local prepare",
-  "review local attest",
-  "review local resume",
-  "review terminus accept",
-] as const;
+/**
+ * Canonical paths of the review commands sharing the JSON request-source operand without schema
+ * discovery. Empty while every review request root is registered; a new verb lands here until its
+ * request schema is registered and its path moves to the discoverable list below.
+ */
+const REVIEW_JSON_COMMAND_PATHS = [] as const;
 
-/** Interim schema-discoverable request boundaries; the full family remains owned by P1 design. */
+/** Schema-discoverable request boundaries; every review request root is registered. */
 export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review chunking resolve",
   "review planning-grooming resolve",
@@ -373,6 +376,13 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review reduce",
   "review respond",
   "review hosted request",
+  "review readiness",
+  "review frontline resolve",
+  "review hosted settle",
+  "review local prepare",
+  "review local attest",
+  "review local resume",
+  "review terminus accept",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
@@ -2280,7 +2290,14 @@ export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID
   | typeof REVIEW_REDUCE_REQUEST_SCHEMA_ID
   | typeof REVIEW_RESPOND_REQUEST_SCHEMA_ID
-  | typeof REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID;
+  | typeof REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID
+  | typeof REVIEW_READINESS_REQUEST_SCHEMA_ID
+  | typeof REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID
+  | typeof REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID
+  | typeof REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID;
 
 /** Emit one public request root together with only the registry documents its refs require. */
 export function handleReviewRequestSchema(
