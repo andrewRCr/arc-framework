@@ -439,6 +439,7 @@ describe("the integration checkpoint over an ambiguous history", () => {
               state: "mergeable" as const,
               repository: "example/repository",
               changeRequest: 1,
+              baseRef: "main",
               ...coordinates,
             },
           };
