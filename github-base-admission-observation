@@ -3,14 +3,20 @@
   "slug": "github-base-admission-observation",
   "claimId": "a5bbfad959153fcce2cc4248fb342122",
   "createdAt": "2026-09-19T16:26:06.995Z",
-  "updatedAt": "2026-09-19T16:26:06.995Z",
+  "updatedAt": "2026-09-19T17:16:36.330Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Preserve exact current-base merge admission without treating GitHub PR base.sha as live base authority.",
   "branch": "chore/github-base-admission-observation",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/github-base-admission-observation",
+    "headSha": "816e93514eda99a78c9d491a4e26153706476e79"
+  }
 }
