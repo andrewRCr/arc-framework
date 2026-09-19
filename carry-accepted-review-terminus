@@ -3,14 +3,20 @@
   "slug": "carry-accepted-review-terminus",
   "claimId": "7e24ce4f6985fa07a76590c3e02c89a6",
   "createdAt": "2026-09-19T12:08:27.196Z",
-  "updatedAt": "2026-09-19T17:17:24.215Z",
+  "updatedAt": "2026-09-19T18:09:18.648Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Carry an accepted review terminus across the base merge the checkpoint requires",
   "branch": "chore/carry-accepted-review-terminus",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/carry-accepted-review-terminus",
+    "headSha": "27e187b3d2933f7b9dcbaec5de224119e4b08d52"
+  }
 }
