@@ -773,6 +773,10 @@ The contract should distinguish findings that have no review thread.
 
 Nested provider guidance is not a file group.
 
+\`999\`: _🔴 Critical_
+
+<!-- cr-comment:v1:feedfacefeedfacefeedface -->
+
 </details>
 
 <!-- cr-comment:v1:abcdef1234567890abcdef12 -->
@@ -805,13 +809,18 @@ Provider guidance outside the supplemental section.
       ]),
     }));
 
-    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+    const result = await adapter.observeHandle(target);
+    expect(result).toMatchObject({
       kind: "findings",
       findings: [
         { origin: "review-thread", locus: "src/a.ts:7" },
-        { origin: "review-body", locus: "src/a.ts:7-9" },
+        { origin: "review-body", severity: "minor", locus: "src/a.ts:7-9" },
       ],
     });
+    if (result.kind !== "findings") return;
+    const reviewBodyFinding = result.findings.find((finding) => finding.origin === "review-body");
+    expect(reviewBodyFinding?.body).toContain("Nested provider guidance is not a file group.");
+    expect(reviewBodyFinding?.body).toContain("cr-comment:v1:feedfacefeedfacefeedface");
   });
 
   it("ignores details tags inside inline and fenced Markdown code", async () => {

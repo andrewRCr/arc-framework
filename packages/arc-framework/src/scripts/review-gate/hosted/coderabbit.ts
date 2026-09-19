@@ -257,8 +257,10 @@ interface SummaryMatch {
 interface DetailsBlock {
   id: number;
   parentId: number | null;
+  openStart: number;
   openEnd: number;
   closeStart: number;
+  closeEnd: number;
 }
 
 interface DetailsTag {
@@ -374,8 +376,10 @@ function detailsBlocks(body: string): DetailsBlock[] | null {
       blocks.push({
         id,
         parentId: stack.at(-1) ?? null,
+        openStart: tag.index,
         openEnd: tag.index + tag.text.length,
         closeStart: -1,
+        closeEnd: -1,
       });
       stack.push(id);
       continue;
@@ -384,10 +388,29 @@ function detailsBlocks(body: string): DetailsBlock[] | null {
     if (id === undefined) return null;
     const block = blocks[id];
     if (block === null || block === undefined) return null;
-    blocks[id] = { ...block, closeStart: tag.index };
+    blocks[id] = { ...block, closeStart: tag.index, closeEnd: tag.index + tag.text.length };
   }
-  if (stack.length > 0 || blocks.some((block) => block === null || block.closeStart < 0)) return null;
+  if (stack.length > 0
+    || blocks.some((block) => block === null || block.closeStart < 0 || block.closeEnd < 0)) return null;
   return blocks as DetailsBlock[];
+}
+
+function maskDetailsRanges(
+  body: string,
+  start: number,
+  end: number,
+  blocks: readonly DetailsBlock[],
+): string {
+  let cursor = start;
+  let masked = "";
+  for (const block of [...blocks].sort((left, right) => left.openStart - right.openStart)) {
+    if (block.openStart < cursor || block.closeEnd > end) continue;
+    masked += body.slice(cursor, block.openStart);
+    masked += body.slice(block.openStart, block.closeEnd)
+      .replace(/[^\r\n]/gu, (character) => " ".repeat(character.length));
+    cursor = block.closeEnd;
+  }
+  return masked + body.slice(cursor, end);
 }
 
 function directSummary(
@@ -441,6 +464,7 @@ function parseSupplementalSection(
     const count = nonNegativeInteger(countMatch[1]);
     if (count === null) return [];
     return [{
+      blockId: block.id,
       path: match.text.slice(0, countMatch.index).trim(),
       count,
       start: match.end,
@@ -458,8 +482,14 @@ function parseSupplementalSection(
 
   const findings: ReviewBodyFinding[] = [];
   for (const group of groups) {
-    const groupBody = body.slice(group.start, group.end);
-    const markers = [...groupBody.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
+    const originalGroupBody = body.slice(group.start, group.end);
+    const semanticGroupBody = maskDetailsRanges(
+      body,
+      group.start,
+      group.end,
+      blocks.filter((block) => block.parentId === group.blockId),
+    );
+    const markers = [...semanticGroupBody.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
     if (markers.length !== group.count) {
       return malformedWithContext("provider-supplemental-finding-count-mismatch", {
         category: section.category,
@@ -472,10 +502,11 @@ function parseSupplementalSection(
     let itemStart = 0;
     for (const marker of markers) {
       const fingerprint = marker[1] as string;
-      const item = groupBody.slice(itemStart, marker.index);
-      const loci = [...item.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+)`:\s*_/gmu)];
+      const semanticItem = semanticGroupBody.slice(itemStart, marker.index);
+      const originalItem = originalGroupBody.slice(itemStart, marker.index);
+      const loci = [...semanticItem.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+)`:\s*_/gmu)];
       const locusMatch = loci.at(-1);
-      const parsedSeverity = severity(item);
+      const parsedSeverity = severity(semanticItem);
       const findingContext = {
         category: section.category,
         group: group.path,
@@ -490,11 +521,11 @@ function parseSupplementalSection(
       if (parsedSeverity === null) {
         return malformedWithContext("provider-body-finding-severity-unrecognized", findingContext);
       }
-      const findingBody = item.slice(locusMatch.index).trim();
-      const metadataLineEnd = item.indexOf("\n", locusMatch.index);
+      const findingBody = originalItem.slice(locusMatch.index).trim();
+      const metadataLineEnd = semanticItem.indexOf("\n", locusMatch.index);
       const substantiveBody = metadataLineEnd === -1
         ? ""
-        : item.slice(metadataLineEnd + 1)
+        : semanticItem.slice(metadataLineEnd + 1)
           .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "")
           .trim();
       if (substantiveBody.length === 0) {
@@ -577,9 +608,18 @@ export function parseCodeRabbitReviewBody(
       .filter((section) => section.category === "outside-diff")
       .reduce((total, section) => total + section.count, 0),
   };
-  const markerCount = sections.reduce((total, section) => total + [
-    ...detailBody.slice(section.start, section.end).matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu),
-  ].length, 0);
+  const markerCount = sections.reduce((total, section) => {
+    const groupIds = new Set(blocks
+      .filter((block) => block.parentId === section.blockId)
+      .map((block) => block.id));
+    const semanticSectionBody = maskDetailsRanges(
+      detailBody,
+      section.start,
+      section.end,
+      blocks.filter((block) => block.parentId !== null && groupIds.has(block.parentId)),
+    );
+    return total + [...semanticSectionBody.matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu)].length;
+  }, 0);
   if (findings.length !== advertisedSupplementalCount || markerCount !== findings.length) {
     return malformedWithContext("provider-supplemental-total-count-mismatch", {
       advertised: advertisedSupplementalCount,
