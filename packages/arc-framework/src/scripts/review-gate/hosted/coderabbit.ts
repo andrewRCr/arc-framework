@@ -243,14 +243,22 @@ type SupplementalParseResult =
 interface SupplementalSection {
   category: SupplementalCategory;
   count: number;
-  headerStart: number;
   start: number;
+  end: number;
+  blockId: number;
 }
 
 interface SummaryMatch {
   text: string;
   start: number;
   end: number;
+}
+
+interface DetailsBlock {
+  id: number;
+  parentId: number | null;
+  openEnd: number;
+  closeStart: number;
 }
 
 function nonNegativeInteger(value: string): number | null {
@@ -268,19 +276,66 @@ function summaryMatches(body: string): SummaryMatch[] {
   }));
 }
 
-function supplementalSection(match: SummaryMatch): SupplementalSection | null {
+function supplementalSection(
+  match: SummaryMatch,
+  block: DetailsBlock,
+): SupplementalSection | null {
   const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
   if (countMatch?.[1] === undefined) return null;
   const count = nonNegativeInteger(countMatch[1]);
   if (count === null) return null;
   const label = match.text.slice(0, countMatch.index).toLowerCase();
   if (label.includes("nitpick") && label.includes("comment")) {
-    return { category: "nitpick", count, headerStart: match.start, start: match.end };
+    return { category: "nitpick", count, start: match.end, end: block.closeStart, blockId: block.id };
   }
   if (label.includes("outside") && label.includes("diff") && label.includes("comment")) {
-    return { category: "outside-diff", count, headerStart: match.start, start: match.end };
+    return { category: "outside-diff", count, start: match.end, end: block.closeStart, blockId: block.id };
   }
   return null;
+}
+
+function detailsBlocks(body: string): DetailsBlock[] | null {
+  const blocks: Array<DetailsBlock | null> = [];
+  const stack: number[] = [];
+  for (const tag of body.matchAll(/<\/?details(?:\s[^>]*)?>/giu)) {
+    if (!tag[0].startsWith("</")) {
+      const id = blocks.length;
+      blocks.push({
+        id,
+        parentId: stack.at(-1) ?? null,
+        openEnd: tag.index + tag[0].length,
+        closeStart: -1,
+      });
+      stack.push(id);
+      continue;
+    }
+    const id = stack.pop();
+    if (id === undefined) return null;
+    const block = blocks[id];
+    if (block === null || block === undefined) return null;
+    blocks[id] = { ...block, closeStart: tag.index };
+  }
+  if (stack.length > 0 || blocks.some((block) => block === null || block.closeStart < 0)) return null;
+  return blocks as DetailsBlock[];
+}
+
+function directSummary(
+  body: string,
+  block: DetailsBlock,
+  blocks: readonly DetailsBlock[],
+): SummaryMatch | null {
+  let contentEnd = block.closeStart;
+  for (const candidate of blocks) {
+    if (candidate.parentId === block.id) contentEnd = Math.min(contentEnd, candidate.openEnd);
+  }
+  const match = summaryMatches(body.slice(block.openEnd, contentEnd))[0];
+  return match === undefined
+    ? null
+    : {
+        ...match,
+        start: block.openEnd + match.start,
+        end: block.openEnd + match.end,
+      };
 }
 
 function malformed(reason: string): CodeRabbitReviewBodyParseResult {
@@ -305,13 +360,21 @@ function parseSupplementalSection(
   review: HostedGitHubReview,
   body: string,
   section: SupplementalSection,
+  blocks: readonly DetailsBlock[],
 ): SupplementalParseResult {
-  const groups = summaryMatches(body).flatMap((match) => {
+  const groups = blocks.filter((block) => block.parentId === section.blockId).flatMap((block) => {
+    const match = directSummary(body, block, blocks);
+    if (match === null) return [];
     const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
     if (countMatch?.[1] === undefined) return [];
     const count = nonNegativeInteger(countMatch[1]);
     if (count === null) return [];
-    return [{ path: match.text.slice(0, countMatch.index).trim(), count, start: match.end }];
+    return [{
+      path: match.text.slice(0, countMatch.index).trim(),
+      count,
+      start: match.end,
+      end: block.closeStart,
+    }];
   });
   const groupTotal = groups.reduce((total, group) => total + group.count, 0);
   if (groupTotal !== section.count) {
@@ -323,9 +386,8 @@ function parseSupplementalSection(
   }
 
   const findings: ReviewBodyFinding[] = [];
-  for (const [groupIndex, group] of groups.entries()) {
-    const groupEnd = groups[groupIndex + 1]?.start ?? body.length;
-    const groupBody = body.slice(group.start, groupEnd);
+  for (const group of groups) {
+    const groupBody = body.slice(group.start, group.end);
     const markers = [...groupBody.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
     if (markers.length !== group.count) {
       return malformedWithContext("provider-supplemental-finding-count-mismatch", {
@@ -406,18 +468,23 @@ export function parseCodeRabbitReviewBody(
     });
   }
 
-  const promptStart = review.body.search(/<summary>[^<\r\n]*Prompt for all review comments/iu);
-  const detailBody = review.body.slice(0, promptStart === -1 ? review.body.length : promptStart);
-  const sections = summaryMatches(detailBody)
-    .map(supplementalSection)
+  const detailBody = review.body;
+  const blocks = detailsBlocks(detailBody);
+  if (blocks === null) return malformed("provider-details-structure-unbalanced");
+  const sections = blocks
+    .filter((block) => block.parentId === null)
+    .flatMap((block) => {
+      const summary = directSummary(detailBody, block, blocks);
+      return summary === null ? [] : [supplementalSection(summary, block)];
+    })
     .filter((section): section is SupplementalSection => section !== null);
   const findings: ReviewBodyFinding[] = [];
-  for (const [sectionIndex, section] of sections.entries()) {
-    const sectionEnd = sections[sectionIndex + 1]?.headerStart ?? detailBody.length;
+  for (const section of sections) {
     const parsed = parseSupplementalSection(
       review,
-      detailBody.slice(section.start, sectionEnd),
+      detailBody,
       section,
+      blocks,
     );
     if (parsed.kind === "malformed") return parsed;
     if (parsed.findings.length !== section.count) {
@@ -439,7 +506,9 @@ export function parseCodeRabbitReviewBody(
       .filter((section) => section.category === "outside-diff")
       .reduce((total, section) => total + section.count, 0),
   };
-  const markerCount = [...detailBody.matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu)].length;
+  const markerCount = sections.reduce((total, section) => total + [
+    ...detailBody.slice(section.start, section.end).matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu),
+  ].length, 0);
   if (findings.length !== advertisedSupplementalCount || markerCount !== findings.length) {
     return malformedWithContext("provider-supplemental-total-count-mismatch", {
       advertised: advertisedSupplementalCount,
