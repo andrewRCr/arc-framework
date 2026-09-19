@@ -3,7 +3,7 @@
   "slug": "publish-errand-merge-skeleton",
   "claimId": "5c70c4a515181cb0817e354fc1597070",
   "createdAt": "2026-09-19T03:03:09.423Z",
-  "updatedAt": "2026-09-19T03:03:20.631Z",
+  "updatedAt": "2026-09-19T03:12:45.014Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Add an authored errandMergeRequest JSON skeleton to run-errand.md, naming the derived generation and the branch/headRef equality the request refines on",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Publish the `errandMergeRequest` skeleton agents must hand-compose",
   "originEntrySourceDigest": "sha256:54528ccb97929ccf2c905ed0a0f036b7c3818a235c0e031f20b5994eba2810f1",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/publish-errand-merge-skeleton",
+    "headSha": "32253f11b705c8c0fafd6e785b5afc21c22ce5c1"
+  }
 }
