@@ -756,6 +756,8 @@ to a verdict and carries the cause as a discriminant instead. See
   route is re-baselining. Emitting the first remedy at the second pair would name a remedy that provably cannot
   clear the refusal — the recoverable-looking dead end this design's own refusal rule forbids.
 
+    - _Amended in:_ 4.R7 (A15)
+
     - `[x]` **4.6.a Type the remedy as a dispatched action per pair**
 
         - The classifier's dispatched action carries the route instead of one rerun for every condition:
@@ -816,7 +818,7 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Goal:_ A base sharing no history with what it is compared against names a remedy that can clear it, at both
   pairs, rather than the rerun that cannot.
 
-    - _Amended in:_ 4.R4 (A8, A13)
+    - _Amended in:_ 4.R4 (A8, A13), 4.R6 (A14)
 
 - _Rationale:_ Folded in from the finding recorded on Task 4.6, which scoped the ambiguous arm alone. This arm
   became reachable at Task 4.3, when the layer below stopped folding it into an unreadable read, and no task in
@@ -919,7 +921,7 @@ to a verdict and carries the cause as a discriminant instead. See
 - _Goal:_ A4 — Task 4.8's arms sit behind a guard that returns not-applicable whenever the terminal records are
   unbound, so the ordinary work unit reaches the checkpoint's own rerun instead.
 
-    - _Amended in:_ 4.R4 (A8, A13)
+    - _Amended in:_ 4.R4 (A8, A13), 4.R6 (A14)
 
     - `[x]` **4.R3.a Carry the base-resolution cause into the checkpoint's movement plan**
 
@@ -993,6 +995,9 @@ to a verdict and carries the cause as a discriminant instead. See
 
     - `[x]` **4.R4.c Drive the criterion's own scenario end to end**
 
+        - _Amended in:_ 4.R6 (A14) — the ambiguous half is driven only against the stubbed reader, so the seam
+          between the plan's answer and the production reader's refusal survived this check.
+
         - No test takes an ambiguous or unrelated base through `checkpointIntegration`. Both halves of Task 4.R3
           were proved only against the seam that hid the conflict between them.
         - _Outcome:_ `checkpoint.test.ts` drives both causes through `checkpointIntegration` and asserts the
@@ -1016,6 +1021,52 @@ to a verdict and carries the cause as a discriminant instead. See
           reconcile that collapses it. The reader keys on the carried reduction's reason, which is supplied only
           where a reduction invalidated the request, so no other invalidation reason can reach it. Both render
           through the handler's existing `Run:` branch — the operator sees the command rather than a paragraph.
+
+### `[ ]` **4.R6 Reach the reconcile route the ambiguous base is routed to** — amendment A14
+
+- _Goal:_ A14 — the movement plan answers an ambiguous base with `reconcile-base`, and the production reader
+  the checkpoint calls next raises an untyped error on the same pair, outside every catch the composition owns.
+  The operator is handed the composition rerun, which is the one remedy this cause provably cannot clear. The
+  arm the plan takes to get there also skips four of the bars every other reconciliation meets.
+
+    - `[ ]` **4.R6.a Raise the uncollectable subject under its own type, and admit it where the checkpoint reads**
+
+        - `collectedSubject` throws a bare `Error`, so nothing downstream can tell an ambiguous history from any
+          other projection failure. The type that says it already exists — the Candidate applicability lambda
+          raises it for the same collection — and the checkpoint's own ambiguous-base error already renders the
+          remedy. The read at the reconcile branch sits between two `try` blocks and inside neither, so admitting
+          the cause means giving that read a catch as well as a type.
+
+    - `[ ]` **4.R6.b Hold the ambiguous arm to the bars every other reconciliation meets**
+
+        - The arm returns `reconcile` on coordinate agreement and complete integration evidence alone; an
+          unavailable feasibility, a substantive conflict, an unresolved admission and a refused admission are
+          all tested below it and skipped. The comment above the return states the opposite, and so does the
+          outcome recorded for the task that wrote it. The same reducer composes the merge plan, where nothing
+          masks the gap: a host refusal and a tree conflict stop being reported there.
+
+    - `[ ]` **4.R6.c Drive an ambiguous base through the production composition**
+
+        - Every existing proof of this route mocks the reader that raises. The history-shape probe builds a real
+          two-merge-base repository but never reaches checkpoint composition, so the seam between the plan's
+          answer and the reader's refusal is the one no test crosses — the same seam class the unrelated pair's
+          end-to-end check was added to close. The review-status probe's comment on where its rerun lands is
+          stale and cites a planning id, so it is rewritten to the behavior once the route exists.
+
+### `[ ]` **4.R7 Name the act the classifier's remaining actions stand for** — amendment A15
+
+- _Goal:_ A15 — the delivery drift classifier emits four actions and only the hand merge is rendered as a
+  command. The other two arrive as a token in a payload nothing reads, under a top-level remedy directing the
+  rerun that reported them.
+
+    - `[ ]` **4.R7.a Render the reconcile and re-baseline actions as what each one is**
+
+        - Both dispositions are settled and neither needs authoring: D1 makes the branch-and-base pair
+          recoverable by merging the base in, D10 requires that remedy be a dispatched action rather than prose,
+          and D2 asks the pinned-baseline pair to state the distinction instead of naming a remedy. The detail
+          already states it; the remedy beside it re-invites the rerun the detail just ruled out. The token in
+          the payload has exactly one occurrence in the tree — the assignment that writes it — so it is not a
+          second channel the operator could read the act from.
 
 ## **Phase 5:** The predecessor relation and vocabulary migration
 

@@ -1087,7 +1087,8 @@ does not reopen it on the same inputs.
   _Supersedes:_ none. _Trigger:_ 8.1 terminal. _Work:_ 2.R2. _Revalidated:_ verify-work-unit.
 - **A8** — 2026-09-18 — task: the unbound work unit reaches the movement plan's route, and `unrelated` keeps the
   terminal disposition D1 gives it. _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 4.R4.
-  _Revalidated:_ verify-work-unit.
+  _Revalidated:_ verify-work-unit. _Amended in:_ A13 — the disposition half is retracted; the row's own
+  supersession carries what replaced it.
 - **A9** — 2026-09-18 — task: the second reduction's invalidation carries a typed action beside the cause.
   _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 3. _Work:_ 4.R5. _Revalidated:_ verify-work-unit.
 - **A10** — 2026-09-18 — task: the widened results' remaining consumers refuse typed rather than throwing.
@@ -1100,5 +1101,11 @@ does not reopen it on the same inputs.
   by `arc base merge`, so the readers name that remedy instead of a disposition. _Supersedes:_ § D1 — the
   `unrelated` row's terminal disposition. _Trigger:_ 4.R4 must-stop. _Work:_ 4.R4.
   _Revalidated:_ verify-work-unit.
+- **A14** — 2026-09-18 — task: an ambiguous base reaches the movement plan's reconcile route through the
+  production reader, over the evidence bar every other reconciliation meets. _Supersedes:_ none.
+  _Trigger:_ 8.1 adversarial pass 4. _Work:_ 4.R6. _Revalidated:_ verify-work-unit.
+- **A15** — 2026-09-18 — task: the delivery classifier's remaining actions reach the operator as the act each
+  names, rather than as a token under a rerun. _Supersedes:_ none. _Trigger:_ 8.1 adversarial pass 4.
+  _Work:_ 4.R7. _Revalidated:_ verify-work-unit.
 
 ---

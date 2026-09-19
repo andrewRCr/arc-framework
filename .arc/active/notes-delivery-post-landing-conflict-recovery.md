@@ -8,6 +8,7 @@
 - [Reader inventory — the full sweep](#reader-inventory--the-full-sweep)
 - [Pinned probes — the eight holds](#pinned-probes--the-eight-holds)
 - [The overlap and relation vocabulary](#the-overlap-and-relation-vocabulary--inputs-for-its-re-authoring)
+- [Amendment reasoning](#amendment-reasoning)
 
 ---
 
@@ -533,3 +534,55 @@ consumers. A12's settlement-phase refusals are revision-race arms 3.6's wedge sc
 evidence is untouched.
 
 Nothing reopened a design question, so the sweep exits with no detour.
+
+### A14 — the route was answered and never reached
+
+No design statement is superseded. D1 routes an ambiguous `(head, base)` pair to the merge that collapses it,
+A4 brought that route to the unbound work unit, and A8 restored the guard order that makes it reachable. All
+three describe behavior the delivered code does not perform.
+
+The movement plan does answer `reconcile-base`. What follows it is a read of the Candidate's effective target,
+and that projection collects the committed subject against the same pair the drift just classified — the branch
+head and the observed base. So the collection refuses for the same reason the drift did, and refuses by raising
+a bare `Error`. The raise lands in no typed arm: the composition calls the reader once inside a `try` whose
+`catch` is empty by design, because the terminal remedy it was gathering needs complete proof and an incomplete
+read is not an error there; then it calls the reader a second time, at the reconcile branch, where no `try`
+encloses it at all. That second raise leaves the composition and is answered by the boundary's generic
+composition refusal, whose remedy is the checkpoint rerun. An operator with two merge bases is therefore told
+to re-run the command that just stopped, which is the defect class this work unit exists to remove, reached by
+the one route nobody drove end to end.
+
+Why it survived three amendments and a verification: every proof of the route stubs the reader that raises. The
+end-to-end check added for the unrelated pair drives the production composition, but the unrelated pair returns
+from the movement plan before the read, so it never reaches the raise. The history-shape probe builds a real
+two-merge-base repository and exercises attestation, applicability and subject collection over it, but never
+the checkpoint. The seam is exactly the one the unrelated pair's check was written to close, one branch over.
+
+The second half is smaller and independent. The ambiguous arm returns its reconcile from inside the
+`unknown`-movement block, which sits above the feasibility and admission guards, so it is authorized on
+coordinate agreement and complete integration evidence alone while every other reconciliation also clears an
+unavailable feasibility, a substantive conflict, an unresolved admission and a refused admission. The comment
+above the return claims the opposite, and the outcome recorded for the task that wrote it repeats the claim.
+Inside the checkpoint the gap is masked by the raise above; in the merge reducer, which composes its final plan
+through the same function, nothing masks it — a host refusal and a tree conflict stop being reported and the
+operator is authorized to merge.
+
+### A15 — the act was typed, and never rendered
+
+Also supersedes nothing, and nothing here needs authoring — which is what keeps it a task arm rather than the
+spec-depth the remedy vocabulary would otherwise want. Every disposition is already settled: § D1 makes the
+branch-and-base pair recoverable by merging the base in, § D10 requires that remedy be a dispatched action
+rather than prose, and § D2 asks the pinned-baseline pair to state the distinction instead of naming a remedy,
+because re-baselining is the price of that history's shape and no merge reaches it.
+
+The classifier emits four actions and one of them is rendered. `merge-unrelated` carries a full remedy, added
+when A13 named the hand merge. The other two fall to the delivery-terminal default, whose prose directs the
+operator to apply the returned delivery remedy and re-run — so the reconcile pair is told to re-run rather than
+to merge, and the pinned-baseline pair, whose detail has just explained that no merge reaches it, is invited to
+re-run anyway. The design asked that one to stop inviting a retry, and the remedy beside the detail re-invites
+it.
+
+The payload is not a second channel. It carries the classifier's action as a `{command, workUnit}` token, and
+that token has exactly one occurrence in the whole tree: the assignment that writes it. Nothing reads it, no
+shipped workflow documents it, and the comment justifying the default says the clearing command sits one level
+down in the payload, which is the one thing the payload does not hold.
