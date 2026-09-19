@@ -586,3 +586,29 @@ The payload is not a second channel. It carries the classifier's action as a `{c
 that token has exactly one occurrence in the whole tree: the assignment that writes it. Nothing reads it, no
 shipped workflow documents it, and the comment justifying the default says the clearing command sits one level
 down in the payload, which is the one thing the payload does not hold.
+
+### A14 and A15's propagation sweep, both directions
+
+Neither amendment supersedes a design statement, so the footprint is what the corrected behavior touches
+rather than what a retraction reaches. Both were swept together, since their loci sit in one file.
+
+**Carried by the corrections themselves.**
+
+- The merge reducer shares `composeCheckpointMovementPlan` with the checkpoint, so moving the feasibility and
+  admission readings above the reconcile arms corrects both callers at once. That sharing is the reason the
+  gap was worth naming: a host refusal and a tree conflict stopped being reported on the merge side too.
+- `handlers/candidate.ts` already branched on the uncollectable subject type and carried both the cause and a
+  merge remedy across its boundary. A bare `Error` never matched that branch, so an ambiguous history reaching
+  the resolution closed with no detail and no act. Typing the raise makes that boundary carry them, which is
+  what its own comment says it is for. The two remedies name the same merge, worded for each reader.
+
+**Unaffected, checked.**
+
+- Nothing under the shipped workflow, system or reference content names the classifier's action tokens or the
+  payload field that carries them, so rendering the remaining two owes no documentation revision.
+- The unrelated pair's remedy is untouched by either amendment; it already named the hand merge, and it is the
+  one arm of the four that was already rendered.
+- The ambiguous pair keeps `reconcile-base` after the readings are reordered. Its evidence bar was never the
+  gap — answering above three other bars was.
+- Success Criterion 11 admits either a clearing remedy or a terminal statement. Both amendments move refusals
+  toward the first limb, so neither reopens it.

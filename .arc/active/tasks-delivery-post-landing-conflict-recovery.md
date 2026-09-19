@@ -1732,7 +1732,18 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, the three ARC contract checks, TypeScript and shell lint, both type checks,
+  `test:full` (12,558 passed and 1 skipped across 931 files), and build — all pass over this tree. The full lane
+  rather than the routine one, because four end-to-end files changed on this branch and one of them is new. Run
+  whole again after each of the two corrective parents this step authored.
+- _Success criteria:_ 15 criteria, all met. Four adversarial passes ran at this boundary; the last widened past
+  the criteria slice to the accreted union of A1-A13, the consolidation read thirteen low-rigor amendments had
+  earned, and its five findings were dispositioned `fix` and landed as A14 and A15. Three criteria did not hold
+  when this step began — the ambiguous base's route through the checkpoint composition, the act its refusal
+  hands back at the delivery classifier, and the bars the arm reaching it skipped — and hold at 4.R6 and 4.R7.
+  Two more were held unmarked through the pass rather than unmet, and were verified against source to close it.
 
 ---
 
@@ -1750,23 +1761,23 @@ _Design decisions:_ Readiness resolves by deliverable identity behind a fifth lo
   distinct reason for each of the fourteen conditions that currently reach `terminal-unsettled`.
 - `[x]` Resolving a disclosed terminal collision by hand merge settles the landing, and the native arm's refusal
   returns a populated `conflictPreparation` whose `parents.refreshedPredecessor` names the required merge parent.
-- `[ ]` `delivery native land-release` takes the exact reservation selector, restores every ref ARC moved by
+- `[x]` `delivery native land-release` takes the exact reservation selector, restores every ref ARC moved by
   lease, publishes `activeOperation: null` at the exact revision, and returns a typed result naming what it
   restored and what it left standing; on a failed lease it reports the observed head and leaves the reservation
   held.
-- `[ ]` No `expectPinnedObservation` hold remains in the four probe files this boundary owns, and the suite is
+- `[x]` No `expectPinnedObservation` hold remains in the four probe files this boundary owns, and the suite is
   green with none of them asserting nothing.
 - `[x]` `predecessor-relation.ts` exports no second ordered-pair spelling and no caller reads its `exact` arm.
 - `[x]` The shipped `deliver-stack.md` describes the protocol as changed — no instruction to settle a suffix
   reconciliation refusal by rerunning `land-status` without resubmitting, and the decline verb present in the
   native landing lifecycle it drives.
-- `[ ]` An ambiguous or unrelated base reaches the operator with a remedy that can clear it, or with a terminal
+- `[x]` An ambiguous or unrelated base reaches the operator with a remedy that can clear it, or with a terminal
   statement that stops inviting one, at both eligibility readers and both reductions that can receive the
   normalized cause — none reporting a retry it cannot satisfy, and none shipping with its remedy dropped in
   projection.
 - `[x]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
-- `[ ]` On a work unit with no bound delivery terminal, an ambiguous or unrelated base reaches the integration
+- `[x]` Ready for integration
+- `[x]` On a work unit with no bound delivery terminal, an ambiguous or unrelated base reaches the integration
   checkpoint with a remedy that can clear it, rather than a rerun of the checkpoint that reported it.
-- `[ ]` Every refusal arm this work unit newly routes an operator into names a remedy that can clear its own
+- `[x]` Every refusal arm this work unit newly routes an operator into names a remedy that can clear its own
   condition, and review readiness states only the relation its own read established.
