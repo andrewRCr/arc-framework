@@ -3,7 +3,7 @@
   "slug": "noop-json-flag-retirement",
   "claimId": "1d44ec22ac0181c8996c0d5003971fd5",
   "createdAt": "2026-09-18T21:07:14.827Z",
-  "updatedAt": "2026-09-18T21:07:14.827Z",
+  "updatedAt": "2026-09-19T00:56:04.542Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "noop-json-flag-retirement",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Retire the no-op `--json` flag from the always-machine-readable delivery verbs",
   "originEntrySourceDigest": "sha256:8a3fcbe598859a0684f2d99e904ba4280557f687e9f3b869ad42a1c286250de0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/noop-json-flag-retirement",
+    "headSha": "e9f74dc293eeabfbfe4efad77997ec5fc559b705"
+  }
 }
