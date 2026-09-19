@@ -11,7 +11,7 @@
 - **Design:** `spec-delivery-post-landing-conflict-recovery.md`
 - **Task List:** `tasks-delivery-post-landing-conflict-recovery.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:71126a888294c92f272b52af0a6567bd6c0d502f8da2ab93b66dd35bf51832ba`
+- **Candidate:** `sha256:c0431c7098306fa8a3a91c70b0a8614288079eadee370f3d0177a5827de87605`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
