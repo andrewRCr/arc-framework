@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { boundedWait, type BoundedWaitClock } from "./bounded-wait.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
+import { FailedCheckLogsResultSchema } from "./failed-check-logs.js";
 import { SpineRemedySchema } from "../integration/spine-refusal.js";
 
 export const RequiredChecksObservationInputSchema = z.strictObject({
@@ -194,7 +195,13 @@ export async function observeRequiredChecks(
 export const ChecksAwaitResultSchema = z.union([
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("not-required"), nextAction: z.literal("complete"), checks: z.tuple([]) }),
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("green"), nextAction: z.literal("complete"), checks: z.array(RequiredCheckSchema) }),
-  z.strictObject({ ...ChecksResultBaseShape, state: z.literal("failed"), nextAction: z.literal("stop"), checks: z.array(RequiredCheckSchema) }),
+  z.strictObject({
+    ...ChecksResultBaseShape,
+    state: z.literal("failed"),
+    nextAction: z.literal("stop"),
+    checks: z.array(RequiredCheckSchema),
+    failureLogs: FailedCheckLogsResultSchema.optional(),
+  }),
   z.strictObject({
     ...ChecksResultBaseShape,
     state: z.literal("pending"),
@@ -202,6 +209,7 @@ export const ChecksAwaitResultSchema = z.union([
     checks: z.array(RequiredCheckSchema),
     diagnosticFailures: z.array(RequiredCheckSchema),
     elapsedMs: z.number().nonnegative(),
+    failureLogs: FailedCheckLogsResultSchema.optional(),
   }),
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("stale-target"), nextAction: z.literal("stop"), actualHeadSha: GitObjectIdSchema }),
   z.strictObject({ ...ChecksResultBaseShape, state: z.literal("target-mismatch"), nextAction: z.literal("stop"), actualRepository: z.string().trim().min(1) }),
@@ -214,6 +222,7 @@ export const ChecksAwaitResultSchema = z.union([
     checks: z.array(RequiredCheckSchema),
     diagnosticFailures: z.array(RequiredCheckSchema),
     elapsedMs: z.number().nonnegative(),
+    failureLogs: FailedCheckLogsResultSchema.optional(),
   }),
 ]);
 export type ChecksAwaitResult = z.infer<typeof ChecksAwaitResultSchema>;

@@ -250,7 +250,7 @@ describe("handleReviewChecksAwait", () => {
         cause: "deadline",
         detail: "Required-check evidence was unavailable: hosted process timed out",
         checks: [{ name: "merge-ok", state: "pending" }],
-        diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+        diagnosticFailures: [],
         elapsedMs: 500,
       }),
       write,
@@ -268,10 +268,64 @@ describe("handleReviewChecksAwait", () => {
       cause: "deadline",
       detail: "Required-check evidence was unavailable: hosted process timed out",
       checks: [{ name: "merge-ok", state: "pending" }],
-      diagnosticFailures: [{ name: "E2E shard 3", state: "failed" }],
+      diagnosticFailures: [],
       elapsedMs: 500,
     });
     expect(setExitCode).not.toHaveBeenCalled();
+  });
+
+  it("attaches exact-target failed-job log paths when a diagnostic check fails", async () => {
+    const output: string[] = [];
+    const headSha = "a".repeat(40);
+    await handleReviewChecksAwait({
+      repository: "owner/repo",
+      pullRequest: "42",
+      headSha,
+      timeoutMs: "2000",
+      pollIntervalMs: "500",
+    }, {
+      awaitChecks: async () => ({
+        schemaVersion: 1,
+        mode: "review-checks-await",
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha,
+        state: "pending",
+        nextAction: "await",
+        checks: [{ name: "merge-ok", state: "pending" }],
+        diagnosticFailures: [{ name: "Integration Tests", state: "failed" }],
+        elapsedMs: 500,
+      }),
+      retrieveFailureLogs: async () => ({
+        schemaVersion: 1,
+        mode: "review-failed-check-logs",
+        repository: "owner/repo",
+        pullRequest: 42,
+        headSha,
+        state: "retrieved",
+        nextAction: "inspect",
+        logs: [{
+          name: "Integration Tests",
+          runId: "91",
+          jobId: "92",
+          headSha,
+          url: "https://github.com/owner/repo/actions/runs/91/job/92",
+          path: "/tmp/arc-failed-check-logs-abc/job-92.log",
+        }],
+        failures: [],
+      }),
+      write: (text) => output.push(text),
+      setExitCode: () => { throw new Error("successful diagnostics must not set an exit code"); },
+    });
+
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      state: "pending",
+      diagnosticFailures: [{ name: "Integration Tests", state: "failed" }],
+      failureLogs: {
+        state: "retrieved",
+        logs: [{ path: "/tmp/arc-failed-check-logs-abc/job-92.log" }],
+      },
+    });
   });
 });
 const localAttestRequest = {
