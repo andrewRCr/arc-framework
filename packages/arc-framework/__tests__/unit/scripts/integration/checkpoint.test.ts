@@ -101,6 +101,7 @@ function dependencies(): IntegrationCheckpointDependencies {
         state: "mergeable",
         repository: "owner/repo",
         changeRequest: 42,
+        baseRef: "main",
         base: oid("b"),
         head: oid("c"),
       },
@@ -365,7 +366,8 @@ describe("integration checkpoint", () => {
         state: "regenerable-conflict", base: oid("b"), head: oid("c"), paths: ["ROADMAP.md"],
       },
       admission: {
-        state: "mergeable", repository: "owner/repo", changeRequest: 42, base: oid("b"), head: oid("c"),
+        state: "mergeable", repository: "owner/repo", changeRequest: 42, baseRef: "main",
+        base: oid("b"), head: oid("c"),
       },
     });
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -393,6 +395,7 @@ describe("integration checkpoint", () => {
         state: "unresolved",
         repository: "owner/repo",
         changeRequest: 42,
+        baseRef: "main",
         base: oid("b"),
         head: oid("c"),
         detail: "Host is still computing exact admission.",
@@ -542,7 +545,8 @@ describe("integration checkpoint", () => {
         state: "substantive-conflict", base: oid("b"), head: oid("c"), paths: ["src/conflict.ts"],
       },
       admission: {
-        state: "mergeable", repository: "owner/repo", changeRequest: 42, base: oid("b"), head: oid("c"),
+        state: "mergeable", repository: "owner/repo", changeRequest: 42, baseRef: "main",
+        base: oid("b"), head: oid("c"),
       },
     });
 
@@ -833,6 +837,7 @@ describe("integration checkpoint", () => {
             feasibility: { state: "clean", base: oid("b"), head: oid("c") },
             admission: {
               state: "unresolved", repository: "owner/repo", changeRequest: 42,
+              baseRef: "main",
               base: oid("b"), head: oid("c"), detail: "Host admission is pending.",
             },
           };

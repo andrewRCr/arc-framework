@@ -26,6 +26,7 @@ export interface ChangeRequestResolutionPort {
 export const ChangeRequestMergeCoordinatesSchema = z.strictObject({
   repository: z.string().trim().min(1),
   changeRequest: z.number().int().positive(),
+  baseRef: z.string().trim().min(1),
   base: GitObjectIdSchema,
   head: GitObjectIdSchema,
 });
@@ -105,6 +106,7 @@ export async function observeChangeRequestMergeAdmission(
   if (
     value.repository !== coordinates.repository
     || value.changeRequest !== coordinates.changeRequest
+    || value.baseRef !== coordinates.baseRef
     || value.base !== coordinates.base
     || value.head !== coordinates.head
   ) {

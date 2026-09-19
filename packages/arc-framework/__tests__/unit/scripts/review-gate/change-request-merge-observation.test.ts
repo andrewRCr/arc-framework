@@ -10,6 +10,7 @@ const oid = (character: string): string => character.repeat(40);
 const coordinates: ChangeRequestMergeCoordinates = {
   repository: "owner/repo",
   changeRequest: 42,
+  baseRef: "main",
   base: oid("a"),
   head: oid("b"),
 };
@@ -33,7 +34,7 @@ describe("change-request merge admission", () => {
   it("turns coordinate disagreement into a useful unresolved observation", async () => {
     await expect(observeChangeRequestMergeAdmission(coordinates, port({
       ...coordinates,
-      head: oid("c"),
+      baseRef: "release",
       state: "mergeable",
     }))).resolves.toEqual({
       ...coordinates,

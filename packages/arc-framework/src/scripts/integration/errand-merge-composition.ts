@@ -250,6 +250,7 @@ export function createErrandMergeDependencies(input: {
       const coordinates = {
         repository: observedTarget.repository,
         changeRequest: observedTarget.pullRequest,
+        baseRef: observedTarget.baseRef,
         base: drift.baseOid,
         head: observedTarget.headSha,
       };
