@@ -261,6 +261,21 @@ interface DetailsBlock {
   closeStart: number;
 }
 
+interface DetailsTag {
+  text: string;
+  index: number;
+}
+
+interface TextRange {
+  start: number;
+  end: number;
+}
+
+interface MarkdownFence {
+  marker: "`" | "~";
+  length: number;
+}
+
 function nonNegativeInteger(value: string): number | null {
   const normalized = value.trim();
   if (!/^\d+$/u.test(normalized)) return null;
@@ -294,16 +309,72 @@ function supplementalSection(
   return null;
 }
 
+function inlineCodeRanges(line: string): TextRange[] {
+  const runs = [...line.matchAll(/`+/gu)];
+  const ranges: TextRange[] = [];
+  for (let index = 0; index < runs.length; index += 1) {
+    const opening = runs[index];
+    if (opening === undefined) continue;
+    const closingIndex = runs.findIndex((candidate, candidateIndex) =>
+      candidateIndex > index && candidate[0].length === opening[0].length);
+    if (closingIndex < 0) continue;
+    const closing = runs[closingIndex];
+    if (closing === undefined) continue;
+    ranges.push({ start: opening.index, end: closing.index + closing[0].length });
+    index = closingIndex;
+  }
+  return ranges;
+}
+
+function fenceRun(line: string): { fence: MarkdownFence; rest: string } | null {
+  const content = line.replace(/^[\t ]*(?:>[\t ]*)*/u, "");
+  const match = /^(`{3,}|~{3,})(.*)$/u.exec(content);
+  if (match?.[1] === undefined || match[2] === undefined) return null;
+  return {
+    fence: { marker: match[1][0] as "`" | "~", length: match[1].length },
+    rest: match[2],
+  };
+}
+
+function detailsTags(body: string): DetailsTag[] {
+  const tags: DetailsTag[] = [];
+  let fence: MarkdownFence | null = null;
+  for (const lineMatch of body.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/gu)) {
+    if (lineMatch[0].length === 0) continue;
+    const line = lineMatch[0].replace(/(?:\r\n|\r|\n)$/u, "");
+    const run = fenceRun(line);
+    if (fence !== null) {
+      if (run !== null
+        && run.fence.marker === fence.marker
+        && run.fence.length >= fence.length
+        && run.rest.trim().length === 0) {
+        fence = null;
+      }
+      continue;
+    }
+    if (run !== null) {
+      fence = run.fence;
+      continue;
+    }
+    const codeRanges = inlineCodeRanges(line);
+    for (const tag of line.matchAll(/<\/?details(?:\s[^>]*)?>/giu)) {
+      if (codeRanges.some((range) => tag.index >= range.start && tag.index < range.end)) continue;
+      tags.push({ text: tag[0], index: lineMatch.index + tag.index });
+    }
+  }
+  return tags;
+}
+
 function detailsBlocks(body: string): DetailsBlock[] | null {
   const blocks: Array<DetailsBlock | null> = [];
   const stack: number[] = [];
-  for (const tag of body.matchAll(/<\/?details(?:\s[^>]*)?>/giu)) {
-    if (!tag[0].startsWith("</")) {
+  for (const tag of detailsTags(body)) {
+    if (!tag.text.startsWith("</")) {
       const id = blocks.length;
       blocks.push({
         id,
         parentId: stack.at(-1) ?? null,
-        openEnd: tag.index + tag[0].length,
+        openEnd: tag.index + tag.text.length,
         closeStart: -1,
       });
       stack.push(id);

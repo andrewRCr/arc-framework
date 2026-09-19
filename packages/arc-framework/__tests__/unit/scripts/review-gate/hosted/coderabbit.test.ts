@@ -814,6 +814,41 @@ Provider guidance outside the supplemental section.
     });
   });
 
+  it("ignores details tags inside inline and fenced Markdown code", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: `**Actionable comments posted: 0**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep Markdown code examples out of the structural stack.**
+
+The inline literal \`<details>\` is finding content.
+
+\`\`\`html
+<details>
+\`\`\`
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ origin: "review-body", locus: "src/a.ts:7-9" }],
+    });
+  });
+
   it("normalizes outside-diff comments under the same no-settlement contract", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
