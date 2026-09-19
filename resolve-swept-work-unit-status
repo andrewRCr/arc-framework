@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "resolve-swept-work-unit-status",
+  "claimId": "76047fd37de01dc736dd076ba656804d",
+  "createdAt": "2026-09-19T18:15:09.131Z",
+  "updatedAt": "2026-09-19T18:15:09.131Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Resolve a swept work unit status from its archived meta, not a planning default",
+  "branch": "chore/resolve-swept-work-unit-status",
+  "origin": "inbox",
+  "originEntry": "Resolve a swept work unit's status from its archived meta, not a planning default",
+  "originEntrySourceDigest": "sha256:f337defdbfbbfc520385c7a0bc418abd9b59327eabe21f9f5b51b2d405639b7e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
