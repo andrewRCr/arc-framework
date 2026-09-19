@@ -16,6 +16,9 @@ import {
 
 const SHA = "a".repeat(40);
 const SUCCESSOR_SHA = "f".repeat(40);
+const FURTHER_SUCCESSOR_SHA = "9".repeat(40);
+/** A head the member's own binding sits below, so the pair reads as this member's advance. */
+const MEMBER_ADVANCED_HEAD = "e".repeat(40);
 const ROOT = "/tree";
 const PLAN_ID = "3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 const DELIVERABLE_ID = `sha256:${"b".repeat(64)}`;
@@ -138,7 +141,7 @@ function resolvedMember(
     deliverableId: string;
     workUnitId: string;
     head: string;
-    successorHead: string | null;
+    successorHeads: readonly string[];
     isFinalMember: boolean;
   }> = {},
 ): DeliveryMemberIdentityLookupResult {
@@ -154,9 +157,9 @@ function resolvedMember(
       headRef: "delivery/demo/member-1",
       head: SHA,
       candidateHead: SHA,
-      // Stacked by default, because that is what a non-final member is: one with a member bound on top of it.
-      // The plan's last member is the one with nothing above, so it carries no successor head to be bounded by.
-      successorHead: isFinalMember ? null : SUCCESSOR_SHA,
+      // Stacked by default, because that is what a non-final member is: one with members bound on top of it.
+      // The plan's last member is the one with nothing above, so it carries no head to be bounded by.
+      successorHeads: isFinalMember ? [] : [SUCCESSOR_SHA, FURTHER_SUCCESSOR_SHA],
       isFinalMember,
       ...overrides,
     },
@@ -1062,10 +1065,11 @@ describe("delivery-member authentication against delivery state", () => {
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
         // Two reads, not one: the head under review sits above this member's recorded head and below the
         // next member's, which is the only span that belongs to this member alone.
-        readDeliveryAncestry: async (ancestor) => ancestor === SUCCESSOR_SHA ? "not-ancestor" : "ancestor",
+        readDeliveryAncestry: async (ancestor) =>
+          ancestor === MEMBER_ADVANCED_HEAD ? "ancestor" : "not-ancestor",
       },
     );
 
@@ -1087,22 +1091,47 @@ describe("delivery-member authentication against delivery state", () => {
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
-        readDeliveryAncestry: async (ancestor) => ancestor === SUCCESSOR_SHA ? successorAnswer : "ancestor",
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+        readDeliveryAncestry: async (ancestor) =>
+          ancestor === MEMBER_ADVANCED_HEAD ? "ancestor" : successorAnswer,
       },
     );
 
     expect(result).toMatchObject({ state: "invalid", payload: { facts: [{ code, path }] } });
   });
 
-  it("admits an advance over a member the state binds no successor above", async () => {
+  /**
+   * The heads bound above a member are not ordered among themselves: an approved review fix republishes one
+   * member's coordinates alone, so a member two positions up can record a head that no longer descends from
+   * the one immediately above. Reading only the nearest would clear exactly that head.
+   */
+  it("refuses an advance that reaches a head bound above the nearest one", async () => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40), successorHead: null })),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+        // The nearest head above is not carried — that is the republished one — while the head two positions
+        // up is. A bound that stopped at the nearest would read this as this member's own advance.
+        readDeliveryAncestry: async (ancestor) =>
+          ancestor === SUCCESSOR_SHA ? "not-ancestor" : "ancestor",
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-successor-reached", path: "vehicle.deliverableId" }] },
+    });
+  });
+
+  it("admits an advance over a member the state binds nothing above", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD, successorHeads: [] })),
         // Answering every read "ancestor" would refuse if anything were compared. Nothing is: with no
-        // successor head recorded there is no sibling head the head under review could be.
+        // head recorded above, there is no sibling head the head under review could be.
         readDeliveryAncestry: async () => "ancestor",
       },
     );
@@ -1134,7 +1163,7 @@ describe("delivery-member authentication against delivery state", () => {
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
         readDeliveryAncestry: async () => answer,
       },
     );
@@ -1150,7 +1179,7 @@ describe("delivery-member authentication against delivery state", () => {
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
         readDeliveryAncestry: async () => "unresolvable",
       },
     );
@@ -1181,7 +1210,7 @@ describe("delivery-member authentication against delivery state", () => {
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40) })),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
       },
     );
 
@@ -1198,7 +1227,7 @@ describe("delivery-member authentication against delivery state", () => {
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({ head: "e".repeat(40), isFinalMember: true })),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD, isFinalMember: true })),
         readDeliveryAncestry: async () => "ancestor",
       },
     );

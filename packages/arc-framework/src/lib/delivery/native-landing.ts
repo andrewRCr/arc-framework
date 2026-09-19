@@ -1186,7 +1186,8 @@ export async function releaseNativeDeliveryLanding(input: {
         observedHead: restored.observedHead,
       },
       recommendedActionText:
-        "Keep the reservation and restore the exact local member-ref subject before declining the landing again.",
+        "Keep the reservation and restore the exact local refs the settlement moved before declining the landing "
+        + "again.",
     };
   }
   const published = await dependencies.stateStore.publish(

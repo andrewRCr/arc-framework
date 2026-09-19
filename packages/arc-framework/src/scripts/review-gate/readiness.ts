@@ -500,17 +500,21 @@ export function lifecycleArtifactFacts(content: string, path: string): ReviewRea
 }
 
 /**
- * Bound one admitted advance from above, against the next bound member's recorded head.
+ * Bound one admitted advance from above, against every member head bound over this one.
  *
  * Only an advance is asked: a head under review that is the member's recorded head is that member's by
- * identity, and needs nothing further. A head placed above it, though, is placed above every member above it
- * as well, so without this read a later member's head would be admitted under an earlier member's vehicle.
+ * identity, and needs nothing further. A head placed above it, though, could be any head bound above it, so
+ * without this read a later member's head would be admitted under an earlier member's vehicle.
  *
- * A member with no bound successor is admitted unread. There is no recorded sibling head for the head under
- * review to be, so there is nothing for this bound to compare it against — the exposure needs a successor the
- * state already binds.
+ * Every bound head above is read, not just the nearest, because their order is not guaranteed: an approved
+ * review fix republishes one member's coordinates alone, so a member two positions up can record a head that
+ * no longer descends from the one immediately above. A read of the nearest alone would clear exactly that
+ * head. Containment is reflexive, so a head under review that *is* one of these is caught wherever it sits.
  *
- * @param member - The resolved binding, carrying the successor head the same read established.
+ * A member with nothing bound above it is admitted unread: there is no recorded sibling head for the head
+ * under review to be, so this bound has nothing to compare it against.
+ *
+ * @param member - The resolved binding, carrying the heads bound above it that the same read established.
  * @param observedHead - The head under review.
  * @param readAncestry - The ancestry reader, absent when the composition root supplied none.
  * @returns One fact when the advance is unbounded or could not be bounded; empty when the bound holds.
@@ -520,26 +524,27 @@ async function successorBoundFacts(
   observedHead: string,
   readAncestry: ReviewReadinessDependencies["readDeliveryAncestry"],
 ): Promise<readonly ReviewReadinessFact[]> {
-  if (member.successorHead === null) return [];
-  const successorReached = readAncestry === undefined
-    ? "unresolvable"
-    : await readAncestry(member.successorHead, observedHead);
-  if (successorReached === "not-ancestor") return [];
-  // The same split the read below this member's head keeps: a successor the head under review demonstrably
-  // carries is answered by reviewing under that member, and one nobody could place is answered by making the
-  // read succeed. Naming the first for the second would send an operator to a vehicle that may not be theirs.
-  return [successorReached === "ancestor"
+  if (member.successorHeads.length === 0) return [];
+  const answers = readAncestry === undefined
+    ? member.successorHeads.map(() => "unresolvable" as const)
+    : await Promise.all(member.successorHeads.map((head) => readAncestry(head, observedHead)));
+  if (answers.every((answer) => answer === "not-ancestor")) return [];
+  // The same split the read below this member's head keeps, and in the same order of specificity: one head
+  // demonstrably carried settles it whatever the others said, and only a set with nothing carried and
+  // something unread falls to the weaker reason. Naming the first for the second would send an operator to a
+  // vehicle that may not be theirs; naming the second for the first would hide a refusal that was established.
+  return [answers.includes("ancestor")
     ? fact(
       "delivery-member-successor-reached",
       "vehicle.deliverableId",
-      "The head under review carries the next delivery member's recorded head, so it is not this member's "
-      + "head. Review it under the member that records it.",
+      "The head under review carries the recorded head of a delivery member bound above this one, so it is "
+      + "not this member's head. Review it under the member that records it.",
     )
     : fact(
       "delivery-member-successor-unavailable",
       "pullRequest.headSha",
-      "The head under review is ahead of this member's recorded head, and whether it carries the next "
-      + "member's recorded head could not be read. Fetch the next member's recorded head and rerun.",
+      "The head under review is ahead of this member's recorded head, and whether it carries the recorded "
+      + "head of a member bound above it could not be read. Fetch those members' recorded heads and rerun.",
     )];
 }
 

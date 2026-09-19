@@ -14,13 +14,15 @@ export interface DeliveryMemberBinding {
   readonly head: string;
   readonly candidateHead: string | null;
   /**
-   * The recorded head of the next bound member after this one, or `null` when none is bound.
+   * Every recorded head bound above this member, nearest first, empty when none is bound.
    *
-   * Members stack, so every later member's head contains this one. A head under review that has reached this
-   * revision therefore belongs to a member further up the stack, and reading it bounds an admitted advance from
-   * above the way this member's own head bounds it from below.
+   * All of them rather than the nearest, because the stack is not transitive in practice: an approved review fix
+   * republishes one member's coordinates alone, leaving the members above it on heads that no longer descend
+   * from it. Reading only the nearest would then clear a head belonging to one of those, which is the
+   * misattribution this bound exists to refuse. A head under review that contains any of these belongs to the
+   * member that records it, and reviews under that member's vehicle.
    */
-  readonly successorHead: string | null;
+  readonly successorHeads: readonly string[];
   readonly isFinalMember: boolean;
 }
 

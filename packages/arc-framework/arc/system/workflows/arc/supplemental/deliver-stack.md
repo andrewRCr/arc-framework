@@ -525,9 +525,10 @@ the typed result:
   decline is local-only, so read that ref and decide what it should carry before continuing.
 - `retryable / preserved / delivery-native-land-status` — nothing landed, so there is nothing to decline. Rerun
   `land-status`, which owns that reconciliation.
-- `blocked` carrying a `lease` — a local ref the settlement moved no longer sits where it left it. The refusal names
-  the ref and both heads, nothing was written, and the reservation still stands. Restore that ref and rerun the
-  decline.
+- `blocked` carrying a `lease` — a local ref the settlement moved is not where it left it, or could not be read at
+  all. The refusal names the ref, and both heads when it observed one; nothing was written and the reservation
+  still stands. A ref that moved is cleared by restoring it; a ref reported absent, malformed, or unreadable
+  carries no observed head and is cleared by making that ref readable first. Then rerun the decline.
 - `blocked / reservation-not-submitted` — a prepared reservation submitted no effect to decline; take it back
   through `arc delivery reconcile`, which preserves the reservation and re-presents the landing for a
   deliberate choice.

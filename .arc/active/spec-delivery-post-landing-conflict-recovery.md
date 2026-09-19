@@ -747,7 +747,7 @@ other. Re-pointing a hold at an outcome this work unit itself delivers is not a 
 fires immediately and still has to be replaced. So there is one terminal action, applied eight times, exactly as
 the draft recorded it — each is a single `expectPinnedObservation` call to replace.
 
-**How a hold goes red decides what replaces it** — and one hold never does:
+**How a hold goes red decides what replaces it** — and two holds never do:
 
 - **Target reached** — the declared `target` is what the design produces, so the helper reports the hold spent and
   the replacement asserts that target. The staged arm awaits D5's refusal; the terminal head movement awaits

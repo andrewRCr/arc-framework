@@ -18,7 +18,10 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { RepositoryDeliveryMemberLookup } from "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { resolveReviewHeadRef } from "../../src/scripts/review-gate/core/review-subject.js";
-import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
+import {
+  deliveryPlanFixture,
+  deliveryStackPlanWithMemberTitlesFixture,
+} from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 
@@ -238,9 +241,54 @@ describe("repository delivery member lookup", () => {
         headRef: "member-1",
         head: "4".repeat(40),
         candidateHead: "5".repeat(40),
-        successorHead: "5".repeat(40),
+        successorHeads: ["5".repeat(40)],
         isFinalMember: false,
       },
+    });
+  });
+
+  /**
+   * Every bound head above a member, in position order — not just the nearest. Their order among themselves is
+   * not guaranteed once a single-member republish has moved one, so a consumer bounding an advance needs all of
+   * them; a member the state leaves unbound records no head and contributes none.
+   */
+  it("carries every bound head above a member, and skips one the state leaves unbound", async () => {
+    const { cwd, lookup } = await repository();
+    const plan = deliveryStackPlanWithMemberTitlesFixture(["first", "second", "third"]);
+    const seeded = deliveryStateFixture(plan);
+    const unboundMiddle = {
+      ...seeded,
+      members: seeded.members.map((member, index) => index === 1
+        ? { ...member, coordinates: null }
+        : member),
+    };
+    await publishPlan(cwd, plan);
+    await publish(cwd, seeded);
+
+    const identity = (index: number) => ({
+      planId: plan.planId,
+      deliverableId: plan.members[index]!.deliverableId,
+      workUnitId: plan.workUnitId,
+    });
+    const headOf = (index: number) => seeded.members[index]!.coordinates!.head;
+
+    await expect(lookup.resolveMemberByIdentity(identity(0))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [headOf(1), headOf(2)], isFinalMember: false },
+    });
+    await expect(lookup.resolveMemberByIdentity(identity(1))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [headOf(2)], isFinalMember: false },
+    });
+    await expect(lookup.resolveMemberByIdentity(identity(2))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [], isFinalMember: true },
+    });
+
+    await publish(cwd, unboundMiddle, 1);
+    await expect(lookup.resolveMemberByIdentity(identity(0))).resolves.toMatchObject({
+      status: "bound",
+      member: { successorHeads: [headOf(2)] },
     });
   });
 
@@ -416,7 +464,7 @@ describe("repository delivery member lookup", () => {
         headRef: "delivery/example/member-0",
         head: FIRST_HEAD,
         candidateHead: SECOND_HEAD,
-        successorHead: SECOND_HEAD,
+        successorHeads: [SECOND_HEAD],
         isFinalMember: false,
       },
     });
@@ -438,8 +486,8 @@ describe("repository delivery member lookup", () => {
       member: {
         head: FIRST_HEAD,
         candidateHead: null,
-        // The member above records no head, so there is none to stack under either.
-        successorHead: null,
+        // The member above records no head, so it contributes none to stack under either.
+        successorHeads: [],
         isFinalMember: false,
       },
     });
