@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "retrieve-completed-failed-ci-job-logs",
+  "claimId": "e8dff8c6118c5391466183f64931f761",
+  "createdAt": "2026-09-19T23:22:02.618Z",
+  "updatedAt": "2026-09-19T23:22:02.618Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "retrieve-completed-failed-ci-job-logs",
+  "branch": "chore/retrieve-completed-failed-ci-job-logs",
+  "origin": "inbox",
+  "originEntry": "Retrieve completed failed CI job logs before workflow completion",
+  "originEntrySourceDigest": "sha256:e2b87013b2ea49570c20b5fa0adf094f353151355b33f544822a22a57d2f90f9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
