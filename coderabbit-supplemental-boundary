@@ -3,14 +3,20 @@
   "slug": "coderabbit-supplemental-boundary",
   "claimId": "5d8df17cb84b14d757beeb858230757d",
   "createdAt": "2026-09-19T12:56:14.866Z",
-  "updatedAt": "2026-09-19T12:56:14.866Z",
+  "updatedAt": "2026-09-19T14:29:59.090Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Bound CodeRabbit supplemental finding groups before review footer metadata",
   "branch": "chore/coderabbit-supplemental-boundary",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/coderabbit-supplemental-boundary",
+    "headSha": "de2aa7658144a968ab840c43dfe071511a7e9677"
+  }
 }
