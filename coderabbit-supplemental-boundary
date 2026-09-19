@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "coderabbit-supplemental-boundary",
+  "claimId": "5d8df17cb84b14d757beeb858230757d",
+  "createdAt": "2026-09-19T12:56:14.866Z",
+  "updatedAt": "2026-09-19T12:56:14.866Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Bound CodeRabbit supplemental finding groups before review footer metadata",
+  "branch": "chore/coderabbit-supplemental-boundary",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
