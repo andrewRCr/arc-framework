@@ -384,24 +384,22 @@ describe("composePrePublicationReviewRequest", () => {
     expect(rebound.request.standard.sources).toEqual(["coderabbit-pr", "codex-pr"]);
   });
 
-  it("reapplies an Owner terminus only to the exact Candidate subject that accepted it", async () => {
+  it("reapplies an Owner terminus across subject movement within the same Candidate", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
 
-    const current = applyCarriedOwnerAcceptedTerminus(composition, {
+    const carried = applyCarriedOwnerAcceptedTerminus(composition, {
       candidateId: CANDIDATE_ID,
-      candidateSubjectDigest: currentCandidate.status === "current" ? currentCandidate.subjectDigest : null,
       terminus: OWNER_TERMINUS,
     });
-    const changed = applyCarriedOwnerAcceptedTerminus(composition, {
-      candidateId: CANDIDATE_ID,
-      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+    const reRooted = applyCarriedOwnerAcceptedTerminus(composition, {
+      candidateId: `sha256:${"f".repeat(64)}`,
       terminus: OWNER_TERMINUS,
     });
 
-    expect(current.status).toBe("composed");
-    if (current.status !== "composed" || changed.status !== "composed") return;
-    expect(current.request.standard.terminus).toEqual(OWNER_TERMINUS);
-    expect(changed.request.standard).not.toHaveProperty("terminus");
+    expect(carried.status).toBe("composed");
+    if (carried.status !== "composed" || reRooted.status !== "composed") return;
+    expect(carried.request.standard.terminus).toEqual(OWNER_TERMINUS);
+    expect(reRooted.request.standard).not.toHaveProperty("terminus");
   });
 
   it("composes both lanes against one target with CLI-owned sources and ceilings", async () => {

@@ -15,16 +15,20 @@ export type OwnerAcceptedReviewTerminusJudgment = z.infer<
   typeof OwnerAcceptedReviewTerminusJudgmentSchema
 >;
 
-/** Durable, Candidate-bound conclusion composed from live Owner identity and lane progress. */
+/**
+ * Durable Candidate-scoped residual-risk verdict composed from live Owner identity and lane progress.
+ * Subject movement carries it only when typed Candidate currentness proves that movement non-semantic.
+ */
 export const OwnerAcceptedReviewTerminusSchema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("review-terminus/v1"),
   kind: z.literal("owner-accepted"),
   lane: z.literal("standard"),
   acceptedBy: ReviewIdentifierSchema,
+  /** Pass count at acceptance: provenance of the verdict, not fresh authority over a moved subject. */
   completedPasses: CompletedReviewPassCountSchema,
 }).readonly();
-/** Durable Owner-accepted conclusion bound by its containing Candidate boundary. */
+/** Durable Owner-accepted verdict bound by its containing Candidate identity. */
 export type OwnerAcceptedReviewTerminus = z.infer<typeof OwnerAcceptedReviewTerminusSchema>;
 
 /** One Owner terminus bound to an exact delivery member and head. */
