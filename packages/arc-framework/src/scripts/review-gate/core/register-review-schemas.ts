@@ -28,6 +28,7 @@ import { registerForwardReceiptLedgerSchema } from "./forward-receipt-ledger-sch
 import { registerSeverityGatingPolicySchema } from "./severity-gating-policy.js";
 import { assertReviewDurableRecordInventory } from "./schema-inventory.js";
 import { registerReviewSupportCommandSchemas } from "../support-command-schemas.js";
+import { registerReviewRequestCommandSchemas } from "../request-command-schemas.js";
 
 /** Compose every currently implemented review schema into a fresh kernel registry. */
 export function registerReviewDomainSchemas(registry: KernelRegistry): KernelRegistry {
@@ -43,6 +44,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerAdvisoryRecordSchemas(registry);
   registerReviewCommandEnvelopeSchemas(registry);
   registerReviewSupportCommandSchemas(registry);
+  registerReviewRequestCommandSchemas(registry);
   registerMergeLockCommandEnvelopeSchemas(registry);
   registerReviewChunkingCommandSchemas(registry);
   registerPlanningGroomingCommandSchemas(registry);
