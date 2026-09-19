@@ -2939,6 +2939,7 @@ function defaultPrePublicationDependencies(
       if (existing?.terminus !== null && existing?.terminus !== undefined) {
         carried = applyCarriedOwnerAcceptedTerminus(carried, {
           candidateId: existing.candidateId,
+          candidateSubjectDigest: existing.candidateSubjectDigest,
           terminus: existing.terminus,
         });
       }

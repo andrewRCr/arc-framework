@@ -601,16 +601,19 @@ export async function composePrePublicationReviewRequest(
   return { status: "composed", request: request.data, advisories };
 }
 
-/** Reapply a durable Owner conclusion to the Candidate whose residual risk it accepts. */
+/** Reapply a durable Owner conclusion only to the exact Candidate subject it accepted. */
 export function applyCarriedOwnerAcceptedTerminus(
   composition: PrePublicationComposition,
   input: {
     candidateId: string;
+    candidateSubjectDigest: string | null;
     terminus: OwnerAcceptedReviewTerminus;
   },
 ): PrePublicationComposition {
   if (composition.status !== "composed"
-    || composition.request.candidateId !== input.candidateId) {
+    || input.candidateSubjectDigest === null
+    || composition.request.candidateId !== input.candidateId
+    || composition.request.candidate.subjectDigest !== input.candidateSubjectDigest) {
     return composition;
   }
   return {
