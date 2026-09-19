@@ -213,31 +213,6 @@ describe("integration boundary locus", () => {
     });
   });
 
-  it("reads a persisted delivery action forward past the retired `--json` flag", () => {
-    const current = projectPublicationBoundary({
-      workUnit: "example",
-      candidateId: `sha256:${"c".repeat(64)}`,
-      branch: "feat/example",
-      reservation: deliveryReservation(),
-      changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
-    });
-    const persisted = {
-      ...current,
-      nextAction: { ...current.nextAction, command: `${current.nextAction.command} --json` },
-    };
-
-    expect(IntegrationBoundaryLocusSchema.safeParse(persisted).success).toBe(false);
-    expect(parseIntegrationBoundaryLocus(persisted)).toMatchObject({
-      locus: "delivery-status-required",
-      nextAction: {
-        kind: "resolve-delivery-status",
-        workUnitId: "example",
-        command: "arc review status --work-unit example",
-        interactionText: "Resolve the retained delivery status.",
-      },
-    });
-  });
-
   it("rebinds the carried public delivery reservation to one exact renewed-Candidate continuation", () => {
     const sourceCandidateId = `sha256:${"c".repeat(64)}`;
     const currentCandidateId = `sha256:${"d".repeat(64)}`;

@@ -365,33 +365,12 @@ export const IntegrationBoundaryLocusSchema = z.union([
 ]);
 export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSchema>;
 
-/**
- * Read a durable record forward past the retired `arc review status --json` flag.
- *
- * Records written before the flag was dropped pin it into `nextAction.command`, which the action
- * schemas match exactly and which operators are told to invoke verbatim.
- */
-function normalizeRetiredStatusFlag(input: unknown): unknown {
-  if (typeof input !== "object" || input === null) return input;
-  const record = input as { nextAction?: unknown };
-  const action = record.nextAction;
-  if (typeof action !== "object" || action === null) return input;
-  const command = (action as { command?: unknown }).command;
-  if (typeof command !== "string") return input;
-  if (!command.startsWith("arc review status ") || !command.endsWith(" --json")) return input;
-  return {
-    ...record,
-    nextAction: { ...action, command: command.slice(0, -" --json".length) },
-  };
-}
-
 /** Parse one structural integration boundary. */
 export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBoundaryLocus {
-  const normalized = normalizeRetiredStatusFlag(input);
-  const canonical = IntegrationBoundaryLocusSchema.safeParse(normalized);
+  const canonical = IntegrationBoundaryLocusSchema.safeParse(input);
   if (canonical.success) return canonical.data;
   const legacy = LegacyHostedReviewPendingBoundarySchema.safeParse(input);
-  if (!legacy.success) return IntegrationBoundaryLocusSchema.parse(normalized);
+  if (!legacy.success) return IntegrationBoundaryLocusSchema.parse(input);
   return DeliveryStatusRequiredBoundarySchema.parse({
     ...legacy.data,
     locus: "delivery-status-required",
