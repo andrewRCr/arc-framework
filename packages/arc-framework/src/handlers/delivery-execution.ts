@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import {
   declareCliOperandSite,
-  declareCliOptionSite,
   declareInteractionSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
@@ -624,7 +623,7 @@ const NativePreparedRecoveryResultSchema = z.strictObject({
     consequence: z.string().min(1),
   }),
   submitAction: z.strictObject({
-    command: z.literal("arc delivery native land-submit - --json"),
+    command: z.literal("arc delivery native land-submit -"),
     input: NativeSubmitSchema,
   }),
   recommendedActionText: z.string().min(1),
@@ -877,7 +876,7 @@ const InvalidServiceResultRefusalSchema = z.strictObject({
 const ReviewFixContinuationResumeActionSchema = z.strictObject({
   argv: z.tuple([
     z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
-    z.literal("-"), z.literal("--json"),
+    z.literal("-"),
   ]),
   input: ReviewFixContinueSchema.omit({ verification: true }),
 });
@@ -886,7 +885,7 @@ const ReviewFixContinuationDispatchActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("delivery-review-fix-publish"),
     argv: z.tuple([
       z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("publish"),
-      z.literal("-"), z.literal("--json"),
+      z.literal("-"),
     ]),
     input: ReviewFixPublishSchema,
   }),
@@ -894,7 +893,6 @@ const ReviewFixContinuationDispatchActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("delivery-rematerialize"),
     argv: z.tuple([
       z.literal("arc"), z.literal("delivery"), z.literal("rematerialize"), z.literal("-"),
-      z.literal("--json"),
     ]),
     input: RematerializeSchema,
   }),
@@ -902,7 +900,7 @@ const ReviewFixContinuationDispatchActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("delivery-refresh-execute"),
     argv: z.tuple([
       z.literal("arc"), z.literal("delivery"), z.literal("refresh"), z.literal("execute"),
-      z.literal("-"), z.literal("--json"),
+      z.literal("-"),
     ]),
     input: RefreshExecuteSchema,
   }),
@@ -910,7 +908,7 @@ const ReviewFixContinuationDispatchActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("delivery-refresh-adopt"),
     argv: z.tuple([
       z.literal("arc"), z.literal("delivery"), z.literal("refresh"), z.literal("adopt"),
-      z.literal("-"), z.literal("--json"),
+      z.literal("-"),
     ]),
     input: RefreshAdoptSchema,
   }),
@@ -918,7 +916,6 @@ const ReviewFixContinuationDispatchActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("delivery-reconcile"),
     argv: z.tuple([
       z.literal("arc"), z.literal("delivery"), z.literal("reconcile"), z.literal("-"),
-      z.literal("--json"),
     ]),
     input: ReconcileSchema,
   }),
@@ -926,7 +923,7 @@ const ReviewFixContinuationDispatchActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("delivery-review-fix-acknowledge"),
     argv: z.tuple([
       z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("acknowledge"),
-      z.literal("-"), z.literal("--json"),
+      z.literal("-"),
     ]),
     input: ReviewFixAcknowledgeSchema,
   }),
@@ -1575,10 +1572,10 @@ function operationalStateAccessRefusal(
   };
 }
 
-export interface DeliveryExecutionOptions { readonly input?: string; readonly json?: boolean }
+export interface DeliveryExecutionOptions { readonly input?: string }
 
 function deliveryExecutionInputOptionSchema() {
-  return z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
+  return z.strictObject({ input: z.string().min(1) });
 }
 
 const InputOptionSchema = deliveryExecutionInputOptionSchema();
@@ -1586,7 +1583,7 @@ const InputOptionSchema = deliveryExecutionInputOptionSchema();
 export const deliveryExecutionCommandInputRegistrations = Object.keys(RequestSchemas).map((command) => ({
   commandPath: executionPath(command as DeliveryExecutionCommand),
   schema: deliveryExecutionInputOptionSchema(),
-  schemaFields: { "operand.input": "input", "option.json": "json" },
+  schemaFields: { "operand.input": "input" },
 })) satisfies readonly CommandInputRegistration[];
 
 export const deliveryExecutionCommandInputPolicyDeclarations = Object.keys(RequestSchemas).map((command) => ({
@@ -1601,15 +1598,6 @@ export const deliveryExecutionCommandInputPolicyDeclarations = Object.keys(Reque
       automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["<json-path>", "-"] },
       mutationBoundary: "delivery execution request validation",
       subprocess: "explicit-stdin",
-    }),
-    declareCliOptionSite("json", {
-      acquisition: "machine-mode",
-      schemaOwnership: "owned",
-      schemaField: "json",
-      cancellation: "not-applicable",
-      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-      mutationBoundary: "output selection",
-      subprocess: "none",
     }),
     ...(command === "eligibility-prepare" ? [declareInteractionSite(
       { file: "handlers/delivery-execution.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },
@@ -2757,7 +2745,7 @@ async function executeDeliveryCommand(
           status: "dispatch" as const,
           action: {
             kind: "delivery-reconcile" as const,
-            argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+            argv: ["arc", "delivery", "reconcile", "-"] as const,
             input: {
               planId,
               repository: parsed.repository,

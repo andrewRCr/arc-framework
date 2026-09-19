@@ -55,7 +55,7 @@ export function spineRemedy(
 
 /** The idempotent checkpoint re-attempt — the resume point for a hand-satisfied invariant. */
 export function checkpointResumeArgv(workUnit: string): readonly string[] {
-  return ["arc", "integrate", "checkpoint", workUnit, "--json"];
+  return ["arc", "integrate", "checkpoint", workUnit];
 }
 
 /** The Candidate re-attestation verb. */

@@ -41,7 +41,7 @@ export const ContinueHostedReviewActionSchema = z.strictObject({
   workUnitId: SlugSchema,
   ...ActionFields,
 }).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
     context.addIssue({
       code: "custom",
       path: ["command"],
@@ -54,7 +54,7 @@ export const ResolveDeliveryStatusActionSchema = z.strictObject({
   workUnitId: SlugSchema,
   ...ActionFields,
 }).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
     context.addIssue({
       code: "custom",
       path: ["command"],
@@ -378,7 +378,7 @@ export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBounda
       ...legacy.data.nextAction,
       kind: "resolve-delivery-status",
       workUnitId: legacy.data.workUnit,
-      command: `arc review status --work-unit ${legacy.data.workUnit} --json`,
+      command: `arc review status --work-unit ${legacy.data.workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
   });
@@ -414,7 +414,7 @@ export function projectCandidateReviewBoundary(input: {
     locus: "candidate-review-pending",
     nextAction: {
       kind: "run-self-review",
-      command: `arc review pre-publication ${workUnit} --json`,
+      command: `arc review pre-publication ${workUnit}`,
       interactionText: "Run or resume the typed pre-publication review procedure.",
     },
     policy: null,
@@ -443,7 +443,7 @@ export function projectCandidateReviewResumeBoundary(input: {
     locus: "candidate-review-pending",
     nextAction: {
       kind: "continue-pre-publication-review",
-      command: `arc review pre-publication ${workUnit} --json`,
+      command: `arc review pre-publication ${workUnit}`,
       interactionText: "Resume pre-publication review over the converged Candidate.",
     },
     policy: null,
@@ -475,7 +475,7 @@ export function projectCandidateFixResumeBoundary(input: {
     locus: "candidate-fix-pending",
     nextAction: {
       kind: "continue-pre-publication-review",
-      command: `arc review pre-publication ${workUnit} --json`,
+      command: `arc review pre-publication ${workUnit}`,
       interactionText: "Resume the approved Candidate review fix response.",
     },
     policy: null,
@@ -541,9 +541,9 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
           ? "continue-pre-publication-review"
           : "continue-publication",
       command: deliveryHosted
-        ? `arc review status --work-unit ${value.workUnit} --json`
+        ? `arc review status --work-unit ${value.workUnit}`
         : hosted
-          ? `arc review pre-publication ${value.workUnit} --json`
+          ? `arc review pre-publication ${value.workUnit}`
         : `git push -u origin ${value.branch}`,
       interactionText: deliveryHosted
         ? "Resolve the retained delivery status."
@@ -603,7 +603,7 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
     nextAction: {
       kind: "resolve-delivery-status",
       workUnitId: workUnit,
-      command: `arc review status --work-unit ${workUnit} --json`,
+      command: `arc review status --work-unit ${workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
     policy: null,

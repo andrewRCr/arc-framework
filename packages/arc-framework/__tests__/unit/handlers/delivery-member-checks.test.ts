@@ -46,7 +46,7 @@ function dependencies(): DeliveryMemberChecksHandlerDependencies {
 describe("delivery-member checks handler", () => {
   it("emits the exact one-shot member qualification", async () => {
     const deps = dependencies();
-    await handleDeliveryMemberChecksObserve({ input: "-", json: true }, deps);
+    await handleDeliveryMemberChecksObserve({ input: "-" }, deps);
 
     expect(deps.observe).toHaveBeenCalledWith(input);
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({
@@ -65,7 +65,7 @@ describe("delivery-member checks handler", () => {
       member: { ...member, head: "c".repeat(40) },
     }));
 
-    await handleDeliveryMemberChecksObserve({ input: "-", json: true }, deps);
+    await handleDeliveryMemberChecksObserve({ input: "-" }, deps);
 
     expect(deps.observe).not.toHaveBeenCalled();
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({
@@ -81,7 +81,7 @@ describe("delivery-member checks handler", () => {
     const deps = dependencies();
     vi.mocked(deps.observe).mockRejectedValue(new Error("unexpected host failure"));
 
-    await handleDeliveryMemberChecksObserve({ input: "request.json", json: true }, deps);
+    await handleDeliveryMemberChecksObserve({ input: "request.json" }, deps);
 
     expect(JSON.parse(vi.mocked(deps.write).mock.calls[0]?.[0] as string)).toMatchObject({
       repository: "owner/repo",
@@ -94,7 +94,7 @@ describe("delivery-member checks handler", () => {
       detail: "unexpected host failure",
       remedy: {
         invariant: "Required-check status must be readable for the exact delivery member.",
-        argv: ["arc", "delivery", "checks", "observe", "request.json", "--json"],
+        argv: ["arc", "delivery", "checks", "observe", "request.json"],
       },
     });
     expect(deps.setExitCode).toHaveBeenCalledWith(1);

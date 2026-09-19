@@ -89,7 +89,7 @@ export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewPrePublication
 
 /** The idempotent pre-publication re-attempt — the resume point every refusal returns to. */
 function prePublicationResumeArgv(workUnit: string): readonly string[] {
-  return ["arc", "review", "pre-publication", workUnit, "--json"];
+  return ["arc", "review", "pre-publication", workUnit];
 }
 
 const PRE_PUBLICATION_REMEDIES: Record<
@@ -683,7 +683,7 @@ const DeliveryMemberResponsePayloadSchema = z.strictObject({
 const DeliveryCorrectionActionSchema = z.strictObject({
   argv: z.tuple([
     z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
-    z.literal("-"), z.literal("--json"),
+    z.literal("-"),
   ]),
   input: z.strictObject({
     repository: z.string().trim().min(1),

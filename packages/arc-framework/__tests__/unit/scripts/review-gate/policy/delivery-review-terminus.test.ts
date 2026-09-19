@@ -33,7 +33,7 @@ const boundary = IntegrationBoundaryLocusSchema.parse({
   nextAction: {
     kind: "resolve-delivery-status",
     workUnitId: "example",
-    command: "arc review status --work-unit example --json",
+    command: "arc review status --work-unit example",
     interactionText: "Resume the retained delivery-member review conjunction.",
   },
   policy: null,

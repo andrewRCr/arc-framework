@@ -51,14 +51,14 @@ describe("lifecycle review driver", () => {
       readFile(resolve(packageArc, prepareWorkflow), "utf8"),
     ]);
     expect(workflow).toContain("arc review change-request resolve --head-ref");
-    expect(workflow).toContain("arc review status --target '{targetRef}' --json");
-    expect(workflow.indexOf("arc review status --target '{targetRef}' --json"))
+    expect(workflow).toContain("arc review status --target '{targetRef}'");
+    expect(workflow.indexOf("arc review status --target '{targetRef}'"))
       .toBeLessThan(workflow.indexOf("arc review hosted request -"));
     expect(workflow).toContain("checkpoint now owns Candidate applicability, ordinary publication settlement");
     expect(workflow).toMatch(/delivery\s+rebind, review status, and final readiness/u);
     expect(workflow).toContain("arc merge lock resolve -");
-    expect(workflow).toContain("arc integrate checkpoint {name} --json");
-    expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
+    expect(workflow).toContain("arc integrate checkpoint {name}");
+    expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     expect(workflow).toContain("Approve (or redirect)?");
     expect(workflow).toMatch(
       /not an instruction to invoke merge this turn while those checks are pending/iu,

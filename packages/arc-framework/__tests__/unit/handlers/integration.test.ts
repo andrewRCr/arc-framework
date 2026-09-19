@@ -18,7 +18,7 @@ const digest = (character: string): `sha256:${string}` => `sha256:${character.re
 describe("integration checkpoint handler", () => {
   it("emits the checkpoint reducer's typed verdict", async () => {
     const write = vi.fn();
-    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+    await handleIntegrationCheckpoint("example", {}, undefined, {
       checkpoint: async () => ({
         schemaVersion: 1,
         mode: "integrate-checkpoint",
@@ -46,7 +46,7 @@ describe("integration checkpoint handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
-    await handleIntegrationCheckpoint("Bad name", { json: true }, undefined, { write, setExitCode });
+    await handleIntegrationCheckpoint("Bad name", {}, undefined, { write, setExitCode });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
     expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
@@ -63,7 +63,7 @@ describe("integration checkpoint handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
-    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+    await handleIntegrationCheckpoint("example", {}, undefined, {
       checkpoint: async () => { throw new Error("checkpoint store malformed"); },
       write,
       setExitCode,
@@ -75,14 +75,14 @@ describe("integration checkpoint handler", () => {
       workUnit: "example",
       state: "blocked",
       reason: "composition-unavailable",
-      remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+      remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
   it("normalizes an empty dependency error into a schema-valid refusal", async () => {
     const write = vi.fn();
-    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+    await handleIntegrationCheckpoint("example", {}, undefined, {
       checkpoint: async () => { throw new Error(); },
       write,
     });
@@ -94,7 +94,7 @@ describe("integration checkpoint handler", () => {
 
   it("bounds and normalizes checkpoint dependency diagnostics", async () => {
     const write = vi.fn();
-    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+    await handleIntegrationCheckpoint("example", {}, undefined, {
       checkpoint: async () => { throw new Error(`  provider\n${"x".repeat(5_000)}  `); },
       write,
     });
@@ -110,7 +110,7 @@ describe("integration checkpoint handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
     const checkpoint = vi.fn();
-    await handleIntegrationCheckpoint("example", { json: true }, undefined, {
+    await handleIntegrationCheckpoint("example", {}, undefined, {
       resolveRoot: () => null,
       checkpoint,
       write,
@@ -129,7 +129,7 @@ describe("integration merge handler", () => {
   it("emits the merge reducer's typed verdict", async () => {
     const write = vi.fn();
     const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
-    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+    await handleIntegrationMerge("example", { checkpoint }, undefined, {
       merge: async () => ({
         schemaVersion: 1,
         mode: "integrate-merge",
@@ -164,7 +164,7 @@ describe("integration merge handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
-    await handleIntegrationMerge("Bad name", { checkpoint: "bad", json: true }, undefined, {
+    await handleIntegrationMerge("Bad name", { checkpoint: "bad" }, undefined, {
       write,
       setExitCode,
     });
@@ -185,7 +185,7 @@ describe("integration merge handler", () => {
     const setExitCode = vi.fn();
     const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
 
-    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+    await handleIntegrationMerge("example", { checkpoint }, undefined, {
       merge: async () => { throw new Error("checkpoint record mismatched"); },
       write,
       setExitCode,
@@ -197,7 +197,7 @@ describe("integration merge handler", () => {
       workUnit: "example",
       state: "blocked",
       reason: "operation-failed",
-      remedy: { argv: ["arc", "integrate", "checkpoint", "example", "--json"] },
+      remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
@@ -205,7 +205,7 @@ describe("integration merge handler", () => {
   it("normalizes an empty merge error into a schema-valid refusal", async () => {
     const write = vi.fn();
     const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
-    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+    await handleIntegrationMerge("example", { checkpoint }, undefined, {
       merge: async () => { throw new Error(); },
       write,
     });
@@ -218,7 +218,7 @@ describe("integration merge handler", () => {
   it("bounds and normalizes merge dependency diagnostics", async () => {
     const write = vi.fn();
     const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
-    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+    await handleIntegrationMerge("example", { checkpoint }, undefined, {
       merge: async () => { throw new Error(`  provider\n${"x".repeat(5_000)}  `); },
       write,
     });
@@ -235,7 +235,7 @@ describe("integration merge handler", () => {
     const setExitCode = vi.fn();
     const merge = vi.fn();
     const checkpoint = `checkpoint-v1:${oid("a")}:${digest("b")}`;
-    await handleIntegrationMerge("example", { checkpoint, json: true }, undefined, {
+    await handleIntegrationMerge("example", { checkpoint }, undefined, {
       resolveRoot: () => null,
       merge,
       write,

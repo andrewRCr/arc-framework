@@ -519,7 +519,7 @@ describe("member-six refresh adoption lifecycle", () => {
       });
 
       let output = "";
-      await handleDeliveryExecution("refresh-adopt", { input: "-", json: true }, undefined, {
+      await handleDeliveryExecution("refresh-adopt", { input: "-" }, undefined, {
         readText: async () => JSON.stringify({
           planId: fixture.plan.planId,
           repository: "owner/repo",
@@ -686,7 +686,7 @@ describe("member-six semantic native fallback lifecycle", () => {
     };
 
     let applyOutput = "";
-    await handleDeliveryExecution("land-apply", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("land-apply", { input: "-" }, undefined, {
       readText: async () => JSON.stringify({
         planId: plan.planId,
         approved: prepared.presentation,
@@ -728,7 +728,7 @@ describe("member-six semantic native fallback lifecycle", () => {
       explicitAtomic: true,
     } as const;
     let executedRequest: unknown;
-    await handleDeliveryExecution("native-land-select", { input: "-", json: true }, undefined, {
+    await handleDeliveryExecution("native-land-select", { input: "-" }, undefined, {
       readText: async () => JSON.stringify(selectRequest),
       execute: async (_command, request) => {
         executedRequest = request;

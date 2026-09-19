@@ -233,7 +233,6 @@ describe("review status", () => {
           "arc", "review", "change-request", "resolve",
           "--head-ref", target.headRef,
           "--head-sha", oid("f"),
-          "--json",
         ],
       },
     });
@@ -1511,7 +1510,7 @@ describe("review status", () => {
       deliveryCursor: { currentMember: { target: hostedAction.target } },
       remedy: {
         argv: [
-          "arc", "review", "status", "--work-unit", "example", "--coverage", "incremental", "--json",
+          "arc", "review", "status", "--work-unit", "example", "--coverage", "incremental",
         ],
       },
     });
@@ -2239,7 +2238,7 @@ describe("review status", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target)] },
     });
   });
 
@@ -2249,7 +2248,7 @@ describe("review status", () => {
       nextAction: "stop",
       reason: "checks-failed",
       requiredChecks: "failed",
-      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target)] },
     });
   });
 });

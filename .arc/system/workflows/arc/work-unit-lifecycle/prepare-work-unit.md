@@ -36,7 +36,7 @@ recovery project this state as `sessionType: prepublication` with `workflow: pre
 Before composing review, inspect whether the Candidate has plan-owned private member targets:
 
 ```bash
-printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect - --json
+printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect -
 ```
 
 Dispatch only on the typed result. `not-applicable` continues ordinary singleton preparation.
@@ -59,7 +59,7 @@ ownership, and surface authority — as the author judgment the repository canno
 routed `standardReview` projection, the work unit's `Class`, and each lane's effective method activity are composed
 from repository state by the command below; never assemble or restate them here.
 
-Invoke `arc review pre-publication <wu> --json`, carrying the routing facts as `--change-set`, each lane's scope
+Invoke `arc review pre-publication <wu>`, carrying the routing facts as `--change-set`, each lane's scope
 mode and one-run invocation override, and any approved ceiling override as `--lanes`, and a
 completed author self-review as `--self-review settled` only when the effective method is active and ran; omit the
 option when the method is inactive. A user-directed skip of an enabled frontline lane is

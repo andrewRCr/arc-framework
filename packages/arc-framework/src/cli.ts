@@ -419,9 +419,8 @@ integrateCmd.action(() => {
 integrateCmd
   .command("checkpoint <name>")
   .description("Compose one typed integration-readiness verdict")
-  .requiredOption("--json", "Emit the typed checkpoint verdict as JSON")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, name: string, opts: IntegrationCheckpointOptions) => {
       await (await import("./handlers/integration.js")).handleIntegrationCheckpoint(name, opts, context);
     },
@@ -431,9 +430,8 @@ integrateCmd
   .command("merge <name>")
   .description("Execute one approved integration checkpoint and merge its exact head")
   .requiredOption("--checkpoint <handle>", "Opaque checkpoint handle returned by integrate checkpoint")
-  .requiredOption("--json", "Emit the typed merge verdict as JSON")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, name: string, opts: IntegrationMergeOptions) => {
       await (await import("./handlers/integration.js")).handleIntegrationMerge(name, opts, context);
     },
@@ -746,9 +744,8 @@ baseCmd
   .requiredOption("--expected-base <oid>", "Exact base revision approved by the checkpoint")
   .requiredOption("--expected-head <oid>", "Exact Candidate head approved by the checkpoint")
   .option("--regenerate-roadmap", "Apply the checkpoint-authorized ROADMAP-only conflict remedy")
-  .requiredOption("--json", "Emit the typed merge outcome as JSON")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, opts: BaseMergeOptions) => {
       await (await import("./handlers/base.js")).handleBaseMerge(opts, context);
     },
@@ -790,23 +787,23 @@ const delivery = program
 
 const deliveryAuthoring = delivery.command("authoring").description("Resolve deterministic authoring locators");
 deliveryAuthoring.command("locate").description("Resolve exact candidate refs and detached gate paths")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-locate", { ...opts, input }, context);
   }));
 deliveryAuthoring.command("rematerialize").description("Prepare one exact private candidate ref and detached gate pair")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-rematerialize", { ...opts, input }, context);
   }));
 deliveryAuthoring.command("rebind").description("Bind one clean detached authoring head to its candidate ref")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("authoring-rebind", { ...opts, input }, context);
   }));
 
 delivery.command("closeout").description("Reap completed delivery residue and retire its exact records")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("closeout", { ...opts, input }, context);
   }));
@@ -814,7 +811,6 @@ delivery.command("closeout").description("Reap completed delivery residue and re
 delivery.command("entry").description("Inspect the operator-invoked delivery entry route")
   .command("inspect").description("Read authoritative delivery intent and binding facts")
   .argument("<input>", "Strict JSON request path, or - for standard input")
-  .option("--json", "Emit the strict entry route as JSON")
   .action(withInteractionContext(
     { machineReadable: () => true },
     async (context, input: string, opts: Omit<DeliveryEntryInspectOptions, "input">) => {
@@ -825,7 +821,6 @@ delivery.command("entry").description("Inspect the operator-invoked delivery ent
 delivery.command("checks").description("Observe exact delivery-member required checks")
   .command("observe").description("Qualify required checks for one exact member head without mutation")
   .argument("<input>", "Strict JSON request path, or - for standard input")
-  .option("--json", "Emit the typed observation as JSON")
   .action(withInteractionContext(
     { machineReadable: () => true },
     async (_context, input: string, options: DeliveryMemberChecksOptions) => {
@@ -838,133 +833,133 @@ delivery.command("checks").description("Observe exact delivery-member required c
 
 const deliveryEligibility = delivery.command("eligibility").description("Validate one exact delivery candidate chain");
 deliveryEligibility.command("prepare").description("Pin and validate the authored candidate chain")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("eligibility-prepare", { ...opts, input }, context);
   }));
 deliveryEligibility.command("close").description("Close the post-gate eligibility observation window")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("eligibility-close", { ...opts, input }, context);
   }));
 delivery.command("publish").description("Publish exact member refs and open or adopt every change request")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("publish", { ...opts, input }, context);
   }));
 const deliveryNative = delivery.command("native").description("Compose optional host-native stack presentation");
 deliveryNative.command("observe").description("Observe exact native registration without mutation")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-observe", { ...opts, input }, context);
   }));
 deliveryNative.command("link").description("Optionally register an already-materialized exact chain")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-link", { ...opts, input }, context);
   }));
 deliveryNative.command("unlink").description("Remove native presentation before sequential delivery")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-unlink", { ...opts, input }, context);
   }));
 deliveryNative.command("land-select").description("Select the native or unlinked landing arm from fresh facts")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-select", { ...opts, input }, context);
   }));
 deliveryNative.command("land-prepare").description("Validate and reserve one exact native landing set")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-prepare", { ...opts, input }, context);
   }));
 deliveryNative.command("land-submit").description("Submit one freshly authorized native landing effect")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-submit", { ...opts, input }, context);
   }));
 deliveryNative.command("land-status").description("Poll and reconcile one persisted native landing identity")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("native-land-status", { ...opts, input }, context);
   }));
 const deliveryRefresh = delivery.command("refresh")
   .description("Plan, execute, or adopt one provider-refreshed suffix");
 deliveryRefresh.command("plan").description("Plan the exact operator-refreshed registered suffix")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-plan", { ...opts, input }, context);
   }));
 deliveryRefresh.command("execute").description("Prepare and publish one provider-native suffix refresh")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-execute", { ...opts, input }, context);
   }));
 deliveryRefresh.command("adopt").description("Observe, prove, and adopt one externally refreshed suffix")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("refresh-adopt", { ...opts, input }, context);
   }));
 const deliveryReviewFix = delivery.command("review-fix")
   .description("Route and publish one approved delivery-member review fix");
 deliveryReviewFix.command("continue").description("Resume the exact delivery review-fix continuation")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-continue", { ...opts, input }, context);
   }));
 deliveryReviewFix.command("plan").description("Select linked publication or complete rematerialization")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-plan", { ...opts, input }, context);
   }));
 deliveryReviewFix.command("publish").description("Publish one selected member before provider-native suffix refresh")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-publish", { ...opts, input }, context);
   }));
 deliveryReviewFix.command("acknowledge").description("Consume one completed review-fix verification continuation")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("review-fix-acknowledge", { ...opts, input }, context);
   }));
 delivery.command("position").description("Derive the exact current delivery position")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("position", { ...opts, input }, context);
   }));
 const deliveryLand = delivery.command("land").description("Prepare and apply one attended member landing");
 deliveryLand.command("prepare").description("Prepare one exact landing presentation")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("land-prepare", { ...opts, input }, context);
   }));
 deliveryLand.command("apply").description("Apply one freshly authorized landing")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("land-apply", { ...opts, input }, context);
   }));
 delivery.command("reconcile").description("Reconcile one persisted delivery operation")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("reconcile", { ...opts, input }, context);
   }));
 delivery.command("rewrite").description("Rewrite one reviewed suffix member by exact lease")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("rewrite", { ...opts, input }, context);
   }));
 delivery.command("rematerialize").description("Reclose and rewrite one complete reviewed suffix")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("rematerialize", { ...opts, input }, context);
   }));
 delivery.command("teardown").description("Retire one proven-landed member ref while retaining its binding")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("teardown", { ...opts, input }, context);
   }));
 delivery.command("top-remedy").description("Apply one explicitly selected terminal request remedy")
-  .argument("<input>", "Strict JSON request path, or - for standard input").option("--json", "Emit the strict verb result as JSON")
+  .argument("<input>", "Strict JSON request path, or - for standard input")
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string, opts: DeliveryExecutionOptions) => {
     await (await import("./handlers/delivery-execution.js")).handleDeliveryExecution("top-remedy", { ...opts, input }, context);
   }));
@@ -1690,9 +1685,8 @@ reviewCmd
   .requiredOption("--head-ref <branch>", "Proposed branch name")
   .requiredOption("--head-sha <oid>", "Exact Git object ID for the proposed head")
   .option("--require-remote", "Require the remote branch to match the exact head")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, options: ReviewChangeRequestResolveOptions) => {
       await (await import("./handlers/review.js")).handleReviewChangeRequestResolve(options, context);
     },
@@ -1706,9 +1700,8 @@ reviewCmd
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
   .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
-    { machineReadable: (opts) => opts.json === true },
+    { machineReadable: () => true },
     async (context, options: ReviewStatusOptions) => {
       await (await import("./handlers/review.js")).handleReviewStatus(options, context);
     },
@@ -1743,7 +1736,6 @@ reviewCmd
     "Merge-method stack position (non-delivery, intermediate, or top)",
     "non-delivery",
   )
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(async (options: ReviewMergeMethodResolveOptions) => {
     await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options);
   });
@@ -1758,7 +1750,6 @@ reviewCmd
   .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
   .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
   .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(async (options: ReviewChecksAwaitOptions) => {
     await (await import("./handlers/review.js")).handleReviewChecksAwait(options);
   });
@@ -1972,7 +1963,6 @@ reviewCmd
     "Per-lane review scope, frontline invocation, and approved ceiling override as JSON",
   )
   .option("--resume <token>", "Replay the exact prior pre-publication judgment inputs")
-  .requiredOption("--json", "Emit a typed JSON result")
   .action(withInteractionContext(
     { machineReadable: () => true },
     async (context, name: string, options: ReviewPrePublicationOptions) => {

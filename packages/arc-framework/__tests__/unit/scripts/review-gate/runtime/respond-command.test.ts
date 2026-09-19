@@ -615,7 +615,7 @@ describe("review response command", () => {
       payload: {
         deliveryMember: records.vehicle,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository: "owner/repo", remote: "origin" },
         },
       },
@@ -816,7 +816,7 @@ describe("review response command", () => {
       payload: {
         deliveryMember: attempt.hosted.vehicle,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository: "owner/repo", remote: "origin" },
         },
       },

@@ -124,7 +124,7 @@ async function attachLiveBase(repository: string): Promise<string> {
 async function settleForPublication(repository: string): Promise<string> {
   expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
   const reviewed = await runArc(
-    ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+    ["review", "pre-publication", "example", "--self-review", "settled"],
     repository,
     { env: OFFLINE_ENV },
   );
@@ -182,7 +182,7 @@ describe("attest → pre-publication → publish", () => {
       status: "attested",
       locus: {
         locus: "candidate-review-pending",
-        nextAction: { command: "arc review pre-publication example --json" },
+        nextAction: { command: "arc review pre-publication example" },
       },
     });
 
@@ -194,12 +194,12 @@ describe("attest → pre-publication → publish", () => {
       integrationBoundary: {
         candidateId: JSON.parse(proposed.stdout).locus.candidateId,
         locus: "candidate-review-pending",
-        nextAction: { command: "arc review pre-publication example --json" },
+        nextAction: { command: "arc review pre-publication example" },
       },
     });
 
     const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       repository,
       { env: OFFLINE_ENV },
     );
@@ -270,7 +270,7 @@ describe("attest → pre-publication → publish", () => {
     await git(repository, ["commit", "-m", "verification"]);
 
     const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       repository,
       { env: OFFLINE_ENV },
     );
@@ -308,7 +308,7 @@ describe("attest → pre-publication → publish", () => {
     await git(repository, ["commit", "-m", "verification"]);
 
     const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       repository,
       { env: OFFLINE_ENV },
     );
@@ -381,7 +381,7 @@ describe("attest → pre-publication → publish", () => {
     await git(repository, ["commit", "-m", "verification"]);
 
     const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       repository,
       { env: OFFLINE_ENV },
     );
@@ -467,7 +467,7 @@ describe("attest → pre-publication → publish", () => {
     await git(repository, ["add", candidatePath]);
 
     const resumed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       repository,
       { env: OFFLINE_ENV },
     );
@@ -510,7 +510,7 @@ describe("attest → pre-publication → publish", () => {
         reservation: { sources: ["coderabbit-pr", "codex-pr"] },
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: "arc review pre-publication example --json",
+          command: "arc review pre-publication example",
         },
       },
     });
@@ -539,7 +539,7 @@ describe("attest → pre-publication → publish", () => {
         reservation: { sources: ["coderabbit-pr", "codex-pr"] },
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: "arc review pre-publication example --json",
+          command: "arc review pre-publication example",
         },
       },
     });
@@ -548,7 +548,7 @@ describe("attest → pre-publication → publish", () => {
     // replay command; following that command must still recover the carried reservation and reach
     // publish readiness without a test-only judgment override.
     const continued = await runArc(
-      ["review", "pre-publication", "example", "--json"],
+      ["review", "pre-publication", "example"],
       repository,
       { env: OFFLINE_ENV },
     );
@@ -562,7 +562,7 @@ describe("attest → pre-publication → publish", () => {
       nextAction: {
         kind: "run-self-review",
         command: expect.stringMatching(
-          /^arc review pre-publication example --resume [A-Za-z0-9_-]+ --json$/u,
+          /^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u,
         ),
       },
     });
@@ -584,7 +584,7 @@ describe("attest → pre-publication → publish", () => {
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
     await git(repository, ["commit", "-m", "verification"]);
     expect((await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       repository,
       { env: OFFLINE_ENV },
     )).exitCode).toBe(0);
@@ -622,7 +622,7 @@ describe("attest → pre-publication → publish", () => {
     const headSha = await git(repository, ["rev-parse", "HEAD"]);
 
     const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--self-review", "settled", "--json"],
+      ["review", "pre-publication", "example", "--self-review", "settled"],
       repository,
       { env: OFFLINE_ENV },
     );
@@ -646,7 +646,7 @@ describe("attest → pre-publication → publish", () => {
     // Self-review is active by package default, so the bare procedure leaves the durable
     // Candidate boundary open rather than authorizing publication.
     const reviewed = await runArc(
-      ["review", "pre-publication", "example", "--json"],
+      ["review", "pre-publication", "example"],
       repository,
       { env: OFFLINE_ENV },
     );

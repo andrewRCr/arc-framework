@@ -129,7 +129,6 @@ describe("exact-head change-request resolution", () => {
           headRef,
           "--head-sha",
           movedHead,
-          "--json",
         ],
       },
     });
@@ -155,7 +154,6 @@ describe("exact-head change-request resolution", () => {
           unusualHeadRef,
           "--head-sha",
           movedHead,
-          "--json",
         ],
         text: expect.stringContaining("'feat/operator'\"'\"'s-review'"),
       },

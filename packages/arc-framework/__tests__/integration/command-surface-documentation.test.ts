@@ -7,7 +7,7 @@
  * Commander source scan — so removing a command surfaces here without anyone maintaining a list.
  */
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
@@ -88,6 +88,63 @@ function emittedInvocations(sourceText: string): DocumentedInvocation[] {
   return invocations;
 }
 
+/** Guidance trees whose `arc …` blocks an operator is told to run verbatim. */
+const GUIDANCE_ROOTS = [
+  { label: "project", path: resolve(root, ".arc/system/workflows") },
+  { label: "project", path: resolve(root, ".arc/reference") },
+  { label: "package", path: resolve(root, "packages/arc-framework/arc/system/workflows") },
+  { label: "package", path: resolve(root, "packages/arc-framework/arc/reference") },
+] as const;
+
+/** One executable invocation a guidance document publishes, with the options it passes. */
+interface GuidanceInvocation extends DocumentedInvocation {
+  readonly options: readonly string[];
+}
+
+/**
+ * Collect the `arc …` invocations a guidance document tells an operator to run.
+ *
+ * Shell continuations are joined first, so an option carried on its own line still belongs to the
+ * command that opened the block — the shape a line-oriented sweep cannot see. Command substitutions
+ * are then excised rather than split on, so a `$(gh … --json …)` cannot lend its options to the
+ * `arc` command around it and cannot hide the outer command's own options behind it either.
+ */
+function guidanceInvocations(content: string): GuidanceInvocation[] {
+  const logical: string[] = [];
+  let pending: string | null = null;
+  for (const raw of content.split("\n")) {
+    const line = raw.trimEnd();
+    pending = pending === null ? line : `${pending} ${line.trim()}`;
+    if (pending.endsWith("\\")) {
+      pending = pending.slice(0, -1);
+      continue;
+    }
+    logical.push(pending);
+    pending = null;
+  }
+  if (pending !== null) logical.push(pending);
+
+  const invocations: GuidanceInvocation[] = [];
+  for (const line of logical) {
+    let bare = line;
+    for (let previous = ""; bare !== previous;) {
+      previous = bare;
+      bare = bare.replace(/\$\([^()]*\)/gu, "");
+    }
+    for (const segment of bare.split(/\||&&|;/u)) {
+      const match = /\barc ((?:[a-z][a-z0-9-]*)(?: [a-z][a-z0-9-]*)*)/u.exec(segment);
+      if (match === null) continue;
+      const words = match[1]?.split(" ") ?? [];
+      const options = segment
+        .slice(match.index + match[0].length)
+        .split(/\s+/u)
+        .filter((token) => /^--[a-z][a-z0-9-]*$/u.test(token));
+      if (words.length > 0) invocations.push({ line: line.trim(), words, options });
+    }
+  }
+  return invocations;
+}
+
 /** Resolve a documented invocation to the registered command it names. */
 function resolveCommandPath(words: readonly string[], registered: ReadonlySet<string>): string | null {
   const path = words.join(" ");
@@ -96,6 +153,7 @@ function resolveCommandPath(words: readonly string[], registered: ReadonlySet<st
 
 describe("documented command surface", () => {
   let registered!: ReadonlySet<string>;
+  let declaresJson!: ReadonlySet<string>;
   let sourceFiles!: Readonly<Record<string, string>>;
 
   beforeAll(async () => {
@@ -113,6 +171,9 @@ describe("documented command surface", () => {
       }
     }
     registered = paths;
+    declaresJson = new Set(snapshot.source.commands
+      .filter((command) => command.options.some((option) => option.flags.split(/[ ,|]+/u).includes("--json")))
+      .map((command) => command.path));
   });
 
   it.each(REFERENCES)("publishes only registered commands in the $label quick reference", async ({ path }) => {
@@ -142,13 +203,13 @@ describe("documented command surface", () => {
   });
 
   it("reads the command path out of an interpolated emitted literal", () => {
-    const emitted = emittedInvocations("const c = `arc review pre-publication ${workUnit} --json`;");
+    const emitted = emittedInvocations("const c = `arc review pre-publication ${workUnit}`;");
 
     expect(emitted.map((invocation) => invocation.words)).toEqual([["review", "pre-publication"]]);
   });
 
   it("reads a corrective command path out of structured argv", () => {
-    const emitted = emittedInvocations('const remedy = { argv: ["arc", "review", "status", "--json"] };');
+    const emitted = emittedInvocations('const remedy = { argv: ["arc", "review", "status"] };');
 
     expect(emitted.map((invocation) => invocation.words)).toEqual([["review", "status"]]);
   });
@@ -165,6 +226,63 @@ describe("documented command surface", () => {
     expect(documented?.words).toEqual(["errand", "open"]);
     expect(resolveCommandPath(documented?.words ?? [], new Set(["errand", "errand close"]))).toBeNull();
     expect(resolveCommandPath(documented?.words ?? [], new Set(["errand", "errand open"]))).toBe("errand open");
+  });
+
+  it("passes `--json` only to commands that declare it, across every guidance tree", async () => {
+    const documents = await Promise.all(GUIDANCE_ROOTS.map(async ({ path }) => {
+      const entries = await readdir(path, { recursive: true });
+      const markdown = entries.filter((entry) => entry.endsWith(".md"));
+      return Promise.all(markdown.map(async (entry) => {
+        const file = resolve(path, entry);
+        return { file, invocations: guidanceInvocations(await readFile(file, "utf8")) };
+      }));
+    }));
+    const scanned = documents.flat();
+
+    // The scan is derived, so an over-tight filter would pass by finding nothing. A command that
+    // genuinely keeps the flag is the fixed point that proves the scan still sees `--json`.
+    const passingJson = scanned
+      .flatMap(({ invocations }) => invocations)
+      .filter((invocation) => invocation.options.includes("--json"));
+    expect(passingJson.length).toBeGreaterThan(0);
+
+    const retired = scanned.flatMap(({ file, invocations }) => invocations
+      .filter((invocation) => invocation.options.includes("--json"))
+      .filter((invocation) => {
+        const path = resolveCommandPath(invocation.words, registered);
+        return path !== null && !declaresJson.has(path);
+      })
+      .map((invocation) => `${file.slice(root.length + 1)}: ${invocation.line}`));
+
+    expect(retired).toEqual([]);
+  });
+
+  it("carries a continued option back to the command that opened the block", () => {
+    const block = [
+      "arc review checks await \\",
+      "  --head-sha <sha> \\",
+      "  --json",
+    ].join("\n");
+
+    expect(guidanceInvocations(block)).toEqual([
+      { line: "arc review checks await  --head-sha <sha>  --json", words: ["review", "checks", "await"], options: ["--head-sha", "--json"] },
+    ]);
+  });
+
+  it("keeps a nested substitution's options out of the surrounding command", () => {
+    const line = 'arc archive {name} --pr-url "$(gh pr view {name} --json url --jq .url)"';
+
+    expect(guidanceInvocations(line)).toEqual([
+      { line, words: ["archive"], options: ["--pr-url"] },
+    ]);
+  });
+
+  it("keeps the outer command's own options from behind a substitution", () => {
+    const line = 'arc review status --target "$(gh pr view {name} --json url --jq .url)" --json';
+
+    expect(guidanceInvocations(line)).toEqual([
+      { line, words: ["review", "status"], options: ["--target", "--json"] },
+    ]);
   });
 
   it("stops the command path at the first operand, option, or alternation", () => {

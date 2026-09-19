@@ -1151,7 +1151,6 @@ export async function resolveReviewStatus(
           "arc", "review", "change-request", "resolve",
           "--head-ref", request.target.headRef,
           "--head-sha", actualHeadSha,
-          "--json",
         ],
       ),
     };
@@ -1288,7 +1287,7 @@ export async function resolveReviewStatus(
           "Use a carrier that preserves incremental coverage, then re-run",
           [
             "arc", "review", "status", "--work-unit", currentMember.vehicle.workUnitId,
-            "--coverage", "incremental", "--json",
+            "--coverage", "incremental",
           ],
         ),
       });
@@ -1378,6 +1377,6 @@ function reviewStatusRetryRemedy(target: z.infer<typeof ChangeRequestTargetRefSc
   return spineRemedy(
     "Review status must be recomposed from an exact current target.",
     "Resolve the reported condition, then re-run",
-    ["arc", "review", "status", "--target", JSON.stringify(target), "--json"],
+    ["arc", "review", "status", "--target", JSON.stringify(target)],
   );
 }

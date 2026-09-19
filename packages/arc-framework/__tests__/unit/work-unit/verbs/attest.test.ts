@@ -133,7 +133,7 @@ describe("runAttest", () => {
       locus: {
         locus: "candidate-review-pending",
         workUnit: "example",
-        nextAction: { command: "arc review pre-publication example --json" },
+        nextAction: { command: "arc review pre-publication example" },
       },
     });
     expect(state()).toMatchObject({

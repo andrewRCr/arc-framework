@@ -1226,7 +1226,7 @@ describe("session-init E2E — sessionType across type variants", () => {
       locus: "candidate-review-pending",
       nextAction: {
         kind: "run-self-review",
-        command: "arc review pre-publication foo --json",
+        command: "arc review pre-publication foo",
       },
     });
   });

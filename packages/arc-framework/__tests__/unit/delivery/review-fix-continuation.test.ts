@@ -1029,7 +1029,7 @@ describe("delivery review-fix continuation projection", () => {
     if (result.status !== "dispatch") throw new Error("retained refresh must dispatch");
     expect(result.action).toEqual({
       kind: "delivery-refresh-execute",
-      argv: ["arc", "delivery", "refresh", "execute", "-", "--json"],
+      argv: ["arc", "delivery", "refresh", "execute", "-"],
       input: {
         planId: plan.planId,
         repository: request.repository,
@@ -1081,7 +1081,7 @@ describe("delivery review-fix continuation projection", () => {
             deliveryStatusAction: {
               kind: "resolve-delivery-status" as const,
               workUnitId: plan.workUnitId,
-              command: `arc review status --work-unit ${plan.workUnitId} --json`,
+              command: `arc review status --work-unit ${plan.workUnitId}`,
               interactionText: recommendedActionText,
             },
             recommendedActionText,

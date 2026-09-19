@@ -67,7 +67,7 @@ describe("submission boundary store", () => {
       locus: "candidate-review-pending",
       nextAction: {
         kind: "run-self-review",
-        command: "arc review pre-publication example --json",
+        command: "arc review pre-publication example",
         interactionText: "Run or resume the typed pre-publication review procedure.",
       },
       policy: null,

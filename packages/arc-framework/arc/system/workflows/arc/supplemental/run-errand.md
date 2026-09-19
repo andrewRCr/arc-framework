@@ -255,7 +255,7 @@ remote base all name the same exact head. Any tracked change continues through t
 3. **Resolve the Errand PR** before creation. Invoke the exact-head resolver:
 
    ```bash
-   arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json
+   arc review change-request resolve --head-ref <branch> --head-sha <head-sha>
    ```
 
    Follow only its typed state and action:
@@ -277,7 +277,7 @@ remote base all name the same exact head. Any tracked change continues through t
    Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
 
    Immediately before creation, re-invoke
-   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote --json` with the
+   `arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote` with the
    current head and dispatch on its typed state again. Continue only from `none / create-change-request`. This
    pre-create validation requires the remote branch itself to carry the exact creation head, including after any
    hook action.
@@ -344,8 +344,7 @@ remote base all name the same exact head. Any tracked change continues through t
      --pull-request <action.handle.target.pullRequest> \
      --head-sha <action.handle.target.headSha> \
      --timeout-ms 10000 \
-     --poll-interval-ms 10000 \
-     --json
+     --poll-interval-ms 10000
    ```
 
    Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
@@ -379,7 +378,7 @@ remote base all name the same exact head. Any tracked change continues through t
 
    **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
    spending, or redirects an `approval-required / obtain-ceiling-override` decision, present one exact offer before
-   treating that direction as approval. Re-read `arc review status --target <targetRef> --json` to validate the
+   treating that direction as approval. Re-read `arc review status --target <targetRef>` to validate the
    current Errand binding; `review-required` is expected, but a refusal or pending/response action stops. Name the
    current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
    standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since
@@ -430,7 +429,7 @@ remote base all name the same exact head. Any tracked change continues through t
    Run `arc base drift --json` once immediately before approval composition. Continue only from a healthy reading
    whose `headOid` equals the exact Errand head; retain its `baseOid` as pre-approval evidence, not mutation authority.
    The terminal operation will perform its own post-approval observation. Invoke
-   `arc review merge-method resolve --json` once and continue only from `validated / use-method`. Retain the
+   `arc review merge-method resolve` once and continue only from `validated / use-method`. Retain the
    returned `method` and `policyFingerprint`; `blocked / stop` stops. Compose one strict `errandMergeRequest` from
    those returned values plus `schemaVersion: 1`, the strict Errand `slug`, `claimId`, `branch`, and `generation`,
    the exact `repository`, `pullRequest`, `baseRef`, `headRef`, and `headSha`, and the selected `lane`.

@@ -218,7 +218,6 @@ function classifyCandidates(
         targetRef.headRef,
         "--head-sha",
         targetRef.headSha,
-        "--json",
       ],
     ),
   };

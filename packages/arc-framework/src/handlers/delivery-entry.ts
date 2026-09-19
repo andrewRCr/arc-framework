@@ -9,7 +9,6 @@ import { parseMetaFile } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   declareCliOperandSite,
-  declareCliOptionSite,
   declareInteractionSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
@@ -33,14 +32,14 @@ const InputSchema = z.union([
   }),
   z.strictObject({ entryMode: z.enum(["execution", "integrating", "prepublication"]) }),
 ]);
-const OptionsSchema = z.strictObject({ input: z.string().min(1), json: z.boolean().optional() });
+const OptionsSchema = z.strictObject({ input: z.string().min(1) });
 
-export interface DeliveryEntryInspectOptions { readonly input?: string; readonly json?: boolean }
+export interface DeliveryEntryInspectOptions { readonly input?: string }
 
 export const deliveryEntryCommandInputRegistration = {
   commandPath: "delivery entry inspect",
   schema: OptionsSchema,
-  schemaFields: { "operand.input": "input", "option.json": "json" },
+  schemaFields: { "operand.input": "input" },
 } as const satisfies CommandInputRegistration;
 
 export const deliveryEntryCommandInputPolicyDeclarations = [{
@@ -52,11 +51,6 @@ export const deliveryEntryCommandInputPolicyDeclarations = [{
       cancellation: "not-applicable",
       automation: { noInput: "read-explicit-stdin", flags: [], acceptedSyntax: ["<json-path>", "-"] },
       mutationBoundary: "delivery entry context validation", subprocess: "explicit-stdin",
-    }),
-    declareCliOptionSite("json", {
-      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
-      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
-      mutationBoundary: "output selection", subprocess: "none",
     }),
     declareInteractionSite(
       { file: "handlers/delivery-entry.ts", kind: "explicit-stdin", callee: "process.stdin", occurrence: 1 },

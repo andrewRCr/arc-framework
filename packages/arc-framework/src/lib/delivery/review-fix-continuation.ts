@@ -431,7 +431,7 @@ export interface DeliveryReviewFixContinuationProjectionInput {
 
 function resumeAction(request: DeliveryReviewFixContinueRequest) {
   return {
-    argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"] as const,
+    argv: ["arc", "delivery", "review-fix", "continue", "-"] as const,
     input: { repository: request.repository, remote: request.remote },
   };
 }
@@ -454,7 +454,7 @@ function projectPendingSelectedRefresh(input: {
   }
   return dispatch({
     kind: "delivery-refresh-execute" as const,
-    argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
+    argv: ["arc", "delivery", "refresh", "execute", "-"] as const,
     input: {
       planId: input.planId,
       repository: input.request.repository,
@@ -495,7 +495,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     }
     return dispatch({
       kind: "delivery-review-fix-acknowledge" as const,
-      argv: ["arc", "delivery", "review-fix", "acknowledge", "-", "--json"] as const,
+      argv: ["arc", "delivery", "review-fix", "acknowledge", "-"] as const,
       input: { ...entry.acknowledgementInput, verification: request.verification },
     }, "Acknowledge the exact scoped verification, then invoke this continuation again.");
   }
@@ -532,7 +532,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       }
       return dispatch({
         kind: "delivery-refresh-execute" as const,
-        argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
+        argv: ["arc", "delivery", "refresh", "execute", "-"] as const,
         input: {
           planId: entry.planId,
           repository: request.repository,
@@ -547,7 +547,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       }
       return dispatch({
         kind: "delivery-refresh-adopt" as const,
-        argv: ["arc", "delivery", "refresh", "adopt", "-", "--json"] as const,
+        argv: ["arc", "delivery", "refresh", "adopt", "-"] as const,
         input: {
           planId: entry.planId,
           repository: request.repository,
@@ -558,7 +558,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     }
     return dispatch({
       kind: "delivery-reconcile" as const,
-      argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+      argv: ["arc", "delivery", "reconcile", "-"] as const,
       input: {
         planId: entry.planId,
         repository: request.repository,
@@ -633,7 +633,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       if (input.authoring?.status === "ready") {
         return dispatch({
           kind: "delivery-reconcile" as const,
-          argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+          argv: ["arc", "delivery", "reconcile", "-"] as const,
           input: {
             planId: entry.planId,
             repository: request.repository,
@@ -648,7 +648,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (route.route === "terminal-rebind") {
       return dispatch({
         kind: "delivery-reconcile" as const,
-        argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+        argv: ["arc", "delivery", "reconcile", "-"] as const,
         input: route.reconcileInput,
       }, "Rebind the exact terminal publication, then invoke this continuation again.");
     }
@@ -665,7 +665,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       if (input.authoring?.status !== "ready") return authoringStop();
       return dispatch({
         kind: "delivery-review-fix-publish" as const,
-        argv: ["arc", "delivery", "review-fix", "publish", "-", "--json"] as const,
+        argv: ["arc", "delivery", "review-fix", "publish", "-"] as const,
         input: {
           planId: entry.planId,
           selectedDeliverableId: entry.selectedDeliverableId,
@@ -702,7 +702,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
         };
     return dispatch({
       kind: "delivery-rematerialize" as const,
-      argv: ["arc", "delivery", "rematerialize", "-", "--json"] as const,
+      argv: ["arc", "delivery", "rematerialize", "-"] as const,
       input: {
         planId: entry.planId,
         protectedBaseRef,

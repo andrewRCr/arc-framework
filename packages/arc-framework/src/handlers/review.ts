@@ -440,7 +440,6 @@ export const ReviewPrePublicationInputSchema = z.strictObject({
   lanes: z.string().trim().min(1, "A JSON lane-judgment file path, or - for stdin, is required.")
     .optional(),
   resume: z.string().regex(/^[A-Za-z0-9_-]+$/u).optional(),
-  json: z.literal(true),
 }).superRefine((input, context) => {
   if (input.changeSet === "-" && input.lanes === "-") {
     context.addIssue({ code: "custom", message: "Only one of --change-set and --lanes may read stdin." });
@@ -460,7 +459,6 @@ const reviewPrePublicationInputRegistration: CommandInputRegistration = {
     "option.change-set": "changeSet",
     "option.lanes": "lanes",
     "option.resume": "resume",
-    "option.json": "json",
   },
 };
 
@@ -511,7 +509,6 @@ export interface ReviewChangeRequestResolveOptions {
   headRef: string;
   headSha: string;
   requireRemote?: boolean;
-  json?: boolean;
 }
 
 export interface ReviewChangeRequestResolveHandlerDependencies {
@@ -605,7 +602,6 @@ export async function handleReviewChangeRequestResolve(
 }
 
 export interface ReviewMergeMethodResolveOptions {
-  json?: boolean;
   stackPosition?: string;
 }
 
@@ -696,7 +692,6 @@ export interface ReviewChecksAwaitOptions {
   headSha: string;
   timeoutMs: string;
   pollIntervalMs: string;
-  json?: boolean;
 }
 
 export interface ReviewStatusOptions {
@@ -705,7 +700,6 @@ export interface ReviewStatusOptions {
   ceilingOverride?: string;
   coverage?: HostedReviewCoverage;
   source?: string;
-  json?: boolean;
 }
 
 export interface ReviewStatusHandlerDependencies {
@@ -808,8 +802,8 @@ export async function handleReviewStatus(
         "Review status requires repository-local ARC state.",
         "Change to the target ARC project, then re-run",
         "target" in parsed.data
-          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
-          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target)]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId],
       ),
     }))}\n`);
     dependencies.setExitCode(1);
@@ -838,8 +832,8 @@ export async function handleReviewStatus(
         "Review status could not read its repository or host evidence.",
         "Resolve the operational failure, then re-run",
         "target" in parsed.data
-          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
-          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
+          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target)]
+          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId],
       ),
     }))}\n`);
     dependencies.setExitCode(1);
@@ -1107,7 +1101,6 @@ export async function handleReviewChecksAwait(
           "--repository", parsed.data.repository,
           "--pull-request", String(parsed.data.pullRequest),
           "--head-sha", parsed.data.headSha,
-          "--json",
         ],
       ),
     }))}\n`);
@@ -2857,7 +2850,6 @@ export interface ReviewPrePublicationOptions {
   changeSet?: string;
   lanes?: string;
   resume?: string;
-  json?: boolean;
 }
 
 /** The caller's parsed judgment inputs, each absent unless its option named a source. */
@@ -3011,7 +3003,6 @@ export async function handleReviewPrePublication(
     ...(options.changeSet === undefined ? {} : { changeSet: options.changeSet }),
     ...(options.lanes === undefined ? {} : { lanes: options.lanes }),
     ...(options.resume === undefined ? {} : { resume: options.resume }),
-    json: options.json,
   });
   if (!input.success) {
     emitFailure(input.error, "request");
@@ -3102,7 +3093,7 @@ export async function handleReviewPrePublication(
         ...envelope,
         nextAction: {
           ...envelope.nextAction,
-          command: `arc review pre-publication ${envelope.workUnit} --resume ${resume} --json`,
+          command: `arc review pre-publication ${envelope.workUnit} --resume ${resume}`,
         },
       });
     }

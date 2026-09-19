@@ -401,7 +401,6 @@ function reconcileResult(
     "--expected-base", final.baseOid,
     "--expected-head", request.approvedTarget.headSha,
     ...(regenerable ? ["--regenerate-roadmap"] : []),
-    "--json",
   ];
   return ErrandMergeResultSchema.parse({
     schemaVersion: 1,

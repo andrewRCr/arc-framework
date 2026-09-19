@@ -827,7 +827,7 @@ describe("checkout subject active-extension seam", () => {
         candidateSubjectDigest: candidate.subjectDigest,
         locus: "candidate-fix-pending",
         policy: null,
-        nextAction: { command: "arc review pre-publication demo --json" },
+        nextAction: { command: "arc review pre-publication demo" },
       },
     });
   });
