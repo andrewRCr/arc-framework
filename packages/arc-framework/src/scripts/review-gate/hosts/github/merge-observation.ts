@@ -35,7 +35,6 @@ function objectId(value: unknown, path: string): string {
 interface PullObservation {
   number: number;
   baseRef: string;
-  base: string;
   head: string;
   mergeable: boolean | null;
   mergeCommit: string | null;
@@ -60,7 +59,6 @@ function pullObservation(value: unknown): PullObservation {
   return {
     number: Number(pull.number),
     baseRef: base.ref,
-    base: objectId(base.sha, "pull-request.base.sha"),
     head: objectId(head.sha, "pull-request.head.sha"),
     mergeable: pull.mergeable,
     mergeCommit,
@@ -109,7 +107,7 @@ export function createGhChangeRequestMergeObservationPort(
         }
         if (
           pull.number !== coordinates.changeRequest
-          || pull.base !== coordinates.base
+          || pull.baseRef !== coordinates.baseRef
           || pull.head !== coordinates.head
         ) {
           return unresolved(coordinates, "GitHub pull-request coordinates moved during merge observation.");

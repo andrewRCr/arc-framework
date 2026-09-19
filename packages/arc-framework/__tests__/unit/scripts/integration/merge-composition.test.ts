@@ -53,6 +53,7 @@ describe("integration merge composition", () => {
         state: "mergeable",
         repository: target.repository,
         changeRequest: target.pullRequest,
+        baseRef: target.baseRef,
         base: oid("b"),
         head: target.headSha,
       },
