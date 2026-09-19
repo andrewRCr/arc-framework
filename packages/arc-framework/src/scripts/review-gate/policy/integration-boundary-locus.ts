@@ -182,6 +182,7 @@ const BoundaryCommonShape = {
    * operator back through a review whose evidence never went stale.
    */
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
+  /** Candidate-scoped residual-risk verdict; subject movement is gated by typed Candidate currentness. */
   terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
   deliveryReviewTermini: z.array(DeliveryReviewMemberTerminusSchema).default([]).superRefine((records, context) => {
     const seen = new Set<string>();
@@ -420,6 +421,39 @@ export function projectCandidateReviewBoundary(input: {
     policy: null,
     reservation: null,
     terminus: null,
+  });
+}
+
+/**
+ * Recover a Candidate-scoped Owner verdict after attestation proves subject movement non-semantic.
+ *
+ * @param input - Stored boundary plus the attestation's currentness and Candidate coordinates.
+ * @returns The rebound public boundary, or `null` when no durable verdict can carry.
+ */
+export function recoverAttestedOwnerTerminusBoundary(input: {
+  stored: IntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+  repairCurrent: boolean;
+}): IntegrationBoundaryLocus | null {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  const candidateId = CandidateIdSchema.parse(input.candidateId);
+  const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
+  const stored = input.stored;
+  if (!input.repairCurrent
+    || stored === null
+    || stored.workUnit !== workUnit
+    || stored.candidateId !== candidateId
+    || stored.terminus === null
+    || (stored.locus !== "publication-pending"
+      && stored.locus !== "hosted-review-pending"
+      && stored.locus !== "delivery-status-required")) {
+    return null;
+  }
+  return IntegrationBoundaryLocusSchema.parse({
+    ...stored,
+    candidateSubjectDigest,
   });
 }
 

@@ -115,11 +115,15 @@ const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates
     candidates: [{ filename: "meta-foo.md" }],
   }),
 );
+const mockSetMetaBulletFields = vi.fn<(
+  content: string,
+  fields: Record<string, string>,
+) => string>((content) => content);
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
   formatValue: (value: string) => value,
   parseMetaRecord: () => mockParseMetaRecord(),
   readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
-  setMetaBulletFields: (content: string) => content,
+  setMetaBulletFields: (...args: [string, Record<string, string>]) => mockSetMetaBulletFields(...args),
   setMetaCandidate: (content: string) => content,
 }));
 vi.mock("../../../src/lib/active/current-workflow-consistency.js", async (importOriginal) => ({
@@ -1653,6 +1657,76 @@ describe("handleAttest", () => {
       reason: expect.stringContaining("public delivery Candidate renewal"),
     });
     expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it("recovers an Owner-accepted public boundary across repair-current subject movement", async () => {
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const sourceSubjectDigest = `sha256:${"b".repeat(64)}`;
+    const movedSubjectDigest = `sha256:${"c".repeat(64)}`;
+    const terminus = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-terminus/v1" as const,
+      kind: "owner-accepted" as const,
+      lane: "standard" as const,
+      acceptedBy: "andrew",
+      completedPasses: 2,
+    };
+    const source = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "feat/foo",
+      candidateId,
+      candidateSubjectDigest: sourceSubjectDigest,
+      reservation: null,
+      terminus,
+      changeRequest: null,
+    });
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Active",
+      taskList: "tasks-foo.md",
+      currentWorkflow: "prepare-work-unit",
+      nextAction: "Candidate review pending — run pre-publication review",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: source,
+      version: "source-boundary-version",
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary.mockImplementation(async (_cwd, boundary) => {
+      persistedBoundary = boundary;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    mockSetMetaBulletFields.mockImplementationOnce((_content, fields) => JSON.stringify(fields));
+    let persistedMeta = "";
+    mockIoWriteFile.mockImplementationOnce(async (_path, content) => {
+      persistedMeta = String(content);
+    });
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId } },
+        candidateId,
+        candidateSubjectDigest: movedSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Candidate review pending — run pre-publication review",
+        expectedRecordVersion: "candidate-version",
+        repairCurrent: true,
+      });
+      return { status: "unchanged", locus: published.locus };
+    });
+    vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleAttest("foo", { json: true });
+
+    expect(persistedBoundary).toEqual({
+      ...source,
+      candidateSubjectDigest: movedSubjectDigest,
+    });
+    expect(JSON.parse(persistedMeta)).toMatchObject({
+      "Next Action": source.nextAction.interactionText,
+    });
   });
 
   it.each(["Integrating", "Shipped"] as const)("preserves public delivery authority while %s", async (lifecycle) => {
