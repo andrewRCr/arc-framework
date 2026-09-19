@@ -117,6 +117,41 @@ describe("packaged review CLI surfaces", () => {
       "review-hosted-request-request.schema.json",
       ["review-hosted-request-request", "slug", "standard-review-obligation-projection"],
     ],
+    [
+      ["review", "readiness"],
+      "review-readiness-request.schema.json",
+      ["review-readiness-request"],
+    ],
+    [
+      ["review", "frontline", "resolve"],
+      "review-frontline-resolve-request.schema.json",
+      ["review-frontline-resolve-request"],
+    ],
+    [
+      ["review", "hosted", "settle"],
+      "review-hosted-settle-request.schema.json",
+      ["review-hosted-settle-request"],
+    ],
+    [
+      ["review", "local", "prepare"],
+      "review-local-prepare-request.schema.json",
+      ["review-local-prepare-request", "slug"],
+    ],
+    [
+      ["review", "local", "attest"],
+      "review-local-attest-request.schema.json",
+      ["normalized-review-finding", "review-local-attest-request", "review-severity"],
+    ],
+    [
+      ["review", "local", "resume"],
+      "review-local-resume-request.schema.json",
+      ["review-local-resume-request"],
+    ],
+    [
+      ["review", "terminus", "accept"],
+      "review-terminus-accept-request.schema.json",
+      ["review-terminus-accept-request", "slug"],
+    ],
   ] as const)("emits a dependency-complete public request schema at %s", async (
     command,
     rootId,
@@ -143,11 +178,13 @@ describe("packaged review CLI surfaces", () => {
     expect(Object.keys(output.schemas)).toEqual(expectedSchemaIds);
   });
 
-  it("keeps schema discovery scoped to explicit interim request boundaries", async () => {
+  it("documents schema discovery at a request boundary reached only by hand", async () => {
+    // `readiness` is invoked ad hoc rather than by a workflow step, so its help text is the only
+    // place a caller learns the option exists.
     const help = await runCli(["review", "readiness", "--help"], { cwd: fixtureRoot });
 
     expect(help.exitCode).toBe(0);
-    expect(help.stdout).not.toContain("--schema");
+    expect(help.stdout).toContain("--schema");
   });
 
   it("documents the directly invokable planning-grooming request at command help", async () => {
