@@ -338,6 +338,14 @@ function fenceRun(line: string): { fence: MarkdownFence; rest: string } | null {
   };
 }
 
+function isMarkdownEscaped(line: string, index: number): boolean {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
+}
+
 function detailsTags(body: string): DetailsTag[] {
   const tags: DetailsTag[] = [];
   let fence: MarkdownFence | null = null;
@@ -360,7 +368,8 @@ function detailsTags(body: string): DetailsTag[] {
     }
     const codeRanges = inlineCodeRanges(line);
     for (const tag of line.matchAll(/<\/?details(?:\s[^>]*)?>/giu)) {
-      if (codeRanges.some((range) => tag.index >= range.start && tag.index < range.end)) continue;
+      if (isMarkdownEscaped(line, tag.index)
+        || codeRanges.some((range) => tag.index >= range.start && tag.index < range.end)) continue;
       tags.push({ text: tag[0], index: lineMatch.index + tag.index });
     }
   }

@@ -823,7 +823,7 @@ Provider guidance outside the supplemental section.
     expect(reviewBodyFinding?.body).toContain("cr-comment:v1:feedfacefeedfacefeedface");
   });
 
-  it("ignores details tags inside inline and fenced Markdown code", async () => {
+  it("ignores details tags inside Markdown code and behind active escapes", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
         state: "changes-requested",
@@ -840,6 +840,8 @@ Provider guidance outside the supplemental section.
 **Keep Markdown code examples out of the structural stack.**
 
 The inline literal \`<details>\` is finding content.
+
+The escaped literal \\<details> is finding content.
 
 \`\`\`html
 <details>
