@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "register-remaining-request-schemas",
+  "claimId": "8d919ec238ac161f59405eaccb43a367",
+  "createdAt": "2026-09-19T02:19:12.613Z",
+  "updatedAt": "2026-09-19T02:19:12.613Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Register the remaining seven review request schemas behind --schema: readiness, frontline resolve, hosted settle, local prepare, local attest, local resume, terminus accept",
+  "branch": "chore/register-remaining-request-schemas",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
