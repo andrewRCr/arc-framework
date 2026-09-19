@@ -1861,14 +1861,19 @@ const hostedCmd = reviewCmd
 hostedCmd
   .command("request")
   .description("Request one hosted pull-request review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
   .addHelpText(
     "after",
     "\nContinuation:\n  Submit the emitted action unchanged to `arc review hosted await -`.\n",
   )
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleReviewHostedRequest(input);
+  .option("--schema", "Print the registered public request schema bundle")
+  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-request-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedRequest(input ?? "");
   });
 
 hostedCmd
@@ -1948,10 +1953,15 @@ localReviewCmd
 reviewCmd
   .command("respond")
   .description("Prepare or persist one source-bound review disposition set as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleReviewRespond(input);
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-respond-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewRespond(input ?? "");
   });
 
 reviewCmd

@@ -39,8 +39,10 @@ import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID,
+  REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID,
   REVIEW_REDUCE_REQUEST_SCHEMA_ID,
   REVIEW_RESOLVE_REQUEST_SCHEMA_ID,
+  REVIEW_RESPOND_REQUEST_SCHEMA_ID,
 } from "../scripts/review-gate/request-command-schemas.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
@@ -354,12 +356,10 @@ export const ReviewCommandInputSchema = reviewCommandInputSchema();
 const REVIEW_JSON_COMMAND_PATHS = [
   "review readiness",
   "review frontline resolve",
-  "review hosted request",
   "review hosted settle",
   "review local prepare",
   "review local attest",
   "review local resume",
-  "review respond",
   "review terminus accept",
 ] as const;
 
@@ -371,6 +371,8 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review resolve",
   "review hosted await",
   "review reduce",
+  "review respond",
+  "review hosted request",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
@@ -2276,7 +2278,9 @@ export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID
   | typeof REVIEW_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID
-  | typeof REVIEW_REDUCE_REQUEST_SCHEMA_ID;
+  | typeof REVIEW_REDUCE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_RESPOND_REQUEST_SCHEMA_ID
+  | typeof REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID;
 
 /** Emit one public request root together with only the registry documents its refs require. */
 export function handleReviewRequestSchema(

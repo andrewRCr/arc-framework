@@ -98,6 +98,25 @@ describe("packaged review CLI surfaces", () => {
       "review-reduce-request.schema.json",
       ["review-reduce-request"],
     ],
+    [
+      ["review", "respond"],
+      "review-respond-request.schema.json",
+      [
+        "approved-disposition-set",
+        "disposition-approval",
+        "disposition-report-item",
+        "disposition-set",
+        "finding-disposition",
+        "review-respond-request",
+        "review-severity",
+        "review-target",
+      ],
+    ],
+    [
+      ["review", "hosted", "request"],
+      "review-hosted-request-request.schema.json",
+      ["review-hosted-request-request", "slug", "standard-review-obligation-projection"],
+    ],
   ] as const)("emits a dependency-complete public request schema at %s", async (
     command,
     rootId,
