@@ -18,7 +18,8 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -26,6 +27,7 @@ import type { RawGitExec } from "../../src/lib/change-facts.js";
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../src/lib/work-unit/candidate-attestation.js";
 import { handleAttest, LifecycleCommandRefusalSchema } from "../../src/handlers/lifecycle.js";
+import { handleIntegrationCheckpoint } from "../../src/handlers/integration.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { runBaseDrift } from "../../src/lib/git/base-distance.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
@@ -38,6 +40,9 @@ import {
   arrangeAmbiguousMergeBase,
   arrangeBranchSide,
 } from "../helpers/base-advance.js";
+import { createGitExec } from "../../src/lib/io-context.js";
+import { checkpointIntegration } from "../../src/scripts/integration/checkpoint.js";
+import { createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import { runHandlerAt } from "../helpers/handler.js";
 import {
   cleanupTempDir,
@@ -157,6 +162,58 @@ function metaDocument(state: "Active" | "Integrating"): string {
 
 function taskDocument(): string {
   return "# Task List: Sample\n\n## **Phase 1:** Verification\n\n### `[x]` **1.1 Verification complete**\n";
+}
+
+/**
+ * An Active work unit whose branch is ready to attest, in a repository ARC itself initialized.
+ *
+ * The readers above are reached directly, over a bare repository. The ceremony is reached through its
+ * handler, so it needs everything attestation checks before it ever collects a subject — a resolvable
+ * identity, an Active meta, a task list with nothing open, and no reviewable path the index is missing.
+ */
+async function attestableWorkUnit(state: "Active" | "Integrating" = "Active"): Promise<string> {
+  const root = await initInTempRepo(DEFAULT_PROMPTS);
+  cleanups.push(async () => cleanupTempDir(root));
+  await arcGit(root, ["add", "-A"]);
+  await arcGit(root, ["commit", "-m", "init"]);
+
+  await arcGit(root, ["switch", "-c", `feat/${WORK_UNIT}`]);
+  await mkdir(join(root, ".arc", "active"), { recursive: true });
+  await writeFile(join(root, ".arc", "active", `meta-${WORK_UNIT}.md`), metaDocument(state), "utf-8");
+  await writeFile(join(root, ".arc", "active", `tasks-${WORK_UNIT}.md`), taskDocument(), "utf-8");
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, BRANCH_PATH), "branch contribution\n", "utf-8");
+  await arcGit(root, ["add", "-A"]);
+  await arcGit(root, ["commit", "-m", "implementation"]);
+  return root;
+}
+
+/**
+ * Merge the same pair in opposite parent orders, leaving the branch and its base two best ancestors.
+ *
+ * Both merges name the two side commits rather than each other's result, which is what keeps neither
+ * ancestor reachable from the other — a branch merging the base's own merge would collapse back to one.
+ */
+async function crossTheBase(root: string): Promise<void> {
+  const branchSide = await arcGit(root, ["rev-parse", "HEAD"]);
+  await arcGit(root, ["switch", "main"]);
+  await mkdir(join(root, dirname(BASE_PATH)), { recursive: true });
+  await writeFile(join(root, BASE_PATH), "base contribution\n", "utf-8");
+  await arcGit(root, ["add", "-A"]);
+  await arcGit(root, ["commit", "-m", "base side"]);
+  const baseSide = await arcGit(root, ["rev-parse", "HEAD"]);
+  await arcGit(root, ["switch", `feat/${WORK_UNIT}`]);
+  await arcGit(root, ["merge", "--no-ff", "-m", "branch merge", baseSide]);
+  await arcGit(root, ["switch", "main"]);
+  await arcGit(root, ["merge", "--no-ff", "-m", "base merge", branchSide]);
+  await arcGit(root, ["switch", `feat/${WORK_UNIT}`]);
+}
+
+async function attest(root: string): Promise<{ exitCode: number | undefined; result: unknown }> {
+  const run = await runHandlerAt(root, async () => {
+    await handleAttest(WORK_UNIT, { json: true }, machineContext());
+  });
+  return { exitCode: run.exitCode, result: JSON.parse(run.stdout) };
 }
 
 describe("the subject a work unit's own verification binds", () => {
@@ -291,57 +348,6 @@ describe("authoritative base drift over an ambiguous history", () => {
 });
 
 describe("the Candidate attestation ceremony over an ambiguous history", () => {
-  /**
-   * An Active work unit whose branch is ready to attest, in a repository ARC itself initialized.
-   *
-   * The readers above are reached directly, over a bare repository. The ceremony is reached through its
-   * handler, so it needs everything attestation checks before it ever collects a subject — a resolvable
-   * identity, an Active meta, a task list with nothing open, and no reviewable path the index is missing.
-   */
-  async function attestableWorkUnit(state: "Active" | "Integrating" = "Active"): Promise<string> {
-    const root = await initInTempRepo(DEFAULT_PROMPTS);
-    cleanups.push(async () => cleanupTempDir(root));
-    await arcGit(root, ["add", "-A"]);
-    await arcGit(root, ["commit", "-m", "init"]);
-
-    await arcGit(root, ["switch", "-c", `feat/${WORK_UNIT}`]);
-    await mkdir(join(root, ".arc", "active"), { recursive: true });
-    await writeFile(join(root, ".arc", "active", `meta-${WORK_UNIT}.md`), metaDocument(state), "utf-8");
-    await writeFile(join(root, ".arc", "active", `tasks-${WORK_UNIT}.md`), taskDocument(), "utf-8");
-    await mkdir(join(root, "src"), { recursive: true });
-    await writeFile(join(root, BRANCH_PATH), "branch contribution\n", "utf-8");
-    await arcGit(root, ["add", "-A"]);
-    await arcGit(root, ["commit", "-m", "implementation"]);
-    return root;
-  }
-
-  /**
-   * Merge the same pair in opposite parent orders, leaving the branch and its base two best ancestors.
-   *
-   * Both merges name the two side commits rather than each other's result, which is what keeps neither
-   * ancestor reachable from the other — a branch merging the base's own merge would collapse back to one.
-   */
-  async function crossTheBase(root: string): Promise<void> {
-    const branchSide = await arcGit(root, ["rev-parse", "HEAD"]);
-    await arcGit(root, ["switch", "main"]);
-    await mkdir(join(root, dirname(BASE_PATH)), { recursive: true });
-    await writeFile(join(root, BASE_PATH), "base contribution\n", "utf-8");
-    await arcGit(root, ["add", "-A"]);
-    await arcGit(root, ["commit", "-m", "base side"]);
-    const baseSide = await arcGit(root, ["rev-parse", "HEAD"]);
-    await arcGit(root, ["switch", `feat/${WORK_UNIT}`]);
-    await arcGit(root, ["merge", "--no-ff", "-m", "branch merge", baseSide]);
-    await arcGit(root, ["switch", "main"]);
-    await arcGit(root, ["merge", "--no-ff", "-m", "base merge", branchSide]);
-    await arcGit(root, ["switch", `feat/${WORK_UNIT}`]);
-  }
-
-  async function attest(root: string): Promise<{ exitCode: number | undefined; result: unknown }> {
-    const run = await runHandlerAt(root, async () => {
-      await handleAttest(WORK_UNIT, { json: true }, machineContext());
-    });
-    return { exitCode: run.exitCode, result: JSON.parse(run.stdout) };
-  }
 
   it("names the ambiguous history from Integrating too, where a record read runs ahead of it", async () => {
     const root = await attestableWorkUnit("Integrating");
@@ -378,5 +384,93 @@ describe("the Candidate attestation ceremony over an ambiguous history", () => {
 
     expect(attested.exitCode).toBe(0);
     expect(attested.result).toMatchObject({ status: "attested", operation: "root" });
+  });
+});
+
+describe("the integration checkpoint over an ambiguous history", () => {
+  /**
+   * A checkpoint reached the way an operator reaches it, over a Candidate attested before the base crossed.
+   *
+   * The ceremony above refuses to attest while the pair leaves two ancestors, so this is the order that
+   * actually produces the pairing: attest over one ancestor, then let the base acquire a second. The record
+   * the checkpoint reads therefore exists, which is what carries the read past the missing-Candidate arm and
+   * into the projection that resolves the pair again.
+   */
+  async function attestedThenCrossed(): Promise<string> {
+    const root = await attestableWorkUnit();
+    const attested = await attest(root);
+    expect(attested.exitCode).toBe(0);
+    // Attestation stages its managed record and meta projection rather than committing them; they ride the
+    // verification commit, which is what has to exist before the branch can move.
+    await arcGit(root, ["add", "-A"]);
+    await arcGit(root, ["commit", "-m", "verification"]);
+    await crossTheBase(root);
+    // Base drift reads the branch against its published base, so the pair only exists once main is published.
+    // It is pushed after the crossing, which is the state an operator is actually in when they checkpoint.
+    const origin = await mkdtemp(join(tmpdir(), "arc-ambiguous-origin-"));
+    cleanups.push(async () => cleanupTempDir(origin));
+    await git(origin, ["init", "--bare", "--initial-branch=main", "."]);
+    await arcGit(root, ["remote", "add", "origin", origin]);
+    await arcGit(root, ["push", "origin", "main"]);
+    await arcGit(root, ["fetch", "origin", "main"]);
+    return root;
+  }
+
+
+  /**
+   * Supply the exact-coordinate observation a hosted change request carries, and nothing else.
+   *
+   * Everything the pairing is about — the drift reading, the movement plan it feeds, the projection the
+   * reconcile route consults next — stays the production composition's own. Only the host admission is
+   * arranged, because it is read from a change request no local repository has, and it is upstream of the
+   * two readings that have to disagree here.
+   */
+  function withHostedObservation(root: string) {
+    const exec = createGitExec();
+    return async (_cwd: string, workUnit: string) => checkpointIntegration(
+      { schemaVersion: 1, workUnit },
+      {
+        ...createIntegrationCheckpointDependencies({ cwd: root, exec }),
+        readMovementObservation: async (_name, drift) => {
+          const coordinates = { base: drift.baseOid ?? "", head: drift.headOid ?? "" };
+          return {
+            feasibility: { state: "clean" as const, ...coordinates },
+            admission: {
+              state: "mergeable" as const,
+              repository: "example/repository",
+              changeRequest: 1,
+              ...coordinates,
+            },
+          };
+        },
+      },
+    );
+  }
+
+  it("names the merge that collapses the pair, not a rerun of the checkpoint that stopped", async () => {
+    const root = await attestedThenCrossed();
+
+    const run = await runHandlerAt(root, async () => {
+      await handleIntegrationCheckpoint(WORK_UNIT, { json: true }, machineContext(), {
+        checkpoint: withHostedObservation(root),
+      });
+    });
+
+    // The whole point of the pairing: the drift read answers this pair with a reconciliation, and the
+    // projection the composition consults next resolves the same two revisions and refuses for the same
+    // reason. A rerun would read the identical history, so the refusal has to name the merge instead.
+    const result = JSON.parse(run.stdout) as {
+      state: string;
+      reason: string;
+      detail: string;
+      remedy: { text: string; argv: readonly string[] };
+    };
+    expect({ state: result.state, reason: result.reason, detail: result.detail }).toEqual({
+      state: "blocked",
+      reason: "composition-unavailable",
+      detail: "The revisions have more than one best merge base.",
+    });
+    expect(result.remedy.text).toContain("Merge the configured base into the branch, then re-run");
+    expect(result.remedy.argv).toEqual(["arc", "integrate", "checkpoint", WORK_UNIT, "--json"]);
   });
 });

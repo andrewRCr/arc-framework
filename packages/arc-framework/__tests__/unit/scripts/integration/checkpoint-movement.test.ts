@@ -101,6 +101,36 @@ describe("checkpoint movement plan", () => {
     })).toMatchObject({ state: "blocked", reason: "unsafe-reconcile" });
   });
 
+  /**
+   * The evidence bar was the only one this arm met, because it answered above the readings the arms below it
+   * are held to. A pair leaving two ancestors still merges the base in to clear itself, and that merge is as
+   * capable of conflicting, or of being refused admission, as any other — so it is held to the same readings.
+   */
+  it.each([
+    [
+      "a conflict the merge would leave the operator to resolve",
+      { feasibility: { state: "substantive-conflict", ...coordinates, paths: ["src/x.ts"] } },
+      { state: "blocked", reason: "conflict", paths: ["src/x.ts"] },
+    ],
+    [
+      "a feasibility reading that did not complete",
+      { feasibility: { state: "unavailable", ...coordinates, detail: "Git unavailable." } },
+      { state: "blocked", reason: "unsafe-reconcile", detail: "Git unavailable." },
+    ],
+    [
+      "a host that has not answered",
+      { admission: { state: "unresolved", ...admissionCoordinates, detail: "Host computing." } },
+      { state: "blocked", reason: "host-pending", detail: "Host computing." },
+    ],
+    [
+      "a host that refused",
+      { admission: { state: "refused", ...admissionCoordinates, detail: "Policy refusal." } },
+      { state: "blocked", reason: "host-refused", detail: "Policy refusal." },
+    ],
+  ])("stops an ambiguous base at %s, as it stops any other reconciliation", (_label, overrides, expected) => {
+    expect(plan({ movement: "unknown", movementCause: "ambiguous", ...overrides })).toMatchObject(expected);
+  });
+
   it.each([
     { movement: "unknown" },
     { movement: "unknown", movementCause: "unavailable" },

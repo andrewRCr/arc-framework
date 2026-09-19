@@ -19,6 +19,7 @@ import {
 } from "./candidate-effective-target.js";
 import { projectGitCandidateApplicability } from "./git-candidate-applicability.js";
 import {
+  CandidateSubjectUncollectableError,
   collectGitCandidateSubject,
   resolveGitCandidateBaseRevision,
   type CandidateSubjectCollection,
@@ -30,9 +31,15 @@ import {
  * Every arm the projection can return names a current target by revision and subject digest, so a subject that
  * was never collected has no reading here — not even a non-applicable one, which would need the same digest to
  * say so. Filling that slot from the durable baseline would put a target in a typed result that nothing observed.
+ *
+ * Under the collection's own type, because a caller that reads this projection to decide a route has to tell
+ * this cause from any other projection failure: the branch and the base leaving no single ancestor is cleared
+ * by a merge, and every other failure here is cleared by reading again.
  */
 function collectedSubject(collection: CandidateSubjectCollection) {
-  if (collection.status !== "collected") throw new Error(collection.detail);
+  if (collection.status !== "collected") {
+    throw new CandidateSubjectUncollectableError(collection.reason, collection.detail);
+  }
   return collection.target;
 }
 

@@ -298,8 +298,8 @@ describe("review status over a history leaving two merge bases", () => {
     const fixture = await attestedUnderAnAmbiguousBase();
 
     // Recoverable at this pair: merging the base in collapses the two comparison points to one, so the
-    // reading keeps its rerun rather than stopping. The checkpoint it reruns does not yet offer that merge —
-    // amendment A4 is what gives it one — so this asserts the route taken, not a remedy waiting at its end.
+    // reading keeps its rerun rather than stopping. The rerun is the route and not the correction — the
+    // checkpoint it arrives at is where the merge that clears this pair is named.
     expect(await statusThroughPort(fixture)).toMatchObject({
       state: "base-moved",
       nextAction: "rerun-checkpoint",

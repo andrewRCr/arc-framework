@@ -18,6 +18,7 @@ import {
   CandidateApplicabilityResolutionSelectorSchema,
   type CandidateApplicabilityResolutionSelector,
 } from "../../lib/work-unit/candidate-applicability-resolution.js";
+import { CandidateSubjectUncollectableError } from "../../lib/work-unit/git-candidate-subject.js";
 import {
   MergeMethodSchema,
   MergeMethodStackPositionSchema,
@@ -130,6 +131,32 @@ export function checkpointMovementCause(
     : {};
 }
 
+/**
+ * The readings every mutating reconciliation is held to, whatever the movement between the pair came to.
+ *
+ * The merge that collapses two best ancestors to one is an ordinary merge: it conflicts, and it is admitted
+ * or refused, on the same terms as the reconciliation an overlapping base gets. Reading them in one place
+ * ahead of any reconcile is what keeps a history that proves no overlap from buying a route past them.
+ *
+ * @param observation - The parsed movement observation, whose coordinates the caller has already agreed.
+ * @returns The refusal the readings require, or `null` when none of them stops this pair.
+ */
+function mutatingReconciliationBar(observation: CheckpointMovementObservation): CheckpointMovementPlan | null {
+  if (observation.feasibility.state === "unavailable") {
+    return { state: "blocked", reason: "unsafe-reconcile", detail: observation.feasibility.detail };
+  }
+  if (observation.feasibility.state === "substantive-conflict") {
+    return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
+  }
+  if (observation.admission.state === "unresolved") {
+    return { state: "blocked", reason: "host-pending", detail: observation.admission.detail };
+  }
+  if (observation.admission.state === "refused") {
+    return { state: "blocked", reason: "host-refused", detail: observation.admission.detail };
+  }
+  return null;
+}
+
 /** Reduce movement, feasibility, admission, and mutation evidence to one continuation. */
 export function composeCheckpointMovementPlan(input: {
   movement: BaseMovement;
@@ -156,8 +183,12 @@ export function composeCheckpointMovementPlan(input: {
     if (observation.movementCause !== "ambiguous") {
       return { state: "blocked", reason: "unsafe-reconcile", detail: "Base movement is unknown." };
     }
-    // The evidence bar is the one every mutating reconciliation below meets, so an unresolvable base does not
-    // get a cheaper route than an overlapping one.
+  }
+  const barred = mutatingReconciliationBar(observation);
+  if (barred !== null) return barred;
+  if (observation.movement === "unknown") {
+    // The pair has no provable overlap to reconcile against, so the merge is the whole remedy — and it meets
+    // the evidence bar every other mutating reconciliation meets before it is allowed to run.
     return observation.integrationEvidenceComplete
       ? { state: "reconcile", nextAction: "reconcile-base" }
       : {
@@ -165,18 +196,6 @@ export function composeCheckpointMovementPlan(input: {
           reason: "unsafe-reconcile",
           detail: "A mutating reconciliation requires complete integration evidence.",
         };
-  }
-  if (observation.feasibility.state === "unavailable") {
-    return { state: "blocked", reason: "unsafe-reconcile", detail: observation.feasibility.detail };
-  }
-  if (observation.feasibility.state === "substantive-conflict") {
-    return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
-  }
-  if (observation.admission.state === "unresolved") {
-    return { state: "blocked", reason: "host-pending", detail: observation.admission.detail };
-  }
-  if (observation.admission.state === "refused") {
-    return { state: "blocked", reason: "host-refused", detail: observation.admission.detail };
   }
   const reconcileAction = observation.feasibility.state === "regenerable-conflict"
     ? "reconcile-regenerable"
@@ -1168,7 +1187,22 @@ export async function checkpointIntegration(
     });
   }
   if (movementPlan.state === "reconcile") {
-    const candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
+    // The reconcile route reads the Candidate's effective target, which resolves the same two revisions the
+    // drift above just classified. When that pair leaves two best ancestors the read refuses for the reason
+    // the plan is already answering, so the refusal has to carry the merge rather than the rerun that reaches
+    // this same stop. Every other failure keeps the composition's own answer.
+    let candidate: Awaited<ReturnType<IntegrationCheckpointDependencies["readCandidate"]>>;
+    try {
+      candidate = await dependencies.readCandidate(request.workUnit, drift.baseOid);
+    } catch (error) {
+      if (!(error instanceof CandidateSubjectUncollectableError)) throw error;
+      return checkpointOperationRefusal(
+        request.workUnit,
+        error.message,
+        coordinates,
+        checkpointAmbiguousBaseRemedy(request.workUnit),
+      );
+    }
     if (candidate === null) {
       return IntegrationCheckpointResultSchema.parse({
         ...base,

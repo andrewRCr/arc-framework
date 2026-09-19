@@ -1022,36 +1022,54 @@ to a verdict and carries the cause as a discriminant instead. See
           where a reduction invalidated the request, so no other invalidation reason can reach it. Both render
           through the handler's existing `Run:` branch — the operator sees the command rather than a paragraph.
 
-### `[ ]` **4.R6 Reach the reconcile route the ambiguous base is routed to** — amendment A14
+### `[x]` **4.R6 Reach the reconcile route the ambiguous base is routed to** — amendment A14
 
 - _Goal:_ A14 — the movement plan answers an ambiguous base with `reconcile-base`, and the production reader
   the checkpoint calls next raises an untyped error on the same pair, outside every catch the composition owns.
   The operator is handed the composition rerun, which is the one remedy this cause provably cannot clear. The
   arm the plan takes to get there also skips four of the bars every other reconciliation meets.
 
-    - `[ ]` **4.R6.a Raise the uncollectable subject under its own type, and admit it where the checkpoint reads**
+    - `[x]` **4.R6.a Raise the uncollectable subject under its own type, and admit it where the checkpoint reads**
 
         - `collectedSubject` throws a bare `Error`, so nothing downstream can tell an ambiguous history from any
           other projection failure. The type that says it already exists — the Candidate applicability lambda
           raises it for the same collection — and the checkpoint's own ambiguous-base error already renders the
           remedy. The read at the reconcile branch sits between two `try` blocks and inside neither, so admitting
           the cause means giving that read a catch as well as a type.
+        - _Outcome:_ `collectedSubject` raises `CandidateSubjectUncollectableError` carrying the collection's own
+          reason and detail, so the message an operator reads is unchanged and the cause is now distinguishable
+          from any other projection failure. The reconcile branch wraps its read in a `try` that admits only that
+          type and rethrows everything else, and answers it with the ambiguous-base remedy — the merge that
+          collapses the pair — in place of the generic composition rerun that reaches the same stop.
 
-    - `[ ]` **4.R6.b Hold the ambiguous arm to the bars every other reconciliation meets**
+    - `[x]` **4.R6.b Hold the ambiguous arm to the bars every other reconciliation meets**
 
         - The arm returns `reconcile` on coordinate agreement and complete integration evidence alone; an
           unavailable feasibility, a substantive conflict, an unresolved admission and a refused admission are
           all tested below it and skipped. The comment above the return states the opposite, and so does the
           outcome recorded for the task that wrote it. The same reducer composes the merge plan, where nothing
           masks the gap: a host refusal and a tree conflict stop being reported there.
+        - _Outcome:_ The four readings moved out of the reducer into `mutatingReconciliationBar`, read once before
+          any reconcile arm rather than below the unknown one, so the ambiguous pair clears the same feasibility
+          and admission bars an overlapping pair clears. Its own evidence bar and its `reconcile-base` action are
+          unchanged, and the unrelated and unreadable causes still answer above the bar, where no merge they
+          could authorize exists. Extracting the four kept the reducer under the complexity ceiling; the file's
+          one suppressed violation is untouched. The merge reducer shares the function, so it is corrected too.
 
-    - `[ ]` **4.R6.c Drive an ambiguous base through the production composition**
+    - `[x]` **4.R6.c Drive an ambiguous base through the production composition**
 
         - Every existing proof of this route mocks the reader that raises. The history-shape probe builds a real
           two-merge-base repository but never reaches checkpoint composition, so the seam between the plan's
           answer and the reader's refusal is the one no test crosses — the same seam class the unrelated pair's
           end-to-end check was added to close. The review-status probe's comment on where its rerun lands is
           stale and cites a planning id, so it is rewritten to the behavior once the route exists.
+        - _Outcome:_ The checkpoint is driven over a real two-merge-base repository — attested under one ancestor,
+          then crossed so the base acquires a second — through the handler and the production composition. Only
+          the host admission is arranged, because it is read from a change request no local repository has and it
+          sits upstream of the two readings that have to disagree; the drift read, the movement plan and the
+          projection that refuses are all the composition's own. Against the branch before this parent the probe
+          fails on the remedy alone: the detail was already exact, and what the operator was handed was a rerun
+          over identical history. The review-status comment now names where the merge is offered, not a plan id.
 
 ### `[ ]` **4.R7 Name the act the classifier's remaining actions stand for** — amendment A15
 
