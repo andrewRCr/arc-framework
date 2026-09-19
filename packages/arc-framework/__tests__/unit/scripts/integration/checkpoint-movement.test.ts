@@ -7,6 +7,7 @@ const coordinates = { base: oid("a"), head: oid("b") };
 const admissionCoordinates = {
   repository: "owner/repo",
   changeRequest: 42,
+  baseRef: "main",
   ...coordinates,
 };
 
