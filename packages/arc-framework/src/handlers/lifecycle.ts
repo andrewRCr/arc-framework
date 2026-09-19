@@ -2866,8 +2866,9 @@ export async function handleAttest(
         if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
           orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
         }
+        const nextAction = boundaryMatches ? publication.nextAction : locus.nextAction.interactionText;
         if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
-          orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+          orientation["Next Action"] = formatValue(nextAction, "narrative");
         }
         if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
           orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
