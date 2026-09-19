@@ -71,7 +71,7 @@ describe("delivery materialization against a bare remote", () => {
       planDigest: plan.planDigest,
       protectedBase: { ref: "refs/heads/main", ...base },
       chainBase: base,
-      predecessorRelation: { kind: "exact", observedTip: base.head, chainBase: base.head },
+      predecessorRelation: { kind: "advanced", observedTip: base.head, chainBase: base.head },
       top: { ref: "refs/heads/feat/example", ...second },
       members: [
         { deliverableId: plan.members[0]!.deliverableId, ref: "refs/heads/candidate-first", ...first },

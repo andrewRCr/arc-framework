@@ -19,12 +19,13 @@ import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
 import {
   advanceBase,
   arrangeAmbiguousMergeBase,
+  arrangeUnrelatedBase,
   movementPaths,
   withUnavailableBaseRead,
+  withUnreadableMergeBases,
   type GitExecLike,
 } from "../helpers/base-advance.js";
 import { runHandlerAt } from "../helpers/handler.js";
-import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
@@ -247,6 +248,24 @@ describe("review status when the base read goes unavailable under it", () => {
 });
 
 describe("review status over a history leaving two merge bases", () => {
+  /**
+   * A Candidate attested over its own criss-cross merge, whose base becomes the second best ancestor after.
+   *
+   * The two halves cannot both precede the attestation: collecting a subject over a pair with two best
+   * ancestors is refused, so a Candidate could never have been attested there. Publishing the base afterwards
+   * is also the order a real one reaches this state in — the branch is attested, and then the base moves.
+   */
+  async function attestedUnderAnAmbiguousBase(): Promise<Awaited<ReturnType<typeof singletonUnderReview>>> {
+    let publishBase: (() => Promise<void>) | undefined;
+    const fixture = await singletonUnderReview(async (root) => {
+      ({ publish: publishBase } = await arrangeAmbiguousMergeBase({
+        cwd: root, publishBase: "on-request",
+      }));
+    });
+    await publishBase?.();
+    return fixture;
+  }
+
   it("reports the settled state the ambiguous reading is measured against", async () => {
     const fixture = await singletonUnderReview();
 
@@ -257,23 +276,84 @@ describe("review status over a history leaving two merge bases", () => {
   });
 
   it("directs a checkpoint rerun on a base that moved only in shape", async () => {
-    const fixture = await singletonUnderReview(async (root) => {
-      await arrangeAmbiguousMergeBase({ cwd: root });
+    const fixture = await attestedUnderAnAmbiguousBase();
+
+    // A second equally good merge base leaves nothing to prove the branch's own contribution from, rather
+    // than leaving that contribution unchanged, so the reading does not settle. It names the rerun because
+    // merging the base in is what collapses the two bases to one.
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      baseMovementDetail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
+      // The obligation blocks on the same history for its own reason, and says which condition held rather
+      // than reporting that the target has no base at all — the reading a zero-base history would get.
+      routedObligation: {
+        state: "blocked",
+        detail: "The Candidate target has more than one base coordinate.",
+      },
     });
+  });
+
+  it("sends an ambiguous base back through the checkpoint, naming the cause beside the movement", async () => {
+    const fixture = await attestedUnderAnAmbiguousBase();
+
+    // Recoverable at this pair: merging the base in collapses the two comparison points to one, so the
+    // reading keeps its rerun rather than stopping. The rerun is the route and not the correction — the
+    // checkpoint it arrives at is where the merge that clears this pair is named.
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      movement: "unknown",
+      baseMovementCause: "ambiguous",
+    });
+  });
+
+  it("reports the ambiguity itself, apart from a comparison it could not read", async () => {
+    const fixture = await attestedUnderAnAmbiguousBase();
+
+    const ambiguous = await statusThroughPort(fixture);
+    const unreadable = await statusThroughPort(fixture, withUnreadableMergeBases);
+
+    // Two readings that answered the same way until the analyzer kept them apart: one history the branch has
+    // two comparison points against, one the boundary could not read at all.
+    expect(ambiguous).toMatchObject({ baseMovement: { overlap: { status: "ambiguous" } } });
+    expect(unreadable).toMatchObject({
+      baseMovement: { overlap: { status: "unavailable", reason: "merge-base-failed" } },
+    });
+  });
+});
+
+describe("review status over a base sharing no history with the branch", () => {
+  it("stops rather than inviting a rerun that cannot clear it", async () => {
+    const fixture = await singletonUnderReview();
+    await arrangeUnrelatedBase({ cwd: fixture.root });
 
     const status = await statusThroughPort(fixture);
 
-    expectPinnedObservation(status, {
-      behavior: "A second equally good merge base changes the shape of the history and nothing about "
-        + "what the branch contributed, so review status should settle rather than report the base moved "
-        + "and send the work back through a checkpoint it has already passed.",
-      observed: {
-        state: "base-moved",
-        nextAction: "rerun-checkpoint",
-        baseMovementDetail: "The revisions have multiple best merge bases; overlap cannot be proved from one.",
-        routedObligation: { state: "blocked", detail: "The Candidate target has no sole base coordinate." },
-      },
-      target: { state: "settled" },
+    expect(status).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "base-unrelated",
+      movement: "unknown",
+      baseMovementCause: "unrelated",
+    });
+    // Named positively, because the negation this replaced could not fail: `toMatchObject` compares arrays by
+    // exact length, so a three-element argv never matched the four-element one offered here, and the assertion
+    // passed for a correct remedy, a wrong one, and no remedy at all. What the condition needs is a common
+    // ancestor, so that is what the remedy has to name.
+    expect(status).toMatchObject({
+      remedy: { argv: ["git", "merge", "--allow-unrelated-histories", status.currentBaseOid] },
+    });
+  });
+
+  it("reports the absent common ancestor as its own reading", async () => {
+    // The replacement lands after attestation, unlike the branch-side arrangements above: it moves the base
+    // alone, so the reviewed revision the attestation binds is the same one either way.
+    const fixture = await singletonUnderReview();
+    await arrangeUnrelatedBase({ cwd: fixture.root });
+
+    expect(await statusThroughPort(fixture)).toMatchObject({
+      baseMovement: { overlap: { status: "unrelated" } },
     });
   });
 });

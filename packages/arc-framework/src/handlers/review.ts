@@ -33,6 +33,7 @@ import { canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
 import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
+import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { resolveUserIdentity } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
@@ -1432,7 +1433,14 @@ function readinessBoundTo(
   root: string,
 ): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
-  return (request) => evaluateReviewReadiness(request, { deliveryMemberLookup });
+  // Pinned to the resolved root for the same reason the lookup is: the ancestry
+  // answer must come from the repository this composition root bound, never from
+  // whatever directory the process happens to be running in.
+  const rootExec: GitExec = (command, args, options) => gitExec(command, args, { ...options, cwd: root });
+  return (request) => evaluateReviewReadiness(request, {
+    deliveryMemberLookup,
+    readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
+  });
 }
 
 function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
@@ -2350,6 +2358,7 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
       return "clean-worktree" as const;
     case "non-commit-head":
       return "commit-head" as const;
+    case "ambiguous-merge-base":
     case "invalid-base":
     case "no-merge-base":
     case "unresolved-base":

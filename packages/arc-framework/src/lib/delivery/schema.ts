@@ -270,6 +270,14 @@ export const DeliveryMergePolicyBindingV1Schema = z.strictObject({
 });
 export type DeliveryMergePolicyBindingV1 = z.infer<typeof DeliveryMergePolicyBindingV1Schema>;
 
+/** One remaining suffix member as freshly observed before its local ref was rewritten. */
+export const DeliveryNativeObservedSuffixMemberV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ref: DeliveryOpaqueIdSchema,
+  coordinates: DeliveryMemberCoordinatesV1Schema,
+});
+export type DeliveryNativeObservedSuffixMemberV1 = z.infer<typeof DeliveryNativeObservedSuffixMemberV1Schema>;
+
 export const DeliveryLandEffectV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
   repository: DeliveryOpaqueIdSchema,
@@ -347,7 +355,8 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
     mode: z.enum(["sequential", "native"]),
     native: z.strictObject({
       arm: z.enum(["linked-single", "linked-atomic"]),
-      phase: z.enum(["prepared", "submitting"]),
+      phase: z.enum(["prepared", "submitting", "settling"]),
+      observedSuffix: z.array(DeliveryNativeObservedSuffixMemberV1Schema).min(1).optional(),
     }).nullable(),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),

@@ -117,6 +117,14 @@ export interface AmbiguousMergeBaseOptions extends BaseCoordinates {
   /** The path the branch-side ancestor changes. */
   readonly branchPath?: string;
   readonly message?: string;
+  /**
+   * When the advanced base reaches the remote, and so when the pair becomes ambiguous at all.
+   *
+   * The branch's own merge is history a checkout carries from the moment it is made; the base's merge is what
+   * makes the two ancestors equally good. A boundary observing an already-attested Candidate over an ambiguous
+   * history needs them in that order, because attesting over one is what the subject collector refuses.
+   */
+  readonly publishBase?: "immediately" | "on-request";
 }
 
 /** The two heads a criss-cross leaves, and the two ancestors that make it ambiguous. */
@@ -128,6 +136,8 @@ export interface AmbiguousMergeBaseResult {
   /** Both best merge bases, base-side ancestor first. */
   readonly bases: readonly [string, string];
   readonly paths: MovementPathSets;
+  /** Push the advanced base, which is what leaves the pair two best ancestors. Already done unless deferred. */
+  readonly publish: () => Promise<void>;
 }
 
 /**
@@ -313,7 +323,7 @@ export async function advanceBase(options: BaseAdvanceOptions): Promise<BaseAdva
  * picks one of the two bases is choosing which half of the history it sees, not which half exists.
  *
  * @param options - The checkout, base coordinates, and the path each ancestor changes.
- * @returns Both heads, both merge bases, and the paths each side changed.
+ * @returns Both heads, both merge bases, the paths each side changed, and the base-side push.
  */
 export async function arrangeAmbiguousMergeBase(
   options: AmbiguousMergeBaseOptions,
@@ -369,16 +379,52 @@ export async function arrangeAmbiguousMergeBase(
     ],
     authorEnvironment(),
   )).trim();
-  await git(options.cwd, [
-    "-c", "core.hooksPath=/dev/null", "push", remote, `${advanced}:refs/heads/${base}`,
-  ]);
+  const publish = async (): Promise<void> => {
+    await git(options.cwd, [
+      "-c", "core.hooksPath=/dev/null", "push", remote, `${advanced}:refs/heads/${base}`,
+    ]);
+  };
+  if ((options.publishBase ?? "immediately") === "immediately") await publish();
 
   return {
     base: advanced,
     head,
     bases: [baseSide, branchSide],
     paths: { branch: [branchPath], base: [basePath] },
+    publish,
   };
+}
+
+/**
+ * Replace the remote base with a history the branch shares no ancestor with.
+ *
+ * A root commit is the whole arrangement. It carries the tree the base already had, so the replacement changes
+ * no content, and it has no parents, so nothing is reachable from both sides. That is the one shape where
+ * "what has each side changed since they last agreed" has no answer at all — as distinct from
+ * {@link arrangeAmbiguousMergeBase}, where it has two.
+ *
+ * The push is forced because the replacement descends from nothing, which is also the only way a protected
+ * base reaches this state outside a fixture.
+ *
+ * @param options - The checkout and the remote coordinates its base lives at.
+ * @returns The unrelated head the base now holds.
+ */
+export async function arrangeUnrelatedBase(options: BaseCoordinates): Promise<{ readonly head: string }> {
+  const remote = options.remote ?? DEFAULT_REMOTE;
+  const base = options.base ?? DEFAULT_BASE;
+
+  await git(options.cwd, ["fetch", remote, base]);
+  const tree = (await git(options.cwd, ["rev-parse", `refs/remotes/${remote}/${base}^{tree}`])).trim();
+  const head = (await git(
+    options.cwd,
+    ["commit-tree", tree, "-m", "unrelated base"],
+    authorEnvironment(),
+  )).trim();
+  await git(options.cwd, [
+    "-c", "core.hooksPath=/dev/null", "push", "--force", remote, `${head}:refs/heads/${base}`,
+  ]);
+
+  return { head };
 }
 
 /**
@@ -428,6 +474,26 @@ export function withUnavailableBaseRead(
   return async (command, args, options) => {
     if (isBaseFetch(args, remote, base)) {
       throw new Error(`fatal: unable to access '${remote}': Could not resolve host: ${remote}`);
+    }
+    return await exec(command, args, options);
+  };
+}
+
+/**
+ * Wrap an execution seam so the read that resolves a sole comparison point fails where it is performed.
+ *
+ * Distinct from {@link withUnavailableBaseRead}, which fails the fetch and so leaves no base at all: here the
+ * base resolves and only the question of what the two sides share goes unanswered. The rejection is not a
+ * process exit, because an exit of one is how Git reports a real answer there — that the revisions share
+ * nothing — and that answer is a different observation.
+ *
+ * @param exec - The seam the boundary will read through.
+ * @returns A seam that rejects that one read and delegates everything else.
+ */
+export function withUnreadableMergeBases(exec: GitExecLike): GitExecLike {
+  return async (command, args, options) => {
+    if (args[0] === "merge-base" && args[1] === "--all") {
+      throw new Error("fatal: the merge base read failed");
     }
     return await exec(command, args, options);
   };

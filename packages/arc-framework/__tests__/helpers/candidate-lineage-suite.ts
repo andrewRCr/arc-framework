@@ -7,6 +7,7 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
+import { collectCandidateSubjectTarget } from "./candidate-subject.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -50,7 +51,6 @@ import {
   reduceCandidateDurableBaseline,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import {
-  collectGitCandidateTarget,
   resolveGitCandidateBaseRevision,
 } from "../../src/lib/work-unit/git-candidate-subject.js";
 import {
@@ -1298,7 +1298,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     );
     await git(root, ["add", "-A"]);
 
-    await expect(collectGitCandidateTarget({
+    await expect(collectCandidateSubjectTarget({
       cwd: root,
       name: "example",
       baseBranch: "main",
@@ -1505,7 +1505,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     await writeFile(join(root, "reviewed.txt"), "later staged subject\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
-    const observedTarget = await collectGitCandidateTarget({
+    const observedTarget = await collectCandidateSubjectTarget({
       cwd: root,
       name: "example",
       baseBranch: "main",

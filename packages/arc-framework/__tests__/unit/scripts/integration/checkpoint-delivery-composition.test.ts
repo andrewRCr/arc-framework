@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
 import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
+import { GitProcessError } from "../../../../src/lib/git/process-error.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -18,7 +19,7 @@ import { createStandardReviewReservation } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const mocks = vi.hoisted(() => ({
-  collectGitCandidateTarget: vi.fn(),
+  collectGitCandidateSubject: vi.fn(),
   composeDeliveryCheckpointArm: vi.fn(),
   createHostedReservationDischargeReader: vi.fn(),
   projectEffectiveCandidateCurrentness: vi.fn(),
@@ -26,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   persistIntegrationCheckpointComposition: vi.fn(),
   resolveIdentity: vi.fn(),
   createUserSurfaceResolver: vi.fn(),
-  resolveGitCandidateTargetBase: vi.fn(),
+  readGitCandidateTargetBase: vi.fn(),
   readCandidateRecordVersion: vi.fn(),
   readCandidateRecordVersioned: vi.fn(),
   readConfigSettings: vi.fn(),
@@ -66,12 +67,12 @@ vi.mock("../../../../src/lib/work-unit/candidate-record-store.js", async (import
 }));
 vi.mock("../../../../src/lib/work-unit/git-candidate-subject.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/git-candidate-subject.js")>(),
-  collectGitCandidateTarget: mocks.collectGitCandidateTarget,
+  collectGitCandidateSubject: mocks.collectGitCandidateSubject,
 }));
 vi.mock("../../../../src/lib/work-unit/git-candidate-effective-target.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/git-candidate-effective-target.js")>(),
   projectGitCandidateEffectiveTarget: mocks.projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase: mocks.resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase: mocks.readGitCandidateTargetBase,
 }));
 vi.mock("../../../../src/lib/work-unit/submission-boundary-store.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/lib/work-unit/submission-boundary-store.js")>(),
@@ -235,7 +236,10 @@ describe("delivery checkpoint composition", () => {
       record: candidateRecord(plan.workUnitId, candidateHead),
       version: `sha256:${"e".repeat(64)}`,
     });
-    mocks.collectGitCandidateTarget.mockResolvedValue({ subject: { subjectDigest } });
+    mocks.collectGitCandidateSubject.mockResolvedValue({
+      status: "collected",
+      target: { subject: { subjectDigest } },
+    });
     mocks.projectCandidateCurrentness.mockReturnValue(currentness);
     mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);
     mocks.projectGitCandidateEffectiveTarget.mockResolvedValue(effective);
@@ -382,6 +386,98 @@ describe("delivery checkpoint composition", () => {
     expect(mocks.projectGitCandidateEffectiveTarget).not.toHaveBeenCalled();
   });
 
+  it("scopes the residual to the operator's own resolution above the absorbed predecessor", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baselineRevision = state.members.at(-1)!.coordinates!.head;
+    const baseRevision = oid("d");
+    const mergeBase = oid("a");
+    const highestCoordinate = state.members.at(-2)!.coordinates!;
+    const firstCoordinate = state.members[0]!.coordinates!;
+    const resolvedPath = "src/resolved.ts";
+    const predecessorPath = "src/member.ts";
+    const candidateId = candidateRecord(plan.workUnitId, baselineRevision).attestation.candidateId;
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: candidateRecord(plan.workUnitId, baselineRevision),
+      version: `sha256:${"e".repeat(64)}`,
+    });
+    mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.projectGitCandidateEffectiveTarget.mockResolvedValue({
+      state: "current",
+      candidateId,
+      recognizedTarget: {
+        revision: baselineRevision,
+        subject: { subjectDigest: `sha256:${"b".repeat(64)}` },
+      },
+    });
+    mocks.projectEffectiveCandidateCurrentness.mockReturnValue({
+      status: "current",
+      candidateId,
+      recognizedRevision: baselineRevision,
+      implementationChanged: false,
+      convergenceVerification: "satisfied",
+      convergenceScope: null,
+    });
+    const exec = vi.fn(async (_command: string, args: readonly string[]) => {
+      if (args[0] === "merge-base") return { stdout: `${mergeBase}\n`, stderr: "" };
+      if (args[0] === "diff") return { stdout: `${resolvedPath}\0`, stderr: "" };
+      throw new Error(`unexpected git args: ${args.join(" ")}`);
+    });
+    // The absorbed top carries the predecessor's content as well as the hand resolution, so the
+    // span each diff is anchored at decides which of the two the residual reports.
+    const diffs = new Map([
+      [`${highestCoordinate.head}..${baselineRevision}`, [resolvedPath]],
+      [`${firstCoordinate.base}..${highestCoordinate.head}`, [predecessorPath]],
+      [`${firstCoordinate.base}..${baselineRevision}`, [predecessorPath, resolvedPath]],
+    ]);
+    const rawExec = vi.fn(async (args: string[]) => {
+      const paths = diffs.get(`${args[4]}..${args[5]}`);
+      if (paths === undefined) throw new Error(`unexpected diff span: ${args.join(" ")}`);
+      return { stdout: new TextEncoder().encode(paths.map((path) => `${path}\0`).join("")) };
+    });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec,
+      rawExec,
+    });
+
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "overlapping",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [resolvedPath], regenerablePaths: [] },
+      register: null,
+    })).resolves.toEqual({
+      status: "reconcile",
+      nextAction: "reconcile-base",
+      safetyClass: "residual-contained",
+      evidence: {
+        baselineRevision,
+        baseRevision,
+        mergeBase,
+        substantivePaths: [resolvedPath],
+        regenerablePaths: [],
+        residualPaths: [resolvedPath],
+        predecessorPaths: [predecessorPath],
+      },
+    });
+  });
+
   it("sanitizes a malformed managed Candidate record failure", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
@@ -417,6 +513,267 @@ describe("delivery checkpoint composition", () => {
       detail: "The managed delivery Candidate record could not be read or validated.",
       evidence: { baseRevision },
       nextAction: { command: "rerun-checkpoint", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("routes a branch-and-base pair with two merge bases to reconciling the base", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+    });
+
+    // Merging the base in leaves one merge base where there were two, so the refusal names that and not a
+    // rerun of the reading it would not change.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "unknown",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "ambiguous" },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The branch and its base share more than one merge base, so the overlap cannot be proved from one.",
+      evidence: { baseRevision },
+      nextAction: { command: "reconcile-base", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("routes a pinned-baseline pair with two merge bases to retaking the baseline", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baselineRevision = state.members.at(-1)!.coordinates!.head;
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: candidateRecord(plan.workUnitId, baselineRevision),
+      version: `sha256:${"e".repeat(64)}`,
+    });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async (_command: string, args: readonly string[]) => (
+        args[0] === "merge-base"
+          ? { stdout: `${oid("a")}\n${oid("b")}\n`, stderr: "" }
+          : { stdout: "", stderr: "" }
+      )),
+    });
+
+    // The baseline is pinned, so merging the base in moves neither side of this pair and the same two bases
+    // survive it. Only a fresh baseline clears the refusal.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "overlapping",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The durable baseline and the observed base share more than one merge base, and merging the base "
+        + "in moves neither of them.",
+      evidence: { baseRevision, baselineRevision },
+      nextAction: { command: "rebaseline", workUnit: plan.workUnitId },
+    });
+  });
+
+  it("routes a branch and base sharing no history to the join no reconcile performs", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+    });
+
+    // A route exists — unlike the rerun, which reads the same absent ancestry again — but it is not the
+    // append-only reconcile, which declines unrelated histories rather than joining them.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "unknown",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "unrelated" },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The branch and its base share no common ancestor, so nothing between them can be compared.",
+      evidence: { baseRevision },
+      nextAction: { command: "merge-unrelated", workUnit: plan.workUnitId },
+    });
+  });
+
+  /** The one drift shape both guards above the base-resolution arms are reached with. */
+  type PairOverlap =
+    | { readonly status: "unrelated" }
+    | { readonly status: "ambiguous" }
+    | {
+        readonly status: "available";
+        readonly substantivePaths: string[];
+        readonly regenerablePaths: string[];
+      };
+
+  const unresolvedPairDrift = (overlap: PairOverlap) => ({
+    mode: "authoritative" as const,
+    verdict: "reconcile" as const,
+    state: "diverged" as const,
+    ahead: 2,
+    behind: 1,
+    base: "main",
+    baseOid: oid("d"),
+    headOid: oid("c"),
+    movement: "unknown" as const,
+    integrationEvidence: {
+      coverage: "complete" as const,
+      scannedCommitCount: 1,
+      events: [],
+      unclassifiedCommitCount: 0,
+      truncated: false,
+      limitations: [],
+    },
+    overlap,
+    register: null,
+  });
+
+  /**
+   * The branch-and-base pair is not a delivery fact, and this classifier is not where a work unit without a
+   * bound terminal should meet it: answering here wraps that pair in a delivery refusal whose own remedy is a
+   * rerun of the checkpoint that raised it. The guard drops such a work unit first, and the movement plan
+   * downstream reads the same pair and answers it directly.
+   */
+  describe("a work unit with no bound delivery terminal", () => {
+    it.each([
+      ["shares no history with", { status: "unrelated" } as const],
+      ["shares more than one merge base with", { status: "ambiguous" } as const],
+      ["resolves against", { status: "available" as const, substantivePaths: [], regenerablePaths: [] }],
+    ])("declines a base that %s the branch, whatever the pair reads", async (_label, overlap) => {
+      mocks.resolveTerminalRecords.mockResolvedValue({ status: "unbound" });
+      const dependencies = createIntegrationCheckpointDependencies({
+        cwd: "/repository",
+        exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+      });
+
+      await expect(dependencies.classifyDeliveryDrift("example", unresolvedPairDrift(overlap)))
+        .resolves.toEqual({ status: "not-applicable" });
+    });
+  });
+
+  it.each([
+    ["shares no history with", { status: "unrelated" } as const],
+    ["shares more than one merge base with", { status: "ambiguous" } as const],
+  ])(
+    "reports records it could not read before a base that %s the branch",
+    async (_label, overlap) => {
+      // The base reading is true either way, but it is not this classifier's answer until the records it
+      // classifies against can be read. Reported ahead of them, it sends an operator to merge on evidence
+      // that never established this classification applies to the work unit at all.
+      mocks.resolveTerminalRecords.mockResolvedValue({ status: "unavailable" });
+      const dependencies = createIntegrationCheckpointDependencies({
+        cwd: "/repository",
+        exec: vi.fn(async () => { throw new Error("no read is reached"); }),
+      });
+
+      await expect(dependencies.classifyDeliveryDrift("example", unresolvedPairDrift(overlap)))
+        .resolves.toEqual({
+          status: "unavailable",
+          detail: "The delivery terminal records are unavailable.",
+          evidence: { baseRevision: oid("d") },
+          nextAction: { command: "rerun-checkpoint", workUnit: "example" },
+        });
+    },
+  );
+
+  it("routes a pinned-baseline pair sharing no history through the base before the baseline", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const state = deliveryStateFixture(plan);
+    const baselineRevision = state.members.at(-1)!.coordinates!.head;
+    const baseRevision = oid("d");
+    mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
+    mocks.readCandidateRecordVersioned.mockResolvedValue({
+      record: candidateRecord(plan.workUnitId, baselineRevision),
+      version: `sha256:${"e".repeat(64)}`,
+    });
+    const dependencies = createIntegrationCheckpointDependencies({
+      cwd: "/repository",
+      exec: vi.fn(async (_command: string, args: readonly string[]) => {
+        if (args[0] === "merge-base") {
+          throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 1 });
+        }
+        return { stdout: "", stderr: "" };
+      }),
+    });
+
+    // Retaking the baseline is what clears an ambiguous pair here, and it cannot clear this one: a baseline
+    // taken from a branch that shares no ancestry with the base shares none either. The base comes first.
+    await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
+      mode: "authoritative",
+      verdict: "reconcile",
+      state: "diverged",
+      ahead: 2,
+      behind: 1,
+      base: "main",
+      baseOid: baseRevision,
+      headOid: oid("c"),
+      movement: "overlapping",
+      integrationEvidence: {
+        coverage: "complete",
+        scannedCommitCount: 1,
+        events: [],
+        unclassifiedCommitCount: 0,
+        truncated: false,
+        limitations: [],
+      },
+      overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      register: null,
+    })).resolves.toEqual({
+      status: "unavailable",
+      detail: "The durable baseline and the observed base share no common ancestor, so the base must be "
+        + "joined to the branch before a fresh baseline can establish one.",
+      evidence: { baseRevision, baselineRevision },
+      nextAction: { command: "merge-unrelated", workUnit: plan.workUnitId },
     });
   });
 
@@ -608,7 +965,13 @@ describe("delivery checkpoint composition", () => {
     expect(mocks.readCandidateRecordVersion).toHaveBeenCalledTimes(1);
   });
 
-  it("reads each exact member discharge for a multi-member delivery", async () => {
+  /**
+   * A three-member delivery whose review is fully discharged, arranged to the point of composition.
+   *
+   * Reaching the terminal's predecessor-base read means getting past member discharge, so the
+   * arrangement is the whole of it; two cases turn on what that read answers.
+   */
+  async function dischargedMultiMemberDelivery() {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
     for (const [index, member] of state.members.entries()) {
@@ -662,11 +1025,14 @@ describe("delivery checkpoint composition", () => {
       record: { candidateId },
       version: oid("1"),
     });
-    mocks.collectGitCandidateTarget.mockResolvedValue({ subject: { subjectDigest } });
+    mocks.collectGitCandidateSubject.mockResolvedValue({
+      status: "collected",
+      target: { subject: { subjectDigest } },
+    });
     mocks.projectCandidateCurrentness.mockReturnValue(currentness);
     mocks.projectGitCandidateEffectiveTarget.mockResolvedValue(effective);
     mocks.projectEffectiveCandidateCurrentness.mockReturnValue(currentness);
-    mocks.resolveGitCandidateTargetBase.mockResolvedValue(baseHead);
+    mocks.readGitCandidateTargetBase.mockResolvedValue({ status: "resolved", base: baseHead });
     mocks.readSubmissionBoundary.mockResolvedValue({
       candidateId,
       candidateSubjectDigest: subjectDigest,
@@ -799,6 +1165,11 @@ describe("delivery checkpoint composition", () => {
     });
 
     const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec });
+    return { plan, state, currentness, baseHead, dependencies };
+  }
+
+  it("reads each exact member discharge for a multi-member delivery", async () => {
+    const { plan, state, currentness, baseHead, dependencies } = await dischargedMultiMemberDelivery();
     const result = await dependencies.composeDelivery({
       workUnit: plan.workUnitId,
       candidate: currentness,
@@ -814,6 +1185,23 @@ describe("delivery checkpoint composition", () => {
         }))),
       },
     }));
+  });
+
+  it("refuses to compose a terminal whose predecessor base is not one coordinate", async () => {
+    const { plan, currentness, baseHead, dependencies } = await dischargedMultiMemberDelivery();
+    mocks.readGitCandidateTargetBase.mockResolvedValue({
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The Candidate target has more than one base coordinate.",
+    });
+
+    // Stated in this reader's own words rather than forwarded from the base reader's: what cannot be
+    // composed here is the terminal's coordinate set, which a pair carrying two ancestors does not fix.
+    await expect(dependencies.composeDelivery({
+      workUnit: plan.workUnitId,
+      candidate: currentness,
+      baseRevision: baseHead,
+    })).rejects.toThrow("The delivery terminal's predecessor base is not a single coordinate.");
   });
 
   it("offers terminal repair when the Candidate is ahead of its frozen closed request", async () => {

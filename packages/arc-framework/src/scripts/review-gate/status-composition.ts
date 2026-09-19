@@ -7,7 +7,7 @@ import {
   BaseMovementObservationSchema,
   type EvidenceOverlapObservation,
 } from "../../lib/evidence-applicability/index.js";
-import { analyzeRevisionOverlap } from "../../lib/git/base-overlap.js";
+import { analyzeRevisionOverlap, type RevisionOverlapResult } from "../../lib/git/base-overlap.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
@@ -17,8 +17,11 @@ import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../../lib/work-unit/git-candidate-effective-target.js";
+import {
+  CandidateSubjectUncollectableError,
+} from "../../lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
 } from "../../lib/work-unit/submission-boundary-store.js";
@@ -146,6 +149,37 @@ async function resolveDeliveryMemberScopeSelection(input: {
   throw new Error(`Delivery-member review chunking returned ${resolution.disposition}.`);
 }
 
+/**
+ * Carry one overlap analysis across into the observation the review status records.
+ *
+ * The crossing is stated arm by arm: an arm added to the analysis is a decision here rather than a value
+ * landing on whichever branch it resembles, which matters because the arms that establish nothing carry no
+ * paths and an empty path list is the strongest accept downstream.
+ *
+ * @param overlap - The analysis as the Git boundary returned it.
+ * @returns The observation arm that analysis establishes.
+ */
+function normalizeBaseOverlapObservation(overlap: RevisionOverlapResult): EvidenceOverlapObservation {
+  switch (overlap.status) {
+    case "available":
+      return overlap.overlap;
+    case "ambiguous":
+    case "unrelated":
+      return { status: overlap.status };
+    case "unavailable":
+      return {
+        status: "unavailable",
+        reason: overlap.reason === "merge-base-failed"
+          ? "merge-base-failed"
+          : overlap.reason === "left-diff-failed"
+            ? "branch-diff-failed"
+            : overlap.reason === "right-diff-failed"
+              ? "base-diff-failed"
+              : "classification-failed",
+      };
+  }
+}
+
 export async function readBasePosition(input: {
   cwd: string;
   exec: GitExec;
@@ -218,18 +252,6 @@ export async function readBasePosition(input: {
       ? workUnitPathTreatmentContext(input.subject.workUnitId)
       : {},
   });
-  const observedOverlap: EvidenceOverlapObservation = overlap.status === "available"
-    ? overlap.overlap
-    : {
-        status: "unavailable",
-        reason: overlap.status === "unrelated" || overlap.reason === "merge-base-failed"
-          ? "merge-base-failed"
-          : overlap.reason === "left-diff-failed"
-            ? "branch-diff-failed"
-            : overlap.reason === "right-diff-failed"
-              ? "base-diff-failed"
-              : "classification-failed",
-      };
   return {
     currentBaseOid,
     baseContained,
@@ -240,7 +262,7 @@ export async function readBasePosition(input: {
         base: currentBaseOid,
         head: input.headSha,
       },
-      overlap: observedOverlap,
+      overlap: normalizeBaseOverlapObservation(overlap),
     }),
     ...(overlap.status === "available" ? {} : { baseMovementDetail: overlap.detail }),
   };
@@ -276,6 +298,27 @@ export async function ensureCandidateHeadAvailable(input: {
   await input.exec("git", ["fetch", input.remote ?? "origin", input.headSha], { cwd: input.cwd });
   const fetched = await resolveExactHead();
   if (fetched !== input.headSha) throw new Error("the fetched Candidate head resolved to a different commit");
+}
+
+/**
+ * Project the effective target, reporting a subject the branch and its base leave uncollectable as this
+ * reader's own blocked statement.
+ *
+ * The projection raises that condition rather than returning it, so without this the one repository fact
+ * the operator could act on would leave the reader as an unexplained failure.
+ */
+async function projectEffectiveTargetOrUncollectable(
+  input: Parameters<typeof projectGitCandidateEffectiveTarget>[0],
+): Promise<
+  | { readonly ok: true; readonly effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>> }
+  | { readonly ok: false; readonly detail: string }
+> {
+  try {
+    return { ok: true, effective: await projectGitCandidateEffectiveTarget(input) };
+  } catch (error) {
+    if (!(error instanceof CandidateSubjectUncollectableError)) throw error;
+    return { ok: false, detail: error.message };
+  }
 }
 
 /**
@@ -388,19 +431,23 @@ export async function readRoutedObligation(
         }
         preparedTerminal = { deliverableId: terminal.deliverableId, stateHead: preparedTerminalHead };
       }
-      const historicalTarget = preparedTerminalHead === undefined
-        ? undefined
-        : {
-            revision: preparedTerminalHead,
-            currentBase: await resolveGitCandidateTargetBase({
-              cwd,
-              revision: preparedTerminalHead,
-              baseBranch,
-              ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
-              exec,
-            }),
-          };
-      effective = await projectGitCandidateEffectiveTarget({
+      // A target recording more than one base blocks the obligation in this reader's own words, beside the
+      // conditions above. A base that cannot be read at all still raises past this point.
+      let historicalTarget: { readonly revision: string; readonly currentBase: string } | undefined;
+      if (preparedTerminalHead !== undefined) {
+        const historicalBase = await readGitCandidateTargetBase({
+          cwd,
+          revision: preparedTerminalHead,
+          baseBranch,
+          ...(currentBaseRevision === undefined ? {} : { baseRevision: currentBaseRevision }),
+          exec,
+        });
+        if (historicalBase.status !== "resolved") {
+          return { state: "blocked", detail: historicalBase.detail };
+        }
+        historicalTarget = { revision: preparedTerminalHead, currentBase: historicalBase.base };
+      }
+      const projectedHistorical = await projectEffectiveTargetOrUncollectable({
         cwd,
         name: workUnit,
         baseBranch,
@@ -412,6 +459,8 @@ export async function readRoutedObligation(
         rawExec: createRawGitExec(cwd),
         ...(historicalTarget === undefined ? {} : { target: historicalTarget }),
       });
+      if (!projectedHistorical.ok) return { state: "blocked", detail: projectedHistorical.detail };
+      effective = projectedHistorical.effective;
       if (effective.state !== "current") {
         return { state: "blocked", detail: "The owning work-unit Candidate is not current." };
       }
@@ -449,22 +498,27 @@ export async function readRoutedObligation(
         headSha: candidateHead,
         ...(options.remote === undefined ? {} : { remote: options.remote }),
       });
-      const targetBase = await resolveGitCandidateTargetBase({
+      const targetBase = await readGitCandidateTargetBase({
         cwd,
         revision: candidateHead,
         baseBranch,
         baseRevision: currentBaseRevision,
         exec,
       });
-      effective = await projectGitCandidateEffectiveTarget({
+      if (targetBase.status !== "resolved") {
+        return { state: "blocked", detail: targetBase.detail };
+      }
+      const projectedCurrent = await projectEffectiveTargetOrUncollectable({
         cwd,
         name: workUnit,
         baseBranch,
         record,
         exec,
         rawExec: createRawGitExec(cwd),
-        target: { revision: candidateHead, currentBase: targetBase },
+        target: { revision: candidateHead, currentBase: targetBase.base },
       });
+      if (!projectedCurrent.ok) return { state: "blocked", detail: projectedCurrent.detail };
+      effective = projectedCurrent.effective;
     }
     if (effective.state !== "current"
       || (correctiveContinuation === undefined && effective.recognizedTarget.revision !== candidateHead)) {

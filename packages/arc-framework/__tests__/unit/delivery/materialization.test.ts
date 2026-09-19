@@ -32,7 +32,7 @@ function eligible(plan = deliveryPlanFixture()) {
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: protectedHead, tree: protectedTree },
     chainBase: { head: protectedHead, tree: protectedTree },
-    predecessorRelation: { kind: "exact" as const, observedTip: protectedHead, chainBase: protectedHead },
+    predecessorRelation: { kind: "advanced" as const, observedTip: protectedHead, chainBase: protectedHead },
     top: { ref: "refs/heads/feat/example", head: topHead, tree: topTree },
     members: plan.members.map((member, index) => ({
       deliverableId: member.deliverableId,
@@ -69,10 +69,11 @@ describe("deriveDeliveryMaterialization", () => {
       protectedBase: { ref: "refs/heads/main", head: "9".repeat(40), tree: "a".repeat(40) },
       chainBase: { head: chainHead, tree: chainTree },
       predecessorRelation: {
-        kind: "disjoint-ahead" as const,
+        kind: "diverged" as const,
         observedTip: "9".repeat(40),
         chainBase: chainHead,
         mergeBase: chainHead,
+        mergeBaseCount: 1,
         overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
       },
     };
@@ -365,10 +366,11 @@ describe("delivery materialization orchestration", () => {
       protectedBase: { ref: "refs/heads/main", head: observedHead, tree: "a".repeat(40) },
       chainBase: { head: chainHead, tree: chainTree },
       predecessorRelation: {
-        kind: "disjoint-ahead" as const,
+        kind: "diverged" as const,
         observedTip: observedHead,
         chainBase: chainHead,
         mergeBase: chainHead,
+        mergeBaseCount: 1,
         overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
       },
     };

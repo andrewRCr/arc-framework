@@ -1645,11 +1645,6 @@
       "count": 1
     }
   },
-  "src/scripts/review-gate/hosts/local/delivery-member-lookup.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/hosts/local/review-authority.ts": {
     "complexity": {
       "count": 1

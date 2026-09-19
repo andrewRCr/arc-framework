@@ -118,12 +118,6 @@ export type SessionInitWorktreeValue = (
 };
 
 /**
- * Base-distance slot in the session-init envelope. Extends the raw probe
- * result (HEAD vs `origin/<base>`) with the same precomputed action + prompt
- * text pair as the worktree slot, so the workflow renders a behind-base
- * reconcile offer without re-deriving it from state.
- */
-/**
  * A base-distance reading that resolved before any snapshot evidence was consulted.
  *
  * Bounded to exactly those arms: unbounded, the intersection also admitted
@@ -137,6 +131,12 @@ export type BaseDistanceNotApplicableResult = BaseDistanceStatusResult & {
   remoteEvidence: "not-applicable";
 };
 
+/**
+ * Base-distance slot in the session-init envelope. Extends the raw probe
+ * result (HEAD vs `origin/<base>`) with the same precomputed action + prompt
+ * text pair as the worktree slot, so the workflow renders a behind-base
+ * reconcile offer without re-deriving it from state.
+ */
 export type SessionInitBaseDistanceValue = (
   BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult
 ) & {

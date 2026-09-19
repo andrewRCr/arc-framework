@@ -8,6 +8,7 @@ import {
   HostMergeAdmissionSchema,
   MAX_EVIDENCE_APPLICABILITY_PATHS,
   composeEvidenceDelta,
+  type EvidenceOverlapObservation,
 } from "../../../src/lib/evidence-applicability/index.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -22,10 +23,12 @@ const target = (revision: string) => ({
   revision,
   subject: { entries: [], subjectDigest: digest(revision[0] ?? "a") },
 });
+const reviewable = "packages/arc-framework/src/example.ts";
+const regenerable = ".arc/backlog/ROADMAP.md";
 const overlap = {
   status: "available" as const,
-  substantivePaths: ["packages/arc-framework/src/example.ts"],
-  regenerablePaths: [".arc/backlog/ROADMAP.md"],
+  substantivePaths: [reviewable],
+  regenerablePaths: [regenerable],
 };
 
 describe("evidence delta composition", () => {
@@ -55,6 +58,70 @@ describe("evidence delta composition", () => {
       approvedScope: "not-applicable",
       observed: { kind: "base-movement", coordinates: coordinates() },
       residual: ["packages/arc-framework/src/example.ts"],
+    });
+  });
+
+  it("leaves a base with more than one comparison point unproven rather than disjoint", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: { status: "ambiguous" } },
+    })).toMatchObject({
+      cause: "base-movement",
+      overlap: { kind: "unknown", substantivePaths: [], regenerablePaths: [] },
+    });
+  });
+
+  it("leaves a base sharing no history unproven rather than disjoint", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: { status: "unrelated" } },
+    })).toMatchObject({
+      cause: "base-movement",
+      overlap: { kind: "unknown", substantivePaths: [], regenerablePaths: [] },
+    });
+  });
+
+  it("converts each observation status to the arm the crossing states for it", () => {
+    const converted = (observed: EvidenceOverlapObservation) => composeEvidenceDelta({
+      cause: "base-movement",
+      observation: { coordinates: coordinates(), overlap: observed },
+    }).overlap.kind;
+
+    expect([
+      converted({ status: "available", substantivePaths: [reviewable], regenerablePaths: [] }),
+      converted({ status: "available", substantivePaths: [], regenerablePaths: [] }),
+      converted({ status: "ambiguous" }),
+      converted({ status: "unrelated" }),
+      converted({ status: "unavailable", reason: "merge-base-failed" }),
+    ]).toEqual(["overlapping", "disjoint", "unknown", "unknown", "unknown"]);
+  });
+
+  it("never converts an observation carrying no path evidence into the strongest accept", () => {
+    const unproven: EvidenceOverlapObservation[] = [
+      { status: "ambiguous" },
+      { status: "unrelated" },
+      { status: "unavailable", reason: "merge-base-failed" },
+    ];
+
+    // None of the three states what the two sides share, so the arm that says they share nothing is the one
+    // answer none of them supports.
+    for (const observed of unproven) {
+      expect(composeEvidenceDelta({
+        cause: "base-movement",
+        observation: { coordinates: coordinates(), overlap: observed },
+      }).overlap.kind).not.toBe("disjoint");
+    }
+  });
+
+  it("converts an available observation with no shared paths into that accept unchanged", () => {
+    expect(composeEvidenceDelta({
+      cause: "base-movement",
+      observation: {
+        coordinates: coordinates(),
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [regenerable] },
+      },
+    })).toMatchObject({
+      overlap: { kind: "disjoint", substantivePaths: [], regenerablePaths: [regenerable] },
     });
   });
 

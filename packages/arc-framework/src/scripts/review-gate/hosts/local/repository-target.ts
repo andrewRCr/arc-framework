@@ -1,5 +1,6 @@
 /** Canonical local Git target derivation for review preparation. */
 
+import { resolveSoleMergeBase } from "../../../../lib/git/base-overlap.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import type { DeliveryMemberBinding } from "../../core/delivery-member-lookup.js";
 import { createReviewTarget } from "../../core/gate-contract-v2.js";
@@ -13,6 +14,7 @@ import {
 } from "../../core/review-target-coordinates.js";
 
 export type LocalTargetInvalidReason =
+  | "ambiguous-merge-base"
   | "dirty-worktree"
   | "invalid-base"
   | "no-merge-base"
@@ -24,8 +26,12 @@ export type LocalTargetInvalidReason =
 export class LocalTargetDerivationError extends Error {
   readonly code = "invalid-input" as const;
 
-  constructor(public readonly reason: LocalTargetInvalidReason) {
-    super(reason);
+  /**
+   * @param reason - The stable precondition the boundary reports and routes on.
+   * @param detail - Where the precondition was observed, when the reason alone does not locate it.
+   */
+  constructor(public readonly reason: LocalTargetInvalidReason, detail: string = reason) {
+    super(detail);
     this.name = "LocalTargetDerivationError";
   }
 }
@@ -105,7 +111,19 @@ async function deriveFromCheckout(
   );
   if (status !== "") throw new LocalTargetDerivationError("dirty-worktree");
 
-  const diffBaseSha = await readGit(input, ["merge-base", base.oid, head.oid], "no-merge-base");
+  // Read every best common ancestor rather than the one Git would otherwise return. What this resolves to
+  // becomes the diff base the local host reviews from, so over a history leaving two, the change set examined
+  // would be decided by a choice between them that nothing records and nobody made.
+  const sole = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, { cwd: input.cwd }),
+    leftRevision: base.oid,
+    rightRevision: head.oid,
+  });
+  // Two best bases and none at all are separate readings here, and stay separate: one is cleared by merging
+  // the base in, and the other is not reachable from any state this branch can be put into.
+  if (sole.status === "ambiguous") throw new LocalTargetDerivationError("ambiguous-merge-base");
+  if (sole.status !== "resolved") throw new LocalTargetDerivationError("no-merge-base");
+  const diffBaseSha = sole.mergeBase;
   const [diffBaseTree, headTree] = await Promise.all([
     readGit(input, ["rev-parse", `${diffBaseSha}^{tree}`], "no-merge-base"),
     readGit(input, ["rev-parse", `${head.oid}^{tree}`], "non-commit-head"),

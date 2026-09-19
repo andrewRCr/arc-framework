@@ -269,4 +269,64 @@ describe("delivery chain content absorption", () => {
     await expect(execFileAsync("git", ["rev-parse", "--verify", "MERGE_HEAD"], { cwd: fixture.repository }))
       .rejects.toThrow();
   });
+
+  async function resolveByHand(
+    fixture: Awaited<ReturnType<typeof createAbsorptionFixture>>,
+    secondParent: string,
+  ): Promise<{ head: string; tree: string }> {
+    await writeFile(join(fixture.repository, "shared.txt"), "resolved by hand\n", "utf8");
+    await fixture.git(["add", "shared.txt"]);
+    const tree = await fixture.git(["write-tree"]);
+    const head = await fixture.git([
+      "commit-tree", tree, "-p", fixture.top, "-p", secondParent, "-m", "resolve the collision by hand",
+    ]);
+    await fixture.git(["reset", "--hard", head]);
+    return { head, tree };
+  }
+
+  it("adopts a hand-resolved merge on its parent line whatever tree it carries", async () => {
+    const fixture = await createAbsorptionFixture({ conflict: true });
+    const resolved = await resolveByHand(fixture, fixture.refreshedMember);
+    expect((await fixture.git(["rev-list", "--parents", "-n", "1", resolved.head])).split(" "))
+      .toEqual([resolved.head, fixture.top, fixture.refreshedMember]);
+    expect(resolved.tree).not.toBe(await fixture.git(["rev-parse", `${fixture.top}^{tree}`]));
+    expect(resolved.tree).not.toBe(await fixture.git(["rev-parse", `${fixture.refreshedMember}^{tree}`]));
+
+    await expect(absorbGitDeliveryChain({
+      exec: fixture.exec,
+      topRef: "refs/heads/feat/example",
+      top: await fixture.coordinate(fixture.top),
+      previousHighestMember: await fixture.coordinate(fixture.originalMember),
+      highestMember: await fixture.coordinate(fixture.refreshedMember),
+    })).resolves.toEqual({ status: "absorbed", head: resolved.head, tree: resolved.tree });
+  });
+
+  it("refuses a merge that resolved against a predecessor other than the refreshed one", async () => {
+    const fixture = await createAbsorptionFixture({ conflict: true });
+    const resolved = await resolveByHand(fixture, fixture.originalMember);
+    expect((await fixture.git(["rev-list", "--parents", "-n", "1", resolved.head])).split(" "))
+      .toEqual([resolved.head, fixture.top, fixture.originalMember]);
+
+    await expect(absorbGitDeliveryChain({
+      exec: fixture.exec,
+      topRef: "refs/heads/feat/example",
+      top: await fixture.coordinate(fixture.top),
+      previousHighestMember: await fixture.coordinate(fixture.originalMember),
+      highestMember: await fixture.coordinate(fixture.refreshedMember),
+    })).resolves.toEqual({ status: "refused", reason: "top-moved" });
+  });
+
+  it("refuses a hand-resolved merge whose worktree is not clean", async () => {
+    const fixture = await createAbsorptionFixture({ conflict: true });
+    await resolveByHand(fixture, fixture.refreshedMember);
+    await writeFile(join(fixture.repository, "uncommitted.txt"), "still editing\n", "utf8");
+
+    await expect(absorbGitDeliveryChain({
+      exec: fixture.exec,
+      topRef: "refs/heads/feat/example",
+      top: await fixture.coordinate(fixture.top),
+      previousHighestMember: await fixture.coordinate(fixture.originalMember),
+      highestMember: await fixture.coordinate(fixture.refreshedMember),
+    })).resolves.toEqual({ status: "refused", reason: "worktree-dirty" });
+  });
 });

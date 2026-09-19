@@ -220,6 +220,7 @@ describe("repository command-input inventory", () => {
       "delivery land apply",
       "delivery land prepare",
       "delivery native land-prepare",
+      "delivery native land-release",
       "delivery native land-select",
       "delivery native land-status",
       "delivery native land-submit",
@@ -288,6 +289,7 @@ describe("repository command-input inventory", () => {
 
     expect(hostedCommands).toEqual([
       "delivery native land-prepare",
+      "delivery native land-release",
       "delivery native land-select",
       "delivery native land-status",
       "delivery native land-submit",

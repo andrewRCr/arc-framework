@@ -253,11 +253,6 @@ function unrecordedLaneAdvisory(lane: ReviewLane): string {
 }
 
 /**
- * A rejected routing fact is normalized to an unknown change set rather than refused, so the route
- * it produces is the conservative one either way. What the caller loses without this is why: a
- * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
- */
-/**
  * An absent exact target is reported rather than refused, so what it costs has to be said.
  *
  * The lane routing below is unaffected; what becomes unreachable is every exact-target operation the
@@ -268,6 +263,11 @@ function unavailableTargetAdvisory(reason: string): string {
     + "operations this procedure routes to cannot be invoked until it resolves.";
 }
 
+/**
+ * A rejected routing fact is normalized to an unknown change set rather than refused, so the route
+ * it produces is the conservative one either way. What the caller loses without this is why: a
+ * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
+ */
 function rejectedRoutingAdvisory(paths: readonly string[]): string {
   return `Rejected or missing routing input at ${paths.join(", ")}; the change set routes as `
     + "unestablished, so standard review stays required.";

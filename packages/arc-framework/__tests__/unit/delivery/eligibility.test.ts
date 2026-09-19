@@ -31,7 +31,13 @@ function dependencies(): DeliveryEligibilityCloseDependencies {
   ]);
   return {
     observeRef: vi.fn(async (ref: string) => coordinates.get(ref) ?? null),
-    readAncestry: vi.fn(async () => "ancestor" as const),
+    // The chain is stacked on the protected base, so ancestry runs one way along it: a, then b, then c.
+    readAncestry: vi.fn(async (ancestor: string, descendant: string) => {
+      const chain = [oid("a"), oid("b"), oid("c")];
+      const from = chain.indexOf(ancestor);
+      const to = chain.indexOf(descendant);
+      return from >= 0 && to >= 0 && from <= to ? "ancestor" as const : "not-ancestor" as const;
+    }),
     readOverlap: vi.fn(async () => ({
       status: "available" as const,
       mergeBase: oid("a"),
@@ -92,8 +98,12 @@ describe("prepareDeliveryEligibility", () => {
       ["candidate/second", { head: oid("c"), tree: oid("4") }],
       [oid("a"), { head: oid("a"), tree: oid("1") }],
     ]).get(ref) ?? null);
+    // The base moved to a revision the member does not sit on, so neither contains the other in either
+    // direction; everything else on the chain still runs one way.
     deps.readAncestry = vi.fn(async (ancestor, descendant) => (
-      ancestor === oid("e") && descendant === oid("b") ? "not-ancestor" as const : "ancestor" as const
+      (ancestor === oid("e") && descendant === oid("b")) || (ancestor === oid("b") && descendant === oid("e"))
+        ? "not-ancestor" as const
+        : "ancestor" as const
     ));
 
     const prepared = await prepareDeliveryEligibility({
@@ -109,10 +119,11 @@ describe("prepareDeliveryEligibility", () => {
         protectedBase: { ref: "main", head: oid("e"), tree: oid("5") },
         chainBase: { head: oid("a"), tree: oid("1") },
         predecessorRelation: {
-          kind: "disjoint-ahead",
+          kind: "diverged",
           observedTip: oid("e"),
           chainBase: oid("a"),
           mergeBase: oid("a"),
+          mergeBaseCount: 1,
         },
         regenerablePaths: [".arc/backlog/ROADMAP.md"],
       },
@@ -235,9 +246,10 @@ describe("prepareDeliveryEligibility", () => {
       reason: "wrong-predecessor",
       deliverableId: plan.members[0]!.deliverableId,
       relation: {
-        kind: "overlapping-ahead",
+        kind: "diverged",
         observedTip: oid("a"),
         mergeBase: oid("a"),
+        mergeBaseCount: 1,
         overlap: { substantivePaths: ["src/shared.ts"] },
       },
       paths: ["src/shared.ts"],
@@ -257,30 +269,43 @@ describe("prepareDeliveryEligibility", () => {
     });
   });
 
-  it("distinguishes an unrelated bottom member with an explicit rebuild boundary", async () => {
+  it("refuses an unrelated bottom member terminally at both readers, never as a wrong predecessor", async () => {
     const plan = deliveryStackPlanFixture();
-    const deps = dependencies();
-    deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
-    deps.readOverlap = vi.fn(async () => ({
-      status: "unrelated" as const,
-      leftRevision: oid("b"),
-      rightRevision: oid("a"),
-      detail: "The revisions have no common ancestor.",
-    }));
-
-    await expect(prepareDeliveryEligibility({
-      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
-    }, deps)).resolves.toMatchObject({
-      status: "refused",
-      reason: "wrong-predecessor",
-      deliverableId: plan.members[0]!.deliverableId,
-      relation: {
-        kind: "unrelated",
-        observedTip: oid("a"),
+    const unrelatedRead = (deps: DeliveryEligibilityCloseDependencies) => {
+      deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+      deps.readOverlap = vi.fn(async () => ({
+        status: "unrelated" as const,
+        leftRevision: oid("b"),
+        rightRevision: oid("a"),
         detail: "The revisions have no common ancestor.",
-      },
+      }));
+    };
+    const terminal = {
+      status: "refused",
+      reason: "unrelated-predecessor",
+      deliverableId: plan.members[0]!.deliverableId,
+      observedTip: oid("a"),
+      detail: expect.stringContaining("The revisions have no common ancestor."),
       remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
-    });
+    };
+
+    const prepareDeps = dependencies();
+    unrelatedRead(prepareDeps);
+    const refusal = await prepareDeliveryEligibility({
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
+    }, prepareDeps);
+    expect(refusal).toMatchObject(terminal);
+    // A pair sharing no lineage relates by nothing, so the refusal carries no variant to report it with —
+    // which is also why the observed tip has to ride the refusal itself.
+    expect(refusal).not.toHaveProperty("relation");
+
+    const closeDeps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan, protectedBaseRef: "main", topRef: "control", candidates: candidates(), lifecyclePaths: [],
+    }, closeDeps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    unrelatedRead(closeDeps);
+    await expect(closeDeliveryEligibility(prepared.snapshot, closeDeps)).resolves.toMatchObject(terminal);
   });
 
   it("refuses an empty non-terminal candidate by exact head or tree identity", async () => {
@@ -671,10 +696,11 @@ describe("eligibility observation bracket", () => {
     const tampered = {
       ...prepared.snapshot,
       predecessorRelation: {
-        kind: "disjoint-ahead" as const,
+        kind: "diverged" as const,
         observedTip: prepared.snapshot.protectedBase.head,
         chainBase: oid("f"),
         mergeBase: oid("f"),
+        mergeBaseCount: 1,
         overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
       },
     };
@@ -685,6 +711,117 @@ describe("eligibility observation bracket", () => {
       deliverableId: prepared.snapshot.members[0]!.deliverableId,
     });
     expect(completeness).not.toHaveBeenCalled();
+  });
+
+  it("refuses a submitted relation sharing changed content, however faithfully it reobserves", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const completeness = vi.mocked(deps.compareNormalizedCompleteness);
+    const overlap = {
+      status: "available" as const,
+      substantivePaths: ["src/shared.ts"],
+      regenerablePaths: [] as string[],
+    };
+    // Neither head contains the other, and the commits they do not share touch one file in common.
+    deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    deps.readOverlap = vi.fn(async () => ({ status: "available" as const, mergeBase: oid("a"), overlap }));
+
+    // Submitted relation and fresh read agree in every field, so the comparison below finds them equal and
+    // every coordinate check passes. Consistency is all that proves; the content they share is what refuses.
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      predecessorRelation: {
+        kind: "diverged",
+        observedTip: prepared.snapshot.protectedBase.head,
+        chainBase: oid("a"),
+        mergeBase: oid("a"),
+        mergeBaseCount: 1,
+        overlap,
+      },
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
+      paths: ["src/shared.ts"],
+      remedy: { kind: "delivery-authoring-rebuild-required", automatedCommand: null },
+    });
+    expect(completeness).not.toHaveBeenCalled();
+  });
+
+  // A base that moved to a revision the member does not sit on, sharing no changed content with it. The fresh
+  // read reproduces exactly the relation returned here, so each test below varies one field of a submitted copy.
+  function divergedReread(deps: DeliveryEligibilityCloseDependencies) {
+    const overlap = {
+      status: "available" as const,
+      substantivePaths: [] as string[],
+      regenerablePaths: [] as string[],
+    };
+    deps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    deps.readOverlap = vi.fn(async () => ({ status: "available" as const, mergeBase: oid("a"), overlap }));
+    return {
+      kind: "diverged" as const,
+      observedTip: oid("a"),
+      chainBase: oid("a"),
+      mergeBase: oid("a"),
+      mergeBaseCount: 1,
+      overlap,
+    };
+  }
+
+  it("reads the merge-base count a submitted relation claims, not only the coordinates around it", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const relation = divergedReread(deps);
+
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      predecessorRelation: { ...relation, mergeBaseCount: 2 },
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
+    });
+  });
+
+  it("reads the chain base a diverged relation carries, which no later coordinate check re-reads", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const relation = divergedReread(deps);
+
+    // The checks after the comparison read the chain base off the fresh relation, so a substituted one reaches
+    // them unchanged; only reading the submitted copy field by field tells the two apart.
+    await expect(closeDeliveryEligibility({
+      ...prepared.snapshot,
+      predecessorRelation: { ...relation, chainBase: oid("f") },
+    }, deps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "wrong-predecessor",
+      deliverableId: prepared.snapshot.members[0]!.deliverableId,
+    });
+  });
+
+  it("closes a diverged relation the fresh read matches in every payload field", async () => {
+    const deps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, deps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    const snapshot = { ...prepared.snapshot, predecessorRelation: divergedReread(deps) };
+
+    await expect(closeDeliveryEligibility(snapshot, deps)).resolves.toEqual({ status: "eligible", snapshot });
   });
 
   it("rejects a resolvable substituted chain-base coordinate before completeness", async () => {
@@ -794,6 +931,43 @@ describe("eligibility observation bracket", () => {
     await expect(closeDeliveryEligibility(prepared.snapshot, bindingDeps))
       .resolves.toEqual({
       status: "refused", reason: "evidence-unavailable",
+    });
+  });
+
+  it("refuses a pair with more than one merge base at both readers", async () => {
+    const ambiguousOverlap = () => vi.fn(async () => ({
+      status: "ambiguous" as const,
+      detail: "The revisions have multiple best merge bases.",
+    }));
+
+    const prepareDeps = dependencies();
+    prepareDeps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    prepareDeps.readOverlap = ambiguousOverlap();
+    await expect(prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, prepareDeps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      observedTip: oid("a"),
+      detail: "The revisions have multiple best merge bases.",
+      remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", oid("a")] },
+    });
+
+    const closeDeps = dependencies();
+    const prepared = await prepareDeliveryEligibility({
+      plan: deliveryStackPlanFixture(), protectedBaseRef: "main", topRef: "control",
+      candidates: candidates(), lifecyclePaths: [],
+    }, closeDeps);
+    if (prepared.status !== "prepared") throw new Error("fixture must prepare");
+    closeDeps.readAncestry = vi.fn(async () => "not-ancestor" as const);
+    closeDeps.readOverlap = ambiguousOverlap();
+    await expect(closeDeliveryEligibility(prepared.snapshot, closeDeps)).resolves.toMatchObject({
+      status: "refused",
+      reason: "ambiguous-predecessor-base",
+      observedTip: oid("a"),
+      detail: "The revisions have multiple best merge bases.",
+      remedy: { kind: "delivery-base-merge-required", automatedCommand: ["git", "merge", oid("a")] },
     });
   });
 

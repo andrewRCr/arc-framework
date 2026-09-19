@@ -4,13 +4,14 @@ import {
   BaseMovementObservationSchema,
   composeEvidenceDelta,
   reduceEvidenceApplicability,
+  type EvidenceOverlapObservation,
 } from "../../lib/evidence-applicability/index.js";
 import {
   createCurrentBaseDriftAdapters,
 } from "../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
-import type { BaseDriftResult } from "../../lib/git/base-drift-types.js";
+import type { BaseDriftResult, OverlapEvidence } from "../../lib/git/base-drift-types.js";
 import {
   observeGitMergeFeasibility,
   type GitExec,
@@ -49,6 +50,20 @@ import type {
   ErrandMergeFinalPlan,
 } from "./errand-merge.js";
 
+/**
+ * Read drift overlap evidence into the observation the applicability delta carries.
+ *
+ * Both unions state the same four readings, and this assignment is where that agreement is proved. The delta
+ * validates what it is handed strictly, so a reading one side gains alone would otherwise reach it as an
+ * unrecognized status and throw at the parse; here it fails at the compiler instead.
+ *
+ * @param overlap - Drift overlap evidence as the authoritative reading produced it.
+ * @returns The equivalent observation, under the same status the reading established.
+ */
+function observeDriftOverlap(overlap: OverlapEvidence): EvidenceOverlapObservation {
+  return overlap;
+}
+
 /** Reduce one complete Errand terminal observation through the shared applicability and movement planners. */
 export function composeErrandFinalPlan(input: {
   readonly drift: Pick<
@@ -81,7 +96,7 @@ export function composeErrandFinalPlan(input: {
   };
   const baseMovement = BaseMovementObservationSchema.parse({
     coordinates,
-    overlap: input.drift.overlap,
+    overlap: observeDriftOverlap(input.drift.overlap),
   });
   const hostAdmission = input.admission.state === "mergeable"
     ? { state: "mergeable" as const, coordinates }

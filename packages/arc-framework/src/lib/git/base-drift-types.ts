@@ -58,6 +58,8 @@ export type OverlapEvidence =
       substantivePaths: string[];
       regenerablePaths: string[];
     }
+  | { status: "ambiguous" }
+  | { status: "unrelated" }
   | {
       status: "unavailable";
       reason: "merge-base-failed" | "branch-diff-failed" | "base-diff-failed" | "classification-failed";

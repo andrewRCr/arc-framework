@@ -11,8 +11,8 @@ import {
 import { DeliveryPlanV1Codec } from "../../src/lib/delivery/plan.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "../../src/lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { readAncestry } from "../../src/lib/work-unit/git-decomposition-object-readers.js";
 import { cleanupTempDir, createTempRepo, makeCommit, makeGitExec } from "../helpers/integration.js";
-import { expectPinnedObservation } from "../helpers/pinned-observation.js";
 import { deliveryStackPlanFixture } from "../fixtures/delivery-plan.js";
 
 const execFileAsync = promisify(execFile);
@@ -33,6 +33,7 @@ afterEach(async () => {
 interface BoundTerminal {
   readonly cwd: string;
   readonly gitCommonDir: string;
+  readonly base: string;
   readonly bound: string;
   readonly advanced: string;
 }
@@ -83,7 +84,7 @@ async function boundTerminal(): Promise<BoundTerminal> {
   const published = await stateStore.publish(PLAN_ID, state(base, bound, await tree(cwd, bound)), 0);
   expect(published.status).toBe("ok");
   const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd });
-  return { cwd, gitCommonDir: stdout.trim(), bound, advanced };
+  return { cwd, gitCommonDir: stdout.trim(), base, bound, advanced };
 }
 
 /** Close out the published delivery against a host reporting the terminal merged at `mergedHead`. */
@@ -116,6 +117,7 @@ async function closeoutAgainstMergedHead(
       retirement: {
         observeLocalRef: async () => ({ status: "absent" }),
         observeRemoteRef: async () => ({ status: "absent" }),
+        readAncestry: (ancestor, descendant) => readAncestry(makeGitExec(fixture.cwd), ancestor, descendant),
         readTerminalRequest: async () => ({
           status: "observed",
           request: {
@@ -144,15 +146,15 @@ describe("delivery closeout against a terminal head that advanced under its bind
     expect(await closeoutAgainstMergedHead(fixture, fixture.bound)).toEqual({ status: "closed-out" });
   });
 
-  it("reports a terminal unsettled when the host merged it past the head it binds", async () => {
-    const fixture = await boundTerminal();
+  it("retires a terminal merged past the head it binds, apart from one merged behind it", async () => {
+    const forward = await boundTerminal();
+    const behind = await boundTerminal();
 
-    expectPinnedObservation(await closeoutAgainstMergedHead(fixture, fixture.advanced), {
-      behavior:
-        "A terminal whose branch advanced past its bound head and then merged is the same landed " +
-        "contribution, so closeout should retire it rather than report the terminal unsettled.",
-      observed: { status: "blocked", reason: "terminal-unsettled" },
-      target: { status: "closed-out" },
-    });
+    // The branch advanced and then merged, so what landed contains the head the record binds: the
+    // movement is append-only and the terminal is still the one this delivery published.
+    expect(await closeoutAgainstMergedHead(forward, forward.advanced)).toEqual({ status: "closed-out" });
+    // A head the bound head descends from is not that contribution, so it stays unsettled.
+    expect(await closeoutAgainstMergedHead(behind, behind.base))
+      .toEqual({ status: "blocked", reason: "terminal-head-moved" });
   });
 });

@@ -33,6 +33,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "delivery land apply", args: ["delivery", "land", "apply", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery land prepare", args: ["delivery", "land", "prepare", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery native land-prepare", args: ["delivery", "native", "land-prepare", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
+  { commandPath: "delivery native land-release", args: ["delivery", "native", "land-release", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery native land-select", args: ["delivery", "native", "land-select", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery native land-status", args: ["delivery", "native", "land-status", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },
   { commandPath: "delivery native land-submit", args: ["delivery", "native", "land-submit", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "invalid-command-input" } },

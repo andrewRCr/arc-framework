@@ -33,7 +33,8 @@ import {
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../lib/work-unit/git-candidate-applicability.js";
 import {
-  collectGitCandidateTarget,
+  CandidateSubjectUncollectableError,
+  collectGitCandidateSubject,
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
 import type { CandidateMutationOwner } from "../lib/work-unit/candidate-mutation-owner.js";
@@ -49,6 +50,11 @@ import {
   resolveReviewApplicabilityBatch,
   reviewApplicabilityResolutionInputsFromCommand,
 } from "../scripts/review-gate/policy/review-applicability-resolution.js";
+import {
+  checkpointResumeArgv,
+  spineRemedy,
+  type SpineRemedy,
+} from "../scripts/integration/spine-refusal.js";
 import {
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
@@ -145,14 +151,24 @@ async function executeCandidateApplicabilityResolution(
     baseBranch,
     exec: git,
   });
-  const currentTarget = async (baseRevision: string) => collectGitCandidateTarget({
-    cwd: root,
-    name,
-    baseBranch,
-    baseRevision,
-    exec: git,
-    revision: await readObjectId("HEAD^{commit}"),
-  });
+  const currentTarget = async (baseRevision: string) => {
+    const collected = await collectGitCandidateSubject({
+      cwd: root,
+      name,
+      baseBranch,
+      baseRevision,
+      exec: git,
+      revision: await readObjectId("HEAD^{commit}"),
+    });
+    // Applicability is asked to classify one exact target, so a subject it has no reading for is not a
+    // classification this resolution can reach — it raises here rather than classifying something else. Under
+    // its own type, because the boundary that reports this has to tell it apart from an ordinary failure: the
+    // act that clears it is not a rerun of this resolution.
+    if (collected.status !== "collected") {
+      throw new CandidateSubjectUncollectableError(collected.reason, collected.detail);
+    }
+    return collected.target;
+  };
   const writeRecord = async (
     record: Parameters<typeof writeCandidateRecord>[2],
     expectedVersion: string,
@@ -292,6 +308,49 @@ function defaultDependencies(): CandidateApplicabilityResolveHandlerDependencies
   };
 }
 
+/**
+ * The act that clears a history naming no single base, and the command that composes a fresh selection after it.
+ *
+ * Re-running this resolution is not the remedy: the selection it binds was derived against the same history and
+ * is re-derived against it again. The operator merges the base in by hand, then composes a fresh selection — the
+ * integration checkpoint is what produces one, so that is the command this names.
+ *
+ * @param workUnit - The work unit whose applicability selection stopped.
+ * @returns The remedy naming the failed invariant and the command to run once it is satisfied.
+ */
+function uncollectableSubjectRemedy(workUnit: string): SpineRemedy {
+  return spineRemedy(
+    "An applicability selection binds what the branch contributes over one base, which a history leaving two "
+    + "equally good ancestors does not name.",
+    "Merge the configured base into the branch, then compose a fresh selection",
+    checkpointResumeArgv(workUnit),
+  );
+}
+
+/**
+ * Close a failed execution, carrying the cause and its clearing act where the failure named one.
+ *
+ * Most failures here have nothing an operator could act on beyond the stop itself. A subject the branch's
+ * history does not name is the exception: the cause is produced one frame away and the act that clears it is
+ * not a rerun of this resolution, so both have to survive the boundary rather than dying in the catch.
+ *
+ * @param error - The failure the execution raised.
+ * @param workUnit - The work unit whose resolution stopped.
+ * @returns The closed execution-unavailable result.
+ */
+function executionFailedResult(error: unknown, workUnit: string): CandidateApplicabilityCommandResult {
+  return CandidateApplicabilityResolutionResultSchema.parse({
+    schemaVersion: 1,
+    mode: "candidate-applicability-resolve",
+    state: "execution-unavailable",
+    nextAction: "stop",
+    reason: "execution-failed",
+    ...(error instanceof CandidateSubjectUncollectableError
+      ? { detail: error.message, remedy: uncollectableSubjectRemedy(workUnit) }
+      : {}),
+  });
+}
+
 function emit(
   deps: CandidateApplicabilityResolveHandlerDependencies,
   result: CandidateApplicabilityCommandResult,
@@ -404,14 +463,8 @@ export async function handleCandidateApplicabilityResolve(
       interaction,
       requireMutationOwner,
     );
-  } catch {
-    emit(deps, CandidateApplicabilityResolutionResultSchema.parse({
-      schemaVersion: 1,
-      mode: "candidate-applicability-resolve",
-      state: "execution-unavailable",
-      nextAction: "stop",
-      reason: "execution-failed",
-    }));
+  } catch (error) {
+    emit(deps, executionFailedResult(error, commandInput.data.name));
     return;
   }
   const parsed = CandidateApplicabilityCommandResultSchema.safeParse(executed);

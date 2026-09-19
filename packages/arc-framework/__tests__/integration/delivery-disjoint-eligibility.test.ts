@@ -36,7 +36,7 @@ import {
   type CandidateManagedRecordV1,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import { readAncestry } from "../../src/lib/work-unit/git-decomposition-object-readers.js";
 import {
   deliveryStackPlanFixture,
@@ -153,7 +153,7 @@ describe("disjoint delivery eligibility", () => {
     expect(prepared.snapshot).toMatchObject({
       protectedBase: { head: observedTip },
       chainBase: { head: chainBase },
-      predecessorRelation: { kind: "disjoint-ahead", observedTip, chainBase },
+      predecessorRelation: { kind: "diverged", observedTip, chainBase },
     });
     await expect(closeDeliveryEligibility(prepared.snapshot, dependencies))
       .resolves.toMatchObject({ status: "eligible" });
@@ -237,7 +237,7 @@ describe("disjoint delivery eligibility", () => {
     await git(["commit", "-m", "terminal member"]);
     const terminalHead = await git(["rev-parse", "HEAD"]);
 
-    const target = await collectGitCandidateTarget({
+    const target = await collectCandidateSubjectTarget({
       cwd: repository,
       name: "example",
       baseBranch: "main",
