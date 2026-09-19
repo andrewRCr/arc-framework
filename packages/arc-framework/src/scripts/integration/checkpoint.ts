@@ -105,6 +105,16 @@ export const CheckpointMovementObservationSchema = z.strictObject({
 });
 export type CheckpointMovementObservation = z.infer<typeof CheckpointMovementObservationSchema>;
 
+/**
+ * What clears a delivery drift refusal, which follows the pair being compared rather than the reader asking.
+ *
+ * Where both revisions can move, an append-only merge leaves one merge base where there were two. Where one of
+ * them is pinned, that merge moves neither, so the baseline itself has to be retaken. Where the two share no
+ * ancestor at all, no append-only merge reaches them: Git declines to join unrelated histories unless told to,
+ * so the join is the operator's to perform. Only a condition a fresh read can settle resumes at the checkpoint.
+ */
+export type DeliveryClassifierCommand = "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated";
+
 export type CheckpointMovementPlan =
   | { state: "proceed" }
   | { state: "reconcile"; nextAction: "reconcile-base" | "reconcile-regenerable" }
@@ -654,6 +664,50 @@ export function checkpointAmbiguousBaseRemedy(workUnit: string): SpineRemedy {
 }
 
 /**
+ * The remedy for a durable baseline that leaves two best ancestors against the observed base.
+ *
+ * Merging the base in is the one remedy this pair cannot take. Both of its revisions are fixed — the baseline
+ * is reduced from a durable managed record and the base is observed — so an append-only merge advances the
+ * branch and leaves the compared pair, and its two best ancestors, exactly where they were. Re-pinning the
+ * baseline is what moves one of them, so the remedy names the re-rooting rather than a rerun that would read
+ * the identical pair and stop here again.
+ *
+ * @param workUnit - The work unit whose checkpoint stopped.
+ * @returns The remedy naming the failed invariant and the transition that re-pins the baseline.
+ */
+export function checkpointRebaselineRemedy(workUnit: string): SpineRemedy {
+  return spineRemedy(
+    "A Candidate composes against a durable baseline naming one best ancestor with the observed base.",
+    "Re-pin the durable baseline over freshly verified content by rooting a new lineage",
+    attestNewRootArgv(workUnit),
+  );
+}
+
+/**
+ * The act the delivery drift classifier named, as the refusal the operator can act on.
+ *
+ * Three of the four are cleared by doing something other than running this command again, and each names a
+ * different act: two joins the checkpoint will not perform on the operator's behalf, and a baseline that has
+ * to be retaken because no merge moves either revision of its pair. Only the unnamed act resumes here, so only
+ * it keeps the rerun.
+ *
+ * @param command - The act the classifier named for the pair it compared.
+ * @param workUnit - The work unit whose checkpoint stopped.
+ * @param baseOid - The observed base revision, which the hand join needs by name.
+ * @returns The remedy for that act.
+ */
+function deliveryClassifierRemedy(
+  command: DeliveryClassifierCommand,
+  workUnit: string,
+  baseOid: string,
+): SpineRemedy {
+  if (command === "merge-unrelated") return checkpointUnrelatedBaseRemedy(baseOid);
+  if (command === "reconcile-base") return checkpointAmbiguousBaseRemedy(workUnit);
+  if (command === "rebaseline") return checkpointRebaselineRemedy(workUnit);
+  return checkpointRemedy("delivery-terminal-blocked", workUnit);
+}
+
+/**
  * The remedy for a base sharing no history with the branch, which no ARC verb performs.
  *
  * `arc base merge` reconciles append-only and declines unrelated histories, so the join is the operator's. This
@@ -836,15 +890,8 @@ export type DeliveryDriftClassificationResult =
       readonly detail: string;
       readonly evidence: DeliveryDriftClassificationEvidence;
       readonly nextAction: {
-        /**
-         * What clears this refusal, which follows the pair being compared rather than the reader that asked.
-         *
-         * Where both revisions can move, an append-only merge leaves one merge base where there were two. Where
-         * one of them is pinned, that merge moves neither, so the baseline itself has to be retaken. Where the
-         * two share no ancestor at all, no append-only merge reaches them: Git declines to join unrelated
-         * histories unless told to, so the join is the operator's to perform.
-         */
-        readonly command: "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated";
+        /** What clears this refusal, which follows the pair being compared rather than the reader that asked. */
+        readonly command: DeliveryClassifierCommand;
         readonly workUnit: string;
       };
     }
@@ -1062,12 +1109,10 @@ export async function checkpointIntegration(
         reason: "delivery-terminal-blocked",
         detail: boundedCheckpointDetail(deliveryDrift.detail, "Delivery drift classification is unavailable."),
         coordinates,
-        // The classifier's own action is the answer whenever it names one no rerun can reach. Left at the
-        // default, the operator is handed back the checkpoint that just refused, with the command that clears
-        // the refusal one level down in the payload.
-        remedy: deliveryDrift.nextAction.command === "merge-unrelated"
-          ? checkpointUnrelatedBaseRemedy(drift.baseOid)
-          : checkpointRemedy("delivery-terminal-blocked", request.workUnit),
+        // The classifier's own act is the answer, because three of the four are not this command again. The
+        // payload carries the act as a token nothing in the tree reads, so the remedy is the only place an
+        // operator meets it.
+        remedy: deliveryClassifierRemedy(deliveryDrift.nextAction.command, request.workUnit, drift.baseOid),
         payload: {
           status: "blocked",
           nextAction: "stop",

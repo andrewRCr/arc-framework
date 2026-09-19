@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   IntegrationCheckpointResultSchema,
   CHECKPOINT_BLOCKED_REASONS,
+  checkpointAmbiguousBaseRemedy,
+  checkpointRebaselineRemedy,
   checkpointRemedy,
   checkpointUnrelatedBaseRemedy,
 } from "../../../../src/scripts/integration/checkpoint.js";
@@ -55,6 +57,25 @@ describe("spine refusal remedies", () => {
 
     expect(remedy.invariant).toMatch(/\.$/u);
     expect(remedy.argv).toEqual(["git", "merge", "--allow-unrelated-histories", baseOid]);
+    expect(remedy.text).toContain(remedy.invariant);
+    expect(remedy.text).toContain(remedy.argv.join(" "));
+  });
+
+  /**
+   * The two pairs an ambiguous history can be, each answered by the act that reaches it.
+   *
+   * Both revisions of the first pair can move, so the merge that collapses two ancestors to one precedes an
+   * ordinary resume. The second pair's baseline is pinned and its base is observed, so that merge moves
+   * neither, and only a re-pinned baseline changes the shape — which is why neither remedy is the other's.
+   */
+  it.each([
+    [checkpointAmbiguousBaseRemedy("example"), ["arc", "integrate", "checkpoint", "example", "--json"]],
+    [checkpointRebaselineRemedy("example"), ["arc", "attest", "example", "--new-root"]],
+  ])("answers an ambiguous pair with the act that reaches it %#", (composed, argv) => {
+    const remedy = SpineRemedySchema.parse(composed);
+
+    expect(remedy.invariant).toMatch(/\.$/u);
+    expect(remedy.argv).toEqual(argv);
     expect(remedy.text).toContain(remedy.invariant);
     expect(remedy.text).toContain(remedy.argv.join(" "));
   });

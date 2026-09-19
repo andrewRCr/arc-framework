@@ -117,6 +117,7 @@ import {
   ValidatedMergeMethodSchema,
   type IntegrationCheckpointDependencies,
   type IntegrationLifecycleSummary,
+  type DeliveryClassifierCommand,
   type DeliveryDriftClassificationEvidence,
 } from "./checkpoint.js";
 import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
@@ -339,7 +340,7 @@ function unavailableDeliveryDrift(
   workUnit: string,
   detail: string,
   evidence: DeliveryDriftClassificationEvidence,
-  command: "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated" = "rerun-checkpoint",
+  command: DeliveryClassifierCommand = "rerun-checkpoint",
 ) {
   return {
     status: "unavailable" as const,

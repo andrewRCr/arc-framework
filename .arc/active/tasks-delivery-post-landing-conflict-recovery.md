@@ -1071,13 +1071,13 @@ to a verdict and carries the cause as a discriminant instead. See
           fails on the remedy alone: the detail was already exact, and what the operator was handed was a rerun
           over identical history. The review-status comment now names where the merge is offered, not a plan id.
 
-### `[ ]` **4.R7 Name the act the classifier's remaining actions stand for** — amendment A15
+### `[x]` **4.R7 Name the act the classifier's remaining actions stand for** — amendment A15
 
 - _Goal:_ A15 — the delivery drift classifier emits four actions and only the hand merge is rendered as a
   command. The other two arrive as a token in a payload nothing reads, under a top-level remedy directing the
   rerun that reported them.
 
-    - `[ ]` **4.R7.a Render the reconcile and re-baseline actions as what each one is**
+    - `[x]` **4.R7.a Render the reconcile and re-baseline actions as what each one is**
 
         - Both dispositions are settled and neither needs authoring: D1 makes the branch-and-base pair
           recoverable by merging the base in, D10 requires that remedy be a dispatched action rather than prose,
@@ -1085,6 +1085,15 @@ to a verdict and carries the cause as a discriminant instead. See
           already states it; the remedy beside it re-invites the rerun the detail just ruled out. The token in
           the payload has exactly one occurrence in the tree — the assignment that writes it — so it is not a
           second channel the operator could read the act from.
+        - _Outcome:_ The four actions select four remedies through one `deliveryClassifierRemedy`, so the act the
+          classifier named is the act the operator is handed. `reconcile-base` renders the merge that collapses
+          the pair, reusing the remedy already shipping for that condition at three other sites, and `rebaseline`
+          renders a new `checkpointRebaselineRemedy` naming the re-rooting this file already dispatches for a
+          lineage that cannot advance — not the rerun its own detail has just ruled out. Only `rerun-checkpoint`
+          keeps the default. The action union is named once and shared with the classifier that emits it, and
+          the comment justifying the default is replaced by what is now true: the payload token nothing reads is
+          why the remedy is the only place the act surfaces. The payload keeps it, since removing a published
+          field is a compatibility move this correction does not need.
 
 ## **Phase 5:** The predecessor relation and vocabulary migration
 

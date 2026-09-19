@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkpointIntegration,
   CheckpointAmbiguousBaseError,
+  type DeliveryClassifierCommand,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
@@ -545,6 +546,54 @@ describe("integration checkpoint", () => {
         },
       });
     expect(events).toEqual([]);
+  });
+
+  /**
+   * The classifier names four acts and the refusal beside them has to be the act each one names.
+   *
+   * Three of them are reached by doing something other than running this command again: two merges the
+   * checkpoint cannot perform for the operator, and a baseline that has to be re-pinned because both revisions
+   * of its pair are fixed and no merge moves either. Only the unnamed act resumes here.
+   */
+  it.each<[DeliveryClassifierCommand, string, readonly string[]]>([
+    [
+      "rerun-checkpoint",
+      "Apply the returned delivery remedy or resolve its reported evidence, then re-run",
+      ["arc", "integrate", "checkpoint", "example", "--json"],
+    ],
+    [
+      "reconcile-base",
+      "Merge the configured base into the branch, then re-run",
+      ["arc", "integrate", "checkpoint", "example", "--json"],
+    ],
+    [
+      "merge-unrelated",
+      "give the two one common ancestor and re-run",
+      ["git", "merge", "--allow-unrelated-histories", oid("b")],
+    ],
+    [
+      "rebaseline",
+      "Re-pin the durable baseline over freshly verified content by rooting a new lineage",
+      ["arc", "attest", "example", "--new-root"],
+    ],
+  ])("hands back the act a classifier naming %s reports, not the command that reported it", async (
+    command,
+    correction,
+    argv,
+  ) => {
+    const deps = dependencies();
+    deps.classifyDeliveryDrift = async () => ({
+      status: "unavailable",
+      detail: "The delivery predecessor coordinate is unavailable.",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+      nextAction: { command, workUnit: "example" },
+    });
+
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+
+    expect(result).toMatchObject({ state: "blocked", reason: "delivery-terminal-blocked" });
+    expect(result).toHaveProperty("remedy.argv", argv);
+    expect((result as { remedy: { text: string } }).remedy.text).toContain(correction);
   });
 
   it("preserves terminal predecessor-overlap evidence and explanation", async () => {
