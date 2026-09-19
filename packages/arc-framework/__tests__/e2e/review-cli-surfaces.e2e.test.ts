@@ -83,6 +83,21 @@ describe("packaged review CLI surfaces", () => {
         "slug",
       ],
     ],
+    [
+      ["review", "resolve"],
+      "review-resolve-request.schema.json",
+      ["review-resolve-request", "standard-review-obligation-projection"],
+    ],
+    [
+      ["review", "hosted", "await"],
+      "review-hosted-await-request.schema.json",
+      ["review-hosted-await-request", "slug", "standard-review-obligation-projection"],
+    ],
+    [
+      ["review", "reduce"],
+      "review-reduce-request.schema.json",
+      ["review-reduce-request"],
+    ],
   ] as const)("emits a dependency-complete public request schema at %s", async (
     command,
     rootId,
@@ -140,6 +155,19 @@ describe("packaged review CLI surfaces", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       rootId: "review-chunking-resolve-request.schema.json",
       schemas: {},
+    });
+  });
+
+  it("refuses a bare schema-discoverable verb through its own typed contract", async () => {
+    // Opting a verb into `--schema` makes its request operand optional to Commander, so the
+    // typed layer — not the parser — has to be what still demands a request source.
+    const result = await runCli(["review", "reduce"], { cwd: fixtureRoot });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).not.toMatch(/missing required argument/iu);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      mode: "review-reduce",
+      error: { code: "invalid-input" },
     });
   });
 

@@ -1813,10 +1813,15 @@ reviewCmd
 reviewCmd
   .command("resolve")
   .description("Resolve the next configured review-policy action as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleReviewResolve(input);
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-resolve-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewResolve(input ?? "");
   });
 
 const frontlineCmd = reviewCmd
@@ -1869,14 +1874,19 @@ hostedCmd
 hostedCmd
   .command("await")
   .description("Await one requested hosted pull-request review as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
   .addHelpText(
     "after",
     "\nPending continuation:\n  Submit the emitted action unchanged to this command.\n",
   )
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleReviewHostedAwait(input);
+  .option("--schema", "Print the registered public request schema bundle")
+  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-await-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewHostedAwait(input ?? "");
   });
 
 hostedCmd
@@ -1947,10 +1957,15 @@ reviewCmd
 reviewCmd
   .command("reduce")
   .description("Reduce one durable review operation as JSON")
-  .usage("<file | ->")
-  .argument("<input>", "Versioned JSON request file, or - for stdin")
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleReviewReduce(input);
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+    if (opts.schema === true) {
+      (await import("./handlers/review.js")).handleReviewRequestSchema("review-reduce-request", input);
+      return;
+    }
+    await (await import("./handlers/review.js")).handleReviewReduce(input ?? "");
   });
 
 reviewCmd

@@ -37,6 +37,11 @@ import { resolveArcRoot } from "../lib/paths.js";
 import { resolveUserIdentity } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
+import {
+  REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID,
+  REVIEW_REDUCE_REQUEST_SCHEMA_ID,
+  REVIEW_RESOLVE_REQUEST_SCHEMA_ID,
+} from "../scripts/review-gate/request-command-schemas.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
   FrontlineResolveEnvelopeSchema,
@@ -348,16 +353,13 @@ export const ReviewCommandInputSchema = reviewCommandInputSchema();
 /** Canonical paths of the review commands sharing the JSON request-source operand. */
 const REVIEW_JSON_COMMAND_PATHS = [
   "review readiness",
-  "review resolve",
   "review frontline resolve",
   "review hosted request",
-  "review hosted await",
   "review hosted settle",
   "review local prepare",
   "review local attest",
   "review local resume",
   "review respond",
-  "review reduce",
   "review terminus accept",
 ] as const;
 
@@ -366,6 +368,9 @@ export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
   "review chunking resolve",
   "review planning-grooming resolve",
   "review frontline run",
+  "review resolve",
+  "review hosted await",
+  "review reduce",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
@@ -2268,7 +2273,10 @@ export async function handleReviewFrontlineRun(
 export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID;
+  | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID
+  | typeof REVIEW_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID
+  | typeof REVIEW_REDUCE_REQUEST_SCHEMA_ID;
 
 /** Emit one public request root together with only the registry documents its refs require. */
 export function handleReviewRequestSchema(
