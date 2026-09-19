@@ -105,9 +105,9 @@ interface GuidanceInvocation extends DocumentedInvocation {
  * Collect the `arc …` invocations a guidance document tells an operator to run.
  *
  * Shell continuations are joined first, so an option carried on its own line still belongs to the
- * command that opened the block — the shape a line-oriented sweep cannot see. Each logical line is
- * then cut at the shell boundaries that start a nested command, so a `$(gh … --json …)`
- * substitution cannot lend its options to the `arc` command around it.
+ * command that opened the block — the shape a line-oriented sweep cannot see. Command substitutions
+ * are then excised rather than split on, so a `$(gh … --json …)` cannot lend its options to the
+ * `arc` command around it and cannot hide the outer command's own options behind it either.
  */
 function guidanceInvocations(content: string): GuidanceInvocation[] {
   const logical: string[] = [];
@@ -126,7 +126,12 @@ function guidanceInvocations(content: string): GuidanceInvocation[] {
 
   const invocations: GuidanceInvocation[] = [];
   for (const line of logical) {
-    for (const segment of line.split(/\$\(|\)|\||&&|;/u)) {
+    let bare = line;
+    for (let previous = ""; bare !== previous;) {
+      previous = bare;
+      bare = bare.replace(/\$\([^()]*\)/gu, "");
+    }
+    for (const segment of bare.split(/\||&&|;/u)) {
       const match = /\barc ((?:[a-z][a-z0-9-]*)(?: [a-z][a-z0-9-]*)*)/u.exec(segment);
       if (match === null) continue;
       const words = match[1]?.split(" ") ?? [];
@@ -269,6 +274,14 @@ describe("documented command surface", () => {
 
     expect(guidanceInvocations(line)).toEqual([
       { line, words: ["archive"], options: ["--pr-url"] },
+    ]);
+  });
+
+  it("keeps the outer command's own options from behind a substitution", () => {
+    const line = 'arc review status --target "$(gh pr view {name} --json url --jq .url)" --json';
+
+    expect(guidanceInvocations(line)).toEqual([
+      { line, words: ["review", "status"], options: ["--target", "--json"] },
     ]);
   });
 
