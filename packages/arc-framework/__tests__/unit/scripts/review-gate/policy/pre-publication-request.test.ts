@@ -823,6 +823,17 @@ describe("composePrePublicationReviewRequest", () => {
     // The caller's facts reached the reducer — an atomic code change set softens to `recommended`.
     expect(composition.request.standard.standardReview.obligation).toBe("recommended");
     // Its claims about the repository's own two facts did not: the fixture holds the inverse of both.
+    expect(composition.request.routingFacts).toEqual({
+      schemaVersion: 1,
+      changeSetState: "known",
+      contentKind: "code-bearing",
+      reviewRisk: "routine",
+      changeDeterminacy: "atomic",
+      ownership: "self",
+      surfaceAuthority: "ordinary",
+      assurance: resolvedAssurance.assurance,
+      activity: resolvedAssurance.activity,
+    });
     expect(composition.request.frontline.frontlineActive).toBe(false);
     expect(composition.request.selfReview).toBe("pending");
     expect(composition.advisories).toHaveLength(0);

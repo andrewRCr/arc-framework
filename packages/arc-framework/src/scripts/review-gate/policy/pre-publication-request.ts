@@ -574,6 +574,7 @@ export async function composePrePublicationReviewRequest(
     candidateId: candidate.candidateId,
     reservationTarget: reservationTarget.target,
     target: exactTarget,
+    routingFacts: routing.facts,
     selfReview: input.selfReview === "settled"
       ? "settled"
       : assurance.activity.selfReview ? "pending" : "inactive",

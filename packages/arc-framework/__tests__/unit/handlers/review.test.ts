@@ -2201,6 +2201,17 @@ describe("handleReviewPrePublication", () => {
       headSha: target.headSha,
     },
     selfReview: "inactive" as const,
+    routingFacts: {
+      schemaVersion: 1 as const,
+      changeSetState: "known" as const,
+      contentKind: "code-bearing" as const,
+      reviewRisk: "routine" as const,
+      changeDeterminacy: "atomic" as const,
+      ownership: "self" as const,
+      surfaceAuthority: "ordinary" as const,
+      assurance: { workContext: "work-unit" as const, workClass: "Light" as const },
+      activity: { selfReview: true, frontlineReview: true },
+    },
     frontline: lane("frontline", []),
     standard: lane("standard", ["codex-pr"]),
     candidate: {
@@ -2513,10 +2524,17 @@ describe("handleReviewPrePublication", () => {
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
-      nextAction: { command: string; resumeCommand: string };
+      nextAction: { command: string; request: unknown; resumeCommand: string };
     };
     expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
     expect(envelope.nextAction.command).toBe("arc review frontline resolve -");
+    expect(envelope.nextAction.request).toEqual({
+      schemaVersion: 1,
+      changeSet: request.routingFacts,
+      invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+      pass: 3,
+      maxPasses: 3,
+    });
     const token = envelope.nextAction.resumeCommand.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
     expect(token).toBeDefined();
     expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
@@ -2557,10 +2575,17 @@ describe("handleReviewPrePublication", () => {
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
-      nextAction: { command: string; resumeCommand: string };
+      nextAction: { command: string; request: unknown; resumeCommand: string };
     };
     expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
     expect(envelope.nextAction.command).toBe("arc review frontline resolve -");
+    expect(envelope.nextAction.request).toEqual({
+      schemaVersion: 1,
+      changeSet: request.routingFacts,
+      invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+      pass: 1,
+      maxPasses: 2,
+    });
     const token = envelope.nextAction.resumeCommand.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
     expect(token).toBeDefined();
     expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({

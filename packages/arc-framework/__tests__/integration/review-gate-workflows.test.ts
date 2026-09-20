@@ -424,7 +424,9 @@ describe("trusted review-gate workflows", () => {
       }
       if (path.includes("prepare-work-unit")) {
         expect(packaged).toContain("`nextAction.command`");
+        expect(packaged).toContain("`nextAction.request`");
         expect(packaged).toContain("`nextAction.resumeCommand`");
+        expect(packaged).toMatch(/JSON stdin/iu);
       } else {
         expect(packaged).toContain("arc review frontline resolve -");
       }

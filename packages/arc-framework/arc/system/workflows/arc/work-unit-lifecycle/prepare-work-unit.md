@@ -74,9 +74,10 @@ decision is the authorization, so do not ask for a second confirmation while the
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
 requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
 continuation. For `ready / run-frontline`, `nextAction.command` advances into the Frontline resolver; retain
-`nextAction.resumeCommand` and invoke it after that operation's typed protocol completes. For every other policy
-action, `nextAction.command` is the continuation. The opaque resume carries judgment the repository cannot recover
-and confines a one-pass Frontline ceiling approval to its selected exact head. It drops
+`nextAction.request`, submit it as JSON stdin to that command, retain `nextAction.resumeCommand`, and invoke the
+resume after that operation's typed protocol completes. For every other policy action, `nextAction.command` is the
+continuation. The opaque resume carries judgment the repository cannot recover and confines a one-pass Frontline
+ceiling approval to its selected exact head. It drops
 `standard.terminus` after `candidate-fix-pending`, because the response changes the reviewable Candidate subject and
 requires fresh Owner direction. Once `owner-accepted` lands, the durable boundary carries it through convergence; do
 not restate it. For a canonical delivery, each re-invocation recomposes the first outstanding exact member in plan
@@ -122,10 +123,10 @@ verification scope in prose or substitute the Candidate root task-list reference
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
 - `awaiting-change-request / open-change-request` — retain the hosted-first reservation and complete at
   `candidate-publish-ready`.
-- `ready / run-frontline` — invoke the envelope's `nextAction.command`, retain `nextAction.resumeCommand`, then run
-  `arc review frontline run -` with the ready resolution, the target's `{ kind, baseRef, diffBaseSha, headSha }`
-  projection, and `responseBinding` when the pre-publication envelope supplies it. Invoke the retained resume only
-  after the Frontline operation's typed protocol completes.
+- `ready / run-frontline` — submit the envelope's `nextAction.request` as JSON stdin to `nextAction.command`, retain
+  `nextAction.resumeCommand`, then run `arc review frontline run -` with the ready resolution, the target's
+  `{ kind, baseRef, diffBaseSha, headSha }` projection, and `responseBinding` when the pre-publication envelope
+  supplies it. Invoke the retained resume only after the Frontline operation's typed protocol completes.
 - `ready / local-prepare` — invoke `arc review local prepare -`.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.

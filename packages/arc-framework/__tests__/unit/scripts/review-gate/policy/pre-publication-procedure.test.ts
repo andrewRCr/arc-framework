@@ -64,6 +64,18 @@ const standardReview = {
   count: 1 as const,
 };
 
+const routingFacts = {
+  schemaVersion: 1 as const,
+  changeSetState: "known" as const,
+  contentKind: "code-bearing" as const,
+  reviewRisk: "routine" as const,
+  changeDeterminacy: "atomic" as const,
+  ownership: "self" as const,
+  surfaceAuthority: "ordinary" as const,
+  assurance: { workContext: "work-unit" as const, workClass: "Light" as const },
+  activity: { selfReview: true, frontlineReview: true },
+};
+
 describe("integration boundary locus", () => {
   it("projects a source-free Candidate fix re-entry from durable pending authority", () => {
     const candidateId = `sha256:${"c".repeat(64)}`;
@@ -518,6 +530,7 @@ function request(overrides: Record<string, unknown> = {}) {
       headSha: target.headSha,
     },
     selfReview: "pending",
+    routingFacts,
     frontline: {
       schemaVersion: 1,
       target,
@@ -610,6 +623,13 @@ describe("projectPrePublicationReview", () => {
       nextAction: {
         kind: "continue-pre-publication-review",
         command: "arc review frontline resolve -",
+        request: {
+          schemaVersion: 1,
+          changeSet: routingFacts,
+          invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+          pass: 1,
+          maxPasses: 2,
+        },
       },
     });
   });

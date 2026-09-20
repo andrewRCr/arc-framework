@@ -21,6 +21,7 @@ import {
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
 import { FrontlineResponseBindingSchema } from "../core/frontline-response-binding.js";
+import { ReviewRoutingFactsSchema } from "./routing-schema.js";
 import {
   CandidateConvergenceBoundarySchema,
   CandidateFixBoundarySchema,
@@ -71,6 +72,8 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
    * checkout cannot currently produce one rather than refusing a procedure that has other work to do.
    */
   target: ReviewTargetSchema.nullable().default(null),
+  /** Complete normalized facts supplied to the workflow-facing Frontline resolver. */
+  routingFacts: ReviewRoutingFactsSchema,
   /** Candidate authority carried only while frontline reviews a private delivery member. */
   responseBinding: FrontlineResponseBindingSchema.optional(),
   selfReview: z.enum(["inactive", "pending", "settled"]),
@@ -277,6 +280,13 @@ function policyEnvelope(
     ? ContinuePrePublicationActionSchema.parse({
         kind: "continue-pre-publication-review",
         command: "arc review frontline resolve -",
+        request: {
+          schemaVersion: 1,
+          changeSet: request.routingFacts,
+          invocation: { mode: "inherit", sourceId: policy.payload.sourceId },
+          pass: policy.payload.pass,
+          maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
+        },
         interactionText,
       })
     : action(request.workUnit, "continue-pre-publication-review", interactionText);

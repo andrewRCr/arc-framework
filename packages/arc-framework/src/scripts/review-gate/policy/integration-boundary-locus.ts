@@ -13,6 +13,7 @@ import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
+import { FrontlineCommandRequestSchema } from "./frontline-command-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import {
@@ -34,8 +35,20 @@ export const RunSelfReviewActionSchema = z.strictObject({
 });
 export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
+  request: FrontlineCommandRequestSchema.optional(),
   resumeCommand: z.string().trim().min(1).optional(),
   ...ActionFields,
+}).superRefine((action, context) => {
+  const resolvesFrontline = action.command === "arc review frontline resolve -";
+  if (resolvesFrontline === (action.request === undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["request"],
+      message: resolvesFrontline
+        ? "the frontline resolver action requires its typed stdin request"
+        : "only the frontline resolver action may carry a typed stdin request",
+    });
+  }
 });
 export const ContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
