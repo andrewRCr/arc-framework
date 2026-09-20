@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-route-platform-planning",
+  "claimId": "8fbd8206170b4346d34a5e9d033a0d64",
+  "createdAt": "2026-09-20T01:17:19.321Z",
+  "updatedAt": "2026-09-20T01:17:19.321Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the second confirmed housekeeping batch into existing backlog homes without minting new stubs.",
+  "branch": "chore/housekeep-route-platform-planning",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
