@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-route-corrective-review",
+  "claimId": "03390f3d8257e862b1dca57b1fb8deca",
+  "createdAt": "2026-09-20T00:50:53.645Z",
+  "updatedAt": "2026-09-20T00:50:53.645Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route confirmed corrective-lifecycle and review-contract inbox captures",
+  "branch": "chore/housekeep-route-corrective-review",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
