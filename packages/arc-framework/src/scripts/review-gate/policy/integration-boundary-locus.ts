@@ -34,6 +34,7 @@ export const RunSelfReviewActionSchema = z.strictObject({
 });
 export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
+  resumeCommand: z.string().trim().min(1).optional(),
   ...ActionFields,
 });
 export const ContinueHostedReviewActionSchema = z.strictObject({

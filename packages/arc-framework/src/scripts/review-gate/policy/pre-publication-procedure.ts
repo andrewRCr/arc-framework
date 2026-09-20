@@ -270,15 +270,19 @@ function policyEnvelope(
   policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
 ): PrePublicationReviewEnvelope {
   const findings = policy.state === "findings";
+  const interactionText = findings
+    ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
+    : `Continue the ${lane} review from the typed policy result '${policy.state}'.`;
+  const nextAction = policy.state === "ready" && policy.nextAction === "run-frontline"
+    ? ContinuePrePublicationActionSchema.parse({
+        kind: "continue-pre-publication-review",
+        command: "arc review frontline resolve -",
+        interactionText,
+      })
+    : action(request.workUnit, "continue-pre-publication-review", interactionText);
   return envelope(request, {
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
-    nextAction: action(
-      request.workUnit,
-      "continue-pre-publication-review",
-      findings
-        ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
-        : `Continue the ${lane} review from the typed policy result '${policy.state}'.`,
-    ),
+    nextAction,
     policy,
   });
 }

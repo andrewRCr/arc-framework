@@ -2513,10 +2513,11 @@ describe("handleReviewPrePublication", () => {
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
-      nextAction: { command: string };
+      nextAction: { command: string; resumeCommand: string };
     };
     expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
-    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(envelope.nextAction.command).toBe("arc review frontline resolve -");
+    const token = envelope.nextAction.resumeCommand.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
     expect(token).toBeDefined();
     expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
       lanes,
@@ -2556,10 +2557,11 @@ describe("handleReviewPrePublication", () => {
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
-      nextAction: { command: string };
+      nextAction: { command: string; resumeCommand: string };
     };
     expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
-    const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
+    expect(envelope.nextAction.command).toBe("arc review frontline resolve -");
+    const token = envelope.nextAction.resumeCommand.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
     expect(token).toBeDefined();
     expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
       lanes: { frontline: { scopeMode: "whole-target" } },

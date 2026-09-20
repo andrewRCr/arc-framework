@@ -603,6 +603,17 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
+  it("names the frontline resolver when that policy action is ready", () => {
+    expect(projectPrePublicationReview(request({ selfReview: "settled" }))).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", nextAction: "run-frontline" },
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: "arc review frontline resolve -",
+      },
+    });
+  });
+
   it("runs frontline before standard and preserves a hosted-first reservation", () => {
     const base = request({ selfReview: "settled" });
     const frontline = base.frontline as Record<string, unknown>;
