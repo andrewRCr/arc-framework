@@ -448,3 +448,71 @@
   which lifecycle transitions may write `Current Workflow` and how that projection composes with canonical state.
 - _Fold-in:_ define the authoritative write boundary and derivation rules here; keep handoff from becoming an
   unrestricted repair writer and treat the validator Errand as an interim guard.
+
+#### Evidence — Settle whether planning-stage re-entry moves the stage pointer, and guard the write
+
+- _Additional routed evidence:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: wu-lifecycle-state-model`
+
+- _Observation:_ `set-stage` validates only the stage enum, so it accepts writing `Current Workflow` backward to
+  `create-spec` while `Design` still points at `spec-*`. `checkCurrentWorkflowConsistency` rejects that exact
+  tuple, so the next session-init resolves the checkout `subject-unresolved` and stops. The write path does not
+  guard what the read path rejects, and the cost lands a session later, on whoever opens the checkout next rather
+  than on the write that caused it.
+
+- _Decision to settle:_ what a mid-stage re-entry means for lifecycle state. If re-entry is a **detour** back
+  through an earlier workflow's process, the pointer is forward-only and `set-stage` should refuse any write
+  leaving the `(State, Current Workflow, Design)` tuple inconsistent. If it is an actual **rewind**, the
+  re-entered tuple needs a legal encoding the validator accepts, and `Design` must say which artifact is live.
+  Current lean: the detour reading.
+
+- _Why the lean:_ a true rewind has no coherent downstream story — re-entering `create-spec` from
+  `generate-tasks` would imply re-running the whole of `generate-tasks` afterwards, when the actual need is to
+  regenerate the phases the new design touches and leave the settled ones alone. It also falsifies the record:
+  `Current Workflow` and `Last Completed` stop describing what completed, so the meta no longer reads as a
+  truthful history of the work unit. A detour keeps both intact — the pointer stays at the stage that owns the
+  finalize fire-point, and the detour lives in `Next Action` prose.
+
+- _Approach:_ run the same tuple check on the write side so `set-stage` refuses, rather than deferring the failure
+  to the next read. Whichever reading wins, state it in `resolve-planning-depth.md` § Mid-stage re-entry: it routes
+  a derivation surprise to the spec today without saying what becomes of the pointer, which is how the backward
+  write came to be made.
+
+- _Files:_ `packages/arc-framework/src/lib/work-unit/verbs/set-stage.ts`,
+  `packages/arc-framework/src/lib/active/current-workflow-consistency.ts`,
+  `.arc/system/methods/resolve-planning-depth.md`, `.arc/system/workflows/arc/generate-tasks.md`.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` session-init, 2026-09-17 — entry was blocked by it;
+  pointer corrected in `a30ebed17`.
+
+#### Evidence — State the `Current Workflow` field's planning-only constraint, or widen it
+
+- _Additional routed evidence:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: wu-lifecycle-state-model`
+
+- _Observation:_ setting `Current Workflow: verify-work-unit` on an `Active` work unit makes that work unit
+  un-enterable. The locus reader refuses with `subject-unresolved: Current Workflow "verify-work-unit" does not
+  match non-planning State "Active"`, which surfaces as `locusGuidance.kind: "unavailable"` at session-init and as
+  a `refused / locus-unresolved` handoff — the same "cannot init, cannot hand off" shape already recorded for
+  `evidence-applicability` and `review-signal-convergence`. Recovery was cheap here only because the meta commit
+  was still unpushed and could be amended.
+
+- _Observation:_ nothing states the constraint where someone writing the meta would meet it. The field is set by
+  `init-work-unit`, advanced by `arc set-stage`, and cleared by `generate-tasks` and `reopen-work-unit` — all
+  planning-stage machinery — but that is a reader's inference across four workflow files, not a stated rule. The
+  live meta carries no comment on the field, no meta template documents it, and `session-handoff.md`'s own
+  § Work Unit Metadata block omits the field entirely while listing every neighbouring one.
+
+- _Approach:_ decide what the field is, then make the artifact say it. If it stays a planning-stage pointer, say
+  so at the field and reject the write at authorship rather than at the next probe. If an execution work unit
+  should be able to name the lifecycle workflow it sits inside — `verify-work-unit` between task close and
+  attestation is the motivating case, where `Next Action` is currently the only carrier — that is a widening, and
+  it belongs to whatever settles the field's meaning.
+
+- _Observation:_ the severity is in the asymmetry, not the refusal. The guard is right to catch an inconsistent
+  record; what is disproportionate is that a one-field edit costs the work unit both its entry and its handoff
+  path, with no authoring-time signal that the field was not the author's to set.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Task 8.1 handoff, 2026-09-18.
