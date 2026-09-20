@@ -325,7 +325,9 @@ arc review checks await \
   --poll-interval-ms 10000
 ```
 
-Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
+inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures`
+when retrieval is partial or unavailable.
 `unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
 hosted-review `action`, and ends this foreground attempt.
 `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only

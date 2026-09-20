@@ -541,6 +541,8 @@ describe("trusted review-gate workflows", () => {
       expect(pendingInspection).toContain("--timeout-ms 10000");
       expect(pendingInspection).toContain("--poll-interval-ms 10000");
       expect(pendingInspection).toContain("diagnosticFailures");
+      expect(pendingInspection).toContain("failureLogs.logs[].path");
+      expect(pendingInspection).toContain("failureLogs.failures");
       expect(pendingInspection).toContain("`unavailable / retry`");
       expect(pendingInspection).toContain("`cause`");
       expect(pendingInspection).toContain("`detail`");

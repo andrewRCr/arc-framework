@@ -308,9 +308,19 @@ import {
   ChecksAwaitCommandResultSchema,
   ChecksAwaitInputSchema,
   awaitRequiredChecks,
+  composeChecksAwaitFailureLogs,
   type ChecksAwaitResult,
 } from "../scripts/review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
+import {
+  retrieveFailedCheckLogs,
+  type FailedCheckLogsInput,
+  type FailedCheckLogsResult,
+} from "../scripts/review-gate/failed-check-logs.js";
+import { createGhFailedCheckLogsPort } from
+  "../scripts/review-gate/hosts/github/failed-check-logs.js";
+import { createLocalFailedCheckLogStore } from
+  "../scripts/review-gate/hosts/local/failed-check-logs.js";
 import {
   createReviewStatusPort,
   readRoutedObligation,
@@ -1048,6 +1058,7 @@ export async function handleReviewTerminusAccept(
 
 export interface ReviewChecksAwaitHandlerDependencies {
   awaitChecks(input: z.infer<typeof ChecksAwaitInputSchema>): Promise<ChecksAwaitResult>;
+  retrieveFailureLogs(input: FailedCheckLogsInput): Promise<FailedCheckLogsResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -1058,10 +1069,17 @@ export async function handleReviewChecksAwait(
   overrides: Partial<ReviewChecksAwaitHandlerDependencies> = {},
 ): Promise<void> {
   const port = createGhRequiredChecksPort(hostedGhRunner);
+  const failedCheckLogsPort = createGhFailedCheckLogsPort(hostedGhRunner);
+  const failedCheckLogStore = createLocalFailedCheckLogStore();
   const dependencies: ReviewChecksAwaitHandlerDependencies = {
     awaitChecks: (input) => awaitRequiredChecks(input, {
       port,
       clock: { now: () => Date.now(), sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)) },
+    }),
+    retrieveFailureLogs: (input) => retrieveFailedCheckLogs(input, {
+      port: failedCheckLogsPort,
+      store: failedCheckLogStore,
+      signal: AbortSignal.timeout(60_000),
     }),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
@@ -1096,9 +1114,21 @@ export async function handleReviewChecksAwait(
     return;
   }
   try {
-    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(
-      await dependencies.awaitChecks(parsed.data),
-    ))}\n`);
+    const observation = await dependencies.awaitChecks(parsed.data);
+    let result = observation;
+    if (observation.state === "failed"
+      || ((observation.state === "pending" || observation.state === "unavailable")
+        && observation.diagnosticFailures.length > 0)) {
+      result = composeChecksAwaitFailureLogs(
+        observation,
+        await dependencies.retrieveFailureLogs({
+          repository: parsed.data.repository,
+          pullRequest: parsed.data.pullRequest,
+          headSha: parsed.data.headSha,
+        }),
+      );
+    }
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(result))}\n`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
