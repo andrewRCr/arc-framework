@@ -3138,9 +3138,12 @@ export async function handleReviewPrePublication(
         ? consumeOwnerAcceptedTerminus(judgment.lanes)
         : judgment.lanes;
       const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
-      const frontlineCeilingOverrideApplied = envelope.policy?.state === "ready"
+      const frontlineReadyPolicy = envelope.policy?.state === "ready"
         && envelope.policy.nextAction === "run-frontline"
-        && envelope.policy.payload.ceilingOverrideApplied;
+        ? envelope.policy
+        : null;
+      const frontlineReady = frontlineReadyPolicy !== null;
+      const frontlineCeilingOverrideApplied = frontlineReadyPolicy?.payload.ceilingOverrideApplied ?? false;
       let replayFrontlineCeilingHeadSha = judgment.frontlineCeilingHeadSha;
       if (frontlineCeilingOverrideApplied) {
         replayFrontlineCeilingHeadSha = currentFrontlineHeadSha;
@@ -3157,12 +3160,13 @@ export async function handleReviewPrePublication(
           ? {}
           : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
       }), "utf8").toString("base64url");
+      const resumeCommand = `arc review pre-publication ${envelope.workUnit} --resume ${resume}`;
+      const nextAction = frontlineReady && envelope.nextAction.kind === "continue-pre-publication-review"
+        ? { ...envelope.nextAction, resumeCommand }
+        : { ...envelope.nextAction, command: resumeCommand };
       envelope = PrePublicationReviewEnvelopeSchema.parse({
         ...envelope,
-        nextAction: {
-          ...envelope.nextAction,
-          command: `arc review pre-publication ${envelope.workUnit} --resume ${resume}`,
-        },
+        nextAction,
       });
     }
     // The settled locus is where the durable publication boundary is written. Recording it here —

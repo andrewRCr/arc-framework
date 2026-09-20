@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../../lib/canonical/canonical-json.js";
 import { CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER } from
   "../../../lib/work-unit/candidate-attestation.js";
 import {
@@ -13,6 +13,7 @@ import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
+import { FrontlineCommandRequestSchema } from "./frontline-command-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import {
@@ -34,7 +35,47 @@ export const RunSelfReviewActionSchema = z.strictObject({
 });
 export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
+  authorizationRequest: FrontlineCommandRequestSchema.optional(),
+  request: FrontlineCommandRequestSchema.optional(),
+  resumeCommand: z.string().trim().min(1).optional(),
   ...ActionFields,
+}).superRefine((action, context) => {
+  const resolvesFrontline = action.command === "arc review frontline resolve -";
+  if (!resolvesFrontline && (action.request !== undefined || action.authorizationRequest !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["request"],
+      message: "only the frontline resolver action may carry typed stdin requests",
+    });
+    return;
+  }
+  if (!resolvesFrontline) return;
+  if (action.request === undefined || action.authorizationRequest === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: action.request === undefined ? ["request"] : ["authorizationRequest"],
+      message: "the frontline resolver action requires initial and authorized typed stdin requests",
+    });
+    return;
+  }
+  if (action.request.invocation.mode !== "inherit") {
+    context.addIssue({
+      code: "custom",
+      path: ["request", "invocation", "mode"],
+      message: "the initial frontline resolver request must preserve the offered-review authorization step",
+    });
+  }
+  const expectedAuthorizationRequest = {
+    ...action.request,
+    invocation: { ...action.request.invocation, mode: "force" },
+  };
+  if (canonicalize(action.authorizationRequest) !== canonicalize(expectedAuthorizationRequest)) {
+    context.addIssue({
+      code: "custom",
+      path: ["authorizationRequest"],
+      message: "the authorized frontline request may change only invocation mode to force",
+    });
+  }
 });
 export const ContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
