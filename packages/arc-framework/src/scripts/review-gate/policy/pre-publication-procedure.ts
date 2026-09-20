@@ -276,20 +276,30 @@ function policyEnvelope(
   const interactionText = findings
     ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
     : `Continue the ${lane} review from the typed policy result '${policy.state}'.`;
-  const nextAction = policy.state === "ready" && policy.nextAction === "run-frontline"
-    ? ContinuePrePublicationActionSchema.parse({
-        kind: "continue-pre-publication-review",
-        command: "arc review frontline resolve -",
-        request: {
-          schemaVersion: 1,
-          changeSet: request.routingFacts,
-          invocation: { mode: "inherit", sourceId: policy.payload.sourceId },
-          pass: policy.payload.pass,
-          maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
-        },
-        interactionText,
-      })
-    : action(request.workUnit, "continue-pre-publication-review", interactionText);
+  let nextAction: z.infer<typeof ContinuePrePublicationActionSchema>;
+  if (policy.state === "ready" && policy.nextAction === "run-frontline") {
+    const resolverRequest = {
+      schemaVersion: 1 as const,
+      changeSet: request.routingFacts,
+      invocation: { mode: "inherit" as const, sourceId: policy.payload.sourceId },
+      pass: policy.payload.pass,
+      maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
+    };
+    nextAction = ContinuePrePublicationActionSchema.parse({
+      kind: "continue-pre-publication-review",
+      command: "arc review frontline resolve -",
+      request: resolverRequest,
+      authorizationRequest: {
+        ...resolverRequest,
+        invocation: { ...resolverRequest.invocation, mode: "force" },
+      },
+      interactionText,
+    });
+  } else {
+    nextAction = ContinuePrePublicationActionSchema.parse(
+      action(request.workUnit, "continue-pre-publication-review", interactionText),
+    );
+  }
   return envelope(request, {
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
     nextAction,

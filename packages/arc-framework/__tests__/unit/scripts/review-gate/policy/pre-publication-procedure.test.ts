@@ -11,6 +11,7 @@ import {
 import {
   createStandardReviewReservation,
   CandidateConvergenceBoundarySchema,
+  ContinuePrePublicationActionSchema,
   IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
   projectCandidateFixResumeBoundary,
@@ -563,6 +564,26 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 describe("projectPrePublicationReview", () => {
+  it("rejects a Frontline authorization request that changes more than invocation mode", () => {
+    const initialRequest = {
+      schemaVersion: 1 as const,
+      changeSet: routingFacts,
+      invocation: { mode: "inherit" as const, sourceId: "coderabbit-cli" },
+      pass: 1 as const,
+      maxPasses: 2 as const,
+    };
+    expect(ContinuePrePublicationActionSchema.safeParse({
+      kind: "continue-pre-publication-review",
+      command: "arc review frontline resolve -",
+      request: initialRequest,
+      authorizationRequest: {
+        ...initialRequest,
+        invocation: { mode: "force", sourceId: "another-source" },
+      },
+      interactionText: "Continue Frontline review.",
+    }).success).toBe(false);
+  });
+
   it("rejects impossible convergence status and scope pairs", () => {
     expect(PrePublicationReviewRequestSchema.safeParse(request({
       candidate: {
@@ -627,6 +648,13 @@ describe("projectPrePublicationReview", () => {
           schemaVersion: 1,
           changeSet: routingFacts,
           invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+          pass: 1,
+          maxPasses: 2,
+        },
+        authorizationRequest: {
+          schemaVersion: 1,
+          changeSet: routingFacts,
+          invocation: { mode: "force", sourceId: "coderabbit-cli" },
           pass: 1,
           maxPasses: 2,
         },

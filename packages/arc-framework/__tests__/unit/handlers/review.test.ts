@@ -2524,7 +2524,12 @@ describe("handleReviewPrePublication", () => {
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
-      nextAction: { command: string; request: unknown; resumeCommand: string };
+      nextAction: {
+        command: string;
+        request: unknown;
+        authorizationRequest: unknown;
+        resumeCommand: string;
+      };
     };
     expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
     expect(envelope.nextAction.command).toBe("arc review frontline resolve -");
@@ -2532,6 +2537,13 @@ describe("handleReviewPrePublication", () => {
       schemaVersion: 1,
       changeSet: request.routingFacts,
       invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+      pass: 3,
+      maxPasses: 3,
+    });
+    expect(envelope.nextAction.authorizationRequest).toEqual({
+      schemaVersion: 1,
+      changeSet: request.routingFacts,
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
       pass: 3,
       maxPasses: 3,
     });
@@ -2575,7 +2587,12 @@ describe("handleReviewPrePublication", () => {
 
     const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as {
       policy: { state: string; nextAction: string };
-      nextAction: { command: string; request: unknown; resumeCommand: string };
+      nextAction: {
+        command: string;
+        request: unknown;
+        authorizationRequest: unknown;
+        resumeCommand: string;
+      };
     };
     expect(envelope.policy).toMatchObject({ state: "ready", nextAction: "run-frontline" });
     expect(envelope.nextAction.command).toBe("arc review frontline resolve -");
@@ -2583,6 +2600,13 @@ describe("handleReviewPrePublication", () => {
       schemaVersion: 1,
       changeSet: request.routingFacts,
       invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+      pass: 1,
+      maxPasses: 2,
+    });
+    expect(envelope.nextAction.authorizationRequest).toEqual({
+      schemaVersion: 1,
+      changeSet: request.routingFacts,
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
       pass: 1,
       maxPasses: 2,
     });
