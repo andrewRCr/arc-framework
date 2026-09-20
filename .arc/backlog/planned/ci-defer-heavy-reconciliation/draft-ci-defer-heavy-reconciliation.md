@@ -59,6 +59,33 @@
 
 ---
 
+### `[ ]` **Clear deferred heavy CI when review ends without a provider verdict**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: ci-defer-heavy-reconciliation`
+
+- _Observation:_ the existing entries there both assume review settles with a provider verdict — the label is
+  removed by an approving review, and the gap recorded from PR #583 is that a `commented` event fails to remove
+  it. An Owner-directed review stop has no verdict at all: no further pass is requested, so no approving review
+  can ever arrive and the label can never auto-clear. The deferral outlives the review cycle it was scoped to.
+
+- _Observation:_ the agent-facing half compounds it. `arc review checks await` reported `failed / stop` for
+  `ci-ok` and `merge-ok`, which under the workflow's own dispatch is a stop. Distinguishing designed deferral
+  from a real failure took reading the rollup job log, the PR labels, the `ci-defer-review` workflow source, and
+  the native review state — four manual reads to conclude that nothing was wrong. That is a turn stop spent on
+  expected behavior.
+
+- _Approach:_ fold the no-verdict termination into the effective-state reconciliation the stub already plans, so
+  a review cycle that ends by Owner direction reconciles deferral the same way an approving verdict does. The
+  typed intentionally-deferred diagnostic that entry already proposes is what makes this automatable: with it,
+  the agent continues on a typed state instead of stopping on an indistinguishable `failed`.
+
+- _Boundary:_ this is the same mechanism and the same owner — not a second deferral model, and per the steering
+  map not something to fold into the review protocol chain or the delivery recovery ladder.
+
+- _Captured during:_ the `function-size-ratchet` errand, PR #647, 2026-09-18.
+
 ## Problem / Motivation
 
 A delivery PR retained `ci-defer-heavy` after the hosted provider submitted an approving review at the exact head.

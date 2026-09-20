@@ -248,6 +248,292 @@
 
 ---
 
+### `[ ]` **Carry proportionate review evidence and pass accounting across approved review fixes**
+
+- _Routed from:_ consolidated `USER-INBOX` captures, housekeep drain (2026-09-19).
+- _Consolidates:_
+    - Make review passes accumulate across an approved review fix, and recommend rather than reset.
+    - Settle whether a passed frontline verdict survives a review-fix head.
+    - Let an incremental pass settle a lane whose complete coverage already happened.
+
+#### Capture: Make review passes accumulate across an approved review fix, and recommend rather than reset
+
+- `WU_Target: review-activity-contracts`
+
+- _Root:_ ARC treats an approved review fix as a full reset of review evidence — and, at
+  `suffix-reconciliation.ts:651-658`, republishes only the fixed member's coordinates, leaving the delivery
+  members above it on heads that no longer descend from it. Both are the same shape: a review fix leaves the
+  state around it un-reconciled. The second produced a live authority defect in this very work unit (a later
+  member's head admitted under an earlier member's vehicle), which suggests the root is wider than review
+  evidence alone and worth scoping as such. The design intent is the
+  opposite — avoid redundant ceremony, repeat an expensive pass only on semantic grounds, and reach the Owner
+  as a deterministic recommendation the agent applies judgment on top of. `evidence-applicability` shipped
+  exactly that machinery; it is not wired to review lanes, and the one cause that matters most here is pinned
+  to the expensive answer. Five layers, each verified at source during
+  `delivery-post-landing-conflict-recovery`.
+
+- _Layer 1 — the pass is recorded and complete._ Git-common
+  `review-gate/operations/operation-e71c08c3…json`: lane `standard`, head `31d0bea2`, `completedPasses: 1`,
+  one attempt, `outcome: "findings"`, `chunkSeriesComplete: true`. Nothing is lost at the recording layer.
+
+- _Layer 2 — a re-root empties the lineage; a settled response does not._ Established by running both paths.
+  When an approved fix settles through `arc review respond -` with `verifiedFix`, the record gains a
+  transition (`oldTarget` → `newTarget`, carrying the applicability), `candidateReviewResponses` reads it into
+  `lineageHeadShas` (`pre-publication-composition.ts:103-109`), and the prior head's progress carries — the
+  router moved from `pass: 1` to `pass: 2` across the settlement, and the standard lane's
+  "no durable progress" advisory disappeared. After `arc attest --new-root`, by contrast, the record carries
+  `lineageAttestations: []`, no transitions, and `baseRevision` rewritten to the fix commit, so the reviewed
+  head drops out and `readLaneProgressAcrossLineage` sums zero. The plumbing is therefore mostly right; what
+  breaks it is the re-root, and `candidate-reroot-recovery-frame`'s Problem statement describes a re-root as a
+  normal post-fix transition. Settle whether a re-root must discard prior lane progress or should carry the
+  superseded root forward.
+
+- _Layer 3 — only the debit carries. Confirmed live on the correct protocol path._
+  `lane-progress.ts:645-652` sums `completedPasses` across every lineage head but takes `attempts` from the
+  current head alone (`current?.status === "recorded" ? current.attempts : []`). Spend accumulates; evidence
+  does not. Observed directly after a correctly ordered proposal → approval → fix → `verifiedFix` settlement:
+  the router returned `pass: 2, maxPasses: 2, attemptedSources: []` and asked for another whole-target standard
+  pass. So an approved review fix costs a pass and earns no clearance even when nothing was done out of order,
+  and a second fix would exhaust the ceiling into `obtain-ceiling-override`. This is the layer that most
+  directly contradicts the stated intent, and it is independent of layers 2 and 6.
+
+- _Layer 4 — the reducer denies review-clearance what it grants verification._ `reducer.ts:84-93`, same
+  `cause: "approved-fix"`: `verification` is graded by `delta.approvedScope` (`targeted` → carries, `focused`
+  → supplemental, `full` → fresh), while `review-clearance` short-circuits to `final("fresh",
+  "approved-fix-review-clearance")` with `judgmentRequired: false` and no comment justifying it, in a file
+  that comments everything. `ApprovedFixResponseSchema` (`schema.ts:169-176`) already carries `applicability`
+  and `approvedVerification` on that delta — the input is present and discarded — and `assertClosedAxes`
+  imposes no constraint against reading it. Note the contrast: base movement _does_ get proportionate
+  review-clearance treatment (`disjoint` → `carries`). It is specifically the approved-fix arm that is pinned.
+
+- _Layer 5 — the routing never asks._ `pre-publication-request.ts` and `review-policy-driver.ts` contain no
+  reference to the applicability reducer at all, so even a `carries` verdict would not reach lane routing.
+
+- _Layer 6, folded in from the same session — the protocol ordering is unstated and its refusal unclearable._
+  `prepare-work-unit.md` never states that the approved `arc review respond -` pass must reach the CLI
+  _before_ the fix commit. It says "submit approved dispositions with `arc review respond -`" (singular) and
+  "Approval of the complete unchanged surfaced set is required before any mutation" — both of which read as
+  _obtain the Owner's approval, then fix_. The only signal is "re-invoke" in "re-invoke the same approved `arc
+  review respond -` request with `verifiedFix`", and the reason is never given: the approved pass mints the fix
+  authorization the settlement consumes. `respond`'s dispatch states are also not enumerated beside the
+  pre-publication ones. When the ordering is missed, `respond` refuses `stale-target / prepare-current-target`
+  — and that act cannot clear it: re-rooting makes the lineage current at the new head, and `respond` returns
+  the identical refusal, because `readCandidateLineage(source.target)` can no longer find the reviewed target.
+  `respond-command.ts` is byte-identical to `main`, so this is live there. A refusal naming an act that cannot
+  clear it is the class `delivery-post-landing-conflict-recovery` exists to remove, here at the review boundary.
+
+- _Cost when it fires:_ a complete chunked standard review — seven evaluators plus an aggregate, 25 findings
+  verified at source, dispositioned and Owner-approved, 18 fixes applied, Tier 3 green — earned no lane credit.
+  Pre-publication re-routed to `ready / local-prepare`, `pass: 1`, `attemptedSources: []`.
+
+- _Approach:_ decide whether review-pass durability is a property of the verdict or of the diff, then make the
+  answer typed. Concretely: let `review-clearance` read the approved scope the delta already carries instead of
+  short-circuiting; carry attempts, not only spend, across a lineage; preserve lineage across a re-root, or
+  state why a re-root must discard it; and have lane routing consult the reducer so a `carries` or
+  `supplemental` verdict can reach the dispatch. Keep `judgmentRequired: true` as the seam where the agent
+  reasons and the Owner decides — the recommendation should be deterministic, the spend never automatic.
+
+- _Ownership checked, not assumed:_ `candidate-reroot-recovery-frame` is adjacent and excludes this by its own
+  scope boundary — "Do not redesign review-fix disposition authority or Candidate lineage outside the recovery
+  interval"; it owns the session/locus/compaction frame _during_ the transition. `evidence-applicability`
+  shipped, closed and torn down (PR #620); RELEASE-GATES already notes "the mechanism that made the residue
+  possible is not fixed — only this instance was", and its residue routes to `delivery-rebuild-continuity`,
+  which is the private chain moving under a plan. The two sibling entries already routed to
+  `review-activity-contracts` — "Settle whether a passed frontline verdict survives a review-fix head" and
+  "Let an incremental pass settle a lane whose complete coverage already happened" — pose this as a design
+  question for frontline and incremental coverage; neither names layers 2 through 6. This entry supplies the
+  evidence and the loci for all of them.
+
+- _Superseded, recorded so it is not re-reported:_ the `--schema` discoverability half is fixed. PRs #653 and
+  #654 put the review request family behind `--schema`, and `REVIEW_RESPOND_REQUEST_SCHEMA_ID` registers
+  `RespondRequestSchema` — the union — so `arc review respond --schema` now shows both the proposal and
+  approved arms including `verifiedFix`. It was unavailable during this session only because the branch base
+  (`c93ab8962`, PR #652) predates those merges. Re-scope the skeletons entry against that when next touched.
+
+- _Captured during:_ the `delivery-post-landing-conflict-recovery` work unit, 2026-09-18.
+
+#### Capture: Settle whether a passed frontline verdict survives a review-fix head
+
+- `WU_Target: review-activity-contracts`
+
+- _Observation:_ every review fix moves the head, and the gate treats the new head as a target with no frontline
+  progress, so a lane that already passed is re-offered from zero. The Owner's stated intuition is that "once
+  frontline is passed, it's passed" — frontline is an advisory pre-publication lane, and re-running it on a head
+  that differs only by an approved, already-reviewed fix costs a pass and re-surfaces findings already
+  dispositioned.
+
+- _Relation to the existing capture:_ this WU's draft already owns the narrow case at
+  `draft-review-activity-contracts.md:47` ("Make no-material Frontline follow-up effective across Candidate
+  rerouting"), where a typed `frontlineFollowUp: stop / no-approved-material-fix` result failed to survive
+  Candidate rerouting. That entry is scoped to a _no-material_ result crossing a _Candidate_ transition. This one
+  is the general form: any passed frontline verdict crossing any review-fix head.
+
+- _Tension to settle, not assume:_ the existing entry's approach line already states the counterweight — "changed
+  or materially interacting bytes must still create a fresh obligation, and rejected findings must never become
+  review clearance by implication." The general rule "once passed, always passed" would violate that directly. The
+  settlement is therefore not "carry the verdict forward" but "define the class of head movement that preserves
+  it" — plausibly: a head whose delta is confined to an approved fix set already dispositioned against the same
+  rubric, with any other byte change resetting the lane.
+
+- _Approach:_ decide whether frontline pass durability is a property of the verdict or of the diff, then make the
+  answer typed rather than incidental. If durability is diff-shaped, the gate needs a cheap "is this head a pure
+  review-fix descendant of the passed head" predicate; the disposition-set identity recorded in the fix commit is
+  a candidate binding.
+
+- _Captured during:_ the `delivery-entry-input-shape` errand, 2026-09-18, from an Owner observation made while
+  skipping frontline on a review-fix head.
+
+#### Capture: Let an incremental pass settle a lane whose complete coverage already happened
+
+- `WU_Target: review-activity-contracts`
+
+- _Relation to the existing entries:_ this WU's draft already owns the concern twice — at
+  `draft-review-activity-contracts.md:144` ("Carry review authorization across approved exact-head fixups"), whose
+  stated concern is verbatim this situation, and at `:432` point 4, where a narrow non-interacting delta carries
+  prior complete coverage. What neither has is the mechanism, below, or the Owner's framing of the remedy. Fold
+  this in rather than opening a parallel design.
+
+- _Mechanism, verified in source:_ four facts a fixer needs. First, `retrigger` — the field whose whole purpose is
+  to say an incremental re-review suffices — is produced by `routing.ts`, carried into the requirement and the
+  persisted handle, and compared for equality in `review-command-envelope.ts:406`, but is never read by any
+  settlement or coverage code. It has no effect on anything. Second, `readLaneProgress` is keyed by `headSha`, so
+  complete coverage on an ancestor head is structurally invisible to the current head. Third,
+  `status-errand.ts:182` gates settlement on `effectiveCoverage === "complete"` alone, while `status.ts:976` and
+  `hosted-reservation-discharge.ts:509,629` accept the broader `requestedCoverage === "complete" ||
+  effectiveCoverage === "complete"` — the Errand path is stricter than its siblings; whether that asymmetry is
+  intended is not evident from source. Fourth, `lane-progress.ts:334` sets `consumedPass` only for complete
+  coverage, so incremental passes are free but structurally incapable of settling.
+
+- _`effectiveCoverage` does not observe anything (Owner-supplied, verified 2026-09-18):_ CodeRabbit defaults to
+  whole-target on the **first** request against a PR whether the command is `@coderabbitai review` or
+  `@coderabbitai full review`; the distinction only takes effect on later passes. ARC does not model this. At
+  `coderabbit.ts:512` the adapter returns `effectiveCoverage: coverage` — a verbatim echo of what the caller
+  requested — so for this provider `effectiveCoverage` and `requestedCoverage` are always equal, and the
+  `requestedCoverage === "complete" || effectiveCoverage === "complete"` disjunction at `status.ts:976` and
+  `hosted-reservation-discharge.ts:509,629` is a distinction without a difference. `status-errand.ts:182` is
+  therefore gating settlement on the string the caller typed, not on what the provider did. A first-pass
+  `incremental` request that CodeRabbit ran as whole-target is recorded as incremental and refuses to settle a
+  lane the provider in fact fully covered.
+
+- _Ground truth is already parsed and discarded:_ `coderabbit.ts:32-33` defines
+  `COMPLETE_REPLY = /^Full review finished\.$/` against `INCREMENTAL_REPLY = /^Review finished\.$/` — the
+  provider announces which coverage it actually ran. But `:78-82` selects the regex _from the expected coverage_,
+  using the reply only to confirm the requested thing finished rather than to learn what happened. The cheapest
+  correct fix is to set `effectiveCoverage` from the observed reply instead of echoing the request; the signal
+  needs no new provider call. Owner's framing: ARC may not need to model this distinction at all — if coverage
+  cannot be observed faithfully for a provider, gating settlement on it is worse than not modelling it.
+
+- _Net effect:_ every review-fix head demands a fresh complete provider review, however small and however
+  thoroughly the delta was just reviewed. On this errand the delta past the last complete pass was three
+  test-only files, +14/-18, reviewed clean incrementally, and the lane still would not settle.
+
+- _Owner framing of the remedy:_ not an automatic carry, which is how `:432` currently reads, but a judgment-routed
+  one — "that's for the agent to recommend / user to decide/request, not ARC to dictate (assuming a full review
+  has already _happened_)". A change can still be large enough to warrant fresh complete coverage; the objection
+  is to ARC deciding that unilaterally. This is more consistent with the draft's own stated posture, which defers
+  to `judgment-authority-model` and keeps disclosed common-sense judgment available.
+
+- _Interim mechanism is invisible:_ the Owner-directed Errand review stop shipped in PR #622 and does cover this,
+  at `run-errand.md:380`. But it lives only in workflow prose — nothing in `arc review status`, `arc review
+  terminus --help`, or any refusal surfaces it, and `terminus accept` is delivery-member only, which actively
+  suggests no Errand equivalent exists. An agent that has not already read that passage reaches for another
+  complete pass instead; that is what happened here, and the Owner had to supply the mechanism from memory.
+  Owner-agreed (2026-09-18): whatever settles the durable contract must also make the interim path discoverable
+  from the refusal, so the override is reachable without prior knowledge of the workflow passage.
+
+- _Loose thread:_ disposition set `ff0f3074bccc7717`, recorded in commit `91bc4131f`, resolves to nothing in ARC
+  state — the finding was triaged and fixed conversationally because the pass-2 hosted await returned
+  `terminal-failure` before binding it to an operation. Settle here or under `review-signal-convergence`; it does
+  not warrant its own entry.
+
+- _Captured during:_ the `delivery-entry-input-shape` errand, 2026-09-18.
+
+### `[ ]` **Stop letting an omitted activity flag silently deactivate a configured review lane**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: review-activity-contracts`
+
+- _Observation:_ `arc review resolve -` declares `frontlineActive: z.boolean().default(false)`
+  (`review-policy-driver.ts:114`). Omitting it validates cleanly and drives line 558,
+  `reason: request.frontlineActive ? "no-source" : "inactive"`, so the lane returns `skipped / none (inactive)` —
+  indistinguishable from a genuinely inactive lane. This happened during `delivery-request-identity` while
+  `frontline-review.md` was `active: true`, `review.frontline_sources: [coderabbit-cli]` was configured, and
+  `review.frontline_max_passes: 2`. The frontline lane was silently skipped and the workflow's instruction to
+  "follow only the driver's typed state" made that skip look authoritative.
+
+- _Second half:_ the same errand's `resolveReviewRouting` returned `frontlineAction: "offer"` — an offer owed to
+  the Owner — and nothing in the protocol carried it to a prompt. An offer that only exists inside a decision
+  object the agent then discards is not an offer.
+
+- _Approach:_ two shapes for this WU's "explicit, typed, and bounded" goal. Make lane activity derived from
+  configuration rather than a caller-supplied boolean, or require the field with no default so omission refuses
+  instead of suppressing; and give `frontlineAction: "offer"` a typed surfacing obligation rather than leaving it
+  to prose. A default that disables a configured-active lane is the inverse of fail-closed.
+
+- _Captured during:_ the `delivery-request-identity` errand, 2026-09-18.
+
+### `[ ]` **Make a `recommended` standard-review obligation stop for an Owner decision, not spend like `required`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: review-activity-contracts`
+
+- _Owner direction (2026-09-19):_ a `recommended` obligation should surface an Owner decision. It is not intended
+  to spend a metered pass silently on the strength of being merely recommended.
+
+- _Observation:_ `recommended` is load-bearing for whether a finding blocks and inert for whether a pass is
+  spent — the distinction is honored on the axis that costs nothing and dropped on the axis that costs money.
+  Every reader of the routing projection tests only `exempt` and treats the rest alike
+  (`policy/review-policy-driver.ts:563`, `core/gate-contract-v2.ts:140`,
+  `core/review-command-envelope.ts:362,370,423`, `policy/planning-grooming-command.ts:126,133`,
+  `runtime/local-prepare.ts:186`), even though `ReviewObligationSchema` carries three values
+  (`policy/routing-schema.ts:12`). One axis over, the two-valued requirement obligation does discriminate:
+  only `required` produces blockers and gates the verdict (`core/requirements.ts:109`, `core/verdict.ts:71`),
+  and `aggregateRequirementDisposition` ranks `required` above `recommended`
+  (`core/requirements.ts:126`).
+
+- _Observation:_ the state this wants already exists in the sibling lane, which together with the above is
+  what makes the gap look like an omission rather than a decision. Frontline routing is
+  `z.enum(["skip", "offer", "attempt"])`, and `action === "offer"` resolves to `state: "offered"`
+  with `nextAction: "obtain-authorization"`
+  (`policy/frontline-command.ts:102`) — a typed, pre-spend stop for exactly this decision. The standard lane
+  has no analogue. For the observed change the two lanes disagreed on the same routing verdict:
+  `arc review frontline resolve -` returned `skipped / none`, while `arc review resolve -` lane=standard
+  returned `ready / hosted-request`.
+
+- _Observation:_ the one route that avoids the spend is closed on a first pass. The Owner-directed review stop
+  requires naming "at least one completed same-claim standard-review pass and its disposition/settlement state",
+  and stops when the evidence is incomplete — so it cannot be reached before a pass has been spent. There is no
+  pre-spend decision point at all.
+
+- _Observed on:_ a 58-line Markdown-only change to one workflow file, routed `contentKind: documentation`,
+  `reviewRisk: routine` → `reviewed-routine-documentation`, `standardReview: recommended`,
+  `retrigger: incremental`. A full `coderabbit-pr` pass was requested, awaited, and consumed
+  (`consumedPass: true`), returning clean.
+
+- _Approach:_ give the standard lane an `offered` state on the frontline lane's model — `recommended` stops at
+  an Owner decision before any source dispatch instead of falling through to `hosted-request`. The precedent
+  next door means this is likely a narrow addition rather than new machinery. Keep it separate from the
+  Owner-directed review stop, which is a post-spend acceptance of residual risk over completed passes; this is
+  a pre-spend authorization of whether to spend at all. Decide what a decline records, so a declined
+  recommendation is legible later as a considered choice rather than a lane that never ran.
+
+- _Boundary:_ obligation dispatch and the decision point only. Not a change to how routing derives `recommended`,
+  which behaved correctly here, and not provider selection or ceiling accounting — the cumulative pass-ceiling
+  entry (§ Errand) stays separate.
+
+- _Relation:_ sibling to this WU's existing "Make review spend visible before it is incurred, and keep 'review' to
+  one sense per surface" — same concern one step earlier, at the point where the spend is authorized rather than
+  where it is displayed.
+
+- _Touchpoint:_ `review-signal-convergence` D6.4 reorders the same lane dispatch ("triage and source-bind, then
+  the driver call, then response"). It is not the owner here — its concern is evidence and convergence after a
+  pass runs, and it declines new approval vocabulary — but an `offered` state lands in the sequence it is
+  rewriting, so whichever ships second should read the other.
+
+- _Captured during:_ the `publish-errand-merge-skeleton` errand, PR #655, 2026-09-19.
+
 ## Hosted Guidance Contract
 
 Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly
