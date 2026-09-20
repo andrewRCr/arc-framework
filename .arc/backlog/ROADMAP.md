@@ -19,6 +19,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Active`   | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                               | —                         |
 | `Planning` | decomposition-doctrine          | P1       | andrew | decompose-conservation-coverage | —                         |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                               | —                         |
 | `Active`   | local-ci-capacity-qualification | P1       | andrew | —                               | —                         |
 | `Active`   | plan-amendment                  | P1       | andrew | —                               | —                         |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —                         |
@@ -36,7 +37,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-correction-convergence     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
-| delivery-rebuild-continuity         | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
