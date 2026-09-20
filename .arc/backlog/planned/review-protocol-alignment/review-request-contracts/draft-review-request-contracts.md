@@ -147,6 +147,160 @@
 - _Fold-in:_ expose a bounded durable result reference and retrieval contract tied to the exact request and target.
   Continuation-input readiness is extracted as an immediate Errand; this item owns the durable transport design.
 
+### `[ ]` **Make review request shapes discoverable and their projections derivable**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: review-request-contracts`
+
+- _Observation:_ the WU's stated purpose — "make every review request shape discoverable and derivable from
+  caller-held facts, eliminating hand-authored projections" — has two concrete field instances from the
+  `delivery-request-identity` errand:
+
+    - **Discoverability.** Only `review-chunking-resolve`, `review-planning-grooming-resolve`, and
+      `review-frontline-run` are registered in `ReviewPublicRequestSchemaId`, so only those three expose
+      `--schema`. `review resolve`, `hosted request`, `hosted await`, `respond`, `reduce`, and `errand merge` are
+      recoverable only by reading Zod sources or mining validator errors — and error-mining cannot reveal an
+      optional field.
+
+    - **Derivation.** `run-errand.md` § Ship instructs the agent to supply "the routed `standardReview`
+      projection", but `resolveReviewRouting` and `projectStandardReviewObligation` are library-only; there is no
+      CLI. Composing it honestly here meant running both through `tsx` against source. The alternative an agent
+      under pressure takes is hand-authoring `{obligation, reasons, rubricVersion, rubricDigest, retrigger}` and
+      handing fabricated routing evidence to a verb that treats it as derived. Compounding it, of the nine
+      `ReviewRoutingFacts` only five are caller judgments; `changeSetState`, `assurance.*`, and `activity.*` are
+      repo and config state the caller must nonetheless supply. `activity` was guessed in this errand and
+      happened to match.
+
+- _Approach:_ an `arc review routing resolve -` taking only the five caller-owned judgments and deriving the rest
+  from repo and config state would close the derivation hole; registering the remaining request schemas closes the
+  discoverability hole. Both are this WU's stated purpose rather than additions to it.
+
+- _Interim:_ an Errand (§ Errand, "Publish the `errandMergeRequest` skeleton agents must hand-compose") documents
+  the one envelope still lacking a machine-readable source; it is superseded wholesale by the typed work here. It
+  covered three envelopes when written and was reduced on 2026-09-19, once `--schema` reached the other two.
+
+- _Update (2026-09-18):_ the discoverability half above is now discharged for five of its six verbs — `review
+  resolve`, `hosted request`, `hosted await`, `respond`, and `reduce` each expose `--schema` against a registered
+  strict-current root, per `D4.1`'s identity convention. `errand merge` is untouched: it is an integration-domain
+  schema with no counterpart to `handleReviewRequestSchema`, left to its owner. The derivation half is unaffected,
+  and a sibling entry records that a registered schema can still be looser than the validator it stands for.
+
+- _Captured during:_ the `delivery-request-identity` errand, 2026-09-18.
+
+### `[ ]` **Let hosted await re-derive its action instead of requiring verbatim round-trip**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: review-request-contracts`
+
+- _Observation:_ `arc review hosted request -` returns an `action` that `arc review hosted await -` requires
+  **unchanged**. In a terminal session that means transcribing a deeply nested object — handle, target, artifact
+  IDs, full vehicle including the whole `standardReview` projection — out of command output and back into a file,
+  once per await, and again on every `pending / await` continuation. This is the WU's "opaque target identities"
+  concern in its sharpest form.
+
+- _Severity:_ this is correctness-shaped, not ergonomic. A transcription slip does not fail loudly — it produces a
+  well-formed await bound to slightly wrong coordinates. Nothing in the envelope is human-checkable at a glance,
+  and the round-trip repeats under exactly the condition that invites haste, a long pending wait.
+
+- _Approach:_ let `hosted await` re-derive the action from `{repository, pullRequest, headSha}` plus the operation
+  the request already persists, or accept that operation's ID. The verbatim-action contract can remain the
+  fallback rather than the only path.
+
+- _Captured during:_ the `delivery-request-identity` errand, 2026-09-18.
+
+### `[ ]` **Make a hosted review request idempotent for its exact target**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: review-request-contracts`
+
+- _Observation:_ invoking `arc review hosted request` twice for the same provider, repository, pull request, and
+  head posted two `@coderabbitai full review` comments six seconds apart on PR #652. The command carries every
+  fact needed to recognize the repeat — it already returns a `handle` naming the exact artifact it created — and
+  the policy driver still reported `pass: 1` with `consumedPass: false`, so the second provider run was spent
+  outside the accounting entirely.
+
+- _Why the accounting gap is the real cost:_ the duplicate produced a **second, distinct review** with its own
+  Major finding that the first review did not report. Two reviews existed against one head while the lane
+  believed no pass had been spent, and the second was nearly missed because nothing in the typed state named it.
+  Unmetered spend is the visible symptom; an un-enumerated review artifact is the one that loses findings.
+
+- _Why it belongs here:_ the cohort's stated purpose is making every review request derivable from caller-held
+  facts. Whether a request is the _same_ request is exactly such a fact, and today it is nowhere expressed: the
+  verb has no notion of an outstanding request for a target, so an interrupted or retried workflow arm cannot
+  tell resume from re-request.
+
+- _Design question this WU owns:_ what identity closes a request. Provider plus target plus head is the obvious
+  floor, but it needs a stated answer for a stale outstanding request, for a re-request the Owner genuinely
+  intends after a provider failure, and for whether the second call reuses the first handle or refuses.
+
+- _Captured during:_ the `noop-json-flag-retirement` errand, PR #652, 2026-09-18.
+
+### `[ ]` **A registered request schema is looser than the validator it stands for**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: review-request-contracts`
+
+- _Observation:_ `D4.4` records that shape is not obtainability — the schema can demand a field whose value the
+  caller cannot produce. The converse is also live and is not yet recorded: the schema can omit a constraint the
+  command enforces, so a request that validates against the published shape is still refused at parse time.
+  `RespondRequestSchema` is the worked case. It is a `z.union`, so it emits as `anyOf`, and its approved arm
+  carries a `superRefine` — a settlement replay cannot also submit a verified fix. JSON Schema cannot express
+  that, so `--schema` presents `verifiedFix` and `settledFixTarget` as independently optional, and a caller
+  composing from the bundle can produce a request the verb rejects.
+
+- _Observation:_ this is systemic rather than one schema's quirk. Refinements occur in five of the seven modules
+  owning the currently registered request roots, including `frontline-run-command-schema.ts`, which was
+  discoverable before this errand — so the gap already shipped and is not introduced by widening registration.
+
+- _Approach:_ decide what the published bundle owes a caller, given that `D4.2` is deliberately a
+  lookup-and-print over the registry and must not become a second place shapes are described. Options worth
+  weighing: emit the expressible part and state the residue in the verb's help rather than dropping it silently;
+  move genuinely structural exclusivity into the type so it survives generation (a discriminated union in place
+  of a refinement); or accept parse-time-only enforcement and say so, on the ground that the schema is a
+  composition aid and the verb remains the authority. Pairs with `D4.4` — same family, opposite direction.
+
+- _Sharpening (2026-09-19), and it splits the approach in two:_ the refinements divide into two classes that want
+  different fixes, and conflating them is why the approach above reads as one undifferentiated menu.
+    - **Redundancy checks** — the request carries a field fully computable from other fields it also carries, and
+      the refinement exists only to verify the caller computed it correctly. `errandMergeRequest` is entirely this
+      class: `identity.generation` must equal `errand-v1/<slug>/<claimId>`, and `identity.branch` must equal
+      `approvedTarget.headRef`, with both siblings already supplied. The durable fix is **not requiring the
+      field** — derive it. The refinement then does not exist, and the emitted schema is faithful because there is
+      nothing left to be unfaithful about. This is `D4.4`'s principle one step over: `D4.4` says do not demand a
+      field the caller cannot produce; this says do not demand one the request already determines.
+    - **Semantic constraints** — a genuine rule over two independently valid shapes, which removing a field cannot
+      fix. `RespondRequestSchema`'s "a settlement replay cannot also submit a verified fix" is this class. Only
+      here do the original options apply: express it structurally as a discriminated union, or state the residue
+      in help and accept parse-time enforcement.
+  Classify each refinement before choosing a remedy; the redundancy class closes by simplifying the request, not
+  by improving generation.
+
+- _Sequencing consequence:_ do not wire a `--schema` equivalent for `arc errand merge` before this decision. Both
+  its refinements are redundancy-class, so the derivability fix changes the envelope's field set — a discovery
+  surface built now would be built against a known-provisional shape, in a domain that needs a new handler path
+  rather than a replication of the review pattern. The interim `errandMergeRequest` skeleton (§ Errand) is
+  deliberately the cheap, supersedable option in the meantime.
+
+- _Observation (`D4.3`'s premise moved):_ the completeness anchor iterates `REVIEW_JSON_COMMAND_PATHS` as "the
+  canonical fourteen-verb list". That list is now the residue rather than the census: a path registered for
+  `--schema` must leave it, because appearing in both it and `REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS` registers the
+  verb twice and fails the projection tests. Three verbs had already moved before this errand and five more moved
+  during it, so the anchor has to iterate the union of the two lists to mean what `D4.3` intends.
+
+- _Observation (`D4.1`'s count is stale):_ it reads "of the fourteen verbs, exactly one request shape is
+  registered". Eight are now: `chunking resolve`, `planning-grooming resolve`, and `frontline run` predate this
+  errand, and `resolve`, `hosted await`, `reduce`, `respond`, and `hosted request` were added by it. The seven
+  still unregistered are `readiness`, `frontline resolve`, `hosted settle`, `local prepare`, `local attest`,
+  `local resume`, and `terminus accept`; none has a capture of its own, so `D4.1` remains their sole owner. The
+  cost is still live — composing this errand's own frontline pass meant hand-reading
+  `FrontlineCommandRequestSchema`, exactly the failure `D4.1` exists to end.
+
+- _Captured during:_ the `register-review-request-schemas` errand, 2026-09-18.
+
 ## Reachable Request Contracts
 
 Fourteen review verbs take `<file | ->` with help text reading only "Versioned JSON request file" — no schema, no

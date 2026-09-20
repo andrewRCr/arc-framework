@@ -171,6 +171,44 @@
 
 ---
 
+### `[ ]` **Give an oversized frontline target a typed route instead of operator reasoning**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ `arc review chunking resolve` returned `consider-chunks / select-review-scope` for a 14,936-line,
+  114-file target — 3x the configured 5,000-line advisory. The signal is advisory by design
+  (`review-chunking.md`: the thresholds "never draw boundaries, cap chunk size, or make a numeric budget a
+  validity rule"), so the policy still resolved `ready / run-frontline` at `coderabbit-cli`.
+
+- _Observation:_ both scope selections available at that point were wrong. `chunked` is an unbacked
+  advertisement — nothing under `src/scripts/review-gate/providers/` implements scoping, so the carrier would
+  review the whole target regardless. `whole-target` hands a 15k-line diff to a carrier that must consume it
+  whole, which is not a review anyone should rely on.
+
+- _Why it needs saying:_ the correct resolution — skip the frontline lane, force `delegated-agent` on the
+  standard lane at chunked scope, where the evaluator is an agent that can curate scopes and aggregate — is
+  reachable only by reading the capability table, the provider directory, and the lane recorders, then reasoning
+  it out. No typed state names it. An operator who trusts the returned policy runs the wrong review.
+
+- _Already owned, deliberately not re-captured:_ `review-source-authority` D2.1-D2.3 owns removing the unbacked
+  `chunked` advertisement and converting a chunked frontline request into a declared `source-scope-ineligible`
+  skip. That covers the chunked request. It does not cover an over-threshold **whole-target** request, which
+  still routes to a carrier that cannot review it well. `chunk-scope-binding` owns the automated per-chunk path
+  and explicitly keeps manual chunk aggregation as the working path meanwhile.
+  `review-signal-convergence` owns response-per-chunk on the live `chunk-pending` arm.
+
+- _Approach:_ decide whether the advisory-only contract should remain absolute at the **lane-routing** boundary.
+  The method's "never a cap" rule governs chunk boundaries; whether a lane may decline a target its only
+  configured source cannot review well is a different question it does not answer. One candidate shape,
+  deliberately not settled: once D2.2 exists, let a frontline lane whose configured sources are all
+  whole-target-only decline an over-threshold target through that same `skipped` arm under its own typed reason,
+  so the operator is told rather than left to infer. A lighter alternative is to leave routing untouched and
+  carry the recommendation in `recommendedActionText`. Either way the standard lane keeps its authority; this
+  removes a hand-derived step, not a decision.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` pre-publication review, 2026-09-18, after the
+  Owner rejected both offered frontline scopes.
+
 ## Operator Selection Override
 
 Mirror the existing ceiling override rather than inventing a shape. `src/scripts/review-gate/policy/review-policy-driver.ts`
