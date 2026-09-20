@@ -125,15 +125,17 @@ describe("PR-open lifecycle extensions", () => {
       readFile(resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
     ]);
     const prePublication = prepare.indexOf("## 2) Settle pre-publication review");
-    const resolveFrontline = prepare.indexOf("arc review frontline resolve -", prePublication);
+    const resolveFrontline = prepare.indexOf("`nextAction.command`", prePublication);
+    const resumeFrontline = prepare.indexOf("`nextAction.resumeCommand`", resolveFrontline);
     const submit = prepare.indexOf("arc publish {name}", resolveFrontline);
     const push = integrate.indexOf("Push the WU branch upstream");
     const preOpen = integrate.indexOf("Immediately before creation");
     const create = integrate.indexOf("gh pr create", preOpen);
 
-    expect([prePublication, resolveFrontline, submit, push, preOpen, create]
+    expect([prePublication, resolveFrontline, resumeFrontline, submit, push, preOpen, create]
       .every((index) => index >= 0)).toBe(true);
     expect(prePublication).toBeLessThan(resolveFrontline);
+    expect(resolveFrontline).toBeLessThan(resumeFrontline);
     expect(resolveFrontline).toBeLessThan(submit);
     expect(preOpen).toBeLessThan(create);
 

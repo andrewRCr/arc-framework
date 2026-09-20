@@ -413,7 +413,6 @@ describe("trusted review-gate workflows", () => {
       ]);
       expect(project).toBe(packaged);
       for (const command of [
-        "arc review frontline resolve -",
         "arc review frontline run -",
         "arc review local prepare -",
         "arc review local attest -",
@@ -422,6 +421,12 @@ describe("trusted review-gate workflows", () => {
         "arc review reduce -",
       ]) {
         expect(packaged).toContain(command);
+      }
+      if (path.includes("prepare-work-unit")) {
+        expect(packaged).toContain("`nextAction.command`");
+        expect(packaged).toContain("`nextAction.resumeCommand`");
+      } else {
+        expect(packaged).toContain("arc review frontline resolve -");
       }
       expect(packaged).toMatch(/runtime-owned bindings/iu);
       expect(packaged).toContain("`findings / respond`");
@@ -634,7 +639,7 @@ describe("trusted review-gate workflows", () => {
 
     expect(prepare).toMatch(/standard\.invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(prepare).toMatch(
-      /After every lane operation,[\s\S]*exact command returned by the envelope[\s\S]*opaque resume carries judgment/u,
+      /After every lane operation,[\s\S]*typed pre-publication[\s\S]*nextAction\.command[\s\S]*nextAction\.resumeCommand[\s\S]*opaque resume carries judgment/u,
     );
     expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(errand).toMatch(/every policy call for that target/u);
