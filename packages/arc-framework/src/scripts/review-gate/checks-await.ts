@@ -3,7 +3,10 @@
 import { z } from "zod";
 import { boundedWait, type BoundedWaitClock } from "./bounded-wait.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
-import { FailedCheckLogsResultSchema } from "./failed-check-logs.js";
+import {
+  FailedCheckLogsResultSchema,
+  type FailedCheckLogsResult,
+} from "./failed-check-logs.js";
 import { SpineRemedySchema } from "../integration/spine-refusal.js";
 
 export const RequiredChecksObservationInputSchema = z.strictObject({
@@ -226,6 +229,43 @@ export const ChecksAwaitResultSchema = z.union([
   }),
 ]);
 export type ChecksAwaitResult = z.infer<typeof ChecksAwaitResultSchema>;
+
+type FailureBearingChecksAwaitResult = Extract<
+  ChecksAwaitResult,
+  { state: "failed" | "pending" | "unavailable" }
+>;
+
+/**
+ * Attach failed-job diagnostics without concealing an exact-target stop.
+ *
+ * @param observation - Failed or diagnostically actionable required-check observation.
+ * @param failureLogs - Exact-target failed-job log retrieval result.
+ * @returns The enriched observation, or a promoted top-level target stop.
+ */
+export function composeChecksAwaitFailureLogs(
+  observation: FailureBearingChecksAwaitResult,
+  failureLogs: FailedCheckLogsResult,
+): ChecksAwaitResult {
+  const base = {
+    schemaVersion: observation.schemaVersion,
+    mode: observation.mode,
+    repository: observation.repository,
+    pullRequest: observation.pullRequest,
+    headSha: observation.headSha,
+  };
+  if (failureLogs.state === "stale-target") {
+    return { ...base, state: "stale-target", nextAction: "stop", actualHeadSha: failureLogs.actualHeadSha };
+  }
+  if (failureLogs.state === "target-mismatch") {
+    return {
+      ...base,
+      state: "target-mismatch",
+      nextAction: "stop",
+      actualRepository: failureLogs.actualRepository,
+    };
+  }
+  return { ...observation, failureLogs };
+}
 
 export const ChecksAwaitCommandResultSchema = z.union([
   ChecksAwaitResultSchema,

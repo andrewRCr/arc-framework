@@ -308,6 +308,7 @@ import {
   ChecksAwaitCommandResultSchema,
   ChecksAwaitInputSchema,
   awaitRequiredChecks,
+  composeChecksAwaitFailureLogs,
   type ChecksAwaitResult,
 } from "../scripts/review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
@@ -1114,19 +1115,19 @@ export async function handleReviewChecksAwait(
   }
   try {
     const observation = await dependencies.awaitChecks(parsed.data);
-    const hasDiagnosticFailure = observation.state === "failed"
+    let result = observation;
+    if (observation.state === "failed"
       || ((observation.state === "pending" || observation.state === "unavailable")
-        && observation.diagnosticFailures.length > 0);
-    const result = hasDiagnosticFailure
-      ? {
-          ...observation,
-          failureLogs: await dependencies.retrieveFailureLogs({
-            repository: parsed.data.repository,
-            pullRequest: parsed.data.pullRequest,
-            headSha: parsed.data.headSha,
-          }),
-        }
-      : observation;
+        && observation.diagnosticFailures.length > 0)) {
+      result = composeChecksAwaitFailureLogs(
+        observation,
+        await dependencies.retrieveFailureLogs({
+          repository: parsed.data.repository,
+          pullRequest: parsed.data.pullRequest,
+          headSha: parsed.data.headSha,
+        }),
+      );
+    }
     dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(result))}\n`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
