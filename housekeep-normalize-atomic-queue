@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-normalize-atomic-queue",
+  "claimId": "b2ebf3c631d9e87b0f6c3dc8da6068ea",
+  "createdAt": "2026-09-20T01:51:52.840Z",
+  "updatedAt": "2026-09-20T01:51:52.840Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Normalize the confirmed atomic execute-bound queue and remove duplicate inbox records.",
+  "branch": "chore/housekeep-normalize-atomic-queue",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
