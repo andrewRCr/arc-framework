@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "prepublication-frontline-action-command",
+  "claimId": "898685976078ab58f3530ab166b2da06",
+  "createdAt": "2026-09-20T12:02:24.027Z",
+  "updatedAt": "2026-09-20T12:02:24.027Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "prepublication-frontline-action-command",
+  "branch": "chore/prepublication-frontline-action-command",
+  "origin": "inbox",
+  "originEntry": "Make the pre-publication frontline action name the command that advances it",
+  "originEntrySourceDigest": "sha256:2a3216a6937adcefc5ed36a4d036e63aa2328b9006d25b127560744fb583888e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
