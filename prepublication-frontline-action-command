@@ -3,7 +3,7 @@
   "slug": "prepublication-frontline-action-command",
   "claimId": "898685976078ab58f3530ab166b2da06",
   "createdAt": "2026-09-20T12:02:24.027Z",
-  "updatedAt": "2026-09-20T12:02:24.027Z",
+  "updatedAt": "2026-09-20T19:34:25.425Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "prepublication-frontline-action-command",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make the pre-publication frontline action name the command that advances it",
   "originEntrySourceDigest": "sha256:2a3216a6937adcefc5ed36a4d036e63aa2328b9006d25b127560744fb583888e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/prepublication-frontline-action-command",
+    "headSha": "5b55ae99aaee79d6e03942a6b52a07ffe24e5a01"
+  }
 }
