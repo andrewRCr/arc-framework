@@ -56,6 +56,48 @@
 
 ---
 
+### `[ ]` **Give an open planning stage a durability save that is not a review increment**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: commit-increments`
+
+- _Observation:_ A planning stage's artifacts reach git only at its ceremony commit, so an open stage accumulates
+  uncommitted work for as long as it stays open — and nothing bounds that. A stage that re-enters stays open
+  across sessions: `delivery-post-landing-conflict-recovery` carried a 1228-line untracked task list plus modified
+  spec and notes across three. The exposure is linear in stage duration with no ceiling, and it is invisible
+  because each individual session looks normal.
+
+- _Why it bites:_ there is no baseline to recover from. A bad edit, a crash, a stray `git checkout`, or a worktree
+  removal loses work that only exists in one working tree. It cost a ~260-line reconstruction in this WU when an
+  unanchored string splice deleted three design sections; recovery was possible only because the region had been
+  read in full earlier in that same session. The rule did not cause the mistake, but it converted a recoverable
+  one into an unrecoverable one.
+
+- _The sharpest case:_ the handoff ceremony is already an approved, structured boundary that commits the meta —
+  and it deliberately leaves the artifacts uncommitted. `SESSION-NOTES` then carries a prose description of the
+  work ("1228 lines, 8 phases, 42 parent tasks") standing in for content git could have held. A session boundary
+  is exactly where durability matters most, and the gate is already there.
+
+- _Approach:_ keep the ceremony commit as the semantic boundary; add a save that is explicitly not a review
+  increment — the commit-versus-review decoupling this work unit owns. The invariant exists so work is not
+  advanced or merged without review, not to keep the disk unbacked. Cheapest correct shape: handoff commits
+  in-progress planning artifacts on the WU's private branch, with the finalize ceremony still the semantic close.
+
+- _Counter to weigh, not to dismiss:_ this lands an artifact in branch history before it satisfies its own
+  contract, and a reader of `git log` sees it. Mitigations are that the branch is private and append-only until
+  integration and the subject can mark it — but it is a genuine trade, and the scope owner decides it.
+
+- _One justification that does not survive checking:_ "the artifact is invalid until the checklist passes." The
+  in-progress task list passed markdown, descriptor and ARC contract gates as it stood. Unfinished is not
+  invalid, and git does not object to unfinished.
+
+- _Files:_ `.arc/system/workflows/arc/generate-tasks.md` (the staging-discipline line and Finalize),
+  `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`, `DEV-RULES.ARC` § Review-Increment Invariant
+  and § Commit Discipline.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` planning, 2026-09-17.
+
 ## Problem / Motivation
 
 ARC's task-execution model conflates two distinct boundaries — _where the agent stops to ask_
