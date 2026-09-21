@@ -122,9 +122,136 @@ invariant at all three sites, with each refusal reason re-derived and the relaxa
 reap the private candidates. The first is the smallest and is a return to an already-authored shape, but it should
 be chosen on its merits rather than by default.
 
+**A fourth arm, found in source after the fork was written.** The pairing invariant is not a property of private
+candidate refs in general — it is a property of the **plan-derived** `delivery-candidates` locator set. A second
+private per-member namespace already exists and is gate-less —
+`refs/arc/delivery-refresh-candidates/{planId}/{chunkKey}`, minted by `deliveryProviderRefreshCandidateFor` over the
+plan's nonterminal members. One reaper run handles both namespaces under structurally different contracts. The
+`delivery-candidates` arm enumerates from the plan through `deriveDeliveryResidueLocators` and refuses
+`candidate-gate-mismatch` unless both halves are observed at the same head; the refresh arm enumerates the ref
+namespace itself with `for-each-ref`, carries no gate at all, deletes each ref individually, and refuses only on its
+own observation or delete failure. A ref-only private member namespace is therefore already legal, already swept, and
+already closes out. The fourth arm is to mint the rebuilt chain's private members outside the plan-derived locator
+set, on the refresh namespace's pattern, where the pairing invariant never binds.
+
+That arm cannot reuse the refresh namespace, which is now settled rather than open. The refresh host enumerates the
+whole namespace by `planId` and hands every ref it finds to `cleanup`, which deletes each one — the enumeration
+attaches an empty `deliverableId`, so it does not discriminate by member. Any rebuilt member parked there would be
+reaped by the next provider refresh as if it were a refresh candidate. The arm therefore needs a genuinely new third
+namespace with its own sweep owner and boundary, and the plan-keyed residue locators would not cover it.
+
+**The gate creator is single, and measured.** One site creates a gate worktree — `review-fix-candidate-gate.ts` — and
+one site constructs the gate path — `residue-reaping.ts`. The refresh host also runs `worktree add --detach`, but
+against `delivery-resolutions/{planId}/{chunkKey}`, a different namespace with its own lifecycle, so it is not a
+second gate creator. Nothing in the delivery library, its handler, or the refresh host runs `npm ci` or `npm install`:
+ARC never provisions a gate. The dependency tree that appears in a live gate is deposited by the Tier 2 run performed
+inside it, which is the cost this work unit is removing.
+
+Measured on one live plan in this repository: three gates for a three-member stack total 671M. One gate is 235M, of
+which 148M is the installed dependency tree, leaving **83M of checked-out working tree per member**. So dropping the
+Tier 2 run removes roughly two thirds of the per-gate cost and leaves a real remainder that scales linearly with stack
+length. "Restore the pair" is not free, and the number to weigh it against is 83M per member held from construct until
+reap, not the cost of the `worktree add` call.
+
+**There is no private pre-publication member namespace, so the fork stands.** The tempting reading — that
+reconstruction could rebuild the member heads it already owns and mint no candidates — is false.
+`refs/heads/delivery/*` is the _published_ namespace: `publishDeliveryMemberRef` creates the local branch and pushes
+the matching remote ref as one act, and `rewriteDeliveryMemberRef` advances remote then local under one retained
+operation. No path writes a delivery member ref locally without touching the remote, so writing there _is_ publishing.
+
+The complete inventory of `refs/arc/delivery*` is two namespaces — the gate-paired `delivery-candidates` and the
+indiscriminately-swept `delivery-refresh-candidates` — and neither is a general private staging area. Before
+publication a plan owns no member heads at all. Any design that holds a rebuilt chain on refs before publishing it
+must therefore either accept the pairing invariant or mint a genuinely new third namespace.
+
+**This falsifies a premise the spec states as fact, and that correction is owed.** The spec's opening characterization
+reads "Before publication the stack lives on ARC-private refs." It does not. That sentence is what makes a private
+candidate chain sound like existing substrate this design can lean on, and every argument built on it inherits the
+error. Correcting it is not optional cleanup — it changes what the reconstruction is allowed to assume it has.
+
+**What that opens instead is the construct/publish signature.** If construct truly "returns coordinates and mutates
+nothing" as the spec states, the rebuilt commits are unreferenced Git objects and no candidate ref is ever minted, so
+the pairing invariant never engages — at the price of garbage-collection exposure between construct and publish, and
+of the prepared-tree resume flag having nowhere to live. This binds the pair question to the construct/publish split
+rather than settling it independently.
+
+**The "prepared-tree resume flag" is not a construct/publish split, which weakens the case for durability.**
+`resumingPreparedTree` in `chain-absorption.ts` is a within-operation idempotency guard: when the worktree is dirty,
+it asks whether the dirt is exactly the prepared tree a previous run already wrote out, and only then declines to
+refuse `worktree-dirty`. It resumes a worktree-mutating step inside one operation; it is not evidence of a designed
+pause between constructing a chain and publishing it. The same read shows the absorption primitive mutating both the
+working tree (`read-tree --reset -u`) and the top ref, which is the opposite of the "returns coordinates and mutates
+nothing" signature D7 assigns it.
+
 **Two things the reversal does not touch.** Provisioning is genuinely separable — the pair needs a gate worktree at
 the candidate's head, not a provisioned one, so the per-gate install cost still goes. And the removal of the
 `gateResults` operand stands on its own evidence, unaffected by any of this.
+
+### Where the chain lives before publication, scoped (2026-09-21)
+
+Three options, and they are not the same size. **(i)** Construct and publish in one operation with the rebuilt commits
+left unreferenced: no namespace, no sweep arm, no refusal reasons, nothing minted and so nothing to reap. **(ii)**
+Mint a third private namespace: the ref mechanics are already shared — `rewriteExactLocalRef` and
+`deleteExactLocalRef` take a per-kind validity predicate — so this is one regex, one locator deriver, four thin
+wrappers, one sweep arm mirroring the refresh arm, two refusal reasons, and handler wiring. **(iii)** Extract a shared
+staging substrate now: reconcile gate-paired against ref-only, plan-derived locators against namespace enumeration,
+and two sweep owners, then re-derive the closeout blocking semantics `candidate-gate-mismatch` feeds — across roughly
+ten thousand source lines in six files with about thirty-five hundred lines of directly coupled test, changing live
+behavior on the path whose failure mode is a plan that cannot close out.
+
+**The lean is (i), and its justification is not the garbage-collection grace period.** That grace is `gc.pruneExpire`,
+which an adopting project may set to `now`; a design that depends on someone else's default is not a design. The
+durable property is that the publish path contains no auto-gc trigger at all: it observes with `ls-remote`, writes
+with `update-ref`, and pushes — and auto-gc fires only from porcelain that creates objects. That holds under any
+configuration.
+
+**The residual is concurrent access, and it is disclosed rather than denied.** Auto-gc runs against the shared common
+directory and can be triggered by porcelain in any sibling worktree. Under an adopter configuration of
+`pruneExpire=now`, another checkout's commit or fetch between this operation's `commit-tree` and its push can prune
+the unreferenced chain. Git documents that hazard for `--prune=now` directly. The exposure belongs to the
+configuration that created it; the design's obligation is to minimize the window by ordering construct immediately
+before publication with only plumbing in between, and to say so rather than claim immunity.
+
+That yields a hard ordering constraint: **every fetch-bearing observation must precede construct.** `git fetch`
+creates objects and is an auto-gc trigger, and the delivery handler already fetches inside its position and
+provider-refresh observation helpers. Any of those placed after construct would move the race inside ARC's own
+operation rather than leaving it with the adopter's configuration.
+
+**(i) also requires a verb-layout decision that is not yet made.** It holds only if construct runs inside a
+publish-shaped verb. D3 currently names a standalone reconstruction primitive and D4 names a close-side
+`rebuild-required` reason; if the operator invokes a rebuild verb and then publishes separately, the window reopens
+across processes no matter what. The precedent to name is `arc delivery rematerialize` — "Reclose and rewrite one
+complete reviewed suffix" — which is already close-and-rewrite within one process. Placing construct there is a D4
+change (i) depends on, and it belongs in the option's cost, not outside it.
+
+**One cost cancels out across all three options.** The object-only constructor is D7's refactor and every option needs
+it: the existing absorption primitive runs `read-tree --reset -u` and moves the top ref, which serves none of them.
+Option (ii)'s line estimate excludes work that (i) also pays, so the comparison is only fair once that is said.
+
+**Partial publication is the case that would argue for (ii), and it appears survivable.** Publication iterates
+members; if member k refuses on a stale lease or collision, members before k are published and the rest are
+unreferenced objects. The recovery-complete route is to re-construct the suffix from the published predecessor, which
+is deterministic from the plan. If the publish loop turns out to assume a resumable private ref for exactly this case,
+that is where (ii)'s argument actually lives and the lean should be re-examined.
+
+**The publish loop does not assume a resumable private ref, which closes the last argument for (ii).**
+`materializeBoundDeliveryChain` iterates members and derives its resumability from two sources that are already
+durable: the Delivery State record, and re-observation of the published ref itself. For each member it compares the
+stored ref and head, re-observes, and skips the member when the remote already carries that head; absence falls
+through to a re-publish, and a different head refuses. Each member that does publish lands through a persisted
+deterministic step.
+
+So a mid-loop refusal leaves the published prefix recorded in Delivery State and observable on the remote, and the
+unpublished suffix as nothing but objects. Under option (i) the retry re-enters the same verb and re-constructs that
+suffix from the plan and the published predecessor — deterministic input, and the loop's skip-when-already-observed
+behavior makes replaying the prefix a no-op. The retry must re-construct rather than resume, because the unreferenced
+objects may be gone; that is the disclosed residual doing exactly what it was disclosed for, not a gap.
+
+**Decision: option (i).** Construct and publish run as one operation with the rebuilt commits unreferenced, no private
+namespace is minted, and D4 is amended to place construct inside a publish-shaped verb on the `arc delivery
+rematerialize` precedent. The concurrency residual under an adopter's `pruneExpire=now` is disclosed rather than
+defended against, every fetch-bearing observation is ordered before construct, and the object-only constructor is
+carried by D7 as all three options required it.
 
 ### The rest of the confirmed set
 
