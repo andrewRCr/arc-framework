@@ -17,7 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Settle open decisions 1, 2, and 5 in `draft-delivery-rebuild-continuity.md`,
+  then re-assess draft readiness
 
 - **PR URL:** [none]
 - **Completed:** [none]
