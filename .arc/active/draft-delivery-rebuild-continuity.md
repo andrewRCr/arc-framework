@@ -269,18 +269,44 @@ members get checked is configuration the project owns. That is what admits the c
 recorded — skipping checks on mid-stack members and reasserting them at merge-queue time — without ARC building any
 mechanism for it. The ADR states the permission, never the policy.
 
+### Resolved: how the publication boundary restates itself
+
+Less changes than the question assumed. § Publication Boundary never mentions per-member gates: it already says
+verification establishes an attestation over the exact work-unit subject, that private review and convergence settle
+against that Candidate before publication, and that the attestation "is neither a review verdict nor merge
+authority." All of that survives unchanged and is already correct for the decision above.
+
+It needs one addition — that publishing **reads** the attestation rather than merely following it in sequence. The
+existing text states an order; the decision makes it a check. The added clause says publication reads the
+Candidate's currentness and convergence state and refuses a subject the attestation no longer covers, so work
+prepared against a superseded Candidate cannot reach a public head. The section's second paragraph already handles
+the mirror case of a moving _public_ head; this closes the private side it leaves open.
+
+**The ambiguity is one line, and it is in § Delivery Shape and Landing Window rather than § Publication Boundary:**
+"Review and checks gate members incrementally, but merges run in one post-publication landing window." It conflates
+two different things and leaves check placement unstated — which is exactly the gap `ADR-034` left when it decided
+merge timing only. It splits: review admission keeps its incremental gating and stays owned by § Review Admission
+and Head Movement; member checks run after publication, against each published change request, on whatever check
+policy the project configures. Publication carries one work-unit attestation, never a per-member check result.
+
+**The consequence is stated rather than left to inference.** A non-terminal member may reach the landing window
+without having been checked in isolation; the terminal checkpoint, the integration interlock, and the base's own
+required checks are what stand between the composed result and the protected base. This belongs in the strategy and
+not only in the ADR: the strategy is adopter-facing and cannot reference an internal decision record, so operational
+rationale a reader needs has to stand alone there. The section already carries the companion half — that after
+merge, base CI is the backstop and should run the same legs that gate a change request.
+
+**Edit target.** `strategy-integration.md` is framework content whose two copies are currently byte-identical, so
+the change goes through `packages/arc-framework/arc/**` and syncs to `.arc/`, never the reverse.
+
 ### Open for the re-entered half
 
-1. How does `strategy-integration.md` § Publication Boundary restate itself? "Published equals attested" survives,
-   but only at _work-unit_ granularity — the boundary needs wording that says publication reads a work-unit
-   attestation and that per-_member_ checks run after publication under the project's own CI policy, without
-   implying each member was independently verified before it was published.
-2. What does the eligibility close validate once gate results are no longer its input? Existing validation accepts a
+1. What does the eligibility close validate once gate results are no longer its input? Existing validation accepts a
    caller-supplied result list; whether that operand remains, and what it means, is open.
-3. Does the ADR amend `ADR-034` or supersede nothing and stand alone? Its axis is different — check placement rather
+2. Does the ADR amend `ADR-034` or supersede nothing and stand alone? Its axis is different — check placement rather
    than merge timing — which argues for a new record cross-referencing it.
-4. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
-5. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
+3. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
+4. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
    dropped?
 
 ## Problem / Motivation
