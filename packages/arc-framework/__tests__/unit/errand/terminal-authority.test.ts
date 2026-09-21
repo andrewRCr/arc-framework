@@ -238,6 +238,30 @@ describe("Errand terminal authority", () => {
     })).toMatchObject({ kind: "refused", reason: "authority-unresolved" });
   });
 
+  it("names the required checkout branch and recovery route for an off-branch Errand", () => {
+    const offBranch: DerivedCheckoutRow = {
+      ...transientRow(),
+      kind: "unresolved-checkout",
+      checkout: { ...transientRow().checkout, branch: "main" },
+      diagnostics: [{
+        code: "topology-mismatch",
+        message: "Observed checkout topology does not corroborate the authority-derived subject",
+      }],
+    };
+
+    expect(authorizeErrandTerminal({
+      frame: frame(offBranch, offBranch),
+      operation: "close",
+      subject: SUBJECT,
+    })).toEqual({
+      kind: "refused",
+      reason: "authority-unresolved",
+      message: "Errand 'repair' remains assigned to checkout /repo/repair, but that checkout is on branch "
+        + "'main' instead of 'chore/repair'. Restore /repo/repair to 'chore/repair', then retry "
+        + "arc errand close repair from that checkout.",
+    });
+  });
+
   it("requires the identity generation when a retained Errand has no local checkout", () => {
     const entering = foreignEnteringRow();
     const identityOnly: DerivedLocusFrame = {
