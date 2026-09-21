@@ -214,8 +214,8 @@ export function buildStartSessionNotesSeed(params: StartSessionNotesSeedParams):
 
 ## Remaining Work Before Returning to Task List
 
-- Resume planning from \`Current Workflow\` in \`${metaFile}\`; \`Next Action\` is seeded to
-  \`${BEGIN_CURRENT_WORKFLOW_SENTINEL}\`.
+- Resume planning from \`Current Workflow\` in \`${metaFile}\`.
+- \`Next Action\` is seeded to \`${BEGIN_CURRENT_WORKFLOW_SENTINEL}\`.
 
 ## Additional Context
 

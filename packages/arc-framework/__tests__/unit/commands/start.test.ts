@@ -15,7 +15,12 @@ import { mkdtemp, rm, stat, mkdir, writeFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
 
-import { runColdStart, runCreateNew, deriveColdStartWuName } from "../../../src/commands/start.js";
+import {
+  buildStartSessionNotesSeed,
+  deriveColdStartWuName,
+  runColdStart,
+  runCreateNew,
+} from "../../../src/commands/start.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
@@ -99,6 +104,21 @@ describe("deriveColdStartWuName", () => {
     expect(deriveColdStartWuName("  ", "feat/widget")).toBeNull();
     expect(deriveColdStartWuName("Not-A-Slug", "feat/widget")).toBeNull();
     expect(deriveColdStartWuName("has space", "feat/widget")).toBeNull();
+  });
+});
+
+describe("buildStartSessionNotesSeed", () => {
+  it("keeps every seeded Markdown line within the project limit", () => {
+    const seed = buildStartSessionNotesSeed({
+      wuName: "concurrent-integration-characterization",
+      branch: "plan/concurrent-integration-characterization",
+      kind: "create-new",
+      commit: "[start ceremony pending]",
+    });
+    const overlongLines = seed.split("\n").flatMap((line, index) =>
+      line.length > 120 ? [{ lineNumber: index + 1, line }] : []);
+
+    expect(overlongLines).toEqual([]);
   });
 });
 
