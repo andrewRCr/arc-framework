@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "schema-artifact-fast-gate",
+  "claimId": "5db6db9871a058f924209786f14ab126",
+  "createdAt": "2026-09-21T13:56:41.686Z",
+  "updatedAt": "2026-09-21T13:56:41.686Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "schema-artifact-fast-gate",
+  "branch": "chore/schema-artifact-fast-gate",
+  "origin": "inbox",
+  "originEntry": "Surface schema-artifact inventory drift in the fast local gate",
+  "originEntrySourceDigest": "sha256:3638cbc64295bdb4da513ec802063cdd7af942b99a01adebfb07dc26a58e27b4",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
