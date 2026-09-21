@@ -15,10 +15,14 @@
 
 ## Readiness
 
-**State:** `formalization-ready` (2026-09-21). The D1, D2, D3, D4, and D7 half is crystallized in
-`spec-delivery-rebuild-continuity.md`. The re-entered half is settled in § Re-entry: where per-member verification
-runs. Read that section first — nothing below it has been revised for the re-entry, so it supersedes the D5 and D6
-material in § Decisions and § The deliverable stack.
+**State:** `re-entered` (2026-09-21, second). D1 and D2 are crystallized in
+`spec-delivery-rebuild-continuity.md` and carry the finalization pass's certification. D3, D4, D6, and D7 are
+re-opened for derivation.
+
+**Read the two re-entry sections first, newest first.** § Re-entry: what the finalization pass confirmed
+supersedes everything below it for D3, D4, D6, and D7. § Re-entry: where per-member verification runs still holds
+for the check-placement decision and supersedes the D5 and D6 material in § Decisions and § The deliverable stack.
+Nothing below either section has been revised for either re-entry.
 
 **Resolved**
 
@@ -79,6 +83,155 @@ member (D1+D2) stays fully bounded, and D3 through D6 each carry a stated direct
 the spec. The draft is ready for create-spec.
 
 ---
+
+## Re-entry: what the finalization pass confirmed (2026-09-21, second)
+
+`create-spec`'s finalization adversarial pass ran as an authored-partition carrier over the deliverable stack —
+three scoped reviewers across D1+D2+D3, D4+D7, and D6 plus the doctrine half. Every finding below was verified
+against source by the primary before being recorded; the reviewers' reports are advisory and are not the record.
+This section supersedes the D3, D4, D6, and D7 material everywhere below it, including in the first re-entry.
+
+**This is the second re-entry, and it is narrower than the first.** D1 and D2 were certified correct and complete
+enough to generate a task list from. They stay crystallized in the spec and keep their place as the stack's first
+delivery member. What re-opens is D3, D4, D6, and D7.
+
+**`Class` stays `Heavy`.** Every question below composes over existing substrate — ancestry readers, commit-tree
+shapes, the plan schema, verbs that already exist. None of it invents a concept absent from the problem domain,
+which is the `Novel` threshold.
+
+### The blocker that reverses a settled decision
+
+**The private candidate ref and its detached gate worktree are one pair, and three sites refuse a half of it.**
+The spec had the constructor produce refs and place no checkout, on the reasoning that the checkout only ever
+existed to run Tier 2 in. That reasoning was wrong, and the substrate says so in three places:
+
+- `residue-reaping.ts` skips a member whose candidate **and** gate are both absent, and otherwise refuses
+  `candidate-gate-mismatch` unless both are observed at the same head. A candidate with no gate is exactly the
+  refused shape.
+- That refusal is fatal rather than advisory: `closeout.ts` returns `blocked("reap-…")` before
+  `retireCompletedDeliveryRecords`, so a plan whose candidates were authored without gates cannot close out.
+- The correction routing refuses `authoring-candidate-pair-split` on `gateAbsent !== refAbsent`, and the pair
+  coordinator in `review-fix-candidate-gate.ts` creates a pair only when **both** halves are absent, refusing
+  `candidate-pair-split` when exactly one is.
+
+Nothing deletes the private candidates earlier — `deleteDeliveryCandidateRef` has one caller, the reaper — so
+publication does not clear them and the unpaired state persists to closeout.
+
+**The fork to settle.** Restore the pair and drop only the provisioning and the Tier 2 run; or relax the pairing
+invariant at all three sites, with each refusal reason re-derived and the relaxation verified; or have publication
+reap the private candidates. The first is the smallest and is a return to an already-authored shape, but it should
+be chosen on its merits rather than by default.
+
+**Two things the reversal does not touch.** Provisioning is genuinely separable — the pair needs a gate worktree at
+the candidate's head, not a provisioned one, so the per-gate install cost still goes. And the removal of the
+`gateResults` operand stands on its own evidence, unaffected by any of this.
+
+### The rest of the confirmed set
+
+**The bound route's mechanism runs backwards.** `arc delivery authoring rematerialize` takes
+`requestedHead: selected.coordinates.head` — the **published** member — and compare-and-swaps the private candidate
+toward it, with `beforeHead` read live off the candidate ref. The spec's ordering, "rebuild the suffix from the
+corrected top, then resume rematerialization," would have the verb rewind the rebuild it just performed. The two
+run in opposite directions over the same ref. The spec also never names which correction route it means; the
+routing splits `provider-refresh` from `terminal-authoring`, with different loci, and neither string appears.
+
+**Two verbs were conflated, and it matters for which operand survives.** `arc delivery authoring rematerialize`
+prepares one member's pair through `observeDeliveryReviewFixCandidateGate` and never calls
+`verifyDeliveryCandidateCheckout`. `arc delivery rematerialize` — "Reclose and rewrite one complete reviewed
+suffix" — loops `verifyDeliveryCandidateCheckout` over **every unlanded member**. Any argument about where the
+per-member checkout operand survives has to name which of the two it means.
+
+**The rebuilt member's commit shape was never stated.** The primitive D4 is told to consume emits a fixed
+two-parent absorption merge under a fixed message, and D7's split parameterizes neither parents nor message while
+its success criterion pins both. Meanwhile the probe D4 must retire models a recut as single-parent cuts, and D4
+itself forbids importing newer base-only bytes. Whether a rebuilt private member is an append-only merge carrying
+the old chain's ancestry or a fresh single-parent cut decides what D4 invokes, whether D7's construct half can
+serve it unparameterized, and whether "no new object-construction path" is true at all.
+
+**First-cut member boundaries have no surviving surface.** The plan member carries intent and no content
+partition; the commit-level boundaries live only in the composition projection's `memberContributionSteps`, fed
+from the authoring snapshot — and composition deletes that snapshot on completion. The surviving `taskIds`
+projection is lossy and one-way. So this is not "confirm which surface supplies boundaries"; the real options are
+to persist boundaries in the digest-sealed plan, to stop deleting the snapshot, or to derive them at construct
+time from the live top's history. Each is a design decision with downstream cost, and this is the headline path of
+the goal about a clean unbound stack, not edge residue.
+
+**The refusal-direction mechanism cannot produce direction.** The normalized-tree comparison partitions paths into
+dropped, invented, and mismatched — which paths differ, never which side moved. A modified path lands in
+`mismatched` whichever side moved it, and both cells the deliverable cites as its motivating defect produce
+exactly `mismatched`. Carrying the partition forward reproduces the same tie with more fields. The premise behind
+the port widening is also false: direction needs an ancestry reader rather than a tree reader, and `readAncestry`
+is already in the eligibility dependency interface and already wired at both relation call sites. Separately, the
+correction direction's remedy is the close-side `rebuild-required` reason the spec assigns to D4, which the
+deliverable's dependency column does not record.
+
+**What the attestation read actually catches is the complement of what the spec claims.** `publish` re-derives its
+snapshot from live refs, so the normalized-completeness comparison already refuses when the branch advanced and
+the chain was not rebuilt to match. The state only the attestation read can see is the other one: the operator
+advances the branch **and** rebuilds the chain to match it without re-running attestation — completeness then
+matches and every mechanical check passes. Stated as it is, the deliverable's success criterion is satisfiable by
+the pre-existing refusal, so a test written to it passes whether or not the read was ever wired.
+
+**The effective-target projection is modeled as two-state and has eight non-current arms.** Only
+`decision-required` carries choices and offer texts; `changed` and `staged-change` carry none. Taken literally,
+"surface the projection's own typed result" turns the stop-class arms into non-refusals, contradicting the carried
+criterion that unavailable, unbounded, stale, or unrecognized transitions stay conservative. Taken narrowly it
+contradicts the criterion promising that **any** non-current target reaches the operator with choices and texts.
+Which arms map where is a masked decision.
+
+**"Three delivery read sites" is four.** `repository-entry.ts` collapses the same projection into `non-current`,
+and its consumer turns that into a demand to re-run full work-unit verification — which is what the carried
+criterion about never forcing an unexplained full reset at a lifecycle seam forbids. It sits at the same lifecycle
+position as the reconcile arm and is currently invisible to the scoping argument.
+
+**The direction-decider D4 names carries no signal.** The predecessor relation relates the **first member** to the
+**protected base** and reads no member-to-top ancestry. The probe whose retirement gates D4's landing moves only
+the top locus, leaving that relation identical to the healthy case. An operand that would discriminate is named
+nowhere.
+
+**D7's stated obstacle is not the real one.** The primitive does not bind its exec — it takes one as an ordinary
+input, and the handler already supplies a cwd-scoped exec per call site. The genuine obstacles are larger: a port
+mismatch between the library's byte-oriented raw exec and the adapter's string-oriented injected exec, and a
+construct/publish coupling carried by the prepared-tree resume flag, which the spec's "returns coordinates and
+mutates nothing" signature has nowhere to put. The dogfooding exposure the spec accepts for this deliverable is
+only as good as that obstacle analysis.
+
+### Settled, and not re-opened
+
+D1 and D2 were certified against source in detail: the six coordinated parts, the later-member overlap gap, the
+`chainBase` invariant, the misattributed-member hazard, both residuals, and the fixture obligations all hold. Four
+in-spec corrections are owed and need no derivation:
+
+- Narrowing the close's final ref loop removes the only integrity check on the recorded protected base, whose tree
+  the close still consumes as authoritative for non-regenerable lifecycle paths. Either pin it by observing the
+  recorded head and comparing trees, or record the loss and correct the trust-boundary sentence.
+- The six-part list never says whether the re-scoped overlap operand replaces the recorded relation or adds a
+  second read; the close's chain-base equality is apples-to-apples only if both relations are computed over the
+  same operand.
+- The normalized-completeness port has seven implementers, not the three the spec names.
+- Every documentation destination names a file with two byte-identical copies and no stated edit direction. The
+  first re-entry settled this — framework content changes go through the package source and sync outward, never
+  the reverse — and the spec dropped it. It applies to the strategy and to the delivery workflow alike, and the
+  new decision record is project-internal and unmirrored, so the shipped strategy cannot reference it.
+
+Two further corrections belong to the re-opened half and are recorded here so they are not lost: the typed-crossing
+rider edits the singleton integration checkpoint, a module the spec assigns to a sibling work unit under a
+sequencing constraint the delivery shape says no member carries; and the deliverable that removes the per-member
+gate run leaves four sentences in the delivery workflow ordering the operator against an act that no longer
+happens, including the one binding per-member review and disposition to it.
+
+### Open for this re-entry
+
+1. The candidate/gate pair fork above.
+2. What shape a rebuilt private member's commit takes, and what that makes true of the construct/publish split.
+3. Where first-cut member boundaries come from.
+4. How the bound correction route reaches the constructor, given that the rematerialization verb targets the
+   published head.
+5. What names refusal direction, and where the close-side rebuild reason gets its discriminator.
+6. What publication's attestation read is actually for, restated around the state it uniquely catches.
+7. Which arms of the effective-target projection reach the operator as a decision, and which stay refusals —
+   including the fourth read site.
+8. Whether the construct/publish split survives its real obstacles at the size the stack budgets for it.
 
 ## Re-entry: where per-member verification runs (2026-09-21)
 

@@ -2,28 +2,30 @@
 
 - **Origin:** [internal]
 
-- **Purpose:** Make a private delivery chain rebuildable when the base moves under it, and make justified gate and
-  Candidate evidence survive that rebuild, so neither initial authoring nor a correction-time recut forces a
-  ceremony the covered inputs did not change.
+- **Purpose:** Make a private delivery chain rebuildable when the base moves under it, and make justified Candidate
+  evidence survive that rebuild, so neither initial authoring nor a correction-time recut forces a ceremony the
+  covered inputs did not change.
 
 > [!IMPORTANT]
-> **Partially re-entered to `draft-design` (2026-09-21).** D1, D2, D3, D4, and D7 are settled and carry the
-> adversarial pass's verified dispositions. **D5 and D6 are re-opened for derivation and must not be read as
-> settled** — the finalization pass established that per-member verification belongs after publication, which
-> removes the window their evidence machinery exists to serve. The same applies to goals 3 and 4, success criteria
-> 11 through 13 and 16, their § Alternatives & Rationale entries, and the D5/D6 rows of the deliverable stack.
-> `draft-delivery-rebuild-continuity.md` § Re-entry: where per-member verification runs carries the finding record,
-> the external evidence, the decision, and what remains open. The Candidate applicability obligations behind
-> criteria 2 through 5 survive the re-entry and are still owed.
+> **Partially re-entered to `draft-design` (2026-09-21, second).** D1 and D2 are settled: the finalization pass
+> certified them against source, and they keep their place as the stack's first delivery member. **D3, D4, D6, and
+> D7 are re-opened for derivation and must not be read as settled** — the pass confirmed that the private candidate
+> ref and its detached gate worktree are one pair three sites refuse a half of, that the bound correction route's
+> rematerialization verb runs opposite to the direction D4 asks of it, that the rebuilt member's commit shape and
+> the source of first-cut member boundaries were never settled, that the refusal-direction mechanism cannot produce
+> direction, and that publication's attestation read is stated as catching a state the close already refuses. The
+> same applies to their success criteria, their § Alternatives & Rationale entries, their § Workflow surface
+> bullets, and the § Open Questions obligations that name them.
+> `draft-delivery-rebuild-continuity.md` § Re-entry: what the finalization pass confirmed carries the verified
+> finding set, the fork it opens, the four in-spec corrections D1 and D2 still owe, and what remains open.
 
 ---
 
 ## Introduction / Context
 
 A delivery plan lands one work unit as an ordered stack of members. Before publication the stack lives on
-ARC-private refs, its gates run in detached worktrees under the repository's common directory, and eligibility is
-**prepared** once and **closed** later — two separate observation windows with a full Tier 2 pass across every
-member between them.
+ARC-private refs, and eligibility is **prepared** once and **closed** later — two separate observation windows,
+today with a full Tier 2 pass across every member running in detached worktrees between them.
 
 Two independent failures are proven from field incidents, and the second consumes the first.
 
@@ -36,11 +38,17 @@ rematerialization against unchanged private candidates and deterministically ref
 
 **Evidence justified against the old chain does not survive the rebuild.** The eligibility close refuses
 `source-moved` on _any_ protected-base movement after the entire window has been proved intact, so disjoint
-movement that touches no member path still forces a full re-prepare and re-gate. Gate results themselves have no
-home outside the session transcript: the workflow has the operator hand-compose the result list, pipe it to the
-close, then supply the same list again to publish. And an authorized prepublication base reconciliation had no
-Candidate-applicability route at that lifecycle stage, so attestation called the delta unexplained and demanded a
-full new root.
+movement that touches no member path still forces a full re-prepare and re-gate. And a rebuilt chain reaches the
+Candidate applicability seam through a door that throws it away: the effective-target projection composes a
+complete `covered | targeted-check | changed` decision carrying its offer text, its choices, and its projection
+and residual digests, and the delivery reconcile arm collapses every non-current result into one opaque
+`candidate-not-current` refusal. Read through the review gate's own doors that projection reaches the operator;
+read through delivery's, it dead-ends.
+
+The per-member gate pass between those two windows is a third finding, and it is the one that moved. Gate results
+have no home outside the session transcript, so the workflow has the operator hand-compose the result list, pipe it
+to the close, then supply the same list again to publish. That durability gap is real; this work unit answers it by
+removing the window rather than by persisting its output (§ Alternatives & Rationale).
 
 The failures compose. A rebuild is expensive (a three-member, 13-commit rebuild measured ~38 minutes end to end,
 almost none of it the rebase), and every rebuild currently discards evidence that a correct observation would have
@@ -53,16 +61,16 @@ unit as owner, and the pinned-probe detail live in `notes-delivery-rebuild-conti
 
 ## Goals
 
-1. A clean unbound stack reaches exact gate-ready coordinates through one typed operation, with no per-member
-   hand-authored Git steps — and the bound correction route reaches the same constructor from the other direction.
-2. Disjoint protected-base movement re-observes eligibility without repeating member gates whose covered inputs are
-   unchanged, while changed covered inputs — including a changed gate definition — still prevent unsupported reuse.
-3. Gate evidence outlives the session that produced it, and is re-checked against freshly observed coordinates
-   rather than trusted.
-4. A gate result is attributable to its exact coordinates **and** to an environment that is not a sibling
-   worktree's, stated so that ecosystems needing no provisioning are not refused.
-5. A refusal names which side moved and what would clear it, and a remedy a refusal names can actually clear it.
-6. The covered-input rule is stated once, in a surface every post-execution ceremony reaches, rather than
+1. A clean unbound stack reaches exact publication-ready coordinates through one typed operation, with no
+   per-member hand-authored Git steps — and the bound correction route reaches the same constructor from the other
+   direction.
+2. Disjoint protected-base movement re-observes eligibility and closes eligible rather than refusing, while changed
+   covered inputs still prevent unsupported reuse.
+3. Publication refuses a chain prepared against a Candidate its attestation no longer covers, by reading evidence
+   the work unit has already produced rather than by running verification of its own.
+4. A refusal names which side moved and what would clear it, and a remedy a refusal names can actually clear it —
+   including a rebuilt chain's applicability, which reaches the operator's decision rather than an opaque refusal.
+5. The covered-input rule is stated once, in a surface every post-execution ceremony reaches, rather than
    re-derived per lane.
 
 ## Non-Goals
@@ -70,9 +78,9 @@ unit as owner, and the pinned-probe detail live in `notes-delivery-rebuild-conti
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
 
 This work unit owns prepublication delivery authoring and recovery ergonomics, private candidate reconstruction
-after an approved delivery-member fix, initial private delivery gates, preservation and reassessment of evidence
-while private delivery preparation changes its observation window or exact targets, and stating the covered-input
-rule and choosing its surface.
+after an approved delivery-member fix, where per-member checks run relative to publication, preservation and
+reassessment of evidence while private delivery preparation changes its observation window or exact targets, and
+stating the covered-input rule and choosing its surface.
 
 It does **not**:
 
@@ -85,11 +93,15 @@ It does **not**:
 - own general recovery orchestration, audit every ceremony against the covered-input rule, or retrofit the
   boundaries the characterization found repeating;
 - add a generic evidence store, an ancestry-only carry, or an arbitrary evidence-kind framework;
-- add a configuration axis for the gate execution-environment contract (§ Alternatives & Rationale);
+- define any project's check policy, or require that every published member be checked in isolation — which checks
+  run against a published change request is the project's own configuration (§ D6);
 - add a bounded in-call recheck of the protected tip after the target is bound (§ Alternatives & Rationale);
 - reap the malformed gate directories already on disk — that is an Errand's, not this work unit's.
 
-**Adjacent owners.** `review-checkout-lifecycle` holds ephemeral review and conflict checkouts. Refusal-remedy
+**Adjacent owners.** `review-checkout-lifecycle` holds the frontline review path's ephemeral checkout — its
+registration and its retained diagnostics — and hands chunk projections to `chunk-scope-binding`. Delivery's own
+checkouts are a different family: gate and resolution paths derive from plan identity and the residue reaper owns
+them, so neither is that work unit's. Refusal-remedy
 accuracy is execute-bound and routed as an Errand. Concurrent gate-process exhaustion stays with
 `test-suite-contention-hardening`. `delivery-correction-convergence` stays its own planned stub: its failure fires
 even though the base did not move — its own record writes reopen applicability — so it is a convergence problem
@@ -114,7 +126,9 @@ rebuild is owed, this one says _how_. The consolidation widened it to disjoint m
 well, superseding the narrower successor boundary rather than diverging from it.
 
 Rows are in ID order; `Depends on` carries the delivery plan's dependency ordering, which is not a task sequence —
-D5 follows D6 despite the lower number, and D7 precedes D4 despite the higher one.
+D7 precedes D4 despite the higher number. **The set is D1, D2, D3, D4, D6, D7 — five is unassigned and stays
+that way**, so a deliverable ID means the same thing in the task list, the delivery plan, and every commit that
+cites one.
 
 | ID | Deliverable                                                      | Depends on | Retires     |
 | -- | ---------------------------------------------------------------- | ---------- | ----------- |
@@ -122,8 +136,7 @@ D5 follows D6 despite the lower number, and D7 precedes D4 despite the higher on
 | D2 | Eligibility close stops refusing on non-covered source movement  | —          | probe 1     |
 | D3 | `completeness-*` refusals carry direction and remedy             | —          | —           |
 | D4 | Chain constructor, anchor preflight, `rebuild-required`          | D7         | probes 2, 3 |
-| D5 | Gate execution-environment contract                              | D4, D6     | —           |
-| D6 | Evidence carry, and the gate-result record that persists it      | D4         | —           |
+| D6 | Evidence carry: publication reads the work-unit attestation      | —          | —           |
 | D7 | One chain-reconstruction primitive, construct split from publish | —          | —           |
 
 **D1 and D2 land first, as one delivery member.** D2 is D1's first operationalization — the rule says a ceremony
@@ -133,14 +146,10 @@ the mechanism being repaired, so a delivery defect while landing them degrades t
 the fix that makes the rest landable. **D7 lands next** — after that first member and before D4, which depends on
 it — so the refactor of published-side machinery never runs as the first member (§ D7).
 
-**Known transient — the D2-before-D6 window, accepted deliberately.** D2 removes the blanket `source-moved` entry
-that today forces a re-gate on any base movement, and D6 supplies the gate-identity digest that replaces the half
-of that coverage worth keeping. Between D2 landing and D6 landing, a base change that edits the Tier 2 command set
-is unguarded: a result gated under the old commands would be reused. **Closing condition: D6 landing.** The window
-is accepted rather than closed by reordering, because putting D6 first makes the riskiest deliverable the one that
-lands on an unrepaired mechanism — the opposite of the reasoning that selected D1+D2 — and the exposure is a
-development-time reuse of gate evidence in a pre-public-release project whose delivery stack is dogfooded by its
-own author.
+**No transient window between members.** D2 removes the blanket `source-moved` entry that forces a re-gate on any
+base movement, and nothing downstream has to restore a narrower form of that coverage: with no per-member
+prepublication gating there is no reusable gate result to guard and no gate definition whose drift could be missed.
+The stack therefore carries no accepted inter-member risk, and no member's landing order is constrained by one.
 
 **Single-branch fallback.** If the stacked landing cannot proceed, this work unit lands as a plain single-branch
 merge. The failure mode being guarded is depending on the broken mechanism to ship its own fix. Post-landing
@@ -168,7 +177,7 @@ boundary.
 **permissive** half — a ceremony need not repeat when its covered inputs are unchanged — is design doctrine,
 consumed by whoever designs a ceremony boundary, and belongs in the strategy. The **restrictive** half — changed
 covered inputs prevent unsupported reuse — reads as a constraint and is placed **at the fire site**: D2 is that
-placement for the eligibility close, D6's added refusal reasons for the gate-result validation seam, and
+placement for the eligibility close, D6's attestation read is that placement for publication, and
 `DEV-RULES.ARC` § Rule Authority already holds the check-integrity backstop that makes an agent-side reuse
 decision invariant.
 
@@ -184,7 +193,8 @@ rather than becoming its own concern.
 `source-moved` is the last check in the mechanical close — a flat loop over `[protectedBase, top, ...members]`
 comparing head and tree, reached only after predecessor relation, chain base, lifecycle paths, normalized
 completeness, plan revision, and member bindings have all passed. `top` and `members` must not move, because the
-gate results bind to exactly those coordinates. `protectedBase` moving invalidates nothing inside that function:
+snapshot's per-member coordinates are what the close validated the chain against. `protectedBase` moving
+invalidates nothing inside that function:
 every other read of `snapshot.protectedBase` there takes the **recorded** value (the relation recomputation's
 `observedTip`, the normalized-completeness tree, the chain-base value shortcut, and the refusal payload's inert
 `protectedBaseRef`).
@@ -209,8 +219,8 @@ pinned as `refs/heads/main` moves past it — that pin is what the members were 
    movement overlapping a **later** member but not the first yields an empty intersection and passes.
 4. Re-scope the **prepare-side** guard's operand the same way. Prepare computes its own relation over the first
    candidate and refuses on it, so widening only the close would leave the two windows guarding different sets — a
-   base already overlapping a later member when the window opens would be admitted, consume a full Tier 2 pass
-   across every member, and refuse at close. That is the prepare-admits-then-close-refuses shape pinned probe 2
+   base already overlapping a later member when the window opens would be admitted at prepare and refused only at
+   the close, after the whole window's work. That is the prepare-admits-then-close-refuses shape pinned probe 2
    holds as a defect, and D2 must not reintroduce it at another boundary.
 5. Re-scope `samePredecessorRelation` to compare `chainBase`, dropping `observedTip` and kind equality.
 6. Only then narrow the final ref loop to `[top, ...members]`.
@@ -221,7 +231,7 @@ target — its chain base — rather than the whole relation it pins today.
 **The widened guard must not name a member it cannot attribute.** Both refusals report the _first_ member's
 `deliverableId` beside `paths` drawn from the overlap, under a shared detail string saying the movement overlaps
 "this delivery member". Once the operand spans the chain those paths may belong to a member the refusal does not
-name — a refusal misidentifying its own subject, inside the work unit whose Goal 5 is that a refusal names which
+name — a refusal misidentifying its own subject, inside the work unit whose Goal 4 is that a refusal names which
 side moved. Resolve the overlapping paths to the member that contributed them and name that member; this costs a
 per-member path set the close does not build today. Where attribution is genuinely unavailable, the detail must say
 the movement overlaps the delivery **chain** rather than claim a member.
@@ -242,7 +252,7 @@ neither narrows them away nor regresses them. The unpinned operand routes to D6.
 
 **Verification obligations.** Disjoint movement closes `eligible`; overlapping movement still refuses on the fresh
 relation, including movement that overlaps a later member and not the first; a base that **already** carries a
-later-member overlap when the window opens refuses at _prepare_ rather than after the gates have run; the refusal
+later-member overlap when the window opens refuses at _prepare_ rather than at the close; the refusal
 names the member whose paths actually intersect; and the fabricated-snapshot case is still caught. The fixture must
 stop stubbing `resolveLifecyclePaths` to a single constant **and carry a non-regenerable lifecycle path** — its only
 lifecycle path today is regenerable, and regenerable paths compare against the chain base rather than the protected
@@ -307,26 +317,25 @@ implementation of chain reconstruction exists after this work unit.
   OID alone must not trigger recutting, and newer base-only bytes the originating top lacks must not be silently
   imported.
 - Preflight any proposed chain's predecessor relation and normalized completeness against the originating top
-  **before** returning gate work, so a mechanically wrong anchor cannot consume a full gate cycle before the
-  eligibility close rejects it.
+  **before** returning coordinates, so a mechanically wrong anchor is caught at the prepare boundary rather than by
+  the eligibility close after the whole chain has been built against it.
 - On the bound review-fix route, after the authorized top correction is clean and committed, rebuild the selected
   member and every dependent private candidate from the current public ancestry and canonical member boundaries,
-  place their managed gates, then resume rematerialization.
+  then resume rematerialization — which creates each member's authoring pair itself when one is absent.
 - Emit a close-side `rebuild-required` reason naming the rebuild owed — the shape pinned probe 3 awaits, distinct
   from the prepare-side preflight refusal probe 2 awaits. D4 therefore spans both boundaries.
 - Replay converges. Conflicts, dirty or foreign gates, moved authority or public heads, stale authorization, and
   incomplete normalization refuse **without a partial adopted chain**.
 - A real conflict stops with its exact member and leaves the old chain usable.
 
-**One locator, two callers.** Every managed gate's path derives from the same locator the reaper uses. The
-gate-pair primitive takes `checkoutPath` as a bare non-empty string with nothing tying it to a gates root, and
-`residue-reaping.ts` is the only site that composes `<commonDir>/arc/delivery-gates/<planId>/<chunkKey>`. The
-guarantee today is the caller's, not the primitive's: the one path that reaches the primitive refuses
+**One locator, for refs and for the checkouts that remain.** Both halves of a member's coordinates derive from the
+same locator the reaper uses: `residue-reaping.ts` is the only site that composes
+`refs/arc/delivery-candidates/<planId>/<chunkKey>` beside `<commonDir>/arc/delivery-gates/<planId>/<chunkKey>`, and
+the constructor consumes that locator rather than recomposing either. The malformed-gate hazard an unbound caller
+would otherwise introduce does not arise, because the unbound route places no gate at all; the only route that
+still creates a pair is the bound correction one, where the primitive's caller already refuses
 `authoring-rematerialize-coordinate-mismatch` unless the resolved locator path equals the requested checkout path.
-No malformed gate directory is reachable on current source; the hazard is that D4's new unbound caller would have
-to re-derive that same guard, and a caller that omitted it would place a gate permanently unreachable by reaping
-with nothing to reject it. Close the class **at the primitive** rather than per caller. This also gives D5 a
-canonical gate identity to record provenance against.
+The class is closed by **removing the second creator**, not by hardening the primitive against one.
 
 **Substrate contracts versus tracked-tier projection.** Coordinate production today normalizes trees against
 lifecycle and Candidate records because those artifacts ride the work unit's code history. That normalization is
@@ -346,18 +355,27 @@ lives in the authoring snapshot that composition deletes on completion (§ Alter
 which surface supplies boundaries for a first cut is named in § Open Questions as an execution obligation, because
 it is a question about where existing data lives rather than an unsettled design decision.
 
-**Gates are returned provisioned.** The constructor runs the project's configured worktree provisioning on each
-gate it places, because "gate-ready coordinates" means Tier-2-ready: a placed but unprovisioned gate defers the
-failure to the first Tier 2 run, after the gate already exists, and an unprovisioned detached checkout under the
-primary's `.git/` is precisely the resolution D5 refuses. This is the operation's only material cost — the object
-work is sub-second per member, while provisioning is about 5.4s and 148 MB per gate at this project's settings.
-Projects whose ecosystem needs no provisioning configure none and pay nothing; the contract is stated on
-attributable resolution, not on provisioning (§ D5).
+**The constructor produces refs, and observes checkouts rather than placing them.** Every member checkout existed
+to run Tier 2 in, and § D6 removes that run from the window — so the constructor places none, provisions none, and
+the prepublication window carries no per-member working tree at all. It still derives each member's locator, so it
+still **observes** the derived gate path and refuses a dirty or foreign one before moving that member's candidate
+ref off the head a stale pair sits at. That refusal is legibility rather than safety — it surfaces a leftover pair
+at the boundary that noticed it, instead of at the next correction that trips over it.
+
+**Why no prepublication checkout is safe to omit.** The obvious loss is a guard: a dirty member checkout currently
+signals uncommitted work the operator may believe is already in the member. That signal was gate-attribution
+evidence — it bound a Tier 2 run to the coordinates it ran against — and with no run in the window it guards nothing
+that reaches a public head, since publication pushes the candidate ref and no checkout is an input to it. The
+scenario itself also stops arising: with no per-member working tree before publication, a stray edit has nowhere to
+land, and the operator's only authoring locus is the top. What remains is a **stale** pair from an earlier
+correction cycle carrying uncommitted work, and three existing refusals already hold it — the reaper refuses a dirty
+gate and never force-removes one, the rematerialization verb refuses a dirty authoring locus before reusing the
+pair, and the constructor's own observation above surfaces it earlier than either. Nothing new is built for this.
 
 **The typed result enumerates per-member disposition.** For every member the result names whether its cut was
-**retained unchanged** or **recut**. On success that is what tells the operator which members owe fresh gates —
-without it the unchanged-chain arm is unobservable, and D6 has no key for which rows remain valid. On refusal the
-result names the exact member that stopped it.
+**retained unchanged** or **recut**. Without it the unchanged-chain arm is unobservable: an operator cannot tell a
+chain the constructor deliberately left alone from one it silently failed to touch. On refusal the result names the
+exact member that stopped it.
 
 **No partial adopted chain, and the mechanism that makes it true.** Objects first: every member's tree and commit
 is constructed before anything is adopted. Object construction has no side effects, so a conflict at member N stops
@@ -366,144 +384,108 @@ that property rather than a second mechanism. Adoption is then one batched compa
 set, each ref carrying its expected old value and the batch applying all-or-nothing; the batched ref-update form
 already has a caller in this codebase, used today only to verify leases. A refused batch adopts nothing.
 
-**Gates are placement, not adoption, and their failure is a recoverable stop.** Gates are reconciled per member
-after adoption, so a failed placement leaves an adopted ref whose gate is absent or stale. The residue reaper
-compares candidate and gate **heads** rather than mere presence, so it refuses that pair — correctly, since the pair
-really is inconsistent — and nothing between prepare and closeout re-checks it. That refusal is a stop rather than a
-wedge precisely because replay converges: re-running the constructor observes the adopted ref, re-places the missing
-or stale gate, and restores the pair. The failure path therefore never deletes a candidate ref whose gate survives,
-the typed result names every gate it could not place or remove, and the remedy it names is the replay that actually
-clears it.
-
 **What the constructor does not claim.** It does not make tests instantaneous or auto-resolve a semantic conflict —
 the measured 38 minutes went largely to semantic conflict resolution after an upstream test-file extraction and to
-finding post-cut changes that belonged in specific members. Gate-result carry and bounded re-verification are D6's.
+finding post-cut changes that belonged in specific members. Evidence carry at publication is D6's.
 
-### D5 — Gate execution-environment contract
+### D6 — Evidence carry: publication reads the work-unit attestation
 
-**The contract, stated ecosystem-neutrally:** a gate result must be attributable to its exact coordinates **and**
-to an environment that is not a sibling's. Provisioning is one mechanism for that, not the contract — ecosystems
-with global caches or committed resolution need no provisioning at all, and a refusal keyed to "no provisioning
-configured" would refuse projects that are already correct.
+**The carry that survives is the one the work unit already produces.** `verify-work-unit` completes every
+project-designated gate and attests the result as a durable Candidate; `prepare-work-unit` starts from that
+attestation and refuses to proceed without one. A full work-unit gate run therefore already precedes every
+publication, and the integration checkpoint already trusts its record — it refuses `candidate-missing` with
+"Integration requires a managed Candidate attestation." Publication is the one seam in that sequence that does not
+read it.
 
-**Verified at the real path shape rather than argued (2026-09-21).** An unprovisioned detached checkout under the
-primary's `.git/` resolved a dependency from the primary's `node_modules` — the original failure reproduced in one
-command. Running the configured worktree provisioning in place installed the workspace locally in 5.4s, built the
-bundle, and moved resolution to the gate's own tree; the primary's manifest was untouched. The provisioning helper
-takes a path and carries no work-unit or branch coupling, so gates reach it unchanged.
+**Publication reads currentness and convergence, and runs nothing.** `publish` today requires a non-empty
+per-member gate-result list and reruns exact Tier 2 result admission against the post-gate checkouts. That operand
+goes (below); what takes its place is a read of the durable Candidate — its projected currentness and its
+convergence state — refusing a subject the attestation no longer covers.
 
-**Observed at recording, refused at close — never at creation.** A silently inherited environment is not
-observable ahead of time, and the only predicate available at creation is the rejected one. The recording verb
-observes it instead, in the gate, and writes a typed provenance value onto the gate-result row. The refusal then
-reads the row's own recorded value and needs no fresh observation at close; its fire site is the existing
-gate-result validation, with one added refusal reason — the placement a restrictive rule requires, rather than
-doctrine alone in a strategy.
+The attestation is present by construction, so this refuses in exactly one state: **the Candidate advanced after
+attestation and the delivery chain was prepared against the superseded subject.** `prepare-work-unit` already
+directs that an approved fix changing the Candidate requires rerunning delivery preparation; this read is what
+catches a chain that did not. That is this work unit's own continuity failure, caught at the seam where it becomes
+public rather than after.
 
-**The predicate.** Not "resolved outside its own tree" — shared caches are correct and ordinary across ecosystems,
-and that predicate would trip Go's module cache, Gradle's and Maven's home caches, and Cargo's registry. What
-actually failed was resolution from **another registered worktree of this repository**: a sibling's build output,
-not a shared cache. The recorder resolves the realpath of the dependency root it actually used and tests whether it
-falls under a registered worktree other than the gate's own; `scanRegisteredWorktrees` already supplies that
-roster, and the gate-pair module already imports it. Nothing in source attributes a resolution today, so this is
-**new observation work D5 owns**, not a read of existing behavior.
+**What it establishes, stated precisely.** The attestation is work-unit-level: it establishes that the union
+reviewable contribution passed, never that a non-terminal member passed in isolation. Per-member content may reach
+the landing window having been checked only as part of a composed state, with the `Integrating` window, the
+terminal checkpoint, and the base's own required checks as the net. This is the accepted consequence of the
+check-placement decision (§ Alternatives & Rationale), stated here so it is not later read as an oversight.
 
-**Provenance is a closed value:** resolution observed in-gate, observed under another registered worktree, or
-**not observable**. Only the middle refuses. The `not-observable` arm is what keeps the contract from being more
-exacting than the ecosystem: where a project's resolution cannot be attributed, the row records that and passes.
+**The `gateResults` operand is removed, and nothing replaces it.** It reaches three seams — the eligibility close,
+the prepare arm's optional revalidation, and `publish` — and all three drop it. Its validator refuses on five
+reasons, none of which survives:
 
-**Recorder-written only.** The value reaches the validation seam as a run attribute the recorder wrote; a
-caller-supplied row carries none and is accepted exactly as today (§ D6).
+- `duplicate-gate-result`, `missing-gate-result`, and `reordered-gate-result` are well-formedness of a
+  caller-supplied list. They exist only because the list exists.
+- `gate-result-failed` is the verification evidence this work unit relocates.
+- `gate-result-stale` binds each result to its member's exact head and tree, which reads as structural but is not:
+  the snapshot and the results arrive from the **same caller**, so the pair never witnessed anything a caller could
+  not fabricate together. Removing it costs no anti-fabrication property because it never held one — consistent
+  with the snapshot being an ephemeral mechanical value rather than a persisted authorization token.
 
-**Accepted cost.** An unusable result is learned at close rather than prevented at creation, so a gate cycle can be
-spent before that is known — the same disposition § Alternatives & Rationale settles for the publication window.
-Per-gate provisioning costs about 148 MB at this project's settings, which a project's own provisioning script is
-free to reduce, and the contract as stated survives a Tier 2 that runs in CI rather than in a local gate.
+`CandidateGateResultSchema`, the `DeliveryCandidateGateResult` type, the validator, and its five refusal reasons
+become unreachable and are removed with the operand.
 
-### D6 — Evidence carry, and the gate-result record that persists it
+**The per-member checkout operand goes with the run it attributed.** `verifyDeliveryCandidateCheckout` does two
+independent things: it inspects a checkout for dirt and exact coordinates, and it re-observes the candidate ref
+against the snapshot. Only the first needs a checkout to exist, and what it establishes is that a Tier 2 run happened
+at the member's exact coordinates in a clean tree — gate attribution, not publication safety. It has three call paths,
+and two lose their subject once no Tier 2 runs before publication:
 
-**The minimal carry contract already exists and is enforced.** A gate result binds `deliverableId`, `head`, `tree`,
-and `status`; validation runs those results against a **freshly prepared** snapshot and refuses only on duplicate,
-missing, reordered, stale (head or tree differ), or failed. A fresh preparation that reproduces the same member
-head and tree therefore already accepts a prior gate result — the **permissive** half of the covered-input rule is
-implemented at this seam. Two things are missing: a caller-side home for the evidence, and a binding for the gate
-itself.
+- `publish` takes `checkoutPath` per member from its own request, so the path and the snapshot it is checked
+  against arrive from the same caller — the `gate-result-stale` shape again, and no more of a witness here.
+- The review gate's pre-publication delivery-target derivation asserts every member's checkout is exact before
+  composing targets. Composition needs none of it: a delivery member target is `{ baseRef, diffBaseSha, headSha }`,
+  and the frontline provider materializes its own checkout.
+- The bound rematerialization route **keeps** it. There the pair is the correction-authoring locus, the path is
+  derived rather than supplied, and the dirt check is the one guard standing where the operator actually edits.
 
-**The record: a fourth sibling namespace, `delivery/gate-results`.** The delivery namespace vocabulary is
-enumerated in the substrate (`GitCommonStateLocationSchema` constrains the `delivery` root to
-`["plans", "state", "authoring"]`), and its inferred location type is what makes a fourth member a
-compiler-checked extension rather than a loose addition. The record is **keyed by plan** and carries **one row per
-deliverable**.
+So `checkoutPath` becomes optional on the mutation candidate, `publish` stops sending it, the pre-publication
+derivation drops its verification loop and its dependency wiring, and the function skips the checkout inspection
+when no path is given while always re-observing the ref. The ref re-observation is what catches candidate drift
+between the close and the first push, and it is untouched.
 
-- **Rows are addressed by `deliverableId`, never by position.** Amendment classification refuses only the
-  `landed-*` cases, so an amendment may drop or reorder **unlanded** members while the plan keeps its `planId`; a
-  positionally-addressed record would then be read as missing or reordered. Addressed by deliverable, a reorder is
-  unobservable, a dropped member leaves an unreferenced row the reap removes, and a member with no row refuses
-  `missing-gate-result` — the correct outcome, since that member has not been gated at its current coordinates.
-  Existing validation is unchanged by this, which is the point: `missing-gate-result` and `reordered-gate-result`
-  are two of the bare refusals D3 exists to retire, and a record that made them fire spuriously would put this work
-  unit on both sides of its own charter.
-- **The default materializes rows in the current snapshot's member order.**
-- **Reaping follows the plan.** `retirement.ts` removes the plan and state records under `closeout.ts`'s
-  orchestration; `gate-results` is reaped there too, beside the records it is keyed with.
+**What the eligibility close validates afterwards is purely mechanical, and already substantial:** the fresh plan
+read against the snapshot's plan identity, revision, and digest; lifecycle-path resolution and the unchanged-paths
+comparison across both the lifecycle and regenerable sets; per-member lifecycle revalidation; and everything D2
+adds — the live protected-base re-observation, the overlap guard on that fresh relation re-scoped to the final
+candidate, the independent chain-base refusal, and normalized completeness. The close holds no verification role
+at all, which is why removing its only verification operand leaves it coherent rather than hollowed out.
 
-**Three extraction constraints, each checkable.** Copy the `plans` / `state` pattern rather than `authoring`'s,
-which holds its port, adapter, and location literal in one module and would not lift cleanly.
+**The reconcile seam surfaces the applicability decision it currently discards.** The substrate criteria 2 through
+5 need already exists and delivery already reaches it: projecting an effective Candidate target does not stop at a
+blocked currentness but derives structural contribution endpoints and a proof, returning either a
+machine-recognized current target or a fully composed decision carrying the `covered | targeted-check | changed`
+choices, its offer and prompt text, and its projection and residual digests. The defect is the delivery handler's
+result mapping — the typed base reconcile collapses every non-current effective state into one opaque
+`candidate-not-current` refusal, discarding all of it.
 
-1. Declare the namespace in `GitCommonStateLocationSchema`'s `delivery` enum — the surface that has consumers — and
-   decide whether the consumer-less `DeliveryStateNamespace` alias is updated alongside it or removed.
-2. Put the port in `ports.ts` with its own closed failure contract, and the git-common adapter in `local-stores.ts`,
-   which alone names the location literal.
-3. Write plan-keyed through the publisher's **locked read-modify-publish** path, computing new content from
-   `current` inside the `update` callback — not the revisioned publish the state store uses, whose
-   expected-revision contract would force a retry loop.
+- **Only that site is corrected.** Two other delivery read sites collapse the same projection and are right to.
+  The record-effect recovery arm reconstructs what a write already did and asks a yes-or-no identity question with
+  no operator decision available; it is one of eleven identical returns and already carries an operator-facing
+  remedy elsewhere. The boundary-carry arm compares the recognized subject digest against the digest its boundary
+  was established at, so a decision _means_ the position moved and the refusal is accurate — surfacing a seam there
+  would let an operator carry a boundary across the very change the boundary exists to bound.
+- **The evidence that the reconcile arm is different** is internal to it: the same function already handles a
+  changed effective state further down, reading its current target to compose a projected one. The guard
+  short-circuits a path the function otherwise knows how to walk, and reconcile is precisely where a rebuilt
+  chain's subject legitimately moves.
+- **The return shape is a port-contract change, not a richer return statement** — the same distinction D3 draws,
+  and it resolves the same way. A `decision-required` result is not a failure; it is a request for authority, so it
+  does not become a refusal reason. The reconcile arm surfaces the projection's **own typed result** — the shape
+  the effective-target projection already returns at its tail for a non-current state — as an outcome beside
+  `refused` rather than inside it. Mapping it onto the refusal union would flatten a decision into a failure a
+  second time, one layer above the defect being corrected.
 
-Forward extraction is then one new adapter against an unchanged port with no caller edits, and the leak check is a
-grep for the location literal outside its adapter.
-
-**The writer is a per-gate recording verb.** Nothing produces a gate result today — `gateResults` appears in source
-only as a request operand. The verb runs inside the gate worktree once Tier 2 passes and **observes the member's
-head and tree itself** rather than accepting typed coordinates. That retires a procedural-substrate violation as
-well as a durability gap: today the coordinates are machine-emitted by a prior verb and the workflow has the
-session re-type them into the next request body.
-
-**Run attributes — one field group, not two mechanisms.** Beyond the four covered-input fields, a recorded row
-carries what the run itself can attest: the identity of the gate definition that produced it, and D5's environment
-provenance. Both are observable only by the recorder, both are checked at the same validation seam, and both refuse
-on the same kind of drift.
-
-- **Gate identity closes the restrictive half of success criterion 1.** Nothing in a member's coordinates binds
-  _which gate_ ran. The Tier 2 command set is defined in a tracked file that rides the protected base, so a base
-  change editing the gate commands touches no member path, yields an empty overlap intersection, and is invisible
-  to the relation guard. Today the blanket `source-moved` entry stands in for this check by accident; D2 removes
-  it. The row records a **digest of the resolved command set** the gate executed, and validation refuses on drift
-  with one added reason.
-- **Digest the commands, not the file that holds them.** Scoping this to the file would re-fire the gate on any
-  edit to surrounding prose — repeating a ceremony whose covered inputs did not change, which is the first clause
-  of the same criterion and this work unit's whole purpose.
-- **A caller-supplied row is unattributed.** The request schema is a strict object of deliverable ID, coordinates,
-  and status, and both close and publish require it, so a hand-composed list cannot carry a digest or a provenance
-  value. Such a row is accepted exactly as today, and neither the gate-identity refusal nor D5's refusal can fire
-  on it. This is a deliberate asymmetry, not a hole: the recorder is the only party that can observe either
-  property, and an unattributed row is no weaker than the hand-supplied list that is the sole path today.
-
-**Both consumers default, and the default is wired per handler arm.** Publish requires the same list the close
-does, and the workflow has the session supply it twice, so a record that defaults only the close leaves the hand-off
-unfixed in the second window. Wire the default in the `eligibility-close` and `publish` handler arms — **not**
-inside `executeWithFreshDeliveryEligibility`, which already reads an absent `gateResults` as _skip gate validation_
-and whose reconcile path depends on exactly that when it passes a `memberOffset`. Changing the shared meaning would
-silently start validating a path that deliberately does not. Both verbs continue to accept an explicit operand
-exactly as they do today: the record is a **default**, not a replacement.
-
-**A stored gate result is not a persisted authorization token.** The close still re-prepares fresh, and validation
-still compares head and tree against the freshly observed member before accepting. The record is an input to that
-check, never a bypass of it, and the only trust it carries — a passing status — is exactly the trust the
-hand-supplied list carries today.
-
-**Applicability reaches the existing seam.** The substrate to extend is the existing path-treatment, typed-delta,
-reducer, evidence-reference, and operator-bound Candidate applicability machinery, across one cohesive boundary. An
-authoritative prepublication reconcile or rebuild cause must reach the existing `covered | targeted-check |
-changed` authority seam through Candidate currentness rather than degrading to unexplained solely because of its
-lifecycle stage.
+**A content-preserving rebuild needs none of that path.** The Candidate subject is work-unit-level — one identity,
+one digest over the unit's whole reviewable contribution against the protected base — so a rebuild that recuts
+member commits without changing that union leaves the subject digest equal and currentness projects as current
+through its operational-only advance arm. D4's constructor is what makes the antecedent hold rather than assume
+it: under disjoint movement it returns an unchanged chain, and newer base-only bytes the originating top lacks are
+never silently imported.
 
 **D6 also pins the unpinned operand** in the member lifecycle-contribution revalidation that D2 leaves standing
 (§ D2, Residual B) — a one-token change, routed here because D6 touches that comparison anyway.
@@ -536,7 +518,7 @@ D7 is the seam all consumers stand on:
   where the caller vouches for it, and take the exec as a parameter rather than binding it.
 - Rewire the refresh adapter's inline suffix reconstruction through **both** halves. Sharing only the construct half
   would leave its reset-and-leased-update sequence duplicating the library's byte for byte — the very duplication
-  D7 exists to remove, and enough to make success criterion 14's "one implementation" false. Its provider
+  D7 exists to remove, and enough to make success criterion 13's "one implementation" false. Its provider
   delegation, change-request mutation, and clone management stay exactly where they are.
 - D4 consumes the construct half alone, because its adoption is the batched compare-and-swap in § D4 rather than a
   single leased update.
@@ -559,13 +541,17 @@ before D4, never as the first member.
 
 The deliverables above change what the operator does, so `deliver-stack.md` is in this work unit's owned surface:
 shipping the verbs without it leaves prose instructing the operator to perform what the verbs now perform — the
-redundant-ceremony class this work unit exists to remove. Each deliverable carries its own prose edit, so verb and
-prose land in the same member and the same review.
+redundant-ceremony class this work unit exists to remove. Each deliverable that changes the operator's steps
+carries its own prose edit, so verb and prose land in the same member and the same review.
 
 - **D4** replaces § Prepare private delivery candidates' per-member cut narration — recording each authored cut at
-  its returned private candidate ref and matching detached gate path — with the constructor invocation.
-- **D5** adds the recording-verb step that runs in each gate once Tier 2 passes.
-- **D6** removes the hand-composed `gateResults` block, in both the eligibility-close window and the publish window.
+  its returned private candidate ref and matching detached gate path — with the constructor invocation, which
+  returns refs and no gate path to record.
+- **D6** drops the instruction to run the complete Tier 2 command set in every returned checkout and the
+  hand-composed `gateResults` block that reports its results, at both the eligibility-close and publish windows;
+  drops § Validate and publish's exact Tier 2 result admission; and drops the post-interruption instruction to
+  rerun the candidate gates before re-invoking the mutation verb. Where per-member checks run instead is stated in
+  `strategy-integration.md` § Delivery Shape and Landing Window, not restated here.
 
 This is the procedure substrate's own case rather than an exception to it: a mechanics-narrating line no verb
 covers is a verb-gap signal, and these deliverables supply the missing verbs (verbs-over-mechanics); the
@@ -586,14 +572,6 @@ only ships the split without its second consumer. And deferring leaves the quest
 space that is currently loaded, which is where a follow-on is most likely to re-derive it wrongly. The accepted
 cost is the dogfooding exposure named in § D7.
 
-**Provisioning gates by sharing the primary's dependency tree, rejected.** Symlinking or otherwise sharing a
-sibling checkout's installed tree would make provisioning free, and it is the wrong shape twice over: the artifact
-under test here is the gate's own built bundle, so a shared tree tests the wrong bytes; and the shared root
-realpaths under another registered worktree, which is exactly what D5 refuses. The ecosystem's answer to install
-cost is a package-manager-level store or cache — a content-addressed store, an HTTP cache, a lockfile-keyed CI
-restore — all of which share immutable artifacts rather than a mutable sibling tree, and all of which D5's
-predicate deliberately permits.
-
 **Deleting the `source-moved` base entry, rejected.** The close's relation recomputation runs over two snapshot
 values, so it is deterministic and observes nothing; removing the loop entry alone would leave genuinely
 overlapping movement unseen. Switching `observedTip` to the live tip **alone, without narrowing the comparison that
@@ -601,53 +579,6 @@ reads it**, also rejected: that comparison reads `observedTip` first, so every m
 refuse `wrong-predecessor`, and the relation kind legitimately changes when the base advances. Taking the live read
 and the narrowed comparison together is what keeps a real guard on a fresh observation, which is why the parts land
 as one change.
-
-**Four homes for gate results, eliminated on source grounds.**
-
-- `delivery/state` holds **no record for this plan during the window** — publish is where the store read returns
-  null and initial binding creates it, so on an initial publication (the exact case this work unit exists to fix)
-  there is no state record at close to read. The close does reach that namespace for its `head-already-bound`
-  check; what is absent is this plan's own record, not store access.
-- `delivery/plans` is **digest-sealed**: the plan digest derives over every field but itself and the close refuses
-  `plan-moved` on any drift, so a per-run mutable field cannot ride it.
-- The **tracked Candidate record** is wrong twice over — it is a working-tree path, and it is an unconditional
-  non-regenerable lifecycle-contribution path compared against the protected base, so every gate-result write would
-  trip `lifecycle-contribution` at the next close, on the very tracked tier whose retirement D4 designs around.
-- `delivery/authoring` is the wrong **window** rather than the wrong substrate: it carries plan-composition
-  material keyed by map, is reached from the composition handler and never the execution one, and composition
-  deletes its snapshot on completion — so it has closed before prepare opens.
-
-**A field on the plan record, rejected — and not for contention.** The publisher performs read, modify, and publish
-inside one namespace lock, so concurrent gate writers against a single plan-keyed record serialize and never
-conflict; the version-conflict failure belongs to the revisioned publisher the state store uses. The real ground is
-structural fit: the family already draws this line — `plans` holds immutable plan identity, `state` holds the
-mutable execution state that accrues across a lifecycle. Gate results are the second kind, so a fourth sibling
-extends an existing distinction while a field on the plan record inverts one. A digest-excluded field also carries
-two defects the namespace does not: the digest-checked publish would let a digest-invisible field pass while a
-second writer silently clobbers the first, and exact restore acquires an unanswered question about whether
-restoring a plan restores or discards its gate results.
-
-**Per-deliverable record names, rejected.** The lock is per namespace, so they would not reduce serialization
-either — and they cost a sanitized name (the record-name pattern admits lowercase dotted names while a
-`deliverableId` is a `sha256:` digest), a new record-name function, and a new addressed-identity rule, in exchange
-for nothing measurable.
-
-**A scratch artifact the operator re-supplies, rejected.** It keeps the evidence agent-typed, readable by nothing
-else, and carries its own lifecycle with no owner — the failure shape already recorded against ceremony-created
-residue. The record is reaped beside the plan and state records it is keyed with, which is what closes that
-objection.
-
-**In-operation plumbing only, rejected.** It would close the case where preparation, gates, and close run inside
-one continuous session, but preparation's contract pins the chain _before_ workflow-owned gates run, so the gates
-fall between preparation and close by construction, and that window is as long as Tier 2 takes across every member.
-One measured incident spent two complete sets of three Tier 2 gates inside such a window. The hand-off must outlive
-a session.
-
-**Pre-writing pending rows at prepare and flipping them on completion, rejected** — it adds states and
-partial-failure modes without buying anything.
-
-**Digesting the gate file rather than the resolved command set, rejected** — it would re-fire a ceremony on edits
-to surrounding prose, which is the failure the first clause of criterion 1 forbids.
 
 **A bounded in-call recheck of the protected tip after binding, rejected.** Once the target is bound, bound-chain
 materialization skips its observed-tip check, and the protected ref can move between a fresh eligibility close and
@@ -663,36 +594,65 @@ have to absorb a bespoke recheck. **The design response is legibility, not preve
 visible in the payload, keep compare-and-swap on every ARC-owned write, and disclose the race as a
 recovery-complete refusal does. Later review gates remain the authority boundary.
 
-**A configuration axis for the gate execution-environment contract, rejected.** The originating capture asks for
-three acceptable behaviors — resolve from the authoritative source checkout, provision, or fail explicitly — not
-for a knob; the earlier "project-configurable" reading overstated the ask. Three reads converge on no axis: the
-proportionality flag for speculative capability, the storage direction's axis-explosion test (could this be a
-property of an existing axis?), and its rule that workflow logic stays mode-agnostic.
+**Running per-member Tier 2 locally before publication, rejected.** The alternative is the shape the
+prepublication window has today: a full Tier 2 pass per member in a provisioned detached worktree, with durable
+gate-result carry so the window's output survives the session that produced it. Two independent grounds reject it.
+Its own machinery could not be built as specified: the gate-identity digest had no
+resolution source, because the command set is prose reached through an explicit passthrough that no CLI resolves,
+and this project's own gate selection narrows Tier 2 by changed paths, so "the resolved command set" names no
+single value even at one instant. And external practice is uniform against the shape: no mature stacked-change tool
+verifies locally before publication — ghstack, spr, Graphite, GitHub's native stacks, Sapling, and Jujutsu all
+verify through per-change checks after push; Graphite skips checks on mid-stack changes by default and reasserts
+them at merge-queue time; Google's presubmit is deliberately not full-suite and runs affected tests remotely; merge
+queues verify speculative combined states server-side. The nearest analogues that do gate thoroughly before landing
+— Chromium's commit queue, remote-execution-backed presubmits — achieve it by making verification remote and
+cached, never local. A build cache's own trust model is the same point from the other side: locally-produced
+entries are exactly what a remote action cache refuses to trust, which is a direct precedent against recording
+local gate results as durable reusable evidence.
 
-**Reordering D6 ahead of D2 to close the gate-identity window, rejected** — see § Proposed Design, Known transient.
+**Gating publication on nothing at all, rejected.** The minimal reading of that reversal is to drop the operand and
+add no replacement, leaving publication an ordinary unverified act. It was declined because it discards a result
+ARC already requires, already pays for, and already trusts at the integration checkpoint. Reading prior
+verification at a gate is itself the idiom rather than a departure from it — the staged pipeline is a fast commit
+build with slower stages behind it, and the work-unit gate run is that commit build; Gerrit gates submit by reading
+a `Verified` label a prior run produced. Declining to read at publish while requiring the same record at
+integration is not less exacting, only inconsistent about when it looks.
+
+**A fast check subset at the top member, rejected.** It keeps a local signal before publication at the cost of
+inventing a "fast subset" concept with no existing substrate behind it, and the same practice that puts per-change
+checks after publication puts advisory pre-push subsets on the advisory side. The top member's tree is the union
+contribution the attestation already covers, so the subset would re-run a reduced form of a check that has already
+run in full.
+
+**Superseding `ADR-034` rather than amending it, rejected.** That record decides to make agentic review the primary
+lane and to land ordered members in one bottom-up, post-publication window, and nothing here touches that: merge
+timing, the landing window, the terminal vehicle, the integration interlock, and native registration all survive.
+Supersession is reserved for reversing or significantly altering a decision, and this decides a different axis the
+original left unlocated — its Decision draws an incremental-versus-batched contrast for member review and checks
+without placing checks relative to publication. A new record plus a dated cross-reference amendment is the
+instrument that fits.
 
 ## Cross-cutting Considerations
 
-**Trust boundaries.** The gate-result record is an input to a check, never a bypass of one; the close re-prepares
-fresh and re-compares coordinates before accepting a row. Run attributes are recorder-written only, and the
-asymmetry that leaves caller-supplied rows unattributed is deliberate and stated (§ D6) so it is not later read as
-an oversight. Nothing here grants review clearance, gate success, or publication authority, and terminal
-integration retains its own current checkpoint evidence and exact-head approval.
+**Trust boundaries.** Publication reads the work-unit attestation; it does not produce one, and reading it grants
+no review clearance, no check success, and no merge authority. The eligibility close re-prepares fresh and compares
+coordinates itself rather than trusting a supplied result — which is what it already did, minus two operands that
+were never independent witnesses: a gate-result list and a checkout path, each supplied by the same caller as the
+snapshot it was checked against. The reconcile seam's correction widens what an operator is _shown_, never what they
+may authorize: the choices, texts, and digests it surfaces are the same ones the review gate's doors already
+compose, and the authority to select among them stays exactly where it is. Terminal integration retains its own
+current checkpoint evidence and exact-head approval.
 
-**Performance and cost.** The constructor's object work is sub-second per member; its only material cost is the
-provisioning it now performs, about 5.4s and 148 MB per gate at this project's settings, which a project's own
-provisioning script may reduce and an ecosystem needing none pays not at all. The rebuild baseline to beat is the
-measured ~38-minute three-member rebuild, almost none of which was the rebase itself — so the constructor's value
-is in the preflight and the evidence carry, not in raw Git speed, and it is not claimed to collapse that figure.
-Namespace writes serialize under one lock, which is what makes concurrent gate writers safe without a retry loop.
+**Performance and cost.** The constructor's object work is sub-second per member and it creates no worktree, so it
+carries no other material cost. The rebuild baseline to beat is the measured ~38-minute three-member rebuild,
+almost none of which was the rebase itself, so the constructor's value is in the preflight and the evidence carry
+rather than raw Git speed, and it is not claimed to collapse that figure. Removing the per-member Tier 2 pass
+removes the dominant term in the prepublication window outright.
 
-**Disk lifecycle.** Gate checkouts are the one surface that could accumulate, and the reclaim path already exists:
-member teardown removes each gate with a roster-guarded `git worktree remove` — no `--force`, so a foreign or
-dirty checkout refuses rather than being destroyed — and that reclaims the provisioned tree entire, gitignored
-content included. Teardown runs **per member as it lands** rather than once at closeout, so peak usage is bounded
-by concurrent gates rather than by the plan's length. What this work unit adds is the failure path: a refused
-construction removes the gates it placed, and names any it could not (§ D4). Reaping the malformed gate
-directories already on disk remains an Errand's, not this work unit's.
+**Disk lifecycle.** The prepublication window holds no per-member checkouts, so it owes no disk accounting at all
+— the gate directories exist only while a bound correction is being authored, which is the one route that still
+creates a pair and the one the residue reaper was already sized for. Reaping the malformed gate directories already
+on disk is an Errand's, not this work unit's.
 
 **Testing.** Three pinned probes hold this boundary's behavior. They pass today; each fails the moment the behavior
 changes, printing the sentence naming what it was waiting for and its exact replacement. Retiring them is in scope
@@ -714,50 +674,49 @@ that is a finding, not a retirement.
 Further test obligations. D2's fixture must stop stubbing lifecycle-path resolution to a single constant **and**
 carry a non-regenerable lifecycle path, since regenerable paths compare against the chain base and leave both live
 protected-base reads unobservable either way; D2 must also cover a pre-existing later-member overlap refusing at
-prepare rather than after the gates have run. **D3 breaks the only executable record of the byte-identity it exists
+prepare rather than at the close. **D3 breaks the only executable record of the byte-identity it exists
 to destroy** — an ordinary equality assertion, not a pinned observation, holding the authoring and rematerialization
 results equal — which becomes assertions on the now-distinct payloads. D3 and D4 therefore touch one test file from
-different delivery members, and each landing rewrites only its own cases. D5's surface widens past its criterion's
-refusal case to clean creation, re-entry, and different dependency versions across worktrees. D6 must cover the
-record-read path, the explicit-operand path, a stale record refused on drift, and the reconcile path's
-absent-operand semantics left intact. D7's identity check must reach the adapter's reusable-candidate arm and stay
-clear of the library's contained-movement shortcut — that check is what licenses a refactor of published-side
-machinery during this work unit's own landing. D4 must cover the batched adoption refusing whole, and a failed gate
-placement clearing on replay rather than blocking closeout.
+different delivery members, and each landing rewrites only its own cases. D6 must cover publication refusing a
+chain whose Candidate advanced after attestation **and** publishing cleanly when it did not; the removal of the
+`gateResults` operand at all three seams; the checkout operand's asymmetry — publication and pre-publication target
+derivation succeeding with no member checkout on disk, while the bound rematerialization route still refuses a
+dirty authoring locus — with the candidate-ref re-observation still catching drift in both; and the reconcile seam
+returning a composed applicability decision, with the two sibling read sites still refusing opaquely — the negative
+case is what keeps the correction scoped.
+D7's identity check must reach the adapter's reusable-candidate arm and stay clear of the
+library's contained-movement shortcut — that check is what licenses a refactor of published-side machinery during
+this work unit's own landing. D4 must cover the batched adoption refusing whole and converging on replay.
 
-**Migration and rollout.** Pre-public-release posture applies: no backward-compatibility aliases, migration
-readers, or data migrations for the new namespace — development state is cleared or regenerated instead. The
-namespace is additive and compiler-checked at its enum; the consumer-less `DeliveryStateNamespace` alias is decided
-(updated or removed) as part of D6's first extraction constraint. The stack lands per the delivery shape above,
-with the single-branch fallback recorded up front.
+**Migration and rollout.** Pre-public-release posture applies: removing the `gateResults` operand, its schema, its
+type, and its five refusal reasons, and making the per-member `checkoutPath` optional, are breaking changes to
+unpublished project-owned contracts, which this project's posture permits in place — no compatibility aliases, no
+migration readers, and development state is cleared or regenerated rather than migrated. The stack lands per the
+delivery shape above, with the single-branch fallback recorded up front. The doctrine half lands with it:
+`strategy-integration.md`'s two edits, `ADR-035`, and a dated cross-reference amendment on `ADR-034` ride D6 rather
+than a follow-on, because the next delivery cut is the sibling this work unit exists to unblock and would otherwise
+inherit the retired model.
 
-**Forward compatibility.** The record stays among the code-owned records the repository keeps outside its markdown
-surfaces and never joins the managed operational-state document set, which projects markdown rather than holding
-delivery evidence. The constraint that guards this is against a **generic evidence store** — an arbitrary
-evidence-kind framework with its own vocabulary — not against a fourth sibling in a family that already enumerates
-three. The storage direction endorses this shape: it warns specifically against a record that can only exist as a
-tracked-tree file (the defect the eliminated Candidate-record home carries), and asks that a write never silently
-clobber a canonical that moved — which the locked read-modify-publish writer satisfies by leaving no stale read to
-carry a version for. A git-common record keeps the service-optional property, and a namespace inside an existing
-tier is neither a knob nor an axis. Authority for what covers what stays with the Candidate machinery and the
-applicability assessment. D4's resolver seam keeps the tracked-tier exclusion set a filter removal rather than a
-rewrite when operational state moves off-branch.
+**Forward compatibility.** Nothing here adds a durable record, a namespace, or an evidence vocabulary, so the
+constraint against a generic evidence store is satisfied by construction rather than by argument. Authority for
+what covers what stays with the Candidate machinery and the applicability assessment, which is where it already
+sits — this work unit adds no second opinion about applicability, it removes a door that was discarding the first
+one. D4's resolver seam keeps the tracked-tier exclusion set a filter removal rather than a rewrite when
+operational state moves off-branch.
 
 **Coordination.**
 
 - `evidence-applicability` may consume this work unit's exact base and currentness result at the handoff seam, but
-  does not own candidate reconstruction and must not require a broad freeze while private gates run.
+  does not own candidate reconstruction and must not require a broad freeze across the prepublication window.
 - `singleton-integration-continuity` owns the singleton integration tail and disclaims delivery mechanics. Two
   seams: **no implementation overlap** — both write the integration checkpoint from opposite sides, so one sequences
   to land before the other starts implementing, either order; and a **shared remedy-composition surface** — D3 and
   the sibling's host-admission remedy discrimination are the same family, the sibling claims spine ownership for the
   lifecycle-tail half, and D3 stays the delivery lane's instance and cites the spine rather than restating the
   obligation.
-- `review-checkout-lifecycle` holds ephemeral review and conflict checkouts, and the execution-environment contract
-  D5 instantiates was originally captured against it. The direction is deliberately reversed: that work unit is
-  paused mid-planning in a stale checkout, so this one authors the first concrete instance and the general contract
-  inherits it on resume. Revising the delivery instance to match a generalized contract is in bounds for that work
-  unit.
+- `review-checkout-lifecycle` owns frontline review checkout registration and diagnostics, scoped to that path.
+  Nothing routes to it from here and no seam is shared: this work unit authors no checkout contract at all, and
+  removing the prepublication per-member checkouts only reduces what registers in the primary's worktree list.
 - `candidate-reroot-recovery-frame` may preserve resumability but owns no applicability decision.
 - Keep **Make no-material Frontline follow-up effective across Candidate rerouting** independent unless source
   inspection proves its blocker is the same evidence-target binding rather than merely adjacent vocabulary.
@@ -769,18 +728,26 @@ payload is this work unit's design response; which component composes the messag
 
 ## Success Criteria
 
-Criteria 1–7 are carried verbatim from the originating evidence-applicability capture. They
-predate this work unit's deliverable stack, so the substrate each is validated against is named here rather than
-in the criterion: 1 → D2 (the permissive clause) with D6 (the restrictive clause); 2, 3, 4, and 5 → D6, reaching
-the existing applicability machinery, with D4 supplying the verified before/after coordinates; 6 → D4's replay and
+Criteria 1–7 are carried from the originating evidence-applicability capture. They predate this work unit's
+deliverable stack, so the substrate each is validated against is named here rather than in the criterion:
+1 → D2 (the permissive clause) with D6 (the restrictive clause); 2, 3, 4, and 5 → D6, reaching the existing
+applicability machinery, with D4 supplying the verified before/after coordinates; 6 → D4's replay and
 no-partial-adopted-chain rules plus the publication-window disposition recorded in § Alternatives & Rationale;
-7 → the end-to-end case across D2, D4, and D6. Naming the mapping changes no criterion's text. Criteria 8–16 were
-authored against this work unit's own deliverables and name theirs inline.
+7 → the end-to-end case across D2, D4, and D6. Criteria 8–16 were authored against this work unit's own
+deliverables and name theirs inline.
 
-1. Disjoint protected-base movement reobserves eligibility without repeating member gates whose covered inputs
-   remain unchanged; changed gate definitions or other actual covered inputs prevent unsupported reuse.
+**Criteria 1 and 2 are restated rather than carried verbatim**, recorded here because carried criteria are
+pre-commitment text. Criterion 1 required that disjoint movement not repeat "member gates" and that "changed gate
+definitions" prevent reuse; criterion 2 required that similarity never establish "whole-gate applicability." All
+three phrases name the per-member prepublication gate window that the check-placement decision removed, so each is
+restated to the substance it was expressing — the covered-input rule, and applicability resting on verified
+coordinates rather than on resemblance. Criteria 3 through 7 are carried verbatim.
+
+1. Disjoint protected-base movement reobserves eligibility without repeating a ceremony whose covered inputs remain
+   unchanged; covered inputs that did change prevent unsupported reuse.
 2. Exact member and suffix transitions receive carry, bounded supplemental, or fresh treatment from verified
-   before/after coordinates; ancestry or contribution similarity alone never establishes whole-gate applicability.
+   before/after coordinates; ancestry or contribution similarity alone never establishes that an earlier result
+   still applies.
 3. An authorized prepublication base reconciliation or rebuilt-chain result reaches Candidate applicability through
    verified endpoints and does not become unexplained merely because it happened before publication.
 4. Bounded residuals use the existing operator-bound selection, and supplemental evidence binds to the current
@@ -800,34 +767,35 @@ authored against this work unit's own deliverables and name theirs inline.
    demonstrably reaches those consumers — verified by reading the trigger, not by asserting the placement (D1).
 9. A `completeness-*` refusal names which side moved and what would clear it, and any remedy it names can actually
    clear it (D3).
-10. A clean unbound stack reaches gate-ready coordinates through one typed operation with no per-member
-    hand-authored Git steps; replay converges; and a real conflict stops with its exact member, leaving the previous
-    chain usable (D4).
-11. A gate result recorded in one session is consumed by a close **and by a publish** in a later session without
-    the operator re-supplying it; a result whose member coordinates have drifted is refused rather than reused; and
-    the reconcile path's absent-operand meaning is unchanged (D6).
-12. A gate result produced in a worktree that resolved dependencies from another registered worktree of this
-    repository is refused at close, while one whose resolution was in-gate or not attributable is accepted (D5).
-13. A recorded gate result whose gate definition changed is refused at close, while a base change that leaves the
-    resolved command set identical reuses it — the two clauses of criterion 1 demonstrated against one mechanism;
-    and a caller-supplied result, which carries no run attributes, is accepted exactly as it is today (D6).
-
-14. Chain reconstruction has one implementation after this work unit: the published-side refresh adapter builds and
+10. A clean unbound stack reaches publication-ready coordinates through one typed operation with no per-member
+    hand-authored Git steps and no per-member worktree created; replay converges; and a real conflict stops with
+    its exact member, leaving the previous chain usable (D4).
+11. Publication refuses a chain prepared against a Candidate that advanced after its attestation, and publishes
+    unchanged when it did not; no `gateResults` operand remains at the eligibility close, the prepare-side
+    revalidation, or publish; and publication and pre-publication target derivation both succeed with no member
+    checkout on disk, while the bound rematerialization route still refuses a dirty authoring locus (D6).
+12. A rebuilt chain whose effective Candidate target is not current reaches the operator as a composed
+    applicability decision carrying its choices, texts, and digests, rather than as an opaque refusal — while the
+    record-effect recovery and boundary-carry read sites continue to refuse without one, which is what keeps the
+    correction scoped to the seam that needs it (D6).
+13. Chain reconstruction has one implementation after this work unit: the published-side refresh adapter builds and
     publishes its suffix through the shared halves, producing a tree and commit identical to its previous inline
     path — message and parents included — with existing refresh behavior unchanged (D7).
-15. No step in `deliver-stack.md` instructs the operator to perform what a shipped verb performs: the per-member
-    cut narration, and the hand-composed gate-result block in both the eligibility-close and publish windows, are
-    gone, and the recording step is present (D4, D5, D6).
-16. The constructor returns gates that pass Tier 2 without further provisioning, and names each member's cut as
-    retained or recut; a construction that refuses adopts no ref at all; and a gate it could not place or remove is
-    named in the result and clears on replay rather than blocking closeout (D4).
+14. No step in `deliver-stack.md` instructs the operator to perform what a shipped verb performs: the per-member
+    cut narration is replaced by the constructor invocation, and the hand-composed gate-result block is gone from
+    both the eligibility-close and publish windows (D4, D6).
+15. The constructor names each member's cut as retained or recut, and a construction that refuses adopts no ref at
+    all (D4).
+16. The doctrine lands with the mechanism: `strategy-integration.md` states that publication reads a work-unit
+    attestation and that member checks run after publication under the project's own policy, `ADR-035` records the
+    check-placement decision, and `ADR-034` carries a dated cross-reference amendment to it (D6).
 
 ## Open Questions
 
 [none] — every settle-able decision is settled.
 
-What remains open is implementation detail, plus four named obligations that belong to execution rather than to
+What remains open is implementation detail, plus three named obligations that belong to execution rather than to
 design: D1's trigger-reach check (§ D1), D2's demonstration that the fresh overlap guard and the independent
-chain-base refusal cover the fabricated-snapshot case (§ D2, Residual A), the surface that supplies member
-boundaries for a first cut (§ D4), and the extraction-constraint decision on the consumer-less namespace alias
-(§ D6). Each is stated where it fires and carries its own verification; none defers a design decision.
+chain-base refusal cover the fabricated-snapshot case (§ D2, Residual A), and the surface that supplies member
+boundaries for a first cut (§ D4). Each is stated where it fires and carries its own verification; none defers a
+design decision.
