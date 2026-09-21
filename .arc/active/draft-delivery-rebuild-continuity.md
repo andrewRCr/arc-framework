@@ -175,12 +175,61 @@ to name a direction, and chain reconstruction still has to have one implementati
 gates run.
 
 **Still owed regardless, and not dissolved by this decision:** the Candidate applicability obligations behind
-success criteria 2 through 5. Those concern review evidence and Candidate currentness, not Tier 2 gate results, and
-the pass found they rest on a direction-level paragraph naming no mechanism. They survive the re-entry intact and
-need either concrete mechanism or a deliverable of their own.
+success criteria 2 through 5. Those concern review evidence and Candidate currentness, not Tier 2 gate results, so
+they survive the re-entry intact. The pass left them resting on a direction-level paragraph naming no mechanism;
+the trace below settles what they actually require, and it is narrower than the pass assumed.
 
 **In:** the `strategy-integration.md` § Publication Boundary change, the ADR, and the `deliver-stack.md` edits that
 follow from removing the gate-execution and gate-result steps.
+
+### The applicability obligations, traced
+
+Criteria 2 through 5 entered the re-entry as an open obligation with no named mechanism behind it. Tracing the
+substrate settles them, and moves them out of construction work almost entirely.
+
+**D6's stated mechanism does not exist.** Its text has an authorized reconcile or rebuild degrading to
+_unexplained_ solely because of its lifecycle stage. The `unexplained` evidence-delta producer variant has no
+construction site anywhere in the source — the only causes ever composed are base movement, approved fix, and
+member rewrite — so the reducer arm that turns it into a `fresh` verdict is unreachable. The operator-facing
+"unexplained" is a different object entirely: the integration checkpoint's `candidate-unexplained-delta`, raised
+when projected Candidate currentness blocks because the current subject digest differs from the durable
+baseline's.
+
+**The authority seam already exists, and delivery already reaches it.** Projecting an effective Candidate target
+does not stop at a blocked currentness. It derives structural contribution endpoints and a proof, then returns
+either a machine-recognized current target or a fully composed decision carrying the `covered | targeted-check |
+changed` choices, its offer and prompt text, and its projection and residual digests. Three delivery read sites
+reach that projection. The two delivery calls that read raw currentness instead are baseline self-consistency
+assertions against the baseline's own target — not comparisons against a rebuilt head.
+
+**A content-preserving rebuild needs none of it.** The Candidate subject is work-unit-level: one identity, one
+digest over the unit's whole reviewable contribution against the protected base. A rebuild that recuts member
+commits without changing that union leaves the subject digest equal, so currentness projects as current through
+its operational-only advance arm — the revision moves, the subject does not, and the evidence carries with no new
+mechanism at all. The constructor's own required behavior is what makes that antecedent hold rather than merely
+assume it: under disjoint movement it returns an unchanged chain, and newer base-only bytes the originating top
+lacks are never silently imported. The union is therefore preserved exactly where the carry is claimed. The one
+route that does change it — rebuilding the suffix after an authorized top correction — changes it by authority and
+takes its own lineage transition, so the digest moving there is the seam working rather than a carry failing.
+
+**The real gap is a result mapping, not a substrate.** Each delivery read site collapses every non-current
+effective state into one opaque refusal, discarding a composed decision's choices, texts, and digests. The review
+gate's own doors surface that same projection to the operator. So the degradation D6 named is genuine and is
+exactly lifecycle-staged — but it lives in the delivery handler's result mapping rather than in the applicability
+machinery, which is why no amount of extending that machinery would have reached it.
+
+**Only the closeout site is a defect.** Two of the three refuse correctly. The record-effect recovery arm
+reconstructs what a write already did and asks a yes-or-no identity question with no operator decision available;
+it is one of eleven identical returns and already carries an operator-facing remedy elsewhere. The boundary-carry
+arm compares the recognized subject digest against the digest its boundary was established at, so a decision
+_means_ the position moved and the refusal is accurate — surfacing a seam there would let an operator carry a
+boundary across the very change the boundary exists to bound. The closeout arm is different: the same function
+already handles a changed effective state further down, reading its current target to compose a projected one, so
+the guard short-circuits a path the function otherwise knows how to walk.
+
+**What this leaves.** Criteria 2 through 5 stop being substrate extension and become one narrow correction plus
+verification — surface the composed decision at the closeout read site instead of flattening it, and prove a
+rebuilt chain reaches the seam rather than an opaque refusal. They do not warrant a deliverable of their own.
 
 ### Open for the re-entered half
 
@@ -192,10 +241,8 @@ follow from removing the gate-execution and gate-result steps.
    caller-supplied result list; whether that operand remains, and what it means, is open.
 4. Does the ADR amend `ADR-034` or supersede nothing and stand alone? Its axis is different — check placement rather
    than merge timing — which argues for a new record cross-referencing it.
-5. How do the criteria 2 through 5 applicability obligations get met, and do they warrant a deliverable of their
-   own alongside the surviving stack?
-6. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
-7. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
+5. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
+6. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
    dropped?
 
 ## Problem / Motivation
