@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

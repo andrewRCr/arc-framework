@@ -15,8 +15,10 @@
 
 ## Readiness
 
-**State:** `formalization-ready` — exploration is stable, every settle-able decision is settled, and each
-deliverable's residuals are named for the spec to carry.
+**State:** `re-entered` (2026-09-21). The D1, D2, D3, D4, and D7 half remains formalization-ready and is
+crystallized in `spec-delivery-rebuild-continuity.md`. The D5 and D6 half is re-opened for derivation — see
+§ Re-entry: where per-member verification runs. Nothing below that section has been revised for the re-entry yet;
+read it first, because it supersedes the D5 and D6 material in § Decisions and § The deliverable stack.
 
 **Resolved**
 
@@ -74,6 +76,127 @@ member (D1+D2) stays fully bounded, and D3 through D6 each carry a stated direct
 the spec. The draft is ready for create-spec.
 
 ---
+
+## Re-entry: where per-member verification runs (2026-09-21)
+
+`create-spec` fired the mid-stage re-entry valve on a derivation signal whose _direction_ is unshaped, so this half
+routes back to `draft-design` rather than being corrected in place. Recorded here before the ratchet, in the
+valve's own order: capture durably, ratchet, re-enter.
+
+**`Class` stays `Heavy`.** The re-entered design composes a well-documented industry pattern rather than inventing
+concepts absent from the problem domain, which is the `Novel` threshold. The derivation is real; it is composition.
+
+### What forced it
+
+The finalization adversarial pass ran three scoped reviewers across the deliverable stack. Two findings against D5
+and D6 survived source verification and could not be repaired in place.
+
+**The gate-identity digest has no resolution source, and its referent is not well defined.** The Tier 2 command set
+is a fenced bash block of prose in `QUICK-REFERENCE.md`, reached through a `quality-gate-commands` method that is an
+explicit passthrough carrying an adopter override path. No CLI code resolves either surface, and the delivery
+workflow has the _agent_ run the commands, so a recorder running in the gate cannot attest what executed. The
+project's own gate-selection rule then narrows Tier 2 by changed paths, so two members of one plan may legitimately
+run different subsets — "the resolved command set" names no single value even at one instant, and a resolver would
+not fix that. Both available comparands fail as well: digesting the gate's own tree digests the member's tree, which
+the constructor deliberately leaves unchanged under disjoint movement, so the digest cannot drift in exactly the
+case the rule exists for; digesting the base's copy needs a fresh close-time resolution that does not exist.
+
+**D5's environment predicate refuses every correct gate.** Gate checkouts are placed under the repository's common
+directory, which is itself nested inside the primary worktree's registered path. "Resolved under a registered
+worktree other than the gate's own" therefore matches the primary for a correctly provisioned, correctly in-gate
+resolution — the accept case inverted, structurally rather than at an edge.
+
+The second is a narrow correction. The first is not: the mechanism was asking for a capability — machine-resolvable,
+machine-executed gates — that does not exist and that this work unit had no mandate to build. A deliverable that can
+only work once a capability outside its scope arrives is a direction problem, not a shape problem.
+
+### What the external research established
+
+The question that opened was whether per-member verification belongs before publication at all. Sourced synthesis:
+
+- **No mature stacked-PR tool verifies locally before publication.** ghstack, spr, Graphite, GitHub's native
+  stacks, Sapling, and Jujutsu all verify through per-change CI after push. None carries a local pre-publication
+  gate.
+- **Graphite skips CI on mid-stack changes by default policy**, forcing it back on only at merge-queue time. Even
+  per-member verification _server-side, after publication_ is treated as more than teams want by default. A
+  per-member full suite run _locally, before_ publication is strictly more expensive than the thing the market
+  leader turns off.
+- **The mainstream position is explicit.** Google's presubmit is deliberately not full-suite — "too expensive" in
+  their own words — and even presubmit runs only affected tests, remotely, with broader coverage post-submit.
+  Fowler's staged pipeline is the canonical shape: a fast commit build, slower stages behind it.
+- **Merge queues verify speculative combined states server-side** (GitHub merge queue, Zuul, Prow's Tide, bors).
+  Tide _aborts_ stale speculative batches when the base moves rather than reusing any earlier result.
+- **The closest precedent is Arcanist**, which can run lint and unit tests before a revision is created — but it is
+  opt-in, commonly scoped to affected files, and advisory, with server-side CI authoritative at land time.
+- **A deliberate search for a category that legitimately gates before publication came back negative.** The nearest
+  analogues, Chromium's commit queue and remote-execution-backed presubmits, achieve thorough pre-land verification
+  by making it _remote and cached_, never local.
+
+Two findings bear on the evidence record specifically, independent of where gates run:
+
+- **Locally-produced results are the case the closest analogue refuses to trust.** A remote build cache's action
+  cache is input-addressed rather than content-verifiable, and the documented mitigation is to make it read-only,
+  populated only by a trusted remote execution service, precisely because locally-produced entries cannot be
+  verified. That is a direct precedent against recording local gate results as durable reusable evidence.
+- **Test evidence is held to a stricter carry-forward bar than review evidence.** Gerrit carries a `Verified` label
+  forward only when the parent tree, code delta, and commit message are unchanged, while it carries human review
+  approval across a trivial rebase. Its designers made _test_ results harder to carry than _review_ results. A
+  coordinate-based re-check sits on the looser side of that split, where practice puts the tighter test.
+
+### The decision
+
+**Per-member verification moves after publication.** The prepublication window stops running a full Tier 2 pass in
+a provisioned checkout per member, and per-member verification becomes the published change request's own checks.
+D5 and D6's evidence half exists only to carry locally-produced gate results across a window this decision removes,
+so it goes with it.
+
+**The policy change rides this work unit.** It is not routed to a successor. `RELEASE-GATES` sequences
+`review-signal-convergence` — the highest-leverage ship on the board — behind this work unit precisely because RSC's
+own landing is a delivery cut. The next delivery therefore rides whatever gate model this work unit ships, so
+shipping the known-wrong model and deferring the correction would propagate it into the very work this unit exists
+to unblock. The work unit gets smaller in mechanism and gains a doctrine change.
+
+**An ADR is authored here.** `ADR-034` owns delivery landing timing and deliberately scoped itself to merge acts —
+"member review and checks settle incrementally, but merge acts wait for the `Integrating` window" — so it decided
+when members _merge_ and never decided when checks _run_ relative to publication. Nothing else records that choice
+either: the per-member pre-publication gate appears to be "verify before publish" inherited from the singleton
+lifecycle and generalized to every member of a stack without a recorded decision. This work unit authors that
+decision rather than inheriting it further.
+
+### What this changes in scope
+
+**Out:** D5 entirely; D6's `delivery/gate-results` namespace, its per-gate recording verb, the gate-identity digest,
+and the run-attribute field group. Gate provisioning inside the constructor goes with them, and with it the
+per-gate provisioning cost, the disk-lifecycle question, and the gate-removal arm of the no-partial rule.
+
+**Unchanged and already crystallized:** D1, D2, D3, D4, and D7. The chain still has to be rebuildable through one
+typed operation, the eligibility close still has to stop refusing on non-covered base movement, refusals still have
+to name a direction, and chain reconstruction still has to have one implementation. None of these depend on where
+gates run.
+
+**Still owed regardless, and not dissolved by this decision:** the Candidate applicability obligations behind
+success criteria 2 through 5. Those concern review evidence and Candidate currentness, not Tier 2 gate results, and
+the pass found they rest on a direction-level paragraph naming no mechanism. They survive the re-entry intact and
+need either concrete mechanism or a deliverable of their own.
+
+**In:** the `strategy-integration.md` § Publication Boundary change, the ADR, and the `deliver-stack.md` edits that
+follow from removing the gate-execution and gate-result steps.
+
+### Open for the re-entered half
+
+1. What, if anything, runs in the prepublication window in place of per-member Tier 2 — nothing, a fast subset at
+   the top member only, or the existing work-unit Candidate attestation unchanged?
+2. Does "published equals attested" survive as doctrine for the _work unit_ while per-_member_ verification moves
+   after publication, or does the publication boundary itself need restating?
+3. What does the eligibility close validate once gate results are no longer its input? Existing validation accepts a
+   caller-supplied result list; whether that operand remains, and what it means, is open.
+4. Does the ADR amend `ADR-034` or supersede nothing and stand alone? Its axis is different — check placement rather
+   than merge timing — which argues for a new record cross-referencing it.
+5. How do the criteria 2 through 5 applicability obligations get met, and do they warrant a deliverable of their
+   own alongside the surviving stack?
+6. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
+7. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
+   dropped?
 
 ## Problem / Motivation
 
