@@ -15,12 +15,15 @@
 
 ## Readiness
 
-**State:** `re-entered` (2026-09-21). The D1, D2, D3, D4, and D7 half remains formalization-ready and is
-crystallized in `spec-delivery-rebuild-continuity.md`. The D5 and D6 half is re-opened for derivation — see
-§ Re-entry: where per-member verification runs. Nothing below that section has been revised for the re-entry yet;
-read it first, because it supersedes the D5 and D6 material in § Decisions and § The deliverable stack.
+**State:** `formalization-ready` (2026-09-21). The D1, D2, D3, D4, and D7 half is crystallized in
+`spec-delivery-rebuild-continuity.md`. The re-entered half is settled in § Re-entry: where per-member verification
+runs. Read that section first — nothing below it has been revised for the re-entry, so it supersedes the D5 and D6
+material in § Decisions and § The deliverable stack.
 
 **Resolved**
+
+- Where per-member verification runs, what gates publication, what the eligibility close validates, and the fate of
+  the gate-result operand (§ Re-entry).
 
 - Boundary: one work unit with an authored delivery plan (§ Boundary and Class).
 - `Class: Heavy`, on the derivation axis, composing rather than inventing (§ Boundary and Class).
@@ -156,31 +159,40 @@ own landing is a delivery cut. The next delivery therefore rides whatever gate m
 shipping the known-wrong model and deferring the correction would propagate it into the very work this unit exists
 to unblock. The work unit gets smaller in mechanism and gains a doctrine change.
 
-**An ADR is authored here.** `ADR-034` owns delivery landing timing and deliberately scoped itself to merge acts —
-"member review and checks settle incrementally, but merge acts wait for the `Integrating` window" — so it decided
-when members _merge_ and never decided when checks _run_ relative to publication. Nothing else records that choice
+**An ADR is authored here.** `ADR-034` owns delivery landing timing. Its decision batches merge acts and says
+member review and checks "settle incrementally" — a contrast with batching that never locates checks relative to
+publication. So it decided when members _merge_ and left where their checks _run_ undecided. Nothing else records that choice
 either: the per-member pre-publication gate appears to be "verify before publish" inherited from the singleton
 lifecycle and generalized to every member of a stack without a recorded decision. This work unit authors that
 decision rather than inheriting it further.
 
 ### What this changes in scope
 
+Stated as of the settled re-entry — the resolutions below refine what the decision alone implied.
+
 **Out:** D5 entirely; D6's `delivery/gate-results` namespace, its per-gate recording verb, the gate-identity digest,
 and the run-attribute field group. Gate provisioning inside the constructor goes with them, and with it the
-per-gate provisioning cost, the disk-lifecycle question, and the gate-removal arm of the no-partial rule.
+per-gate provisioning cost, the disk-lifecycle question, and the gate-removal arm of the no-partial rule. The
+`gateResults` operand goes at all three seams that take it, and `CandidateGateResultSchema`, the
+`DeliveryCandidateGateResult` type, its validator, and the validator's five refusal reasons become unreachable with
+it. Goals 3 and 4 retire.
 
-**Unchanged and already crystallized:** D1, D2, D3, D4, and D7. The chain still has to be rebuildable through one
+**Unchanged and already crystallized:** D2, D3, D4, and D7. The chain still has to be rebuildable through one
 typed operation, the eligibility close still has to stop refusing on non-covered base movement, refusals still have
 to name a direction, and chain reconstruction still has to have one implementation. None of these depend on where
-gates run.
+gates run. D1's rule is unchanged and better motivated than before, but its restrictive half loses one of its two
+named fire sites when D6's gate-result seam goes.
 
 **Still owed regardless, and not dissolved by this decision:** the Candidate applicability obligations behind
 success criteria 2 through 5. Those concern review evidence and Candidate currentness, not Tier 2 gate results, so
 they survive the re-entry intact. The pass left them resting on a direction-level paragraph naming no mechanism;
 the trace below settles what they actually require, and it is narrower than the pass assumed.
 
-**In:** the `strategy-integration.md` § Publication Boundary change, the ADR, and the `deliver-stack.md` edits that
-follow from removing the gate-execution and gate-result steps.
+**In:** publication reading the work-unit Candidate attestation; the reconcile read site surfacing the composed
+applicability decision rather than flattening it; `strategy-integration.md` § Publication Boundary gaining its read
+clause and § Delivery Shape and Landing Window splitting review from checks; `ADR-035` plus a Tier 2
+cross-reference amendment on `ADR-034`; the `deliver-stack.md` edits that follow from removing the gate-execution
+and gate-result steps; and the goal and success-criterion renumbering.
 
 ### The applicability obligations, traced
 
@@ -299,15 +311,108 @@ merge, base CI is the backstop and should run the same legs that gate a change r
 **Edit target.** `strategy-integration.md` is framework content whose two copies are currently byte-identical, so
 the change goes through `packages/arc-framework/arc/**` and syncs to `.arc/`, never the reverse.
 
+### Resolved: what the eligibility close validates
+
+**The `gateResults` operand is removed and nothing replaces it.** It reaches three seams — `eligibility close`, the
+prepare arm's optional revalidation, and `publish` — and all three drop it.
+
+Its validator refuses on five reasons, and decomposing them shows why none survives. `duplicate-gate-result`,
+`missing-gate-result`, and `reordered-gate-result` are well-formedness of a caller-supplied list: they exist only
+because the list exists, and are vacuous without it. `gate-result-failed` is the verification evidence this work
+unit relocates. `gate-result-stale` binds each result to its member's exact head and tree, which looks structural
+but is not — the snapshot and the results both arrive from the same caller, so the pair never witnessed anything a
+caller could not fabricate together. Removing it costs no anti-fabrication property because it never held one, which
+is consistent with what the source already shows: the snapshot is an ephemeral mechanical value, never a persisted
+authorization token.
+
+**What remains is a purely mechanical close, and it is already substantial.** The fresh plan read against the
+snapshot's plan identity, revision, and digest; lifecycle-path resolution and the unchanged-paths comparison over
+both lifecycle and regenerable sets; per-member lifecycle revalidation; and everything D2 adds — the live
+protected-base re-observation, the overlap guard on that fresh relation re-scoped to the final candidate, the
+independent chain-base refusal, and normalized completeness.
+
+That division is the right one. The close is a mechanical eligibility gate over chain structure; verification enters
+once at publish by reading the work-unit attestation, and again after publication as the published requests' own
+checks. The close holds no verification role at all, which is why removing its only verification operand leaves it
+coherent rather than hollowed out.
+
+**Removal scope.** `CandidateGateResultSchema`, the `DeliveryCandidateGateResult` type, the validator, and its five
+refusal reasons all become unreachable and go with the operand.
+
+### Resolved: the ADR stands alone, with a cross-reference amendment on ADR-034
+
+**A new record rather than a supersession.** `ADR-034` decides to make agentic review the primary lane and to land
+ordered delivery members in one bottom-up, post-publication window. Nothing here touches that: merge timing, the
+landing window, the terminal vehicle, the integration interlock, and native stack registration all survive
+unchanged. The tier table reserves supersession for reversing or significantly altering the decision, and this does
+neither — it decides a different axis the original left unlocated.
+
+**It is not silent on `ADR-034` either, which is why an amendment rides with it.** That record's Decision item 2
+reads "member review and checks settle incrementally, but merge acts wait for the `Integrating` window," and its
+Context repeats that the chosen window "retains incremental member review and checks; it batches only the merge
+acts." The contrast being drawn is incremental-versus-batched, and neither sentence locates checks relative to
+publication — which is the gap this work unit fills. Read as a guarantee that every member's checks settle, though,
+it sits in tension with member checks becoming the project's configured policy. A Tier 2 amendment is the exact
+instrument: the methodology lists cross-references to later records as qualifying, and this adds information
+without rewriting what is already there.
+
+**Shape.** `ADR-035: Run Delivery Member Checks After Publication`, at
+`adr-035-run-delivery-member-checks-after-publication.md`. It decides check placement; records the alternatives the
+external research surfaced and why local per-member gating before publication was declined; states that publication
+reads the work-unit attestation instead; and states the accepted consequence that a non-terminal member may reach
+the landing window without having been checked in isolation. `ADR-034` gains a dated amendment pointing at it and
+noting that its check clause is located there.
+
+### Resolved: goals 3 and 4, and the gate language around them
+
+**Goal 3 retires.** "Gate evidence outlives the session that produced it, and is re-checked against freshly observed
+coordinates rather than trusted" exists because the 2026-09-12 incident lost completed gate results when its session
+ended. With per-member gates removed there is no gate evidence to outlive anything, and the loss it names cannot
+recur. Restating it around the work-unit attestation would be worse than retiring it: that property is already true
+of the attestation substrate today, so the restated goal would describe existing behavior this work unit does not
+change.
+
+**Goal 4 retires with D5.** "A gate result is attributable to its exact coordinates and to an environment that is
+not a sibling worktree's" is D5's goal, and the environment predicate it names is the one the adversarial pass
+falsified. With no gate provisioning there is no execution environment left to attribute.
+
+**Goal 2 restates rather than retires.** It was not named in the question but carries the same dependency —
+"without repeating member gates whose covered inputs are unchanged, while changed covered inputs, including a
+changed gate definition, still prevent unsupported reuse." Its core is D2 and survives; its gate framing does not.
+It restates around what the close actually does: disjoint protected-base movement re-observes eligibility and closes
+eligible rather than refusing.
+
+**Goal 6 survives unchanged, and is better motivated than before.** The covered-input rule as D1 states it is
+generic — a ceremony in the post-execution tail repeats only when an input its earlier result covered has changed —
+and never gate-specific. Its surviving instances are stronger than the one it loses: the work-unit attestation that
+publication now reads, and the `covered | targeted-check | changed` applicability seam, are both durable records,
+where gate results were ephemeral and supplied by the same caller as the snapshot they were validated against.
+
+**One correction inside D1.** Its constraint-versus-doctrine split places the restrictive half at two fire sites —
+D2's eligibility close, and "D6's added refusal reasons for the gate-result validation seam." The second no longer
+exists. The restrictive half places at D2 and at `DEV-RULES.ARC` § Rule Authority's check-integrity backstop, and
+the D6 placement drops.
+
+Goals renumber from six to four.
+
+### Resolved: the CLI-executed gate verb is dropped from this work unit
+
+It entered as a possible enabler for the gate-identity digest, and that digest is gone. Nothing in the surviving
+stack needs a machine-resolvable gate command set: publication reads an attestation, the eligibility close validates
+structure, and member checks run on the published requests under the project's own policy.
+
+The friction that motivated it is real and outlives this work unit. The Tier 2 command set is a fenced prose block
+reached through an explicit passthrough method carrying an override path, and no CLI resolves either surface, so
+every ceremony that says "run the gates" spends agent attention rediscovering them. That is a design worth
+recording, and squarely in `strategy-procedure-evolution`'s territory, which makes it a work unit rather than an
+errand. It routes to the inbox rather than riding here.
+
 ### Open for the re-entered half
 
-1. What does the eligibility close validate once gate results are no longer its input? Existing validation accepts a
-   caller-supplied result list; whether that operand remains, and what it means, is open.
-2. Does the ADR amend `ADR-034` or supersede nothing and stand alone? Its axis is different — check placement rather
-   than merge timing — which argues for a new record cross-referencing it.
-3. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
-4. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
-   dropped?
+[none] — every question the re-entry opened is settled above. What remains is re-running `create-spec` over the
+re-derived half: D5 and D6 come out, D6's applicability paragraph is replaced by the reconcile-seam correction,
+goals and success criteria renumber, and the spec's IMPORTANT callout marking this half re-opened is removed once
+the spec carries the settled text.
 
 ## Problem / Motivation
 
