@@ -109,9 +109,10 @@ describe("deriveColdStartWuName", () => {
 
 describe("buildStartSessionNotesSeed", () => {
   it("keeps every seeded Markdown line within the project limit", () => {
+    const longName = "a".repeat(65);
     const seed = buildStartSessionNotesSeed({
-      wuName: "concurrent-integration-characterization",
-      branch: "plan/concurrent-integration-characterization",
+      wuName: longName,
+      branch: `plan/${longName}`,
       kind: "create-new",
       commit: "[start ceremony pending]",
     });
