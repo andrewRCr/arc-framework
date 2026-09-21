@@ -169,6 +169,160 @@ operational refusals must remain distinguishable from unexpected executor failur
 
 ---
 
+### `[ ]` **Distinguish unresolvable terminal ancestry from a proved moved terminal head**
+
+- _Routed from:_ consolidated `USER-INBOX` captures, housekeep drain (2026-09-19).
+- _Consolidates:_
+    - Split the unresolvable ancestry read out of closeout's `terminal-head-moved`.
+    - Give an unestablished terminal ancestry read its own reason and remedy.
+
+#### Capture: Split the unresolvable ancestry read out of closeout's `terminal-head-moved`
+
+- _Observation:_ `lib/delivery/retirement.ts:159-173` reads ancestry in the forward direction only, hardcoding
+  `observedIsAncestorOfBound: "unresolvable"`. That makes `unknown` the single non-admitting variant the call can
+  produce, so a head the read placed as not descending from the binding and a head the read simply could not
+  reach both report `terminal-head-moved` and both draw `delivery-member-rebind-required`. The second clears by
+  fetching the bound head and rerunning.
+
+- _Why it is small, stated so the drain does not over-size it:_ equality is settled before any ancestry answer is
+  consulted, so reaching that arm means the heads genuinely differ — `terminal-head-moved` is a true statement in
+  both cases, unlike the readiness reader, which asserted a _direction_ nobody established. `readAncestry` is a
+  required dependency here, so the absent-reader path readiness has does not exist. And the rebind settles the
+  terminal either way, since it binds the record to the head the host actually holds. It fails closed. The cost is
+  an operator whose objects are not fetched doing a record mutation where `git fetch` and a rerun would have shown
+  the movement was the admissible advance and nothing needed doing.
+
+- _Why it surfaced now:_ `delivery-post-landing-conflict-recovery` Task 7.R (amendment A5) split the same pair at
+  review readiness, which now reports `delivery-member-relation-unavailable` for the unread direction and names
+  the fetch. That work unit's § Recorded exclusions bullet deferred the closeout half on the argument that both
+  readers collapse the pair, _"so the two readers agree rather than one lagging"_. That argument no longer holds —
+  readiness leads and closeout lags — and the exclusion carries a `_Corrected in 7.R (A5):_` line saying so.
+
+- _Approach:_ hold the forward answer at the call site rather than passing it inline, which is the shape 7.R used
+  in `scripts/review-gate/readiness.ts`, and branch the refusal on it.
+
+- _The real cost is the contract, not the branch:_ a fifteenth reason has to pass four places, and the design's own
+  sizing was fourteen, so this is a contract change rather than a rename. `DeliveryTerminalUnsettledReason`
+  (`retirement.ts:53`), `DELIVERY_TERMINAL_REMEDIES` (`retirement.ts:102`) and `TERMINAL_REMEDY_ACTIONS`
+  (`closeout.ts:54`) are compiler-forced by their `Record` totality; `DeliveryTerminalRemedySchema`
+  (`handlers/delivery-execution.ts:903`) is **not**, and missing it converts the refusal to
+  `invalid-service-result` at the caller — the owning work unit's Task 7.5.e proved exactly that by removing it.
+  No existing act means "fetch the bound head": `delivery-host-reobservation-required` is about the host answering,
+  not about local objects. Decide whether to add one or to widen an existing act's prose; that decision is the
+  substance here.
+
+- _Scope:_ this one reader. Do not widen it into an audit of the other forward-only ancestry reads — that is the
+  separate `Adopt the shared Git ancestry primitive…` entry above, and neither depends on the other.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Task 7.R, 2026-09-18, on the Owner's question of
+  whether the readiness/closeout asymmetry the amendment opened needed a live record.
+
+#### Capture: Give an unestablished terminal ancestry read its own reason and remedy
+
+- _Observation:_ at `retirement.ts:172` an ancestry read that established nothing is reported as
+  `terminal-head-moved`, carrying the `delivery-member-rebind-required` remedy. The read answers
+  `unresolvable` whenever either revision fails to resolve locally, which is most likely in exactly the case
+  the change exists to admit — a branch that advanced before merging. The operator is then told to rebind
+  when the act that clears it is a fetch, and following the named act would rewrite the record to a head ARC
+  never verified. It fails closed, but it parks a terminal and a recoverable cause under one reason, which
+  this change states elsewhere it must not do.
+
+- _Approach:_ split the unestablished read into its own unsettled reason with its own remedy kind, distinct
+  from a head that demonstrably is not an ancestor; `unknown` is already carried out of the classifier for
+  this purpose. The same split now exists at the readiness boundary and is the pattern to follow.
+
+- _Interim rationale:_ a new refusal reason and a new remedy kind are a surface addition with its own
+  compatibility obligations, larger than a review fix increment should introduce.
+
+- _Captured during:_ an approved deferral from the `delivery-post-landing-conflict-recovery`
+  pre-publication standard review, disposition set `sha256:deb4baeb…`, 2026-09-18. The finding was
+  verified against source before it was deferred; nothing here is an unconfirmed report.
+
+### `[ ]` **Carry the observed Git failure out of `resolveSoleMergeBase`**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ the helper's `unavailable` arm discards the underlying failure, so two callers converted to
+  it (`git-candidate-subject.ts:216`, `git-candidate-effective-target.ts:102`) now raise a fixed-string
+  `Error` where a diagnostic `GitProcessError` previously reached the CLI boundary. It fails closed and names
+  the coordinate, so nothing unsafe is admitted — what is lost is the kind, exit code and stderr an operator
+  needs to act.
+
+- _Approach:_ give the `unavailable` arm the normalized `GitProcessError` (or at minimum its kind, exitCode
+  and stderr) and have both call sites rethrow it, or construct their `Error` with a `cause`. The
+  `ambiguous` / `unrelated` / `resolved` arms need no change.
+
+- _Interim rationale:_ a diagnostics regression rather than a defect, and carrying the error out touches both
+  converted callers' failure vocabulary — more than the review increment should reshape.
+
+- _Captured during:_ an approved deferral from the `delivery-post-landing-conflict-recovery`
+  pre-publication standard review, disposition set `sha256:deb4baeb…`, 2026-09-18. The finding was
+  verified against source before it was deferred; nothing here is an unconfirmed report.
+
+### `[ ]` **Single-source the delivery terminal remedy kind set**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ `DeliveryTerminalRemedySchema` (`delivery-execution.ts:902`) hand-mirrors all twelve remedy
+  kinds with no compile-time pin, while the sibling relation schema in the same file was deliberately pinned
+  against exactly this hazard. A kind added in `retirement.ts` can reach the envelope unadmitted. A
+  `z.ZodType<DeliveryTerminalRemedy>` annotation is not sufficient — as the comment beside the relation
+  schema states, a narrower variant set stays assignable — so the boundary is single-sourcing the list.
+
+- _Approach:_ derive the enum from the library's own kinds so the envelope has one authored source for the
+  kind set rather than a second hand-copied list.
+
+- _Interim rationale:_ schema design about where the authored kind set lives, beyond what the review
+  increment should settle.
+
+- _Captured during:_ an approved deferral from the `delivery-post-landing-conflict-recovery`
+  pre-publication standard review, disposition set `sha256:deb4baeb…`, 2026-09-18. The finding was
+  verified against source before it was deferred; nothing here is an unconfirmed report.
+
+### `[ ]` **Close the decline window where an absorbed terminal top is moved and unnamed**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ at `native-landing.ts:1717`, when the terminal-top record publish loses a compare-and-set,
+  the absorbed local top has already moved and no surface the decline reads names it, so the decline restores
+  a strict subset of what the settlement actually moved.
+
+- _Approach:_ record the terminal's pre-absorb restore target in the _first_ phase publish, so no interval
+  exists in which the top has moved and nothing names it. Note that the apparently cheaper alternative —
+  carrying the moved top in `externalRefRestorations` on the refusal — does not close the window: the decline
+  is a separate invocation that derives its restorations from the persisted `operation.native.observedSuffix`,
+  and the write that would name the terminal is the very one that failed. Either way, extend the wedged-past-
+  the-absorb coverage with a third arm that refuses the recording publish and assert what the decline restores.
+
+- _Interim rationale:_ the only correction that actually closes it changes what the earlier settlement-phase
+  publish persists, which reorders settlement persistence — a change to the settlement path itself, not a
+  local repair, and not one to make inside a pre-publication fix increment.
+
+- _Captured during:_ an approved deferral from the `delivery-post-landing-conflict-recovery`
+  pre-publication standard review, disposition set `sha256:deb4baeb…`, 2026-09-18. The finding was
+  verified against source before it was deferred; nothing here is an unconfirmed report.
+
+### `[ ]` **Record that the delivery terminal-rebind region has no fixture coverage at all**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: delivery-correction-convergence`
+
+- _Observation:_ Nothing in the suite reaches the delivery terminal rebind or the `review-fix-acknowledge` verb.
+  Every refusal reason in that region is unobserved: `candidate-coordinate-unavailable` and
+  `candidate-verification-unavailable` have zero test hits anywhere, and `candidate-not-current` is asserted only
+  against a different module. The region is reached by the compiler and by no case, so the first change made there
+  begins by building an arrangement from nothing.
+
+- _Why it is not one of the three captures already routed here:_ each of those names behavior to change — the
+  fictitious review-fix task on a record-only rebind, the moved terminal top, the staged pre-terminal status. None
+  of them records that no case exercises the code they each edit. This is a sizing input, not a fourth behavior.
+
+- _Scope:_ a fact for this work unit's sizing, not a standalone coverage errand. The fixture earns its cost when
+  something changes the behavior it would protect, which is when this work unit runs rather than before it.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` conversion-set verification, 2026-09-18.
+
 ## Pinned probes waiting on this work
 
 `concurrent-integration-characterization` left two probes holding this boundary's behavior as it stands. They

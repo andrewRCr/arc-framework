@@ -43,6 +43,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-operation-state-isolation    | P1       | andrew | —          | —                          |
 | roadmap-tooling                     | P1       | andrew | —          | —                          |
 | session-init-performance            | P1       | andrew | —          | —                          |
+| singleton-integration-continuity    | P1       | andrew | —          | —                          |
 | verification-falsification-contract | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model            | P1       | andrew | —          | —                          |
 | composable-workflows                | P2       | andrew | —          | agent-context-optimization |

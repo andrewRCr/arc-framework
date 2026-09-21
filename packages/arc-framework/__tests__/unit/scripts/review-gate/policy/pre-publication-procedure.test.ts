@@ -11,6 +11,7 @@ import {
 import {
   createStandardReviewReservation,
   CandidateConvergenceBoundarySchema,
+  ContinuePrePublicationActionSchema,
   IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
   projectCandidateFixResumeBoundary,
@@ -62,6 +63,18 @@ const standardReview = {
   rubricDigest: `sha256:${"b".repeat(64)}`,
   retrigger: "full-final" as const,
   count: 1 as const,
+};
+
+const routingFacts = {
+  schemaVersion: 1 as const,
+  changeSetState: "known" as const,
+  contentKind: "code-bearing" as const,
+  reviewRisk: "routine" as const,
+  changeDeterminacy: "atomic" as const,
+  ownership: "self" as const,
+  surfaceAuthority: "ordinary" as const,
+  assurance: { workContext: "work-unit" as const, workClass: "Light" as const },
+  activity: { selfReview: true, frontlineReview: true },
 };
 
 describe("integration boundary locus", () => {
@@ -518,6 +531,7 @@ function request(overrides: Record<string, unknown> = {}) {
       headSha: target.headSha,
     },
     selfReview: "pending",
+    routingFacts,
     frontline: {
       schemaVersion: 1,
       target,
@@ -550,6 +564,26 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 describe("projectPrePublicationReview", () => {
+  it("rejects a Frontline authorization request that changes more than invocation mode", () => {
+    const initialRequest = {
+      schemaVersion: 1 as const,
+      changeSet: routingFacts,
+      invocation: { mode: "inherit" as const, sourceId: "coderabbit-cli" },
+      pass: 1 as const,
+      maxPasses: 2 as const,
+    };
+    expect(ContinuePrePublicationActionSchema.safeParse({
+      kind: "continue-pre-publication-review",
+      command: "arc review frontline resolve -",
+      request: initialRequest,
+      authorizationRequest: {
+        ...initialRequest,
+        invocation: { mode: "force", sourceId: "another-source" },
+      },
+      interactionText: "Continue Frontline review.",
+    }).success).toBe(false);
+  });
+
   it("rejects impossible convergence status and scope pairs", () => {
     expect(PrePublicationReviewRequestSchema.safeParse(request({
       candidate: {
@@ -600,6 +634,31 @@ describe("projectPrePublicationReview", () => {
     expect(projectPrePublicationReview(request())).toMatchObject({
       locus: "candidate-review-pending",
       nextAction: { kind: "run-self-review" },
+    });
+  });
+
+  it("names the frontline resolver when that policy action is ready", () => {
+    expect(projectPrePublicationReview(request({ selfReview: "settled" }))).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", nextAction: "run-frontline" },
+      nextAction: {
+        kind: "continue-pre-publication-review",
+        command: "arc review frontline resolve -",
+        request: {
+          schemaVersion: 1,
+          changeSet: routingFacts,
+          invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+          pass: 1,
+          maxPasses: 2,
+        },
+        authorizationRequest: {
+          schemaVersion: 1,
+          changeSet: routingFacts,
+          invocation: { mode: "force", sourceId: "coderabbit-cli" },
+          pass: 1,
+          maxPasses: 2,
+        },
+      },
     });
   });
 

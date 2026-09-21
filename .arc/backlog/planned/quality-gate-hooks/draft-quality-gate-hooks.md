@@ -428,6 +428,38 @@
 
 ---
 
+### `[ ]` **Decide whether cognitive complexity replaces the cyclomatic limit**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ the installed size gate runs ESLint's cyclomatic `complexity` alongside `max-depth`.
+  SonarSource's own default profile enables **only** cognitive complexity and leaves cyclomatic opt-in — their
+  stated position is that it replaces cyclomatic as the primary gate rather than joining it. The signal cognitive
+  complexity uniquely adds is nesting depth, which `max-depth` already partly covers, so its marginal value over
+  the installed set is narrower than over cyclomatic alone.
+
+- _Approach:_ measure `sonarjs/cognitive-complexity` against the tree and compare its flagged set with the
+  recorded cyclomatic floor. Adopting it likely means **retiring** that floor rather than recording a second one
+  — that is the decision here, not the dependency.
+
+- _Observation:_ `eslint-plugin-sonarjs` is ~4.3MB across 13 dependencies, LGPL-3.0, dev-only, ESLint 10
+  compatible; its repo shows "archived" only because it moved into a monorepo. Declaring the plugin manually
+  alongside its `recommended` config throws `Cannot redefine plugin` — cherry-pick the single rule.
+
+- _Also:_ `eslint-plugin-vitest`'s `max-nested-describe` and `max-expects` are the purpose-built answer to test
+  bloat, which the per-file limit on `__tests__/**` only approximates. Same dependency call, same drain.
+
+- _Also:_ `max-lines` reports once per file, so a recorded test file can grow without bound while its count
+  stays 1 — 21 suites are already recorded, and `delivery-execution.test.ts` (2208 lines) is free to reach
+  5000 while a fresh suite hits a hard wall at 1500. A per-file line cap cannot express "no worse than this"
+  for a file it already holds; a describe/expect-shaped measure is the candidate that can. Observed
+  2026-09-18 during the `size-floor-reconciliation` errand.
+
+- _Infra smell:_ changes what the installed gate measures and could retire a recorded floor — worth the reviewed
+  lane, and worth re-triaging at the drain for whether it is really a Work Unit.
+
+- _Captured during:_ the `function-size-ratchet` errand, 2026-09-18.
+
 ## Problem / Motivation
 
 ARC's tiered quality gate system — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR) — is

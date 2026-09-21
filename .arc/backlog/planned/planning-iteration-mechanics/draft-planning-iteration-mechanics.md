@@ -264,6 +264,34 @@
 
 ---
 
+### `[ ]` **Let a task plan mark a pin-only task distinctly from a build task**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- _WU_Target:_ `planning-iteration-mechanics`
+
+- _Observation:_ A task whose behavior the tree already satisfies and a task that must build that behavior are
+  formally identical in a task list: both carry ``Build `test-first` (one behavior at a time):`` and a behavior
+  list. But they demand different execution discipline — a build task runs RED first, while a pin-only task
+  cannot, and owes a reconstruct-and-revert per behavior instead. The distinction decides whether the increment
+  proves anything, and nothing in the entry form carries it.
+
+- _Why it matters more than a lost turn:_ the two misreadings fail in opposite directions. Reading pin-only as
+  build produces redundant code beside a route that already worked. Reading it correctly but skipping the
+  reconstructions produces a green report over tests that pin nothing — silent, and indistinguishable from
+  success in the record.
+
+- _Approach:_ Likely a marker peer to the test-first one rather than prose, since prose in a parent's
+  `_Rationale:_` is what failed here. Settle whether the signal belongs to the task entry, to the `test-first`
+  marker's vocabulary, or to `arc-task-audit` as a detector — the third only catches it after authoring. Note
+  that `testing-standards` already owns the reconstruct-and-revert procedure, so the marker would be selecting an
+  existing discipline, not minting one.
+
+- _Observation on reach:_ this is not specific to characterization work. Any task whose behavior is already
+  incidentally satisfied hits it, which is why it reads as a form gap rather than one plan's wording.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Task 2.3, 2026-09-17.
+
 ## Problem / Motivation
 
 The planning pipeline's _readiness_ surface (when is a draft spec-ready, who decides, how the stage pointer

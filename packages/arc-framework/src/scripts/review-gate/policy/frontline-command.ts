@@ -1,12 +1,13 @@
 /** Workflow-facing composition API for frontline semantic resolution. */
 
-import { z } from "zod";
-
 import {
   FrontlineResolveEnvelopeSchema,
 } from "../core/review-command-envelope.js";
-import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
-import { FrontlineInvocationOverrideSchema } from "./frontline-resolution.js";
+import type { ReviewPass } from "../core/review-pass.js";
+import {
+  FrontlineCommandRequestSchema,
+  type FrontlineCommandRequest,
+} from "./frontline-command-schema.js";
 import { resolveFrontlineReview, type FrontlineSemanticRecord } from "./frontline-semantic.js";
 import type {
   FrontlineSourcePreferenceReader,
@@ -14,22 +15,7 @@ import type {
 } from "./frontline-source.js";
 import { resolveReviewRouting, type ReviewRoutingResolution } from "./routing.js";
 
-export const FrontlineCommandRequestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  changeSet: z.unknown(),
-  invocation: FrontlineInvocationOverrideSchema,
-  pass: ReviewPassSchema.optional(),
-  maxPasses: ReviewPassSchema.optional(),
-}).superRefine((request, context) => {
-  if (request.pass !== undefined && request.pass > (request.maxPasses ?? 1)) {
-    context.addIssue({
-      code: "custom",
-      message: "frontline pass cannot exceed maxPasses",
-      path: ["pass"],
-    });
-  }
-});
-export type FrontlineCommandRequest = z.infer<typeof FrontlineCommandRequestSchema>;
+export { FrontlineCommandRequestSchema, type FrontlineCommandRequest };
 
 export interface FrontlineCommandResult {
   schemaVersion: 1;

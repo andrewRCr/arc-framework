@@ -21,6 +21,7 @@ import {
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
 import { FrontlineResponseBindingSchema } from "../core/frontline-response-binding.js";
+import { ReviewRoutingFactsSchema } from "./routing-schema.js";
 import {
   CandidateConvergenceBoundarySchema,
   CandidateFixBoundarySchema,
@@ -71,6 +72,8 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
    * checkout cannot currently produce one rather than refusing a procedure that has other work to do.
    */
   target: ReviewTargetSchema.nullable().default(null),
+  /** Complete normalized facts supplied to the workflow-facing Frontline resolver. */
+  routingFacts: ReviewRoutingFactsSchema,
   /** Candidate authority carried only while frontline reviews a private delivery member. */
   responseBinding: FrontlineResponseBindingSchema.optional(),
   selfReview: z.enum(["inactive", "pending", "settled"]),
@@ -270,15 +273,36 @@ function policyEnvelope(
   policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
 ): PrePublicationReviewEnvelope {
   const findings = policy.state === "findings";
+  const interactionText = findings
+    ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
+    : `Continue the ${lane} review from the typed policy result '${policy.state}'.`;
+  let nextAction: z.infer<typeof ContinuePrePublicationActionSchema>;
+  if (policy.state === "ready" && policy.nextAction === "run-frontline") {
+    const resolverRequest = {
+      schemaVersion: 1 as const,
+      changeSet: request.routingFacts,
+      invocation: { mode: "inherit" as const, sourceId: policy.payload.sourceId },
+      pass: policy.payload.pass,
+      maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
+    };
+    nextAction = ContinuePrePublicationActionSchema.parse({
+      kind: "continue-pre-publication-review",
+      command: "arc review frontline resolve -",
+      request: resolverRequest,
+      authorizationRequest: {
+        ...resolverRequest,
+        invocation: { ...resolverRequest.invocation, mode: "force" },
+      },
+      interactionText,
+    });
+  } else {
+    nextAction = ContinuePrePublicationActionSchema.parse(
+      action(request.workUnit, "continue-pre-publication-review", interactionText),
+    );
+  }
   return envelope(request, {
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
-    nextAction: action(
-      request.workUnit,
-      "continue-pre-publication-review",
-      findings
-        ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
-        : `Continue the ${lane} review from the typed policy result '${policy.state}'.`,
-    ),
+    nextAction,
     policy,
   });
 }

@@ -64,6 +64,52 @@
 
 ---
 
+### `[ ]` **Single-source the unrelated-base remedy, or stop claiming the copies are identical**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ the unrelated-base remedy exists in three independently worded copies
+  (`checkpoint.ts:714`, `review-gate/status.ts:1203`, `errand-merge.ts:283`) beneath a docstring asserting
+  they are kept identical. Nothing pins them, so the assertion is unenforced and already only approximately
+  true.
+
+- _Approach:_ either have `status.ts` and `errand-merge.ts` call one exported constructor — both already
+  import from `spine-refusal.ts`, and `checkpoint.ts` already exports `checkpointUnrelatedBaseRemedy` —
+  parameterizing only the trailing verb; or delete the identity claim and state that each surface words its
+  own. If the copies stay, pin them against each other in one test.
+
+- _Interim rationale:_ which way this resolves is a design choice about where the remedy's ownership sits,
+  not a correction the review increment can make on its own authority.
+
+- _Captured during:_ an approved deferral from the `delivery-post-landing-conflict-recovery`
+  pre-publication standard review, disposition set `sha256:deb4baeb…`, 2026-09-18. The finding was
+  verified against source before it was deferred; nothing here is an unconfirmed report.
+
+### `[ ]` **Name the remedy when `inbox-mark-execute-bound` rejects a non-Errand entry**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ promoting a capture to the execute-bound queue failed with
+  `USER-INBOX entry '<title>' is not in the Errand section.` The entry was real and correctly formed; it was
+  simply filed under `## Work Unit`, and the fix was to relocate it to `## Errand` first — which the message
+  never says. It is a bare `throw new Error` in `lib/user-sync/inbox-writer.ts` rather than a typed refusal
+  carrying a remedy, unlike the checkpoint refusals next door that compose
+  `spineRemedy(cause, instruction, argv)`.
+
+- _Family:_ fifth in the "diagnostics that report a state without naming the fix" family tracked under "Make the
+  in-flight artifact advisory name its remedy". That entry's standing clause — "If a fifth appears, state the
+  obligation once in the spine rather than patching another site" — fires here. Treat this as the evidence that
+  the count has been reached, not as another single site to patch.
+
+- _Secondary observation:_ the verb takes the complete ordered queue, so promoting one capture to the front means
+  restating all thirty titles exactly. The atomicity is deliberate and worth keeping; what is missing is a
+  positional affordance that derives the untouched remainder from current state.
+
+- _Scope:_ refusal text and remedy shape, plus optionally the positional affordance. No change to queue
+  semantics, ordering contract, or atomicity.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` integration, 2026-09-19.
+
 ## Problem / Motivation
 
 Session-init and adjacent lifecycle surfaces emit an increasing number of conditional advisories. Under ordinary
