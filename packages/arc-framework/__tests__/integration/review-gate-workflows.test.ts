@@ -535,7 +535,7 @@ describe("trusted review-gate workflows", () => {
     );
     const lockRelease = fullProtection.indexOf("arc merge lock release -", mergeMethodResolution);
     const autoMerge = fullProtection.indexOf(
-      "gh pr merge <pr-number> --auto --<method>",
+      "gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>",
       lockRelease,
     );
     expect(exemption).toBeGreaterThanOrEqual(0);

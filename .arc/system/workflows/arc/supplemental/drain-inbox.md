@@ -235,7 +235,8 @@ routing write.
   before arming, invoke
   `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
   locked PR. `released / proceed` and `no-lock / none` both continue by invoking
-  `gh pr merge <pr-number> --auto --<method>` with that exact returned method; `blocked / stop` invalidates approval.
+  `gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>` with that exact returned method and the
+  release payload's head; `blocked / stop` invalidates approval.
 
   **A released PR is not a head-authorized PR.** Draft is a property of the pull request rather than of a commit,
   so the release says the lock came off — never that it came off for one head. Both continuing actions carry the
