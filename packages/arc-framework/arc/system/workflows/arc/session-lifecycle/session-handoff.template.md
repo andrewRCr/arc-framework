@@ -137,8 +137,13 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     ```text
     chore(errand): checkpoint <slug>
 
+    - Preserve resumable Errand state for <slug>
+
     Context: standalone (<kind>)
     ```
+
+   **Subject-length guard.** Apply [`commit-format`][commit-format]'s literal-workflow-subject identity fallback to
+   `<slug>`; keep the exact identity in the body.
 
 3. **Preserve and leave the exact Errand** — before leaving, retain the exact surviving return checkout from the
    same derived frame: the marker parent when it resolves to one registered checkout, otherwise the physical primary

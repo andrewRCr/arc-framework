@@ -16,7 +16,7 @@ const commitFormatPaths = [
 const longWorkUnitName = "delivery-post-landing-conflict-recovery";
 const wholeSubjectFallback = "fix(w): wu";
 const subjectTemplatePattern =
-  /^[ \t]*(?:feat|fix|chore|docs|refactor|test|perf|revert)\([a-z0-9-]+\): .*\{(?:name|work-name|origin|slug)\}.*$/gmu;
+  /^[ \t]*(?:feat|fix|chore|docs|refactor|test|perf|revert)\([a-z0-9-]+\): .*(?:\{(?:name|work-name|origin|slug)\}|<slug>).*$/gmu;
 
 async function markdownFiles(directory: string): Promise<string[]> {
   return (await readdir(directory, { recursive: true }))
@@ -25,7 +25,7 @@ async function markdownFiles(directory: string): Promise<string[]> {
 }
 
 function renderSubjectIdentity(template: string, identity: string): string {
-  return template.replace(/\{(?:name|work-name|origin|slug)\}/gu, identity);
+  return template.replace(/\{(?:name|work-name|origin|slug)\}|<slug>/gu, identity);
 }
 
 describe("canonical commit-message corpus", () => {
@@ -43,8 +43,9 @@ describe("canonical commit-message corpus", () => {
     const method = await readFile(path, "utf8");
 
     expect(method).toContain("final hyphen-delimited segment");
-    expect(method).toContain("substitute every identity with");
+    expect(method).toMatch(/substitute every\s+identity with/u);
     expect(method).toContain("`{slug}`");
+    expect(method).toContain("`<slug>`");
     expect(method).toContain("`fix(w): wu`");
     expect(method).toMatch(/subject-only[\s\S]*body[\s\S]*`Context:` footer/iu);
   });
@@ -67,6 +68,7 @@ describe("canonical commit-message corpus", () => {
 
     expect(templateCount).toBeGreaterThanOrEqual(20);
     expect(templates).toContain("chore(arc): promote {slug} errand to {name} work unit");
+    expect(templates).toContain("chore(errand): checkpoint <slug>");
   });
 
   it("provides a valid whole-subject fallback at the minimum supported cap", async () => {
