@@ -33,12 +33,14 @@ Conventional commit format.
 
 ### Literal workflow subject identities
 
-A workflow's literal subject remains canonical after its placeholders are rendered. Use the exact work-unit identity
-for `{name}`, `{work-name}`, `{origin}`, and the WU-name component of `<position>` while the complete subject fits
-`hooks.subject_max_length`. If it does not fit, substitute only that identity with its final hyphen-delimited segment;
-if that still does not fit, substitute `wu`. Do not invent another abbreviation.
+A workflow's literal subject remains canonical after its placeholders are rendered. Treat every `{name}`,
+`{work-name}`, `{origin}`, `{slug}`, and WU-name component of `<position>` as an identity. Render every identity
+exactly while the complete subject fits `hooks.subject_max_length`. If it does not fit, substitute every identity in
+that subject with its final hyphen-delimited segment; if that still does not fit, substitute every identity with
+`wu`. If the complete subject still does not fit, use the exact whole-subject fallback `fix(w): wu`. Do not mix
+fallback tiers or invent another abbreviation.
 
-The fallback is subject-only: keep the exact identity in every body field and the `Context:` footer.
+Every fallback is subject-only: keep each exact identity in every body field and the `Context:` footer.
 
 ### Message submission
 
