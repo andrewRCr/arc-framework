@@ -225,16 +225,24 @@ describe("trusted review-gate workflows", () => {
 
   it("keeps the public review CLI inside the published graph", async () => {
     const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
+    const productionRegistry = await readFile(
+      resolve(root, "packages/arc-framework/src/production-schema-registry.ts"),
+      "utf8",
+    );
     const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
       files: string[];
       scripts?: Record<string, string>;
     };
     expect(tsup).toContain('entry: ["src/cli.ts"]');
-    expect(tsup).toContain("registerReviewDomainSchemas");
-    expect(tsup).toContain("registerDeliveryDomainSchemas");
-    expect(tsup).toContain("registerDeliveryAuthoringSchemas");
-    expect(tsup).toContain(
-      "registerDeliveryAuthoringSchemas(\n      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()))",
+    expect(tsup).toContain("createProductionSchemaRegistry");
+    expect(productionRegistry).toContain("registerReviewDomainSchemas");
+    expect(productionRegistry).toContain("registerDeliveryDomainSchemas");
+    expect(productionRegistry).toContain("registerDeliveryAuthoringSchemas");
+    expect(productionRegistry).toContain("registerSessionEnvelopeSchemas");
+    const compactRegistry = productionRegistry.replace(/\s+/gu, " ");
+    expect(compactRegistry).toContain(
+      "return registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas( "
+      + "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())), ));",
     );
     expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");
