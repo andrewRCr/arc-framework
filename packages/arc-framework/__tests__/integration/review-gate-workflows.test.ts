@@ -525,16 +525,36 @@ describe("trusted review-gate workflows", () => {
       prCreation,
     );
     const integrationInterlock = fullProtection.indexOf("`integration-interlock`", openedTargetResolution);
+    const laneClassification = fullProtection.indexOf(
+      "arc review planning-lane <base-sha> <head-sha>",
+      integrationInterlock,
+    );
+    const mergeMethodResolution = fullProtection.indexOf(
+      "arc review merge-method resolve",
+      laneClassification,
+    );
+    const lockRelease = fullProtection.indexOf("arc merge lock release -", mergeMethodResolution);
+    const autoMerge = fullProtection.indexOf(
+      "gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>",
+      lockRelease,
+    );
     expect(exemption).toBeGreaterThanOrEqual(0);
     expect(prCreation).toBeGreaterThan(exemption);
     expect(openedTargetResolution).toBeGreaterThan(prCreation);
     expect(integrationInterlock).toBeGreaterThan(openedTargetResolution);
+    expect(laneClassification).toBeGreaterThan(integrationInterlock);
+    expect(mergeMethodResolution).toBeGreaterThan(laneClassification);
+    expect(lockRelease).toBeGreaterThan(mergeMethodResolution);
+    expect(autoMerge).toBeGreaterThan(lockRelease);
     expect(fullProtection).toMatch(/`exempt \/ none`[\s\S]*skip[^.]*review/iu);
     expect(fullProtection).toMatch(/continue-review[\s\S]*reviewed-lane/iu);
     expect(fullProtection).toMatch(/never infer[^.]*planning-lane/iu);
     expect(fullProtection).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
     expect(fullProtection).toMatch(
       /after approval[\s\S]*head differs[^.]*return[^.]*adapter[^.]*integration\s+interlock/iu,
+    );
+    expect(fullProtection.slice(mergeMethodResolution, lockRelease)).toMatch(
+      /validated \/ use-method[\s\S]*returned `method`[\s\S]*sole/iu,
     );
   });
 
