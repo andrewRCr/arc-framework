@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "route-errand-autonomous-advance",
+  "claimId": "89670b694fdbdddffaa8bcc3a1cdb615",
+  "createdAt": "2026-09-21T12:26:04.847Z",
+  "updatedAt": "2026-09-21T12:26:04.847Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the Errand autonomy experiment into a provisional planned work unit and existing owners",
+  "branch": "chore/route-errand-autonomous-advance",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
