@@ -10,6 +10,8 @@ import {
   InboxStateResultSchema,
   runInboxState,
 } from "../../../src/lib/session-init/inbox-state.js";
+import { extractReminderEntries } from "../../../src/lib/session-init/inbox-reminders.js";
+import { markInboxEntriesExecuteBoundInOrder } from "../../../src/lib/user-sync/index.js";
 
 const atomicEntry = (title: string): string =>
   ["### `[ ]` **" + title + "**", "", "- _Created:_ `2026-05-30`", "- A routable atomic capture.", ""].join("\n");
@@ -126,6 +128,60 @@ describe("runInboxState", () => {
     ].join("\n");
 
     expect(runInboxState({ content })).toEqual({ routableCount: 0, executeBoundCount: 2, housekeepNeeded: false });
+  });
+
+  it("clears retain-only fields when a held entry becomes execute-bound", () => {
+    const content = [
+      "## Errand",
+      "",
+      "### `[ ]` **held atomic**",
+      "",
+      "- _Hold:_ `true`",
+      "- _Created:_ `2026-06-01`",
+      "",
+      "- A retained capture.",
+      "",
+      "## Work Unit",
+      "",
+    ].join("\n");
+
+    const marked = markInboxEntriesExecuteBoundInOrder(content, ["held atomic"]);
+
+    expect(marked.content).toContain("- _Disposition:_ `execute-bound`");
+    expect(marked.content).not.toContain("_Hold:_");
+    expect(marked.content).not.toContain("_Created:_");
+    expect(runInboxState({ content: marked.content })).toEqual({
+      routableCount: 0,
+      executeBoundCount: 1,
+      housekeepNeeded: false,
+    });
+    expect(extractReminderEntries({ content: marked.content }).entries).toEqual([]);
+  });
+
+  it("preserves an independent reminder when a held entry becomes execute-bound", () => {
+    const content = [
+      "## Errand",
+      "",
+      "### `[ ]` **reminded atomic**",
+      "",
+      "- _Hold:_ `true`",
+      "- _Remind:_ `true`",
+      "- _Created:_ `2026-06-01`",
+      "",
+      "- A retained and explicitly reminded capture.",
+      "",
+      "## Work Unit",
+      "",
+    ].join("\n");
+
+    const marked = markInboxEntriesExecuteBoundInOrder(content, ["reminded atomic"]);
+
+    expect(marked.content).not.toContain("_Hold:_");
+    expect(marked.content).toContain("- _Remind:_ `true`");
+    expect(marked.content).toContain("- _Created:_ `2026-06-01`");
+    expect(extractReminderEntries({ content: marked.content }).entries).toEqual([
+      { key: "reminded atomic", created: "2026-06-01" },
+    ]);
   });
 
   it("keeps a malformed execute-bound disposition routable", () => {

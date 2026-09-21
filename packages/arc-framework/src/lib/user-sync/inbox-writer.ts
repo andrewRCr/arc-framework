@@ -83,6 +83,9 @@ interface LocatedInboxEntry {
 }
 
 const DISPOSITION_LINE = "- _Disposition:_ `execute-bound`";
+const HOLD_LINE = "- _Hold:_ `true`";
+const REMIND_LINE = "- _Remind:_ `true`";
+const CREATED_LINE = /^- _Created:_ `[^`]*`$/u;
 
 /**
  * Locate entries without letting one malformed heading discard the rest.
@@ -195,6 +198,18 @@ function executeBoundMark(
     );
   }
   return { insertedLineCount: 2 };
+}
+
+/** Remove the retain envelope that an execute-bound disposition supersedes. */
+function normalizeRetainedEntryForExecution(block: readonly string[]): string[] {
+  if (!block.includes(HOLD_LINE)) return [...block];
+  const preserveCreated = block.includes(REMIND_LINE);
+  const normalized = block.filter((line) =>
+    line !== HOLD_LINE && (preserveCreated || !CREATED_LINE.test(line)));
+  if (!preserveCreated && normalized[1] === "" && normalized[2] === "") {
+    normalized.splice(2, 1);
+  }
+  return normalized;
 }
 
 /** Whether one parsed inbox entry carries the canonical execute-bound disposition. */
@@ -424,7 +439,9 @@ export function mutateInboxEntries(
 
   for (const { entry, mutation, mark } of actions.sort((left, right) => right.entry.start - left.entry.start)) {
     if (mutation.kind === "mark") {
-      lines.splice(entry.start + 1, 0, "", DISPOSITION_LINE);
+      const normalized = normalizeRetainedEntryForExecution(lines.slice(entry.start, entry.end));
+      normalized.splice(1, 0, "", DISPOSITION_LINE);
+      lines.splice(entry.start, entry.end - entry.start, ...normalized);
     } else if (mutation.kind === "unmark") {
       lines.splice(entry.start + 1, mark?.insertedLineCount ?? 0);
     } else {
