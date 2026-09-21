@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, stat, mkdir, writeFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
+import { lint } from "markdownlint/promise";
 
 import {
   buildStartSessionNotesSeed,
@@ -108,18 +109,23 @@ describe("deriveColdStartWuName", () => {
 });
 
 describe("buildStartSessionNotesSeed", () => {
-  it("keeps every seeded Markdown line within the project limit", () => {
-    const longName = "a".repeat(65);
+  it("keeps the seeded Markdown lint-clean for a long accepted slug", async () => {
+    const longName = "a".repeat(100);
     const seed = buildStartSessionNotesSeed({
       wuName: longName,
       branch: `plan/${longName}`,
       kind: "create-new",
       commit: "[start ceremony pending]",
     });
-    const overlongLines = seed.split("\n").flatMap((line, index) =>
-      line.length > 120 ? [{ lineNumber: index + 1, line }] : []);
+    const results = await lint({
+      strings: { "SESSION-NOTES.md": seed },
+      config: {
+        default: false,
+        MD013: { line_length: 120, code_blocks: false, tables: false },
+      },
+    });
 
-    expect(overlongLines).toEqual([]);
+    expect(results["SESSION-NOTES.md"]).toEqual([]);
   });
 });
 

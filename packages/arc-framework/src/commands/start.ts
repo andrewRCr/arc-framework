@@ -209,8 +209,13 @@ export function buildStartSessionNotesSeed(params: StartSessionNotesSeedParams):
 ## Completed Work
 
 - ${action}
-- Branch \`${params.branch}\` is checked out here.
-- \`${metaFile}\` is the active project pointer.
+- Branch checked out here:
+
+    \`${params.branch}\`
+
+- Active project pointer:
+
+    \`${metaFile}\`
 
 ## Remaining Work Before Returning to Task List
 
