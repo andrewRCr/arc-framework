@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "auto-refresh-stale-arc-build",
+  "claimId": "6cd3d7e140f41f85ebea5b5e26083096",
+  "createdAt": "2026-09-21T12:44:56.109Z",
+  "updatedAt": "2026-09-21T12:44:56.109Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "auto-refresh-stale-arc-build",
+  "branch": "chore/auto-refresh-stale-arc-build",
+  "origin": "inbox",
+  "originEntry": "Automatically refresh a stale self-hosted ARC build before retrying any ARC command",
+  "originEntrySourceDigest": "sha256:6f0636c34757dac69ebbf9d9c96d34aa3eb3b9deb75757259aa3b6c5634cfefc",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
