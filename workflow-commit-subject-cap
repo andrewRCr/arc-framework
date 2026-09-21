@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "workflow-commit-subject-cap",
+  "claimId": "7b98e8cc4f9bd512bf117cd46497652e",
+  "createdAt": "2026-09-21T15:00:32.051Z",
+  "updatedAt": "2026-09-21T15:00:32.051Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "workflow-commit-subject-cap",
+  "branch": "chore/workflow-commit-subject-cap",
+  "origin": "inbox",
+  "originEntry": "Fit the workflows' literal commit templates inside the 72-character subject cap",
+  "originEntrySourceDigest": "sha256:4fa3f32371746a9c0cc57714edcd6e7bb25214d8015145f7189b0386da02af06",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
