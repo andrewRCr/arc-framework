@@ -218,31 +218,69 @@ gate's own doors surface that same projection to the operator. So the degradatio
 exactly lifecycle-staged — but it lives in the delivery handler's result mapping rather than in the applicability
 machinery, which is why no amount of extending that machinery would have reached it.
 
-**Only the closeout site is a defect.** Two of the three refuse correctly. The record-effect recovery arm
+**Only the reconcile site is a defect.** Two of the three refuse correctly. The record-effect recovery arm
 reconstructs what a write already did and asks a yes-or-no identity question with no operator decision available;
 it is one of eleven identical returns and already carries an operator-facing remedy elsewhere. The boundary-carry
 arm compares the recognized subject digest against the digest its boundary was established at, so a decision
 _means_ the position moved and the refusal is accurate — surfacing a seam there would let an operator carry a
-boundary across the very change the boundary exists to bound. The closeout arm is different: the same function
-already handles a changed effective state further down, reading its current target to compose a projected one, so
-the guard short-circuits a path the function otherwise knows how to walk.
+boundary across the very change the boundary exists to bound. The typed base reconcile is different: the same
+function already handles a changed effective state further down, reading its current target to compose a projected
+one, so the guard short-circuits a path the function otherwise knows how to walk — and reconcile is exactly where a
+rebuilt chain's subject legitimately moves.
 
 **What this leaves.** Criteria 2 through 5 stop being substrate extension and become one narrow correction plus
-verification — surface the composed decision at the closeout read site instead of flattening it, and prove a
+verification — surface the composed decision at the reconcile read site instead of flattening it, and prove a
 rebuilt chain reaches the seam rather than an opaque refusal. They do not warrant a deliverable of their own.
+
+### Resolved: what gates publication
+
+**Publication reads the work-unit Candidate attestation; it runs nothing.** The per-member Tier 2 operand goes
+away — `publish` today requires a non-empty gate-result list and reruns exact Tier 2 result admission against the
+post-gate checkouts, and all of that is removed. What replaces it is not a new check but an existing one currently
+produced and then ignored: Candidate currentness and convergence, read from the record `verify-work-unit` already
+wrote.
+
+**The signal is already unconditional.** `verify-work-unit` completes every project-designated gate and attests the
+result as a durable Candidate; `prepare-work-unit` starts from that attestation and refuses to proceed without one.
+A full work-unit gate run therefore already precedes every publication. Declining to read it would discard a result
+ARC required, paid for, and already trusts at the integration checkpoint, which refuses `candidate-missing` with
+"Integration requires a managed Candidate attestation."
+
+**This is the idiom rather than a departure from it.** The research argues against _running_ per-member verification
+locally before publication, which is what this work unit removes. It does not argue against reading a completed
+work-unit verification: the staged-pipeline shape is a fast commit build with slower stages behind it, and the
+work-unit gate run is that commit build. Gerrit gates submit by reading a `Verified` label a prior run produced.
+Reading prior verification at a gate is ordinary.
+
+**What the read catches.** The attestation is present by construction, so the check refuses in exactly one state —
+the Candidate advanced after attestation and the delivery chain was prepared against the superseded subject.
+`prepare-work-unit` already directs that an approved fix changing the Candidate requires rerunning delivery
+preparation; reading currentness at publish is what catches a chain that did not. That is the continuity failure
+this work unit exists for, caught at the seam where it becomes public.
+
+**What it does not give.** The attestation is work-unit-level. It establishes that the union contribution passed,
+never that a non-terminal member passed in isolation. Per-member content may reach the merge boundary without ever
+having been checked alone, with the `Integrating` window, the terminal checkpoint, and the host's required checks as
+the net. That is the accepted consequence, and the ADR states it rather than leaving a reader to infer that every
+member was independently verified.
+
+**Per-member checks are the project's CI policy, not ARC's requirement.** ARC publishes the stack; which published
+members get checked is configuration the project owns. That is what admits the churn-reducing pattern the research
+recorded — skipping checks on mid-stack members and reasserting them at merge-queue time — without ARC building any
+mechanism for it. The ADR states the permission, never the policy.
 
 ### Open for the re-entered half
 
-1. What, if anything, runs in the prepublication window in place of per-member Tier 2 — nothing, a fast subset at
-   the top member only, or the existing work-unit Candidate attestation unchanged?
-2. Does "published equals attested" survive as doctrine for the _work unit_ while per-_member_ verification moves
-   after publication, or does the publication boundary itself need restating?
-3. What does the eligibility close validate once gate results are no longer its input? Existing validation accepts a
+1. How does `strategy-integration.md` § Publication Boundary restate itself? "Published equals attested" survives,
+   but only at _work-unit_ granularity — the boundary needs wording that says publication reads a work-unit
+   attestation and that per-_member_ checks run after publication under the project's own CI policy, without
+   implying each member was independently verified before it was published.
+2. What does the eligibility close validate once gate results are no longer its input? Existing validation accepts a
    caller-supplied result list; whether that operand remains, and what it means, is open.
-4. Does the ADR amend `ADR-034` or supersede nothing and stand alone? Its axis is different — check placement rather
+3. Does the ADR amend `ADR-034` or supersede nothing and stand alone? Its axis is different — check placement rather
    than merge timing — which argues for a new record cross-referencing it.
-5. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
-6. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
+4. What becomes of goals 3 and 4 as stated, both of which name gate evidence and gate-result attribution directly.
+5. Is a CLI-executed gate verb still wanted as a convenience once it is no longer load-bearing for evidence, or
    dropped?
 
 ## Problem / Motivation
