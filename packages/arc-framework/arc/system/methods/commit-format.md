@@ -31,6 +31,15 @@ Conventional commit format.
 - Impact if significant
 ```
 
+### Literal workflow subject identities
+
+A workflow's literal subject remains canonical after its placeholders are rendered. Use the exact work-unit identity
+for `{name}`, `{work-name}`, `{origin}`, and the WU-name component of `<position>` while the complete subject fits
+`hooks.subject_max_length`. If it does not fit, substitute only that identity with its final hyphen-delimited segment;
+if that still does not fit, substitute `wu`. Do not invent another abbreviation.
+
+The fallback is subject-only: keep the exact identity in every body field and the `Context:` footer.
+
 ### Message submission
 
 Submit multiline messages as file-backed input so the shell cannot interpolate or reshape the content. Use a quoted
