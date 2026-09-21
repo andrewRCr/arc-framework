@@ -229,10 +229,13 @@ routing write.
   interlock. Otherwise run `arc review planning-lane <base-sha> <head-sha>`. Only literal `planning` permits arming
   auto-merge; `reviewed` follows the reviewed-lane settlement in [`run-errand`][run-errand], while command failure
   or malformed output stops. Foreign ownership or another confidently recognized review condition may still move
-  a planning result to reviewed without another permission stop, but never the reverse. Immediately before arming,
-  invoke
+  a planning result to reviewed without another permission stop, but never the reverse. For a literal `planning`
+  result, invoke `arc review merge-method resolve` and continue only from `validated / use-method`. Retain the
+  returned `method` as the sole merge-method input; `blocked / stop` stops with the lock still held. Immediately
+  before arming, invoke
   `arc merge lock release -` for the exact target — as on the errand grooming lane, auto-merge cannot be armed on a
-  locked PR. `released / proceed` and `no-lock / none` both continue; `blocked / stop` invalidates approval.
+  locked PR. `released / proceed` and `no-lock / none` both continue by invoking
+  `gh pr merge <pr-number> --auto --<method>` with that exact returned method; `blocked / stop` invalidates approval.
 
   **A released PR is not a head-authorized PR.** Draft is a property of the pull request rather than of a commit,
   so the release says the lock came off — never that it came off for one head. Both continuing actions carry the
