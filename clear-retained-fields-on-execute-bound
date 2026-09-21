@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "clear-retained-fields-on-execute-bound",
+  "claimId": "9e41aca927f8f9b0f6e66f79f98543f3",
+  "createdAt": "2026-09-21T23:27:25.958Z",
+  "updatedAt": "2026-09-21T23:27:25.958Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Clear retain-only fields when an inbox entry becomes execute-bound",
+  "branch": "chore/clear-retained-fields-on-execute-bound",
+  "origin": "inbox",
+  "originEntry": "Clear retained fields when an inbox entry becomes execute-bound",
+  "originEntrySourceDigest": "sha256:0b9c76eabfa7186da5c00cfae9319c46c391c39beaf8d7aa1d0135cb4bd81fc9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
