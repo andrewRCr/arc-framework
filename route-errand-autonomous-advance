@@ -3,14 +3,20 @@
   "slug": "route-errand-autonomous-advance",
   "claimId": "89670b694fdbdddffaa8bcc3a1cdb615",
   "createdAt": "2026-09-21T12:26:04.847Z",
-  "updatedAt": "2026-09-21T12:26:04.847Z",
+  "updatedAt": "2026-09-21T12:44:25.363Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the Errand autonomy experiment into a provisional planned work unit and existing owners",
   "branch": "chore/route-errand-autonomous-advance",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/route-errand-autonomous-advance",
+    "headSha": "fae27ebe97c308db282040de3c251ec636eadec3"
+  }
 }
