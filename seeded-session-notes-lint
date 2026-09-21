@@ -3,7 +3,7 @@
   "slug": "seeded-session-notes-lint",
   "claimId": "386e569f6972c809d506fb97949effc3",
   "createdAt": "2026-09-21T19:09:59.671Z",
-  "updatedAt": "2026-09-21T19:09:59.671Z",
+  "updatedAt": "2026-09-21T20:13:17.329Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "seeded-session-notes-lint",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make the seeded SESSION-NOTES lint clean at worktree spawn",
   "originEntrySourceDigest": "sha256:5956e67a6740df8e2ea55a3b2c4af1f2453e498ed34574466d600b0f34f9f254",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/seeded-session-notes-lint",
+    "headSha": "65f7c5badd0de81a6aa25e708401d222bec69f6e"
+  }
 }
