@@ -69,11 +69,15 @@ out (§ The deliverable stack).
 - The widened `non-current` arm carries the projection's `state` and `nextAction`, with `reason` and `detail`
   optional because only the first two are on every arm, flattened rather than re-exported (§ Which projection arms
   reach the operator, and where).
-- The close's narrowed ref loop keeps a protected-base entry pinned to the recorded **head** rather than the ref, so
-  snapshot integrity survives without refusing on base movement (§ Decisions, 5).
-- The overlap guard widens by diff revision, not by merge-base pair: the relation keeps deriving `chainBase` from
-  the first member while the left-hand changed set is read from the chain base to the final candidate, so the
-  guard covers the whole chain without moving the pin it is checked against (§ What the source shows, 4).
+- Snapshot integrity survives the loop narrowing through a pinned protected-base check that runs **ahead of** the
+  narrowed loop rather than as an entry in it: it observes the recorded **head** rather than the ref, so it cannot
+  refuse on base movement, and it carries its own dispositions rather than the loop's reprepare remedy
+  (§ Decisions, 5).
+- The overlap guard is measured **per member**, not over any chain-wide pair: member _k_'s authored commit set
+  against the movement _k_ has not absorbed. Members land bottom-up and independently, so a chain-wide operand
+  cannot express the question the refusal asks, and its attribution would name a member it cannot establish. The
+  guard moves out of the relation into the per-member walk prepare and close already run
+  (§ What the source shows, 4).
 
 **Open**
 
@@ -99,9 +103,10 @@ into the sections they bear on. No settled decision was dropped.
 **Next**
 
 Run `create-spec` over the re-derived half. D5 comes out along with D6's gate-result record; D6's applicability
-paragraph is replaced by the reconcile-seam correction and the fourth read site; goals and success criteria
-renumber; the corrections in § Decisions, 5 land; and the spec's `IMPORTANT` callout marking this half re-opened is
-removed once the spec carries the settled text.
+paragraph is replaced by the reconcile-seam correction and the fourth read site; § Goals is taken from § The goal
+set this design carries, which states it in full rather than as a delta, and the success criteria follow it; the
+corrections in § Decisions, 5 land; and the spec's `IMPORTANT` callout marking this half re-opened is removed once
+the spec carries the settled text.
 
 ---
 
@@ -240,35 +245,151 @@ the advanced one.
 separately observed ref — so it stays pinned even as `refs/heads/main` moves past it. That pin is what actually
 protects the members: it is what they were cut from.
 
-**And the guard that survives is scoped to one member, not the chain.** The close computes its relation from
+**And the guard that survives is scoped to the first member alone.** The close computes its relation from
 `firstMember = snapshot.members[0]`, and `predecessorRelation` passes that head straight into
 `readOverlap(memberHead, observedTip)`, which intersects the paths changed between the merge base and _that member_
 with the paths the base changed. Prepare requires every later member to be a descendant of its predecessor, so
 members 2..n contribute nothing to the left-hand set. Base movement that overlaps a later member but not the first
 therefore yields an empty intersection and passes the guard.
 
-**Widen it by diff revision, not by merge-base pair.** `predecessorRelation` makes one
+**No chain-wide pair can express what the guard measures.** `predecessorRelation` makes one
 `readOverlap(memberHead, observedTip)` call and takes `chainBase` from that same call's merge base, so handing it
 `finalCandidate` as the left operand moves the chain base with it. Whenever a base merge sits inside members 2..n
 but not member 1 — structural rather than incidental, because the rebase rule requires merging the base in rather
 than rebasing onto it — `merge-base(finalCandidate, tip)` is that merge rather than the base the chain was cut
 from, and the close's own `snapshot.chainBase.head` equality then refuses exactly the disjoint movement D2 exists
-to admit. The fix keeps the merge base resolving from `(firstMember, tip)` and reads the left-hand changed set from
-that base to the final candidate: `analyzeRevisionOverlap` gains an optional left diff revision defaulting to its
-left revision, and the close's own `readOverlap` lambda supplies `finalCandidate.head`. The chain base is an
-ancestor of the final candidate by prepare's own ancestry chain, so the diff is well defined; `predecessorRelation`
-needs no change, and the analyzer's three other callers are untouched.
+to admit.
 
-The fix is therefore six coordinated parts: re-observe the relation against a **live** protected-base read; keep
-the `diverged`-with-substantive-overlap guard on that fresh relation, where it becomes a real safety check instead
-of a replay; widen that guard's left diff revision from the first member to the final candidate while leaving its
-merge base on the member pair; re-scope `samePredecessorRelation` to compare `chainBase` and drop `observedTip` and
-kind equality; retain the protected base in the final loop by observing the recorded **head** rather than its ref
-(§ Decisions, 5); and only then narrow that loop to `[top, ...members]`. The snapshot's `predecessorRelation` field
-becomes provenance rather than a close-time equality target.
+Widening only the left **diff** revision fails by the other route. The changed-path read is a two-endpoint tree
+diff, so a left set read from the chain base to the final candidate contains every path the base itself touched
+between that chain base and any base merge the chain absorbed. Those paths are in the right-hand set by
+construction, the intersection is non-empty on content the work unit never authored, and the close refuses
+`wrong-predecessor` with a rebuild remedy before the chain-base check runs at all.
+
+**And a chain-wide pair cannot answer the question the refusal asks.** Members land bottom-up, and materialization
+gives member 1 the protected base's **ref** as its request base, resolved live — so member 1 merges first and
+alone, against a tip that may have moved. The refusal's own detail says the movement "overlaps this delivery
+member", and a whole-chain measurement cannot mean that: absorption by a _later_ member never reaches an _earlier_
+member's merge boundary, so `(finalCandidate, tip)` would pass a chain whose member 1 must still reconcile content
+it does not contain. `(firstMember, tip)` misses later members, `(finalCandidate, tip)` misses earlier ones, and
+their union still misses a middle member that absorbed one base step, authored a path, and collides with a later
+step only the terminal absorbed. The subject is per member, so the measurement is too.
+
+**Measure each member against the movement that member has not absorbed.** For member _k_, intersect the paths _k_
+authored with `diff(merge-base(m_k, tip)..tip)`, and refuse naming _k_. That right-hand merge base is per member
+and moves forward as members absorb the base, so a later member measures against less movement than an earlier
+one — which is precisely the mechanism a chain-wide pair destroys: member 1 still measures against the step member
+2 absorbed, because member 1 does not contain that absorption.
+
+The three topologies that defeated the rejected shapes were built and measured rather than argued. A base merge
+inside a member's own range puts base content in that member's tree diff and none in its commit set. An earlier
+member that authored a contested path is refused by its own measurement while a chain-wide right set never
+contains that path at all. A middle member that authored a path a later base step moved is refused and named,
+where a chain-wide operand refuses on the same path but attributes it to the first member. A terminal that only
+absorbed authors nothing and passes.
+
+**Authored means a commit set, not a tree diff.** This is the operand both rejected shapes got wrong, in different
+places. `diff(predecessor_k..m_k)` is itself a two-endpoint tree diff, so a base merge inside member _k_'s own
+range puts base content into _k_'s left set and rebuilds the same false refusal one member down. Member _k_'s
+authored paths are the paths touched by the commits in `m_k ^predecessor_k ^tip` — the commits the base does not
+already contain — which excludes base content wherever the merge sits. Both halves of that read have precedent
+and neither is the read itself: `branch-containment` takes an ahead-set with `rev-list`, but reads commits rather
+than paths, and per-commit `diff-tree --name-only` has ten call sites. This composes those two shapes into one new
+read rather than reusing an existing one — a small new primitive, named as such.
+
+One sub-case is settled here rather than left to the spec: a merge commit's authored content is its conflict
+resolution, which exists only in the merge, so the read takes the **combined** diff — the paths differing from
+every parent. Measured rather than reasoned: on a constructed merge whose resolution is a member's only touch of a
+contested path, the combined diff reports that path while both the default walk and `--no-merges` report nothing.
+A no-merges walk would therefore pass a member that authored the very reconciliation the guard exists to weigh,
+and combined diff has no call site in this repository today, so it is new surface rather than a reused flag.
+
+**The guard leaves the relation, and the measurement needs a port of its own.** The relation stops reading an
+overlap: it derives its variant from ancestry and `chainBase` from a merge base, and `overlap` leaves the relation
+type once `samePredecessorRelation` compares `chainBase` alone. Its dependency pair is exactly `readAncestry` and
+`readOverlap`, so the merge base still needs a supplier — but `readOverlap` is the wrong one to keep. It resolves
+a merge base and then computes and classifies two tree diffs the re-scoped relation would discard, and the routing
+that argues for keeping it is already factored out: `resolveSoleMergeBase` is exported, returns exactly the
+`resolved`, `ambiguous`, `unrelated`, and `unavailable` arms both callers dispose, and has three callers outside
+its module today. The relation therefore takes `readMergeBase` over that resolver, and its dependency pair becomes
+`readAncestry` and `readMergeBase`. The pin stays the _k_=1 per-member merge base, which is the chain base.
+
+The measurement cannot reuse `readOverlap` either, for a stronger reason than waste: it cannot supply the
+operands. Its successful result exposes only `mergeBase` and the classified intersection, never the base-side path
+set on its own, and its left set is the two-endpoint tree diff this section rejects. So for every member past the
+first the guard would have no supplier for its merge base, its base-side paths, or its path-treatment context.
+D2 adds **one** eligibility dependency rather than a scatter of thin ones: it takes the member, its predecessor,
+the live tip, and the work-unit id, and returns `readOverlap`'s own result union so the non-resolved arms keep
+their existing dispositions. Inside, it composes pieces that already exist — `resolveSoleMergeBase`, a base-side
+changed-path read from that merge base, and `classifyPathTreatment` under `workUnitPathTreatmentContext` — around
+the one new primitive named above. One method is one test-double obligation per implementer, against two
+production implementers and six test and helper files, and it keeps the intersection and its classification
+testable against Git rather than assembled in `eligibility.ts`. Net dependency count across both types is **+1**.
+
+**At both sites the guard takes the place today's first-member guard holds.** It stays inside the function that
+computes the relation, so it consumes that function's own live base read and no tip is threaded across a call
+boundary. At the close that position is the current `diverged` plus substantive-paths check, widened from one
+member to a loop over the snapshot's members and left **above** the relation comparison and the chain-base check.
+Position is load-bearing there, and the source records why: admissibility is decided before those comparisons
+because a snapshot carrying content it may not proceed over reobserves identically and compares equal, so
+consistency with it establishes nothing. Placing the loop lower — beside the member-binding walk that runs after
+completeness — would invert that ordering for no gain.
+
+One difference between the sites survives, and it is structural rather than a policy choice. Prepare derives each
+predecessor as it goes, the chain base for the first member and the previous member afterwards, so its guard
+cannot precede the loop that builds them; it rides that loop, after the empty-candidate check, which also means a
+candidate that is not a member is never measured. The close receives every member whole in the snapshot, so it
+needs a loop in place rather than a loop to ride. Both remain one guard in one position, not a guard split across
+two.
+
+Each site binds its own tip, and binds it once: prepare measures against the base it observes when the window
+opens, the close against the base part 1 has it re-observe when the window closes. That is part 1 working rather
+than a divergence — movement between the two is exactly what the close exists to catch — and it is why no rule is
+owed for two live base reads disagreeing inside one close, because there is only ever one. Because both sites run
+the same measurement, a base already overlapping a member when the window opens refuses at **prepare** rather
+than surviving to the close. The guard also lands below the mechanical close's single entry point, so the
+non-publication close carries it by construction rather than by its callers happening to run prepare first.
+
+**The intersection partitions the way the existing overlap does.** The analyzer classifies every shared path into
+reviewable, evidence-neutral, and regenerable, and the refusal reads only the reviewable set; the per-member
+intersection classifies identically. Without that step a base regenerating a lifecycle document would collide with
+every member that touched it. The walk also runs on every variant rather than only `diverged`: a member the tip
+already contains has an empty commit set by construction, since `^tip` excludes it, so the rewound case is a
+no-op rather than a special case. The cost per member is one merge base, one base-side tree diff, and one
+commit-set walk whose own cost scales with the commits in the member rather than with a pair of endpoints — the
+two live members measured here carry 25 and 22 commits. That is real and stated rather than absorbed: it buys
+attribution the chain-wide operand cannot produce at any price.
+
+Two consequences stated here rather than left for the spec to discover. The ambiguity count goes from one to _n_,
+since each `merge-base(m_k, tip)` can be criss-cross; all of them take the existing `ambiguous-predecessor-base`
+refusal and its `git merge` remedy, with `detail` naming the member. And a single-member chain keeps today's
+_base_ but not today's _measurement_: `predecessor_1` is the chain base and `merge-base(m_1, tip)` is the merge
+base today's call already resolves, so the right operand is untouched — but the left operand changes at _k_=1
+exactly as it does everywhere else, from a two-endpoint tree diff to the member's authored commit set. The two
+diverge precisely when a base merge sits inside the single member's own range, which is the case the fix exists
+for rather than an exception to it. The narrow chain is therefore a case the verification set must carry, not one
+it may skip as unchanged.
+
+Per-member measurement also settles what any widened chain-wide operand could not. Both readers report the **first**
+member's `deliverableId` beside paths drawn from the overlap, under a detail string claiming the movement overlaps
+"this delivery member". Once the operand spans the chain those paths may belong to a member the refusal does not
+name — a refusal misidentifying its own subject, inside the work unit whose own criterion is that a refusal names
+which side moved. Measuring per member makes the attribution fall out of the measurement instead of costing a
+separate derivation.
+
+The fix is six coordinated parts, and deliberately not the same six an earlier shape listed: the prepare-side
+change now sits **inside** part 2 rather than standing as a part of its own, and part 3 is new. Re-observe the
+relation against a **live** protected-base read; move the substantive-overlap guard out of the relation into the
+per-member walk at **both** prepare and close, measuring each member's authored commit set against the movement it
+has not absorbed, through one new eligibility dependency that owns the whole measurement; reduce the relation to
+variant plus `chainBase`, dropping its overlap read for a merge-base supplier over the exported resolver; re-scope
+`samePredecessorRelation` to compare `chainBase` and drop `observedTip` and kind equality; retain the protected
+base through a pinned check ahead of the final loop, observing the recorded **head** rather than its ref
+(§ Decisions, 5); and only then narrow that loop to `[top, ...members]`. The snapshot's `predecessorRelation`
+field becomes provenance rather than a close-time equality target.
 
 Residual to carry into the spec: dropping `observedTip` and kind equality weakens the snapshot-integrity check that
-comparison currently performs, and what survives of the re-scoped comparison is thinner than "five parts" suggests.
+comparison currently performs, and what survives of it is thinner than its five compared fields suggest.
 The close already refuses independently when `snapshot.chainBase.head` disagrees with the freshly reobserved
 relation's chain base, and prepare already binds those two together, so a `chainBase`-only comparison adds one
 intra-snapshot consistency check rather than a second binding. The fresh overlap guard plus that independent
@@ -401,9 +522,10 @@ decision rather than inheriting it further.
 
 ### The applicability obligations, traced
 
-Criteria 2 through 5 concern review evidence and Candidate currentness rather than Tier 2 gate results, so they
-survive the decision above intact. Tracing the substrate settles them, and moves them out of construction work
-almost entirely.
+Criteria 2 through 5 concern review evidence and Candidate currentness rather than Tier 2 gate results, so the
+decision above leaves their substance standing. Their wording did not survive it untouched: 2 carried gate
+vocabulary and 5 named the eligibility close as a consumer of a result it never reads, and § Success criteria
+restates both. Tracing the substrate settles them, and moves them out of construction work almost entirely.
 
 **The mechanism the deliverable named does not exist.** Its text has an authorized reconcile or rebuild degrading to
 _unexplained_ solely because of its lifecycle stage. The `unexplained` evidence-delta producer variant has no
@@ -610,8 +732,11 @@ the change goes through `packages/arc-framework/arc/**` and syncs to `.arc/`, ne
 
 ### What the eligibility close validates
 
-**The `gateResults` operand is removed and nothing replaces it.** It reaches three seams — `eligibility close`, the
-prepare arm's optional revalidation, and `publish` — and all three drop it.
+**The `gateResults` operand is removed and nothing replaces it.** It reaches four seams — `eligibility close`, the
+prepare arm's optional revalidation, `publish`, and the public-failure composer, which derives a refusal's
+`requestedHead` from the final gate result when the request carried no coordinates. The first three drop it; the
+fourth is an owned public failure contract whose field value changes, so it is restated rather than merely
+dropped.
 
 Its validator refuses on five reasons, and decomposing them shows why none survives. `duplicate-gate-result`,
 `missing-gate-result`, and `reordered-gate-result` are well-formedness of a caller-supplied list: they exist only
@@ -625,7 +750,7 @@ authorization token.
 **What remains is a purely mechanical close, and it is already substantial.** The fresh plan read against the
 snapshot's plan identity, revision, and digest; lifecycle-path resolution and the unchanged-paths comparison over
 both lifecycle and regenerable sets; per-member lifecycle revalidation; and everything D2 adds — the live
-protected-base re-observation, the overlap guard on that fresh relation re-scoped to the final candidate, the
+protected-base re-observation, the per-member overlap guard in the member walk, the
 independent chain-base refusal, and normalized completeness.
 
 That division is the right one. The close is a mechanical eligibility gate over chain structure; verification enters
@@ -635,9 +760,10 @@ coherent rather than hollowed out.
 
 **Removal scope.** `CandidateGateResultSchema`, the `DeliveryCandidateGateResult` type, the validator, and its five
 refusal reasons all become unreachable and go with the operand. The mutation request's `checkoutPath` goes with
-them, and so do the two refusal reasons and the one dependency that exist only to check it — `checkout-dirty`,
-`checkout-moved`, and `inspectCheckout`, reached through `verifyDeliveryCandidateCheckout` on the mutation path.
-The review gate's own call to that verifier is a different caller and stays.
+them, and so does the per-candidate verification loop the mutation path runs over it. What does **not** go is
+`verifyDeliveryCandidateCheckout` or anything it needs. It is one function, and the pre-publication review gate
+calls it with the same dependency set, so `inspectCheckout`, `checkout-dirty`, and `checkout-moved` all stay live
+for that caller. What the deliverable removes is the mutation path's use of the verifier, not the verifier.
 
 ### The ADR stands alone, with a cross-reference amendment on ADR-034
 
@@ -663,37 +789,41 @@ reads the work-unit attestation instead; and states the accepted consequence tha
 the landing window without having been checked in isolation. `ADR-034` gains a dated amendment pointing at it and
 noting that its check clause is located there.
 
-### What the goal set becomes
+### The goal set this design carries
 
-**Goal 3 retires.** "Gate evidence outlives the session that produced it, and is re-checked against freshly observed
-coordinates rather than trusted" exists because the 2026-09-12 incident lost completed gate results when its session
-ended. With per-member gates removed there is no gate evidence to outlive anything, and the loss it names cannot
-recur. Restating it around the work-unit attestation would be worse than retiring it: that property is already true
-of the attestation substrate today, so the restated goal would describe existing behavior this work unit does not
-change.
+Stated forward rather than as a delta. An earlier draft narrated this section as a transition away from a
+six-goal set; that transition has since landed, so what follows is the set itself, each goal traced to the
+deliverable that achieves it.
 
-**Goal 4 retires with D5.** "A gate result is attributable to its exact coordinates and to an environment that is
-not a sibling worktree's" is D5's goal, and the environment predicate it names is the one the adversarial pass
-falsified. With no gate provisioning there is no execution environment left to attribute.
+1. **A clean unbound stack reaches exact publication-ready coordinates through one typed operation**, with no
+   per-member hand-authored Git steps, and the bound correction route reaches the same constructor from the other
+   direction. — D4.
+2. **Disjoint protected-base movement re-observes eligibility and closes eligible rather than refusing**, while
+   movement that overlaps content a member actually authored still refuses and names that member. — D2.
+3. **Publication refuses a chain prepared against a Candidate its attestation no longer covers**, by reading
+   evidence the work unit has already produced rather than by running verification of its own. — D6.
+4. **A refusal names which side moved and what would clear it, and a remedy a refusal names can actually clear
+   it** — including a rebuilt chain's applicability, which reaches the operator's decision rather than dead-ending
+   in an opaque refusal. — D3, with the applicability half D6.
+5. **The covered-input rule is stated once**, in a surface every post-execution ceremony reaches, rather than
+   re-derived per lane. — D1.
 
-**Goal 2 restates rather than retires.** It was not named in the question but carries the same dependency —
-"without repeating member gates whose covered inputs are unchanged, while changed covered inputs, including a
-changed gate definition, still prevent unsupported reuse." Its core is D2 and survives; its gate framing does not.
-It restates around what the close actually does: disjoint protected-base movement re-observes eligibility and closes
-eligible rather than refusing.
+Two goals an earlier set carried are gone rather than restated, and the grounds are worth keeping because both
+were retired by the same finding. **Gate evidence outliving its session** existed because the 2026-09-12 incident
+lost completed gate results when the session ended; with per-member gates removed there is no gate evidence to
+outlive anything, and restating it around the work-unit attestation would describe substrate behavior this work
+unit does not change. **A gate result attributable to its coordinates and to a non-sibling environment** was D5's
+goal, and the environment predicate it named is the one the adversarial pass falsified; with no gate provisioning
+there is no execution environment left to attribute.
 
-**Goal 6 survives unchanged, and is better motivated than before.** The covered-input rule as D1 states it is
-generic — a ceremony in the post-execution tail repeats only when an input its earlier result covered has changed —
-and never gate-specific. Its surviving instances are stronger than the one it loses: the work-unit attestation that
-publication now reads, and the `covered | targeted-check | changed` applicability seam, are both durable records,
-where gate results were ephemeral and supplied by the same caller as the snapshot they were validated against.
+Goal 2 is the one whose wording moved furthest. Its earlier framing was about not repeating member gates whose
+covered inputs were unchanged — a gate-reuse property. Its core was always D2, and what survives is what the
+close actually does, now carrying the per-member attribution § What the source shows, 4 settles.
 
 **One correction inside D1.** Its constraint-versus-doctrine split places the restrictive half at two fire sites —
 D2's eligibility close, and "D6's added refusal reasons for the gate-result validation seam." The second no longer
 exists. The restrictive half places at D2 and at `DEV-RULES.ARC` § Rule Authority's check-integrity backstop, and
 the D6 placement drops.
-
-Goals renumber from six to four.
 
 ### The CLI-executed gate verb is dropped from this work unit
 
@@ -786,8 +916,10 @@ message rule below to non-terminal members — the terminal's published head is 
 presentation is composed for it. That is a fact about _publication_, not about construction: prepare requires one
 candidate per plan member including the terminal, and every candidate after the first must descend from its
 predecessor, so a rebuilt chain emits **n** commits. The n-th is a non-published eligibility vehicle descending
-from rebuilt member n−1 whose tree normalizes to the top's, which is what `adoptGitDeliveryChain` then builds the
-published terminal from. Its message is immaterial because nothing presents it. The member's own commit message
+from rebuilt member n−1 whose tree normalizes to the top's. Its role at adoption is the containment precondition,
+not an input: `adoptGitDeliveryChain` commits the **top's** tree on the top's head with the highest member as
+second parent, and the n-th candidate only has to contain that member. Its message is immaterial because nothing
+presents it. The member's own commit message
 reaches neither. Its
 durable consumer is the history the member lands into, which is why a recut needs a message rather than inheriting
 a bookkeeping one: the three existing construction sites pass fixed strings (`Adopt delivery member ancestry`,
@@ -838,7 +970,7 @@ coordinate-agnostic primitives the correction verbs already sit on: `prepareDeli
 `createDeliveryReviewFixCandidatePair` — `update-ref` at the exact head under a zero-lease, then `worktree add
 --detach` — with `rewriteCandidate` and `resetGate` for a rebuild that moves a pair already there. That coordinator
 is idempotent by construction: absent creates, matching returns `already-rematerialized`, half-present refuses
-`candidate-pair-split`. Replay needs no new mechanism.
+`candidate-pair-split`. Replay itself needs no new mechanism; the dirty-gate refusal below does, and says so.
 
 **No third namespace is minted, which is the alternative that was actually expensive.** The rejected shapes were a
 private staging namespace of this work unit's own — one regex, one locator deriver, four thin wrappers, a sweep arm
@@ -973,7 +1105,10 @@ concern rather than widened here.
   pre-publication review gate can read it, and so the chain is referenced from the moment it exists.
 - Refuse a rebuild the gate cannot be reset for by naming the dirty paths observed, separating untracked residue
   from tracked modification because their remedies differ, and stating that re-running resumes — the pair
-  coordinator is idempotent, so repair-and-retry continues rather than restarting.
+  coordinator is idempotent, so repair-and-retry continues rather than restarting. This is the one place the reused
+  primitives do not suffice as they stand: the observation port collapses a non-empty status read to a bare
+  `dirty`, and the coordinator carries it on a string-typed reason, so both widen to carry the paths. The data is
+  already collected and discarded — the status read distinguishes untracked from tracked.
 - On the bound review-fix route, after the authorized top correction is clean and committed, rebuild the selected
   member and every dependent member from the current public ancestry and canonical member boundaries.
 - Replay converges. Conflicts, dirty or foreign checkouts, moved authority or public heads, stale authorization, and
@@ -1014,8 +1149,8 @@ ordering, which is not a task sequence.
 | ID | Deliverable                                                            | Depends on        | Retires     |
 | -- | ---------------------------------------------------------------------- | ----------------- | ----------- |
 | D1 | The covered-input rule, stated in a shared surface                     | —                 | —           |
-| D2 | Eligibility close stops refusing on non-covered source movement        | —                 | probe 1     |
-| D3 | `completeness-*` refusals carry direction and remedy                   | —                 | —           |
+| D2 | Eligibility close admits non-covered movement; gate operand rides it   | —                 | probe 1     |
+| D3 | `completeness-*` refusals carry direction and remedy                   | D4 (remedy)       | —           |
 | D4 | Member constructor, anchor preflight, `rebuild-required`               | —                 | probes 2, 3 |
 | D6 | Publication reads the attestation; the projection reaches the operator | D4 (verification) | —           |
 
@@ -1029,15 +1164,28 @@ the mechanism being repaired, so a delivery defect while landing them degrades t
 fix that makes the rest landable.
 
 D2 is a six-part change rather than a check removal — see § What the source shows, 4. Its verification must cover
-disjoint movement closing `eligible`, overlapping movement still refusing on the fresh relation — including movement
-that overlaps a **later** member and not the first, which the current first-member operand misses — and the
-fabricated-snapshot case the re-scoped comparison no longer catches by `observedTip`. The fixture must also stop
-stubbing `resolveLifecyclePaths` to a single constant, or neither live protected-base read in the enclosing close is
-observable to any probe.
+disjoint movement closing `eligible`; overlapping movement still refusing, including movement that overlaps a
+**later** member and not the first, which the current first-member operand misses, and movement that overlaps an
+**earlier** member which a later one has absorbed, which no chain-wide operand catches; a base merge inside a
+member's own range not being mistaken for that member's authored content, including the **single-member** chain
+where that merge sits inside the only member's range and old and new operands diverge; the refusal naming the
+member whose paths actually intersect; the per-member ambiguous merge base taking the existing refusal; a base already
+carrying a later-member overlap when the window opens refusing at **prepare** rather than only at the close; and
+the fabricated-snapshot case the re-scoped comparison no longer catches by `observedTip`. The fixture must stop
+stubbing `resolveLifecyclePaths` to a single constant **and** carry a non-regenerable lifecycle path: its only
+lifecycle path today is regenerable, and regenerable paths compare against the chain base rather than the
+protected base, so un-stubbing alone leaves neither live protected-base read observable. A second, unpinned case
+in probe 1's own file — which today refuses `source-moved` after a base advance and closes `eligible` afterwards —
+is rewritten alongside the probe rather than retired with it.
 
-**The D2-before-D6 window is closed rather than accepted.** It existed because D2 removed the blanket `source-moved`
-entry that stood in by accident for a gate-definition check, and D6 was to supply the replacement. With per-member
-gates gone there is no gate result to reuse, so no window opens between the two landings.
+**The gate-operand removal rides the D1+D2 member, and that is what closes the D2-before-D6 window.** The window
+existed because D2 removed the blanket `source-moved` entry that stood in by accident for a gate-definition check,
+and D6 was to supply the replacement. With per-member gates gone there is no gate result to reuse — but only from
+the landing that removes them. Riding D6 instead would leave the interval between the two landings still running
+per-member gates and still reusing their results across exactly the base movement D2 has just taught the close to
+admit, which restates the window rather than closing it. The cost is named rather than hidden: it makes the
+deliberately safest first member also the largest single mechanical change here, since the operand reaches three
+seams, a workflow section, and two CLI request shapes.
 
 **D3 carries one typed-crossing rider.** `checkpointMovementCause` is stringly typed at its producer and absent from
 the consumer's declared input, so neither end of that crossing is compiler-enforced while every sibling crossing
@@ -1123,7 +1271,7 @@ re-verify the route at the specific landing.
 2. **Settled** — see § What the source shows, 4. No consumer _inside the mechanical close_ depends on the live
    protected base being unchanged, but the narrowing is a six-part coordinated change rather than a check removal,
    and it re-scopes `samePredecessorRelation`. Two residuals carry into the spec: the weakened snapshot-integrity
-   check — partly answered by the pinned protected-base entry in item 5, which keeps the ref loop's half of it — and
+   check — partly answered by the pinned protected-base check in item 5, which runs ahead of that loop — and
    the enclosing close's two live protected-base reads, which D2 leaves exactly as they stand. The
    unpinned operand in `deriveDeliveryMemberLifecycleRevalidation` routes to D6, and the probe fixture's stubbed
    `resolveLifecyclePaths` widens regardless of which deliverable pins it.
@@ -1153,8 +1301,9 @@ re-verify the route at the specific landing.
    and reads no member-to-top ancestry, and this call is that missing read.
 
    So D3 is enriching the refusal payload with direction and remedy, plus one ancestry call — not the port widening,
-   refusal-union widening, and three collapsing-site updates the deliverable sizes itself as. The dependency column
-   must also record that the close-side `rebuild-required` remedy is D4's, which it currently does not.
+   refusal-union widening, and three collapsing-site updates the deliverable sizes itself as. The close-side
+   `rebuild-required` remedy is D4's, which the deliverable stack's dependency column now records: D3's enriched
+   payload names the D4 verb in `automatedCommand`, which is what success criterion 9 requires of it.
 
    **The path partitions stay out of the payload.** They are discarded at the port by construction:
    `compareNormalizedCompleteness` is declared returning `{ status: "match" }` or `{ status, reason }`, so
@@ -1189,10 +1338,12 @@ re-verify the route at the specific landing.
    refusal does. Success criterion 6 admits this outcome directly through its explicit, evidence-backed
    non-authoritative residual.
 
-5. **Corrections owed to the spec, needing no further derivation.** D1 and D2 were certified against source in
-   detail — the six coordinated parts, the later-member overlap gap, the `chainBase` invariant, the
-   misattributed-member hazard, both residuals, and the fixture obligations all hold — and these ride the
-   `create-spec` pass rather than reopening anything:
+5. **What the `create-spec` pass carries into the spec's D2 half.** That half is superseded rather than corrected:
+   this re-entry re-derived the guard's operand from scratch, so § What the source shows, 4 governs and the spec's
+   part list, its single-pair guard operand, and its separate misattribution remedy are replaced by the
+   per-member measurement. What survives unchanged is the `chainBase` invariant, both residuals, and the fixture
+   obligation, which is strengthened rather than dropped. The items below ride that pass rather than reopening
+   anything:
 
    - Narrowing the close's final ref loop removes the only integrity check on the recorded protected base, whose tree
      the close still consumes as authoritative for non-regenerable lifecycle paths. The apparent fork — pin it, or
@@ -1206,11 +1357,14 @@ re-verify the route at the specific landing.
      disposition — an absent object is `evidence-unavailable`, and a resolved commit whose tree disagrees with the
      snapshot is snapshot fabrication, which reprepare cannot clear. The trust-boundary sentence still needs
      correcting, since what the close trusts afterwards is a pinned observation rather than the current base.
-   - The list must not be written as a re-scoped relation. The close computes **one** fresh relation, over the
-     first member, and widens only the guard's left diff revision; re-scoping the relation's operand would move its
-     merge base and re-refuse disjoint movement (§ What the source shows, 4). The recorded relation is then compared
-     against that fresh one on `chainBase` alone, which is what makes the recorded field provenance rather than a
-     close-time equality target.
+   - The list must not be written as a re-scoped relation operand at all. The relation keeps **one** pair — the
+     first member and the live tip — for its variant and `chainBase`, and the overlap guard leaves the relation
+     entirely for the per-member walk; every chain-wide operand fails, one by moving the chain base, another by
+     admitting the base's own absorbed content, and all of them by measuring a chain where members land
+     individually (§ What the source shows, 4). The recorded relation is then compared against the fresh one on
+     `chainBase` alone, which is what makes the recorded field provenance rather than a close-time equality
+     target. With the guard gone from the relation, `relation.overlap` and `relation.mergeBase` both lose their
+     last readers and leave the relation type rather than lingering as unread fields.
    - The normalized-completeness port has seven implementers, not the three the spec names.
    - Every documentation destination names a file with two byte-identical copies and no stated edit direction.
      Framework content changes go through the package source and sync outward, never the reverse. It applies to the
@@ -1218,9 +1372,11 @@ re-verify the route at the specific landing.
      the shipped strategy cannot reference it.
    - The opening characterization's "Before publication the stack lives on ARC-private refs" is false
      (§ What the source shows, 6), and every argument built on it inherits the error.
-   - The deliverable that removes the per-member gate run leaves four sentences in the delivery workflow ordering the
-     operator against an act that no longer happens, including the one binding per-member review and disposition to
-     it.
+   - The deliverable that removes the per-member gate run leaves the delivery workflow ordering the operator against
+     an act that no longer happens: roughly ten instructions across authoring, gate execution, and the mutation
+     verb, a `gateResults` payload block, and the operand on two CLI request shapes. That is a section rewrite
+     rather than a few stale sentences, and it includes the instruction binding per-member review and disposition
+     to it.
    - The correction route the constructor serves is `rematerialize`, which the spec describes without naming; the
      registered path is provider-native and reaches no constructor.
    - D6's promise that **any** non-current target reaches the operator with choices and offer texts cannot hold —
@@ -1235,17 +1391,18 @@ boundary is deliberately wider than that capture's (§ Boundary and Class). Noth
 targets the outcome will be judged against rather than frozen text — but they are not rewritten to match what gets
 built.
 
-1. Disjoint protected-base movement reobserves eligibility and closes eligible rather than refusing, while changed
-   covered inputs still prevent unsupported reuse.
+1. Disjoint protected-base movement reobserves eligibility and closes eligible rather than refusing, while movement
+   overlapping any member's own authored contribution — measured per member against the movement that member has
+   not absorbed — still prevents unsupported reuse, and the refusal names the member whose paths intersect.
 2. Exact member and suffix transitions receive carry, bounded supplemental, or fresh treatment from verified
-   before/after coordinates; ancestry or contribution similarity alone never establishes whole-gate applicability.
+   before/after coordinates; ancestry or contribution similarity alone never establishes evidence applicability.
 3. An authorized prepublication base reconciliation or rebuilt-chain result reaches Candidate applicability through
    verified endpoints and does not become unexplained merely because it happened before publication.
 4. Bounded residuals use the existing operator-bound selection, and supplemental evidence binds to the current
    obligation; unavailable, unbounded, stale, or unrecognized transitions remain conservative.
-5. Preparation, eligibility close, private-review composition, publication/materialization, and private-review
-   correction consume one coherent applicability result without turning it into review clearance, gate success, or
-   publication authority.
+5. Every delivery site that reads the effective candidate target consumes one coherent applicability result without
+   turning it into review clearance or publication authority. The eligibility close is not such a site: it reads
+   neither the Candidate record nor the convergence state, and criterion 13 carries the read sites that do.
 6. Movement, interruption, and replay preserve completed valid work, reject stale selections, and reobserve all
    mutation authority. In particular, an already-bound-target retry with protected-tip movement after eligibility
    close has a tested safe disposition or an explicit, evidence-backed non-authoritative residual; no recheck is
