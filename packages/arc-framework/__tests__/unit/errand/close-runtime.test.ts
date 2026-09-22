@@ -19,6 +19,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const EXPECTED = "a".repeat(40);
+const MOVED = "b".repeat(40);
 
 function gitError(message: string, exitCode: number): Error & { exitCode: number; stderr: string } {
   return Object.assign(new Error(message), { exitCode, stderr: message });
@@ -249,6 +250,19 @@ describe("closeOrdinaryErrandAtRuntime unchanged-base resolution", () => {
 
     await expect(dispatchClose(closeResolutionGit({
       pinFailure: "fatal: remote base unavailable",
+    }))).resolves.toMatchObject({
+      outcome: "refused",
+      operation: "errand-close",
+      reason: "change-request-unverifiable",
+      recommendedPromptText: expect.stringContaining("Expected exactly one merged change request"),
+    });
+  });
+
+  it("falls through when the pinned remote base is not the Errand head", async () => {
+    reconcileIdentity(new Map([["done", open()]]));
+
+    await expect(dispatchClose(closeResolutionGit({
+      pinnedBase: MOVED,
     }))).resolves.toMatchObject({
       outcome: "refused",
       operation: "errand-close",
