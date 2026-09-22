@@ -9,6 +9,7 @@ import { join } from "node:path";
 import {
   deleteAbandonedBranchAtExactBase,
   proveOrdinaryErrandAbandonmentPreservation,
+  settleAbandonBranchLease,
 } from "../../../src/lib/errand/abandon-runtime.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
@@ -140,4 +141,12 @@ it("keeps the branch when an unoccupied base moves before the exact ref transact
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
+});
+
+it("retains a successful deletion when checkout lock release fails", async () => {
+  const result = await settleAbandonBranchLease(
+    async () => ({ kind: "removed" }),
+    async () => { throw new Error("could not release HEAD lock"); },
+  );
+  expect(result).toEqual({ kind: "removed", releaseError: "could not release HEAD lock" });
 });

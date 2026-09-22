@@ -7,7 +7,11 @@ import {
   createGhChangeRequestLifecyclePort,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
-import { abandonOrdinaryErrand, type AbandonStepResult } from "./abandon-locus.js";
+import {
+  abandonOrdinaryErrand,
+  type AbandonBranchCleanupResult,
+  type AbandonStepResult,
+} from "./abandon-locus.js";
 import {
   ordinaryErrandTransform,
   provePauseHead,
@@ -144,7 +148,7 @@ async function reapZeroDeltaBranch(
   record: OrdinaryErrandRecord,
   expectedHead: string | null,
   primaryCheckoutPath: string | null,
-): Promise<{ kind: "removed" | "preserved"; reason?: string }> {
+): Promise<AbandonBranchCleanupResult> {
   if (expectedHead === null || primaryCheckoutPath === null) {
     return { kind: "preserved", reason: "the branch generation was not retained for cleanup" };
   }
@@ -168,7 +172,7 @@ async function reapZeroDeltaBranch(
     guard: null,
   });
   if (lease.kind !== "acquired") return { kind: "preserved", reason: lease.message };
-  try {
+  return settleAbandonBranchLease(async () => {
     const roster = await scanRegisteredWorktrees(inPrimary);
     if (!roster.ok) return { kind: "preserved", reason: roster.message };
     if (roster.worktrees.some((worktree) => worktree.branch === record.branch)) {
@@ -191,11 +195,26 @@ async function reapZeroDeltaBranch(
       });
     }
     return { kind: "removed" };
+  }, () => lease.release());
+}
+
+/** Retain the branch result even when releasing its checkout locks fails afterward. */
+export async function settleAbandonBranchLease(
+  action: () => Promise<AbandonBranchCleanupResult>,
+  release: () => Promise<void>,
+): Promise<AbandonBranchCleanupResult> {
+  let result: AbandonBranchCleanupResult;
+  try {
+    result = await action();
   } catch (error) {
-    return { kind: "preserved", reason: errorMessage(error) };
-  } finally {
-    await lease.release();
+    result = { kind: "preserved", reason: errorMessage(error) };
   }
+  try {
+    await release();
+  } catch (error) {
+    return { ...result, releaseError: errorMessage(error) };
+  }
+  return result;
 }
 
 /** Atomically verify an unoccupied base ref while deleting the exact local Errand branch. */

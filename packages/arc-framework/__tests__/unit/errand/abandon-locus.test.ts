@@ -105,6 +105,29 @@ describe("abandonOrdinaryErrand", () => {
     });
   });
 
+  it("reports deletion and lock-release failure without claiming branch residue", async () => {
+    const value = record("open");
+    const result = await abandonOrdinaryErrand({
+      slug: value.slug,
+      protection: "full",
+      dependencies: {
+        readIdentity: async () => ({ kind: "ready", record: value }),
+        cleanupResidue: async () => ({ kind: "idempotent" }),
+        readLifecycle: vi.fn(),
+        clearExecuteBound: async () => ({ kind: "idempotent" }),
+        retire: async () => ({ kind: "idempotent" }),
+        reapZeroDeltaBranch: async () => ({ kind: "removed", releaseError: "HEAD lock remains" }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: "applied",
+      recommendedPromptText: expect.stringContaining("Removed its zero-delta local branch"),
+    });
+    expect(result.recommendedPromptText).toContain("Checkout lock release failed: HEAD lock remains");
+    expect(result.recommendedPromptText).not.toContain("Local branch remains");
+  });
+
   it("requires exact closed-unmerged host truth for an awaiting tail", async () => {
     const value = record("awaiting-merge");
     const cleanupResidue = vi.fn(async () => ({ kind: "idempotent" as const }));
