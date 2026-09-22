@@ -49,6 +49,25 @@ function awaiting(): OrdinaryErrandRecord {
   }) as OrdinaryErrandRecord;
 }
 
+function open(): OrdinaryErrandRecord {
+  return TransientIdentityRecordV3Schema.parse({
+    version: 3,
+    slug: "done",
+    claimId: "c".repeat(32),
+    createdAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-20T12:01:00.000Z",
+    kind: "errand",
+    purpose: "errand",
+    intent: "done",
+    branch: "chore/done",
+    origin: "description",
+    originEntry: null,
+    state: "open",
+    savedHead: null,
+    changeRequest: null,
+  }) as OrdinaryErrandRecord;
+}
+
 /** The close target an awaiting record produces: its own recorded change request. */
 function target(): CloseTarget {
   const record = awaiting();
@@ -171,6 +190,73 @@ async function dispatchClose(exec: GitExec) {
     removeInbox: async () => ({ kind: "absent", nextOffer: null }),
   });
 }
+
+function closeResolutionGit(options: {
+  pinnedBase?: string;
+  pinFailure?: string;
+  hostFailure?: string;
+}): GitExec {
+  return async (command, args) => {
+    if (command === "git" && args.join(" ") === "remote get-url origin") {
+      return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
+    }
+    if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/heads/")) {
+      return { stdout: `${EXPECTED}\n`, stderr: "" };
+    }
+    if (command === "git" && args.join(" ") === "check-ref-format --branch main") {
+      return { stdout: "", stderr: "" };
+    }
+    if (command === "git" && args[0] === "fetch") {
+      if (options.pinFailure !== undefined) throw gitError(options.pinFailure, 128);
+      return { stdout: "", stderr: "" };
+    }
+    if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/arc/tmp/base-head/")) {
+      return { stdout: `${options.pinnedBase ?? EXPECTED}\n`, stderr: "" };
+    }
+    if (command === "git" && args[0] === "update-ref" && args[1] === "-d") {
+      return { stdout: "", stderr: "" };
+    }
+    if (command === "git" && args.join(" ") === "config --get remote.origin.url") {
+      return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
+    }
+    if (command === "gh" && args[0] === "pr") {
+      if (options.hostFailure !== undefined) throw new Error(options.hostFailure);
+      return { stdout: "[]\n", stderr: "" };
+    }
+    throw new Error(`Unexpected resolution operation: ${command} ${args.join(" ")}`);
+  };
+}
+
+describe("closeOrdinaryErrandAtRuntime unchanged-base resolution", () => {
+  it("resolves an unchanged close only after the remote base pin matches", async () => {
+    reconcileIdentity(new Map([["done", open()]]));
+
+    await expect(dispatchClose(closeResolutionGit({
+      pinnedBase: EXPECTED,
+      hostFailure: "the unchanged close must not require host evidence",
+    }))).resolves.toMatchObject({
+      outcome: "error",
+      operation: "errand-close",
+      error: {
+        code: "locus.errand-close.occupancy",
+        message: "close should stop before occupancy",
+      },
+    });
+  });
+
+  it("falls through to merged-change-request resolution when the remote base pin fails", async () => {
+    reconcileIdentity(new Map([["done", open()]]));
+
+    await expect(dispatchClose(closeResolutionGit({
+      pinFailure: "fatal: remote base unavailable",
+    }))).resolves.toMatchObject({
+      outcome: "refused",
+      operation: "errand-close",
+      reason: "change-request-unverifiable",
+      recommendedPromptText: expect.stringContaining("Expected exactly one merged change request"),
+    });
+  });
+});
 
 describe("closeOrdinaryErrandAtRuntime lock recovery", () => {
   it("preserves a live close receipt while reconciliation retains the identity", async () => {
