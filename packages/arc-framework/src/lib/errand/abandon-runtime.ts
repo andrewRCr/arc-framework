@@ -1,6 +1,7 @@
 /** Identity, lifecycle, and derived-occupancy composition for ordinary Errand abandonment. */
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import {
@@ -141,7 +142,7 @@ async function cleanupOccupancy(
   return settled.kind === "error" ? settled : { kind: settled.kind };
 }
 
-async function reapZeroDeltaBranch(
+export async function reapZeroDeltaBranch(
   exec: GitExec,
   execInput: GitExecInput,
   base: string,
@@ -157,13 +158,17 @@ async function reapZeroDeltaBranch(
     cwd: options?.cwd ?? primaryCheckoutPath,
   });
   const baseHead = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
-  if (baseHead.kind !== "present") {
+  if (baseHead.kind === "error") return { kind: "preserved", reason: baseHead.message };
+  if (baseHead.kind === "absent") {
     return { kind: "preserved", reason: "the local base head could not be proven" };
   }
+  const mergeBaseArgs = ["merge-base", "--is-ancestor", expectedHead, baseHead.oid];
   try {
-    await inPrimary("git", ["merge-base", "--is-ancestor", expectedHead, baseHead.oid]);
-  } catch {
-    return { kind: "preserved", reason: "the branch has content outside the local base" };
+    await inPrimary("git", mergeBaseArgs);
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args: mergeBaseArgs });
+    return { kind: "preserved", reason: failure.exitCode === 1
+      ? "the branch has content outside the local base" : failure.message };
   }
   const lease = await acquireErrandCloseBranchDeletionHeadLocks({
     exec: inPrimary,
@@ -179,12 +184,14 @@ async function reapZeroDeltaBranch(
       return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
     }
     const head = await resolveOptionalCommit(inPrimary, `refs/heads/${record.branch}`);
+    if (head.kind === "error") return { kind: "preserved", reason: head.message };
     if (head.kind !== "present" || head.oid !== expectedHead) {
       return { kind: "preserved", reason: "the exact local branch head changed" };
     }
     if (roster.worktrees.some((worktree) => worktree.branch === base)) {
       // The acquired HEAD locks hold every checkout of base through deletion.
       const currentBase = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
+      if (currentBase.kind === "error") return { kind: "preserved", reason: currentBase.message };
       if (currentBase.kind !== "present" || currentBase.oid !== baseHead.oid) {
         return { kind: "preserved", reason: "the local base head changed during cleanup" };
       }

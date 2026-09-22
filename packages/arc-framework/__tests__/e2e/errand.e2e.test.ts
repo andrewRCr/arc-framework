@@ -1538,6 +1538,8 @@ describe("arc errand abandon", () => {
       expect(result.exitCode, result.stdout + result.stderr).toBe(0);
       expect(JSON.parse(result.stdout.trim())).toMatchObject({ outcome: "applied" });
       expect(await git(tmpDir, ["rev-parse", "chore/discard-unique"])).toContain(uniqueHead);
+      await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:discard-unique"]))
+        .rejects.toThrow();
     } finally {
       await cleanupTempDir(remoteDir);
     }

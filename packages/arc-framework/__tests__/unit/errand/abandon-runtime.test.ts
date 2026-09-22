@@ -9,6 +9,7 @@ import { join } from "node:path";
 import {
   deleteAbandonedBranchAtExactBase,
   proveOrdinaryErrandAbandonmentPreservation,
+  reapZeroDeltaBranch,
   settleAbandonBranchLease,
 } from "../../../src/lib/errand/abandon-runtime.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
@@ -149,4 +150,30 @@ it("retains a successful deletion when checkout lock release fails", async () =>
     async () => { throw new Error("could not release HEAD lock"); },
   );
   expect(result).toEqual({ kind: "removed", releaseError: "could not release HEAD lock" });
+});
+
+describe("reapZeroDeltaBranch verification failures", () => {
+  const unusedInput: GitExecInput = async () => { throw new Error("unexpected ref mutation"); };
+
+  it.each([
+    { exitCode: 1, expected: "local base head could not be proven" },
+    { exitCode: 128, expected: "git rev-parse: nonzero-exit (exit 128)" },
+  ])("distinguishes an absent base from a base-read error ($exitCode)", async ({ exitCode, expected }) => {
+    const exec: GitExec = async () => { throw gitError("object database unavailable", exitCode); };
+    const result = await reapZeroDeltaBranch(exec, unusedInput, "main", paused(), HEAD, "/tmp/unused");
+    expect(result).toMatchObject({ kind: "preserved", reason: expect.stringContaining(expected) });
+  });
+
+  it.each([
+    { exitCode: 1, expected: "branch has content outside the local base" },
+    { exitCode: 128, expected: "git merge-base: nonzero-exit (exit 128)" },
+  ])("distinguishes non-ancestry from a merge-base error ($exitCode)", async ({ exitCode, expected }) => {
+    const exec: GitExec = async (_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
+      if (args[0] === "merge-base") throw gitError("object database unavailable", exitCode);
+      throw new Error(`Unexpected Git operation: ${args.join(" ")}`);
+    };
+    const result = await reapZeroDeltaBranch(exec, unusedInput, "main", paused(), HEAD, "/tmp/unused");
+    expect(result).toMatchObject({ kind: "preserved", reason: expect.stringContaining(expected) });
+  });
 });
