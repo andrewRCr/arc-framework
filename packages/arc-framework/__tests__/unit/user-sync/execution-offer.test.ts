@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { resolveExecutionNextOffer } from "../../../src/lib/user-sync/execution-offer.js";
+import {
+  resolveExecutionNextOffer,
+  resolveExecutionStartupOffer,
+} from "../../../src/lib/user-sync/execution-offer.js";
 import { inboxEntrySourceDigest, mutateInboxEntries } from "../../../src/lib/user-sync/inbox-writer.js";
 
 const inbox = `# User Inbox
@@ -27,6 +30,19 @@ function marked(): string {
 }
 
 describe("execute-bound next offer", () => {
+  it("selects a readable startup offer while retaining sibling diagnostics", () => {
+    const corrupted = marked().replace("### `[ ]` **First**", "### `[ ]` First");
+
+    expect(resolveExecutionStartupOffer({
+      content: corrupted,
+      parentCheckoutPath: null,
+    })).toMatchObject({
+      kind: "resolved",
+      nextOffer: { key: "Second", parentCheckoutPath: null },
+      warnings: [expect.stringContaining("Malformed USER-INBOX entry heading")],
+    });
+  });
+
   it("returns no offer for an empty execute-bound queue", () => {
     expect(resolveExecutionNextOffer({
       content: inbox,

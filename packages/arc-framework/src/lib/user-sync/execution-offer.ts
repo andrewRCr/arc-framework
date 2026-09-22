@@ -1,4 +1,4 @@
-/** Sibling continuation over the global visible execute-bound inbox queue. */
+/** Execute-bound queue selection for startup and sibling continuation. */
 
 import { listExecuteBoundInboxEntries } from "./inbox-writer.js";
 
@@ -11,6 +11,46 @@ export type ExecutionNextOffer = {
 export type ExecutionOfferResolution =
   | { readonly kind: "resolved"; readonly nextOffer: ExecutionNextOffer }
   | { readonly kind: "refused"; readonly reason: string };
+
+export type ExecutionStartupOfferResolution =
+  | {
+      readonly kind: "resolved";
+      readonly nextOffer: ExecutionNextOffer;
+      readonly warnings: readonly string[];
+    }
+  | { readonly kind: "refused"; readonly reason: string };
+
+/**
+ * Select the first readable execute-bound capture for cold startup.
+ *
+ * @param options - Current inbox bytes and optional warm parent checkout.
+ * @returns The first readable offer plus sibling diagnostics, or a refusal when none is readable.
+ */
+export function resolveExecutionStartupOffer(options: {
+  readonly content: string;
+  readonly parentCheckoutPath: string | null;
+}): ExecutionStartupOfferResolution {
+  const listing = listExecuteBoundInboxEntries(options.content);
+  const next = listing.entries[0];
+  if (next !== undefined) {
+    return {
+      kind: "resolved",
+      nextOffer: {
+        kind: "errand",
+        key: next.title,
+        parentCheckoutPath: options.parentCheckoutPath,
+      },
+      warnings: listing.diagnostics,
+    };
+  }
+  if (listing.diagnostics.length > 0) {
+    return {
+      kind: "refused",
+      reason: `No readable execute-bound Errand could be selected. ${listing.diagnostics.join(" ")}`,
+    };
+  }
+  return { kind: "resolved", nextOffer: null, warnings: [] };
+}
 
 /**
  * Select the first marked capture after one execute-bound concern completes.

@@ -85,7 +85,8 @@ describe("handleErrandCheck", () => {
     mockWithLockedUserInbox.mockResolvedValue({
       postImage: {
         state: "present",
-        content: "# User Inbox\n\n## Errand\n\n### `[ ]` **First queued Errand**\n\n"
+        content: "# User Inbox\n\n## Errand\n\n### `[ ]` Malformed sibling\n\n"
+          + "- _Observation:_ unreadable.\n\n### `[ ]` **First queued Errand**\n\n"
           + "- _Disposition:_ `execute-bound`\n",
       },
     });
@@ -132,6 +133,7 @@ describe("handleErrandCheck", () => {
       state: "available",
       nextAction: "open-errand",
       nextOffer: { kind: "errand", key: "First queued Errand", parentCheckoutPath: null },
+      warnings: [expect.stringContaining("Malformed USER-INBOX entry heading")],
     });
   });
 });

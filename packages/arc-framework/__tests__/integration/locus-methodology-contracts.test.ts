@@ -238,6 +238,7 @@ describe("locus methodology contracts", () => {
 
       expect(init).toContain("`--errand --next` — invoke `arc errand next --json`");
       expect(init).toContain("`available / open-errand`");
+      expect(init).toContain("`recommendedPromptText` and any `warnings`");
       expect(init).toContain("`empty / none`");
       expect(init).toContain("`refused / stop`");
       expect(init).toContain("`reason`, `remedy`, `retryCommand`, and `recommendedPromptText`");

@@ -99,7 +99,9 @@ import {
   InboxMutationConflictError,
   inspectInboxEntry,
   resolveExecutionNextOffer,
+  resolveExecutionStartupOffer,
   type ExecutionOfferResolution,
+  type ExecutionStartupOfferResolution,
 } from "../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -135,6 +137,7 @@ export const ErrandNextResultSchema = z.discriminatedUnion("state", [
     state: z.literal("available"),
     nextAction: z.literal("open-errand"),
     nextOffer: ErrandNextOfferSchema,
+    warnings: z.array(z.string().min(1)),
     recommendedPromptText: z.string().min(1),
   }),
   z.strictObject({
@@ -143,6 +146,7 @@ export const ErrandNextResultSchema = z.discriminatedUnion("state", [
     state: z.literal("empty"),
     nextAction: z.literal("none"),
     nextOffer: z.null(),
+    warnings: z.array(z.string()).max(0),
     recommendedPromptText: z.string().min(1),
   }),
   z.strictObject({
@@ -161,7 +165,7 @@ export type ErrandNextResult = z.infer<typeof ErrandNextResultSchema>;
 
 /** Project one queue read into the closed startup-selection contract. */
 export function buildErrandNextResult(
-  resolution: ExecutionOfferResolution,
+  resolution: ExecutionStartupOfferResolution,
   refusalRemedy = "Repair the reported `USER-INBOX` condition.",
 ): ErrandNextResult {
   if (resolution.kind === "refused") {
@@ -185,16 +189,21 @@ export function buildErrandNextResult(
       state: "empty",
       nextAction: "none",
       nextOffer: null,
+      warnings: [],
       recommendedPromptText: "No execute-bound Errand is queued.",
     });
   }
+  const warningSuffix = resolution.warnings.length === 0
+    ? ""
+    : ` Queue warning: ${resolution.warnings.join(" ")}`;
   return ErrandNextResultSchema.parse({
     schemaVersion: 1,
     mode: "errand-next",
     state: "available",
     nextAction: "open-errand",
     nextOffer: { ...resolution.nextOffer, parentCheckoutPath: null },
-    recommendedPromptText: `Next execute-bound Errand: ${resolution.nextOffer.key}`,
+    warnings: [...resolution.warnings],
+    recommendedPromptText: `Next execute-bound Errand: ${resolution.nextOffer.key}.${warningSuffix}`,
   });
 }
 
@@ -226,11 +235,10 @@ export async function handleErrandNext(
     return;
   }
   try {
-    const resolution = await resolveCurrentExecutionNextOffer({
+    const resolution = await resolveCurrentExecutionStartupOffer({
       cwd,
       io: createUserIOContext(context?.subprocess),
       identity,
-      completedTitle: null,
       parentCheckoutPath: null,
     });
     emitErrandNextResult(buildErrandNextResult(resolution), opts.json === true);
@@ -1460,6 +1468,25 @@ async function resolveCurrentExecutionNextOffer(options: {
   return resolveExecutionNextOffer({
     content: postImage.content,
     completedTitle: options.completedTitle,
+    parentCheckoutPath: options.parentCheckoutPath,
+  });
+}
+
+async function resolveCurrentExecutionStartupOffer(options: {
+  cwd: string;
+  io: ReturnType<typeof createUserIOContext>;
+  identity: string;
+  parentCheckoutPath: string | null;
+}): Promise<ExecutionStartupOfferResolution> {
+  const { postImage } = await withLockedUserInbox(
+    { cwd: options.cwd, io: options.io, identity: options.identity },
+    () => ({ result: null }),
+  );
+  if (postImage.state === "missing") {
+    return { kind: "resolved", nextOffer: null, warnings: [] };
+  }
+  return resolveExecutionStartupOffer({
+    content: postImage.content,
     parentCheckoutPath: options.parentCheckoutPath,
   });
 }
