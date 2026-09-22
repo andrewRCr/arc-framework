@@ -69,11 +69,14 @@ out (§ The deliverable stack).
 - The widened `non-current` arm carries the projection's `state` and `nextAction`, with `reason` and `detail`
   optional because only the first two are on every arm, flattened rather than re-exported (§ Which projection arms
   reach the operator, and where).
+- The close's narrowed ref loop keeps a protected-base entry pinned to the recorded **head** rather than the ref, so
+  snapshot integrity survives without refusing on base movement, and the re-scoped overlap guard replaces the
+  recorded relation rather than adding a second read (§ Decisions, 5).
 
 **Open**
 
-- [none] — every settle-able decision is settled, and the three particulars the readiness assessment surfaced are
-  closed above. What remains is `create-spec` over the re-derived half.
+- [none] — every settle-able decision is settled, and the particulars two readiness passes surfaced are closed
+  above. What remains is `create-spec` over the re-derived half.
 
 **What this consolidation dropped**
 
@@ -481,9 +484,9 @@ not in place of it — a port change that adds explanation rather than a decisio
 present on all nine variants: `decision-required` and the two re-root arms carry neither `reason` nor `detail`, both
 `rerun-checkpoint` variants and `classification-unsupported` carry `reason` and no `detail`, and only
 `classification-failed` and the two `classification-unavailable` arms carry both. So `non-current` gains a
-`projection` field holding `state` and
-`nextAction` with `reason` and `detail` optional, beside the `terminalDelta` it already carries, and
-`candidate-verification-required` carries the same four forward while its own `nextAction` stays `verify-work-unit`.
+`projection` field holding `state` and `nextAction` with `reason` and `detail` optional, beside the `terminalDelta`
+it already carries, and `candidate-verification-required` carries the same four forward while its own `nextAction`
+stays `verify-work-unit`.
 
 **The port's existing convention says flatten rather than re-export the union.** `readCandidate` is declared in
 `entry-inspection.ts`, which imports no work-unit module; its `ok` arm carries `candidateId`, `subjectDigest`, and
@@ -1060,10 +1063,12 @@ re-verify the route at the specific landing.
    reach it. And it is not delivery-scoped: the section already states that delivery and singleton integration use
    the same authority boundary, which is the capture's own constraint satisfied rather than worked around.
 
-   Residual for D1 to check rather than assume: the generalization widens the content past what the existing
-   trigger names, so confirm the firing condition still reaches the rule's non-delivery consumers. Its wording
-   spans the post-execution tail generically, so it likely does; if it does not, a one-clause widening of the
-   trigger rides D1 rather than becoming its own concern.
+   **The firing condition was read rather than assumed, and it reaches.** The `STRATEGY-INDEX` entry fires
+   "before designing or changing one work unit's publication boundary, delivery landing window, terminal merge
+   authority, or post-landing closeout." The first and fourth clauses are work-unit-generic, not delivery-scoped, so
+   a non-delivery ceremony designer working the post-execution tail is reached by the trigger as it stands and no
+   widening rides D1. The reading carries one condition: it holds because the rule is scoped to that tail. Wording
+   the rule to span ceremonies outside it would under-reach its own trigger, and D1 would then owe the widening.
 
    **The constraint-versus-doctrine split, stated so it is not lost.** Principle 1 forbids placing a hard
    invariant mid-document in an on-demand file. The permissive half of this rule — a ceremony need not repeat when
@@ -1082,7 +1087,8 @@ re-verify the route at the specific landing.
    rule spans every ceremony in the post-execution tail while this work unit is one consumer of it; the
    characterization's forward-compatibility screen fired `knowledge-evolution` on exactly this point, with the
    pointer "placement of agent-facing guidance". Land it in a shared surface that non-delivery ceremonies reach and
-   let this work unit cite it like any other consumer. Placement is the open question; wording is not.
+   let this work unit cite it like any other consumer. Placement was the question, answered above; wording never
+   was.
 
    **Why this work unit owns it.** The rule has to be settled for this surface regardless: this draft's Purpose
    states it ("neither initial authoring nor a correction-time recut forces a ceremony the covered inputs did not
@@ -1095,7 +1101,8 @@ re-verify the route at the specific landing.
 2. **Settled** — see § What the source shows, 4. No consumer _inside the mechanical close_ depends on the live
    protected base being unchanged, but the narrowing is a five-part coordinated change rather than a check removal,
    and it re-scopes `samePredecessorRelation`. Two residuals carry into the spec: the weakened snapshot-integrity
-   check, and the enclosing close's two live protected-base reads, which D2 leaves exactly as they stand. The
+   check — partly answered by the pinned protected-base entry in item 5, which keeps the ref loop's half of it — and
+   the enclosing close's two live protected-base reads, which D2 leaves exactly as they stand. The
    unpinned operand in `deriveDeliveryMemberLifecycleRevalidation` routes to D6, and the probe fixture's stubbed
    `resolveLifecyclePaths` widens regardless of which deliverable pins it.
 
@@ -1166,11 +1173,22 @@ re-verify the route at the specific landing.
    `create-spec` pass rather than reopening anything:
 
    - Narrowing the close's final ref loop removes the only integrity check on the recorded protected base, whose tree
-     the close still consumes as authoritative for non-regenerable lifecycle paths. Either pin it by observing the
-     recorded head and comparing trees, or record the loss and correct the trust-boundary sentence.
+     the close still consumes as authoritative for non-regenerable lifecycle paths. The apparent fork — pin it, or
+     record the loss — dissolves, because the two halves answer different questions and both are owed. Retain the
+     protected base by observing `snapshot.protectedBase.head` rather than its ref: a commit's tree is immutable, so
+     that check cannot refuse on base movement, which is the whole point of the narrowing, while it still catches
+     the fabricated or reaped snapshot the loop catches today, and the observer already resolves any commit-ish
+     (§ The constructor). It is **not** an entry in the narrowed loop, and the spec must not write it as one. The
+     loop's refusal is `source-moved`, whose payload composes a reprepare `nextAction` from the ref that moved;
+     nothing has moved here and reprepare is not the remedy, so the pinned check runs ahead of the loop with its own
+     disposition — an absent object is `evidence-unavailable`, and a resolved commit whose tree disagrees with the
+     snapshot is snapshot fabrication, which reprepare cannot clear. The trust-boundary sentence still needs
+     correcting, since what the close trusts afterwards is a pinned observation rather than the current base.
    - The six-part list never says whether the re-scoped overlap operand replaces the recorded relation or adds a
-     second read; the close's chain-base equality is apples-to-apples only if both relations are computed over the
-     same operand.
+     second read. It replaces it: the close computes **one** fresh relation against the live protected base, runs the
+     overlap guard on that, and compares the recorded relation against that same fresh one on `chainBase` alone —
+     which is what makes the recorded field provenance rather than a close-time equality target. The spec must say
+     so, because two reads would compare a quantity against itself.
    - The normalized-completeness port has seven implementers, not the three the spec names.
    - Every documentation destination names a file with two byte-identical copies and no stated edit direction.
      Framework content changes go through the package source and sync outward, never the reverse. It applies to the
@@ -1220,8 +1238,10 @@ built.
 10. A clean unbound stack reaches publishable coordinates through one typed operation with no per-member
     hand-authored Git steps; replay converges; and a real conflict stops with its exact member, leaving the previous
     chain usable (D4).
-11. A rebuilt member carries its range's net contribution as one commit whose author and committer match the
-    originals, and the contribution proof accepts it against the moved predecessor (D4).
+11. A rebuilt member carries its range's net contribution as one commit whose author and committer are its boundary
+    commit's byte-exactly and whose trailers carry the range's co-authorship forward, under a subject derived from
+    the same identity its request title carries; the contribution proof accepts it against the moved predecessor,
+    and rebuilding unchanged inputs reproduces the same object id (D4).
 12. Delivery publication refuses a chain that was rebuilt to match an advanced top without re-attestation — the state
     the completeness comparison cannot see — and accepts a content-preserving rebuild whose subject digest is
     unchanged (D6).
