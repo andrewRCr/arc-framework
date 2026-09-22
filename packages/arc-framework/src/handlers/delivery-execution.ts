@@ -331,7 +331,7 @@ const ReviewFixVerificationSchema = z.strictObject({
   }),
 });
 const ReviewFixAuthoringAuthoritySchema = z.strictObject({
-  repository: z.string().min(1),
+  repository: RepositoryLocatorSchema,
   remote: z.string().min(1).default("origin"),
   derivedFrom: DeliveryCorrectionDerivationSchema,
   route: z.literal("provider-refresh"),
@@ -1933,8 +1933,8 @@ function invalidCommandInput(
   command: DeliveryExecutionCommand,
   request: unknown,
 ): DeliveryExecutionResult {
-  const reviewFixCommand = command === "review-fix-plan" || command === "review-fix-publish"
-    || command === "review-fix-continue";
+  const reviewFixCommand = command === "authoring-rematerialize" || command === "authoring-rebind"
+    || command === "review-fix-plan" || command === "review-fix-publish" || command === "review-fix-continue";
   const input = typeof request === "object" && request !== null && !Array.isArray(request)
     ? request as Record<string, unknown>
     : null;
@@ -1944,7 +1944,7 @@ function invalidCommandInput(
       status: "refused",
       reason: "repository-locator-invalid",
       recommendedActionText:
-        "Pass the repository as the exact host locator `owner/name`, then rerun the review-fix command.",
+        "Pass the repository as the exact host locator `owner/name`, then rerun the delivery correction command.",
     };
   }
   return { status: "refused", reason: "invalid-command-input" };

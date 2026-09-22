@@ -614,6 +614,63 @@ describe("delivery execution handler", () => {
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
+  it.each([
+    ["authoring-rematerialize", "delivery authoring rematerialize"],
+    ["authoring-rebind", "delivery authoring rebind"],
+  ] as const)("refuses an unresolvable repository locator before %s execution", async (
+    command,
+    commandName,
+  ) => {
+    const plan = deliveryStackPlanFixture();
+    const member = plan.members[0]!;
+    const execute = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const common = {
+      repository: "/home/andrew/arc-framework",
+      remote: "origin",
+      derivedFrom: { kind: "open-task" as const, taskId: "1.1", leafTaskId: "1.1.R.a" },
+      route: "provider-refresh" as const,
+      affectedDeliverableIds: [member.deliverableId],
+      requiredAncestorHeads: ["1".repeat(40)],
+      requiredFindingPaths: [],
+      planId: plan.planId,
+      selectedDeliverableId: member.deliverableId,
+      expectedStateRevision: 3,
+      ref: `refs/arc/delivery-candidates/${plan.planId}/${member.chunkKey}`,
+      checkoutPath: `/repo/.git/arc/delivery-gates/${plan.planId}/${member.chunkKey}`,
+      requestedHead: "3".repeat(40),
+      requestedTree: "4".repeat(40),
+    };
+    const request = command === "authoring-rematerialize"
+      ? { ...common, beforeHead: null, beforeTree: null }
+      : {
+          ...common,
+          beforeHead: "1".repeat(40),
+          beforeTree: "2".repeat(40),
+          publishedHead: "1".repeat(40),
+          publishedTree: "2".repeat(40),
+        };
+
+    await handleDeliveryExecution(command, { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
+      execute,
+      write,
+      setExitCode,
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: commandName,
+      status: "refused",
+      reason: "repository-locator-invalid",
+      recommendedActionText:
+        "Pass the repository as the exact host locator `owner/name`, then rerun the delivery correction command.",
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
   it("preserves a prepared service result through the strict verb envelope", async () => {
     const plan = deliveryStackPlanFixture();
     const snapshot = {
@@ -959,7 +1016,7 @@ describe("delivery execution handler", () => {
       status: "refused",
       reason: "repository-locator-invalid",
       recommendedActionText:
-        "Pass the repository as the exact host locator `owner/name`, then rerun the review-fix command.",
+        "Pass the repository as the exact host locator `owner/name`, then rerun the delivery correction command.",
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
