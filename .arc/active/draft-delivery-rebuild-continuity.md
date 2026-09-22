@@ -38,12 +38,12 @@ out (§ The deliverable stack).
   remedy. Four delivery read sites, three dispositions (§ Where member verification runs).
 - One constructor, parameterized by the predecessor relation rather than split into two direction-specific builders
   (§ The constructor).
-- Construct and publish run as **one operation** with the rebuilt commits left unreferenced: no private namespace is
-  minted, nothing is reaped, and every fetch-bearing observation is ordered before construct (§ The constructor).
-- The unbound route's verb is `arc delivery publish`, with construct at the head of its existing operation: a
-  candidate's ref name never reaches the published output, and the eligibility observer already takes a bare object
-  id, so constructed commits feed the operand slot unchanged. The request gains a member-boundary arm beside the
-  authored-ref arm the bound route still feeds (§ The constructor).
+- Constructed members are bound into the **existing** private candidate namespace with their paired gate
+  checkouts, because the pre-publication review gate reads both across processes. No namespace is minted, and the
+  garbage-collection exposure that an unreferenced chain would have carried does not arise (§ The constructor).
+- Construct is an **authoring** step: a new plan-scoped verb beside `authoring locate`, reusing the
+  route-agnostic pair primitives and carrying its own authority predicate. The sequence is construct, private
+  review, publish; publish's operand and machinery are unchanged (§ The constructor).
 - A rebuilt member is **one commit carrying the member's net contribution**, under the derived-presentation
   principle — the work-unit branch is the shared working history, a member request is a derived presentation of it
   (§ The constructor).
@@ -56,7 +56,7 @@ out (§ The deliverable stack).
   close-side `rebuild-required` discriminator. D3 is a refusal-payload change plus that call (§ Decisions, 3).
 - D1's destination: `strategy-integration.md` § Review Admission and Head Movement, generalizing the sentence already
   there, with the restrictive half placed at its fire site (§ Decisions, 1).
-- D2's shape: five coordinated parts, not a check removal (§ What the source shows, 4; § Decisions, 2).
+- D2's shape: six coordinated parts, not a check removal (§ What the source shows, 4; § Decisions, 2).
 - The publication window: later review gates are the authority boundary, with no bounded in-call recheck
   (§ Decisions, 4).
 - Framework content changes go through `packages/arc-framework/arc/**` and sync outward, never the reverse. The new
@@ -70,8 +70,10 @@ out (§ The deliverable stack).
   optional because only the first two are on every arm, flattened rather than re-exported (§ Which projection arms
   reach the operator, and where).
 - The close's narrowed ref loop keeps a protected-base entry pinned to the recorded **head** rather than the ref, so
-  snapshot integrity survives without refusing on base movement, and the re-scoped overlap guard replaces the
-  recorded relation rather than adding a second read (§ Decisions, 5).
+  snapshot integrity survives without refusing on base movement (§ Decisions, 5).
+- The overlap guard widens by diff revision, not by merge-base pair: the relation keeps deriving `chainBase` from
+  the first member while the left-hand changed set is read from the chain base to the final candidate, so the
+  guard covers the whole chain without moving the pin it is checked against (§ What the source shows, 4).
 
 **Open**
 
@@ -185,7 +187,7 @@ both base trees are all in scope at that line. This is why the authoring and rem
 byte-identical typed results for opposite conditions with opposite remedies.
 
 **4. Inside the mechanical close, the final ref loop is the only live read of the protected base — which makes
-narrowing it a five-part change, not a deletion.** Every read of `snapshot.protectedBase` inside
+narrowing it a six-part change, not a deletion.** Every read of `snapshot.protectedBase` inside
 `closeMechanicalDeliveryEligibility` takes the **recorded** value; the final ref loop is the only live read:
 
 - The `predecessorRelation` recomputation passes `observedTip: snapshot.protectedBase.head` — a recorded value,
@@ -243,15 +245,27 @@ protects the members: it is what they were cut from.
 `readOverlap(memberHead, observedTip)`, which intersects the paths changed between the merge base and _that member_
 with the paths the base changed. Prepare requires every later member to be a descendant of its predecessor, so
 members 2..n contribute nothing to the left-hand set. Base movement that overlaps a later member but not the first
-therefore yields an empty intersection and passes the guard. Re-scope the left operand to `finalCandidate` — already
-resolved beside `firstMember` at that line — whose changed-path set is the union across the chain.
+therefore yields an empty intersection and passes the guard.
 
-The fix is therefore five coordinated parts: re-observe the relation against a **live** protected-base read; keep
+**Widen it by diff revision, not by merge-base pair.** `predecessorRelation` makes one
+`readOverlap(memberHead, observedTip)` call and takes `chainBase` from that same call's merge base, so handing it
+`finalCandidate` as the left operand moves the chain base with it. Whenever a base merge sits inside members 2..n
+but not member 1 — structural rather than incidental, because the rebase rule requires merging the base in rather
+than rebasing onto it — `merge-base(finalCandidate, tip)` is that merge rather than the base the chain was cut
+from, and the close's own `snapshot.chainBase.head` equality then refuses exactly the disjoint movement D2 exists
+to admit. The fix keeps the merge base resolving from `(firstMember, tip)` and reads the left-hand changed set from
+that base to the final candidate: `analyzeRevisionOverlap` gains an optional left diff revision defaulting to its
+left revision, and the close's own `readOverlap` lambda supplies `finalCandidate.head`. The chain base is an
+ancestor of the final candidate by prepare's own ancestry chain, so the diff is well defined; `predecessorRelation`
+needs no change, and the analyzer's three other callers are untouched.
+
+The fix is therefore six coordinated parts: re-observe the relation against a **live** protected-base read; keep
 the `diverged`-with-substantive-overlap guard on that fresh relation, where it becomes a real safety check instead
-of a replay; re-scope that guard's overlap operand from the first member to the final candidate; re-scope
-`samePredecessorRelation` to compare `chainBase` and drop `observedTip` and kind equality;
-and only then narrow the final ref loop to `[top, ...members]`. The snapshot's `predecessorRelation` field becomes
-provenance rather than a close-time equality target.
+of a replay; widen that guard's left diff revision from the first member to the final candidate while leaving its
+merge base on the member pair; re-scope `samePredecessorRelation` to compare `chainBase` and drop `observedTip` and
+kind equality; retain the protected base in the final loop by observing the recorded **head** rather than its ref
+(§ Decisions, 5); and only then narrow that loop to `[top, ...members]`. The snapshot's `predecessorRelation` field
+becomes provenance rather than a close-time equality target.
 
 Residual to carry into the spec: dropping `observedTip` and kind equality weakens the snapshot-integrity check that
 comparison currently performs, and what survives of the re-scoped comparison is thinner than "five parts" suggests.
@@ -259,7 +273,7 @@ The close already refuses independently when `snapshot.chainBase.head` disagrees
 relation's chain base, and prepare already binds those two together, so a `chainBase`-only comparison adds one
 intra-snapshot consistency check rather than a second binding. The fresh overlap guard plus that independent
 chain-base refusal are the real replacement; verification must show they cover the fabricated-snapshot case the old
-comparison caught, and the spec must not re-derive a duplicate comparison from the five-part list.
+comparison caught, and the spec must not re-derive a duplicate comparison from the six-part list.
 
 **5. Delivery constructs no member commits today, and every object-construction site builds the top.**
 `deriveDeliveryMaterialization` copies each member's head and tree straight out of the eligibility snapshot and sets
@@ -437,8 +451,9 @@ sort by it exactly the way the routing question needs:
 
 - `request-authority` — `decision-required` alone. It is the only arm carrying `choices`, `selectionOfferText`,
   `recommendedActionText`, and `selectionPromptText`, because it is the only arm that is an undecided fork.
-- `establish-new-root` — `changed` and `staged-change`. A decision already taken: `selectedBy` records who took it,
-  and `projectCandidateReRootContinuation` already composes the exact `arc attest … --new-root` argv.
+- `establish-new-root` — `changed` and `staged-change`. A decision already taken, and the `changed` arm carries
+  `selectedBy` recording who took it; `projectCandidateReRootContinuation` already composes the exact
+  `arc attest … --new-root` argv for both.
 - `rerun-checkpoint` — recoverable; the remedy is the checkpoint, and the moved-endpoint arm carries the observed
   endpoints that say why.
 - `stop` and `upgrade` — `classification-failed`, `classification-unavailable`, `classification-unsupported`. Each
@@ -619,7 +634,10 @@ checks. The close holds no verification role at all, which is why removing its o
 coherent rather than hollowed out.
 
 **Removal scope.** `CandidateGateResultSchema`, the `DeliveryCandidateGateResult` type, the validator, and its five
-refusal reasons all become unreachable and go with the operand.
+refusal reasons all become unreachable and go with the operand. The mutation request's `checkoutPath` goes with
+them, and so do the two refusal reasons and the one dependency that exist only to check it — `checkout-dirty`,
+`checkout-moved`, and `inspectCheckout`, reached through `verifyDeliveryCandidateCheckout` on the mutation path.
+The review gate's own call to that verifier is a different caller and stays.
 
 ### The ADR stands alone, with a cross-reference amendment on ADR-034
 
@@ -752,7 +770,10 @@ authored history remains on the work-unit branch, which is the artifact that kee
 **Authorship is preserved explicitly, because the recut would otherwise destroy it.** Under `team.mode` a member's
 range may carry several authors, and a `commit-tree` rebuild reattributes all of them to whoever ran it. The
 constructor writes its commit objects through `hash-object -t commit -w --stdin` rather than `commit-tree`, carrying
-author and committer byte-exactly through the raw port's `input` (§ What the source shows, 6).
+author and committer byte-exactly through the raw port's `input` (§ What the source shows, 6). The alternative
+worth naming is not the string-oriented exec port but `commit-tree` under an environment passthrough: that is
+rejected because a process environment is string-typed, so an identity that is not valid UTF-8 cannot survive it
+byte-exactly, which is the property the criterion asks for.
 
 ### What the rebuilt member's commit says, and whose name is on it
 
@@ -760,9 +781,14 @@ author and committer byte-exactly through the raw port's `input` (§ What the so
 the request title as `{type}({workUnitId}): [{k}/{n}] {planned.title}` — the type parsed out of the authored terminal
 title, the description taken from the **plan member's** title — and builds the body from the operator's supplied
 summary, changes, and design reference. It passes `breaking: false` unconditionally, so the `!` marker is the
-terminal's alone and a member inherits the type only. It also throws at the terminal index, which scopes everything
-below to non-terminal members: the terminal is the adopted top, not a constructed member. The member's own commit
-message reaches neither. Its
+terminal's alone and a member inherits the type only. It also throws at the terminal index, which scopes the
+message rule below to non-terminal members — the terminal's published head is the adopted top, and no request
+presentation is composed for it. That is a fact about _publication_, not about construction: prepare requires one
+candidate per plan member including the terminal, and every candidate after the first must descend from its
+predecessor, so a rebuilt chain emits **n** commits. The n-th is a non-published eligibility vehicle descending
+from rebuilt member n−1 whose tree normalizes to the top's, which is what `adoptGitDeliveryChain` then builds the
+published terminal from. Its message is immaterial because nothing presents it. The member's own commit message
+reaches neither. Its
 durable consumer is the history the member lands into, which is why a recut needs a message rather than inheriting
 a bookkeeping one: the three existing construction sites pass fixed strings (`Adopt delivery member ancestry`,
 `Absorb contained delivery predecessor`, `Absorb refreshed delivery predecessor`) because they build tops nobody
@@ -797,97 +823,86 @@ authored message, and the constructor writes through `hash-object`, which fires 
 derived presentation of authored work, so it follows the request-title derivation above rather than the authoring
 contract, and owes no `Context:` trailer.
 
-### Construct and publish are one operation
+### Where the constructed chain lives before review
 
-**Nothing is minted, so nothing is reaped.** The rebuilt commits are unreferenced Git objects until publication
-writes them to member refs; no private namespace is created, the pairing invariant on `delivery-candidates` never
-engages, and there is no new sweep arm, locator deriver, or refusal reason. The two alternatives were a third private
-namespace — one regex, one locator deriver, four thin wrappers, a sweep arm mirroring the refresh arm, two refusal
-reasons, and handler wiring — and a shared staging substrate extracted now, which would reconcile gate-paired against
-ref-only and plan-derived locators against namespace enumeration across roughly ten thousand source lines in six
-files with about thirty-five hundred lines of coupled test, changing live behavior on the path whose failure mode is
-a plan that cannot close out.
+**Private review reads the candidate pair, so the pair is not optional.** The pre-publication review gate composes
+its per-member targets by deriving the plan's locators, preparing eligibility over the reserved candidate refs, and
+verifying each gate checkout exact — `composePreBindingDeliveryReviewTargets`, reached from the review handler and
+run in its own process. It is unconditional for a delivery work unit, skipped only where a pending approved fix
+retains its exact reviewed target, and a composition refusal refuses the entire pre-publication request. A
+constructed member that exists only as an unreferenced object is invisible to the reviewer who has to approve it.
 
-**The justification is not a garbage-collection grace period.** That grace is `gc.pruneExpire`, which an adopting
-project may set to `now`; a design depending on someone else's default is not a design. The durable property is that
-the publish path contains no auto-gc trigger at all — it observes with `ls-remote`, writes with `update-ref`, and
-pushes, and auto-gc fires only from porcelain that creates objects. That holds under any configuration.
+**So the constructor binds its output into the namespace that already exists.** Each rebuilt member is written to
+`refs/arc/delivery-candidates/{planId}/{chunkKey}` with its paired detached gate checkout, through the
+coordinate-agnostic primitives the correction verbs already sit on: `prepareDeliveryReviewFixCandidateGate` over
+`createDeliveryReviewFixCandidatePair` — `update-ref` at the exact head under a zero-lease, then `worktree add
+--detach` — with `rewriteCandidate` and `resetGate` for a rebuild that moves a pair already there. That coordinator
+is idempotent by construction: absent creates, matching returns `already-rematerialized`, half-present refuses
+`candidate-pair-split`. Replay needs no new mechanism.
 
-**The residual is concurrent access, disclosed rather than denied.** Auto-gc runs against the shared common directory
-and can be triggered by porcelain in any sibling worktree. Under `pruneExpire=now`, another checkout's commit or
-fetch between this operation's object writes and its push can prune the unreferenced chain; Git documents that hazard
-for `--prune=now` directly. The exposure belongs to the configuration that created it. The design's obligation is to
-minimize the window by ordering construct immediately before publication with only plumbing in between, and to say so
-rather than claim immunity.
+**No third namespace is minted, which is the alternative that was actually expensive.** The rejected shapes were a
+private staging namespace of this work unit's own — one regex, one locator deriver, four thin wrappers, a sweep arm
+mirroring the refresh arm, two refusal reasons, and handler wiring — and a shared staging substrate extracted now,
+reconciling gate-paired against ref-only and plan-derived locators against namespace enumeration across roughly ten
+thousand source lines in six files with about thirty-five hundred lines of coupled test, changing live behavior on
+the path whose failure mode is a plan that cannot close out. Writing the pair that already exists costs none of
+that.
 
-**That yields a hard ordering constraint: every fetch-bearing observation must precede construct.** `git fetch`
-creates objects and is an auto-gc trigger, and the delivery handler already fetches inside its position and
-provider-refresh observation helpers. Any of those placed after construct would move the race inside ARC's own
-operation rather than leaving it with the adopter's configuration.
+**The gate checkout is load-bearing rather than ceremony.** `verifyDeliveryCandidateCheckout` requires it
+non-dirty, with head and tree equal to the member's, and re-observes the candidate ref against it — per member,
+before review composes a single target. It is the reviewable working tree, not a leftover of where gates used to
+run. Removing per-member gate _runs_ does not remove it.
 
-**Partial publication survives without a resumable private ref.** `materializeBoundDeliveryChain` iterates members
-and derives its resumability from two already-durable sources: the Delivery State record, and re-observation of the
-published ref itself. For each member it compares the stored ref and head, re-observes, skips when the remote already
-carries that head, falls through to a re-publish on absence, and refuses on a different head. A mid-loop refusal
-therefore leaves the published prefix recorded and observable and the unpublished suffix as nothing but objects; the
-retry re-enters the same verb and re-constructs that suffix from the plan and the published predecessor, with the
-loop's skip-when-already-observed behavior making the prefix a no-op. The retry re-constructs rather than resumes,
-because the unreferenced objects may be gone — the disclosed residual doing what it was disclosed for.
+**The terminal member gets a pair too.** `deriveDeliveryResidueLocators` maps every plan member, and the review
+gate verifies a checkout for every locator it derived. The terminal candidate is a non-published eligibility
+vehicle (§ A rebuilt member is one commit carrying the member's net contribution), and it still needs a ref and a
+checkout or review refuses at the terminal index.
 
-**Construct must run inside a publish-shaped verb**, or the window reopens across processes no matter what. On the
-bound route that is already satisfied: `arc delivery rematerialize` — "Reclose and rewrite one complete reviewed
-suffix" — is close-and-rewrite within one process, and is the verb that route names. The unbound route is settled
-below.
+**What this retires, named rather than quietly dropped.** Three earlier paragraphs assumed construct's output was
+consumed inside one process: that nothing is minted and so nothing is reaped; that the durable protection is
+publish's path containing no auto-gc trigger; and a hard ordering constraint requiring every fetch-bearing
+observation to precede construct. All three answered a garbage-collection exposure that referenced objects do not
+have. The pair is written at construct time, so the objects are reachable from the moment they exist, and the race
+the constraint existed to bound cannot occur. The `gc.pruneExpire` reasoning and the concurrent-access residual go
+with it.
 
-### Where construct runs on the unbound route
+**Partial publication is unchanged, and better supported than before.** `materializeBoundDeliveryChain` still
+derives resumability from the Delivery State record and re-observation of the published ref, skipping members the
+remote already carries. What changes is the retry: it no longer has to re-construct because the unpublished suffix
+might have been reaped, since that suffix is still at its candidate ref.
 
-The bound route already has its publish-shaped verb. The unbound first cut is the case the requirement was never
-checked against, and two source facts settle it.
+### Where construct runs
 
-**A candidate's ref name never reaches the published output.** `deriveDeliveryMaterialization` takes exactly three
-things from a snapshot member — `coordinates: { base, head, tree }` — and derives every ref it emits from the plan
-instead: a non-terminal member publishes to `refs/heads/delivery/${workUnitId}/${chunkKey}` and bases on its
-predecessor's derived ref, while the terminal takes the top's. So the candidate operand is an **observation
-vehicle**, and its `ref` field is a legacy of hand-authored chains being handed over as refs rather than a
-requirement of the pipeline.
+**Construct is an authoring step, not a publication step.** Its output has to exist before private review reads it,
+and review returns before delivery execution continues — `deliver-stack.md` says exactly that of the authoring
+section it already owns: a pre-publication caller returns after eligibility closes, while delivery execution
+continues below. So the sequence is construct, then private review, then publish, and publish re-prepares over the
+same refs it does today. Nothing about publish's operand or machinery changes.
 
-**And the observer already accepts a bare object id.** `observeDeliveryEligibilityRef` resolves a commit and reads
-its tree, taking any commit-ish, and the native-landing reconcile path already calls it with a raw head rather than a
-ref name. Prepare's three structural checks survive the substitution: uniqueness holds because rebuilt members differ
-in parent and therefore in object id; order is checked on `deliverableId` against plan position, which an object id
-does not touch; and the `direct-delivery-ref` refusal matches a `refs/heads/delivery/` prefix an object id cannot
-carry.
+**It is a new verb in the authoring family rather than a mode on an existing one.** `authoring locate` is its
+nearest neighbour: plan-scoped, carrying no correction authority, operating over the whole locator set, and
+creating nothing. The two authoring _write_ verbs cannot host it. Both extend `ReviewFixAuthoringAuthoritySchema`,
+which asserts `route: "provider-refresh"` and requires `selectedDeliverableId`, `expectedStateRevision`, and a
+derivation record — none of which an unbound first cut has, and the route it names is one § Scope boundary
+disclaims. They also invert the contract: they take exact caller-computed coordinates and compare-and-swap onto
+them, where deriving the coordinates is what construct is for.
 
-**So the unbound verb is `arc delivery publish`, and construct runs at the head of its existing operation.** Publish
-already re-derives everything itself — `executeWithFreshDeliveryEligibility` reads the current plan, resolves the
-originating top, re-prepares over the candidate operand, and runs the complete close — so construct produces the
-member commits, hands their object ids into the operand slot that call already takes, and the rest of the verb runs
-unchanged over them. No new verb is introduced, no ref is minted, and the operand's internal contract is untouched.
+**The primitives beneath those verbs are route-agnostic, and are what construct reuses.**
+`createDeliveryReviewFixCandidatePair` takes a ref, a path, coordinates, and a parent-directory maker; the
+`ReviewFix` in the name is history rather than scope. The new surface is therefore one verb, not new machinery.
 
-**What changes is publish's request, not its machinery.** On this route the operator cannot supply candidate refs,
-because the objects do not exist until construct runs. The request carries **member boundaries** on this route: one
-work-unit-branch commit per member, the commit at which that member ends, so member _k_ spans its predecessor's
-boundary exclusive to its own inclusive. That is the same operand § Member boundaries is an operand already
-establishes as caller-supplied at the first window — stated there as what the caller hands over, and stated here as
-where it arrives. `checkoutPath` is already leaving the request under the evidence decision, so the candidate entry
-becomes deliverable plus boundary.
+**What the verb owns that the existing ones do not is its own authority predicate.** The review-fix verbs establish
+authority from a bound Delivery State revision plus a review-fix authority revalidation. A first cut has no bound
+state. What it has is the plan, an active work unit matching the plan's work unit, no active operation, a state
+valid against the plan where one exists, and the anchor preflight § Required behavior already demands. The first
+four are exactly the checks the existing arm performs before its review-fix-specific fifth, so the predicate is a
+narrowing of an existing one rather than a new authority model.
 
-**The ordering constraint is satisfied without reordering anything.** Everything between construct and the first ref
-write is publish's own re-derivation, and none of it creates objects. Before the close: the plan read, the
-originating-top resolution and the lifecycle-path read, both of which resolve the active work unit locally, and
-prepare's commit, tree, ancestry and overlap reads, all local. After it: the materialization derivation and the
-presentation resolution, which are pure; the delivery-state read; and the initial request binding, which is a
-provider API call rather than a git operation. The only remote observation is `ls-remote`, which fetches nothing.
-Every fetch on this handler lives in the position, provider-refresh, or native-landing reconcile observers, none of
-which this verb enters. So the exposure window is exactly the local re-derivation, which is the minimum the decision
-asked for rather than a concession.
-
-**The operand gains an arm rather than trading one.** The authored-ref arm keeps a live caller: `arc delivery
-rematerialize` feeds the same operand from `deriveDeliveryResidueLocators`, whose candidate refs are themselves
-plan-derived in the reserved `refs/arc/delivery-candidates/{planId}/{chunkKey}` namespace, and the shipped
-`deliver-stack.md` authoring phase is what populates them. So the constructor does not retire the ref arm, and
-`direct-delivery-ref` does not become a guard over a caller that no longer exists. What the spec owes is a field name
-that reads for either arm, and the statement that the boundary arm is the unbound first cut's only producer.
+**Three consequences were checked rather than assumed.** Closeout reaping observes locators and never reads
+candidate provenance, so a constructed pair is indistinguishable from an authored one and `residue-reaping` needs
+no edit. The Delivery State schema records candidate heads only inside a teardown operation, derived at reaping
+time from observation, so no schema change is owed. And the review gate reads refs and checkouts, not their
+producer. The constructor fits the existing shape without weakening or duplicating any part of it.
 
 ### Member boundaries are an operand, not a derivation
 
@@ -932,9 +947,13 @@ because that verb compare-and-swaps a private candidate toward the published mem
 names `arc delivery rematerialize` instead. Two verbs, two routes; the spec owes the route name, and must state that
 the registered path is provider-native and reaches no constructor.
 
-**The candidate/gate pair keeps its purpose.** It is the correction-authoring mechanism on the provider-refresh
-route, which reconstruction leaves untouched because it mints no private refs of its own. The pair invariant and the
-decision not to mint are consistent rather than in tension.
+**The candidate/gate pair is what reconstruction writes into, on both routes.** It is the correction-authoring
+mechanism on the provider-refresh route and the reviewable substrate everywhere else, so the constructor binds into
+it rather than leaving it untouched. What the constructor cannot reuse is the _verb_: `arc delivery authoring
+rematerialize` compare-and-swaps toward the published member head and refuses anything else, so a rebuilt
+coordinate has no way in through it. The primitives beneath it accept any coordinate, which is where construct
+enters; that verb's conflation of binding a coordinate with resetting to the public member is captured as its own
+concern rather than widened here.
 
 ### Required behavior
 
@@ -944,21 +963,24 @@ decision not to mint are consistent rather than in tension.
 - Under disjoint protected-base movement, retain the top's compatible chain base and return an **unchanged chain**
   when the existing cuts remain compatible. A newer base OID alone must not trigger recutting, and newer base-only
   bytes the originating top lacks must not be silently imported.
-- Emit one commit per rebuilt member, carrying that member's net contribution reapplied onto its new predecessor,
-  with author and committer preserved and the range's co-authorship trailers carried forward. Its subject is the
-  derived request identity without the stack position, and it derives no body, so an unchanged rebuild reproduces
-  the same object id.
+- Emit one commit per plan member — **n**, the terminal's eligibility vehicle included — each carrying that
+  member's net contribution reapplied onto its new predecessor, with author and committer preserved and the range's
+  co-authorship trailers carried forward. A published member's subject is the derived request identity without the
+  stack position, and it derives no body, so an unchanged rebuild reproduces the same object id.
 - Preflight any proposed chain's predecessor relation and normalized completeness against the originating top
   **before** publication, so a mechanically wrong anchor cannot be discovered only at `eligibility close`.
-- Order every fetch-bearing observation before construct, and publish within the same operation — `arc delivery
-  publish` on the unbound route, `arc delivery rematerialize` on the bound one.
+- Bind each constructed member into the existing private candidate namespace with its paired gate checkout, so the
+  pre-publication review gate can read it, and so the chain is referenced from the moment it exists.
+- Refuse a rebuild the gate cannot be reset for by naming the dirty paths observed, separating untracked residue
+  from tracked modification because their remedies differ, and stating that re-running resumes — the pair
+  coordinator is idempotent, so repair-and-retry continues rather than restarting.
 - On the bound review-fix route, after the authorized top correction is clean and committed, rebuild the selected
   member and every dependent member from the current public ancestry and canonical member boundaries.
 - Replay converges. Conflicts, dirty or foreign checkouts, moved authority or public heads, stale authorization, and
   incomplete normalization refuse **without a partial adopted chain**.
 - A real conflict stops with its exact member and leaves the old chain usable. A conflict falling partway through a
-  member's range discards the partial work as unreferenced objects, which costs nothing under the one-operation
-  shape.
+  member's range leaves the pairs already bound untouched and binds nothing for the member it stopped on, so the
+  partial work is discarded as unreferenced objects and the chain retains its last coherent state.
 
 **Substrate contracts versus tracked-tier projection.** Coordinate production today includes normalizing trees
 against lifecycle and Candidate records, because those artifacts ride the work unit's code history. That
@@ -1006,7 +1028,7 @@ repetition. They are also the safest first member of a stack this work unit inte
 the mechanism being repaired, so a delivery defect while landing them degrades the evidence rather than blocking the
 fix that makes the rest landable.
 
-D2 is a five-part change rather than a check removal — see § What the source shows, 4. Its verification must cover
+D2 is a six-part change rather than a check removal — see § What the source shows, 4. Its verification must cover
 disjoint movement closing `eligible`, overlapping movement still refusing on the fresh relation — including movement
 that overlaps a **later** member and not the first, which the current first-member operand misses — and the
 fabricated-snapshot case the re-scoped comparison no longer catches by `observedTip`. The fixture must also stop
@@ -1099,7 +1121,7 @@ re-verify the route at the specific landing.
    that is named and provably cannot clear its own refusal.
 
 2. **Settled** — see § What the source shows, 4. No consumer _inside the mechanical close_ depends on the live
-   protected base being unchanged, but the narrowing is a five-part coordinated change rather than a check removal,
+   protected base being unchanged, but the narrowing is a six-part coordinated change rather than a check removal,
    and it re-scopes `samePredecessorRelation`. Two residuals carry into the spec: the weakened snapshot-integrity
    check — partly answered by the pinned protected-base entry in item 5, which keeps the ref loop's half of it — and
    the enclosing close's two live protected-base reads, which D2 leaves exactly as they stand. The
@@ -1184,11 +1206,11 @@ re-verify the route at the specific landing.
      disposition — an absent object is `evidence-unavailable`, and a resolved commit whose tree disagrees with the
      snapshot is snapshot fabrication, which reprepare cannot clear. The trust-boundary sentence still needs
      correcting, since what the close trusts afterwards is a pinned observation rather than the current base.
-   - The six-part list never says whether the re-scoped overlap operand replaces the recorded relation or adds a
-     second read. It replaces it: the close computes **one** fresh relation against the live protected base, runs the
-     overlap guard on that, and compares the recorded relation against that same fresh one on `chainBase` alone —
-     which is what makes the recorded field provenance rather than a close-time equality target. The spec must say
-     so, because two reads would compare a quantity against itself.
+   - The list must not be written as a re-scoped relation. The close computes **one** fresh relation, over the
+     first member, and widens only the guard's left diff revision; re-scoping the relation's operand would move its
+     merge base and re-refuse disjoint movement (§ What the source shows, 4). The recorded relation is then compared
+     against that fresh one on `chainBase` alone, which is what makes the recorded field provenance rather than a
+     close-time equality target.
    - The normalized-completeness port has seven implementers, not the three the spec names.
    - Every documentation destination names a file with two byte-identical copies and no stated edit direction.
      Framework content changes go through the package source and sync outward, never the reverse. It applies to the
@@ -1235,7 +1257,7 @@ built.
    demonstrably reaches those consumers — verified by reading the trigger, not by asserting the placement (D1).
 9. A `completeness-*` refusal names which side moved and what would clear it, and any refusal that names a remedy can
    have that remedy actually clear it (D3).
-10. A clean unbound stack reaches publishable coordinates through one typed operation with no per-member
+10. A clean unbound stack reaches reviewable candidates through one typed authoring verb with no per-member
     hand-authored Git steps; replay converges; and a real conflict stops with its exact member, leaving the previous
     chain usable (D4).
 11. A rebuilt member carries its range's net contribution as one commit whose author and committer are its boundary
@@ -1248,6 +1270,9 @@ built.
 13. A non-current effective target reaches the operator with its own remedy at every delivery read site, the one
     undecided arm reaches them with choices rather than a refusal, and no stop-class arm is routed to a remedy that
     cannot clear it (D6).
+14. A rebuild blocked by a gate it cannot reset names the dirty paths it observed and separates untracked residue
+    from tracked modification, and re-running the same command after the repair continues rather than restarting —
+    verified on both the refusal and the continuation (D4).
 
 **Criterion 1 restates its predecessor.** The original read "without repeating member gates whose covered inputs
 remain unchanged; changed gate definitions or other actual covered inputs prevent unsupported reuse." With per-member
