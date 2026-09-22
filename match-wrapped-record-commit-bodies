@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "match-wrapped-record-commit-bodies",
+  "claimId": "1a4c8e6a6394f84034d8136c96741dad",
+  "createdAt": "2026-09-22T17:17:19.266Z",
+  "updatedAt": "2026-09-22T17:17:19.266Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "match-wrapped-record-commit-bodies",
+  "branch": "chore/match-wrapped-record-commit-bodies",
+  "origin": "inbox",
+  "originEntry": "Make the committed-record recognizer match wrapped record commit bodies",
+  "originEntrySourceDigest": "sha256:90740b037638efc52097a40706dfafcaaf3587a7fa644de0bd1ecf8b5f89714e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
