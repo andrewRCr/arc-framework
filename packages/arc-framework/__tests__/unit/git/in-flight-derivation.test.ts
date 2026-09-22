@@ -1849,10 +1849,14 @@ describe("deriveInFlight input union", () => {
 
 describe("deriveInFlight candidate dedupe", () => {
   it.each([
-    { landed: true, remedy: "Merged to base; after interlock approval, remove? `git branch -d recovery/old`" },
-    { landed: false, remedy: "Not proven merged; surfaced, not removable." },
-  ])("names the safe cleanup posture for a stale local branch (landed: $landed)", async ({ landed, remedy }) => {
-    const staleBranch = "recovery/old";
+    { landed: true, staleBranch: "recovery/old", remedy: "`git branch -d -- 'recovery/old'`" },
+    {
+      landed: true,
+      staleBranch: "recovery/odd'$(touch)",
+      remedy: "`git branch -d -- 'recovery/odd'\"'\"'$(touch)'`",
+    },
+    { landed: false, staleBranch: "recovery/old", remedy: "Not proven merged; surfaced, not removable." },
+  ])("names the safe cleanup posture for $staleBranch (landed: $landed)", async ({ landed, staleBranch, remedy }) => {
     const currentBranch = "feat/current";
     const exec = makeExec({
       refSnapshots: [{ localHeads: { [staleBranch]: "0".repeat(40), [currentBranch]: "0".repeat(40) } }],

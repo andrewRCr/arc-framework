@@ -1327,7 +1327,8 @@ async function dedupeWorkUnitCandidates(
       return {
         ...baseWarning,
         rendered: `${baseWarning.rendered} ${merged
-          ? `Merged to base; after interlock approval, remove? \`git branch -d ${candidate.input.branch}\``
+          ? `Merged to base; after interlock approval, remove? ` +
+            `\`git branch -d -- ${quoteBranchForShell(candidate.input.branch)}\``
           : "Not proven merged; surfaced, not removable."}`,
       };
     }));
@@ -1614,6 +1615,10 @@ function staleLocationWarning(
     workUnit: candidate.name,
     rendered,
   });
+}
+
+function quoteBranchForShell(branch: string): string {
+  return `'${branch.replaceAll("'", `'"'"'`)}'`;
 }
 
 function candidateShadowedWarning(candidate: WorkUnitCandidate, winner: WorkUnitCandidate): InFlightWarning {
