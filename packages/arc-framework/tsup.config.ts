@@ -5,12 +5,8 @@ import {
   DEV_BUILD_OUTPUT_DIRECTORY_ENV,
   writeDevBuildStamp,
 } from "./src/lib/dev-check.js";
-import { registerDeliveryDomainSchemas } from "./src/lib/delivery/schema.js";
-import { registerDeliveryAuthoringSchemas } from "./src/lib/delivery/design-inventory.js";
-import { createKernelRegistry } from "./src/lib/kernel/index.js";
 import { writeKernelSchemaArtifact } from "./src/lib/kernel/schema/generate.js";
-import { registerSessionEnvelopeSchemas } from "./src/lib/session-envelope/registry.js";
-import { registerReviewDomainSchemas } from "./src/scripts/review-gate/core/register-review-schemas.js";
+import { createProductionSchemaRegistry } from "./src/production-schema-registry.js";
 
 /**
  * Shared build options. The runtime-only build in `tsup.fast.config.ts` derives from these rather
@@ -33,12 +29,9 @@ export const baseOptions = {
   onSuccess: async () => {
     const pkgDir = import.meta.dirname;
     const outDir = resolve(pkgDir, outputDirectory);
-    const registry = registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
-      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
-    ));
     await writeKernelSchemaArtifact({
       outDir,
-      registry,
+      registry: createProductionSchemaRegistry(),
     });
     // Content-hash stamp for the runtime stale-build guard — mtime alone
     // false-positives when tools bump timestamps without editing sources.

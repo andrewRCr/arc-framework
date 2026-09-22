@@ -29,6 +29,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                           | Priority | Owner  | Depends on | Cohort                     |
 | ----------------------------------- | -------- | ------ | ---------- | -------------------------- |
+| errand-autonomous-advance           | P1       | andrew | —          | approval-flow-refinement   |
 | interlock-release-refinement        | P1       | andrew | —          | approval-flow-refinement   |
 | lifecycle-advancement-provenance    | P1       | andrew | —          | approval-flow-refinement   |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |

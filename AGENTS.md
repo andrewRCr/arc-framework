@@ -11,14 +11,14 @@ it as bare `arc ...`.
 
 ## Self-hosting recovery
 
-When `npx arc recover audit ...` exits before emitting its report with the complete
+When any `npx arc ...` command exits before emitting its ordinary result with the complete
 self-hosting stale-build refusal (`error: arc dev build is stale (...)`, refusal
-against stale `dist`, and the `npm run build:fast` remedy), run
-`npm run build:fast` once in the same checkout and retry the exact audit command once
-without asking. This rebuilds a derived local artifact; it is not an audit verdict.
-If the build fails, the retry remains stale, or any other failure occurs, preserve the
-recovery marker and follow the normal recovery stop. Do not generalize this repair to
-other commands or failures.
+against stale `dist`, and the `npm run build:fast` remedy), run `npm run build:fast`
+once in the same checkout and retry the exact command once without asking. This rebuilds
+a derived local artifact; it is not a verdict on the retried command. If the build fails,
+the retry remains stale, or any other failure occurs, stop and follow that command's normal
+failure or recovery path. For `npx arc recover audit ...`, preserve the recovery marker
+when stopping. Do not generalize this repair beyond the complete stale-build refusal.
 
 ## Review guidelines
 

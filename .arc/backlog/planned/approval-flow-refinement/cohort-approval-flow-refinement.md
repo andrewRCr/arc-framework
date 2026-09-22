@@ -13,7 +13,9 @@ settles _routing_
 increment to its maximum (the whole work unit) as a first-class, principle-aligned option.
 `lifecycle-advancement-provenance` owns how a deliberate grant survives safe lifecycle re-entry and which
 proof-bounded controller effects it can authorize without inventing a second decision. The shared concern is the
-unit of approval — not a pile of loosely-related interlock tweaks.
+unit of approval — not a pile of loosely-related interlock tweaks. `errand-autonomous-advance` applies the same
+model to an Errand's complete post-opt-in tail: standing authority through review and integration preparation, with
+hard break-outs and the exact-head integration interlock preserved.
 
 ---
 
@@ -25,6 +27,7 @@ commit-increments            (decouples review/commit increments; establishes th
 interlock-release-refinement (routing: "approval is approval"; parallel-able — coordinates, doesn't gate)
 lifecycle-advancement-provenance
                              (retention/invalidation across re-entry; parallel-able — coordinates, doesn't gate)
+errand-autonomous-advance    (Errand-scoped standing grant; composes every axis and stops at integration approval)
 ```
 
 `commit-increments` is the substrate member: `unit-scoped-review` carries a hard `Depends On` edge to it (a
@@ -46,6 +49,10 @@ is parallel-able; it shares machinery with both but gates neither.
   for evaluation in `commit-increments` § Unknowns and re-surfaced from the wrapper angle in
   `interlock-release-refinement`. `unit-scoped-review`'s batch authorization is a provenance source with WU scope;
   its deviation ledger composes with this. Genuinely cross-member — settle the home at PRD.
+- **Errand standing authority composes; it does not replace the axes.** `errand-autonomous-advance` consumes the
+  commit/review vocabulary, wrapper release path, and retained-direction model to authorize a bounded sequence of
+  ordinary Errand actions. Each owning controller still decides target validity, review evidence, and integration
+  readiness.
 
 ### Soft coordination
 
@@ -82,10 +89,15 @@ is parallel-able; it shares machinery with both but gates neither.
   coverage gap is upgraded to delegation-critical; `commit-increments`' gate-shaping + vocabulary likewise. It
   does **not** gate `interlock-release-refinement` or reorder the cohort; buffer entries in each member's draft
   carry the specifics.
+- **`review-protocol-alignment` (cohort)** — `errand-autonomous-advance` consumes its source selection, request,
+  activity, convergence, pass-accounting, and Owner-acceptance contracts. The Errand grant may authorize use of
+  those controllers, but does not become another review evidence model. The approval-flow member produces the
+  witnessed grant envelope; the review cohort must derive any exact disposition authorization from that envelope,
+  the complete source-bound set, and its policy rather than trusting an agent-authored approval claim.
 
 ### Closeout criteria
 
-Complete when all four members ship **and** the unit-of-approval model is coherent across the review, commit,
+Complete when all five members ship **and** the unit-of-approval model is coherent across the review, commit,
 and integration boundaries — the shared vocabulary settled, no boundary's rule still reaching across the others
 by default, and the integration-interlock floor intact.
 
@@ -126,6 +138,14 @@ and the proof boundary for driver-internal record or uniquely derived compositio
 
 _Consumes:_ the cohort's first-class approval-provenance framing and existing commit/push-interlock axes;
 coordinates with `commit-increments` and `interlock-release-refinement` without depending on either.
+
+### `errand-autonomous-advance`
+
+_Exposes:_ one explicit per-Errand standing grant through execution, review, finding response, and integration
+preparation; its break-out/invalidation contract; and the final exact-head integration stop.
+
+_Consumes:_ the other members' increment vocabulary, release routing, break-out discipline, and retained-direction
+provenance; consumes review-protocol-alignment controllers without taking ownership of their evidence.
 
 ## ADR anchors
 

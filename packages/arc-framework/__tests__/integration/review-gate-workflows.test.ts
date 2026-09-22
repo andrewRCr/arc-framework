@@ -225,16 +225,24 @@ describe("trusted review-gate workflows", () => {
 
   it("keeps the public review CLI inside the published graph", async () => {
     const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
+    const productionRegistry = await readFile(
+      resolve(root, "packages/arc-framework/src/production-schema-registry.ts"),
+      "utf8",
+    );
     const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
       files: string[];
       scripts?: Record<string, string>;
     };
     expect(tsup).toContain('entry: ["src/cli.ts"]');
-    expect(tsup).toContain("registerReviewDomainSchemas");
-    expect(tsup).toContain("registerDeliveryDomainSchemas");
-    expect(tsup).toContain("registerDeliveryAuthoringSchemas");
-    expect(tsup).toContain(
-      "registerDeliveryAuthoringSchemas(\n      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry()))",
+    expect(tsup).toContain("createProductionSchemaRegistry");
+    expect(productionRegistry).toContain("registerReviewDomainSchemas");
+    expect(productionRegistry).toContain("registerDeliveryDomainSchemas");
+    expect(productionRegistry).toContain("registerDeliveryAuthoringSchemas");
+    expect(productionRegistry).toContain("registerSessionEnvelopeSchemas");
+    const compactRegistry = productionRegistry.replace(/\s+/gu, " ");
+    expect(compactRegistry).toContain(
+      "return registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas( "
+      + "registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())), ));",
     );
     expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");
@@ -517,16 +525,36 @@ describe("trusted review-gate workflows", () => {
       prCreation,
     );
     const integrationInterlock = fullProtection.indexOf("`integration-interlock`", openedTargetResolution);
+    const laneClassification = fullProtection.indexOf(
+      "arc review planning-lane <base-sha> <head-sha>",
+      integrationInterlock,
+    );
+    const mergeMethodResolution = fullProtection.indexOf(
+      "arc review merge-method resolve",
+      laneClassification,
+    );
+    const lockRelease = fullProtection.indexOf("arc merge lock release -", mergeMethodResolution);
+    const autoMerge = fullProtection.indexOf(
+      "gh pr merge <pr-number> --auto --<method> --match-head-commit <head-sha>",
+      lockRelease,
+    );
     expect(exemption).toBeGreaterThanOrEqual(0);
     expect(prCreation).toBeGreaterThan(exemption);
     expect(openedTargetResolution).toBeGreaterThan(prCreation);
     expect(integrationInterlock).toBeGreaterThan(openedTargetResolution);
+    expect(laneClassification).toBeGreaterThan(integrationInterlock);
+    expect(mergeMethodResolution).toBeGreaterThan(laneClassification);
+    expect(lockRelease).toBeGreaterThan(mergeMethodResolution);
+    expect(autoMerge).toBeGreaterThan(lockRelease);
     expect(fullProtection).toMatch(/`exempt \/ none`[\s\S]*skip[^.]*review/iu);
     expect(fullProtection).toMatch(/continue-review[\s\S]*reviewed-lane/iu);
     expect(fullProtection).toMatch(/never infer[^.]*planning-lane/iu);
     expect(fullProtection).toMatch(/head movement[^.]*invalidates[^.]*exemption[^.]*return/iu);
     expect(fullProtection).toMatch(
       /after approval[\s\S]*head differs[^.]*return[^.]*adapter[^.]*integration\s+interlock/iu,
+    );
+    expect(fullProtection.slice(mergeMethodResolution, lockRelease)).toMatch(
+      /validated \/ use-method[\s\S]*returned `method`[\s\S]*sole/iu,
     );
   });
 
@@ -731,15 +759,18 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
     );
+    expect(packaged).not.toContain("arc review chunking resolve");
     const frontline = sectionBetween(
       packaged,
       "Compose the immutable policy target",
       "3. **Resolve the Errand PR**",
     );
+    expect(frontline).toMatch(/Errand atomicity[\s\S]*whole-target/iu);
     expect(frontline).toContain("`findings / respond`");
     expect(frontline).toContain("`arc review respond -`");
     expect(frontline).toMatch(/Approved fixes[\s\S]*Tier 1 gates[\s\S]*new target/iu);
-    expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*rerun chunking/iu);
+    expect(frontline).not.toContain("`chunk-pending / continue-chunks`");
+    expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*whole-target/iu);
     expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
     expect(frontline).toMatch(/complete no-action record-only set[\s\S]*approved for its exact\s+target/iu);
 
@@ -748,6 +779,7 @@ describe("trusted review-gate workflows", () => {
       "4. **Enter the open PR.**",
       "5. **Settle the final head.**",
     );
+    expect(openPr).toMatch(/opened target[\s\S]*whole-target/iu);
     expect(openPr).toMatch(/rate-limited \| transient-unavailable \/ try-next-source/iu);
     expect(openPr).toMatch(/ambiguous delivery[\s\S]*terminal failure stops/iu);
     expect(openPr).toMatch(/target movement[\s\S]*routed review action[\s\S]*typed continuation/iu);
@@ -772,18 +804,19 @@ describe("trusted review-gate workflows", () => {
     const terminal = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
     expect(terminal.match(/arc errand merge <slug> - --json/gu)).toHaveLength(1);
     expect(terminal).toMatch(/errandMergeRequest[\s\S]*integration-interlock[\s\S]*arc errand merge/iu);
-    expect(terminal).toMatch(
-      /not an instruction to invoke merge this turn while those checks are pending/iu,
-    );
-    expect(terminal).toMatch(
-      /surfaced\s+required checks as not green[\s\S]*do not invoke the\s+terminal merge this turn/iu,
-    );
+    expect(terminal).toMatch(/approval authorizes[\s\S]*bounded exact-head wait/iu);
+    expect(terminal).toMatch(/green \| not-required \/ complete[\s\S]*pass `errandMergeRequest` unchanged/iu);
+    expect(terminal).toMatch(/pending \/ await[\s\S]*exact\s+`errandMergeRequest`/iu);
     expect(terminal).toMatch(/awaiting-checks \/ retry[\s\S]*exact continuation/iu);
     expect(terminal).toMatch(/reconcile-base[\s\S]*reconcile-regenerable[\s\S]*supplied\s+remedy/iu);
     expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh integration approval/iu);
     expect(terminal).toMatch(/arc merge lock release -[\s\S]*separate operation authorizes no merge/iu);
     expect(terminal).not.toContain("gh pr merge");
-    expect(terminal).not.toContain("arc review checks await");
+    expect(terminal.match(/arc review checks await/gu)).toHaveLength(1);
+    expect(terminal).toContain("--repository <approvedTarget.repository>");
+    expect(terminal).toContain("--pull-request <approvedTarget.pullRequest>");
+    expect(terminal).toContain("--head-sha <approvedTarget.headSha>");
+    expect(terminal).not.toContain("--timeout-ms");
     expect(terminal).not.toContain("arc merge lock hold");
 
     const complete = sectionBetween(packaged, "### Complete");

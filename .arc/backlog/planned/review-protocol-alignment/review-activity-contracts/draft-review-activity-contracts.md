@@ -322,6 +322,17 @@
   `respond-command.ts` is byte-identical to `main`, so this is live there. A refusal naming an act that cannot
   clear it is the class `delivery-post-landing-conflict-recovery` exists to remove, here at the review boundary.
 
+- _Layer 6 field confirmation from an Errand, 2026-09-21._ After an approved hosted-review fix was applied and its
+  gates passed, invoking the `verifiedFix` response before committing could not derive an immutable changed target:
+  the dirty checkout surfaced the `clean-worktree` repository precondition. Committing through the already-approved
+  increment and then re-invoking the same response succeeded as `errand-advanced`. That mechanical order is sound —
+  review evidence should bind to a commit, not mutable worktree bytes — but the public method language still says
+  `ready-to-persist` returns to the commit interlock while binding authorization consumption “before any push,” and
+  the Errand workflow compresses apply, verify, commit, push, and settlement into prose. Specify the typed sequence
+  explicitly: approve/provision the fix; apply and verify; commit; re-enter with `verifiedFix` on the clean new HEAD;
+  then push and perform any hosted after-fix settlement. Preserve exact-target mechanics; fix the continuation and
+  remedy language rather than allowing dirty-worktree target derivation.
+
 - _Cost when it fires:_ a complete chunked standard review — seven evaluators plus an aggregate, 25 findings
   verified at source, dispositioned and Owner-approved, 18 fixes applied, Tier 3 green — earned no lane credit.
   Pre-publication re-routed to `ready / local-prepare`, `pass: 1`, `attemptedSources: []`.

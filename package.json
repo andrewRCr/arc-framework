@@ -24,7 +24,7 @@
     "build:fast": "npm run build:fast -w packages/arc-framework",
     "benchmark:session-envelope": "npm run benchmark:session-envelope -w packages/arc-framework",
     "inventory:command-inputs": "node --import tsx packages/arc-framework/src/scripts/render-command-input-inventory.ts",
-    "test": "npm run test -w packages/arc-framework",
+    "test": "npm run test -w packages/arc-framework --",
     "test:full": "npm run test:full -w packages/arc-framework",
     "test:changed": "npm run test:changed -w packages/arc-framework",
     "test:unit": "npm run test:unit -w packages/arc-framework",
