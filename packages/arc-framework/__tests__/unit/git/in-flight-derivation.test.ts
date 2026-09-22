@@ -1878,6 +1878,13 @@ describe("deriveInFlight candidate dedupe", () => {
 
     const warning = warnings.find((item) => item.code === "stale-location-shadow" && item.branch === staleBranch);
     expect(warning?.rendered).toContain(remedy);
+    if (landed) {
+      expect(warning?.rendered).toContain("No patch-unique commits against base.");
+      expect(warning?.rendered).toContain("Git may refuse unless its upstream or HEAD contains the branch.");
+      expect(warning?.rendered).toContain("Retain it if refused.");
+    } else {
+      expect(warning?.rendered).not.toContain("git branch -d");
+    }
     expect(exec).toHaveBeenCalledWith("git", ["cherry", "origin/main", staleBranch]);
   });
 

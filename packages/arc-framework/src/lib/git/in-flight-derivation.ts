@@ -1327,8 +1327,9 @@ async function dedupeWorkUnitCandidates(
       return {
         ...baseWarning,
         rendered: `${baseWarning.rendered} ${merged
-          ? `Merged to base; after interlock approval, remove? ` +
-            `\`git branch -d -- ${quoteBranchForShell(candidate.input.branch)}\``
+          ? `No patch-unique commits against base. After interlock approval, try ` +
+            `\`git branch -d -- ${quoteBranchForShell(candidate.input.branch)}\`; ` +
+            "Git may refuse unless its upstream or HEAD contains the branch. Retain it if refused."
           : "Not proven merged; surfaced, not removable."}`,
       };
     }));
