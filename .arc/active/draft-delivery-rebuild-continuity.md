@@ -253,6 +253,216 @@ rematerialize` precedent. The concurrency residual under an adopter's `pruneExpi
 defended against, every fetch-bearing observation is ordered before construct, and the object-only constructor is
 carried by D7 as all three options required it.
 
+### What a rebuilt member actually is (2026-09-21)
+
+**Delivery constructs no member commits today.** `deriveDeliveryMaterialization` copies each member's head and tree
+straight out of the eligibility snapshot and sets `coordinates.base` to the predecessor's head; materialization points
+a ref at that existing commit and publication pushes it. Members are observed cuts of the work unit branch's own
+history, not objects delivery builds.
+
+**Every object-construction site in the library builds the top, never a member.** `chain-adoption` emits `commit-tree
+top.tree -p top.head -p highestMember.head` under a fixed message, and `chain-absorption` does the same twice more.
+All three are two-parent, both parents fixed, message fixed, and all three move the top ref. None of them constructs a
+member, and no other site does either.
+
+**So D4's "no new object-construction path" is false, and not marginally.** The primitives it names to compose build
+tops. Member reconstruction has no existing implementation to consume, which also means D7's construct half cannot
+serve it unparameterized: a rebuilt member needs its own parent and its own message, and the success criterion that
+pins both to the absorption shape pins the wrong thing.
+
+**A member is a range, but a recut need not replay it.** `memberContributionSteps` maps a chunk key to a set of
+contribution step identifiers, and a member's span runs from its predecessor's head to its own. That made a rebuild
+look like rebase work. It is not, because `proveGitDeliveryContribution` already computes the exact tree a recut
+needs: `readMergeTreeComposition` with the old predecessor as merge base, the new predecessor as one side, and the
+member head as the other, yields the member's contribution reapplied onto the new predecessor. Today that tree is
+computed only to verify what an external provider's rebase produced — the `mechanical-reapply` proof accepts when the
+reapplied tree equals the provider's member tree.
+
+**So ARC's own contribution contract is tree-level, not commit-level.** The proof compares trees and never inspects
+commit count or ancestry shape. A reconstruction that produced one commit per member would satisfy it exactly as a
+provider's multi-commit rebase does.
+
+**That reposes the shape question as commit granularity, not ancestry.** **(A)** Squash-recut: compose the existing
+tree computation with one `commit-tree <tree> -p <new-predecessor> -m <message>` per member. Small, composes what
+exists, and finally makes D4's "composes existing primitives" nearly true — one added call rather than a new engine.
+It collapses each member to a single commit, so a published pull request shows one commit instead of the author's.
+**(B)** True replay: preserve each member's commit range, which needs a per-commit loop, per-commit conflict handling,
+and author and committer preservation. Preserves reviewer-visible granularity and any per-commit review anchors.
+**(C)** Two-parent absorption: matches the existing top-side primitives but constructs a merge per member, which
+nothing in the codebase does and which does not read as a stack.
+
+**Lean: (A), with (B) as the thing to choose deliberately if reviewer granularity is load-bearing.** The goal this
+work unit states is continuity of justified evidence across a rebuild, not preservation of authoring granularity, and
+(A) is the only option whose cost matches the deliverable the stack budgets for. What (A) spends is per-commit review
+anchors on republished members — comments attached to a commit that no longer exists. Not yet decided.
+
+Open within this: whether replayed commits must preserve author and committer identity as well as message, and what
+the exact-member conflict stop looks like when the conflict falls partway through a member's range rather than at its
+boundary.
+
+**Authorship reattribution is a defect in every option that uses `commit-tree`.** `RawGitExec` accepts only `cwd`,
+`input`, and `objectAccess` — no environment — so a rebuilt commit takes the operator's configured identity. For a
+single-author stack that is invisible. Under `team.mode`, where a member's commits may carry several authors, a
+rebuild silently reattributes all of them to whoever ran it. Preserving attribution is still expressible through the
+existing port, but by writing the raw commit object through `hash-object -t commit -w --stdin` rather than by
+`commit-tree`, since the port does carry `input`.
+
+**Industry idiom decides the granularity question against squashing** (recorded as judgment, not as a verified
+survey). Every mature stacked-change tool preserves the reviewable unit across a restack: ghstack and spr are
+commit-per-request by construction, Sapling tracks successors across rewrites, Jujutsu keeps change identity stable
+across rebase, and Graphite restacks branches while preserving the commits inside them. None squashes on restack.
+Squashing is a merge-time decision that hosts expose separately. The identity-preservation machinery those tools carry
+— stable change identifiers, obsolescence markers, commit metadata — exists precisely because review anchors and
+incremental re-review depend on it.
+
+ARC's member is branch-shaped rather than commit-shaped, so the closest analogue is Graphite, which preserves commits
+within a restacked branch. Choosing the squash-recut would therefore depart from idiom at an observable cost —
+per-commit review anchors on republished members — and would leave unhandled a case the norm covers, incremental
+re-review after a restack. That is exactly the divergence trigger the project's own rules name, and it would be
+decided once for every adopting project rather than by each of them.
+
+**Revised lean: (B), preserve each member's commit range.** The cost gap is also smaller than first estimated: the
+replay loop reuses the same three-way tree computation per commit that the contribution proof already performs, and
+the attribution fix it needs is owed under (A) as well. (A) remains defensible only if per-commit review is judged not
+load-bearing, and that judgment would be made on every adopter's behalf.
+
+### Member ranges contain base merges, which reframes the shape question (2026-09-21)
+
+Measured against the live plan rather than reasoned about: its members span 25 and 22 commits, and those ranges
+contain 2 and 3 merge commits respectively — including a plain `Merge branch 'main'`. This is structural rather than
+incidental. `DEV-RULES.ARC` § Rebase scope forbids rewriting a pushed branch to absorb base changes and requires
+merging the base in instead, so a work unit of any duration produces member ranges containing base merges by rule.
+
+**That breaks the idiom comparison.** ghstack, spr, Sapling and Jujutsu operate over linear stacks whose unit is one
+clean commit. An ARC member is a range that may contain merges. The tools preserve commit identity across restack
+because their unit survives a rebase intact; a range containing a merge of the very base that moved does not. The
+earlier appeal to idiom compared objects that are not alike, and the conclusion it produced does not carry.
+
+**True replay now has to answer a question it previously did not.** Replaying a range containing `Merge branch 'main'`
+must either drop the merge, changing what the member contains, or recreate it with a second parent from a base the new
+chain does not descend from. Neither is clean precisely when the base is what moved. Squash-recut is unaffected: the
+three-way composition the contribution proof already computes collapses a member's net contribution onto its new
+predecessor whatever the range contains internally.
+
+**And the provider already performs this rebase.** `DeliveryProviderRefreshPreparationPort.prepare` takes the plan,
+repository, scope and the before-snapshot, and the GitHub adapter behind it shells to `gh stack rebase --upstack
+--no-trunk`; ARC then proves the result with the `mechanical-reapply` tree comparison and compare-and-swaps each
+member ref. So delivery's existing answer to "the base moved" is that the host rebases and ARC proves the tree. A
+reconstruction routed the same way would inherit commit granularity and authorship natively — `git rebase` preserves
+both, which the ARC-side `commit-tree` path cannot — and would make D4's promise to compose existing primitives true,
+on the provider library rather than on `chain-absorption`.
+
+**The fork is therefore three-way, not two.** **(A)** ARC squash-recut: well-defined under internal merges, smallest,
+collapses each member to one commit. **(B)** ARC true replay: preserves granularity but owes an answer for merges
+inside a range, and is the largest. **(D)** Route through the provider preparation port as provider-refresh already
+does: inherits granularity, authorship and merge handling, and reuses the existing proof — at the cost of binding
+reconstruction to provider capability, which a provider-free or local mode would not have. Whether the port's scope
+operand can express a moved base is the open question (D) turns on.
+
+### Why member ranges contain merges, examined rather than assumed (2026-09-21)
+
+The append-only rule carries two different rationales in two places. `DEV-RULES.ARC` § Rebase scope says rewriting
+published commits orphans SHA-keyed Git notes and forces a force-push. `strategy-concurrent-work` § Append-only until
+integration gives the stronger one and calls it the strategy's single hard invariant: once a branch is pushed another
+machine, worktree, or teammate may hold it, so rewriting forces everyone into non-fast-forward reconciliation and can
+orphan commits that live only on a machine holding the old history.
+
+**The rule holds, and it is not an ARC imposition.** "Do not rewrite published history" is mainstream Git practice
+rather than a local convention, so keeping it is alignment with idiom, not divergence from it. Pushing a work-unit
+branch early is the precondition that makes the branch shared — it is not the reason for the rule, and it is
+deliberate, because a shared pushed branch is what carries a work unit between machines. The notes rationale is the
+weaker and more ARC-specific of the two and would soften once operational state moves off-branch; the shared-history
+rationale is unaffected by that move, so the rule survives it.
+
+Worth carrying forward: the same strategy already names integration as **the single sanctioned rewrite point**,
+explicitly including squash and final rebase. Rewriting is not forbidden everywhere — it is forbidden while a branch
+is a shared working base.
+
+### Why the provider route does not replace an ARC-side answer (2026-09-21)
+
+The provider route is better isolated than it first appears: `gh stack rebase` runs in a separate checkout, its
+results are fetched back into `refs/arc/delivery-refresh-candidates/*`, head and tree are compared against the
+isolated result, and only then does `rewriteMemberRef` compare-and-swap. Nothing is published before it is proved, and
+merges inside a member range become Git's problem rather than ARC's.
+
+**But it cannot serve the unbound route.** Provider refresh operates over members that already exist as published
+requests — it reads published heads, and a host stack command needs a stack to act on. First-cut reconstruction
+happens before publication, where there is nothing for the provider to rebase. So routing through the provider would
+leave the unbound route needing an ARC-side implementation anyway, which is the second implementation D4 exists to
+prevent. The provider route adds a path rather than replacing one.
+
+Its other costs are real but secondary: it binds reconstruction to one host's stack support, leaving other hosts and
+any local or backend-served mode without it, and it binds correctness to external semantics ARC does not control. That
+last one is already evidenced in the adapter, which seeds a ref's reflog twice to work around `gh stack rebase
+--upstack --no-trunk` using `merge-base --fork-point` for the first dependent.
+
+**So the ARC-side shape still has to be chosen, and it has to work where ranges contain base merges.** That points at
+(A), the squash-recut, on structural grounds rather than cost: it is well-defined whatever a member's range contains,
+it composes the tree computation the contribution proof already performs, and the granularity it gives up is
+granularity that true replay cannot faithfully preserve across a moved base anyway.
+
+### Decision: squash-recut, under the derived-presentation principle (2026-09-21)
+
+**Delivery already does not preserve a member's commit graph, so the squash-recut introduces nothing.** The adapter
+invokes `gh stack rebase --upstack` with `--no-trunk` on a dependent suffix and no other flags — in particular no
+merge-preserving flag — so the provider rebase linearizes each member range and drops the base merges inside it.
+(Inferred from the invocation and from ordinary rebase semantics rather than observed against a live stack; the
+adapter's own workaround for `merge-base --fork-point` behavior is consistent with a plain rebase.)
+
+The proof agrees from the other side, and this is the stronger evidence. `proveGitDeliveryContribution` accepts when a
+single three-way composition — old predecessor as merge base, new predecessor against the old member head — equals the
+member's tree. ARC's definition of a correct rebase is therefore tree equality against a squash-equivalent
+reapplication. **The contribution contract already treats a member as a net contribution rather than a commit
+sequence.** A constructor that emits one commit per member satisfies the contract exactly as the provider's result
+does.
+
+**The principle that makes this coherent: the work-unit branch is the shared working history, and a member request is
+a derived presentation of it.** Append-only governs the shared base — where it is mainstream Git practice and where
+`strategy-concurrent-work` places it — while presentation branches are regenerated and force-updated, which is what
+`rewriteDeliveryMemberRef` already does under `--force-with-lease`. This is the stacked-change idiom rather than a
+departure from it: ghstack regenerates its requests from source commits and force-pushes them, and Graphite
+force-pushes on every restack. The earlier reading — that preserving commits across a restack is the norm ARC would be
+breaking — mistook the tools' _source_ model for their _presentation_ model.
+
+**The cost, stated rather than waved past:** a member's request shows one commit after a rebuild, so review comments
+anchored to a specific commit do not survive one. That is the same cost ghstack and Graphite users accept, and the
+full authored history remains on the work-unit branch, which is the artifact that keeps it.
+
+**The unbound route is also why one implementation covers both.** Provider refresh needs published heads, and the
+unbound constructor produces objects for members that do not yet exist as refs — so there is no provider-side rebase
+to prove against, and `proveGitDeliveryContribution` would have no `after.member` to compare. ARC-side construction is
+forced there rather than chosen, which is what makes D4's single-implementation premise hold instead of merely assert.
+
+### Where member boundaries come from (2026-09-21)
+
+**Delivery derives no boundaries; it is given them.** `prepareDeliveryEligibility` takes `candidates: { deliverableId,
+ref }[]` as command input. It checks count, order, and uniqueness against the plan, refuses `direct-delivery-ref` if
+any candidate points into `refs/heads/delivery/`, then observes each ref live. The boundary set is a caller-supplied
+operand at the first window, exactly as D4 already says it should be at the constructor.
+
+**Once materialized, the boundaries are durable.** Delivery State persists a member record per deliverable carrying
+its ref and coordinates, which is what the publish loop compares against when it decides a member is already
+published. So after first materialization a rebuild has the member heads it needs from state, without re-deriving
+anything.
+
+**And the deleted authoring snapshot is not the blocker the finding set took it for.** A member's span is fully
+determined by its predecessor's head and its own — `coordinates.base` is exactly the predecessor head — so the commit
+range is recoverable from two heads. `memberContributionSteps` records which contribution steps composed a member,
+which is authoring provenance rather than the partition a rebuild needs. Losing it costs the ability to explain a
+member's composition, not the ability to rebuild one.
+
+That retires the three options the finding set framed as the real choice — persisting the partition in the
+digest-sealed plan, retaining the authoring snapshot, or deriving boundaries at construct time. None is needed.
+Boundaries stay an input, supplied at first cut by the same caller that supplies prepare's candidates and read from
+Delivery State thereafter.
+
+**The remaining obligation is the seam, not the source.** The terminal member sits apart from the stack because
+planning artifacts ride the work unit's own history and have to be carried somewhere; that is interim, and it changes
+once operational state materializes off-branch. In-repo planning Markdown stays a supported mode rather than becoming
+a legacy path, so the boundary operand must reach the constructor through one seam that serves both modes — the same
+discipline D4 already states for the lifecycle exclusion set, and for the same reason: the storage move should be a
+filter swap, not a rewrite.
+
 ### The rest of the confirmed set
 
 **The bound route's mechanism runs backwards.** `arc delivery authoring rematerialize` takes
