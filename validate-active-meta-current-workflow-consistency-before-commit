@@ -3,7 +3,7 @@
   "slug": "validate-active-meta-current-workflow-consistency-before-commit",
   "claimId": "ef1759bc864c94f279f55588ea07a203",
   "createdAt": "2026-09-22T14:40:02.328Z",
-  "updatedAt": "2026-09-22T14:40:02.328Z",
+  "updatedAt": "2026-09-22T16:13:16.051Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "validate-active-meta-current-workflow-consistency-before-commit",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Validate active-meta `Current Workflow` consistency before commit",
   "originEntrySourceDigest": "sha256:340d1371a95f69503498368956d38cb5708a1a1e623c01c579672d3a4200c653",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/validate-active-meta-current-workflow-consistency-before-commit",
+    "headSha": "d64d1c2f702cdf6756a0e46e1bab037b60c67148"
+  }
 }
