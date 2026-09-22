@@ -135,6 +135,25 @@ describe("mutateInboxEntries", () => {
     ])).toMatchObject({ changed: false, content: removed.content });
   });
 
+  it("keeps a held entry generation stable across marking and replay", () => {
+    const held = INBOX.replace(
+      "- _Observation:_ first.",
+      "- _Hold:_ `true`\n- _Created:_ `2026-06-01`\n\n- _Observation:_ first.",
+    );
+    const sourceDigest = inboxEntrySourceDigest(held, "First atomic");
+    const marked = mutateInboxEntries(held, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ]);
+
+    expect(inspectInboxEntry(marked.content, "First atomic").sourceDigest).toBe(sourceDigest);
+    expect(mutateInboxEntries(marked.content, [
+      { kind: "mark", title: "First atomic", sourceDigest },
+    ])).toMatchObject({ changed: false, content: marked.content });
+    expect(mutateInboxEntries(marked.content, [
+      { kind: "remove", title: "First atomic", sourceDigest },
+    ]).content).not.toContain("First atomic");
+  });
+
   it("rejects changed, missing, duplicate, and malformed entry preimages", () => {
     const sourceDigest = inboxEntrySourceDigest(INBOX, "First atomic");
     expect(() => mutateInboxEntries(INBOX.replace("first.", "changed."), [

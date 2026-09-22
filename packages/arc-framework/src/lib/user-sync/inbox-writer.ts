@@ -15,6 +15,7 @@
 import { matchInboxEntryTitle } from "./parser.js";
 import { contentDigest } from "../canonical/content-digest.js";
 import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { managedFieldValue } from "../session-init/managed-field.js";
 
 /** Sections whose H3 children are routable inbox entries. */
 const ENTRY_SECTIONS = ["Errand", "Work Unit"];
@@ -84,6 +85,10 @@ interface LocatedInboxEntry {
 
 const DISPOSITION_LINE = "- _Disposition:_ `execute-bound`";
 
+function withoutTrailingCarriageReturn(line: string): string {
+  return line.replace(/\r$/u, "");
+}
+
 /**
  * Locate entries without letting one malformed heading discard the rest.
  *
@@ -121,6 +126,11 @@ function locateInboxEntries(lines: readonly string[]): LocatedInboxEntry[] {
 /** The `_Key:_` an entry-body descriptor line declares, or null when the line declares none. */
 function descriptorKey(line: string | undefined): string | null {
   return /^- (_[^_]+:_)/u.exec(line ?? "")?.[1] ?? null;
+}
+
+function managedDescriptorValue(line: string, field: string): string | undefined {
+  const value = withoutTrailingCarriageReturn(line);
+  return descriptorKey(value) === `_${field}:_` ? managedFieldValue(value, field) : undefined;
 }
 
 /** Render one body line for a diagnostic, bounding an arbitrarily long descriptor. */
@@ -197,6 +207,23 @@ function executeBoundMark(
   return { insertedLineCount: 2 };
 }
 
+/** Remove the retain envelope that an execute-bound disposition supersedes. */
+function normalizeRetainedEntryForExecution(block: readonly string[]): string[] {
+  if (!block.some((line) => managedDescriptorValue(line, "Hold") === "true")) return [...block];
+  const preserveCreated = block.some((line) => managedDescriptorValue(line, "Remind") === "true");
+  const normalized = block.filter((line) =>
+    managedDescriptorValue(line, "Hold") !== "true"
+    && (preserveCreated || managedDescriptorValue(line, "Created") === undefined));
+  if (
+    !preserveCreated
+    && withoutTrailingCarriageReturn(normalized[1] ?? "") === ""
+    && withoutTrailingCarriageReturn(normalized[2] ?? "") === ""
+  ) {
+    normalized.splice(2, 1);
+  }
+  return normalized;
+}
+
 /** Whether one parsed inbox entry carries the canonical execute-bound disposition. */
 export function hasExecuteBoundDisposition(raw: string): boolean {
   const lines = raw.split("\n");
@@ -219,9 +246,9 @@ function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): 
 }
 
 function unboundDigest(lines: readonly string[], entry: LocatedInboxEntry): CanonicalDigest {
-  const unbound = unboundEntryLines(lines, entry);
+  const unbound = normalizeRetainedEntryForExecution(unboundEntryLines(lines, entry));
   const normalized = unbound
-    .map((line) => line.replace(/\r$/u, ""))
+    .map(withoutTrailingCarriageReturn)
     .join("\n")
     .replace(/\n*$/u, "") + "\n";
   return contentDigest(Buffer.from(normalized, "utf8"));
@@ -424,7 +451,9 @@ export function mutateInboxEntries(
 
   for (const { entry, mutation, mark } of actions.sort((left, right) => right.entry.start - left.entry.start)) {
     if (mutation.kind === "mark") {
-      lines.splice(entry.start + 1, 0, "", DISPOSITION_LINE);
+      const normalized = normalizeRetainedEntryForExecution(lines.slice(entry.start, entry.end));
+      normalized.splice(1, 0, "", DISPOSITION_LINE);
+      lines.splice(entry.start, entry.end - entry.start, ...normalized);
     } else if (mutation.kind === "unmark") {
       lines.splice(entry.start + 1, mark?.insertedLineCount ?? 0);
     } else {
