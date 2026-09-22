@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "reap-zero-delta-errand-branches",
+  "claimId": "5bf577bcdd5fcfcfe2c6cfdb261433ba",
+  "createdAt": "2026-09-22T19:39:41.651Z",
+  "updatedAt": "2026-09-22T19:39:41.651Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reap clean zero-delta Errand branches during abandonment while preserving branches with unique or unproven content",
+  "branch": "chore/reap-zero-delta-errand-branches",
+  "origin": "inbox",
+  "originEntry": "Reap zero-delta Errand branches during clean abandonment",
+  "originEntrySourceDigest": "sha256:21c5dc80f58ea83616ed12a26deeebd46a7d7426d7ec5c6057791a35f5bf7614",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
