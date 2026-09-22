@@ -16,8 +16,24 @@
 ## Readiness
 
 **State:** consolidated 2026-09-21. Every question the two re-entries opened is settled, and this document has been
-reconciled into one forward read rather than a stack of dated amendments. The formalization-readiness assessment has
-not been run against the consolidation; that is the next step.
+reconciled into one forward read rather than a stack of dated amendments.
+
+**Formalization readiness: `ready` (2026-09-22), after a fourth adversarial pass.**
+
+- _All settle-able design is settled._ The two reasons the second re-entry named are closed with their
+  alternatives retired — a rebuilt member's commit shape is a function of five named inputs, and member boundaries
+  are a caller-supplied operand rather than a derivation. The divergence test was run explicitly on the two
+  decisions settled last: the guard's placement at both eligibility sites, and the single new dependency carrying
+  the per-member measurement, whose inputs, result union, composed internals, and one new primitive are all named,
+  leaving module placement and parameter naming as local calls. The seam carrying the boundary operand across both
+  planning-storage modes was checked the same way. No decision is deferred to the spec; the one place the draft
+  says "rather than left to the spec" is settling a sub-case, not passing one on.
+- _A stateable success signal exists._ Fourteen criteria, each naming an observable outcome.
+- _The inbound buffer is drained._ No `## Inbound Buffer — Pending Integration` section remains.
+
+The fourth pass confirmed the per-member operand directly: it walked all four relation variants against the new
+read and built no topology that defeats it. Its blocker and both majors were verified against source and are
+disposed above.
 
 D1 and D2 are crystallized in `spec-delivery-rebuild-continuity.md` and carry the finalization pass's certification.
 D3, D4, and D6 are settled here and owe a `create-spec` pass that replaces the spec's re-opened half; D7 routes
