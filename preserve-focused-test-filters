@@ -3,7 +3,7 @@
   "slug": "preserve-focused-test-filters",
   "claimId": "23029532ca686b72ac423292e63829ed",
   "createdAt": "2026-09-22T12:34:24.943Z",
-  "updatedAt": "2026-09-22T12:34:24.943Z",
+  "updatedAt": "2026-09-22T13:05:03.956Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "preserve-focused-test-filters",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Preserve focused test filters through the root npm wrapper",
   "originEntrySourceDigest": "sha256:4fee2f4d525439471cb34822b60909a7299c2414f26279d98200863032663098",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/preserve-focused-test-filters",
+    "headSha": "23343d57a8db3ef310c6e2f3629db925b54c900b"
+  }
 }
