@@ -925,6 +925,7 @@ describe("delivery execution handler", () => {
   it.each([
     ["review-fix-plan", "delivery review-fix plan", { entryMode: "execution" }],
     ["review-fix-publish", "delivery review-fix publish", {}],
+    ["review-fix-continue", "delivery review-fix continue", {}],
   ] as const)("refuses an unresolvable repository locator before %s execution", async (
     command,
     commandName,
@@ -935,13 +936,17 @@ describe("delivery execution handler", () => {
     const write = vi.fn();
     const setExitCode = vi.fn();
 
+    const request = command === "review-fix-continue"
+      ? { repository: "/home/andrew/arc-framework" }
+      : {
+          planId: plan.planId,
+          selectedDeliverableId: plan.members[0]!.deliverableId,
+          repository: "/home/andrew/arc-framework",
+          ...commandFields,
+        };
+
     await handleDeliveryExecution(command, { input: "-" }, undefined, {
-      readText: vi.fn().mockResolvedValue(JSON.stringify({
-        planId: plan.planId,
-        selectedDeliverableId: plan.members[0]!.deliverableId,
-        repository: "/home/andrew/arc-framework",
-        ...commandFields,
-      })),
+      readText: vi.fn().mockResolvedValue(JSON.stringify(request)),
       execute,
       write,
       setExitCode,

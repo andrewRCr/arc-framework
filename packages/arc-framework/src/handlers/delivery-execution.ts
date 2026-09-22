@@ -810,7 +810,7 @@ const ReviewFixRecordEffectSchema = z.strictObject({
   digest: DeliveryCanonicalDigestSchema,
 });
 const ReviewFixContinueSchema = z.strictObject({
-  repository: z.string().min(1),
+  repository: RepositoryLocatorSchema,
   remote: z.string().min(1).default("origin"),
   verification: ReviewFixAcknowledgeSchema.shape.verification.optional(),
   recordEffects: z.array(ReviewFixRecordEffectSchema).max(2).optional(),
@@ -1933,7 +1933,8 @@ function invalidCommandInput(
   command: DeliveryExecutionCommand,
   request: unknown,
 ): DeliveryExecutionResult {
-  const reviewFixCommand = command === "review-fix-plan" || command === "review-fix-publish";
+  const reviewFixCommand = command === "review-fix-plan" || command === "review-fix-publish"
+    || command === "review-fix-continue";
   const input = typeof request === "object" && request !== null && !Array.isArray(request)
     ? request as Record<string, unknown>
     : null;
