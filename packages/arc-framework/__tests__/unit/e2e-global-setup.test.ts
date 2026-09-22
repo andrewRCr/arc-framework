@@ -50,7 +50,7 @@ describe("E2E global setup build selection", () => {
     expect(rootManifest.scripts["test:e2e:focused"]).toBe(
       "npm run test:e2e:focused -w packages/arc-framework",
     );
-    expect(rootManifest.scripts["test"]).toBe("npm run test -w packages/arc-framework");
+    expect(rootManifest.scripts["test"]).toBe("npm run test -w packages/arc-framework --");
     expect(rootManifest.scripts["test:full"]).toBe("npm run test:full -w packages/arc-framework");
     expect(rootManifest.scripts["test:changed"]).toBe("npm run test:changed -w packages/arc-framework");
   });
