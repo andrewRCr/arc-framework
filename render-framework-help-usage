@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "render-framework-help-usage",
+  "claimId": "41ea5725a5fb02fb6348f9388e7765ae",
+  "createdAt": "2026-09-22T23:52:45.380Z",
+  "updatedAt": "2026-09-22T23:52:45.380Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the framework renderer expose usage instead of treating help as a path",
+  "branch": "chore/render-framework-help-usage",
+  "origin": "inbox",
+  "originEntry": "Make the framework renderer expose usage instead of treating help as a path",
+  "originEntrySourceDigest": "sha256:3d49634868abb307b329c106545144549b982a2b8348ed3dc1cdd541fb272204",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
