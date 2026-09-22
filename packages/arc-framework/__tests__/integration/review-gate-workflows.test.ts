@@ -759,15 +759,18 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
     );
+    expect(packaged).not.toContain("arc review chunking resolve");
     const frontline = sectionBetween(
       packaged,
       "Compose the immutable policy target",
       "3. **Resolve the Errand PR**",
     );
+    expect(frontline).toMatch(/Errand atomicity[\s\S]*whole-target/iu);
     expect(frontline).toContain("`findings / respond`");
     expect(frontline).toContain("`arc review respond -`");
     expect(frontline).toMatch(/Approved fixes[\s\S]*Tier 1 gates[\s\S]*new target/iu);
-    expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*rerun chunking/iu);
+    expect(frontline).not.toContain("`chunk-pending / continue-chunks`");
+    expect(frontline).toMatch(/`stale-target \/ select-scope`[\s\S]*recompose[\s\S]*whole-target/iu);
     expect(frontline).toContain("`blocked | unavailable | invalid-override / stop`");
     expect(frontline).toMatch(/complete no-action record-only set[\s\S]*approved for its exact\s+target/iu);
 
@@ -776,6 +779,7 @@ describe("trusted review-gate workflows", () => {
       "4. **Enter the open PR.**",
       "5. **Settle the final head.**",
     );
+    expect(openPr).toMatch(/opened target[\s\S]*whole-target/iu);
     expect(openPr).toMatch(/rate-limited \| transient-unavailable \/ try-next-source/iu);
     expect(openPr).toMatch(/ambiguous delivery[\s\S]*terminal failure stops/iu);
     expect(openPr).toMatch(/target movement[\s\S]*routed review action[\s\S]*typed continuation/iu);

@@ -20,12 +20,17 @@ describe("lifecycle review driver", () => {
     ]);
     expect(project).toBe(packaged);
     for (const command of [
-      "arc review chunking resolve -",
       "arc review resolve -",
       "arc review hosted request -",
       "arc review hosted await -",
       "arc review hosted settle -",
     ]) expect(packaged).toContain(command);
+    if (path === integrateWorkflow) {
+      expect(packaged).toContain("arc review chunking resolve -");
+    } else {
+      expect(packaged).not.toContain("arc review chunking resolve -");
+      expect(packaged).toContain("Errand atomicity fixes each role's");
+    }
     expect(packaged).toContain("review applicability");
     expect(packaged).toContain("assess-evidence-applicability");
     expect(packaged).toContain("judgmentRequired: true");
@@ -93,16 +98,15 @@ describe("lifecycle review driver", () => {
       "delivery-bound / continue-review",
     ]) {
       expect(workUnit).toContain(pair);
-      expect(errand).toContain(pair);
+      expect(errand).not.toContain(pair);
     }
     expect(workUnit).toContain("selected `assess-boundary-fit` outcome and its evidence basis");
     expect(workUnit).toContain("semantically unchanged");
     expect(workUnit).toContain("material deltas");
     expect(workUnit).toContain("render `recommendedActionText` verbatim");
     expect(workUnit).toContain("never also offer chunked review");
-    expect(errand).toContain("An Errand has no owning work unit");
-    expect(errand).toContain("without adding delivery judgment");
-    expect(errand).toContain("follow the closed attention dispatch in Step 2");
+    expect(errand).toMatch(/chunk selection is not an\s+Errand review action/u);
+    expect(errand).toContain("Bind the opened target's `scopeSelection` directly to whole-target");
   });
 
   it("carries a content-gated local-review attestation instead of a composed record", async () => {

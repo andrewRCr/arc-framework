@@ -212,20 +212,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
    Compose the immutable policy target `{ repository, pullRequest: null, headSha }`, the routed `standardReview`
    projection, and explicit review-routing facts for every target continuing through ordinary review. The future
-   merge lane remains downstream presentation, not a routing input. For each new target, invoke
-   `arc review chunking resolve -` once, projecting each supplied target
-   to caller-held Git coordinates `{ kind, baseRef, diffBaseSha, headSha }` and including an existing exact-target
-   `scopeSelection` through the same projection when one exists. An Errand has no owning work unit, so ordinary
-   tripped evidence resolves authoritative-unbound. Dispatch the closed result without adding delivery judgment:
-
-   - `disabled / none`, `below-threshold / continue-review`, `scope-selected / continue-review`, or
-     `evidence-unavailable / continue-review` — render no attention text and continue review.
-   - `consider-chunks / select-review-scope` — render `recommendedActionText` verbatim, then make the existing
-     bounded review-scope judgment.
-   - `delivery-bound / continue-review` — render `recommendedActionText` verbatim and continue; do not infer or
-     author Errand-side delivery state.
-
-   Select whole-target or chunked scope separately for each role and pass it to `arc review resolve -`.
+   merge lane remains downstream presentation, not a routing input. Errand atomicity fixes each role's
+   `scopeSelection` to `{ mode: "whole-target", target: <immutable-policy-target> }`; chunk selection is not an
+   Errand review action. Pass that exact whole-target selection to `arc review resolve -`.
    Configured standard-source order is the default. For an explicit Owner selection of a configured source, pass
    `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
    Errand binding carries that source and its ordered fallbacks through hosted request and await.
@@ -242,8 +231,7 @@ remote base all name the same exact head. Any tracked change continues through t
      submit approved mutation/commitment decisions through `arc review respond -`.
    - `approval-required / obtain-ceiling-override` — surface the exact one-pass consequence and
      `Approve (or redirect)?`; return only exact approval to the same target/lane call.
-   - `chunk-pending / continue-chunks` — continue the local chunk series without consuming the pass.
-   - `stale-target / select-scope` — recompose and rerun chunking.
+   - `stale-target / select-scope` — recompose the exact target, bind its whole-target scope, and rerun the driver.
    - `blocked | unavailable | invalid-override / stop` — surface the typed diagnostics and stop.
 
    Resume local operations with `arc review local resume -` and reduce with `arc review reduce -`. A command error
@@ -318,9 +306,9 @@ remote base all name the same exact head. Any tracked change continues through t
    hook action, review fix, or base reconciliation. Continue only when `openedChangeRequest` and the adapter target
    name the same exact head.
 
-   Rerun `arc review chunking resolve -` for the opened target, follow the closed attention dispatch in Step 2, and
-   invoke `arc review resolve -` for each incomplete lane. If the Owner has directed that no further standard-review
-   pass be spent, take the exact Owner-directed review stop below only from `ready / hosted-request`,
+   Bind the opened target's `scopeSelection` directly to whole-target and invoke `arc review resolve -` for each
+   incomplete lane. If the Owner has directed that no further standard-review pass be spent, take the exact
+   Owner-directed review stop below only from `ready / hosted-request`,
    `ready / local-prepare`, or `approval-required / obtain-ceiling-override`; stop before source dispatch. Every
    other driver state retains its typed action. Otherwise, on `ready / hosted-request`, invoke
    `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
@@ -424,7 +412,7 @@ remote base all name the same exact head. Any tracked change continues through t
    malformed WU state** · `[invariant]`; a missing or contradictory Errand identity stops.
 
    After any fix, request action, or append-only base reconcile changes the head, execute the generic push contract,
-   rerun chunking, and return through Step 4's review-applicability route. Compose the final
+   rebind whole-target scope, and return through Step 4's review-applicability route. Compose the final
    `openedChangeRequest`, require any planning-grooming adapter target to match it, and retain the exact strict Errand
    identity and selected lane.
 
