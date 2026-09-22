@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "make-stub-creation-regenerate-roadmap",
+  "claimId": "885d3b1b97ba6c2bccbbcacd711be5ec",
+  "createdAt": "2026-09-22T23:13:30.567Z",
+  "updatedAt": "2026-09-22T23:13:30.567Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make stub creation regenerate ROADMAP from the created work unit",
+  "branch": "chore/make-stub-creation-regenerate-roadmap",
+  "origin": "inbox",
+  "originEntry": "Make stub creation regenerate ROADMAP from the created work unit",
+  "originEntrySourceDigest": "sha256:60a0910c74c72786d8e3691cd2e428629b01d2b8d5c2cc31a5705ad95dc27dda",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
