@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "land-advisor-tool-guard",
+  "claimId": "b9d0e8fc5ed5d082f938ad5a5915be4e",
+  "createdAt": "2026-09-22T23:39:11.159Z",
+  "updatedAt": "2026-09-22T23:39:11.159Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Land the advisor-tool guard in CLAUDE.md and retire its interim working-memory reminder",
+  "branch": "chore/land-advisor-tool-guard",
+  "origin": "inbox",
+  "originEntry": "Land the advisor-tool guard in `CLAUDE.md`",
+  "originEntrySourceDigest": "sha256:c444596b37e2091a625c63a000c7f97deb4361121b03cbd89436ecde9ab773b8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
