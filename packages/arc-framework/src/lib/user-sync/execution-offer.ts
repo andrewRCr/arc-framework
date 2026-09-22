@@ -12,25 +12,25 @@ export type ExecutionOfferResolution =
   | { readonly kind: "resolved"; readonly nextOffer: ExecutionNextOffer }
   | { readonly kind: "refused"; readonly reason: string };
 
-export type ExecutionStartupOfferResolution =
-  | {
-      readonly kind: "resolved";
-      readonly nextOffer: ExecutionNextOffer;
-      readonly warnings: readonly string[];
-    }
-  | { readonly kind: "refused"; readonly reason: string };
+export type ExecutionStartupOfferResolution = ExecutionOfferResolution;
 
 /**
  * Select the first readable execute-bound capture for cold startup.
  *
  * @param options - Current inbox bytes and optional warm parent checkout.
- * @returns The first readable offer plus sibling diagnostics, or a refusal when none is readable.
+ * @returns The first offer, or an actionable refusal while any queue entry is malformed.
  */
 export function resolveExecutionStartupOffer(options: {
   readonly content: string;
   readonly parentCheckoutPath: string | null;
 }): ExecutionStartupOfferResolution {
   const listing = listExecuteBoundInboxEntries(options.content);
+  if (listing.diagnostics.length > 0) {
+    return {
+      kind: "refused",
+      reason: `Malformed execute-bound Errand queue. ${listing.diagnostics.join(" ")}`,
+    };
+  }
   const next = listing.entries[0];
   if (next !== undefined) {
     return {
@@ -40,16 +40,9 @@ export function resolveExecutionStartupOffer(options: {
         key: next.title,
         parentCheckoutPath: options.parentCheckoutPath,
       },
-      warnings: listing.diagnostics,
     };
   }
-  if (listing.diagnostics.length > 0) {
-    return {
-      kind: "refused",
-      reason: `No readable execute-bound Errand could be selected. ${listing.diagnostics.join(" ")}`,
-    };
-  }
-  return { kind: "resolved", nextOffer: null, warnings: [] };
+  return { kind: "resolved", nextOffer: null };
 }
 
 /**

@@ -126,10 +126,9 @@ still applies because USER-INBOX and WORKING-MEMORY must be fresh before enterin
    WU-artifact read (SESSION-NOTES, active task list, lifecycle workflow).
 3. **Enter the selected operation**:
     - `--errand --next` — invoke `arc errand next --json` and follow only its typed result:
-        - `available / open-errand` — render `recommendedPromptText` and any `warnings`, bind `nextOffer.key` as the
-          exact inbox capture, and enter the ordinary [`run-errand`][run-errand] Launch path. Launch still classifies
-          the concern, checks overlap, derives and confirms a branch-safe slug, and opens with
-          `--from-inbox <nextOffer.key>`.
+        - `available / open-errand` — render `recommendedPromptText`, bind `nextOffer.key` as the exact inbox capture,
+          and enter the ordinary [`run-errand`][run-errand] Launch path. Launch still classifies the concern, checks
+          overlap, derives and confirms a branch-safe slug, and opens with `--from-inbox <nextOffer.key>`.
         - `empty / none` — render `recommendedPromptText` and end the signal path without eliciting another concern.
         - `refused / stop` — render `reason`, `remedy`, `retryCommand`, and `recommendedPromptText`, then stop.
     - `--errand` — invoke `arc errand open`; render its `recommendedPromptText`, direct subsequent work to

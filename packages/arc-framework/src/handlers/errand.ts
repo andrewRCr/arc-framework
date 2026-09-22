@@ -137,7 +137,6 @@ export const ErrandNextResultSchema = z.discriminatedUnion("state", [
     state: z.literal("available"),
     nextAction: z.literal("open-errand"),
     nextOffer: ErrandNextOfferSchema,
-    warnings: z.array(z.string().min(1)),
     recommendedPromptText: z.string().min(1),
   }),
   z.strictObject({
@@ -146,7 +145,6 @@ export const ErrandNextResultSchema = z.discriminatedUnion("state", [
     state: z.literal("empty"),
     nextAction: z.literal("none"),
     nextOffer: z.null(),
-    warnings: z.array(z.string()).max(0),
     recommendedPromptText: z.string().min(1),
   }),
   z.strictObject({
@@ -189,21 +187,16 @@ export function buildErrandNextResult(
       state: "empty",
       nextAction: "none",
       nextOffer: null,
-      warnings: [],
       recommendedPromptText: "No execute-bound Errand is queued.",
     });
   }
-  const warningSuffix = resolution.warnings.length === 0
-    ? ""
-    : ` Queue warning: ${resolution.warnings.join(" ")}`;
   return ErrandNextResultSchema.parse({
     schemaVersion: 1,
     mode: "errand-next",
     state: "available",
     nextAction: "open-errand",
     nextOffer: { ...resolution.nextOffer, parentCheckoutPath: null },
-    warnings: [...resolution.warnings],
-    recommendedPromptText: `Next execute-bound Errand: ${resolution.nextOffer.key}.${warningSuffix}`,
+    recommendedPromptText: `Next execute-bound Errand: ${resolution.nextOffer.key}.`,
   });
 }
 
@@ -221,20 +214,20 @@ export async function handleErrandNext(
     }, "Correct the command options."), opts.json === true);
     return;
   }
-  const cwd = requireArcProjectRoot();
-  const identity = cwd === null ? null : await resolveIdentityWithPrompt(false);
-  if (cwd === null || identity === null) {
-    emitErrandNextResult(buildErrandNextResult({
-      kind: "refused",
-      reason: cwd === null
-        ? "ARC project root is unavailable."
-        : "No identity resolved — set arc.identity before selecting an Errand.",
-    }, cwd === null
-      ? "Run from an ARC project checkout."
-      : "Set `arc.identity` for this checkout."), opts.json === true);
-    return;
-  }
   try {
+    const cwd = requireArcProjectRoot();
+    const identity = cwd === null ? null : await resolveIdentityWithPrompt(false);
+    if (cwd === null || identity === null) {
+      emitErrandNextResult(buildErrandNextResult({
+        kind: "refused",
+        reason: cwd === null
+          ? "ARC project root is unavailable."
+          : "No identity resolved — set arc.identity before selecting an Errand.",
+      }, cwd === null
+        ? "Run from an ARC project checkout."
+        : "Set `arc.identity` for this checkout."), opts.json === true);
+      return;
+    }
     const resolution = await resolveCurrentExecutionStartupOffer({
       cwd,
       io: createUserIOContext(context?.subprocess),
@@ -246,7 +239,7 @@ export async function handleErrandNext(
     emitErrandNextResult(buildErrandNextResult({
       kind: "refused",
       reason: error instanceof Error ? error.message : String(error),
-    }, "Resolve the reported inbox read or lock failure."), opts.json === true);
+    }, "Resolve the reported identity, inbox read, or lock failure."), opts.json === true);
   }
 }
 
@@ -1483,7 +1476,7 @@ async function resolveCurrentExecutionStartupOffer(options: {
     () => ({ result: null }),
   );
   if (postImage.state === "missing") {
-    return { kind: "resolved", nextOffer: null, warnings: [] };
+    return { kind: "resolved", nextOffer: null };
   }
   return resolveExecutionStartupOffer({
     content: postImage.content,

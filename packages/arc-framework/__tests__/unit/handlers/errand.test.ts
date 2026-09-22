@@ -14,16 +14,14 @@ describe("arc errand next result", () => {
     const available = buildErrandNextResult({
       kind: "resolved",
       nextOffer: { kind: "errand", key: "First queued Errand", parentCheckoutPath: "/parent" },
-      warnings: ["Malformed sibling was skipped."],
     });
-    const empty = buildErrandNextResult({ kind: "resolved", nextOffer: null, warnings: [] });
+    const empty = buildErrandNextResult({ kind: "resolved", nextOffer: null });
     const refused = buildErrandNextResult({ kind: "refused", reason: "queue malformed" });
 
     expect(available).toMatchObject({
       state: "available",
       nextAction: "open-errand",
       nextOffer: { key: "First queued Errand", parentCheckoutPath: null },
-      warnings: ["Malformed sibling was skipped."],
     });
     expect(empty).toMatchObject({ state: "empty", nextAction: "none", nextOffer: null });
     expect(refused).toMatchObject({

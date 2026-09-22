@@ -30,16 +30,15 @@ function marked(): string {
 }
 
 describe("execute-bound next offer", () => {
-  it("selects a readable startup offer while retaining sibling diagnostics", () => {
+  it("refuses executable startup while any queue entry is malformed", () => {
     const corrupted = marked().replace("### `[ ]` **First**", "### `[ ]` First");
 
     expect(resolveExecutionStartupOffer({
       content: corrupted,
       parentCheckoutPath: null,
     })).toMatchObject({
-      kind: "resolved",
-      nextOffer: { key: "Second", parentCheckoutPath: null },
-      warnings: [expect.stringContaining("Malformed USER-INBOX entry heading")],
+      kind: "refused",
+      reason: expect.stringContaining("Malformed USER-INBOX entry heading"),
     });
   });
 
