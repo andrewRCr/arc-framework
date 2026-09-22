@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "reconcile-unreachable-delivery-gates",
+  "claimId": "ebba20c4993eb604f32386b4bb3c58aa",
+  "createdAt": "2026-09-22T12:28:02.878Z",
+  "updatedAt": "2026-09-22T12:28:02.878Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reconcile unreachable delivery-gate directories with the plan-derived reaper",
+  "branch": "chore/reconcile-unreachable-delivery-gates",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
