@@ -30,6 +30,7 @@ export interface AbandonOrdinaryErrandDependencies {
   readLifecycle(record: OrdinaryErrandRecord): Promise<ChangeRequestLifecycleEvidence>;
   clearExecuteBound(record: OrdinaryErrandRecord): Promise<AbandonStepResult>;
   retire(record: OrdinaryErrandRecord, lifecycle: ChangeRequestLifecycleEvidence | null): Promise<RetirementResult>;
+  reapZeroDeltaBranch(record: OrdinaryErrandRecord): Promise<{ kind: "removed" | "preserved"; reason?: string }>;
 }
 
 export interface AbandonOrdinaryErrandOptions {
@@ -92,7 +93,15 @@ export async function abandonOrdinaryErrand(
   if (retired.kind === "refused") return refusal("identity-conflict", retired.reason);
   if (retired.kind === "error") return failure("locus.errand-abandon.identity", retired.message);
 
-  const outcome = cleanup.step.kind === "applied" || inbox.step.kind === "applied" || retired.kind === "applied"
+  let branchCleanup: { kind: "removed" | "preserved"; reason?: string };
+  try {
+    branchCleanup = await options.dependencies.reapZeroDeltaBranch(record);
+  } catch (error) {
+    branchCleanup = { kind: "preserved", reason: message(error) };
+  }
+
+  const outcome = cleanup.step.kind === "applied" || inbox.step.kind === "applied"
+    || retired.kind === "applied" || branchCleanup.kind === "removed"
     ? "applied"
     : "idempotent";
   return createTerminalOperationOutcome({
@@ -100,7 +109,10 @@ export async function abandonOrdinaryErrand(
     operation: "errand-abandon",
     identity: projectLocusIdentity(record),
     nextOffer: null,
-    recommendedPromptText: `Abandoned Errand '${slug}', retained its capture, and retired its identity.`,
+    recommendedPromptText: `Abandoned Errand '${slug}', retained its capture, and retired its identity.`
+      + (branchCleanup.kind === "removed"
+        ? " Removed its zero-delta local branch."
+        : branchCleanup.reason === undefined ? "" : ` Local branch remains: ${branchCleanup.reason}`),
   });
 }
 

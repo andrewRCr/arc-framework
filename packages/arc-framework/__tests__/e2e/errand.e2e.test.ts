@@ -1498,7 +1498,7 @@ describe("arc errand abandon", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("retires a preserved identity-only claim while retaining its branch", async () => {
+  it("retires a preserved identity-only claim and reaps its zero-delta branch", async () => {
     await seedOpenV3Errand(tmpDir, "discard");
 
     const result = await runArc([
@@ -1513,9 +1513,67 @@ describe("arc errand abandon", () => {
       operation: "errand-abandon",
     });
     expect(result.stderr).toBe("");
-    expect(await git(tmpDir, ["branch", "--list", "chore/discard"])).toContain("chore/discard");
+    expect(await git(tmpDir, ["branch", "--list", "chore/discard"])).toBe("");
     await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:discard"]))
       .rejects.toThrow();
+  });
+
+  it("preserves a branch with a committed result outside base", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "abandon-unique-remote");
+    try {
+      await seedOpenV3Errand(tmpDir, "discard-unique");
+      const baseHead = (await git(tmpDir, ["rev-parse", "main"])).trim();
+      const tree = (await git(tmpDir, ["rev-parse", "main^{tree}"])).trim();
+      const uniqueHead = (await git(tmpDir, ["commit-tree", tree, "-p", baseHead, "-m", "unique errand result"])).trim();
+      await git(tmpDir, ["update-ref", "refs/heads/chore/discard-unique", uniqueHead, baseHead]);
+      await git(tmpDir, ["push", "origin", "chore/discard-unique"]);
+
+      const result = await runArc([
+        "errand", "abandon", "discard-unique",
+        "--confirm-foreign-generation", `errand-v1/discard-unique/${"d".repeat(32)}`,
+        "--json",
+      ], tmpDir);
+      expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toMatchObject({ outcome: "applied" });
+      expect(await git(tmpDir, ["rev-parse", "chore/discard-unique"])).toContain(uniqueHead);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("retains the originating capture and leaves no branch residue for the next session", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    const remoteDir = await createBareRemote(tmpDir, "abandon-capture-remote");
+    try {
+      const inboxPath = join(tmpDir, ".arc", "user", "test-user", "USER-INBOX.md");
+      await mkdir(join(tmpDir, ".arc", "user", "test-user"), { recursive: true });
+      await writeFile(inboxPath,
+        "# User Inbox\n\n## Errand\n\n### `[ ]` **Discard capture**\n\n"
+        + "- _Disposition:_ `execute-bound`\n\n- _Observation:_ abandon this claim.\n\n---\n",
+        "utf-8");
+      const sequence = await runArcAnchoredSequence([
+        ["errand", "open", "discard-capture", "--from-inbox", "Discard capture", "--json"],
+        ["errand", "abandon", "discard-capture", "--json"],
+        ["status", "--session-init", "--json"],
+      ], tmpDir);
+
+      expect(sequence.exitCode, sequence.stdout + sequence.stderr).toBe(0);
+      expect(sequence.results[1]).toMatchObject({ outcome: "applied", operation: "errand-abandon" });
+      expect(await readFile(inboxPath, "utf-8")).toContain("**Discard capture**");
+      expect(await readFile(inboxPath, "utf-8")).not.toContain("_Disposition:_ `execute-bound`");
+      expect(await git(tmpDir, ["branch", "--list", "chore/discard-capture"])).toBe("");
+      const nextSession = sequence.results[2] as {
+        derivedLocusState?: { value?: { entering?: { row?: { kind?: string } } } };
+        orphanBranchSweep?: { value?: { orphans?: unknown[] } };
+      };
+      expect(nextSession.derivedLocusState?.value?.entering?.row?.kind).toBe("free-primary");
+      expect(nextSession.orphanBranchSweep?.value?.orphans).toEqual([]);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
   });
 
   it("returns one JSON error when the configured base is empty", async () => {
