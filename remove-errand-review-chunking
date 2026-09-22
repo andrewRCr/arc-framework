@@ -3,7 +3,7 @@
   "slug": "remove-errand-review-chunking",
   "claimId": "f57ed5288499f89020019e618249d7bb",
   "createdAt": "2026-09-22T13:06:15.756Z",
-  "updatedAt": "2026-09-22T13:06:15.756Z",
+  "updatedAt": "2026-09-22T13:29:40.826Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "remove-errand-review-chunking",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Remove chunking resolution from the Errand review path",
   "originEntrySourceDigest": "sha256:852f4255d73f1760074fb4963eb32fc8014af7538dbcf20133cbda566be960f0",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/remove-errand-review-chunking",
+    "headSha": "d688d6a5e46677c597d9c5e95ccfd49df93cb33b"
+  }
 }
