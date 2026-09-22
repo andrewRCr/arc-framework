@@ -40,6 +40,10 @@ out (§ The deliverable stack).
   (§ The constructor).
 - Construct and publish run as **one operation** with the rebuilt commits left unreferenced: no private namespace is
   minted, nothing is reaped, and every fetch-bearing observation is ordered before construct (§ The constructor).
+- The unbound route's verb is `arc delivery publish`, with construct at the head of its existing operation: a
+  candidate's ref name never reaches the published output, and the eligibility observer already takes a bare object
+  id, so constructed commits feed the operand slot unchanged. The request gains a member-boundary arm beside the
+  authored-ref arm the bound route still feeds (§ The constructor).
 - A rebuilt member is **one commit carrying the member's net contribution**, under the derived-presentation
   principle — the work-unit branch is the shared working history, a member request is a derived presentation of it
   (§ The constructor).
@@ -58,9 +62,14 @@ out (§ The deliverable stack).
 - Framework content changes go through `packages/arc-framework/arc/**` and sync outward, never the reverse. The new
   decision record is project-internal and unmirrored, so the shipped strategy cannot reference it.
 
-**Open**
+**Open** — three particulars, each closeable where the draft stands; no open design decision
 
-- [none] — every settle-able decision is settled. What remains is `create-spec` over the re-derived half.
+- The rebuilt member's commit message. A rebuilt member is established as needing its own message, and the message
+  is never stated.
+- Whether the `completeness-*` refusal payload carries the path partitions as detail beside the direction it now
+  names.
+- The widened `ReadCandidate` shape at the fourth read site: the correction is settled — carry each arm's
+  `nextAction` and `detail` beside the verify-work-unit route — but the return shape is not written.
 
 **What this consolidation dropped**
 
@@ -759,10 +768,60 @@ retry re-enters the same verb and re-constructs that suffix from the plan and th
 loop's skip-when-already-observed behavior making the prefix a no-op. The retry re-constructs rather than resumes,
 because the unreferenced objects may be gone — the disclosed residual doing what it was disclosed for.
 
-**The verb layout this requires is already satisfied on the bound route.** Construct must run inside a
-publish-shaped verb, or the window reopens across processes no matter what. `arc delivery rematerialize` — "Reclose
-and rewrite one complete reviewed suffix" — is already close-and-rewrite within one process, and is the verb the
-bound correction route names.
+**Construct must run inside a publish-shaped verb**, or the window reopens across processes no matter what. On the
+bound route that is already satisfied: `arc delivery rematerialize` — "Reclose and rewrite one complete reviewed
+suffix" — is close-and-rewrite within one process, and is the verb that route names. The unbound route is settled
+below.
+
+### Where construct runs on the unbound route
+
+The bound route already has its publish-shaped verb. The unbound first cut is the case the requirement was never
+checked against, and two source facts settle it.
+
+**A candidate's ref name never reaches the published output.** `deriveDeliveryMaterialization` takes exactly three
+things from a snapshot member — `coordinates: { base, head, tree }` — and derives every ref it emits from the plan
+instead: a non-terminal member publishes to `refs/heads/delivery/${workUnitId}/${chunkKey}` and bases on its
+predecessor's derived ref, while the terminal takes the top's. So the candidate operand is an **observation
+vehicle**, and its `ref` field is a legacy of hand-authored chains being handed over as refs rather than a
+requirement of the pipeline.
+
+**And the observer already accepts a bare object id.** `observeDeliveryEligibilityRef` resolves a commit and reads
+its tree, taking any commit-ish, and the native-landing reconcile path already calls it with a raw head rather than a
+ref name. Prepare's three structural checks survive the substitution: uniqueness holds because rebuilt members differ
+in parent and therefore in object id; order is checked on `deliverableId` against plan position, which an object id
+does not touch; and the `direct-delivery-ref` refusal matches a `refs/heads/delivery/` prefix an object id cannot
+carry.
+
+**So the unbound verb is `arc delivery publish`, and construct runs at the head of its existing operation.** Publish
+already re-derives everything itself — `executeWithFreshDeliveryEligibility` reads the current plan, resolves the
+originating top, re-prepares over the candidate operand, and runs the complete close — so construct produces the
+member commits, hands their object ids into the operand slot that call already takes, and the rest of the verb runs
+unchanged over them. No new verb is introduced, no ref is minted, and the operand's internal contract is untouched.
+
+**What changes is publish's request, not its machinery.** On this route the operator cannot supply candidate refs,
+because the objects do not exist until construct runs. The request carries **member boundaries** on this route: one
+work-unit-branch commit per member, the commit at which that member ends, so member _k_ spans its predecessor's
+boundary exclusive to its own inclusive. That is the same operand § Member boundaries is an operand already
+establishes as caller-supplied at the first window — stated there as what the caller hands over, and stated here as
+where it arrives. `checkoutPath` is already leaving the request under the evidence decision, so the candidate entry
+becomes deliverable plus boundary.
+
+**The ordering constraint is satisfied without reordering anything.** Everything between construct and the first ref
+write is publish's own re-derivation, and none of it creates objects. Before the close: the plan read, the
+originating-top resolution and the lifecycle-path read, both of which resolve the active work unit locally, and
+prepare's commit, tree, ancestry and overlap reads, all local. After it: the materialization derivation and the
+presentation resolution, which are pure; the delivery-state read; and the initial request binding, which is a
+provider API call rather than a git operation. The only remote observation is `ls-remote`, which fetches nothing.
+Every fetch on this handler lives in the position, provider-refresh, or native-landing reconcile observers, none of
+which this verb enters. So the exposure window is exactly the local re-derivation, which is the minimum the decision
+asked for rather than a concession.
+
+**The operand gains an arm rather than trading one.** The authored-ref arm keeps a live caller: `arc delivery
+rematerialize` feeds the same operand from `deriveDeliveryResidueLocators`, whose candidate refs are themselves
+plan-derived in the reserved `refs/arc/delivery-candidates/{planId}/{chunkKey}` namespace, and the shipped
+`deliver-stack.md` authoring phase is what populates them. So the constructor does not retire the ref arm, and
+`direct-delivery-ref` does not become a guard over a caller that no longer exists. What the spec owes is a field name
+that reads for either arm, and the statement that the boundary arm is the unbound first cut's only producer.
 
 ### Member boundaries are an operand, not a derivation
 
@@ -823,7 +882,8 @@ decision not to mint are consistent rather than in tension.
   with author and committer preserved.
 - Preflight any proposed chain's predecessor relation and normalized completeness against the originating top
   **before** publication, so a mechanically wrong anchor cannot be discovered only at `eligibility close`.
-- Order every fetch-bearing observation before construct, and publish within the same operation.
+- Order every fetch-bearing observation before construct, and publish within the same operation — `arc delivery
+  publish` on the unbound route, `arc delivery rematerialize` on the bound one.
 - On the bound review-fix route, after the authorized top correction is clean and committed, rebuild the selected
   member and every dependent member from the current public ancestry and canonical member boundaries.
 - Replay converges. Conflicts, dirty or foreign checkouts, moved authority or public heads, stale authorization, and
