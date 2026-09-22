@@ -3,7 +3,7 @@
   "slug": "clear-retained-fields-on-execute-bound",
   "claimId": "9e41aca927f8f9b0f6e66f79f98543f3",
   "createdAt": "2026-09-21T23:27:25.958Z",
-  "updatedAt": "2026-09-21T23:27:25.958Z",
+  "updatedAt": "2026-09-22T01:09:49.656Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Clear retain-only fields when an inbox entry becomes execute-bound",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Clear retained fields when an inbox entry becomes execute-bound",
   "originEntrySourceDigest": "sha256:0b9c76eabfa7186da5c00cfae9319c46c391c39beaf8d7aa1d0135cb4bd81fc9",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/clear-retained-fields-on-execute-bound",
+    "headSha": "8c55fa951a6dbe1dd0aca1350be5f4e62278c4cb"
+  }
 }
