@@ -32,12 +32,14 @@ interface Harness {
   ctx: StubContext;
   writes: { path: string; content: string }[];
   mkdirs: string[];
+  staged: string[];
 }
 
 /** Build a `runStub` context of spies over an empty index + an in-memory fs. */
 function buildHarness(): Harness {
   const writes: Harness["writes"] = [];
   const mkdirs: string[] = [];
+  const staged: string[] = [];
 
   const sideEffects: ExecuteTransitionContext["sideEffects"] = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user"] satisfies SideEffectId[]) {
@@ -55,6 +57,9 @@ function buildHarness(): Harness {
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},
     writeSoftFields: async () => {},
+    stageMeta: async (path) => {
+      staged.push(path);
+    },
     sideEffects,
   };
 
@@ -67,7 +72,7 @@ function buildHarness(): Harness {
     },
   };
 
-  return { ctx: { executor, fs }, writes, mkdirs };
+  return { ctx: { executor, fs }, writes, mkdirs, staged };
 }
 
 const BASE: StubParams = {
@@ -105,7 +110,7 @@ describe("runStub — priority enforcement", () => {
 
 describe("runStub — scaffolds the selected tier", () => {
   it("scaffolds the planned-tier meta under backlog/ when both are supplied", async () => {
-    const { ctx, writes, mkdirs } = buildHarness();
+    const { ctx, writes, mkdirs, staged } = buildHarness();
 
     const result = await runStub(ctx, { ...BASE, commitment: "planned", priority: "P1" });
 
@@ -125,6 +130,7 @@ describe("runStub — scaffolds the selected tier", () => {
     expect(writes[0]!.content).toContain("# Metadata: foo");
     expect(writes[0]!.content).toContain("Planning");
     expect(writes[0]!.content).toContain("P1");
+    expect(staged).toEqual([result.metaPath]);
   });
 
   it("preserves accepted display sentinels at the semantic renderer boundary", async () => {
