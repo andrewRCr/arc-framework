@@ -61,15 +61,19 @@ out (§ The deliverable stack).
   (§ Decisions, 4).
 - Framework content changes go through `packages/arc-framework/arc/**` and sync outward, never the reverse. The new
   decision record is project-internal and unmirrored, so the shipped strategy cannot reference it.
+- The rebuilt member's message, authorship, and credit: the request title's identity without the stack position,
+  no derived body, byte-exact author and committer from the boundary commit, and the range's `Co-authored-by:`
+  trailers carried forward (§ The constructor).
+- The `completeness-*` refusal carries direction, remedy, and reason, and not the path partitions — carrying those
+  would reinstate the port widening the same decision removed from scope (§ Decisions, 3).
+- The widened `non-current` arm carries the projection's `state` and `nextAction`, with `reason` and `detail`
+  optional because only the first two are on every arm, flattened rather than re-exported (§ Which projection arms
+  reach the operator, and where).
 
-**Open** — three particulars, each closeable where the draft stands; no open design decision
+**Open**
 
-- The rebuilt member's commit message. A rebuilt member is established as needing its own message, and the message
-  is never stated.
-- Whether the `completeness-*` refusal payload carries the path partitions as detail beside the direction it now
-  names.
-- The widened `ReadCandidate` shape at the fourth read site: the correction is settled — carry each arm's
-  `nextAction` and `detail` beside the verify-work-unit route — but the return shape is not written.
+- [none] — every settle-able decision is settled, and the three particulars the readiness assessment surfaced are
+  closed above. What remains is `create-spec` over the re-derived half.
 
 **What this consolidation dropped**
 
@@ -470,8 +474,24 @@ included. Work-unit verification therefore resolves every arm and is the univers
 leave `classification-failed`, whose own `nextAction` is `stop`, with nowhere to go — the guard-only dead end the
 project's recovery-complete refusal standard forbids. The defect is the word the carried criterion actually uses:
 _unexplained_. The collapse hides that `upgrade`, the ambiguous arm's rebaseline remedy, and `rerun-checkpoint` are
-cheaper where they apply. The correction is to carry each arm's `nextAction` and `detail` _beside_ the
-verify-work-unit route, not in place of it — a port change that adds explanation rather than a decision surface.
+cheaper where they apply. The correction is to carry the arm's own disposition _beside_ the verify-work-unit route,
+not in place of it — a port change that adds explanation rather than a decision surface.
+
+**What the widened arm carries, checked against the schema rather than assumed.** Only `state` and `nextAction` are
+present on all nine variants: `decision-required` and the two re-root arms carry neither `reason` nor `detail`, both
+`rerun-checkpoint` variants and `classification-unsupported` carry `reason` and no `detail`, and only
+`classification-failed` and the two `classification-unavailable` arms carry both. So `non-current` gains a
+`projection` field holding `state` and
+`nextAction` with `reason` and `detail` optional, beside the `terminalDelta` it already carries, and
+`candidate-verification-required` carries the same four forward while its own `nextAction` stays `verify-work-unit`.
+
+**The port's existing convention says flatten rather than re-export the union.** `readCandidate` is declared in
+`entry-inspection.ts`, which imports no work-unit module; its `ok` arm carries `candidateId`, `subjectDigest`, and
+`verificationResponseCurrent` as primitives rather than the projection they came from, and the one structured type it
+carries is delivery's own `DeliveryTerminalDeltaClassification`. The work-unit dependency lives in the adapter,
+`repository-entry.ts`, which already reaches `readCandidateRecord`. Carrying `CandidateEffectiveTargetProjection`
+through the port would move that dependency into the classifier for no discrimination the four flattened fields do
+not give.
 
 **Content-preserving rebuilds reach none of this**, for the reason traced above: the subject digest is equal and the
 projection is `current`. The four sites matter when the top truly advanced.
@@ -731,6 +751,49 @@ range may carry several authors, and a `commit-tree` rebuild reattributes all of
 constructor writes its commit objects through `hash-object -t commit -w --stdin` rather than `commit-tree`, carrying
 author and committer byte-exactly through the raw port's `input` (§ What the source shows, 6).
 
+### What the rebuilt member's commit says, and whose name is on it
+
+**Publication reads nothing from a member's commit message today.** `describeDeliveryMemberPresentation` composes
+the request title as `{type}({workUnitId}): [{k}/{n}] {planned.title}` — the type parsed out of the authored terminal
+title, the description taken from the **plan member's** title — and builds the body from the operator's supplied
+summary, changes, and design reference. It passes `breaking: false` unconditionally, so the `!` marker is the
+terminal's alone and a member inherits the type only. It also throws at the terminal index, which scopes everything
+below to non-terminal members: the terminal is the adopted top, not a constructed member. The member's own commit
+message reaches neither. Its
+durable consumer is the history the member lands into, which is why a recut needs a message rather than inheriting
+a bookkeeping one: the three existing construction sites pass fixed strings (`Adopt delivery member ancestry`,
+`Absorb contained delivery predecessor`, `Absorb refreshed delivery predecessor`) because they build tops nobody
+reviews.
+
+**The subject is the request title's identity without the stack position** — `{type}({workUnitId}):
+{planned.title}`. Both name the same thing from the same source, so the landed commit and the request a reviewer
+approved agree by construction, and the Conventional Commits identity ARC already derives carries through to the
+base branch. The `[k/n]` position is truthful about a stack and stale the moment the member lands, so it stays in
+the presentation where it belongs. Today's published member head is the range's boundary commit and carries that
+commit's message, which is exactly right for a one-commit member and names only the last of twenty-five for a long
+one — the asymmetry the recut removes.
+
+**No body is derived, and that is a determinism choice rather than an omission.** The operator's summary stays in
+the request, where editing it costs a request update. Deriving the commit from it would rebuild the member object
+whenever a description changed, force-updating a branch whose content did not move and discarding review anchors on
+a member nobody touched. Each rebuilt commit is therefore a function of five inputs and nothing else: the
+plan-derived subject, the composed tree, the new predecessor as parent, the author and committer lines copied
+byte-exactly from the member's **boundary commit** — the commit the member is cut at, which is the identity delivery
+publishes for that member today — and the unioned co-authorship trailers. When none of the five changes, the rebuild
+reproduces the same object id and its push is a no-op rather than a force-update.
+
+**Credit survives because the strategy already put it in trailers.** `strategy-team-coordination` § Ownership gives
+a work unit a single owner and routes non-owner contribution through `Co-authored-by:` trailers on the relevant
+commits, so several distinct _authors_ on one range come from sequential handoff rather than concurrent authorship.
+The constructor unions the range's `Co-authored-by:` trailers in first-appearance order, deduplicated, and adds a
+trailer for any author in the range whose identity the boundary commit does not carry. Nobody credited on the
+authored range is dropped by the recut.
+
+**ARC's own commit contract does not reach these objects.** `commit-check` runs as a `commit-msg` hook over one
+authored message, and the constructor writes through `hash-object`, which fires no hook. A rebuilt member is a
+derived presentation of authored work, so it follows the request-title derivation above rather than the authoring
+contract, and owes no `Context:` trailer.
+
 ### Construct and publish are one operation
 
 **Nothing is minted, so nothing is reaped.** The rebuilt commits are unreferenced Git objects until publication
@@ -879,7 +942,9 @@ decision not to mint are consistent rather than in tension.
   when the existing cuts remain compatible. A newer base OID alone must not trigger recutting, and newer base-only
   bytes the originating top lacks must not be silently imported.
 - Emit one commit per rebuilt member, carrying that member's net contribution reapplied onto its new predecessor,
-  with author and committer preserved.
+  with author and committer preserved and the range's co-authorship trailers carried forward. Its subject is the
+  derived request identity without the stack position, and it derives no body, so an unchanged rebuild reproduces
+  the same object id.
 - Preflight any proposed chain's predecessor relation and normalized completeness against the originating top
   **before** publication, so a mechanically wrong anchor cannot be discovered only at `eligibility close`.
 - Order every fetch-bearing observation before construct, and publish within the same operation — `arc delivery
@@ -1059,10 +1124,21 @@ re-verify the route at the specific landing.
    and reads no member-to-top ancestry, and this call is that missing read.
 
    So D3 is enriching the refusal payload with direction and remedy, plus one ancestry call — not the port widening,
-   refusal-union widening, and three collapsing-site updates the deliverable sizes itself as. The path partitions may
-   still be worth carrying as _detail_, naming which paths differ, but they are not the direction mechanism. The
-   dependency column must also record that the close-side `rebuild-required` remedy is D4's, which it currently does
-   not.
+   refusal-union widening, and three collapsing-site updates the deliverable sizes itself as. The dependency column
+   must also record that the close-side `rebuild-required` remedy is D4's, which it currently does not.
+
+   **The path partitions stay out of the payload.** They are discarded at the port by construction:
+   `compareNormalizedCompleteness` is declared returning `{ status: "match" }` or `{ status, reason }`, so
+   `droppedPaths` and `inventedPaths` exist only inside the git adapter that classifies the reason from them.
+   Carrying them forward therefore _is_ the port widening this decision just removed from scope, across all eight
+   sites the port has — one declaration, two production implementations, and five test doubles. The benefit bought is
+   a longer message, since the partition is symmetric by construction and names no side; the cost is the change D3
+   was sized wrongly for. The one sibling that does carry a typed path array draws the line rather than contradicting
+   it: `wrong-predecessor` carries `paths: observedRelation.overlap.substantivePaths` because that overlap _is_ the
+   evidence making the predecessor wrong, and the operator must read those paths to act. The completeness partitions
+   are not the evidence for direction — the ancestry call is — so they describe the refusal without deciding it. What
+   the refusal owes an operator is the direction, the remedy, and the reason, all three now present. If a consumer
+   later needs the paths themselves, that is the port widening, sized on its own.
 4. **Settled: later review gates are the authority boundary; no bounded in-call recheck.** Once `state.target` is
    bound, `materializeBoundDeliveryChain` skips its observed-tip check. Each retry freshly closes eligibility
    before mutation, but the protected ref can move between that close and later private-ref or draft-PR effects,
