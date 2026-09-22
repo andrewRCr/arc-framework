@@ -29,8 +29,10 @@ by hand.
 The bootstrap failure is a history-shape divergence, not evidence that either side's content should win. Correction
 authoring can append to the recorded terminal while a self-hosted refresh rebuilds the members beneath it. The
 corrected terminal then contains the intended work-unit tree but does not descend from the refreshed highest member.
-The adoption guard correctly rejects that moved ref: its only admitted moved-top shape has the bound public terminal
-as first parent, the refreshed highest member as second parent, and the already-verified terminal tree.
+The ancestry-adoption guard (`adoptGitDeliveryChain`) correctly rejects that moved ref: its moved-top admission
+requires the bound public terminal as first parent, the refreshed highest member as second parent, and the tree bound
+by the retained operation. The separate terminal-absorption path admits an exact parent pair with any readable tree,
+so the manual `<verified-tree>` proof below remains the authoritative content check for this recovery.
 
 Retain the exact delivery action and operation before diagnosing. Bind four values from its canonical evidence:
 
