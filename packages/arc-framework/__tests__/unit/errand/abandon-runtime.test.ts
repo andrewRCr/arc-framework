@@ -1,11 +1,18 @@
 /** Exact branch preservation required before ordinary Errand abandonment. */
 
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { proveOrdinaryErrandAbandonmentPreservation } from "../../../src/lib/errand/abandon-runtime.js";
+import {
+  deleteAbandonedBranchAtExactBase,
+  proveOrdinaryErrandAbandonmentPreservation,
+} from "../../../src/lib/errand/abandon-runtime.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
-import type { GitExec } from "../../../src/lib/git/exec.js";
+import type { GitExec, GitExecInput } from "../../../src/lib/git/exec.js";
 
 const HEAD = "a".repeat(40);
 
@@ -98,4 +105,39 @@ describe("proveOrdinaryErrandAbandonmentPreservation", () => {
         message: expect.stringContaining("origin"),
       });
   });
+});
+
+it("keeps the branch when an unoccupied base moves before the exact ref transaction", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "arc-abandon-ref-"));
+  const git = (args: string[], input?: string): string => execFileSync("git", args, {
+    cwd,
+    ...(input === undefined ? {} : { input }),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trim();
+  try {
+    git(["init", "--initial-branch=main"]);
+    git(["config", "user.name", "Test"]);
+    git(["config", "user.email", "test@example.com"]);
+    git(["commit", "--allow-empty", "-m", "base"]);
+    const oldBaseHead = git(["rev-parse", "HEAD"]);
+    git(["branch", "chore/discard", oldBaseHead]);
+    git(["switch", "-c", "work"]);
+    const tree = git(["rev-parse", "HEAD^{tree}"]);
+    const newBaseHead = git(["commit-tree", tree, "-p", oldBaseHead, "-m", "base moved"]);
+    git(["update-ref", "refs/heads/main", newBaseHead, oldBaseHead]);
+    const execInput: GitExecInput = async (args, input) => git(args, input);
+
+    await expect(deleteAbandonedBranchAtExactBase(execInput, cwd, {
+      base: "main", baseHead: oldBaseHead, branch: "chore/discard", branchHead: oldBaseHead,
+    })).rejects.toThrow();
+    expect(git(["rev-parse", "chore/discard"])).toBe(oldBaseHead);
+
+    await deleteAbandonedBranchAtExactBase(execInput, cwd, {
+      base: "main", baseHead: newBaseHead, branch: "chore/discard", branchHead: oldBaseHead,
+    });
+    expect(git(["branch", "--list", "chore/discard"])).toBe("");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

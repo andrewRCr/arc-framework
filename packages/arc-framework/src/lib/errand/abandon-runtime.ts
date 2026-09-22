@@ -94,7 +94,7 @@ export async function abandonOrdinaryErrandAtRuntime(
           : { kind: "error", message: result.message };
       },
       reapZeroDeltaBranch: (record) => reapZeroDeltaBranch(
-        options.exec, options.base, record, preservedHead, primaryCheckoutPath,
+        options.exec, options.execInput, options.base, record, preservedHead, primaryCheckoutPath,
       ),
     },
   });
@@ -139,6 +139,7 @@ async function cleanupOccupancy(
 
 async function reapZeroDeltaBranch(
   exec: GitExec,
+  execInput: GitExecInput,
   base: string,
   record: OrdinaryErrandRecord,
   expectedHead: string | null,
@@ -177,17 +178,45 @@ async function reapZeroDeltaBranch(
     if (head.kind !== "present" || head.oid !== expectedHead) {
       return { kind: "preserved", reason: "the exact local branch head changed" };
     }
-    const currentBase = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
-    if (currentBase.kind !== "present" || currentBase.oid !== baseHead.oid) {
-      return { kind: "preserved", reason: "the local base head changed during cleanup" };
+    if (roster.worktrees.some((worktree) => worktree.branch === base)) {
+      // The acquired HEAD locks hold every checkout of base through deletion.
+      const currentBase = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
+      if (currentBase.kind !== "present" || currentBase.oid !== baseHead.oid) {
+        return { kind: "preserved", reason: "the local base head changed during cleanup" };
+      }
+      await inPrimary("git", ["update-ref", "-d", `refs/heads/${record.branch}`, expectedHead]);
+    } else {
+      await deleteAbandonedBranchAtExactBase(execInput, primaryCheckoutPath, {
+        base, baseHead: baseHead.oid, branch: record.branch, branchHead: expectedHead,
+      });
     }
-    await inPrimary("git", ["update-ref", "-d", `refs/heads/${record.branch}`, expectedHead]);
     return { kind: "removed" };
   } catch (error) {
     return { kind: "preserved", reason: errorMessage(error) };
   } finally {
     await lease.release();
   }
+}
+
+/** Atomically verify an unoccupied base ref while deleting the exact local Errand branch. */
+export async function deleteAbandonedBranchAtExactBase(
+  execInput: GitExecInput,
+  cwd: string,
+  refs: { base: string; baseHead: string; branch: string; branchHead: string },
+): Promise<void> {
+  if ([refs.base, refs.branch].some((ref) => ref.includes("\0") || ref.includes("\n") || ref.includes("\r"))
+    || [refs.baseHead, refs.branchHead].some((oid) => !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid))) {
+    throw new Error("Invalid exact ref transaction operand.");
+  }
+  const commands = [
+    "start",
+    `verify refs/heads/${refs.base} ${refs.baseHead}`,
+    `delete refs/heads/${refs.branch} ${refs.branchHead}`,
+    "prepare",
+    "commit",
+    "",
+  ].join("\n");
+  await execInput(["update-ref", "--stdin"], commands, { cwd });
 }
 
 function terminalHead(record: OrdinaryErrandRecord): string | null {
