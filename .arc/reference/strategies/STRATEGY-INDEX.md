@@ -64,6 +64,10 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - ALWAYS load when a sync question outruns the always-loaded rule — the file inventory and dependency map,
       template-counterpart handling, what each safeguard actually checks; `DEV-RULES.PROJECT` § Package-Project
       Sync covers the routine edit-flow and never-copy rules.
+- `project/strategy-self-hosting-delivery-recovery.md`
+    - ALWAYS load when this repository's self-delivery changes the delivery machinery executing its own bound stack
+      and terminal ancestry adoption refuses `top-moved`; never apply its anchored composition to an ordinary ARC
+      project or a routine terminal content conflict.
 - `project/strategy-testing-methodology.md` - TDD decision tree, test tiers, vertical slice workflow, mocking rules
     - Consult when: the `test-first` / `testing-standards` methods don't settle it — TDD rationale, tier
       boundaries, worked examples
