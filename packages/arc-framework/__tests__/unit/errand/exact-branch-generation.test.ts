@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   readExactBranchGeneration,
+  resolveOptionalCommit,
   tearDownExactBranchGeneration,
 } from "../../../src/lib/errand/exact-branch-generation.js";
 import type { ExactBranchTeardownAuthorization } from "../../../src/lib/errand/exact-branch-generation.js";
@@ -266,4 +267,12 @@ describe("readExactBranchGeneration", () => {
 
     await expect(readExactBranchGeneration(exec, OPTIONS)).resolves.toMatchObject({ kind: "unproven" });
   });
+});
+
+it("reads a SHA-256 branch head as a valid commit", async () => {
+  const oid = "a".repeat(64);
+  const exec: GitExec = async () => ({ stdout: `${oid}\n`, stderr: "" });
+
+  await expect(resolveOptionalCommit(exec, "refs/heads/chore/discard"))
+    .resolves.toEqual({ kind: "present", oid });
 });

@@ -1,12 +1,18 @@
 /** Identity, lifecycle, and derived-occupancy composition for ordinary Errand abandonment. */
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
+import { normalizeGitRejection } from "../git/process-error.js";
+import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
 import {
   createGhChangeRequestLifecyclePort,
   resolveChangeRequestLifecycleConfiguration,
 } from "./change-request-lifecycle.js";
-import { abandonOrdinaryErrand, type AbandonStepResult } from "./abandon-locus.js";
+import {
+  abandonOrdinaryErrand,
+  type AbandonBranchCleanupResult,
+  type AbandonStepResult,
+} from "./abandon-locus.js";
 import {
   ordinaryErrandTransform,
   provePauseHead,
@@ -15,6 +21,8 @@ import {
 import { transactTransientIdentities } from "./identity-transaction.js";
 import { authorizeErrandTerminal } from "./terminal-authority.js";
 import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-occupancy.js";
+import { acquireErrandCloseBranchDeletionHeadLocks } from "./close-head-lock.js";
+import { resolveOptionalCommit } from "./exact-branch-generation.js";
 
 export interface AbandonOrdinaryErrandRuntimeOptions {
   readonly slug: string;
@@ -36,6 +44,8 @@ export async function abandonOrdinaryErrandAtRuntime(
   const identityIO = { exec: options.exec, execInput: options.execInput, identity: options.identity };
   const remote = await configuredIdentityRemote(options.exec);
   const lifecyclePort = createGhChangeRequestLifecyclePort(options.exec);
+  let preservedHead: string | null = null;
+  let primaryCheckoutPath: string | null = null;
   return abandonOrdinaryErrand({
     slug: options.slug,
     protection: options.protection,
@@ -59,7 +69,21 @@ export async function abandonOrdinaryErrandAtRuntime(
           ?? { repositoryRef: "", hostRef: "", baseRef: "" };
         return lifecyclePort.read(configured, record.changeRequest);
       },
-      cleanupResidue: (record) => cleanupOccupancy(options, record),
+      cleanupResidue: async (record) => {
+        const preservation = await proveOrdinaryErrandAbandonmentPreservation(options.exec, options.base, record);
+        if (preservation.kind !== "ready") return preservation;
+        const frame = await options.readFrame();
+        const primary = primaryPath(frame);
+        if (primary === null) {
+          return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
+        }
+        const settled = await cleanupOccupancy(options, record, frame, primary);
+        if (settled.kind === "applied" || settled.kind === "idempotent") {
+          preservedHead = preservation.head;
+          primaryCheckoutPath = primary;
+        }
+        return settled;
+      },
       clearExecuteBound: options.clearExecuteBound,
       retire: async (record, lifecycle) => {
         const result = await transactTransientIdentities(identityIO, {
@@ -74,6 +98,9 @@ export async function abandonOrdinaryErrandAtRuntime(
           ? { kind: "refused", reason: result.reason }
           : { kind: "error", message: result.message };
       },
+      reapZeroDeltaBranch: (record) => reapZeroDeltaBranch(
+        options.exec, options.execInput, options.base, record, preservedHead, primaryCheckoutPath,
+      ),
     },
   });
 }
@@ -81,10 +108,9 @@ export async function abandonOrdinaryErrandAtRuntime(
 async function cleanupOccupancy(
   options: AbandonOrdinaryErrandRuntimeOptions,
   record: OrdinaryErrandRecord,
+  frame: DerivedLocusFrame,
+  primaryCheckoutPath: string,
 ): Promise<AbandonStepResult> {
-  const preservation = await proveOrdinaryErrandAbandonmentPreservation(options.exec, options.base, record);
-  if (preservation.kind !== "ready") return preservation;
-  const frame = await options.readFrame();
   const authority = authorizeErrandTerminal({
     frame,
     operation: "abandon",
@@ -105,10 +131,6 @@ async function cleanupOccupancy(
   if (expectedHead !== null && authority.row !== null && authority.row.checkout.head !== expectedHead) {
     return { kind: "refused", reason: "preservation-unproven", message: "Errand head generation changed." };
   }
-  const primaryCheckoutPath = primaryPath(frame);
-  if (primaryCheckoutPath === null) {
-    return { kind: "refused", reason: "checkout-missing", message: "Primary checkout is unavailable." };
-  }
   const settled = await settleTerminalOccupancy({
     authority,
     primaryCheckoutPath,
@@ -118,6 +140,109 @@ async function cleanupOccupancy(
     return { kind: "refused", reason: "preservation-unproven", message: settled.message };
   }
   return settled.kind === "error" ? settled : { kind: settled.kind };
+}
+
+export async function reapZeroDeltaBranch(
+  exec: GitExec,
+  execInput: GitExecInput,
+  base: string,
+  record: OrdinaryErrandRecord,
+  expectedHead: string | null,
+  primaryCheckoutPath: string | null,
+): Promise<AbandonBranchCleanupResult> {
+  if (expectedHead === null || primaryCheckoutPath === null) {
+    return { kind: "preserved", reason: "the branch generation was not retained for cleanup" };
+  }
+  const inPrimary: GitExec = (command, args, options) => exec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? primaryCheckoutPath,
+  });
+  const baseHead = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
+  if (baseHead.kind === "error") return { kind: "preserved", reason: baseHead.message };
+  if (baseHead.kind === "absent") {
+    return { kind: "preserved", reason: "the local base head could not be proven" };
+  }
+  const mergeBaseArgs = ["merge-base", "--is-ancestor", expectedHead, baseHead.oid];
+  try {
+    await inPrimary("git", mergeBaseArgs);
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args: mergeBaseArgs });
+    return { kind: "preserved", reason: failure.exitCode === 1
+      ? "the branch has content outside the local base" : failure.message };
+  }
+  const lease = await acquireErrandCloseBranchDeletionHeadLocks({
+    exec: inPrimary,
+    identity: { slug: record.slug, claimId: record.claimId },
+    branch: record.branch,
+    guard: null,
+  });
+  if (lease.kind !== "acquired") return { kind: "preserved", reason: lease.message };
+  return settleAbandonBranchLease(async () => {
+    const roster = await scanRegisteredWorktrees(inPrimary);
+    if (!roster.ok) return { kind: "preserved", reason: roster.message };
+    if (roster.worktrees.some((worktree) => worktree.branch === record.branch)) {
+      return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
+    }
+    const head = await resolveOptionalCommit(inPrimary, `refs/heads/${record.branch}`);
+    if (head.kind === "error") return { kind: "preserved", reason: head.message };
+    if (head.kind !== "present" || head.oid !== expectedHead) {
+      return { kind: "preserved", reason: "the exact local branch head changed" };
+    }
+    if (roster.worktrees.some((worktree) => worktree.branch === base)) {
+      // The acquired HEAD locks hold every checkout of base through deletion.
+      const currentBase = await resolveOptionalCommit(inPrimary, `refs/heads/${base}`);
+      if (currentBase.kind === "error") return { kind: "preserved", reason: currentBase.message };
+      if (currentBase.kind !== "present" || currentBase.oid !== baseHead.oid) {
+        return { kind: "preserved", reason: "the local base head changed during cleanup" };
+      }
+      await inPrimary("git", ["update-ref", "-d", `refs/heads/${record.branch}`, expectedHead]);
+    } else {
+      await deleteAbandonedBranchAtExactBase(execInput, primaryCheckoutPath, {
+        base, baseHead: baseHead.oid, branch: record.branch, branchHead: expectedHead,
+      });
+    }
+    return { kind: "removed" };
+  }, () => lease.release());
+}
+
+/** Retain the branch result even when releasing its checkout locks fails afterward. */
+export async function settleAbandonBranchLease(
+  action: () => Promise<AbandonBranchCleanupResult>,
+  release: () => Promise<void>,
+): Promise<AbandonBranchCleanupResult> {
+  let result: AbandonBranchCleanupResult;
+  try {
+    result = await action();
+  } catch (error) {
+    result = { kind: "preserved", reason: errorMessage(error) };
+  }
+  try {
+    await release();
+  } catch (error) {
+    return { ...result, releaseError: errorMessage(error) };
+  }
+  return result;
+}
+
+/** Atomically verify an unoccupied base ref while deleting the exact local Errand branch. */
+export async function deleteAbandonedBranchAtExactBase(
+  execInput: GitExecInput,
+  cwd: string,
+  refs: { base: string; baseHead: string; branch: string; branchHead: string },
+): Promise<void> {
+  if ([refs.base, refs.branch].some((ref) => ref.includes("\0") || ref.includes("\n") || ref.includes("\r"))
+    || [refs.baseHead, refs.branchHead].some((oid) => !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid))) {
+    throw new Error("Invalid exact ref transaction operand.");
+  }
+  const commands = [
+    "start",
+    `verify refs/heads/${refs.base} ${refs.baseHead}`,
+    `delete refs/heads/${refs.branch} ${refs.branchHead}`,
+    "prepare",
+    "commit",
+    "",
+  ].join("\n");
+  await execInput(["update-ref", "--stdin"], commands, { cwd });
 }
 
 function terminalHead(record: OrdinaryErrandRecord): string | null {
