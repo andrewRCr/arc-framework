@@ -15,6 +15,7 @@ describe("locus methodology contracts", () => {
     ]);
 
     for (const reference of references) {
+      expect(reference).toContain("arc errand next [--json]");
       expect(reference).toContain(
         "arc errand open <slug> [--intent <text>] [--from-inbox <entry>] "
           + "[--inbox-title-file <path|->] [--json]",
@@ -221,6 +222,28 @@ describe("locus methodology contracts", () => {
         "`--housekeep` / `--plan` — run the selected workflow's write-context preflight",
       );
       expect(init).toContain("do not create a durable transient role");
+    }
+  });
+
+  it("starts the queued Errand through a typed offer without redefining continuation", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const suffix = base === packageArc ? ".template.md" : ".md";
+      const [init, skill] = await Promise.all([
+        readFile(
+          resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
+          "utf8",
+        ),
+        readFile(resolve(base, "system/.internal/skills/arc-session/SKILL.md"), "utf8"),
+      ]);
+
+      expect(init).toContain("`--errand --next` — invoke `arc errand next --json`");
+      expect(init).toContain("`available / open-errand`");
+      expect(init).toContain("`empty / none`");
+      expect(init).toContain("`refused / stop`");
+      expect(init).toContain("`reason`, `remedy`, `retryCommand`, and `recommendedPromptText`");
+      expect(skill).toContain("Combined with a bare `--errand`");
+      expect(skill).toContain("`arc errand next --json`");
+      expect(skill).toContain("terminal `nextOffer` continues to own sibling continuation");
     }
   });
 

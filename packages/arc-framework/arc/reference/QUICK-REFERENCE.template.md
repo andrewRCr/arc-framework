@@ -282,6 +282,7 @@ arc base sync [--json]
 arc plan check
 
 # Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand next [--json]
 arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
 arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
 arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]

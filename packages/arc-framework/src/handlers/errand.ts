@@ -99,7 +99,9 @@ import {
   InboxMutationConflictError,
   inspectInboxEntry,
   resolveExecutionNextOffer,
+  resolveExecutionStartupOffer,
   type ExecutionOfferResolution,
+  type ExecutionStartupOfferResolution,
 } from "../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -111,6 +113,165 @@ type ErrandHandlerOperation = "errand-leave" | "errand-close" | "errand-abandon"
 type ErrandResultEmitter = (result: ErrandTerminalResult, json: boolean) => void;
 type TerminalProjection = Omit<CompleteErrandTerminalResultOptions, "result">;
 type OrdinaryTerminalIdentity = Extract<LocusIdentityV1, { kind: "errand"; purpose: "errand" }>;
+
+/** Options for the read-only `arc errand next` queue-head resolver. */
+export interface ErrandNextOptions {
+  /** Emit the typed result without human decoration. */
+  json?: boolean;
+}
+
+/** Validated input for resolving the next queued Errand. */
+export const ErrandNextInputSchema = z.object({ json: z.boolean().optional() }).strict();
+
+const ErrandNextOfferSchema = z.strictObject({
+  kind: z.literal("errand"),
+  key: z.string().min(1),
+  parentCheckoutPath: z.null(),
+});
+
+/** Typed queue-head result consumed by `arc-session --errand --next`. */
+export const ErrandNextResultSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("errand-next"),
+    state: z.literal("available"),
+    nextAction: z.literal("open-errand"),
+    nextOffer: ErrandNextOfferSchema,
+    recommendedPromptText: z.string().min(1),
+  }),
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("errand-next"),
+    state: z.literal("empty"),
+    nextAction: z.literal("none"),
+    nextOffer: z.null(),
+    recommendedPromptText: z.string().min(1),
+  }),
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    mode: z.literal("errand-next"),
+    state: z.literal("refused"),
+    nextAction: z.literal("stop"),
+    nextOffer: z.null(),
+    reason: z.string().min(1),
+    remedy: z.string().min(1),
+    retryCommand: z.literal("arc errand next --json"),
+    recommendedPromptText: z.string().min(1),
+  }),
+]);
+export type ErrandNextResult = z.infer<typeof ErrandNextResultSchema>;
+
+/** Project one queue read into the closed startup-selection contract. */
+export function buildErrandNextResult(
+  resolution: ExecutionStartupOfferResolution,
+  refusalRemedy = "Repair the reported `USER-INBOX` condition.",
+): ErrandNextResult {
+  if (resolution.kind === "refused") {
+    return ErrandNextResultSchema.parse({
+      schemaVersion: 1,
+      mode: "errand-next",
+      state: "refused",
+      nextAction: "stop",
+      nextOffer: null,
+      reason: resolution.reason,
+      remedy: refusalRemedy,
+      retryCommand: "arc errand next --json",
+      recommendedPromptText: "The execute-bound Errand queue could not be read safely: "
+        + `${resolution.reason} ${refusalRemedy} Retry with \`arc errand next --json\`.`,
+    });
+  }
+  if (resolution.nextOffer === null) {
+    return ErrandNextResultSchema.parse({
+      schemaVersion: 1,
+      mode: "errand-next",
+      state: "empty",
+      nextAction: "none",
+      nextOffer: null,
+      recommendedPromptText: "No execute-bound Errand is queued.",
+    });
+  }
+  return ErrandNextResultSchema.parse({
+    schemaVersion: 1,
+    mode: "errand-next",
+    state: "available",
+    nextAction: "open-errand",
+    nextOffer: { ...resolution.nextOffer, parentCheckoutPath: null },
+    recommendedPromptText: `Next execute-bound Errand: ${resolution.nextOffer.key}.`,
+  });
+}
+
+/** Resolve the stable first execute-bound capture without opening or mutating it. */
+export async function handleErrandNext(
+  opts: ErrandNextOptions,
+  context?: InteractionContext,
+): Promise<void> {
+  if (opts.json !== true) p.intro("arc errand next");
+  const parsed = ErrandNextInputSchema.safeParse(opts);
+  if (!parsed.success) {
+    emitErrandNextResult(buildErrandNextResult({
+      kind: "refused",
+      reason: z.prettifyError(parsed.error),
+    }, "Correct the command options."), opts.json === true);
+    return;
+  }
+  try {
+    const cwd = requireArcProjectRoot();
+    const identity = cwd === null ? null : await resolveIdentityWithPrompt(false);
+    if (cwd === null || identity === null) {
+      emitErrandNextResult(buildErrandNextResult({
+        kind: "refused",
+        reason: cwd === null
+          ? "ARC project root is unavailable."
+          : "No identity resolved — set arc.identity before selecting an Errand.",
+      }, cwd === null
+        ? "Run from an ARC project checkout."
+        : "Set `arc.identity` for this checkout."), opts.json === true);
+      return;
+    }
+    const resolution = await resolveCurrentExecutionStartupOffer({
+      cwd,
+      io: createUserIOContext(context?.subprocess),
+      identity,
+      parentCheckoutPath: null,
+    });
+    emitErrandNextResult(buildErrandNextResult(resolution), opts.json === true);
+  } catch (error) {
+    emitErrandNextResult(buildErrandNextResult({
+      kind: "refused",
+      reason: error instanceof Error ? error.message : String(error),
+    }, "Resolve the reported identity, inbox read, or lock failure."), opts.json === true);
+  }
+}
+
+/** Render one typed queue-head result for human or machine consumption. */
+export function formatErrandNextResult(
+  result: ErrandNextResult,
+  json: boolean,
+): { stream: "stdout" | "stderr"; text: string; exitCode: 0 | 1 } {
+  if (json) {
+    return {
+      stream: "stdout",
+      text: `${JSON.stringify(result)}\n`,
+      exitCode: result.state === "refused" ? 1 : 0,
+    };
+  }
+  return {
+    stream: result.state === "refused" ? "stderr" : "stdout",
+    text: result.recommendedPromptText,
+    exitCode: result.state === "refused" ? 1 : 0,
+  };
+}
+
+function emitErrandNextResult(result: ErrandNextResult, json: boolean): void {
+  const formatted = formatErrandNextResult(result, json);
+  if (json) process.stdout.write(formatted.text);
+  else if (formatted.stream === "stderr") p.log.error(formatted.text);
+  else {
+    p.log.info(formatted.text);
+    p.outro("Done.");
+  }
+  process.exitCode = formatted.exitCode;
+}
 
 async function runErrandHandlerBoundary(
   operation: ErrandHandlerOperation,
@@ -1304,6 +1465,25 @@ async function resolveCurrentExecutionNextOffer(options: {
   });
 }
 
+async function resolveCurrentExecutionStartupOffer(options: {
+  cwd: string;
+  io: ReturnType<typeof createUserIOContext>;
+  identity: string;
+  parentCheckoutPath: string | null;
+}): Promise<ExecutionStartupOfferResolution> {
+  const { postImage } = await withLockedUserInbox(
+    { cwd: options.cwd, io: options.io, identity: options.identity },
+    () => ({ result: null }),
+  );
+  if (postImage.state === "missing") {
+    return { kind: "resolved", nextOffer: null };
+  }
+  return resolveExecutionStartupOffer({
+    content: postImage.content,
+    parentCheckoutPath: options.parentCheckoutPath,
+  });
+}
+
 export function formatErrandCloseResult(
   result: ErrandTerminalResult,
   json: boolean,
@@ -1554,6 +1734,11 @@ export const ErrandPromoteInputSchema = z.object({
 /** Registry contributions owned by value-bearing errand commands. */
 export const errandCommandInputRegistrations = [
   {
+    commandPath: "errand next",
+    schema: ErrandNextInputSchema,
+    schemaFields: { "option.json": "json" },
+  },
+  {
     commandPath: "errand check",
     schema: ErrandCheckInputSchema,
     schemaFields: {
@@ -1642,6 +1827,13 @@ export const errandCommandInputRegistrations = [
 
 /** Input and interaction policies owned by errand command adapters. */
 export const errandCommandInputPolicyDeclarations = [
+  {
+    commandPath: "errand next", aliases: [], sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
   {
     commandPath: "errand check", aliases: [], sites: [declareCliOptionSite("json", {
       acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
