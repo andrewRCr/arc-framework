@@ -136,8 +136,8 @@ describe("runInboxState", () => {
       "",
       "### `[ ]` **held atomic**",
       "",
-      "- _Hold:_ `true`",
-      "- _Created:_ `2026-06-01`",
+      "- _Hold:_   `true`",
+      "- _Created:_   `2026-06-01`",
       "",
       "- A retained capture.",
       "",
@@ -198,8 +198,8 @@ describe("runInboxState", () => {
       "### `[ ]` **reminded atomic**",
       "",
       "- _Hold:_ `true`",
-      "- _Remind:_ `true`",
-      "- _Created:_ `2026-06-02`",
+      "- _Remind:_   `true`",
+      "- _Created:_   `2026-06-02`",
       "",
       "- A retained and explicitly reminded capture.",
       "",
@@ -211,8 +211,8 @@ describe("runInboxState", () => {
 
     expect(marked.content).not.toContain("_Hold:_");
     expect(marked.content).not.toContain("2026-06-01");
-    expect(marked.content).toContain("- _Remind:_ `true`\r\n");
-    expect(marked.content).toContain("- _Created:_ `2026-06-02`\r\n");
+    expect(marked.content).toContain("- _Remind:_   `true`\r\n");
+    expect(marked.content).toContain("- _Created:_   `2026-06-02`\r\n");
     expect(extractReminderEntries({ content: marked.content }).entries).toEqual([
       { key: "reminded atomic", created: "2026-06-02" },
     ]);
