@@ -139,9 +139,10 @@ there is no gate result left to reuse across the base movement D2 has just taugh
 the landing that removes them can close it. The cost is named rather than hidden — it makes the deliberately
 safest first member also the largest single mechanical change here.
 
-**No transient window between members.** D2 removes the blanket `source-moved` entry that forces a re-gate on any
+**No gate-reuse window between members.** D2 removes the blanket `source-moved` entry that forces a re-gate on any
 base movement, and nothing downstream has to restore a narrower form of that coverage: with no per-member
 prepublication gating there is no reusable gate result to guard and no gate definition whose drift could be missed.
+That is the window the earlier D2-before-D6 concern named, and it is closed rather than accepted.
 
 **One transient is accepted rather than absent, and it is named.** The `gateResults` removal rides the D1+D2
 member while the attestation read that replaces it is D6, which depends on D4. Between those landings `arc delivery
@@ -150,8 +151,8 @@ rejects as a destination. It is accepted as an interval because `prepare-work-un
 work-unit attestation upstream, so the unit is verified even while publication does not check it, and because the
 gate-result list it replaces was never an independent witness. Landing D6 earlier is not available: it depends on
 D4, and holding the operand until then would keep per-member gate results being reused across exactly the base
-movement D2 has just taught the close to admit.
-The stack therefore carries no accepted inter-member risk, and no member's landing order is constrained by one.
+movement D2 has just taught the close to admit. This is the stack's one accepted inter-member risk, and it is the
+one place a member's landing order is constrained by one — disclosed at the landing rather than discovered there.
 
 **Single-branch fallback.** If the stacked landing cannot proceed, this work unit lands as a plain single-branch
 merge. The failure mode being guarded is depending on the broken mechanism to ship its own fix. Post-landing
@@ -467,8 +468,9 @@ vehicle still needs a ref and a checkout or review refuses at the terminal index
 
 **Where construct runs.** Its output must exist before private review reads it, and a pre-publication caller
 returns after eligibility closes while delivery execution continues below — so the sequence is construct, then
-private review, then publish, and publish re-prepares over the same refs it does today. Nothing about publish's
-operand or machinery changes. Construct is a **new plan-scoped verb in the authoring family**, beside `authoring
+private review, then publish, and publish re-prepares over the same refs it does today. **D4** changes nothing
+about publish's operand or machinery; D6 separately removes two of its operands (§ D6). Construct is a **new
+plan-scoped verb in the authoring family**, beside `authoring
 locate` rather than a mode on either authoring write verb: both of those assert a provider-refresh route and
 require a selected deliverable, an expected state revision, and a derivation record, none of which an unbound first
 cut has, and both take exact caller-computed coordinates where deriving the coordinates is what construct is for.
@@ -571,9 +573,17 @@ exact member that stopped it.
 **No partial adopted chain, and the mechanism that makes it true.** Objects first: every member's tree and commit
 is constructed before anything is adopted. Object construction has no side effects, so a conflict at member N stops
 with nothing to undo and leaves the previous chain exactly as it stood — the exact-member conflict stop above is
-that property rather than a second mechanism. Adoption is then one batched compare-and-swap across the whole member
-set, each ref carrying its expected old value and the batch applying all-or-nothing; the batched ref-update form
-already has a caller in this codebase. A refused batch adopts nothing.
+that property rather than a second mechanism, and it is what carries the guarantee on the path where it can fail.
+
+Adoption then binds each member's pair under the **compare-and-swap on every ARC-owned write** that is this
+substrate's safety property everywhere else, member by member, through the idempotent pair coordinator. No
+all-or-nothing batch is specified, and none is claimed as precedent: `update-ref --stdin` has exactly one caller
+in this codebase, a verification-only lease that writes `start` / `verify` / `prepare` and always terminates with
+`abort` over a single ref — it issues no `update` directive and no `commit`, so a batched transaction would be new
+surface rather than a reused one. It is also not what the property needs. A failure partway through binding leaves
+the pairs already bound untouched and binds nothing for the member it stopped on; the unbound remainder is
+discarded as unreferenced objects, the chain retains its last coherent state, and re-running converges because
+absent creates, matching returns `already-rematerialized`, and a half-present pair refuses `candidate-pair-split`.
 
 **What the constructor does not claim.** It does not make tests instantaneous or auto-resolve a semantic conflict —
 the measured 38 minutes went largely to semantic conflict resolution after an upstream test-file extraction and to
@@ -598,6 +608,15 @@ read it.
 per-member gate-result list and reruns exact Tier 2 result admission against the post-gate checkouts. That operand
 goes (below); what takes its place is a read of the durable Candidate — its projected currentness and its
 convergence state — refusing a subject the attestation no longer covers.
+
+**The predicate already exists one seam over and is reused rather than designed again.** The work-unit publication
+verb projects the effective target and derives its own currentness as `state === "current"` **and**
+`convergenceVerification === "satisfied"`, then refuses when the Candidate lineage is not current, re-reading it
+after reconcile before any mutation. It is even delivery-aware at its boundary locus. The seam that does not read
+it is `arc delivery publish`, which enters fresh eligibility directly and consults neither the Candidate record nor
+the submission boundary. D6 therefore **composes that existing derivation** at the delivery seam rather than
+deriving a second currentness predicate there — which is the proportionate shape and carries the convergence half
+for free. A task list must not author a new predicate here.
 
 **What the read uniquely catches, stated so a test can falsify it.** A chain prepared against a superseded subject
 and left **unrebuilt** needs no new mechanism: delivery publication re-derives everything from live refs and the
@@ -654,30 +673,33 @@ deleting its fallback, so this seam owes a stated replacement rather than a dele
 deliberately rather than by the disappearance of its source. A task list built from a three-seam enumeration would
 leave the dangling fallback in place.
 
-**The mutation path's checkout operand goes with the run it attributed; the verifier stays.**
+**The mutation path's verification loop goes; the verifier itself stays.**
 `verifyDeliveryCandidateCheckout` does two independent things: it inspects a checkout for dirt and exact
-coordinates, and it re-observes the candidate ref against the snapshot. Only the first needs a checkout to exist,
-and on the **mutation path** what it established was that a Tier 2 run happened at the member's exact coordinates
-in a clean tree — gate attribution, not publication safety. That subject is what disappears. It has three call
-paths, and only one loses it:
+coordinates, and it re-observes the candidate ref against the snapshot. On the mutation path what the inspection
+established was that a Tier 2 run happened at the member's exact coordinates in a clean tree — gate attribution,
+not publication safety. With no run in the window that subject is gone, so the **per-candidate loop the mutation
+path runs ahead of the close is removed, and `checkoutPath` goes off the mutation request with it**. Both callers
+of that path lose it together: it is one loop at one call site, serving `publish` and the bound rematerialization
+route alike, and neither retains a use for it.
 
-- `publish` takes `checkoutPath` per member from its own request, so the path and the snapshot it is checked
-  against arrive from the same caller — the `gate-result-stale` shape again, and no more of a witness here. This
-  is the call path that goes.
-- The review gate's pre-publication delivery-target derivation **keeps** its loop. Composition does consume only
-  `{ baseRef, diffBaseSha, headSha }`, so the verification is not a composition input — it is the guard proving
-  the reviewable working tree is clean and at the member's exact coordinates before a reviewer is asked to approve
-  it. That subject is unaffected by where checks run.
-- The bound rematerialization route **keeps** it. There the pair is the correction-authoring locus, the path is
-  derived rather than supplied, and the dirt check is the one guard standing where the operator actually edits.
+Nothing is left unguarded by that removal, and the two guards that matter are elsewhere:
 
-So `checkoutPath` becomes optional on the mutation candidate, `publish` stops sending it, and the function skips
-the checkout inspection when no path is given while always re-observing the ref. **`verifyDeliveryCandidateCheckout`
-itself does not go, and neither does anything it needs** — it is one function, and the review gate calls it with
-the same dependency set, so `inspectCheckout`, `checkout-dirty`, and `checkout-moved` all stay live for that
-caller. What this deliverable removes is the mutation path's use of the verifier, not the verifier. The ref
-re-observation is what catches candidate drift between the close and the first push, and it is untouched on every
-path.
+- **The reviewable working tree keeps its guard.** The pre-publication review gate calls the same function over
+  every derived locator before composing a single target. Composition consumes only `{ baseRef, diffBaseSha,
+  headSha }`, so the verification is not a composition input — it is the proof that the tree a reviewer is about
+  to be asked to approve is clean and at the member's exact coordinates. That subject is unaffected by where
+  checks run, so this caller is untouched.
+- **The correction-authoring pair keeps its dirt check.** On the bound route the pair is where the constructor
+  writes, and the pair coordinator's own gate observation already refuses a dirty gate before anything moves —
+  a guard that sits closer to the write than the eligibility loop did. The operator's editing locus on that route
+  is the **top authoring locus**, not the member gate, so the removed inspection was not standing where the edits
+  happen.
+
+So `verifyDeliveryCandidateCheckout` and everything it needs — `inspectCheckout`, `checkout-dirty`,
+`checkout-moved` — all stay live for the review-gate caller. **What this deliverable removes is the mutation
+path's use of the verifier, not the verifier.** Candidate drift is not left uncovered either: the close's own
+final loop re-observes every member ref after the verification loop would have run, and D2 keeps members in that
+loop while narrowing only the protected-base entry.
 
 **What the eligibility close validates afterwards is purely mechanical, and already substantial:** the fresh plan
 read against the snapshot's plan identity, revision, and digest; lifecycle-path resolution and the unchanged-paths
@@ -860,8 +882,9 @@ digests it surfaces are the same ones the review gate's doors already compose, a
 them stays exactly where it is. Terminal integration retains its own
 current checkpoint evidence and exact-head approval.
 
-**Performance and cost.** The constructor's object work is sub-second per member and it creates no worktree, so it
-carries no other material cost. The rebuild baseline to beat is the measured ~38-minute three-member rebuild,
+**Performance and cost.** The constructor's object work is sub-second per member. It does place a detached
+worktree per member, whose cost § Disk lifecycle accounts for rather than waiving; nothing else it does carries a
+material cost. The rebuild baseline to beat is the measured ~38-minute three-member rebuild,
 almost none of which was the rebase itself, so the constructor's value is in the preflight and the evidence carry
 rather than raw Git speed, and it is not claimed to collapse that figure. Removing the per-member Tier 2 pass
 removes the dominant term in the prepublication window outright.
@@ -902,9 +925,10 @@ results equal — which becomes assertions on the now-distinct payloads. D3 and 
 different delivery members, and each landing rewrites only its own cases. D6 must cover publication refusing a
 chain whose Candidate advanced after attestation **and** publishing cleanly when it did not; the removal of the
 `gateResults` operand at the three seams that drop it **and** the public-failure composer's restated
-`requestedHead` at the fourth; the checkout operand's asymmetry — `publish` succeeding with no `checkoutPath`
-supplied, while the pre-publication review gate and the bound rematerialization route both still refuse a dirty or
-mismatched checkout — with the candidate-ref re-observation still catching drift on every path; and the reconcile seam
+`requestedHead` at the fourth; the mutation path closing with its verification loop gone and no `checkoutPath` on
+its request, on **both** its callers, while the pre-publication review gate still refuses a dirty or mismatched
+checkout and the pair coordinator still refuses a dirty gate — with the close's own final loop still re-observing
+every member ref; and the reconcile seam
 returning a composed applicability decision, with the two sibling read sites still refusing opaquely — the negative
 case is what keeps the correction scoped.
 **Criterion 7 owns one end-to-end fixture, jointly D2's and D4's.** A three-member chain meets a disjoint base
@@ -913,12 +937,14 @@ that refuses, names the member whose authored paths intersect, and is cleared by
 constructor. It lands with whichever of the two members lands second, since it cannot run until both mechanisms
 exist, and it is the only criterion whose check spans deliverables.
 
-D4 must cover the batched adoption refusing whole and converging on replay, the recut reproducing the same object
-id when none of its five inputs changed, author and committer surviving byte-exactly through a non-UTF-8 identity,
-and the co-authorship union preserving every author on the range.
+D4 must cover a conflict at member N adopting nothing and leaving the previous chain usable, binding converging on
+replay through the idempotent pair coordinator, the recut reproducing the same object id when none of its five
+inputs changed, author and committer surviving byte-exactly through a non-UTF-8 identity, and the co-authorship
+union preserving every author on the range.
 
 **Migration and rollout.** Pre-public-release posture applies: removing the `gateResults` operand, its schema, its
-type, and its five refusal reasons, and making the per-member `checkoutPath` optional, are breaking changes to
+type, and its five refusal reasons, and removing the per-member `checkoutPath` from the mutation request, are
+breaking changes to
 unpublished project-owned contracts, which this project's posture permits in place — no compatibility aliases, no
 migration readers, and development state is cleared or regenerated rather than migrated. The stack lands per the
 delivery shape above, with the single-branch fallback recorded up front. The doctrine half lands with it:
@@ -982,8 +1008,10 @@ operational state moves off-branch.
   lifecycle-tail half, and D3 stays the delivery lane's instance and cites the spine rather than restating the
   obligation.
 - `review-checkout-lifecycle` owns frontline review checkout registration and diagnostics, scoped to that path.
-  Nothing routes to it from here and no seam is shared: this work unit authors no checkout contract at all, and
-  removing the prepublication per-member checkouts only reduces what registers in the primary's worktree list.
+  Nothing routes to it from here and no seam is shared: delivery's prepublication pairs are owned end to end by the
+  residue reaper and the pair coordinator, a different family from the frontline path's ephemeral checkout. D4 does
+  widen one checkout-observation port — the dirty-status read that collapses to a bare `dirty` — but that port is
+  the pair coordinator's, so the widening lands inside delivery's own family rather than crossing the seam.
 - `candidate-reroot-recovery-frame` may preserve resumability but owns no applicability decision.
 - Keep **Make no-material Frontline follow-up effective across Candidate rerouting** independent unless source
   inspection proves its blocker is the same evidence-target binding rather than merely adjacent vocabulary.
@@ -997,7 +1025,7 @@ payload is this work unit's design response; which component composes the messag
 
 1. Disjoint protected-base movement reobserves eligibility and closes eligible rather than refusing, while movement
    overlapping any member's own authored contribution — measured per member against the movement that member has
-   not absorbed — still prevents unsupported reuse, and the refusal names the member whose paths intersect.
+   not absorbed — still prevents unsupported reuse, and the refusal names the member whose paths intersect (D2).
 2. Exact member and suffix transitions receive carry, bounded supplemental, or fresh treatment from verified
    before/after coordinates; ancestry or contribution similarity alone never establishes evidence applicability.
 3. An authorized prepublication base reconciliation or rebuilt-chain result reaches Candidate applicability through
