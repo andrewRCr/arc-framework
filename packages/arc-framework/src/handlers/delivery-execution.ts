@@ -311,6 +311,12 @@ import { ResolveDeliveryStatusActionSchema, ContinuePublicationActionSchema } fr
 
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const RefSchema = z.string().startsWith("refs/");
+const RepositoryLocatorSchema = z.string()
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
+  .refine(
+    (repository) => repository.split("/").every((segment) => /[^.]/u.test(segment)),
+    "repository segments must not consist only of dots",
+  );
 const CandidateSchema = z.strictObject({ deliverableId: DeliveryCanonicalDigestSchema, ref: RefSchema });
 const CoordinateSchema = z.strictObject({ head: GitObjectIdSchema, tree: GitObjectIdSchema });
 const ReviewFixVerificationSchema = z.strictObject({
@@ -764,7 +770,7 @@ const RefreshExecuteSchema = z.strictObject({
 const ReviewFixBaseSchema = z.strictObject({
   planId: DeliveryPlanIdSchema,
   selectedDeliverableId: DeliveryCanonicalDigestSchema,
-  repository: z.string().min(1),
+  repository: RepositoryLocatorSchema,
   remote: z.string().min(1).default("origin"),
 });
 const ReviewFixPlanSchema = ReviewFixBaseSchema.extend({
@@ -1923,6 +1929,26 @@ function normalizeOwnedDeliveryFailure(
   return ownedDeliveryFailure(command, result, request);
 }
 
+function invalidCommandInput(
+  command: DeliveryExecutionCommand,
+  request: unknown,
+): DeliveryExecutionResult {
+  const reviewFixCommand = command === "review-fix-plan" || command === "review-fix-publish";
+  const input = typeof request === "object" && request !== null && !Array.isArray(request)
+    ? request as Record<string, unknown>
+    : null;
+  if (reviewFixCommand && input !== null && "repository" in input
+    && !RepositoryLocatorSchema.safeParse(input.repository).success) {
+    return {
+      status: "refused",
+      reason: "repository-locator-invalid",
+      recommendedActionText:
+        "Pass the repository as the exact host locator `owner/name`, then rerun the review-fix command.",
+    };
+  }
+  return { status: "refused", reason: "invalid-command-input" };
+}
+
 /** Validate one verb request, execute its domain service, and preserve its exact closed result. */
 export async function handleDeliveryExecution(
   command: DeliveryExecutionCommand,
@@ -1951,13 +1977,13 @@ export async function handleDeliveryExecution(
   }
   const request = RequestSchemas[command].safeParse(decoded);
   if (!request.success) {
-    emit(deps, command, {
-      status: "refused",
-      reason: "invalid-command-input",
-      ...(isOwnedDeliveryAuthorityCommand(command)
-        ? { detail: boundedDeliveryFailureDetail(request.error.issues[0]?.message, "The request shape is invalid.") }
-        : {}),
-    }, decoded);
+    emit(deps, command, isOwnedDeliveryAuthorityCommand(command)
+      ? {
+          status: "refused",
+          reason: "invalid-command-input",
+          detail: boundedDeliveryFailureDetail(request.error.issues[0]?.message, "The request shape is invalid."),
+        }
+      : invalidCommandInput(command, decoded), decoded);
     return;
   }
   let result: unknown;

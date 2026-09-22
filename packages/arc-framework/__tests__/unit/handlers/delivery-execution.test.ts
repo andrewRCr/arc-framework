@@ -922,6 +922,43 @@ describe("delivery execution handler", () => {
     });
   });
 
+  it.each([
+    ["review-fix-plan", "delivery review-fix plan", { entryMode: "execution" }],
+    ["review-fix-publish", "delivery review-fix publish", {}],
+  ] as const)("refuses an unresolvable repository locator before %s execution", async (
+    command,
+    commandName,
+    commandFields,
+  ) => {
+    const plan = deliveryStackPlanFixture();
+    const execute = vi.fn();
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+
+    await handleDeliveryExecution(command, { input: "-" }, undefined, {
+      readText: vi.fn().mockResolvedValue(JSON.stringify({
+        planId: plan.planId,
+        selectedDeliverableId: plan.members[0]!.deliverableId,
+        repository: "/home/andrew/arc-framework",
+        ...commandFields,
+      })),
+      execute,
+      write,
+      setExitCode,
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toEqual({
+      schemaVersion: 1,
+      command: commandName,
+      status: "refused",
+      reason: "repository-locator-invalid",
+      recommendedActionText:
+        "Pass the repository as the exact host locator `owner/name`, then rerun the review-fix command.",
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
   it("preserves one selector-free resumable review-fix continuation action", async () => {
     const request = { repository: "owner/repo", remote: "origin" };
     const selectedDeliverableId = deliveryStackPlanFixture().members[0]!.deliverableId;
