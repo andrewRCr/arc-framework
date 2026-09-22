@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "validate-active-meta-current-workflow-consistency-before-commit",
+  "claimId": "ef1759bc864c94f279f55588ea07a203",
+  "createdAt": "2026-09-22T14:40:02.328Z",
+  "updatedAt": "2026-09-22T14:40:02.328Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "validate-active-meta-current-workflow-consistency-before-commit",
+  "branch": "chore/validate-active-meta-current-workflow-consistency-before-commit",
+  "origin": "inbox",
+  "originEntry": "Validate active-meta `Current Workflow` consistency before commit",
+  "originEntrySourceDigest": "sha256:340d1371a95f69503498368956d38cb5708a1a1e623c01c579672d3a4200c653",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
