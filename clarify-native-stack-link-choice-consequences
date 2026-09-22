@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "clarify-native-stack-link-choice-consequences",
+  "claimId": "6fef31984e6dbec81e37a8bcfb8edd08",
+  "createdAt": "2026-09-22T14:34:50.535Z",
+  "updatedAt": "2026-09-22T14:34:50.535Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "clarify-native-stack-link-choice-consequences",
+  "branch": "chore/clarify-native-stack-link-choice-consequences",
+  "origin": "inbox",
+  "originEntry": "Clarify native-stack link choice consequences",
+  "originEntrySourceDigest": "sha256:d370177bed49104481c0e9e2ecfecf92256f86ad60bdcf200ac83d3a509dee3b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
