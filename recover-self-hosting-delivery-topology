@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "recover-self-hosting-delivery-topology",
+  "claimId": "49efa4599bab3122db63a7e58f5a8bb8",
+  "createdAt": "2026-09-22T17:42:40.040Z",
+  "updatedAt": "2026-09-22T17:42:40.040Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Document project-only diagnosis and anchored recovery for self-hosting delivery topology divergence without changing shipped delivery contracts",
+  "branch": "chore/recover-self-hosting-delivery-topology",
+  "origin": "inbox",
+  "originEntry": "Diagnose and recover self-hosting delivery topology divergence",
+  "originEntrySourceDigest": "sha256:a665a95ae2ab0ee9d51f85444c39d57cbfaf69b062551001ccbd6798d4e75fbf",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
