@@ -3,7 +3,7 @@
   "slug": "refuse-unresolvable-repository-locator",
   "claimId": "0ac7309f0aa340c75058a29cf4bd61fa",
   "createdAt": "2026-09-22T16:23:29.211Z",
-  "updatedAt": "2026-09-22T16:23:29.211Z",
+  "updatedAt": "2026-09-22T17:13:05.963Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Reject malformed owner/name repository locators before delivery review-fix host or Git observation, with an actionable typed refusal.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse an unresolvable repository locator distinctly from canonical-chain divergence",
   "originEntrySourceDigest": "sha256:028143d15b8e5de4496f9801ba8799f42a5b6877b61f1d9d9dfced09fafe8910",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/refuse-unresolvable-repository-locator",
+    "headSha": "0d7d072a03589e809e2d101a15f66e043111167e"
+  }
 }
