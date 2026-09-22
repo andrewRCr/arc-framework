@@ -539,6 +539,26 @@ describe("validateCurrentWorkflow — active lifecycle consistency", () => {
     });
   });
 
+  it("reports an unavailable staged task list without throwing", () => {
+    const taskPath = ".arc/active/technical/tasks-foo.md";
+    const files = {
+      [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", {
+        State: "Active",
+        Design: "spec-foo.md",
+        "Task List": "tasks-foo.md",
+        "Current Workflow": "prepare-work-unit",
+      }),
+    };
+
+    expect(validateFiles([META_PATH_FIXTURE], fakeReader(files))).toEqual({
+      pass: false,
+      diagnostics: [
+        `${META_PATH_FIXTURE}: Current Workflow cannot be checked because staged task list `
+          + `${taskPath} is unavailable (no content for ${taskPath})`,
+      ],
+    });
+  });
+
   it("leaves non-active lifecycle metas to their owning lifecycle checks", () => {
     const path = ".arc/backlog/planned/foo/meta-foo.md";
     const content = renderMetaProjectionFile("foo", {

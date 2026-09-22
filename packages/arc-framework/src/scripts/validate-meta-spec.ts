@@ -218,7 +218,18 @@ export function validateCurrentWorkflow(
 
   const taskListPath = resolveTaskListPath(path, record.taskList);
   if (taskListPath === null) return diagnostics;
-  const cursor = resolveTaskListCursor(readFile(taskListPath));
+  let taskListContent: string;
+  try {
+    taskListContent = readFile(taskListPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    diagnostics.push(
+      `${path}: Current Workflow cannot be checked because staged task list ${taskListPath} `
+        + `is unavailable (${message})`,
+    );
+    return diagnostics;
+  }
+  const cursor = resolveTaskListCursor(taskListContent);
   if (cursor.status === "found") {
     diagnostics.push(
       `${path}: Current Workflow "prepare-work-unit" contradicts open task ${cursor.cursor.leaf.id} `
