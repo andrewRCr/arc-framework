@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyPath,
   validateCohort,
+  validateCurrentWorkflow,
   validateFiles,
 } from "../../../src/scripts/validate-meta-spec.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
@@ -140,9 +141,16 @@ describe("validateFiles", () => {
       "Integrating",
       "Shipped",
     ]) {
+      const currentWorkflow = state === "Planning"
+        ? "draft-design"
+        : state === "Integrating"
+          ? "integrate-work-unit"
+          : "[none]";
       const files = {
-        [META_PATH_FIXTURE]: metaFile("- **Design:** [none]", {
-          stateLine: `- **State:** ${state}`,
+        [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", {
+          State: state,
+          Design: "[none]",
+          "Current Workflow": currentWorkflow,
         }),
       };
       const result = validateFiles(Object.keys(files), fakeReader(files));
@@ -467,5 +475,78 @@ describe("validateCohort — two-segment path cap", () => {
     const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => d.includes("Cohort"))).toBe(true);
+  });
+});
+
+describe("validateCurrentWorkflow — active lifecycle consistency", () => {
+  it("rejects an active meta carrying a planning workflow", () => {
+    const content = renderMetaProjectionFile("foo", {
+      State: "Active",
+      Design: "spec-foo.md",
+      "Current Workflow": "generate-tasks",
+    });
+
+    expect(validateCurrentWorkflow(content, META_PATH_FIXTURE)).toEqual([
+      expect.stringContaining("Current Workflow"),
+    ]);
+  });
+
+  it("accepts the task-execution sentinel for an active meta", () => {
+    const content = renderMetaProjectionFile("foo", {
+      State: "Active",
+      Design: "spec-foo.md",
+      "Current Workflow": "[none]",
+    });
+
+    expect(validateCurrentWorkflow(content, META_PATH_FIXTURE)).toEqual([]);
+  });
+
+  it("rejects pre-publication while the staged task cursor is still open", () => {
+    const taskPath = ".arc/active/technical/tasks-foo.md";
+    const files = {
+      [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", {
+        State: "Active",
+        Design: "spec-foo.md",
+        "Task List": "tasks-foo.md",
+        "Current Workflow": "prepare-work-unit",
+      }),
+      [taskPath]: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Finish implementation**\n",
+    };
+
+    const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
+
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics).toEqual([
+      expect.stringContaining("open task 1.1"),
+    ]);
+  });
+
+  it("accepts pre-publication after the staged task list has no open cursor", () => {
+    const taskPath = ".arc/active/technical/tasks-foo.md";
+    const files = {
+      [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", {
+        State: "Active",
+        Design: "spec-foo.md",
+        "Task List": "tasks-foo.md",
+        "Current Workflow": "prepare-work-unit",
+      }),
+      [taskPath]: "## **Phase 1:** Work\n\n### `[x]` **1.1 Finish implementation**\n",
+    };
+
+    expect(validateFiles([META_PATH_FIXTURE], fakeReader(files))).toEqual({
+      pass: true,
+      diagnostics: [],
+    });
+  });
+
+  it("leaves non-active lifecycle metas to their owning lifecycle checks", () => {
+    const path = ".arc/backlog/planned/foo/meta-foo.md";
+    const content = renderMetaProjectionFile("foo", {
+      State: "Planning",
+      Design: "spec-foo.md",
+      "Current Workflow": "generate-tasks",
+    });
+
+    expect(validateCurrentWorkflow(content, path)).toEqual([]);
   });
 });
