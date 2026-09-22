@@ -217,7 +217,12 @@ export function validateCurrentWorkflow(
   }
 
   const taskListPath = resolveTaskListPath(path, record.taskList);
-  if (taskListPath === null) return diagnostics;
+  if (taskListPath === null) {
+    diagnostics.push(
+      `${path}: Current Workflow "prepare-work-unit" requires a resolvable Task List`,
+    );
+    return diagnostics;
+  }
   let taskListContent: string;
   try {
     taskListContent = readFile(taskListPath);

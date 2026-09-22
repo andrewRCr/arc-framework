@@ -559,6 +559,24 @@ describe("validateCurrentWorkflow — active lifecycle consistency", () => {
     });
   });
 
+  it("rejects pre-publication without a resolvable task list", () => {
+    const files = {
+      [META_PATH_FIXTURE]: renderMetaProjectionFile("foo", {
+        State: "Active",
+        Design: "spec-foo.md",
+        "Task List": "[none]",
+        "Current Workflow": "prepare-work-unit",
+      }),
+    };
+
+    expect(validateFiles([META_PATH_FIXTURE], fakeReader(files))).toEqual({
+      pass: false,
+      diagnostics: [
+        `${META_PATH_FIXTURE}: Current Workflow "prepare-work-unit" requires a resolvable Task List`,
+      ],
+    });
+  });
+
   it("leaves non-active lifecycle metas to their owning lifecycle checks", () => {
     const path = ".arc/backlog/planned/foo/meta-foo.md";
     const content = renderMetaProjectionFile("foo", {
