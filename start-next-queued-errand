@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "start-next-queued-errand",
+  "claimId": "9580d26a999339ce1a7806b7d4350278",
+  "createdAt": "2026-09-22T18:36:35.536Z",
+  "updatedAt": "2026-09-22T18:36:35.536Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let arc-session --errand --next start the first execute-bound Errand through the existing queue selector and Launch lifecycle.",
+  "branch": "chore/start-next-queued-errand",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
