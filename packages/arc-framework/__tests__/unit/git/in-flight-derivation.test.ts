@@ -100,6 +100,7 @@ function makeExec(opts: {
   }>;
   liveBranches?: string[] | "unreachable";
   ancestors?: Array<[ancestor: string, descendant: string]>;
+  landedBranches?: string[];
   commitTimes?: Record<string, number>;
   listedPaths?: Record<string, string[]>;
   /** Keyed by the `git show` target `"<ref>:<path>"`; present keys resolve, absent keys throw. */
@@ -112,6 +113,7 @@ function makeExec(opts: {
   const localRefs = opts.localRefs ?? [];
   const refSnapshots = opts.refSnapshots ?? null;
   const ancestors = new Set((opts.ancestors ?? []).map(([ancestor, descendant]) => `${ancestor}\0${descendant}`));
+  const landedBranches = new Set(opts.landedBranches ?? []);
   const commitTimes = opts.commitTimes ?? {};
   const listedPaths = opts.listedPaths ?? {};
   const metas = opts.metas ?? {};
@@ -164,6 +166,9 @@ function makeExec(opts: {
       const descendant = args[3] ?? "";
       if (ancestors.has(`${ancestor}\0${descendant}`)) return { stdout: "", stderr: "" };
       throw new Error(`${ancestor} is not an ancestor of ${descendant}`);
+    }
+    if (args[0] === "cherry") {
+      return { stdout: landedBranches.has(args[2] ?? "") ? "" : `+ ${defaultSha}\n`, stderr: "" };
     }
     if (args[0] === "show") {
       if (args[1] === "-s" && args[2] === "--format=%ct") {
@@ -1843,6 +1848,62 @@ describe("deriveInFlight input union", () => {
 });
 
 describe("deriveInFlight candidate dedupe", () => {
+  it.each([
+    { landed: true, remedy: "Merged to base; after interlock approval, remove? `git branch -d recovery/old`" },
+    { landed: false, remedy: "Not proven merged; surfaced, not removable." },
+  ])("names the safe cleanup posture for a stale local branch (landed: $landed)", async ({ landed, remedy }) => {
+    const staleBranch = "recovery/old";
+    const currentBranch = "feat/current";
+    const exec = makeExec({
+      refSnapshots: [{ localHeads: { [staleBranch]: "0".repeat(40), [currentBranch]: "0".repeat(40) } }],
+      worktrees: [{ path: "/repo.current", branch: currentBranch }],
+      landedBranches: landed ? [staleBranch] : [],
+      metas: {
+        [`${staleBranch}:.arc/active/meta-current.md`]: metaContent({ branch: currentBranch }),
+        [`${currentBranch}:.arc/active/meta-current.md`]: metaContent({ branch: currentBranch }),
+      },
+    });
+
+    const { warnings } = await deriveInFlight({
+      exec,
+      localOnly: true,
+      identity: null,
+      teamMode: false,
+      derivedRoster: [],
+    });
+
+    const warning = warnings.find((item) => item.code === "stale-location-shadow" && item.branch === staleBranch);
+    expect(warning?.rendered).toContain(remedy);
+    expect(exec).toHaveBeenCalledWith("git", ["cherry", "origin/main", staleBranch]);
+  });
+
+  it("omits the cleanup offer without complete ownership evidence", async () => {
+    const staleBranch = "recovery/old";
+    const currentBranch = "feat/current";
+    const exec = makeExec({
+      refSnapshots: [{ localHeads: { [staleBranch]: "0".repeat(40), [currentBranch]: "0".repeat(40) } }],
+      worktrees: [{ path: "/repo.current", branch: currentBranch }],
+      metas: {
+        [`${staleBranch}:.arc/active/meta-current.md`]: metaContent({ branch: currentBranch }),
+        [`${currentBranch}:.arc/active/meta-current.md`]: metaContent({ branch: currentBranch }),
+      },
+    });
+
+    const { warnings } = await deriveInFlight({
+      exec,
+      localOnly: true,
+      identity: null,
+      teamMode: false,
+      derivedRoster: null,
+    });
+
+    const warning = warnings.find((item) => item.code === "stale-location-shadow" && item.branch === staleBranch);
+    expect(warning?.rendered).toBe(
+      "Meta `.arc/active/meta-current.md` at `recovery/old` points to `feat/current`; shadowed by location match.",
+    );
+    expect(exec).not.toHaveBeenCalledWith("git", ["cherry", "origin/main", staleBranch]);
+  });
+
   it("prefers a location-consistent local worktree over a stale remote ref with provenance", async () => {
     const exec = makeExec({
       worktrees: [{ path: "/repo.renamed", branch: "chore/renamed" }],
@@ -1895,6 +1956,8 @@ describe("deriveInFlight candidate dedupe", () => {
         workUnit: "renamed",
       },
     ]);
+    expect(warnings[0]?.rendered).not.toContain("git branch -d");
+    expect(exec).not.toHaveBeenCalledWith("git", ["cherry", "origin/main", "plan/renamed"]);
   });
 
   it("dedupes two live remote refs for the same WU and warns on the shadowed ref", async () => {
