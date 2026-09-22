@@ -463,6 +463,178 @@ a legacy path, so the boundary operand must reach the constructor through one se
 discipline D4 already states for the lifecycle exclusion set, and for the same reason: the storage move should be a
 filter swap, not a rewrite.
 
+### How the bound correction route reaches the constructor (2026-09-21)
+
+**The correction routing has four routes, not two, and it splits on provider registration.** `review-fix.ts` returns
+`provider-refresh`, `rematerialize`, `terminal-authoring`, or `terminal-rebind`. The first two are selected by the
+member's provider presentation status: `registered` routes to `provider-refresh` with `nextAction:
+publish-selected-member`, and `unregistered` routes to `rematerialize` with `nextAction: rematerialize`. Both terminal
+routes concern corrections on the work-unit branch itself and state outright that no delivery member rewrite is
+required.
+
+**The `rematerialize` route's own recommended action is the spec's ordering, verbatim in substance:** apply the
+approved fix to the top authoring locus, cut the complete suffix, then run delivery rematerialization. So the spec's
+"rebuild the suffix from the corrected top, then resume rematerialization" is not backwards. The earlier finding read
+it against `arc delivery authoring rematerialize`, whose description is "Prepare one exact private candidate ref and
+detached gate pair" — the pair-preparation verb belonging to the _provider-refresh_ route's authoring step. The
+route's `nextAction` names `arc delivery rematerialize`, "Reclose and rewrite one complete reviewed suffix". Two
+verbs, two routes; the conflation produced the apparent reversal.
+
+**What the spec actually owes is the route name.** It describes the unregistered path without saying so, and a reader
+holding the registered path in mind derives a contradiction. Naming `rematerialize` as the route, and stating that the
+registered path is provider-native and reaches no constructor, closes the finding.
+
+**Two things this confirms.** The constructor is invoked from `arc delivery rematerialize`, which is already a
+reclose-and-rewrite verb — so decision (i)'s requirement that construction live inside a publish-shaped verb is
+already satisfied on the bound route, and the D4 change it needs is smaller than first stated. And the candidate/gate
+pair keeps its purpose: it is the correction-authoring mechanism on the provider-refresh route, which decision (i)
+leaves untouched because reconstruction mints no private refs of its own. The pair invariant and the decision not to
+mint are consistent rather than in tension.
+
+### What names refusal direction (2026-09-21)
+
+**D3's stated reason for widening the port is wrong on its own terms.** The deliverable argues that "the eligibility
+dependency interface exposes no tree reader — from OIDs alone the close cannot say which side moved," and concludes
+that the normalized-completeness port must be widened to carry its dropped, invented, and mismatched path sets, with
+its refusal union widened and three collapsing sites updated. That is true of tree readers and irrelevant, because
+direction is not a tree question.
+
+**The partitions cannot produce direction, and ancestry can.** `compareNormalizedCompleteness` builds an expectation
+from the top and compares it against the final candidate, so a path present on both sides with different content lands
+in `mismatchedPaths` whichever side moved it. The partition is symmetric by construction; carrying it forward
+reproduces the tie with more fields. What names a side is whether the final candidate is contained in the top.
+
+**And that reader is already declared, already wired, and already in scope at the refusal site.**
+`DeliveryEligibilityDependencies` declares `readAncestry(ancestor, descendant)` returning `ancestor`, `not-ancestor`,
+or `unresolvable`; the close binds `finalCandidate` from the snapshot's last member and has `snapshot.top` beside it,
+immediately above the `completeness-*` refusal that returns status and reason and nothing else. One call at that site
+distinguishes the two conditions: a final candidate contained in the top means the top advanced and the chain is
+stale, and a final candidate not contained in it means the chain diverged from the top. `unresolvable` takes the
+existing unavailable-evidence arm.
+
+**So the close-side `rebuild-required` reason gets its discriminator from the same call.** Contained plus a
+completeness mismatch is the stale-chain condition whose remedy is a rebuild; not-contained is the authoring-side
+condition with a different remedy. Neither needs a new operand, a port change, or a new record.
+
+**D3 therefore collapses.** By its own description the port widening was "materially larger than enriching a refusal
+payload," and it is both insufficient — partitions name no side — and unnecessary. What remains is enriching the
+refusal payload with direction and remedy plus one ancestry call. The path partitions may still be worth carrying as
+_detail_, naming which paths differ, but they are not the direction mechanism and the deliverable should not be sized
+as though they were.
+
+### What the attestation read uniquely catches (2026-09-21)
+
+**Publication re-derives everything from live refs, which is why the spec's named state is already refused.**
+`arc delivery publish` does not consume a caller's snapshot. It runs `executeWithFreshDeliveryEligibility`, which
+reads the current plan, resolves the originating top, and calls `revalidateDeliveryEligibilityForMutation` — a full
+`prepareDeliveryEligibility` over the live candidate refs followed by the complete close. The close ends in
+`closeMechanicalDeliveryEligibility`, which calls `compareNormalizedCompleteness` against the freshly observed top. So
+a chain prepared against a superseded subject and left unrebuilt fails `completeness-*` before any attestation read
+could speak. The state D6 names as the one it refuses is caught without it.
+
+**What that ordering does not catch is the complement.** The top advances and the chain _is_ rebuilt to match it, and
+attestation is not re-run. Completeness then compares equal, the plan digest is unchanged, the predecessor relation
+over the first member and the protected base is untouched, and `top-ref-mismatch` compares ref _names_ —
+`resolveOriginatingTopRef` returns `refs/heads/${branch}`, never a head — so an advanced top passes both the pre- and
+post-prepare checks. Every mechanical check passes over content no gate ever saw.
+
+**The read D6 designs already exists one seam over, and the spec attributes the gap to the wrong verb.** The
+work-unit publication verb composes exactly this predicate: it projects the effective target and derives
+`candidateCurrent` as `state === "current" && convergenceVerification === "satisfied"` — both halves — then refuses
+with "the Candidate lineage is not current," and re-reads it after reconcile before any mutation. It is even
+delivery-aware, handling the `delivery-status-required` boundary locus. So "publication is the one seam in that
+sequence that does not read it" is false as stated. The seam that does not read it is `arc delivery publish`, which
+is its own command entering fresh eligibility directly and consulting neither the Candidate record nor the submission
+boundary.
+
+**That makes the deliverable smaller and better grounded than its own argument.** D6 is not designing a new predicate;
+it is giving the delivery publication seam the one the singleton seam already computes. Composing the existing
+derivation is the proportionate shape, and it carries the convergence half for free.
+
+**Convergence is a second state, and it is not the delivery-state record it resembles.** `convergenceVerification`
+reduces over approved review-fix response transitions: a response whose evidence does not carry leaves the projection
+`pending` at a `focused` or `full` required scope, with `pendingResponseId` naming the response awaiting it. That is
+Candidate-record-derived. Delivery state separately records `pendingReviewFixVerification`, and the terminal-rebind
+arm reads the two independently — so they are related but not the same record, and this draft does not assert they
+coincide. What matters here is that the delivery close reads neither.
+
+**What this owes the spec.** D6's refusal paragraph is restated around both states, and its success criterion with it.
+As written the criterion is satisfiable by the pre-existing completeness refusal, so a test authored to it passes
+whether or not the read was ever wired. The falsifiable shape is the complement: advance the top, rebuild the chain to
+match so completeness passes, skip re-attestation, and require delivery publication to refuse. The `gateResults`
+removal, the `checkoutPath` narrowing, and the pinned lifecycle-contribution operand are untouched — each was argued
+on its own grounds and those hold.
+
+**Where D4 sits in this.** The hole is not one D4 opens: `arc delivery publish` has never read the attestation. What
+D4 changes is the cost of standing in it — rebuilding a chain onto an advanced top previously meant re-running
+preparation, and D4 turns it into a verb that reaches the same state without passing through one. The read is owed
+either way; D4 is why it stops being theoretical.
+
+### Which projection arms reach the operator, and the fourth read site (2026-09-21)
+
+**The arm count is nine, not eight, and the shape was mis-modeled in both directions.**
+`CandidateEffectiveTargetProjection` is `current`, `changed`, `staged-change`, and every non-`applicable` member of
+`CandidateApplicabilityResultSchema`. That union has eight members, so seven survive the exclusion:
+`decision-required`; `rerun-checkpoint` twice (the three moved-endpoint reasons, and `snapshot-invalidated` with a
+null observation); `classification-failed`; `classification-unsupported`; and `classification-unavailable` twice
+(three reasons, and `merge-base-ambiguous` carrying its own count and remedy). With `changed` and `staged-change`
+that is nine non-current variants across seven `state` values.
+
+**The discriminator is already on every arm, and it is not `state`.** Each arm carries `nextAction`, and the arms sort
+by it exactly the way the routing question needs:
+
+- `request-authority` — `decision-required` alone. It is the only arm carrying `choices`, `selectionOfferText`,
+  `recommendedActionText`, and `selectionPromptText`, because it is the only arm that is an undecided fork.
+- `establish-new-root` — `changed` and `staged-change`. A decision already taken: `selectedBy` records who took it,
+  and `projectCandidateReRootContinuation` already composes the exact `arc attest … --new-root` argv.
+- `rerun-checkpoint` — recoverable; the remedy is the checkpoint, and the moved-endpoint arm carries the observed
+  endpoints that say why.
+- `stop` and `upgrade` — `classification-failed`, `classification-unavailable`, `classification-unsupported`. Each
+  carries its own `detail`, and the ambiguous arm carries an explicit remedy.
+
+**So "surface the projection's own typed result" has an exact reading, and it is neither of the two the finding
+feared.** Taken this way it does not turn stop-class arms into non-refusals, and it does not have to promise choices
+for arms that have none. `request-authority` becomes an outcome beside `refused`; `establish-new-root` refuses while
+naming its exact continuation; `rerun-checkpoint`, `stop`, and `upgrade` stay conservative refusals carrying their own
+detail instead of one opaque `candidate-not-current`.
+
+**One carried criterion is simply wrong and gets corrected.** The criterion promising that _any_ non-current target
+reaches the operator with choices and offer texts cannot hold: only `decision-required` has them, by construction.
+Nothing is built yet, so this is ordinary planning authoring rather than an amendment — what it should say is that
+every non-current arm reaches the operator with its own remedy, and that the one undecided arm reaches them with
+choices.
+
+**The fourth read site is real, and its defect is narrower than it first looked.** `repository-entry.ts` projects the
+same effective target inside `readCandidate` and collapses every non-current arm to `non-current`, whose only extra
+field is an optional terminal delta. Its consumer in `entry-inspection.ts` already discriminates one case — a terminal
+delta carrying non-lifecycle paths beside an outstanding member returns `correction-route-ambiguous` with two named
+routes — and routes everything else to `candidate-verification-required` with `verify-work-unit`.
+
+**That remedy is heavy, not wrong, and the difference decides the fix.** `projectEffectiveCandidateTarget` consults
+the durable baseline first and returns `current` without ever calling the applicability projector when the baseline
+matches. A fresh attestation at the current subject establishes exactly that baseline, so re-rooting bypasses the
+classification machinery entirely — `git-failure`, `merge-tree-write-tree-unsupported`, and `merge-base-ambiguous`
+included. Work-unit verification therefore resolves every arm; it is the universally valid route. Removing it would
+leave `classification-failed`, whose own `nextAction` is `stop`, with nowhere to go — the guard-only dead end the
+project's recovery-complete refusal standard forbids.
+
+**So the defect is the word the carried criterion actually uses: _unexplained_.** The collapse hides that `upgrade`,
+the ambiguous arm's rebaseline remedy, and `rerun-checkpoint` are cheaper where they apply, leaving a full
+verification pass as the only visible move. The correction is to carry each arm's `nextAction` and `detail` _beside_
+the verify-work-unit route, not in place of it.
+
+**Which makes the dispositions three, not the spec's binary — and the fourth site is not the cheap one.** The
+reconcile arm takes a port-contract change because it is where an operator decision genuinely lives. The fourth site
+also takes a port change, since the `non-current` arm must carry more than it does, but it adds no decision surface —
+it adds explanation to a remedy that stays correct. The record-effect and boundary-carry arms stay collapsed on the
+grounds the spec already gives, and those grounds survive. D6's "only that site is corrected" sentence is what needs
+correcting.
+
+**Content-preserving rebuilds reach none of this.** D6's own argument holds: a rebuild that recuts members without
+changing the union leaves the subject digest equal and projects `current`. The four sites matter when the top truly
+advanced — which is exactly when the attestation read above is also what stands between a rebuilt chain and
+publication.
+
 ### The rest of the confirmed set
 
 **The bound route's mechanism runs backwards.** `arc delivery authoring rematerialize` takes
