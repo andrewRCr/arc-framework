@@ -87,6 +87,10 @@ const HOLD_LINE = "- _Hold:_ `true`";
 const REMIND_LINE = "- _Remind:_ `true`";
 const CREATED_LINE = /^- _Created:_ `[^`]*`$/u;
 
+function withoutTrailingCarriageReturn(line: string): string {
+  return line.replace(/\r$/u, "");
+}
+
 /**
  * Locate entries without letting one malformed heading discard the rest.
  *
@@ -202,11 +206,17 @@ function executeBoundMark(
 
 /** Remove the retain envelope that an execute-bound disposition supersedes. */
 function normalizeRetainedEntryForExecution(block: readonly string[]): string[] {
-  if (!block.includes(HOLD_LINE)) return [...block];
-  const preserveCreated = block.includes(REMIND_LINE);
-  const normalized = block.filter((line) =>
-    line !== HOLD_LINE && (preserveCreated || !CREATED_LINE.test(line)));
-  if (!preserveCreated && normalized[1] === "" && normalized[2] === "") {
+  if (!block.some((line) => withoutTrailingCarriageReturn(line) === HOLD_LINE)) return [...block];
+  const preserveCreated = block.some((line) => withoutTrailingCarriageReturn(line) === REMIND_LINE);
+  const normalized = block.filter((line) => {
+    const value = withoutTrailingCarriageReturn(line);
+    return value !== HOLD_LINE && (preserveCreated || !CREATED_LINE.test(value));
+  });
+  if (
+    !preserveCreated
+    && withoutTrailingCarriageReturn(normalized[1] ?? "") === ""
+    && withoutTrailingCarriageReturn(normalized[2] ?? "") === ""
+  ) {
     normalized.splice(2, 1);
   }
   return normalized;
@@ -236,7 +246,7 @@ function unboundEntryLines(lines: readonly string[], entry: LocatedInboxEntry): 
 function unboundDigest(lines: readonly string[], entry: LocatedInboxEntry): CanonicalDigest {
   const unbound = unboundEntryLines(lines, entry);
   const normalized = unbound
-    .map((line) => line.replace(/\r$/u, ""))
+    .map(withoutTrailingCarriageReturn)
     .join("\n")
     .replace(/\n*$/u, "") + "\n";
   return contentDigest(Buffer.from(normalized, "utf8"));

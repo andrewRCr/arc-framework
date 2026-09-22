@@ -184,6 +184,40 @@ describe("runInboxState", () => {
     ]);
   });
 
+  it("normalizes retain fields in CRLF inbox content", () => {
+    const content = [
+      "## Errand",
+      "",
+      "### `[ ]` **held atomic**",
+      "",
+      "- _Hold:_ `true`",
+      "- _Created:_ `2026-06-01`",
+      "",
+      "- A retained capture.",
+      "",
+      "### `[ ]` **reminded atomic**",
+      "",
+      "- _Hold:_ `true`",
+      "- _Remind:_ `true`",
+      "- _Created:_ `2026-06-02`",
+      "",
+      "- A retained and explicitly reminded capture.",
+      "",
+      "## Work Unit",
+      "",
+    ].join("\r\n");
+
+    const marked = markInboxEntriesExecuteBoundInOrder(content, ["held atomic", "reminded atomic"]);
+
+    expect(marked.content).not.toContain("_Hold:_");
+    expect(marked.content).not.toContain("2026-06-01");
+    expect(marked.content).toContain("- _Remind:_ `true`\r\n");
+    expect(marked.content).toContain("- _Created:_ `2026-06-02`\r\n");
+    expect(extractReminderEntries({ content: marked.content }).entries).toEqual([
+      { key: "reminded atomic", created: "2026-06-02" },
+    ]);
+  });
+
   it("keeps a malformed execute-bound disposition routable", () => {
     const malformed = executeBoundEntry("broken queue marker")
       .replace("- _Disposition:_ `execute-bound`", "- _Disposition:_ execute-bound");
