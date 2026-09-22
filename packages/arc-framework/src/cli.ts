@@ -25,6 +25,7 @@ import type { JoinOptions } from "./handlers/join.js";
 import type { StartOptions } from "./handlers/start.js";
 import type {
   ErrandCheckOptions,
+  ErrandNextOptions,
   ErrandOpenOptions,
   ErrandLinkOptions,
   ErrandMaterializeOptions,
@@ -581,6 +582,17 @@ program
 const errand = program
   .command("errand")
   .description("Open, preserve, resume, complete, or inspect an Errand lifecycle.");
+
+errand
+  .command("next")
+  .description("Resolve the first execute-bound USER-INBOX Errand without opening it")
+  .option("--json", "Emit the typed queue-head result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: ErrandNextOptions) => {
+      await (await import("./handlers/errand.js")).handleErrandNext(opts, context);
+    },
+  ));
 
 errand
   .command("check")
