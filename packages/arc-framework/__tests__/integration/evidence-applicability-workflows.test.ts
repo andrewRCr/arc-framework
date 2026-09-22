@@ -91,13 +91,15 @@ describe("evidence applicability workflow fire-points", () => {
     );
   });
 
-  it("delegates the approved Errand effect to one terminal verb without workflow merge mechanics", async () => {
+  it("delegates the approved Errand mutation to one terminal verb after a read-only check wait", async () => {
     const workflow = await readPair(workflows.errand);
     const terminal = sectionBetween(workflow, "5. **Settle the final head.", "### Complete");
 
     expect(occurrences(terminal, "arc errand merge <slug> - --json")).toBe(1);
+    expect(occurrences(terminal, "arc review checks await")).toBe(1);
+    expect(terminal.indexOf("arc review checks await"))
+      .toBeLessThan(terminal.indexOf("arc errand merge <slug> - --json"));
     expect(terminal).not.toContain("gh pr merge");
-    expect(terminal).not.toContain("arc review checks await");
     expect(terminal).not.toContain("arc merge lock hold");
     expect(occurrences(terminal, "arc merge lock release -")).toBe(1);
     expect(terminal).toMatch(/applicability-judgment-required[\s\S]*fresh integration approval/iu);
