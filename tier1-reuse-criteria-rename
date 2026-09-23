@@ -3,7 +3,7 @@
   "slug": "tier1-reuse-criteria-rename",
   "claimId": "a7aaf20ace0511e260ca41e6a79df5b4",
   "createdAt": "2026-09-23T19:28:49.848Z",
-  "updatedAt": "2026-09-23T19:28:49.848Z",
+  "updatedAt": "2026-09-23T19:48:14.512Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "tier1-reuse-criteria-rename",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Rename `tier1Reuse` to `tier1ReuseCriteria`",
   "originEntrySourceDigest": "sha256:323dd17c634da29a2e42590e209e2b6d31510e0f070030c5b8100df9be162dd9",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/tier1-reuse-criteria-rename",
+    "headSha": "a92c6b3601cdeed11a2c84a517b3d472a09fa9fc"
+  }
 }
