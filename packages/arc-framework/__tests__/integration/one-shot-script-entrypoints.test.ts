@@ -115,4 +115,15 @@ describe("one-shot TypeScript package scripts", () => {
     });
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
   }, PROCESS_TIMEOUT_MS);
+
+  it("shows framework renderer usage before validating help as a Markdown path", async () => {
+    const result = await execute(npmExecutable, ["run", "-s", "render:framework", "--", "--help"], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+    });
+
+    expect(result.stdout).toContain("Usage: npm run render:framework -- <package-source.md>");
+    expect(result.stdout).toContain("packages/arc-framework/arc/");
+    expect(result.stderr).toBe("");
+  }, PROCESS_TIMEOUT_MS);
 });
