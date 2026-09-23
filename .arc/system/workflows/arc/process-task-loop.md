@@ -208,8 +208,22 @@ execution-entry contract violation.
      ```
 
      **Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After
-     the primary member walk, load its adversarial companion and present the existing `Class`-scaled advisory offer
-     over that same scope. Follow the method's pass cap; a decline leaves the primary report intact.
+     the primary member walk, load its adversarial companion.
+
+     > [!IMPORTANT]
+     > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally
+     > at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
+     >
+     > ```yaml
+     > adversarial-review:
+     >   rubric:          # selected member Success Criteria group
+     >   artifacts:       # upstream design + task list with markings withheld + member diff and reachable tree
+     >   orientation:
+     >     - AGENT-BRIEF.ARC
+     >     - AGENT-BRIEF.PROJECT
+     >   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+     >   prior-findings:  # pass two onward; omitted on pass one
+     > ```
 
      Before advancing beyond the member, close its scale-attention result against the exact committed member span.
      When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4

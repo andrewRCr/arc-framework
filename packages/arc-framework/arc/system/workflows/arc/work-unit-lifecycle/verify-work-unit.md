@@ -84,8 +84,22 @@ outcomes in the complete diff and tree. With a Delivery Plan, the method disposi
 recorded reports and walks only the seam group and union coherence against the complete tree.
 
 **Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After the
-primary walk for either criteria shape, load its adversarial companion and present the existing `Class`-scaled
-advisory offer over that same work-unit scope. Follow the method's pass cap; a decline keeps the primary report.
+primary walk for either criteria shape, load its adversarial companion.
+
+> [!IMPORTANT]
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally at
+> `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
+>
+> ```yaml
+> adversarial-review:
+>   rubric:          # selected work-unit Success Criteria slice
+>   artifacts:       # upstream design + task list with markings withheld + complete diff and reachable tree
+>   orientation:
+>     - AGENT-BRIEF.ARC
+>     - AGENT-BRIEF.PROJECT
+>   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+>   prior-findings:  # pass two onward; omitted on pass one
+> ```
 
 Consume the resulting report, then mark each criterion in the task list's Success Criteria section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
