@@ -23,4 +23,15 @@ describe("soft-wrapped Markdown prose assertions", () => {
     );
     expect(() => softWrappedProse(" \t ")).toThrow("prose assertion must not be empty");
   });
+
+  it("does not match across a blockquote boundary", () => {
+    const phrase = "approval authorizes merge";
+    const matcher = softWrappedProse(phrase);
+
+    expect("approval\nauthorizes merge").toMatch(matcher);
+    expect("> approval\n> authorizes merge").toMatch(matcher);
+    expect("approval\n> authorizes merge").not.toMatch(matcher);
+    expect("> approval\nauthorizes merge").not.toMatch(matcher);
+    expect(">> approval\n> authorizes merge").not.toMatch(matcher);
+  });
 });
