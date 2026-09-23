@@ -18,6 +18,11 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
     ? []
     : [[member.coordinates.head, member.coordinates.tree] as const]));
   trees.set(targetCoordinates.head, targetCoordinates.tree);
+  for (const member of state.members) {
+    if (member.coordinates !== null && !trees.has(member.coordinates.base)) {
+      trees.set(member.coordinates.base, targetCoordinates.tree);
+    }
+  }
   const availableCommits = new Set(trees.keys());
   const exec = vi.fn(async (
     _command: string,

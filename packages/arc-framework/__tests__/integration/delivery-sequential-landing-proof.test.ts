@@ -13,6 +13,7 @@ import { observeGitDeliveryLandingResult } from "../../src/lib/delivery/git-land
 import { applyDeliveryLanding, prepareDeliveryLanding } from "../../src/lib/delivery/landing.js";
 import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { observeRepositoryDeliveryPosition } from "../../src/lib/session-init/delivery-position-facts.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
@@ -69,8 +70,7 @@ describe("sequential delivery landing proof", () => {
       ...fixture,
       target: { ref: "refs/heads/main", coordinates: await coordinate(firstLanded) },
       members: [
-        { ...fixture.members[0], changeRequest: null,
-          coordinates: { base, ...await coordinate(firstHead) } },
+        { ...fixture.members[0], ref: null, changeRequest: null, coordinates: null },
         { ...fixture.members[1], changeRequest: { providerId: "github", changeRequestId: "402" },
           coordinates: { base: firstHead, ...await coordinate(secondHead) } },
         { ...fixture.members[2], coordinates: { base: secondHead, ...await coordinate(topHead) } },
@@ -124,7 +124,10 @@ describe("sequential delivery landing proof", () => {
         mergedHead = await land(secondHead, firstLanded, 2);
         return { status: "submitted" as const };
       },
-      observeTarget: async () => ({ status: "observed" as const, coordinates: await coordinate(firstLanded) }),
+      observeTarget: async () => ({
+        status: "observed" as const,
+        coordinates: await coordinate(mergedHead ?? firstLanded),
+      }),
     };
     const readiness = { assess: async () => ({ status: "ready" as const, settledReviewState: "settled" }) };
     const prepared = await prepareDeliveryLanding({
@@ -143,6 +146,7 @@ describe("sequential delivery landing proof", () => {
     });
     expect(prepared.status).toBe("prepared");
     if (prepared.status !== "prepared") return;
+    const interrupted = current;
     const observation = {
       revalidateMergePolicy: async () => ({ status: "exact" as const }),
       observeSelection: async () => ({
@@ -175,5 +179,32 @@ describe("sequential delivery landing proof", () => {
     expect(applied.state.value.target?.coordinates?.head).toBe(mergedHead);
     expect(await run(["show", `${mergedHead}:ambient.txt`])).toBe("ambient");
     expect(await run(["show", `${mergedHead}:second.txt`])).toBe("second");
+
+    const observed = await observeRepositoryDeliveryPosition(plan, interrupted.value, interrupted.revision, {
+      exec,
+      cwd: repository,
+      host,
+      repository: repositoryName,
+      remoteHeads: Object.fromEntries(state.members.flatMap((member) => (
+        member.ref === null || member.coordinates === null
+          ? [] : [[member.ref.replace(/^refs\/heads\//u, ""), member.coordinates.head]]
+      ))),
+      localCommits: Object.fromEntries(state.members.flatMap((member) => (
+        member.coordinates === null ? [] : [[member.coordinates.head, true]]
+      ))),
+      materializeTarget: async (coordinates) => (
+        coordinates.head === mergedHead && coordinates.tree === (await coordinate(mergedHead)).tree
+      ),
+      observeLandedResult: observation.observeLandedResult,
+      proveContribution: (endpoints) => proveGitDeliveryContribution({
+        exec: rawExec,
+        ...projectDeliveryContributionEndpoints(endpoints),
+      }),
+    });
+    expect(observed).toMatchObject({
+      status: "observed",
+      operationObservation: { outcome: "applied" },
+      projectedState: { activeOperation: null, target: { coordinates: { head: mergedHead } } },
+    });
   });
 });
