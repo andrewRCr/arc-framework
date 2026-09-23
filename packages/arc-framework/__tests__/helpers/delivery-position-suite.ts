@@ -1581,7 +1581,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       selectedDeliverableId,
       verification: {
         target: continuation.verification.target,
-        tier1Reuse: {
+        tier1ReuseCriteria: {
           kind: "exact-tree",
           targetTree: continuation.verification.target.tree,
           requiredResult: "passed",

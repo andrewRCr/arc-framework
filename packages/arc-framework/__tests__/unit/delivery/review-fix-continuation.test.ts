@@ -622,7 +622,7 @@ describe("delivery review-fix continuation projection", () => {
       status: "verification-required",
       verification: {
         target: continuation.verification.target,
-        tier1Reuse: { targetTree: continuation.verification.target.tree },
+        tier1ReuseCriteria: { targetTree: continuation.verification.target.tree },
       },
       resumeAction: { input: { repository: request.repository, remote: request.remote } },
     });
