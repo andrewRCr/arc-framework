@@ -730,8 +730,9 @@ continuation. Invoke [`validate-criteria`][validate-criteria] at member scope on
 `memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
 conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
 arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind Tier 1 to
-`verification.target`. Rerun by default. Reuse is admissible only under `tier1Reuse` when an existing passed result
-names exactly `targetTree` and every covered input is unchanged; inconclusive evidence reruns the tier.
+`verification.target`. Rerun by default. Reuse is admissible only under `tier1ReuseCriteria` when
+an existing passed result names exactly `targetTree` and every covered input is unchanged; inconclusive evidence
+reruns the tier.
 
 Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to
 describe the scope actually run, echoes the exact `target`, records non-empty evidence references for the

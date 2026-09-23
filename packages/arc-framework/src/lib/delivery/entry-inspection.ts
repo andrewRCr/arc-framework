@@ -319,7 +319,7 @@ export const DeliveryEntryInspectionResultSchema = z.discriminatedUnion("status"
         head: DeliveryGitObjectIdSchema,
         tree: DeliveryGitObjectIdSchema,
       }),
-      tier1Reuse: z.strictObject({
+      tier1ReuseCriteria: z.strictObject({
         kind: z.literal("exact-tree"),
         targetTree: DeliveryGitObjectIdSchema,
         requiredResult: z.literal("passed"),

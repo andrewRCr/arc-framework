@@ -323,7 +323,7 @@ const ReviewFixVerificationSchema = z.strictObject({
   memberDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1),
   tier1Required: z.literal(true),
   target: CoordinateSchema,
-  tier1Reuse: z.strictObject({
+  tier1ReuseCriteria: z.strictObject({
     kind: z.literal("exact-tree"),
     targetTree: GitObjectIdSchema,
     requiredResult: z.literal("passed"),

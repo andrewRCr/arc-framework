@@ -811,7 +811,7 @@ describe("delivery entry inspection", () => {
           memberDeliverableIds,
           tier1Required: true,
           target: { head: terminal.head, tree: terminal.tree },
-          tier1Reuse: {
+          tier1ReuseCriteria: {
             kind: "exact-tree",
             targetTree: terminal.tree,
             requiredResult: "passed",
