@@ -207,6 +207,24 @@ execution-entry contract violation.
          reachability: cumulative tree through this member
      ```
 
+     **Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After
+     the primary member walk, load its adversarial companion.
+
+     > [!IMPORTANT]
+     > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally
+     > at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
+     >
+     > ```yaml
+     > adversarial-review:
+     >   rubric:          # selected member Success Criteria group
+     >   artifacts:       # upstream design + task list with markings withheld + member diff and reachable tree
+     >   orientation:
+     >     - AGENT-BRIEF.ARC
+     >     - AGENT-BRIEF.PROJECT
+     >   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+     >   prior-findings:  # pass two onward; omitted on pass one
+     > ```
+
      Before advancing beyond the member, close its scale-attention result against the exact committed member span.
      When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4
      and obtain the commit in item 5, then return here before starting the next task. Under
@@ -383,6 +401,7 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
+[adversarial-review]: ../../methods/adversarial-review.md
 [review-chunking]: ../../methods/review-chunking.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
