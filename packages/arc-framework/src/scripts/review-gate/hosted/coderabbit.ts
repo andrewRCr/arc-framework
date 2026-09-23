@@ -245,7 +245,7 @@ interface SupplementalSection {
   count: number;
   start: number;
   end: number;
-  blockId: number;
+  blockId: number | null;
 }
 
 interface SummaryMatch {
@@ -293,22 +293,57 @@ function summaryMatches(body: string): SummaryMatch[] {
   }));
 }
 
-function supplementalSection(
-  match: SummaryMatch,
-  block: DetailsBlock,
-): SupplementalSection | null {
-  const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
+function supplementalHeader(text: string): Pick<SupplementalSection, "category" | "count"> | null {
+  const countMatch = /\((\d+)\)\s*$/u.exec(text);
   if (countMatch?.[1] === undefined) return null;
   const count = nonNegativeInteger(countMatch[1]);
   if (count === null) return null;
-  const label = match.text.slice(0, countMatch.index).toLowerCase();
+  const label = text.slice(0, countMatch.index).toLowerCase();
   if (label.includes("nitpick") && label.includes("comment")) {
-    return { category: "nitpick", count, start: match.end, end: block.closeStart, blockId: block.id };
+    return { category: "nitpick", count };
   }
   if (label.includes("outside") && label.includes("diff") && label.includes("comment")) {
-    return { category: "outside-diff", count, start: match.end, end: block.closeStart, blockId: block.id };
+    return { category: "outside-diff", count };
   }
   return null;
+}
+
+function supplementalSection(match: SummaryMatch, block: DetailsBlock): SupplementalSection | null {
+  const header = supplementalHeader(match.text);
+  return header === null
+    ? null
+    : { ...header, start: match.end, end: block.closeStart, blockId: block.id };
+}
+
+function calloutSections(body: string, blocks: readonly DetailsBlock[]): SupplementalSection[] {
+  const sections: SupplementalSection[] = [];
+  const fencedRanges = fencedMarkdownRanges(body);
+  const callouts = body.matchAll(
+    /^[\t ]*>[\t ]*\[!CAUTION\][^\r\n]*(?:(?:\r\n|\r|\n)[\t ]*>[^\r\n]*)*/gimu,
+  );
+  for (const callout of callouts) {
+    if (fencedRanges.some((range) => range.start <= callout.index && callout.index < range.end)
+      || blocks.some((block) => block.openStart < callout.index && callout.index < block.closeEnd)) continue;
+    const headers = [...callout[0].matchAll(/^[\t ]*>[\t ]*\*\*([^*\r\n]+)\*\*[\t ]*$/gmu)]
+      .flatMap((match) => {
+        const start = callout.index + match.index;
+        const header = supplementalHeader(match[1] ?? "");
+        return header === null
+          || fencedRanges.some((range) => range.start <= start && start < range.end)
+          || blocks.some((block) => block.openStart < start && start < block.closeEnd)
+          ? [] : [{ ...header, start, end: start + match[0].length }];
+      });
+    for (const [index, header] of headers.entries()) {
+      sections.push({
+        category: header.category,
+        count: header.count,
+        start: header.end,
+        end: headers[index + 1]?.start ?? callout.index + callout[0].length,
+        blockId: null,
+      });
+    }
+  }
+  return sections;
 }
 
 function inlineCodeRanges(line: string): TextRange[] {
@@ -336,6 +371,31 @@ function fenceRun(line: string): { fence: MarkdownFence; rest: string } | null {
     fence: { marker: match[1][0] as "`" | "~", length: match[1].length },
     rest: match[2],
   };
+}
+
+function fencedMarkdownRanges(body: string): TextRange[] {
+  const ranges: TextRange[] = [];
+  let fence: MarkdownFence | null = null;
+  let start = 0;
+  for (const lineMatch of body.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/gu)) {
+    if (lineMatch[0].length === 0) continue;
+    const line = lineMatch[0].replace(/(?:\r\n|\r|\n)$/u, "");
+    const run = fenceRun(line);
+    if (fence === null) {
+      if (run !== null) {
+        fence = run.fence;
+        start = lineMatch.index;
+      }
+    } else if (run !== null
+      && run.fence.marker === fence.marker
+      && run.fence.length >= fence.length
+      && run.rest.trim().length === 0) {
+      ranges.push({ start, end: lineMatch.index + lineMatch[0].length });
+      fence = null;
+    }
+  }
+  if (fence !== null) ranges.push({ start, end: body.length });
+  return ranges;
 }
 
 function isMarkdownEscaped(line: string, index: number): boolean {
@@ -459,12 +519,71 @@ function malformedWithContext(
   return malformed(diagnostic(reason, context));
 }
 
+function parseCalloutSection(
+  review: HostedGitHubReview,
+  body: string,
+  section: SupplementalSection,
+  blocks: readonly DetailsBlock[],
+): SupplementalParseResult {
+  const items = blocks.filter((block) => block.parentId === null
+    && block.openStart >= section.start && block.closeEnd <= section.end);
+  const findings: ReviewBodyFinding[] = [];
+  for (const item of items) {
+    const semanticItem = maskDetailsRanges(body, item.openEnd, item.closeStart,
+      blocks.filter((block) => block.parentId === item.id));
+    const markers = [...semanticItem.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
+    const marker = markers[0];
+    if (markers.length !== 1 || marker === undefined) {
+      return malformedWithContext("provider-supplemental-finding-count-mismatch", {
+        category: section.category,
+        group: "callout",
+        advertised: 1,
+        markers: markers.length,
+      });
+    }
+    const fingerprint = marker[1] as string;
+    const content = semanticItem.slice(0, marker.index);
+    const loci = [...content.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+:\d+(?:-\d+)?)`[\t ]*$/gmu)];
+    const locus = loci[0];
+    const context = { category: section.category, fingerprint };
+    if (locus?.[1] === undefined) {
+      return malformedWithContext("provider-body-finding-locus-unrecognized", context);
+    }
+    const locusLineEnd = content.indexOf("\n", locus.index);
+    const severityLineEnd = locusLineEnd === -1 ? -1 : content.indexOf("\n", locusLineEnd + 1);
+    const severityLine = locusLineEnd === -1 ? "" : content.slice(locusLineEnd + 1,
+      severityLineEnd === -1 ? undefined : severityLineEnd);
+    const parsedSeverity = severity(severityLine);
+    if (parsedSeverity === null) {
+      return malformedWithContext("provider-body-finding-severity-unrecognized", context);
+    }
+    const substantiveBody = severityLineEnd === -1 ? "" : content.slice(severityLineEnd + 1)
+      .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "").trim();
+    if (substantiveBody.length === 0) {
+      return malformedWithContext("provider-body-finding-empty", context);
+    }
+    findings.push({
+      findingId: `${review.id}:${fingerprint}`,
+      origin: "review-body",
+      reviewId: review.id,
+      fingerprint,
+      settlement: "not-applicable",
+      severity: parsedSeverity,
+      locus: locus[1],
+      url: review.url,
+      body: body.slice(item.openEnd + locus.index, item.openEnd + marker.index).trim(),
+    });
+  }
+  return { kind: "parsed", findings };
+}
+
 function parseSupplementalSection(
   review: HostedGitHubReview,
   body: string,
   section: SupplementalSection,
   blocks: readonly DetailsBlock[],
 ): SupplementalParseResult {
+  if (section.blockId === null) return parseCalloutSection(review, body, section, blocks);
   const groups = blocks.filter((block) => block.parentId === section.blockId).flatMap((block) => {
     const match = directSummary(body, block, blocks);
     if (match === null) return [];
@@ -588,7 +707,9 @@ export function parseCodeRabbitReviewBody(
       const summary = directSummary(detailBody, block, blocks);
       return summary === null ? [] : [supplementalSection(summary, block)];
     })
-    .filter((section): section is SupplementalSection => section !== null);
+    .filter((section): section is SupplementalSection => section !== null)
+    .concat(calloutSections(detailBody, blocks))
+    .sort((left, right) => left.start - right.start);
   const findings: ReviewBodyFinding[] = [];
   for (const section of sections) {
     const parsed = parseSupplementalSection(
@@ -618,9 +739,9 @@ export function parseCodeRabbitReviewBody(
       .reduce((total, section) => total + section.count, 0),
   };
   const markerCount = sections.reduce((total, section) => {
-    const groupIds = new Set(blocks
-      .filter((block) => block.parentId === section.blockId)
-      .map((block) => block.id));
+    const groupIds = new Set(blocks.filter((block) => section.blockId === null
+      ? block.parentId === null && block.openStart >= section.start && block.closeEnd <= section.end
+      : block.parentId === section.blockId).map((block) => block.id));
     const semanticSectionBody = maskDetailsRanges(
       detailBody,
       section.start,
