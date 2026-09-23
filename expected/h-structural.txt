@@ -1,0 +1,12 @@
+== clean merge of main into the top, departure on t.txt (terminal's path), fix on m1.txt placed on m1
+   J=3 R=[t.txt ] complete  m2'+base merge-tree clean=yes  merge vs clean differs on [t.txt ]  R paths: t.txt=own
+   terminal proof (after-pred=merge): []
+== conflicting merge on t.txt (b7 shape), fix on m1.txt placed on m1
+   J=3 R=[t.txt ] complete  m2'+base merge-tree clean=yes  merge vs clean differs on [t.txt ]  R paths: t.txt=own
+   terminal proof (after-pred=merge): [t.txt ]
+== conflicting merge + departure on a base-added path, fix placed on m2
+   J=3 R=[n.txt t.txt ] complete  m2'+base merge-tree clean=yes  merge vs clean differs on [n.txt t.txt ]  R paths: n.txt=own t.txt=own
+   terminal proof (after-pred=merge): [t.txt ]
+== clean merge, no departure (control), fix on m1
+   J=3 R=[] complete  m2'+base merge-tree clean=yes  merge vs clean differs on []  R paths:
+   terminal proof (after-pred=merge): []

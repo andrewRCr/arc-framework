@@ -1,0 +1,17 @@
+E5: disjoint B2 adds z.txt; the top's merge departs on it (an unowned departure)
+  mixed (D-B) : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 4d63aec0f8aa441543eedf96feeade1d9517f68c 
+  candidates  : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 4d63aec0f8aa441543eedf96feeade1d9517f68c 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+   m1 z.txt=[]   m2 z.txt=[]   m3 z.txt=[z main ADAPTED ]
+   m1 z.txt=[]   m2 z.txt=[]   m3 z.txt=[z main ADAPTED ]
+  mixed (D-B) : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 4d63aec0f8aa441543eedf96feeade1d9517f68c 
+  candidates  : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 4d63aec0f8aa441543eedf96feeade1d9517f68c 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+   m1 z.txt=[]   m2 z.txt=[]   m3 z.txt=[z main ADAPTED ]
+   m1 z.txt=[]   m2 z.txt=[]   m3 z.txt=[z main ADAPTED ]

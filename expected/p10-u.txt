@@ -1,0 +1,2 @@
+unbroken chain, fix on m1 touching the line m3 changed in the shared s.txt:
+  -> STOP m1(fix) conflict s.txt     AU[1]=[m1.txt s.txt ]

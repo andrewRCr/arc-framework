@@ -1,0 +1,46 @@
+== owner cases (clean merge of main, departure on q.txt / t.txt / main-added n.txt)
+departure on q.txt (owner m1): J=1 R=[q.txt ] guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt q.txt ] q.txt=[q m1 ADAPTED ] n.txt=[] t.txt=[t ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ADAPTED ] n.txt=[] t.txt=[t ]
+   m3 parents=1 authored-diff=[m3.txt t.txt ] q.txt=[q m1 ADAPTED ] n.txt=[] t.txt=[t T3 ]
+   idempotent: ===
+departure on t.txt (owner m3): J=3 R=[t.txt ] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt q.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m3 parents=1 authored-diff=[m3.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t T3 ADAPTED ]
+   idempotent: ===
+departure on n.txt (owner m0): J=3 R=[n.txt ] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt q.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m3 parents=1 authored-diff=[m3.txt t.txt ] q.txt=[q m1 ] n.txt=[n main ADAPTED ] t.txt=[t T3 ]
+   idempotent: ===
+== 4ae7872f3 shape: conflict on t.txt (terminal) + departures on q.txt (m1) and n.txt (main-added)
+no placement: J=1 R=[n.txt q.txt t.txt ] guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt n.txt q.txt ] q.txt=[q m1 ADAPTED ] n.txt=[n main ADAPTED ] t.txt=[t MAIN ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ADAPTED ] n.txt=[n main ADAPTED ] t.txt=[t MAIN ]
+   m3 parents=1 authored-diff=[m3.txt t.txt ] q.txt=[q m1 ADAPTED ] n.txt=[n main ADAPTED ] t.txt=[t T3 MAIN ]
+   idempotent: ===
+then a fix placed on m1: J=1 R=[n.txt q.txt t.txt ] guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt n.txt q.txt ] q.txt=[q m1 ADAPTED ] n.txt=[n main ADAPTED ] t.txt=[t MAIN ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ADAPTED ] n.txt=[n main ADAPTED ] t.txt=[t MAIN ]
+   m3 parents=1 authored-diff=[m3.txt t.txt ] q.txt=[q m1 ADAPTED ] n.txt=[n main ADAPTED ] t.txt=[t T3 MAIN ]
+   idempotent: ===
+   proof m2 (unselected): []   terminal: [t.txt ]  R=[n.txt q.txt t.txt ]
+== the top fixes a file main added, in its own commit after the merge
+no placement: J=3 R=[] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt q.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m3 parents=1 authored-diff=[m3.txt n.txt t.txt ] q.txt=[q m1 ] n.txt=[n main FIXED-BY-WU ] t.txt=[t T3 ]
+   idempotent: ===
+placed on m1: J=1 R=[] guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt n.txt q.txt ] q.txt=[q m1 ] n.txt=[n main FIXED-BY-WU ] t.txt=[t ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ] n.txt=[n main FIXED-BY-WU ] t.txt=[t ]
+   m3 parents=1 authored-diff=[m3.txt t.txt ] q.txt=[q m1 ] n.txt=[n main FIXED-BY-WU ] t.txt=[t T3 ]
+   idempotent: ===
+== disjoint conflicted absorption at the terminal (b7): proofs
+fix on m1, conflicted terminal absorption: J=3 R=[t.txt ] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   m1 parents=1 authored-diff=[m1.txt q.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m2 parents=1 authored-diff=[m2.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t ]
+   m3 parents=1 authored-diff=[m3.txt ] q.txt=[q m1 ] n.txt=[] t.txt=[t T3 MAIN ]
+   idempotent: ===
+   proof m2: []  terminal after-pred=m2': [far.txt t.txt ]  after-pred=merge: [t.txt ]  R=[t.txt ]

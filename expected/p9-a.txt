@@ -1,0 +1,6 @@
+construct: J=1 R(chain base)=[api.txt base.txt t.txt ] out=3
+window = chain base B0          : [api.txt base.txt t.txt ]
+window = m2 recorded pred (S1)  : [api.txt base.txt t.txt ]
+window = m3 recorded pred (S2)  : [api.txt t.txt ]
+m2 raw proof paths: [base.txt ]
+m3 raw proof paths: [t.txt ]

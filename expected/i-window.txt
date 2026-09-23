@@ -1,0 +1,7 @@
+construct: J=1 R(chain base)=[n.txt q.txt t.txt ]
+window = old chain base B0          : [n.txt q.txt t.txt ]
+window = m1's recorded base (B0)    : [n.txt q.txt t.txt ]
+window = m2's recorded base (old m1): [n.txt q.txt t.txt ]
+window = m3's recorded base (old m2): [n.txt q.txt t.txt ]
+window = B1 (target after 1st rewrite, and the re-anchored snapshot's chain base): []
+proofs, old -> new: m2 []  m3 [t.txt ]

@@ -1,0 +1,51 @@
+== A. first cut over the pass-four topologies
+S1 in-range base merge (disjoint) [uncut]      guard=PASS
+S1 in-range base merge (disjoint)              guard=PASS                   complete   d3=ancestor     shape=11   auth= ok            tipcheck= none
+                                               idempotent over its own output: ==
+S2 in-range merge resolved a conflict [uncut]  guard=REFUSE m1:[shared.txt ]
+S2 in-range merge resolved a conflict          guard=PASS                   complete   d3=ancestor     shape=11   auth= ok            tipcheck= none
+                                               idempotent over its own output: ==
+   m1 shared.txt: a RESOLVED c   m1 parent is BP: yes
+   rebuilt over its own output: ==
+S3 merges in m2 and m3 [uncut]                 guard=PASS
+S3 merges in m2 and m3                         guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+S3 + disjoint tip movement (rebuild C0)        guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ===
+S3 + movement on m1, top not merged            REFUSE merge-base-into-top m1:[m1.txt ]
+== B. overlap on member 1 after the cut, reconciled on the top
+B uncut, cut points S1 S2 NT [uncut]           guard=REFUSE m1:[m1.txt ]
+B rebuild C0, no placement                     guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ***  m1 m1.txt=resolved  m1 parent is tip: yes
+   rebuilt over its own output: ===
+B fresh first cut S1 S2 NT                     guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs rebuild: ===
+== C. overlap on member 2 (middle), reconciled on the top
+C first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+C rebuild, no placement                        guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ***  m2 m2.txt=m2 RESOLVED 
+   rebuilt over its own output: ===
+== D. entangled: members 1 and 3 both edit the path the base moved
+D first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+D rebuild, no placement                        guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   m1 shared.txt: RES b c d e   m3: RES b c d E 
+== D2. members 1 and 3 edit the SAME hunk the base moved
+D2 first cut                                   guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+D2 rebuild                                     STOP ENTANGLED m1 shared.txt
+== E. disjoint movement merged into the top: terminal absorbs, lower members retained
+E first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+E disjoint, top not merged                     guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ===
+E disjoint, merged into top                    guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ==*

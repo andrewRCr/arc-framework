@@ -1,0 +1,2 @@
+D2 operand for m2 = merge-base(S2, tip): is it the in-range base B_x (main~1)? yes (edit base.txt)
+window = merge-base(m2, tip): [api.txt t.txt ]

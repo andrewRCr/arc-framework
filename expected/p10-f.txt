@@ -1,0 +1,50 @@
+R0: nothing moved (resume): construct over the mixed records vs the candidates N
+  mixed (D-B) : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 1a219125acfb9e628cbd456b9a5e1c29d57a229b 
+  N           : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 1a219125acfb9e628cbd456b9a5e1c29d57a229b
+  ids equal   : yes
+E1: base B2 moves api.txt (disjoint); the top merges it
+  mixed (D-B) : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 c9ff4fe8bd39c044790fcce1151d98f918ad28bf 
+  candidates  : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 c9ff4fe8bd39c044790fcce1151d98f918ad28bf 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+  mixed (D-B) : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 c9ff4fe8bd39c044790fcce1151d98f918ad28bf 
+  candidates  : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 c9ff4fe8bd39c044790fcce1151d98f918ad28bf 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+E2: base B2 adds m2.txt (overlaps m2); the top resolves it
+  mixed (D-B) : cee38d6e0aa269eac0ba5821c5d69633f031cb30 effe69bccf1254eeabe9ac4ea89f310bf81d3cf3 3600c913f50cd10948f04a8ecfa79d1bdeb384a8 
+  candidates  : cee38d6e0aa269eac0ba5821c5d69633f031cb30 effe69bccf1254eeabe9ac4ea89f310bf81d3cf3 3600c913f50cd10948f04a8ecfa79d1bdeb384a8 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+  mixed (D-B) : cee38d6e0aa269eac0ba5821c5d69633f031cb30 effe69bccf1254eeabe9ac4ea89f310bf81d3cf3 3600c913f50cd10948f04a8ecfa79d1bdeb384a8 
+  candidates  : cee38d6e0aa269eac0ba5821c5d69633f031cb30 effe69bccf1254eeabe9ac4ea89f310bf81d3cf3 3600c913f50cd10948f04a8ecfa79d1bdeb384a8 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+E4: base B2 moves q.txt (overlaps m1, the rewritten member); the top resolves it
+  mixed (D-B) : 213a10c20e206862571110c3ba68fffc0dd56c94 6e8ce89dbd8a073f7223a9f06879bccc90e8580f b7a22c359a8637ed672ff5feeaab03d95d003fa9 
+  candidates  : 213a10c20e206862571110c3ba68fffc0dd56c94 6e8ce89dbd8a073f7223a9f06879bccc90e8580f b7a22c359a8637ed672ff5feeaab03d95d003fa9 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+  mixed (D-B) : 213a10c20e206862571110c3ba68fffc0dd56c94 6e8ce89dbd8a073f7223a9f06879bccc90e8580f b7a22c359a8637ed672ff5feeaab03d95d003fa9 
+  candidates  : 213a10c20e206862571110c3ba68fffc0dd56c94 6e8ce89dbd8a073f7223a9f06879bccc90e8580f b7a22c359a8637ed672ff5feeaab03d95d003fa9 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes
+E3: no base move; a second fix on the top for the selected member, placed on m1
+  mixed (D-B) : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a6056ea46c9b6f8b4232f56274d0008911be5180 
+  candidates  : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a6056ea46c9b6f8b4232f56274d0008911be5180 
+  ids equal   : yes
+   m1 tree equal: yes  parents equal: yes
+   m2 tree equal: yes  parents equal: yes
+   m3 tree equal: yes  parents equal: yes

@@ -1,0 +1,14 @@
+== RULE=lib6
+R1 middle overlap + disjoint far2              guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   presentation: [m1.txt] [m2.txt] [m3.txt]
+R2 + fix placed on m1                          guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   m1.txt=m1 FIX  presentation: [m1.txt] [m2.txt] [m3.txt]
+R3 + fix placed on m3                          guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   m3.txt=m3 FIX  presentation: [m1.txt] [m2.txt] [m3.txt]
+R4 provider restack over it, fix on m1: d2 proof=accept d3 proof=accept m2 kept=yes m3 kept=yes
+R5 then disjoint far3 merged into top          guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs R: ==*  presentation: [m1.txt] [m2.txt] [far3.txt m3.txt]

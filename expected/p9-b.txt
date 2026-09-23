@@ -1,0 +1,12 @@
+corr1: J=3 R=[t.txt ] members=3 terminal-parents=3
+corr1 terminal merge-base with B_a == B_a ? yes
+corr2: J=1 R(chain base)=[api.txt t.txt ] out=[865282607c20944de5a206a5eedff7111f464bd5 60daed635d8d8946482e40634780bf250847568a 8c061b4305e75dea60685d4fbf2a077d18eb5989 ]
+terminal recorded predecessor == N1 m2 ? yes
+window = chain base B0                      : [api.txt t.txt ]
+window = terminal recorded pred (N1 m2)     : [api.txt t.txt ]
+D2 operand merge-base(terminal, tip) == B_a ? yes
+window = merge-base(recorded terminal, tip) : [api.txt ]
+window = re-anchored base B_b               : []
+terminal raw proof paths old->new: [t.txt ]
+m2 raw proof paths old->new      : []
+terminal rebuilt t.txt == top's own ? yes

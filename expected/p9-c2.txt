@@ -1,0 +1,5 @@
+On branch wu
+nothing to commit, working tree clean
+D2 guard over the candidates vs B2: PASS
+construct, mixed records, chain base B1: J=3 R=[] -> [6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 c9ff4fe8bd39c044790fcce1151d98f918ad28bf ]
+R from B1 (chain base now) = []   R from B0 (m2/m3 recorded bases' base) = [n.txt q.txt t.txt ]  R from C0[1] (m3 recorded pred) = [n.txt q.txt t.txt ]

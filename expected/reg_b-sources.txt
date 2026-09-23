@@ -1,0 +1,68 @@
+== F. two sequential pre-publication fixes (pass five's case B)
+F first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+F fix1 placed on m1                            guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ***  m1 FIX1=1
+F fix2 placed on m2, chain as it stands        guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C1: =**  m1 FIX1=1  m2 FIX2=1
+F fix2 on m2, original cut points              guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   (the cut list's terminal is the pre-fix top, so the delta to the corrected top is fix1+fix2 -> m1 FIX1=0)
+== G. a binding stopped after member 2, re-run over the mixed chain (pass five's case A)
+G first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+G full rebuild, fix on m2                      guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+G re-run over mixed chain, own predecessors    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs full rebuild: ===
+G re-run over mixed chain, list neighbours     guard=PASS                   INCOMPLETE d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ==*
+   vs full rebuild: ==*
+G re-run, stopped after member 1               guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs full rebuild: ===
+== H. authoring-side recut: a hand chain on a base the top lacks (probe 2's shape)
+H hand chain                                   guard=PASS                   INCOMPLETE d3=not-ancestor shape=111  auth= ok            tipcheck= none
+H construct over the hand chain as it stands   REFUSE anchor-not-in-top: recut from the top's history
+H construct from the cut list (the recut)      guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+== I. placement on member 1 (the path the pass-four spike modelled wrongly)
+I first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+I1 fix on m1, range merged a disjoint base     guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ***  m1 FIX=1  m1 far.txt=absent  m3 far.txt=f
+I2 first cut                                   guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+I2 fix on m1, range merged a base overlapping m1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   m1 m1.txt=RES x FIX  m1 on tip: yes
+I2 same, no placement                          guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+== J. the pass-four placement cases, re-run
+J first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+S5a fix m2, later member edits other hunk      guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+S5b fix m2, later member edits same hunk       STOP m2(fix) conflict shared.txt 
+J first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+S6 fix m2, range absorbed a newer base         guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: =**
+J first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+S6b fix m2, range merged a conflicting base    guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: =**  m3 m3.txt=m3-resolved
+J first cut                                    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+S7a further work -> terminal                   guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ==*
+S7b + base merge into top -> terminal          guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs C0: ==*

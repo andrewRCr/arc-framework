@@ -1,0 +1,4 @@
+full rebuild: J=1 R=[n.txt q.txt t.txt ] out=[6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 1a219125acfb9e628cbd456b9a5e1c29d57a229b ]
+N0 parent is B1 ? yes
+re-run over mixed records: J=0 R(chain base B1)=[] out=[6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 1a219125acfb9e628cbd456b9a5e1c29d57a229b ]
+same ids as full rebuild? yes

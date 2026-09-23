@@ -1,0 +1,15 @@
+== K. provider restack (plain rebase) over the new shapes
+K1 member 1 re-anchored, m2 m3 single commits: d2 proof=accept d3 proof=accept m2 kept=yes m3 kept=yes
+K2 member 2 absorbed with a resolution: d2 proof=accept d3 proof=accept m2 kept=yes m3 kept=yes
+K2' fix republished on member 2 instead:
+   d3 proof=accept
+== L. the authored-commit check
+L1 member 2 merges B1 then deliberately restores base.txt guard=PASS                   complete   d3=ancestor     shape=11   auth= ok            tipcheck= none
+                                               idempotent over its own output: ==
+L2 planted mis-attribution                     guard=PASS                   complete   auth= m2:[other.txt ]   tipcheck= m2:other.txt
+== M. controller predicate: construct owed while the chain does not close and construct would clear it
+M1 fix on the top, chain not rebuilt:        construct (PASS, INCOMPLETE)
+M1 after construct:                          rematerialize
+M2 overlap on m1, top not reconciled:        stop: REFUSE m1:[m1.txt ] (not clearable)
+M2 top reconciled:                           construct (REFUSE m1:[m1.txt ], INCOMPLETE)
+M2 after construct:                          rematerialize

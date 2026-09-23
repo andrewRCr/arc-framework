@@ -1,0 +1,28 @@
+V1: first fix on m3 (above the break), placed on m3; second fix extends it
+  mixed : 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 6c96d5cd3f0f49b2e70c32120b141f9d0a37c9a0 
+  cands : 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 6c96d5cd3f0f49b2e70c32120b141f9d0a37c9a0 
+  equal : yes
+V2: second fix spans m1.txt and m2.txt, placed on m1
+  mixed : STOP m1(fix) conflict m2.txt  
+  cands : STOP m1(fix) conflict m2.txt  
+  equal : yes
+V3a: second fix, then disjoint B2 merged
+  mixed : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a359ed765cadbf680f1905cf96ab95537eb11a25 
+  cands : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a359ed765cadbf680f1905cf96ab95537eb11a25 
+  equal : yes
+V3b: disjoint B2 merged, then second fix
+  mixed : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a359ed765cadbf680f1905cf96ab95537eb11a25 
+  cands : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a359ed765cadbf680f1905cf96ab95537eb11a25 
+  equal : yes
+V4: a lifecycle record commit between the first fix and the second
+  mixed : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a6056ea46c9b6f8b4232f56274d0008911be5180 
+  cands : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a6056ea46c9b6f8b4232f56274d0008911be5180 
+  equal : yes
+V5: tail pending (m1, m2 rewritten), second fix
+  mixed : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a6056ea46c9b6f8b4232f56274d0008911be5180 
+  cands : bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a6056ea46c9b6f8b4232f56274d0008911be5180 
+  equal : yes
+V6: tail pending, nothing moved (resume)
+  mixed : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 1a219125acfb9e628cbd456b9a5e1c29d57a229b 
+  N     : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 1a219125acfb9e628cbd456b9a5e1c29d57a229b
+  equal : yes

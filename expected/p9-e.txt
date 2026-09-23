@@ -1,0 +1,21 @@
+E1: base B2 moves api.txt (disjoint); the top merges it
+  over mixed records : J=3 -> [6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 c9ff4fe8bd39c044790fcce1151d98f918ad28bf ]
+  over candidates    : J=3 R(chain base)=[] -> complete
+  m1 recorded (B1,N0) -> new: pred B1, proof [] window []
+  m2 recorded (C0_0,C0_1) -> new: proof [] window [n.txt q.txt t.txt ]
+  m3 recorded (C0_1,C0_2) -> new (after-predecessor: its absorption merge): proof [t.txt ] window [n.txt q.txt t.txt ]
+  new m2 t.txt=[t MAIN ]  new m3 t.txt=[t T3 MAIN ]  top t.txt=[t T3 MAIN ]
+E2: base B2 adds m2.txt (overlaps m2); the top resolves it
+  over mixed records : J=1 -> [cee38d6e0aa269eac0ba5821c5d69633f031cb30 effe69bccf1254eeabe9ac4ea89f310bf81d3cf3 3600c913f50cd10948f04a8ecfa79d1bdeb384a8 ]
+  over candidates    : J=1 R(chain base)=[m2.txt ] -> complete
+  m1 recorded (B1,N0) -> new: pred moved, proof [] window [m2.txt ]
+  m2 recorded (C0_0,C0_1) -> new: proof [m2.txt ] window [m2.txt n.txt q.txt t.txt ]
+  m3 recorded (C0_1,C0_2) -> new: proof [t.txt ] window [m2.txt n.txt q.txt t.txt ]
+  new m2 t.txt=[t MAIN ]  new m3 t.txt=[t T3 MAIN ]  top t.txt=[t T3 MAIN ]
+E3: no base move; a second fix on the top for the selected member, placed on m1
+  over mixed records : J=0 -> [bf8f8072a0b8d7ee013ab01d748dc866ff02a9bc 66862734b9b378d18c922147c3e7cfbc7c96fb5c a6056ea46c9b6f8b4232f56274d0008911be5180 ]
+  over candidates    : J=0 R(chain base)=[] -> complete
+  m1 recorded (B1,N0) -> new: pred B1, proof [m1.txt ] window []
+  m2 recorded (C0_0,C0_1) -> new: proof [] window [n.txt q.txt t.txt ]
+  m3 recorded (C0_1,C0_2) -> new: proof [t.txt ] window [n.txt q.txt t.txt ]
+  new m2 t.txt=[t MAIN ]  new m3 t.txt=[t T3 MAIN ]  top t.txt=[t T3 MAIN ]

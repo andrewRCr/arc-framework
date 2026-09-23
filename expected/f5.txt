@@ -1,0 +1,96 @@
+== 1. record, then a conflicting merge of main
+record-then-merge (place=0)
+   lib7: complete-run
+   lib8: J=1 R=[s.txt ] kept=0 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: ADMIT R=[s.txt ] records=0
+== 1b. a fix on a path outside R, then the merge
+fix(m1.txt)-then-merge (place=1)
+   lib7: STOP m1 entangled-delta s.txt 
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1 FIX]
+   m2 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1 FIX]
+   m3 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1 FIX]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: REFUSE authored [m1.txt ]
+== 2. fix-then-merge, the fix and the resolution on different hunks of s.txt (case 6's unfolded R-only fix)
+fix-then-merge, other hunk (place=1)
+   lib7: STOP m1 entangled-delta s.txt 
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 MAIN|g FIX] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 MAIN|g FIX] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 MAIN|g FIX] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: REFUSE authored [s.txt ]
+== 2b. control: merge-then-fix, the ordering lib7 already split
+merge-then-fix (place=1)
+   lib7: complete-run
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 MAIN|g FIX] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 MAIN|g FIX] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 MAIN|g FIX] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: REFUSE authored [s.txt ]
+== 3. fix-then-merge, same hunk
+fix-then-merge, same hunk (place=1)
+   lib7: STOP m1 entangled-delta s.txt 
+   lib8: STOP m1 entangled-delta s.txt
+   arms: REFUSE entangled [s.txt] (set the correction aside)
+== 3b. merge-then-fix, same hunk (the remedy's target shape: after the merge the fix reverts cleanly)
+merge-then-fix, same hunk (place=1)
+   lib7: complete-run
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: REFUSE authored [s.txt ]
+== 4. set aside: git revert of the fix (conflicts, resolved by hand) after the merge
+   revert message: This reverts commit 199e9e6d... == fix: yes
+set aside, nothing re-applied (case 5: the arms) (place=1)
+   lib7: STOP m1 entangled-delta s.txt 
+   lib8: J=1 R=[s.txt ] kept=0 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: ADMIT R=[s.txt ] records=0
+== 4a. re-applied as a new commit
+set aside + re-applied by hand (place=1)
+   lib7: STOP m1 entangled-delta s.txt 
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: REFUSE authored [s.txt ]
+== 4b. re-applied by reverting the revert
+set aside + revert of the revert (place=1)
+   lib7: STOP m1 entangled-delta s.txt 
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: REFUSE authored [s.txt ]
+== 4c. re-applied, placed on the terminal instead
+set aside + revert of the revert, placed on m3 (place=3)
+   lib7: STOP m3 entangled-delta s.txt 
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 MAIN|g] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 FIX MAIN|g] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: [s.txt ]
+   arms: REFUSE authored [s.txt ]
+== 7. two base merges in the delta, the fix between them
+record, merge, fix, merge (place=1)
+   lib7: STOP m1 entangled-delta s.txt 
+   lib8: J=1 R=[s.txt ] kept=1 guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   m1 parents=1 s.txt[2,7]=[b m1 MAIN2|g FIX] m1.txt=[m1]
+   m2 parents=1 s.txt[2,7]=[b m1 MAIN2|g FIX] m1.txt=[m1]
+   m3 parents=1 s.txt[2,7]=[b m1 MAIN2|g FIX] m1.txt=[m1]
+   idempotent: ===   proof m2: []  terminal: []
+   arms: REFUSE authored [s.txt ]

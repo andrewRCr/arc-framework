@@ -1,0 +1,4 @@
+S1 3-member first cut FORCEJ=none: guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   presentation: [m1.txt m1b.txt] [m2.txt] [m3.txt]
+S1 3-member first cut FORCEJ=1: guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+   presentation: [m1.txt m1b.txt] [m2.txt] [m3.txt]

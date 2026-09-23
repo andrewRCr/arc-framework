@@ -1,0 +1,16 @@
+== merge-then-fix, fix on line 7 of t.txt (R path, terminal's), placed on m3
+   J=3 R=[t.txt ] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   merge-parents=2  merge t.txt[2,7]=[t2 T3 MAIN|t7]  authored-diff=[m3.txt t.txt ] t.txt[2,7]=[t2 T3 MAIN|t7 FIX]
+   structural: merge R-path vs top-own=differs  vs split-point=equal
+== same, no placement
+   J=3 R=[t.txt ] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   merge-parents=2  merge t.txt[2,7]=[t2 T3 MAIN|t7]  authored-diff=[m3.txt t.txt ] t.txt[2,7]=[t2 T3 MAIN|t7 FIX]
+   structural: merge R-path vs top-own=differs  vs split-point=equal
+== fix-then-merge, fix on line 7, placed on m3
+   J=3 R=[t.txt ] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   merge-parents=2  merge t.txt[2,7]=[t2 T3 MAIN|t7]  authored-diff=[m3.txt t.txt ] t.txt[2,7]=[t2 T3 MAIN|t7 FIX]
+   structural: merge R-path vs top-own=differs  vs split-point=equal
+== control: no fix at all
+   J=3 R=[t.txt ] guard=PASS                   complete   d3=ancestor     shape=112  auth= ok            tipcheck= none
+   merge-parents=2  merge t.txt[2,7]=[t2 T3 MAIN|t7]  authored-diff=[m3.txt ] t.txt[2,7]=[t2 T3 MAIN|t7]
+   structural: merge R-path vs top-own=equal  vs split-point=equal
