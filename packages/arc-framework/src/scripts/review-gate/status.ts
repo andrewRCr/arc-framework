@@ -1036,7 +1036,7 @@ const ReviewStatusCommandResultSchemaInternal = z.union([
     currentBaseOid: z.null(),
     state: z.literal("blocked"),
     nextAction: z.literal("stop"),
-    reason: z.enum(["invalid-input", "status-unavailable"]),
+    reason: z.enum(["invalid-input", "wrong-route", "status-unavailable"]),
     detail: z.string().trim().min(1),
     remedy: SpineRemedySchema,
   }),

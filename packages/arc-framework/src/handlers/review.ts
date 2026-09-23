@@ -324,6 +324,7 @@ import { createLocalFailedCheckLogStore } from
 import {
   createReviewStatusPort,
   readRoutedObligation,
+  ReviewStatusWrongRouteError,
   resolveReviewStatusForWorkUnit,
 } from "../scripts/review-gate/status-composition.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
@@ -844,6 +845,7 @@ export async function handleReviewStatus(
         : dependencies.resolveWorkUnit(cwd, parsed.data)),
     ))}\n`);
   } catch (error) {
+    const wrongRoute = error instanceof ReviewStatusWrongRouteError;
     const detail = error instanceof Error ? error.message : String(error);
     dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
       schemaVersion: 1,
@@ -854,17 +856,24 @@ export async function handleReviewStatus(
       currentBaseOid: null,
       state: "blocked",
       nextAction: "stop",
-      reason: "status-unavailable",
+      reason: wrongRoute ? "wrong-route" : "status-unavailable",
       detail,
-      remedy: spineRemedy(
-        "Review status could not read its repository or host evidence.",
-        "Resolve the operational failure, then re-run",
-        "target" in parsed.data
-          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target)]
-          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId],
-      ),
+      remedy: wrongRoute
+        ? spineRemedy(
+          "The --work-unit route requires a current delivery status action.",
+          "For singleton review, use --target with the JSON targetRef from "
+            + "arc review change-request resolve; inspect its syntax with",
+          ["arc", "review", "status", "--help"],
+        )
+        : spineRemedy(
+          "Review status could not read its repository or host evidence.",
+          "Resolve the operational failure, then re-run",
+          "target" in parsed.data
+            ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target)]
+            : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId],
+        ),
     }))}\n`);
-    dependencies.setExitCode(1);
+    dependencies.setExitCode(wrongRoute ? 64 : 1);
   }
 }
 

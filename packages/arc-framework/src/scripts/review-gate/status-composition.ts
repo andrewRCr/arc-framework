@@ -945,6 +945,14 @@ export function selectDeliveryReviewStatusTarget(input: {
   };
 }
 
+/** A work-unit cursor was used where no delivery status action exists. */
+export class ReviewStatusWrongRouteError extends Error {
+  constructor(workUnitId: string) {
+    super(`Work unit '${workUnitId}' has no delivery status action. Use --target for singleton review.`);
+    this.name = "ReviewStatusWrongRouteError";
+  }
+}
+
 /** Resolve live stacked-delivery status without reconstructing a member target. */
 export async function resolveReviewStatusForWorkUnit(input: {
   readonly cwd: string;
@@ -956,15 +964,17 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly remote?: string;
 }): Promise<ReviewStatusResult> {
   const workUnitId = SlugSchema.parse(input.workUnitId);
-  const versionedBoundary = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
-  const boundary = versionedBoundary.boundary;
-  if (boundary?.locus !== "delivery-status-required"
-    || boundary.nextAction.workUnitId !== workUnitId
+  const { boundary, version } = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
+  if (boundary === null) throw new Error("The publication boundary is unavailable.");
+  if (boundary.locus !== "delivery-status-required") {
+    throw new ReviewStatusWrongRouteError(workUnitId);
+  }
+  if (boundary.nextAction.workUnitId !== workUnitId
     || boundary.reservation.target.kind !== "delivery"
     || boundary.reservation.target.workUnitId !== workUnitId
     || boundary.candidateSubjectDigest === null
-    || versionedBoundary.version === null) {
-    throw new Error("The work unit has no self-contained delivery status action.");
+    || version === null) {
+    throw new Error("The work unit's delivery status action does not match its current boundary.");
   }
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
   const delivery = await memberLookup.resolveTerminalRecords(workUnitId);
@@ -1043,7 +1053,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
   return bindDeliveryReviewTerminusOffer(result, {
     workUnitId,
     remote: input.remote ?? "origin",
-    expectedBoundaryVersion: versionedBoundary.version,
+    expectedBoundaryVersion: version,
     candidateId: boundary.candidateId,
     candidateSubjectDigest: boundary.candidateSubjectDigest,
   });
