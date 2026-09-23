@@ -13,11 +13,19 @@ export interface CodeRabbitProcessResult {
   canceled: boolean;
 }
 
+function redactCredentialAssignment(_match: string, key: string, separator: string, value: string): string {
+  const quote = value.startsWith('"') ? '"' : value.startsWith("'") ? "'" : "";
+  return `${key}${separator}${quote}[redacted]${quote}`;
+}
+
 function boundedDiagnostic(candidate: string): string {
   return candidate
     .replace(/\bBearer\s+\S+/giu, "Bearer [redacted]")
-    .replace(/\b(api[_-]?key|token|password|authorization)(\s*[:=]\s*)\S+/giu, "$1$2[redacted]")
-    .replace(/https?:\/\/[^\s/@]+:[^\s/@]+@/giu, "https://[redacted]@")
+    .replace(
+      /\b((?:[A-Za-z0-9]+[_-])*(?:api[_-]?key|token|password|authorization|secret))(["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,}]+)/giu,
+      redactCredentialAssignment,
+    )
+    .replace(/\b(https?:\/\/)[^\s/@]+@/giu, "$1[redacted]@")
     .replace(/\p{Cc}+/gu, " ")
     .replace(/\s+/gu, " ")
     .trim()

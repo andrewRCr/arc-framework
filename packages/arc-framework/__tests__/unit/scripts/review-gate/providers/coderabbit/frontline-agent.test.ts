@@ -155,6 +155,16 @@ describe("CodeRabbit structured frontline parser", () => {
     });
   });
 
+  it.each([
+    ["GITHUB_TOKEN=private-value", "GITHUB_TOKEN=[redacted]"],
+    ["{\"token\":\"private-value\",\"next\":\"keep\"}", "{\"token\":\"[redacted]\",\"next\":\"keep\"}"],
+    ["BUILD_SECRET='private value'", "BUILD_SECRET='[redacted]'"],
+    ["https://private-user@example.com/path", "https://[redacted]@example.com/path"],
+  ])("redacts credential-bearing process output: %s", (stderr, detail) => {
+    expect(parse("", { exitCode: 2, stderr }))
+      .toEqual({ kind: "failed", reason: `process-exit:2: ${detail}` });
+  });
+
   it("normalizes a structured provider file-cap refusal as unsupported capability", () => {
     const stdout = [
       { type: "review_context", reviewType: "committed" },
