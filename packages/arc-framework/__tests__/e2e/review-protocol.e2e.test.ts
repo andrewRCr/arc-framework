@@ -4,6 +4,7 @@ import {
   chmod,
   mkdir,
   readFile,
+  rm,
   writeFile,
 } from "node:fs/promises";
 
@@ -276,6 +277,18 @@ describe("built review protocol", () => {
     const unreadable = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
     expect(unreadable.exitCode).toBe(1);
     expect(JSON.parse(unreadable.stdout)).toMatchObject({
+      state: "blocked",
+      reason: "status-unavailable",
+      remedy: {
+        argv: ["arc", "review", "status", "--work-unit", "review-protocol"],
+        text: expect.stringContaining("Resolve the operational failure"),
+      },
+    });
+
+    await rm(boundaryPath);
+    const missing = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
+    expect(missing.exitCode).toBe(1);
+    expect(JSON.parse(missing.stdout)).toMatchObject({
       state: "blocked",
       reason: "status-unavailable",
       remedy: {
