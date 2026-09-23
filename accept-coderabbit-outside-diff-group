@@ -3,7 +3,7 @@
   "slug": "accept-coderabbit-outside-diff-group",
   "claimId": "94ab6dda6ddf8ef3f4cc170822d7b537",
   "createdAt": "2026-09-23T02:29:56.140Z",
-  "updatedAt": "2026-09-23T02:29:56.140Z",
+  "updatedAt": "2026-09-23T03:19:22.144Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "accept-coderabbit-outside-diff-group",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Accept the callout-rendered outside-diff group in the CodeRabbit supplemental reader",
   "originEntrySourceDigest": "sha256:f4a71d245bf12b6d0943aa5fc73c80985ac0567ba3a2da2cfe7d292c39843a14",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/accept-coderabbit-outside-diff-group",
+    "headSha": "5cb5aab8eb2c8e9c0dfcdf16a518c4509a776006"
+  }
 }
