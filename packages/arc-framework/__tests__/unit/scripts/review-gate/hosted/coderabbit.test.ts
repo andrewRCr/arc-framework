@@ -973,6 +973,73 @@ This finding has no inline review thread.
     });
   });
 
+  it("keeps the initial callout locus when the finding cites another path", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟠 Major</em> · First locus · <code>legacy.ts:12</code></summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟠 Major_
+>
+> **The first locus is the finding location.**
+> \`src/related.ts:44\`
+> This later reference is supporting context.
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{
+        severity: "major",
+        locus: "src/legacy.ts:12",
+        body: expect.stringContaining("`src/related.ts:44`"),
+      }],
+    });
+  });
+
+  it("ignores fenced callout examples while reading a real outside-diff group", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+\`\`\`md
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+\`\`\`
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟡 Minor</em> · Real finding · <code>legacy.ts:12</code></summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟡 Minor_
+>
+> **Preserve the compatibility boundary.**
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ locus: "src/legacy.ts:12", severity: "minor" }],
+    });
+  });
+
   it("rejects a callout finding with only locus and severity metadata", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({

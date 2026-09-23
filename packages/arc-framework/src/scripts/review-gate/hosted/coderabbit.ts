@@ -317,16 +317,20 @@ function supplementalSection(match: SummaryMatch, block: DetailsBlock): Suppleme
 
 function calloutSections(body: string, blocks: readonly DetailsBlock[]): SupplementalSection[] {
   const sections: SupplementalSection[] = [];
+  const fencedRanges = fencedMarkdownRanges(body);
   const callouts = body.matchAll(
     /^[\t ]*>[\t ]*\[!CAUTION\][^\r\n]*(?:(?:\r\n|\r|\n)[\t ]*>[^\r\n]*)*/gimu,
   );
   for (const callout of callouts) {
-    if (blocks.some((block) => block.openStart < callout.index && callout.index < block.closeEnd)) continue;
+    if (fencedRanges.some((range) => range.start <= callout.index && callout.index < range.end)
+      || blocks.some((block) => block.openStart < callout.index && callout.index < block.closeEnd)) continue;
     const headers = [...callout[0].matchAll(/^[\t ]*>[\t ]*\*\*([^*\r\n]+)\*\*[\t ]*$/gmu)]
       .flatMap((match) => {
         const start = callout.index + match.index;
         const header = supplementalHeader(match[1] ?? "");
-        return header === null || blocks.some((block) => block.openStart < start && start < block.closeEnd)
+        return header === null
+          || fencedRanges.some((range) => range.start <= start && start < range.end)
+          || blocks.some((block) => block.openStart < start && start < block.closeEnd)
           ? [] : [{ ...header, start, end: start + match[0].length }];
       });
     for (const [index, header] of headers.entries()) {
@@ -367,6 +371,31 @@ function fenceRun(line: string): { fence: MarkdownFence; rest: string } | null {
     fence: { marker: match[1][0] as "`" | "~", length: match[1].length },
     rest: match[2],
   };
+}
+
+function fencedMarkdownRanges(body: string): TextRange[] {
+  const ranges: TextRange[] = [];
+  let fence: MarkdownFence | null = null;
+  let start = 0;
+  for (const lineMatch of body.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/gu)) {
+    if (lineMatch[0].length === 0) continue;
+    const line = lineMatch[0].replace(/(?:\r\n|\r|\n)$/u, "");
+    const run = fenceRun(line);
+    if (fence === null) {
+      if (run !== null) {
+        fence = run.fence;
+        start = lineMatch.index;
+      }
+    } else if (run !== null
+      && run.fence.marker === fence.marker
+      && run.fence.length >= fence.length
+      && run.rest.trim().length === 0) {
+      ranges.push({ start, end: lineMatch.index + lineMatch[0].length });
+      fence = null;
+    }
+  }
+  if (fence !== null) ranges.push({ start, end: body.length });
+  return ranges;
 }
 
 function isMarkdownEscaped(line: string, index: number): boolean {
@@ -515,7 +544,7 @@ function parseCalloutSection(
     const fingerprint = marker[1] as string;
     const content = semanticItem.slice(0, marker.index);
     const loci = [...content.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+:\d+(?:-\d+)?)`[\t ]*$/gmu)];
-    const locus = loci.at(-1);
+    const locus = loci[0];
     const context = { category: section.category, fingerprint };
     if (locus?.[1] === undefined) {
       return malformedWithContext("provider-body-finding-locus-unrecognized", context);
