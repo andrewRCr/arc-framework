@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 import { classifyFile } from "../../src/lib/classification.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -60,7 +62,7 @@ describe("packaged delivery workflow", () => {
     const terminalSection = section(packaged, "Terminal handoff");
     const terminalTail = packaged.slice(packaged.indexOf("arc delivery teardown"));
     const recoveryStart = materializeSection.indexOf("After interruption");
-    const recoveryEnd = materializeSection.indexOf("Only after every request ID exists");
+    const recoveryEnd = indexOfSoftWrappedProse(materializeSection, "Only after every request ID exists");
     expect(recoveryStart).toBeGreaterThan(-1);
     expect(recoveryEnd).toBeGreaterThan(recoveryStart);
     const recoverySection = materializeSection.slice(
@@ -103,8 +105,8 @@ describe("packaged delivery workflow", () => {
     expect(nativeSection).toMatch(
       /selected arm[\s\S]*never position facts[\s\S]*handler freshly reobserves position[\s\S]*native effect/iu,
     );
-    expect(nativeSection).not.toContain("only the plan, request, and remote locators");
-    expect(packaged).toContain("never enters the delivery plan or state");
+    expect(nativeSection).not.toMatch(softWrappedProse("only the plan, request, and remote locators"));
+    expect(packaged).toMatch(softWrappedProse("never enters the delivery plan or state"));
     expect(packaged).toContain("integrate-work-unit.md");
     const prepare = packaged.indexOf("arc delivery land prepare");
     const interlock = packaged.indexOf("`integration-interlock`", prepare);

@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
@@ -80,7 +82,7 @@ describe("PR-open lifecycle extensions", () => {
     expect(preMerge).toBeLessThan(mergeInterlock);
     expect(finalHead).toBeLessThan(mergeInterlock);
     expect(mergeInterlock).toBeLessThan(merge);
-    expect(workflow.slice(finalHead, mergeInterlock)).toContain("No commit or push may occur after `ready`");
+    expect(workflow.slice(finalHead, mergeInterlock)).toMatch(softWrappedProse("No commit or push may occur after `ready`"));
     expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
     expect(workflow).toContain("`integrating`; `open`");
     expect(workflow).toContain("`post-pr-open` → review iteration");
@@ -115,7 +117,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(reconcileStep).toBeGreaterThan(-1);
       expect(correctionPublish).toBeGreaterThan(reconcileStep);
       expect(integrate.slice(0, reconcileStep)).not.toContain("arc publish {name}");
-      expect(integrate).toContain("Step 1, from the idempotent **push** action");
+      expect(integrate).toMatch(softWrappedProse("Step 1, from the idempotent **push** action"));
     }
   });
 
@@ -253,7 +255,7 @@ describe("PR-open lifecycle extensions", () => {
     expect([hook, guard, create].every((index) => index >= 0)).toBe(true);
     expect(hook).toBeLessThan(guard);
     expect(guard).toBeLessThan(create);
-    expect(creation).toContain("pre-create validation requires the remote branch itself");
+    expect(creation).toMatch(softWrappedProse("pre-create validation requires the remote branch itself"));
     // The typed resolver owns the head check; a hand-rolled remote parse here
     // would be a second implementation of what it already returns.
     expect(creation).not.toContain("git ls-remote");
@@ -286,7 +288,7 @@ describe("PR-open lifecycle extensions", () => {
     );
 
     expect(workflow.match(/#pre-push-review/gu)).toHaveLength(1);
-    expect(workflow).toContain("Before every agent-managed push in this workflow");
+    expect(workflow).toMatch(softWrappedProse("Before every agent-managed push in this workflow"));
     const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`");
     const interlock = workflow.indexOf("`integration-interlock`", preMerge);
     expect(preMerge).toBeGreaterThan(-1);
@@ -405,9 +407,9 @@ describe("PR-open lifecycle extensions", () => {
     }
 
     const overview = await readFile(resolve(projectArc, "reference/TECHNICAL-OVERVIEW.md"), "utf8");
-    expect(overview).toContain("one configured review loop through the shipped `arc review` command tree");
-    expect(overview).toContain("The operating agent owns bounded judgment");
-    expect(overview).toContain("Draft-state lock is a per-PR structural hold");
+    expect(overview).toMatch(softWrappedProse("one configured review loop through the shipped `arc review` command tree"));
+    expect(overview).toMatch(softWrappedProse("The operating agent owns bounded judgment"));
+    expect(overview).toMatch(softWrappedProse("Draft-state lock is a per-PR structural hold"));
     expect(overview).toContain("merge.lock: draft");
     expect(overview).toMatch(/integration interlock remains the sole\s+merge authority/);
   });

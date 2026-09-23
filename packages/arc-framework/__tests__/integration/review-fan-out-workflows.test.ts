@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const paths = {
   delivery: [
@@ -133,8 +135,8 @@ describe("hosted review fan-out workflow", () => {
     expect(section).toMatch(
       /review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional Owner alternative[\s\S]*absent explicit acceptance[\s\S]*review action unchanged/iu,
     );
-    expect(section).toContain(
-      "When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first.",
+    expect(section).toMatch(
+      softWrappedProse("When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first."),
     );
     expect(section).toMatch(
       /Owner alternative first[\s\S]*Absent[\s\S]*explicit acceptance[\s\S]*selectionAction/iu,
@@ -145,7 +147,7 @@ describe("hosted review fan-out workflow", () => {
     expect(deliveryResume).toBeGreaterThanOrEqual(0);
     expect(singletonResume).toBeGreaterThan(deliveryResume);
     const publicDeliveryResume = section.slice(deliveryResume, singletonResume);
-    expect(section).toContain("selects the first outstanding retained member");
+    expect(section).toMatch(softWrappedProse("selects the first outstanding retained member"));
     expect(publicDeliveryResume).toContain("integrationBoundary.nextAction.command");
     expect(publicDeliveryResume).not.toContain("arc review pre-publication");
   });

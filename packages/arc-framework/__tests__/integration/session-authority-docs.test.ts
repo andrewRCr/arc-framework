@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const ROOT = resolve(import.meta.dirname, "../../../..");
 
 describe("session authority documentation", () => {
@@ -16,8 +18,8 @@ describe("session authority documentation", () => {
       const content = await readFile(path, "utf8");
       expect(content).toContain('git rev-parse --verify "refs/heads/<branch>^{commit}"');
       expect(content).not.toContain('git rev-parse "<branch>^{commit}"');
-      expect(content).toContain("This is a human resume pointer; typed status determines session phase");
-      expect(content).not.toContain("session-init's sessionType inference key on this prefix");
+      expect(content).toMatch(softWrappedProse("This is a human resume pointer; typed status determines session phase"));
+      expect(content).not.toMatch(softWrappedProse("session-init's sessionType inference key on this prefix"));
     }
   });
 

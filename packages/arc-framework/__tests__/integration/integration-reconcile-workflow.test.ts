@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 const WORKFLOWS = [
   join(
@@ -112,7 +114,7 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step.match(/`push-interlock` release/gu)).toHaveLength(4);
     expect(step.match(/`commit-interlock` release/gu)).toHaveLength(3);
     const flatStep = step.replace(/\s+/gu, " ");
-    const skippedClean = flatStep.indexOf("`skipped-clean / continue-reconcile` restarts this step without a push");
+    const skippedClean = indexOfSoftWrappedProse(flatStep, "`skipped-clean / continue-reconcile` restarts this step without a push");
     const mergedOnly = flatStep.indexOf("`merged / run-quality-gates`");
     const exactChecks = flatStep.indexOf("Tier 1 over the exact merged head", mergedOnly);
     const basePush = flatStep.indexOf("`push-interlock` release", exactChecks);
@@ -126,7 +128,7 @@ describe("integration current-WU reconcile workflow", () => {
     expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("arc review status");
     expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
 
-    expect(flatStep).toContain("Clearance never carries across the overlapping base-merge arm");
+    expect(flatStep).toMatch(softWrappedProse("Clearance never carries across the overlapping base-merge arm"));
     for (const invariant of [
       "Advisory receipts are not merge authority.",
       "The integration interlock is the sole merge authority.",

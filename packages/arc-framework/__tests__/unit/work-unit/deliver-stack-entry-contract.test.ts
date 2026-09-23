@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { indexOfSoftWrappedProse, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+
 const ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 const WORKFLOWS = [
   join(ROOT, "packages/arc-framework/arc/system/workflows/arc/supplemental/deliver-stack.md"),
@@ -22,16 +24,14 @@ describe("delivery discovered-entry workflow", () => {
       "correction-routing-required", "review-fix-verification-required", "refused",
     ]) expect(content).toContain(`\`${route}\``);
 
-    expect(content).toContain("Render `laterEntryCostText` and `recommendedActionText` verbatim when present");
-    expect(content).toContain("invokes `publicationAction.command` unchanged before reading position");
+    expect(content).toMatch(softWrappedProse("Render `laterEntryCostText` and `recommendedActionText` verbatim when present"));
+    expect(content).toMatch(softWrappedProse("invokes `publicationAction.command` unchanged before reading position"));
     expect(content).toContain("`authoring-required / author-correction`");
     expect(content).toContain("arc delivery review-fix continue -");
-    expect(content).toContain("`refused` stops before every eligibility or mutation verb");
-    expect(content).toContain("never parses headings, derives members, or re-decides cohesion");
+    expect(content).toMatch(softWrappedProse("`refused` stops before every eligibility or mutation verb"));
+    expect(content).toMatch(softWrappedProse("never parses headings, derives members, or re-decides cohesion"));
 
-    const continuationStart = content.indexOf(
-      "Before authoring or publishing any approved correction",
-    );
+    const continuationStart = indexOfSoftWrappedProse(content, "Before authoring or publishing any approved correction");
     const continuationEnd = content.indexOf("### Complete a review-fix verification continuation");
     expect(continuationStart).toBeGreaterThan(-1);
     expect(continuationEnd).toBeGreaterThan(continuationStart);
