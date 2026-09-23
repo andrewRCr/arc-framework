@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-changeset-resolve-rename",
+  "claimId": "a860aa179915b0c037af7f6f0e4c57bf",
+  "createdAt": "2026-09-23T18:19:19.592Z",
+  "updatedAt": "2026-09-23T18:19:19.592Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "review-changeset-resolve-rename",
+  "branch": "chore/review-changeset-resolve-rename",
+  "origin": "inbox",
+  "originEntry": "Rename `arc review chunking resolve` to match its changeset-sizing semantics",
+  "originEntrySourceDigest": "sha256:a8db87b604d29981e511c7d61d4cf50019fadd7b50e35aa16053e4425a3ab7c7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
