@@ -229,7 +229,7 @@ execution-entry contract violation.
      When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4
      and obtain the commit in item 5, then return here before starting the next task. Under
      `arc.commitInterlock: manual`, approval does not authorize delivery-member advancement or the missing commit;
-     item 5 stops for the developer's explicit commit invocation. Invoke `arc review chunking resolve -` with the
+     item 5 stops for the developer's explicit commit invocation. Invoke `arc review changeset resolve -` with the
      member's bounded `{ kind, baseRef, diffBaseSha, headSha }` target and any existing exact-target scope selection.
 
      - `disabled / none` records the returned exact target, state, and disposition; its typed envelope carries no

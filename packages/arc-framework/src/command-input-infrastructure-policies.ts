@@ -110,7 +110,7 @@ const rawGitCommandPaths = [
   "reopen",
   "repoint-design",
   "resume",
-  "review chunking resolve",
+  "review changeset resolve",
   "review change-request resolve",
   "review planning-grooming resolve",
   "review planning-lane",

@@ -74,7 +74,7 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "repoint-design", args: ["repoint-design", "invalid"], expected: { exitCode: 1 } },
   { commandPath: "resume", args: ["resume", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "review", args: ["review", "reduce", "-"], stdin: "", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
-  { commandPath: "review chunking resolve", args: ["review", "chunking", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
+  { commandPath: "review changeset resolve", args: ["review", "changeset", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "review change-request resolve", args: ["review", "change-request", "resolve", "--head-ref", "feat/matrix", "--head-sha", "invalid"], fixture: "arc-project", expected: { exitCode: 64, outputIncludes: "\"reason\":\"invalid-input\"" } },
   { commandPath: "review frontline run", args: ["review", "frontline", "run", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },
   { commandPath: "review planning-grooming resolve", args: ["review", "planning-grooming", "resolve", "-"], stdin: "{}\n", fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "\"code\":\"invalid-input\"" } },

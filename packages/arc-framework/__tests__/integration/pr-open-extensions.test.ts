@@ -168,7 +168,7 @@ describe("PR-open lifecycle extensions", () => {
       .every((index) => index >= 0)).toBe(true);
     expect(openedChangeRequest).toBeLessThan(reservation);
     expect(reservation).toBeLessThan(hostedRequest);
-    expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review chunking resolve -");
+    expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review changeset resolve -");
     const publicDeliveryResume = workflow.slice(deliveryResume, singletonResume);
     expect(publicDeliveryResume).toContain("integrationBoundary.nextAction.command");
     expect(publicDeliveryResume).toContain("WU-scoped public status reducer");

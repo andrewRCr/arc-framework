@@ -1941,10 +1941,10 @@ hostedCmd
   });
 
 reviewCmd
-  .command("chunking")
-  .description("Exact-target review chunking operations")
+  .command("changeset")
+  .description("Exact-target changeset-size review operations")
   .command("resolve")
-  .description("Resolve one immutable target's chunking recommendation as JSON")
+  .description("Resolve one immutable target's changeset-size recommendation as JSON")
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")

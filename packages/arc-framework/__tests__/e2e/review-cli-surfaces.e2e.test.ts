@@ -48,6 +48,7 @@ describe("packaged review CLI surfaces", () => {
     expect(reviewHelp.stdout).toContain("planning-lane");
     expect(reviewHelp.stdout).toContain("planning-grooming");
     expect(reviewHelp.stdout).toContain("change-request");
+    expect(reviewHelp.stdout).toContain("changeset");
     expect(reviewHelp.stdout).toContain("merge-method");
     expect(reviewHelp.stdout).toContain("checks");
     expect(reviewHelp.stdout).toMatch(/^\s+resolve(?:\s|\[)/mu);
@@ -61,7 +62,7 @@ describe("packaged review CLI surfaces", () => {
 
   it.each([
     [
-      ["review", "chunking", "resolve"],
+      ["review", "changeset", "resolve"],
       "review-chunking-resolve-request.schema.json",
       ["review-chunking-resolve-request"],
     ],
@@ -204,7 +205,7 @@ describe("packaged review CLI surfaces", () => {
 
   it("rejects combining schema discovery with a request source", async () => {
     const result = await runCli([
-      "review", "chunking", "resolve", invalidInputPath, "--schema",
+      "review", "changeset", "resolve", invalidInputPath, "--schema",
     ], { cwd: fixtureRoot });
 
     expect(result.exitCode).not.toBe(0);

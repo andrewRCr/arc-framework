@@ -760,7 +760,7 @@ describe("trusted review-gate workflows", () => {
     const packaged = await readRepositoryFile(
       "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
     );
-    expect(packaged).not.toContain("arc review chunking resolve");
+    expect(packaged).not.toContain("arc review changeset resolve");
     const frontline = sectionBetween(
       packaged,
       "Compose the immutable policy target",

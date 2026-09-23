@@ -97,7 +97,7 @@ describe("prepublication workflow boundary", () => {
 
       expect(taskLoop).toContain("    - review-chunking");
       const memberBoundary = taskLoop.indexOf("3. **Delivery-member boundary (conditional):**");
-      const memberScale = taskLoop.indexOf("arc review chunking resolve -", memberBoundary);
+      const memberScale = taskLoop.indexOf("arc review changeset resolve -", memberBoundary);
       const reportAndStop = taskLoop.indexOf("4. **Report and stop:**", memberBoundary);
       expect(memberScale).toBeGreaterThan(memberBoundary);
       expect(memberScale).toBeLessThan(reportAndStop);
@@ -120,7 +120,7 @@ describe("prepublication workflow boundary", () => {
         .toMatch(/metrics when the resolver\s+supplies them/u);
 
       const locate = delivery.indexOf("arc delivery authoring locate -");
-      const materializedScale = delivery.indexOf("arc review chunking resolve -", locate);
+      const materializedScale = delivery.indexOf("arc review changeset resolve -", locate);
       const tierTwo = delivery.indexOf("complete Tier 2 command set", locate);
       expect(materializedScale).toBeGreaterThan(locate);
       expect(materializedScale).toBeLessThan(tierTwo);

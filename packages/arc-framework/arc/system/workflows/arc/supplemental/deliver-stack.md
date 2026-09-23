@@ -82,7 +82,7 @@ For every returned locator in plan order, compose the exact materialized member 
 head and plan-ordered predecessor boundary, then invoke:
 
 ```bash
-arc review chunking resolve -
+arc review changeset resolve -
 ```
 
 Supply the member's `{ kind, baseRef, diffBaseSha, headSha }` and any exact-target scope selection retained from
