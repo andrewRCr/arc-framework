@@ -3,7 +3,7 @@
   "slug": "render-framework-help-usage",
   "claimId": "41ea5725a5fb02fb6348f9388e7765ae",
   "createdAt": "2026-09-22T23:52:45.380Z",
-  "updatedAt": "2026-09-22T23:52:45.380Z",
+  "updatedAt": "2026-09-23T00:23:19.718Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make the framework renderer expose usage instead of treating help as a path",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make the framework renderer expose usage instead of treating help as a path",
   "originEntrySourceDigest": "sha256:3d49634868abb307b329c106545144549b982a2b8348ed3dc1cdd541fb272204",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/render-framework-help-usage",
+    "headSha": "bb78ab88f2a6e75b07f5e09cc75a1457de93c3bc"
+  }
 }
