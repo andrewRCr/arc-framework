@@ -50,7 +50,7 @@ describe("live transition records", () => {
         .sort((left, right) => left.subject.localeCompare(right.subject)));
   });
 
-  it("materializes exactly eleven canonical origin-keyed records", async () => {
+  it("materializes every canonical origin-keyed record", async () => {
     const filenames = (await readdir(REPOSITORY_TRANSITION_DIRECTORY)).sort();
     expect(filenames).toEqual(TERMINAL_TRANSITION_ORACLE
       .map(({ origin }) => `${origin}.json`)
@@ -62,7 +62,6 @@ describe("live transition records", () => {
     const enumeration = await loadTransitionEnumeration();
     expect(enumeration.status).toBe("valid");
     if (enumeration.status !== "valid") return;
-    expect(enumeration.groups).toHaveLength(11);
     expect(enumeration.groups.map(({ origin, records }) => {
       expect(records).toHaveLength(1);
       const record = records[0];
