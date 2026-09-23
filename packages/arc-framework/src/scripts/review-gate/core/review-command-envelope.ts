@@ -71,6 +71,7 @@ export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
 export const ReviewCommandErrorCodeSchema = z.enum([
   "invalid-input",
   "corrupt-state",
+  "uncertain-provider-execution",
   "unexpected-failure",
 ]);
 export type ReviewCommandErrorCode = z.infer<typeof ReviewCommandErrorCodeSchema>;
@@ -104,6 +105,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
   "corrupt-state": (workUnit) => spineRemedy(
     "Pre-publication reduces only intact durable review evidence.",
     "Repair the reported durable record, then re-run",
+    prePublicationResumeArgv(workUnit),
+  ),
+  "uncertain-provider-execution": (workUnit) => spineRemedy(
+    "A frontline provider may have started without a durable outcome.",
+    "Inspect the provider run and settle an explicit retry decision, then re-run",
     prePublicationResumeArgv(workUnit),
   ),
   "unexpected-failure": (workUnit) => spineRemedy(
@@ -528,7 +534,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "unavailable",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineUnavailableRetryReasonSchema),
   ),
   envelopeVariant(
@@ -540,7 +546,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "timed-out",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineTimedOutReasonSchema),
   ),
   envelopeVariant(
@@ -552,7 +558,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "failed",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineFailedRetryReasonSchema),
   ),
   envelopeVariant(
@@ -854,6 +860,17 @@ export const ReduceEnvelopeSchema = z.union([
       ...ReductionBasePayload,
       retryCommand: z.enum(["local-attest", "frontline-run"]),
       requestRef: DurableReferenceSchema,
+    }),
+  ),
+  envelopeVariant(
+    "review-reduce",
+    "retryable",
+    "operator-repair",
+    z.strictObject({
+      ...ReductionBasePayload,
+      retryCommand: z.literal("frontline-run"),
+      requestRef: DurableReferenceSchema,
+      retryOfOperationId: IdentifierSchema,
     }),
   ),
   envelopeVariant(

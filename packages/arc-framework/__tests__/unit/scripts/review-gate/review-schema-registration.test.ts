@@ -308,6 +308,18 @@ describe("review schema registration", () => {
       target: coordinates,
       resolution,
     })).toMatchObject({ target: coordinates });
+    expect(FrontlineRunRequestSchema.parse({
+      schemaVersion: 1,
+      target: coordinates,
+      resolution,
+      retryOfOperationId: `sha256:${"a".repeat(64)}`,
+    })).toMatchObject({ retryOfOperationId: `sha256:${"a".repeat(64)}` });
+    expect(FrontlineRunRequestSchema.safeParse({
+      schemaVersion: 1,
+      target: coordinates,
+      resolution,
+      retryOfOperationId: "previous-run",
+    }).success).toBe(false);
     for (const extra of [
       { repositoryId: "repo-1" },
       { diffBaseTree: "b".repeat(40) },

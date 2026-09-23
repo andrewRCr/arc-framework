@@ -240,6 +240,10 @@ remote base all name the same exact head. Any tracked change continues through t
    target before continuing. Approved fixes run Tier 1 gates, commit atomically, push, and create a new target.
    Never carry clearance or merge authority.
 
+   A frontline `operator-repair` result replays on the same run request. Inspect its reason and operation ID;
+   another provider invocation requires an explicit Owner decision and a new request carrying
+   `retryOfOperationId`. A `review reduce` result with `retryable / operator-repair` supplies that ID.
+
 3. **Resolve the Errand PR** before creation. Invoke the exact-head resolver:
 
    ```bash

@@ -450,13 +450,18 @@ async function reduceFrontline(
   return ReduceEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-reduce",
-    diagnostics: [],
+    diagnostics: [{
+      code: "frontline-explicit-retry",
+      message: "The same frontline run request replays this outcome. Inspect the provider failure before "
+        + `submitting retryOfOperationId: '${operationId}' for one new review.`,
+    }],
     state: "retryable",
-    nextAction: "retry",
+    nextAction: "operator-repair",
     payload: {
       ...base,
       retryCommand: "frontline-run",
       requestRef: operationId,
+      retryOfOperationId: operationId,
     },
   });
 }

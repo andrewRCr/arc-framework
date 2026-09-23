@@ -18,6 +18,7 @@ const frontlineRunFields = {
   schemaVersion: z.literal(1),
   resolution: FrontlineResolveEnvelopeSchema,
   timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
+  retryOfOperationId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
 } as const;
 
 /** Public request: callers supply exact Git coordinates, never repository-local identities. */

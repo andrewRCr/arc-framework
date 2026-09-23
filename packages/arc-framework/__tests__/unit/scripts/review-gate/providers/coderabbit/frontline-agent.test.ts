@@ -97,6 +97,10 @@ describe("CodeRabbit structured frontline parser", () => {
       reviewedFiles: ["src/index.ts"],
     };
     expect(parse(JSON.stringify(complete))).toEqual({ kind: "partial" });
+    expect(parse(JSON.stringify({ ...complete, findings: 0, outcome: "failed" })))
+      .toEqual({ kind: "partial" });
+    expect(parse(JSON.stringify({ ...complete, findings: 0, unreviewedFileCount: 1 })))
+      .toEqual({ kind: "partial" });
     expect(parse(JSON.stringify({ ...complete, status: "review_skipped", findings: 0 })))
       .toEqual({ kind: "malformed" });
     expect(parse([JSON.stringify({ ...complete, findings: 0 }), JSON.stringify({ ...complete, findings: 0 })].join("\n")))
@@ -140,6 +144,15 @@ describe("CodeRabbit structured frontline parser", () => {
     });
     expect(parse("", { exitCode: null, signal: "SIGTERM" }))
       .toEqual({ kind: "failed", reason: "process-signal:SIGTERM" });
+    expect(parse("", { exitCode: 2, stderr: "auth token=private-value denied" }))
+      .toEqual({ kind: "failed", reason: "process-exit:2: auth token=[redacted] denied" });
+    expect(parse(JSON.stringify({
+      type: "error",
+      message: "Review startup failed: token=private-value storage unavailable",
+    }), { exitCode: 1 })).toEqual({
+      kind: "failed",
+      reason: "process-exit:1: Review startup failed: token=[redacted] storage unavailable",
+    });
   });
 
   it("normalizes a structured provider file-cap refusal as unsupported capability", () => {

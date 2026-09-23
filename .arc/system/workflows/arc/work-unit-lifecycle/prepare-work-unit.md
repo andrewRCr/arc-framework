@@ -142,6 +142,8 @@ Dispatch local operations only through public typed actions. The evaluator submi
 run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with
 `arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with
 `arc review respond -`. A command error envelope carries no dispatchable state.
+For frontline `operator-repair`, inspect the reported failure; another provider invocation requires an explicit
+Owner decision and a new run request carrying `retryOfOperationId` from the prior operation.
 
 For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present one
 unqualified severity when the reviewer and ARC grades agree, label both only when they differ, and include the source

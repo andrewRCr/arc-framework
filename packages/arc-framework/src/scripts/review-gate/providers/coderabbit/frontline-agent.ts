@@ -3,6 +3,7 @@
 import { canonicalDigest } from "../../../../lib/kernel/index.js";
 
 import type { NormalizedReviewFinding } from "../../core/finding-records.js";
+import { codeRabbitExitDiagnostic } from "./process.js";
 
 export const CODERABBIT_AGENT_MODE = "agent";
 export const CODERABBIT_AGENT_CONTRACT = "coderabbit-agent-ndjson/v1";
@@ -31,6 +32,8 @@ interface AgentCompleteEvent {
   status: "review_completed";
   findings: number;
   reviewedFiles: string[];
+  outcome?: string;
+  unreviewedFileCount?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,7 +100,10 @@ function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent 
     || Number(event.findings) < 0
     || !Array.isArray(event.reviewedFiles)
     || event.reviewedFiles.length === 0
-    || event.reviewedFiles.some((file) => typeof file !== "string" || file.trim().length === 0)) {
+    || event.reviewedFiles.some((file) => typeof file !== "string" || file.trim().length === 0)
+    || (event.outcome !== undefined && typeof event.outcome !== "string")
+    || (event.unreviewedFileCount !== undefined
+      && (!Number.isSafeInteger(event.unreviewedFileCount) || Number(event.unreviewedFileCount) < 0))) {
     return null;
   }
   return {
@@ -105,6 +111,9 @@ function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent 
     status: "review_completed",
     findings: Number(event.findings),
     reviewedFiles: event.reviewedFiles.map((file) => String(file).trim()),
+    ...(typeof event.outcome === "string" ? { outcome: event.outcome } : {}),
+    ...(typeof event.unreviewedFileCount === "number"
+      ? { unreviewedFileCount: event.unreviewedFileCount } : {}),
   };
 }
 
@@ -150,7 +159,9 @@ export function parseCodeRabbitAgentResult(input: {
     return { kind: "rate-limited" };
   }
   if (input.signal !== null) return { kind: "failed", reason: `process-signal:${input.signal}` };
-  if (input.exitCode !== 0) return { kind: "failed", reason: "process-exit" };
+  if (input.exitCode !== 0) {
+    return { kind: "failed", reason: codeRabbitExitDiagnostic(input.exitCode, input.stderr, input.stdout) };
+  }
 
   const lines = input.stdout.split(/\r?\n/u).filter((line) => line.trim().length > 0);
   if (lines.length === 0) return { kind: "malformed" };
@@ -188,6 +199,7 @@ export function parseCodeRabbitAgentResult(input: {
 
   if (complete === null) return { kind: "partial" };
   if (completeIndex !== lines.length - 1) return { kind: "ambiguous" };
+  if (complete.outcome === "failed" || (complete.unreviewedFileCount ?? 0) > 0) return { kind: "partial" };
   if (complete.findings !== findings.length) return { kind: "partial" };
   if (new Set(findings.map((finding) => finding.findingId)).size !== findings.length) {
     return { kind: "ambiguous" };
