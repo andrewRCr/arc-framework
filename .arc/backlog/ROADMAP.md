@@ -123,7 +123,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | docs-content-sweep            | P3       | andrew | docs-site-refresh                                           | release-readiness          |
 | comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                               | —                          |
 | local-mode                    | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                          |
-| self-hosted-ci-qualification  | P3       | andrew | local-ci-capacity-qualification                             | —                          |
 
 ### Depth 2
 
