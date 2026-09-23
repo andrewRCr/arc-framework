@@ -72,7 +72,7 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
    * checkout cannot currently produce one rather than refusing a procedure that has other work to do.
    */
   target: ReviewTargetSchema.nullable().default(null),
-  /** Complete normalized facts supplied to the workflow-facing Frontline resolver. */
+  /** Complete normalized facts supplied to the workflow-facing frontline resolver. */
   routingFacts: ReviewRoutingFactsSchema,
   /** Candidate authority carried only while frontline reviews a private delivery member. */
   responseBinding: FrontlineResponseBindingSchema.optional(),

@@ -70,7 +70,7 @@ Dispatch only on the returned route. `not-applicable` continues ordinary singlet
 do not resolve a singleton change request or enter delivery publication / position reconciliation.
 `review-fix-verification-required` invokes `arc delivery review-fix continue -` with only the repository and
 remote identities, then follows the resumable correction procedure in `deliver-stack.md`; do not enter whole-WU
-verification, Frontline, or singleton prepublication.
+verification, frontline review, or singleton prepublication.
 `candidate-verification-required` leaves this workflow for Candidate verification closeout; it synthesizes no
 attestation or review action.
 `correction-route-ambiguous` stops after rendering `recommendedActionText`. The seam has separated a work-unit
@@ -180,7 +180,7 @@ must match the current Candidate and carries the ordered sources and exact oblig
   bindings and durable review progress, selects the first outstanding retained member, observes that member's exact
   change request and checks, and returns a top-level `deliveryCursor`, the complete supporting conjunction, and the
   existing driver's next action. Only an exact `review-hosted-request` result authorizes provider work. Do not invoke
-  Frontline, generic prepublication, private source selection, or a whole-work-unit fallback.
+  frontline review, generic prepublication, private source selection, or a whole-work-unit fallback.
 - `continue-pre-publication-review` remains the ordinary singleton continuation. Invoke
   `integrationBoundary.nextAction.command` and continue only from `ready / hosted-request`; the returned policy
   preserves the reservation without rerunning chunking or source ordering and supplies `policy.payload.sourceId`

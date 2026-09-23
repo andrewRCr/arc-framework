@@ -73,7 +73,7 @@ export function consumeOwnerAcceptedTerminus(input: unknown): unknown {
   return { ...parsed.data, standard };
 }
 
-/** Remove a one-pass Frontline ceiling approval before another exact member is selected. */
+/** Remove a one-pass frontline ceiling approval before another exact member is selected. */
 export function consumeFrontlineCeilingOverride(input: unknown): unknown {
   const parsed = PrePublicationLaneJudgmentsSchema.safeParse(input ?? {});
   if (!parsed.success || parsed.data.frontline?.ceilingOverride === undefined) return input;
@@ -174,7 +174,7 @@ export interface PrePublicationCompositionInput {
    * dropping a malformed ceiling override silently re-blocks a pass the operator already approved.
    */
   lanes?: unknown;
-  /** Exact Frontline head to which a caller-carried one-pass ceiling approval remains bound. */
+  /** Exact frontline head to which a caller-carried one-pass ceiling approval remains bound. */
   frontlineCeilingHeadSha?: string;
 }
 

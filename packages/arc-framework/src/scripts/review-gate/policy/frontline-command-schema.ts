@@ -1,4 +1,4 @@
-/** Request contract shared by the Frontline action projection and resolver command. */
+/** Request contract shared by the frontline action projection and resolver command. */
 
 import { z } from "zod";
 

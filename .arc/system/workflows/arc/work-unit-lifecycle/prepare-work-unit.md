@@ -73,12 +73,12 @@ decision is the authorization, so do not ask for a second confirmation while the
 
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
 requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
-continuation. For `ready / run-frontline`, `nextAction.command` advances into the Frontline resolver; retain
+continuation. For `ready / run-frontline`, `nextAction.command` advances into the frontline resolver; retain
 `nextAction.request` and `nextAction.authorizationRequest`, submit the initial request as JSON stdin to that command,
 and retain `nextAction.resumeCommand`. Submit the authorization request only after explicit approval of an
-`offered / obtain-authorization` result. Invoke the resume after the Frontline operation's typed protocol completes.
+`offered / obtain-authorization` result. Invoke the resume after the frontline operation's typed protocol completes.
 For every other policy action, `nextAction.command` is the continuation. The opaque resume carries judgment the
-repository cannot recover and confines a one-pass Frontline ceiling approval to its selected exact head. It drops
+repository cannot recover and confines a one-pass frontline ceiling approval to its selected exact head. It drops
 `standard.terminus` after `candidate-fix-pending`, because the response changes the reviewable Candidate subject and
 requires fresh Owner direction. Once `owner-accepted` lands, the durable boundary carries it through convergence; do
 not restate it. For a canonical delivery, each re-invocation recomposes the first outstanding exact member in plan
@@ -130,7 +130,7 @@ verification scope in prose or substitute the Candidate root task-list reference
   approval submits `nextAction.authorizationRequest` to the same command. Continue only from
   `ready / run-frontline`, then run `arc review frontline run -` with that resolution, the target's
   `{ kind, baseRef, diffBaseSha, headSha }` projection, and `responseBinding` when the pre-publication envelope
-  supplies it. Invoke the retained resume only after the Frontline operation's typed protocol completes.
+  supplies it. Invoke the retained resume only after the frontline operation's typed protocol completes.
 - `ready / local-prepare` — invoke `arc review local prepare -`.
 - `findings / respond` — enter the disposition protocol below.
 - `approval-required / obtain-ceiling-override` — surface the exact consequence and `Approve (or redirect)?`.
