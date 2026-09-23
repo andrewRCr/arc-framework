@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "remove-transition-record-count-literals",
+  "claimId": "375ebd18a44343e3ae206d7d40c56b2a",
+  "createdAt": "2026-09-23T00:55:08.654Z",
+  "updatedAt": "2026-09-23T00:55:08.654Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Remove redundant cardinality literals from the transition-record migration test",
+  "branch": "chore/remove-transition-record-count-literals",
+  "origin": "inbox",
+  "originEntry": "Remove redundant transition-record cardinality literals",
+  "originEntrySourceDigest": "sha256:981f2241859e2c2fab9c657fc82c28f3ba89e53c9e60a0ed7a9538250a9dc878",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
