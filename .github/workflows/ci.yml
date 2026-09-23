@@ -306,7 +306,10 @@ jobs:
       run: npm run lint:sh
     - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run typecheck
+    # Cold test typechecking reaches Node's 2 GiB ARM64 heap limit; scope extra headroom to this step.
     - if: ${{ needs.classify.outputs.weight != 'light' }}
+      env:
+        NODE_OPTIONS: --max-old-space-size=3072
       run: npm run typecheck:test
 
   unit:
