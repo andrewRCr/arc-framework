@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "adversarial-review-contract",
+  "claimId": "f06860b47635d1fec62a3c14d5457984",
+  "createdAt": "2026-09-23T03:24:41.139Z",
+  "updatedAt": "2026-09-23T03:24:41.139Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "adversarial-review-contract",
+  "branch": "chore/adversarial-review-contract",
+  "origin": "inbox",
+  "originEntry": "Make adversarial review reachable and keep later passes on authoritative artifacts",
+  "originEntrySourceDigest": "sha256:3c8d42c4e99666db2c08c63669296596a07eab3fabc386474fb484ecc53ed80e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
