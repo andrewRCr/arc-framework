@@ -2410,6 +2410,7 @@ function reviewCommandError(
     : phase === "request" && (error instanceof ZodError || error instanceof SyntaxError)
       ? "invalid-input"
       : stableCode === "invalid-input" || stableCode === "corrupt-state"
+        || stableCode === "uncertain-provider-execution"
         ? stableCode
         : stableCode !== null && DURABLE_CORRUPTION_CODES.has(stableCode)
           ? "corrupt-state"

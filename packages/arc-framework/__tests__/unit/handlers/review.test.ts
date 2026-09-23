@@ -56,6 +56,8 @@ import {
 import {
   runFrontlineReviewCommand,
 } from "../../../src/scripts/review-gate/runtime/frontline-run-command.js";
+import { FrontlineOperationUncertainError } from
+  "../../../src/scripts/review-gate/policy/frontline-operation.js";
 import { FrontlineRunCommandRequestSchema } from
   "../../../src/scripts/review-gate/core/frontline-run-command-schema.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
@@ -1683,6 +1685,30 @@ describe("handleReviewFrontlineRun", () => {
         persistedVersion: 2,
       },
     });
+  });
+
+  it("reports an outcome-less pending review as uncertain with an explicit recovery route", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const operationId = `sha256:${"a".repeat(64)}`;
+
+    await handleReviewFrontlineRun("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify(frontlineRunRequest),
+      deriveRequest: async (request) => FrontlineRunCommandRequestSchema.parse({ ...request, target }),
+      run: async () => { throw new FrontlineOperationUncertainError(operationId); },
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-frontline-run",
+      error: {
+        code: "uncertain-provider-execution",
+        message: expect.stringContaining(operationId),
+      },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
   });
 
   it.each([

@@ -1762,9 +1762,6 @@
     }
   },
   "src/scripts/review-gate/providers/coderabbit/frontline-execution.ts": {
-    "complexity": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
