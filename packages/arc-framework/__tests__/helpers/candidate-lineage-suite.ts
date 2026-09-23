@@ -596,7 +596,7 @@ async function installFrontlineFindingProvider(root: string) {
   };
 }
 
-/** Run Frontline review against a pinned member-shaped target without binding a delivery vehicle. */
+/** Run frontline review against a pinned member-shaped target without binding a delivery vehicle. */
 async function frontlineMemberReviewToFindings(
   root: string,
   memberHead: string,
@@ -1074,7 +1074,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       .slice("sha256:".length)}.json`;
     const outcomePath = { root: "review-gate" as const, namespace: "outcomes" as const };
     const originalOutcome = await publisher.read(outcomePath, outcomeName);
-    if (originalOutcome === null) throw new Error("missing private Frontline outcome");
+    if (originalOutcome === null) throw new Error("missing private frontline outcome");
     await publisher.update(outcomePath, outcomeName, () => ({ kind: "delete", result: undefined }));
     await expect(executeAt(approvedHead)).resolves.toMatchObject({
       state: "invalidated",

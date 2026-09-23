@@ -564,7 +564,7 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 describe("projectPrePublicationReview", () => {
-  it("rejects a Frontline authorization request that changes more than invocation mode", () => {
+  it("rejects a frontline authorization request that changes more than invocation mode", () => {
     const initialRequest = {
       schemaVersion: 1 as const,
       changeSet: routingFacts,
@@ -580,7 +580,7 @@ describe("projectPrePublicationReview", () => {
         ...initialRequest,
         invocation: { mode: "force", sourceId: "another-source" },
       },
-      interactionText: "Continue Frontline review.",
+      interactionText: "Continue frontline review.",
     }).success).toBe(false);
   });
 

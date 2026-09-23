@@ -412,7 +412,7 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
-  it("ignores Candidate-owned private Frontline fixes when selecting a public member response", () => {
+  it("ignores Candidate-owned private frontline fixes when selecting a public member response", () => {
     const privateReview = deliveryDispositionRecord({ operationId: "private-member-review" });
     const privateCandidate = ApprovedDispositionRecordSchema.parse({
       ...privateReview,

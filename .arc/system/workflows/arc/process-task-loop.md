@@ -266,7 +266,7 @@ execution-entry contract violation.
        continuation, invoke its Candidate-renewal authority action and require `status: unchanged`, then re-enter and
        require the retained hosted-review authority action. Any refusal, malformed action, other attestation result,
        or other continuation route stops. Never reconstruct or refresh a locator, and never substitute whole-WU
-       verification, Frontline, or generic prepublication.
+       verification, frontline review, or generic prepublication.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to

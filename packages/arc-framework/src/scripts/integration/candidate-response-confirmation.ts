@@ -1,4 +1,4 @@
-/** Proof that a private-member Frontline fix was already settled into its bound Candidate. */
+/** Proof that a private-member frontline fix was already settled into its bound Candidate. */
 
 import { canonicalize } from "../../lib/canonical/canonical-json.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
@@ -118,7 +118,7 @@ export async function composeCandidateResponseConfirmation(input: {
   const operationStore = new LocalReviewOperationStateStore(publisher);
   const sourceRef = parseReviewSourceReference(approved.source.outcomeRef, "frontline");
   if (sourceRef.operationId !== approved.operationId) {
-    throw new Error(`The private disposition ${dispositionId} moved Frontline operation.`);
+    throw new Error(`The private disposition ${dispositionId} moved frontline operation.`);
   }
   const [{ record: outcome, outcomeRef }, { state }] = await Promise.all([
     outcomeStore.readOutcome(approved.operationId),
@@ -136,7 +136,7 @@ export async function composeCandidateResponseConfirmation(input: {
     || state.passCount !== outcome.outcome.pass
     || state.sourceBindingId !== computeFrontlineSourceBindingId(outcome.outcome.source, binding)
     || canonicalize(state.responseBinding ?? null) !== canonicalize(binding)) {
-    throw new Error(`The private disposition ${dispositionId} lacks its exact Frontline source.`);
+    throw new Error(`The private disposition ${dispositionId} lacks its exact frontline source.`);
   }
   const origin = outcome.outcome.target;
   await Promise.all([

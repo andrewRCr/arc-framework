@@ -2517,7 +2517,7 @@ describe("handleReviewPrePublication", () => {
     });
   });
 
-  it("binds a Frontline ceiling override to the exact member across same-pass fallback", async () => {
+  it("binds a frontline ceiling override to the exact member across same-pass fallback", async () => {
     const lanes = {
       frontline: {
         scopeMode: "whole-target",
@@ -2581,7 +2581,7 @@ describe("handleReviewPrePublication", () => {
     });
   });
 
-  it("consumes a bound Frontline ceiling override when composition advances to another member", async () => {
+  it("consumes a bound frontline ceiling override when composition advances to another member", async () => {
     const priorHead = "f".repeat(40);
     const lanes = {
       frontline: {

@@ -542,7 +542,7 @@ describe("composePrePublicationReviewRequest", () => {
     expect(deriveImmutableTarget).not.toHaveBeenCalled();
   });
 
-  it("retains the terminal member after every delivery-member Frontline result settles", async () => {
+  it("retains the terminal member after every delivery-member frontline result settles", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -602,7 +602,7 @@ describe("composePrePublicationReviewRequest", () => {
     });
   });
 
-  it("applies a Frontline ceiling override only to its bound outstanding delivery member", async () => {
+  it("applies a frontline ceiling override only to its bound outstanding delivery member", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
