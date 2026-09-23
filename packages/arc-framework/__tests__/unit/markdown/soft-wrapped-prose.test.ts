@@ -36,4 +36,12 @@ describe("soft-wrapped Markdown prose assertions", () => {
     expect("- item\n  > approval\n  > authorizes merge").toMatch(matcher);
     expect("- item\n  > approval\n> authorizes merge").not.toMatch(matcher);
   });
+
+  it("does not match from an ATX heading into following prose", () => {
+    const matcher = softWrappedProse("approval authorizes merge");
+
+    expect("## approval\nauthorizes merge").not.toMatch(matcher);
+    expect("> ## approval\n> authorizes merge").not.toMatch(matcher);
+    expect("- item\n  > ## approval\n  > authorizes merge").not.toMatch(matcher);
+  });
 });

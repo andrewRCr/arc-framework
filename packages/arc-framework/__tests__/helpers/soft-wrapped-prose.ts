@@ -8,7 +8,8 @@ export function softWrappedProse(phrase: string): RegExp {
   const quoteSeparator = "(?:[ \\t]+|[ \\t]*\\r?\\n\\k<quoteIndent>>[ \\t]*(?!>))";
   const plain = `(?<!^[ \\t]*>[^\\r\\n]*)${escaped.join(plainSeparator)}`;
   const quoted = `(?<=^(?<quoteIndent>[ \\t]*)>[ \\t]*[^\\r\\n]*)(?<!^[ \\t]*>[ \\t]*>[^\\r\\n]*)${escaped.join(quoteSeparator)}`;
-  return new RegExp(`(?:${plain}|${quoted})`, "mu");
+  const headingOrigin = "(?<!^[ \\t]*(?:>[ \\t]*)?#{1,6}[ \\t]+[^\\r\\n]*)";
+  return new RegExp(`${headingOrigin}(?:${plain}|${quoted})`, "mu");
 }
 
 /** Preserve source offsets for ordering checks that locate prose anchors. */

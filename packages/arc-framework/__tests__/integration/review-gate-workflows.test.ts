@@ -1250,8 +1250,8 @@ describe("trusted review-gate workflows", () => {
       "fetch-depth": 0,
       "persist-credentials": false,
     });
-    expect(workflow).toMatch(
-      softWrappedProse("Pull-request content is inert classification data; no command executes from this checkout."),
+    expect(workflow).toContain(
+      "# Pull-request content is inert classification data; no command executes from this checkout.",
     );
 
     const publish = stepValue(workflow, "lane-attestation", "lane-status");
@@ -1372,7 +1372,7 @@ describe("trusted review-gate workflows", () => {
     ];
     const [packaged, project] = await Promise.all(paths.map((path) => readRepositoryFile(path)));
     expect(project).toBe(packaged);
-    expect(packaged).toMatch(softWrappedProse("Optional: Choose Review Sources and Merge Guards"));
+    expect(packaged).toContain("### Optional: Choose Review Sources and Merge Guards");
     expect(packaged).toContain("Frontline sources");
     expect(packaged).toContain("Standard-review sources");
     expect(packaged).toContain("Draft-state merge lock");
