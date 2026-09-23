@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 import { parseWorkflowFrontmatter } from "../../src/scripts/audit-method-triggers.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -52,8 +54,8 @@ describe("evidence applicability workflow fire-points", () => {
   it("requires only the typed bounded result that every fire-point actually supplies", async () => {
     const method = await readPair("system/methods/assess-evidence-applicability.md");
 
-    expect(method).toContain("Receive the supplied typed applicability result or projection");
-    expect(method).not.toContain("Receive the exact normalized `delta`, evidence kind, and typed result/action");
+    expect(method).toMatch(softWrappedProse("Receive the supplied typed applicability result or projection"));
+    expect(method).not.toMatch(softWrappedProse("Receive the exact normalized `delta`, evidence kind, and typed result/action"));
   });
 
   it.each(Object.entries(workflows))("declares bounded residual judgment in %s", async (_name, path) => {

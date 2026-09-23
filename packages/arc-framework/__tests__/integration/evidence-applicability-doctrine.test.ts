@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const root = resolve(import.meta.dirname, "../../../..");
 
 async function readPair(path: string): Promise<string> {
@@ -20,7 +22,7 @@ describe("evidence applicability integration doctrine", () => {
   it("binds applicability to content and terminal authority to typed evidence", async () => {
     const strategy = await readPair("reference/strategies/arc/strategy-integration.md");
 
-    expect(strategy).toContain("Evidence applicability follows the content an earlier result covers");
+    expect(strategy).toMatch(softWrappedProse("Evidence applicability follows the content an earlier result covers"));
     expect(strategy).toContain("assess-evidence-applicability");
     expect(strategy).toMatch(/Disjoint protected-base movement[\s\S]*without a reconcile commit/iu);
     expect(strategy).toMatch(/Overlapping movement[\s\S]*one typed base reconcile[\s\S]*fresh checkpoint/iu);
@@ -35,8 +37,8 @@ describe("evidence applicability integration doctrine", () => {
     expect(strategy).toMatch(/disjoint landing[\s\S]*invalidates nothing/iu);
     expect(strategy).toMatch(/Errand branches use the same content rule/iu);
     expect(strategy).toMatch(/Merge queues are host-side options[\s\S]*builds no queue mechanism/iu);
-    expect(strategy).not.toContain("Merge from one designated worktree");
-    expect(strategy).not.toContain("Refresh the others after a merge");
+    expect(strategy).not.toMatch(softWrappedProse("Merge from one designated worktree"));
+    expect(strategy).not.toMatch(softWrappedProse("Refresh the others after a merge"));
   });
 
   it("retains exact approval around the bounded reconcile exception", async () => {
