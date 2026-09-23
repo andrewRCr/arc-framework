@@ -33,5 +33,7 @@ describe("soft-wrapped Markdown prose assertions", () => {
     expect("approval\n> authorizes merge").not.toMatch(matcher);
     expect("> approval\nauthorizes merge").not.toMatch(matcher);
     expect(">> approval\n> authorizes merge").not.toMatch(matcher);
+    expect("- item\n  > approval\n  > authorizes merge").toMatch(matcher);
+    expect("- item\n  > approval\n> authorizes merge").not.toMatch(matcher);
   });
 });
