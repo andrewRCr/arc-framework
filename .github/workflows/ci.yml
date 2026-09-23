@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # Delivery members target their predecessor's delivery branch; the terminal
+    # request targets main. Run CI for both PR merge candidates.
+    branches: [main, 'delivery/**']
     # labeled/unlabeled re-run classify so adding/removing `ci-defer-heavy`
     # updates the merge signal without an artificial push.
     #
@@ -16,7 +18,8 @@ on:
     # complete until a run it caused finishes. Projects that gate CI behind
     # non-draft status need the opposite choice and must not adopt this one
     # unchanged.
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # `edited` catches a base-branch retarget, including the terminal move to main.
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       run_portability_pair:
