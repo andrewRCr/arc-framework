@@ -92,7 +92,7 @@ means the checkout could not compose one; resolve the returned advisory before i
 Before invoking or rendering review attention for each new target, read the latest planning decision prose for the
 selected `assess-boundary-fit` outcome and its evidence basis. A recorded `stays one WU` decision stays silent while
 evidence is semantically unchanged; invocation, elapsed time, and restatement are not material deltas. Otherwise
-invoke `arc review chunking resolve -` with the envelope's `target` projected to
+invoke `arc review changeset resolve -` with the envelope's `target` projected to
 `{ kind, baseRef, diffBaseSha, headSha }` and any exact-target `scopeSelection` projected the same way, then
 dispatch only on its typed state/action pair:
 

@@ -506,7 +506,7 @@ Repeat the Step 1 push extension contract before this push.
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
 After push, this is a provisional integration candidate, never merge readiness. Recompose its exact target, invoke
-`arc review chunking resolve -` with `{ kind, baseRef, diffBaseSha, headSha }`, apply
+`arc review changeset resolve -` with `{ kind, baseRef, diffBaseSha, headSha }`, apply
 [`review-chunking`][review-chunking] when its typed action requests selection, and make Step 2's review applicability
 judgment. Only Step 10's exact-head integration authorization can release
 the merge.

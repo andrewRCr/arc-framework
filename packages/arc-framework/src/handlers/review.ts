@@ -379,7 +379,7 @@ const REVIEW_JSON_COMMAND_PATHS = [] as const;
 
 /** Schema-discoverable request boundaries; every review request root is registered. */
 export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
-  "review chunking resolve",
+  "review changeset resolve",
   "review planning-grooming resolve",
   "review frontline run",
   "review resolve",
@@ -1197,7 +1197,7 @@ export const reviewCommandInputPolicyDeclarations = [
     ],
   },
   {
-    commandPath: "review chunking resolve", aliases: [], sites: [declareInteractionSite(
+    commandPath: "review changeset resolve", aliases: [], sites: [declareInteractionSite(
       { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
       {
         acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",

@@ -28,9 +28,9 @@ describe("lifecycle review driver", () => {
       "arc review hosted settle -",
     ]) expect(packaged).toContain(command);
     if (path === integrateWorkflow) {
-      expect(packaged).toContain("arc review chunking resolve -");
+      expect(packaged).toContain("arc review changeset resolve -");
     } else {
-      expect(packaged).not.toContain("arc review chunking resolve -");
+      expect(packaged).not.toContain("arc review changeset resolve -");
       expect(packaged).toContain("Errand atomicity fixes each role's");
     }
     expect(packaged).toContain("review applicability");
