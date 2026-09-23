@@ -20,6 +20,7 @@ function redactCredentialAssignment(_match: string, key: string, separator: stri
 
 function boundedDiagnostic(candidate: string): string {
   return candidate
+    .replace(/\b(Authorization[ \t]*:[ \t]*)[^\r\n]+/giu, "$1[redacted]")
     .replace(/\bBearer\s+\S+/giu, "Bearer [redacted]")
     .replace(
       /\b([A-Za-z_][A-Za-z0-9_.-]*)(\s*=\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,}]+)/giu,

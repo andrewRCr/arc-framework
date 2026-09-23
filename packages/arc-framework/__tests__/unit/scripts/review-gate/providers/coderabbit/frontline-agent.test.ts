@@ -99,6 +99,14 @@ describe("CodeRabbit structured frontline parser", () => {
     expect(parse(JSON.stringify(complete))).toEqual({ kind: "partial" });
     expect(parse(JSON.stringify({ ...complete, findings: 0, outcome: "failed" })))
       .toEqual({ kind: "partial" });
+    for (const outcome of ["cancelled", "partial", "future_failure"]) {
+      expect(parse(JSON.stringify({ ...complete, findings: 0, outcome })))
+        .toEqual({ kind: "partial" });
+    }
+    for (const outcome of ["completed", "completed_with_warnings"]) {
+      expect(parse(JSON.stringify({ ...complete, findings: 0, outcome })))
+        .toEqual({ kind: "clean" });
+    }
     expect(parse(JSON.stringify({ ...complete, findings: 0, unreviewedFileCount: 1 })))
       .toEqual({ kind: "partial" });
     expect(parse(JSON.stringify({ ...complete, status: "review_skipped", findings: 0 })))
@@ -168,6 +176,9 @@ describe("CodeRabbit structured frontline parser", () => {
     ["{\"token\":\"private-value\",\"next\":\"keep\"}", "{\"token\":\"[redacted]\",\"next\":\"keep\"}"],
     ["BUILD_SECRET='private value'", "BUILD_SECRET='[redacted]'"],
     ["https://private-user@example.com/path", "https://[redacted]@example.com/path"],
+    ["Authorization: Basic dXNlcjpwYXNz", "Authorization: [redacted]"],
+    ["Authorization: Signature keyId=private signature=secret", "Authorization: [redacted]"],
+    ["Authorization: Basic dXNlcjpwYXNz\nrequest failed", "Authorization: [redacted] request failed"],
   ])("redacts credential-bearing process output: %s", (stderr, detail) => {
     expect(parse("", { exitCode: 2, stderr }))
       .toEqual({ kind: "failed", reason: `process-exit:2: ${detail}` });

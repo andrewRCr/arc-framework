@@ -199,7 +199,10 @@ export function parseCodeRabbitAgentResult(input: {
 
   if (complete === null) return { kind: "partial" };
   if (completeIndex !== lines.length - 1) return { kind: "ambiguous" };
-  if (complete.outcome === "failed" || (complete.unreviewedFileCount ?? 0) > 0) return { kind: "partial" };
+  if ((complete.outcome !== undefined
+      && complete.outcome !== "completed"
+      && complete.outcome !== "completed_with_warnings")
+    || (complete.unreviewedFileCount ?? 0) > 0) return { kind: "partial" };
   if (complete.findings !== findings.length) return { kind: "partial" };
   if (new Set(findings.map((finding) => finding.findingId)).size !== findings.length) {
     return { kind: "ambiguous" };
