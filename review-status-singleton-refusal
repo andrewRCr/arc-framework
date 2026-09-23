@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-status-singleton-refusal",
+  "claimId": "cd28a6aff34038e04ad4bf1bb91f05a3",
+  "createdAt": "2026-09-23T20:39:03.072Z",
+  "updatedAt": "2026-09-23T20:39:03.072Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "review-status-singleton-refusal",
+  "branch": "chore/review-status-singleton-refusal",
+  "origin": "inbox",
+  "originEntry": "Give `arc review status --work-unit` an actionable refusal on a singleton",
+  "originEntrySourceDigest": "sha256:3b004c7f0d0fcdd2d95e3fe2ac2fe83c41c6bfa493b6772225d1a20a7e84fb8a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
