@@ -370,6 +370,7 @@ export interface DeliveryLandingObservationPort {
     readonly predecessor: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
     readonly member: NonNullable<NonNullable<DeliveryOperationSnapshotV1["target"]>["coordinates"]>;
   } | null>;
+  readMemberBase(head: string): Promise<DeliveryContributionEndpoints["before"]["predecessor"] | null>;
   proveLandedContribution(input: DeliveryContributionEndpoints): Promise<DeliveryContributionProofResult>;
 }
 
@@ -806,8 +807,12 @@ export async function applyDeliveryLanding(input: {
   if (landed === null) {
     return landingRefused({ stage: "merged-result-reconciliation", reason: "landing-observation-unavailable" });
   }
+  const memberBase = await input.observation.readMemberBase(memberCoordinates.base);
+  if (memberBase === null || memberBase.head !== memberCoordinates.base) {
+    return landingRefused({ stage: "merged-result-reconciliation", reason: "landing-observation-unavailable" });
+  }
   const proof = await input.observation.proveLandedContribution({
-    before: { predecessor: beforeTarget, member: memberCoordinates },
+    before: { predecessor: memberBase, member: memberCoordinates },
     after: landed,
   });
   if (proof.status !== "accepted") return proof;

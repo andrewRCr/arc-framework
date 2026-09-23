@@ -113,6 +113,10 @@ function boundaries(state: DeliveryStateV1) {
         predecessor: state.target!.coordinates!,
         member: mergeResult,
       })),
+      readMemberBase: vi.fn(async () => ({
+        head: member.coordinates!.base,
+        tree: state.target!.coordinates!.tree,
+      })),
       proveLandedContribution: vi.fn(async () => ({ status: "accepted" as const, proof: "tree-equality" as const })),
     },
   };

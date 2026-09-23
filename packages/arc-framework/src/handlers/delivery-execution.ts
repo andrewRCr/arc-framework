@@ -5839,6 +5839,7 @@ async function executeDeliveryCommand(
             exec, cwd, remote: apply.remote, resultHead: mergeCommitSha, strategy, beforeMember,
           })
         ),
+        readMemberBase: (head) => observeDeliveryEligibilityRef(exec, head),
         proveLandedContribution: (endpoints) => proveGitDeliveryContribution({
           exec: createRawGitExec(cwd),
           ...projectDeliveryContributionEndpoints(endpoints),
@@ -6350,10 +6351,14 @@ async function executeDeliveryCommand(
             if (landed === null) {
               return { status: "refused" as const, reason: "observation-unavailable" as const };
             }
+            const memberBase = await observeDeliveryEligibilityRef(exec, beforeMember.coordinates.base);
+            if (memberBase === null || memberBase.head !== beforeMember.coordinates.base) {
+              return { status: "refused" as const, reason: "observation-unavailable" as const };
+            }
             const proof = await proveGitDeliveryContribution({
               exec: createRawGitExec(cwd),
               ...projectDeliveryContributionEndpoints({
-                before: { predecessor: beforeTarget, member: beforeMember.coordinates },
+                before: { predecessor: memberBase, member: beforeMember.coordinates },
                 after: landed,
               }),
             });
