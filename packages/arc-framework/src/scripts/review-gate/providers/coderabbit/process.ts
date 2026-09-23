@@ -22,7 +22,11 @@ function boundedDiagnostic(candidate: string): string {
   return candidate
     .replace(/\bBearer\s+\S+/giu, "Bearer [redacted]")
     .replace(
-      /\b((?:[A-Za-z0-9]+[_-])*(?:api[_-]?key|token|password|authorization|secret))(["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,}]+)/giu,
+      /\b([A-Za-z_][A-Za-z0-9_.-]*)(\s*=\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,}]+)/giu,
+      redactCredentialAssignment,
+    )
+    .replace(
+      /\b((?:[A-Za-z0-9]+[_-])*(?:api[_-]?key|key|tokens?|secrets?|passwords?|passphrases?|passwd|pwd|credentials?|cookies?|sessions?|authorization))(["']?\s*:\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,}]+)/giu,
       redactCredentialAssignment,
     )
     .replace(/\b(https?:\/\/)[^\s/@]+@/giu, "$1[redacted]@")

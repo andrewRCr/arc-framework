@@ -157,6 +157,14 @@ describe("CodeRabbit structured frontline parser", () => {
 
   it.each([
     ["GITHUB_TOKEN=private-value", "GITHUB_TOKEN=[redacted]"],
+    ["AWS_SECRET_ACCESS_KEY=private-value", "AWS_SECRET_ACCESS_KEY=[redacted]"],
+    ["AWS_SECRET_ACCESS_KEY: private-value", "AWS_SECRET_ACCESS_KEY: [redacted]"],
+    ["SECRET_KEY='private value'", "SECRET_KEY='[redacted]'"],
+    ["{\"secret_key\":\"private-value\",\"next\":\"keep\"}", "{\"secret_key\":\"[redacted]\",\"next\":\"keep\"}"],
+    ["PRIVATE_KEY=private-value", "PRIVATE_KEY=[redacted]"],
+    ["SESSION_COOKIE=private-value", "SESSION_COOKIE=[redacted]"],
+    ["credentials: private-value", "credentials: [redacted]"],
+    ["tokens=private-value", "tokens=[redacted]"],
     ["{\"token\":\"private-value\",\"next\":\"keep\"}", "{\"token\":\"[redacted]\",\"next\":\"keep\"}"],
     ["BUILD_SECRET='private value'", "BUILD_SECRET='[redacted]'"],
     ["https://private-user@example.com/path", "https://[redacted]@example.com/path"],
