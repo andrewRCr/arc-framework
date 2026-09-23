@@ -682,6 +682,7 @@ describe("member-six semantic native fallback lifecycle", () => {
         snapshot: { target: initial.target, members: [member] },
       }),
       observeLandedResult: async () => null,
+      readMemberBase: async () => null,
       proveLandedContribution: async () => ({ status: "accepted" as const, proof: "tree-equality" as const }),
     };
 

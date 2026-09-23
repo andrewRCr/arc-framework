@@ -325,8 +325,16 @@ async function observeOperation(
         strategy: operation.effect.strategy,
         beforeMember,
       });
-      if (landed === null || (await dependencies.proveContribution({
-        before: { predecessor: beforeTarget, member: beforeMember },
+      if (landed === null) return null;
+      const localOnlyExec: GitExec = (command, args, options) => dependencies.exec(command, args, {
+        ...options,
+        cwd: dependencies.cwd,
+        objectAccess: "local-only",
+      });
+      const memberBase = await observeDeliveryEligibilityRef(localOnlyExec, beforeMember.base);
+      if (memberBase === null || memberBase.head !== beforeMember.base) return null;
+      if ((await dependencies.proveContribution({
+        before: { predecessor: memberBase, member: beforeMember },
         after: landed,
       })).status !== "accepted") return null;
       observation = {
