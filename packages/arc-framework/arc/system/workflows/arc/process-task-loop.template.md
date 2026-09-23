@@ -207,6 +207,10 @@ execution-entry contract violation.
          reachability: cumulative tree through this member
      ```
 
+     **Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After
+     the primary member walk, load its adversarial companion and present the existing `Class`-scaled advisory offer
+     over that same scope. Follow the method's pass cap; a decline leaves the primary report intact.
+
      Before advancing beyond the member, close its scale-attention result against the exact committed member span.
      When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4
      and obtain the commit in item 5, then return here before starting the next task. Under
@@ -383,6 +387,7 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
+[adversarial-review]: ../../methods/adversarial-review.md
 [review-chunking]: ../../methods/review-chunking.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md

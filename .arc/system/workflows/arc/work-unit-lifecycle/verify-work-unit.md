@@ -81,8 +81,13 @@ validate-criteria:
 
 Without a Delivery Plan, open the upstream design/spec artifact and compare every flat criterion against actual
 outcomes in the complete diff and tree. With a Delivery Plan, the method dispositions member groups from their
-recorded reports and walks only the seam group and union coherence against the complete tree. Consume the resulting
-report, then mark each criterion in the task list's Success Criteria section (see
+recorded reports and walks only the seam group and union coherence against the complete tree.
+
+**Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After the
+primary walk for either criteria shape, load its adversarial companion and present the existing `Class`-scaled
+advisory offer over that same work-unit scope. Follow the method's pass cap; a decline keeps the primary report.
+
+Consume the resulting report, then mark each criterion in the task list's Success Criteria section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
 model:
 
@@ -145,6 +150,7 @@ verification-task exception). Cover both:
 
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
+[adversarial-review]: ../../../methods/adversarial-review.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [clean]: ../supplemental/clean-work-unit.md
 [self-review]: ../../../methods/self-review.md
