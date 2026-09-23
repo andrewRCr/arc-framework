@@ -516,16 +516,19 @@ function parseCalloutSection(
     const content = semanticItem.slice(0, marker.index);
     const loci = [...content.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+:\d+(?:-\d+)?)`[\t ]*$/gmu)];
     const locus = loci.at(-1);
-    const parsedSeverity = severity(content);
     const context = { category: section.category, fingerprint };
     if (locus?.[1] === undefined) {
       return malformedWithContext("provider-body-finding-locus-unrecognized", context);
     }
+    const locusLineEnd = content.indexOf("\n", locus.index);
+    const severityLineEnd = locusLineEnd === -1 ? -1 : content.indexOf("\n", locusLineEnd + 1);
+    const severityLine = locusLineEnd === -1 ? "" : content.slice(locusLineEnd + 1,
+      severityLineEnd === -1 ? undefined : severityLineEnd);
+    const parsedSeverity = severity(severityLine);
     if (parsedSeverity === null) {
       return malformedWithContext("provider-body-finding-severity-unrecognized", context);
     }
-    const metadataLineEnd = content.indexOf("\n", locus.index);
-    const substantiveBody = metadataLineEnd === -1 ? "" : content.slice(metadataLineEnd + 1)
+    const substantiveBody = severityLineEnd === -1 ? "" : content.slice(severityLineEnd + 1)
       .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "").trim();
     if (substantiveBody.length === 0) {
       return malformedWithContext("provider-body-finding-empty", context);

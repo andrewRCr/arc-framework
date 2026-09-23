@@ -973,6 +973,62 @@ This finding has no inline review thread.
     });
   });
 
+  it("rejects a callout finding with only locus and severity metadata", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟡 Minor</em> · legacy.ts:12</summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟡 Minor_
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-body-finding-empty: "
+        + "{\"category\":\"outside-diff\",\"fingerprint\":\"1234567890abcdef12345678\"}",
+    });
+  });
+
+  it("rejects a callout finding without a severity metadata line", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟡 Minor</em> · legacy.ts:12</summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+>
+> **Preserve the compatibility boundary.**
+> _🟡 Minor_ appears later, outside the required metadata line.
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-body-finding-severity-unrecognized: "
+        + "{\"category\":\"outside-diff\",\"fingerprint\":\"1234567890abcdef12345678\"}",
+    });
+  });
+
   it("rejects a callout whose advertised outside-diff count exceeds its findings", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
