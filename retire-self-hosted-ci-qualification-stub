@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "retire-self-hosted-ci-qualification-stub",
+  "claimId": "5f37348b244aecda77061baf0cca9392",
+  "createdAt": "2026-09-23T00:24:59.103Z",
+  "updatedAt": "2026-09-23T00:24:59.103Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Retire the obsolete self-hosted CI qualification backlog stub",
+  "branch": "chore/retire-self-hosted-ci-qualification-stub",
+  "origin": "inbox",
+  "originEntry": "Retire the `self-hosted-ci-qualification` backlog stub",
+  "originEntrySourceDigest": "sha256:d49365c4eca3bf93e47754e87d6903fc408fb96fdc316737f117ff72425840af",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
