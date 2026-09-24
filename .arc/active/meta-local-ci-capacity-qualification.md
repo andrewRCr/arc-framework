@@ -11,14 +11,14 @@
 - **Design:** `spec-local-ci-capacity-qualification.md`
 - **Task List:** `tasks-local-ci-capacity-qualification.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:a59c679139165430c9847280603d479e47ada10fba0b428bd5d276423141ae62`
+- **Candidate:** `sha256:6f5247dbea2653caa3386452b5e06ab42d354bfcdcec472ffa18567396a29758`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 5.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — run pre-publication review
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
