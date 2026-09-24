@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "archive-local-ci-capacity-qualification",
+  "claimId": "b7b18ed4803039c52f062c021a07d93d",
+  "createdAt": "2026-09-24T18:55:55.802Z",
+  "updatedAt": "2026-09-24T18:55:55.802Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Archive the merged local-ci-capacity-qualification work unit (manual archive cadence)",
+  "branch": "chore/archive-local-ci-capacity-qualification",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
