@@ -11,15 +11,14 @@
 - **Design:** `spec-plan-amendment.md`
 - **Task List:** `tasks-plan-amendment.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:7d825579cc201906ceaf2d815cdbfa46d2f81f010e4f7bc387025d683587be4f`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task 5.4 — the segment's install-and-reach scenario passed against two real installs;
-  Phase 5 complete
-- **Next Task:** Task 6.1 — Complete verification (line ~578)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md`. A2 and A4 both name it as the check
-  that closes their detour.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

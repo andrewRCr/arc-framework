@@ -575,49 +575,57 @@ source and the project copy.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Full Tier 3 after the base merge and final review fix: Markdown, three ARC contract checks,
+  TypeScript and shell lint, source and test typechecks, 12,155 passing tests (one skipped), and build — all passed.
+
+- _Success criteria:_ 15 met against the complete work-unit diff and tree. Author self-review and one fresh-context
+  adversarial pass are dispositioned. The pre-existing `reopen-work-unit` fresh-install gap is deferred with approval
+  to `adopter-install-authority`'s shipped-but-uninstalled file entry; the `_Amended in:_` preservation finding was
+  fixed in both task-loop copies.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `amend-design.md` ships as a supplemental workflow with the D1 signature, the D2 tree with its five steps,
+- `[x]` `amend-design.md` ships as a supplemental workflow with the D1 signature, the D2 tree with its five steps,
   three arms, and authority rules, the D3 ladder and assurance invariant, the D4 ceiling, the D5 record, the D6
   placement rules, the D7 sweep, the D8 per-site closure table, the D9 capture commit, and the D10 interaction —
   each under a stable anchor, with no internal work-unit reference in its prose.
-- `[ ]` `arc-amend-design` ships as a canonical skill, resolves in the canonical skill list and the install recipe,
+- `[x]` `arc-amend-design` ships as a canonical skill, resolves in the canonical skill list and the install recipe,
   and dispatches into the workflow.
-- `[ ]` All five detection sites carry a directive line that enters `amend-design` by anchor: the task loop's
+- `[x]` All five detection sites carry a directive line that enters `amend-design` by anchor: the task loop's
   segment-site stop, the three answers of its member-report prompt, and its must-stop; `verify-work-unit`'s
   unmet-criterion stop; `review-response`'s `fix` disposition. The task loop's member-boundary step carries the
   no-re-walk rule.
-- `[ ]` `arc-task-audit` and `arc-design-audit` route onward to `amend-design`; `reopen-work-unit`'s example anchors
+- `[x]` `arc-task-audit` and `arc-design-audit` route onward to `amend-design`; `reopen-work-unit`'s example anchors
   a cursor leaf and its entry directive names the bound-delivery refusal.
-- `[ ]` `validate-criteria` carries the effective-report composition rule, the delta form with the borrowed
+- `[x]` `validate-criteria` carries the effective-report composition rule, the delta form with the borrowed
   three-token verdict stated as vocabulary-only, and the log-driven delta linkage.
-- `[ ]` `resolve-plan-segmentation` ships as a method with its content unchanged, declared and fired from both
+- `[x]` `resolve-plan-segmentation` ships as a method with its content unchanged, declared and fired from both
   `generate-tasks` and `amend-design`, and resolves in the install set.
-- `[ ]` The task-list formatting strategy carries the per-amendment parent ids, the placement rules including
+- `[x]` The task-list formatting strategy carries the per-amendment parent ids, the placement rules including
   yielded placement, the retirement of parent reopening, `_Amended in:_` as a protected post-completion bullet, the
   appended-criterion group rule, the design-element citation recommendation, and the evidence-sink rule's forward
   pointer; the task-list template carries `_Amended in:_`; `generate-tasks` carries the citation recommendation in
   its parent-task skeleton step and the checklist clause excepting `_Amended in:_` from its
   no-amendment-provenance rule.
-- `[ ]` `strategy-workflow-authoring.md`'s method-declaration rule reads conditionally — a workflow declares what
+- `[x]` `strategy-workflow-authoring.md`'s method-declaration rule reads conditionally — a workflow declares what
   its own body fires, never what it would carry only on a declared method's behalf — with the striking test stated,
   and no existing corpus declaration changes under it.
-- `[ ]` The three sectioned spec forms carry a trailing `## Amendments` section and the brief a trailing
+- `[x]` The three sectioned spec forms carry a trailing `## Amendments` section and the brief a trailing
   `**Amendments:**` label, each with a placeholder row; the grammar is defined once, in the workflow.
-- `[ ]` A task list declaring more than one segment, carrying an `X.R` inside a segment-closing phase ahead of
+- `[x]` A task list declaring more than one segment, carrying an `X.R` inside a segment-closing phase ahead of
   that phase's verifier plus an `X.R2`, an `X.Y.R`, and an `_Amended in:_` bullet under a `[x]` parent, parses
   without refusal through the structural and segmentation scans, the task cursor, and the delivery task inventory,
   with the Goal digest unchanged by the appended bullet.
-- `[ ]` Every edited framework surface's shipped content is identical in the package source and the project copy —
+- `[x]` Every edited framework surface's shipped content is identical in the package source and the project copy —
   Framework files and the two edited Configurable methods by the sync test's whole-file equality, other
   Configurable files by `.default` diff — with the task loop and `generate-tasks` edited in their templates.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
-- `[ ]` `DEV-RULES.ARC` § Method and extension loading reads the method-declaration rule conditionally, matching
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
+- `[x]` `DEV-RULES.ARC` § Method and extension loading reads the method-declaration rule conditionally, matching
   `strategy-workflow-authoring.md`, in both the package source and the project copy
-- `[ ]` The shipped meta-reference patterns accept a bare `X.R2` task id and an artifact-prefixed method
+- `[x]` The shipped meta-reference patterns accept a bare `X.R2` task id and an artifact-prefixed method
   filename, in the package defaults, both hook copies, and this repository's override
