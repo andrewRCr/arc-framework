@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "explain-review-json-option",
+  "claimId": "278415720bbaea536cd433dddcf73a3e",
+  "createdAt": "2026-09-24T02:09:29.115Z",
+  "updatedAt": "2026-09-24T02:09:29.115Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Explain unsupported --json on JSON-request review commands",
+  "branch": "chore/explain-review-json-option",
+  "origin": "inbox",
+  "originEntry": "Explain unsupported `--json` on typed review commands",
+  "originEntrySourceDigest": "sha256:fc661b1e005c7aa0a27ce9d9823a28090cc10ec5c3e343d3be85c9aaa223e61a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
