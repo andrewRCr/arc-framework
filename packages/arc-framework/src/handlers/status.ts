@@ -102,7 +102,11 @@ import {
   runPassiveWorktreeInspection,
 } from "../lib/git/worktree-sync.js";
 import { analyzeBaseDistanceSnapshot } from "../lib/git/base-distance.js";
-import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../lib/base-drift/current-adapters.js";
+import { locusWorkUnitAtPath } from "../lib/session-init/locus-classification.js";
 import {
   analyzeBaseBranchSnapshot,
   readLocalBaseOid,
@@ -179,6 +183,7 @@ import { readDeliveryPositionView } from "../lib/session-init/delivery-position.
 import { observeRepositoryDeliveryPosition } from "../lib/session-init/delivery-position-facts.js";
 import { observeDeliveryEligibilityRef } from "../lib/delivery/git-eligibility.js";
 import { proveGitDeliveryContribution } from "../lib/delivery/git-contribution-proof.js";
+import { projectDeliveryContributionEndpoints } from "../lib/delivery/contribution-proof.js";
 import { observeGitDeliveryLandingResult } from "../lib/delivery/git-landing-result.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../lib/errand/change-request-lifecycle.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
@@ -398,6 +403,19 @@ export function exactSessionBaseOid(evidence: CleanupBaseEvidence, baseBranch: s
     throw new Error("Local history completeness could not be inspected.");
   }
   return baseOid;
+}
+
+/**
+ * Resolve the work unit at the derived frame's canonical entering checkout.
+ *
+ * @param frame - Derived roster and canonical entering-checkout selection.
+ * @returns The retained work-unit identity, or `null` when the entering row owns none.
+ */
+export function sessionPathTreatmentWorkUnit(
+  frame: Pick<Awaited<ReturnType<typeof runDerivedLocusStateProbe>>, "roster" | "entering">,
+): { name: string } | null {
+  const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+  return row === null ? null : locusWorkUnitAtPath(frame.roster, row.checkout.path);
 }
 
 function parsePositiveInteger(raw: string, fallback: number): number {
@@ -726,14 +744,15 @@ export async function handleStatus(
       }
       return pending;
     };
-    const getOptionalDerivedRoster = async () => {
+    const getOptionalDerivedFrame = async () => {
       if (identity === null) return null;
       try {
-        return (await getDerivedLocusState(identity)).roster;
+        return await getDerivedLocusState(identity);
       } catch {
         return null;
       }
     };
+    const getOptionalDerivedRoster = async () => (await getOptionalDerivedFrame())?.roster ?? null;
     const compactionSeedGitSnapshotP = opts.writeCompactionSeed
       ? readCompactionSeedGitSnapshot(cwd, exec)
       : null;
@@ -923,10 +942,17 @@ export async function handleStatus(
             behind: 0,
             base: null,
             baseOid: null,
+            headOid: null,
             unavailableReason: "detached-head" as const,
             integrationEvidence: null,
             overlap: null,
             register: null,
+            detail: "Base drift requires a checked-out branch, but HEAD is detached.",
+            coordinates: { base: null, baseOid: null, headOid: null },
+            continuation: {
+              kind: "terminal-explanation" as const,
+              terminalExplanation: "Check out the intended work branch, then repeat session initialization.",
+            },
             // Detachment resolves before any snapshot evidence is consulted, so this
             // arm carries the explicit not-applicable qualifier rather than omitting it.
             remoteEvidence: "not-applicable" as const,
@@ -942,6 +968,7 @@ export async function handleStatus(
                 behind: 0,
                 base: baseBranch,
                 baseOid: null,
+                headOid: null,
                 integrationEvidence: null,
                 overlap: null,
                 register: null,
@@ -955,10 +982,17 @@ export async function handleStatus(
                 behind: 0,
                 base: baseBranch,
                 baseOid: null,
+                headOid: null,
                 unavailableReason: "no-remote" as const,
                 integrationEvidence: null,
                 overlap: null,
                 register: null,
+                detail: "The repository has no origin remote from which to observe the base.",
+                coordinates: { base: baseBranch, baseOid: null, headOid: null },
+                continuation: {
+                  kind: "terminal-explanation" as const,
+                  terminalExplanation: "Configure the origin remote, then repeat session initialization.",
+                },
                 remoteEvidence: "not-applicable" as const,
               };
         }
@@ -966,6 +1000,8 @@ export async function handleStatus(
           ...options,
           objectAccess: "local-only",
         });
+        const frame = await getOptionalDerivedFrame();
+        const workUnit = frame === null ? null : sessionPathTreatmentWorkUnit(frame);
         return analyzeBaseDistanceSnapshot({
           exec,
           baseBranch,
@@ -973,7 +1009,10 @@ export async function handleStatus(
           snapshot: prerequisites.snapshot,
           objectAvailability: prerequisites.objectAvailability,
           history: prerequisites.history,
-          ...createCurrentBaseDriftAdapters(localOnlyExec),
+          ...createCurrentBaseDriftAdapters(
+            localOnlyExec,
+            workUnit === null ? {} : workUnitPathTreatmentContext(workUnit.name),
+          ),
         });
       },
       baseBranchSync: async (context) => {
@@ -1082,9 +1121,9 @@ export async function handleStatus(
                 ),
                 proveContribution: (endpoints) => proveGitDeliveryContribution({
                   exec: createRawGitExec(cwd),
-                  ...endpoints,
+                  ...projectDeliveryContributionEndpoints(endpoints),
                 }),
-              });
+              }, { terminalAuthoringMovement: "allow-append-only" });
           },
         });
         if (result.status === "refused") {
@@ -1289,7 +1328,9 @@ export async function handleStatus(
           baseEvidence,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
-          nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),
+          nudge: input.includeNudge
+            ? await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor)
+            : { shouldNudge: false, markerPath: null, today: new Date().toISOString().slice(0, 10) },
         });
       },
       materializableWorkUnits: async (context) => {

@@ -52,11 +52,12 @@ export {
   runBaseDrift,
   type BaseDriftMode,
   type BaseDriftResult,
+  type BaseMovement,
   type BaseDriftUnavailableReason,
   type BaseDistanceStatusResult,
   type IntegrationEvidenceResolver,
   type IntegrationEvidenceResolverFactory,
-  type ReconciliationClassifier,
+  type PathTreatmentClassifier,
   type RunBaseDriftOptions,
 } from "./base-distance.js";
 
@@ -68,13 +69,29 @@ export {
 
 export {
   analyzeBaseOverlap,
+  analyzeRevisionOverlap,
   type AnalyzeBaseOverlapOptions,
+  type AnalyzeRevisionOverlapOptions,
+  type RevisionOverlapResult,
 } from "./base-overlap.js";
 
 export {
   composeBaseDriftRegister,
   composeUnavailableRegister,
 } from "./base-drift-register.js";
+
+export {
+  observeGitMergeFeasibility,
+  GitMergeFeasibilitySchema,
+  type GitMergeFeasibility,
+  type ObserveGitMergeFeasibilityOptions,
+} from "./merge-feasibility.js";
+
+export {
+  readMergeTreeComposition,
+  type MergeTreeCompositionResult,
+  type ReadMergeTreeCompositionOptions,
+} from "./merge-tree.js";
 
 export type {
   BaseDriftCommitInput,
@@ -85,7 +102,6 @@ export type {
   IntegrationEvent,
   IntegrationIdentity,
   OverlapEvidence,
-  ReconciliationBehavior,
   ResolverEvent,
   ResolverRead,
 } from "./base-drift-types.js";

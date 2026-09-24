@@ -22,6 +22,31 @@ export const DeliveryContributionEndpointsSchema = z.strictObject({
 });
 export type DeliveryContributionEndpoints = z.infer<typeof DeliveryContributionEndpointsSchema>;
 
+/**
+ * Copy richer delivery records into the exact coordinate shape accepted by contribution proof.
+ *
+ * @param input - Before and after coordinates that may carry delivery-only fields at runtime
+ * @returns Fresh endpoints containing only the proof boundary's head and tree fields
+ */
+export function projectDeliveryContributionEndpoints(
+  input: DeliveryContributionEndpoints,
+): DeliveryContributionEndpoints {
+  const coordinate = ({ head, tree }: DeliveryContributionCoordinate): DeliveryContributionCoordinate => ({
+    head,
+    tree,
+  });
+  return {
+    before: {
+      predecessor: coordinate(input.before.predecessor),
+      member: coordinate(input.before.member),
+    },
+    after: {
+      predecessor: coordinate(input.after.predecessor),
+      member: coordinate(input.after.member),
+    },
+  };
+}
+
 export const DeliveryContributionProofResultSchema = z.union([
   z.strictObject({
     status: z.literal("accepted"),

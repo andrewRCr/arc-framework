@@ -40,9 +40,9 @@ import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
 import type { CoreIO } from "../../src/lib/types.js";
 import {
   acquireAdvisoryLock,
-  getNotesLockPath,
   releaseAdvisoryLock,
-} from "../../src/lib/user-sync/notes-lock.js";
+} from "../../src/lib/advisory-lock.js";
+import { getNotesLockPath } from "../../src/lib/user-sync/notes-lock.js";
 import { writeEntry } from "../../src/lib/user-sync/sync-state-ref.js";
 import { getOrCreateMachineId } from "../../src/lib/user-sync/sync-state.js";
 

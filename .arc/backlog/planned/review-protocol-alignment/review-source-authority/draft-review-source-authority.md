@@ -12,6 +12,119 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Reconcile the three Owner-acceptance instances behind one primitive, or record why not**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _Observation:_ `delivery-post-landing-conflict-recovery` closed planning consuming the Candidate
+  `applicability-selection` transition as the terminal member's acceptance rather than minting a record of its
+  own. That leaves three instances of one shape in the tree — an Owner accepting a review terminus, an Owner
+  accepting a review contribution's applicability, and an Owner accepting a Candidate movement whose
+  contribution ARC cannot prove. Whether they should consume one abstracted acceptance primitive is a real
+  question and deliberately not that work unit's to answer.
+
+- _Approach:_ decide after the terminus binding defect is fixed — an abstraction authored against the current
+  shape would be authored against a shape about to change. Consuming the existing selection rather than adding
+  a sibling leaves one fewer instance to reconcile, so the seam is narrower than it was.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` planning close, 2026-09-16, per that draft's
+  § Boundaries instruction to route the seam at planning close.
+
+- WU_Target: review-source-authority
+
+### `[ ]` **Make an Owner-accepted review terminus bind thereafter, across every lane and every later subject**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ The terminus is built as conversational direction bound to one exact subject and one lane, not as
+  the Owner's standing decision about the work unit. Two defects, both verified in source. It is **discarded when the
+  Candidate advances** — `handlers/review.ts:3078` replays lanes through `consumeOwnerAcceptedTerminus` whenever
+  `locus === "candidate-fix-pending"`, and the function's own doc calls the acceptance "the old conversational
+  direction". And it **cannot cover frontline at all** — `pre-publication-request.ts:51` and
+  `review-policy-driver.ts:148,197` all refuse with "owner-accepted terminus can be applied only to the standard
+  lane", so there is no way to express the decision over the lane that was still demanding passes.
+
+- _Third facet, observed after the first two were written:_ the durable boundary **does** persist the terminus —
+  `candidates/<wu>.boundary.json` still carried `kind: owner-accepted, acceptedBy: andrew` — but the live
+  procedure does not read it back. A plain `arc review pre-publication <wu> --json` reported `terminus: null`
+  against that same persisted record, and only re-supplying `--lanes` restored it and reached
+  `candidate-publish-ready`. This contradicts `prepare-work-unit.md:157` directly, which says the durable boundary
+  carries `owner-accepted` through convergence and to "not restate it" — restating it is exactly what was required.
+  So the record is right and the reader is wrong; the fix may be smaller than the first two facets suggest.
+
+- _The sharp form:_ the acceptance is destroyed by the fix it authorized. The Owner approves a disposition set and
+  accepts the terminus together; applying the approved fix advances the Candidate, and that advance revokes the
+  acceptance. The one action ARC asked the Owner to authorize is the action that cancels their authorization.
+
+- _Why this is a contradiction rather than a gap:_ the design already knows re-asking is wrong.
+  `prepare-work-unit.md:68-71` says "The Owner's decision is the authorization, so do not ask for a second
+  confirmation", and :157 says the durable boundary carries `owner-accepted` through convergence, "do not restate
+  it." Both scope survival to "while the exact Candidate remains current" — a condition an authorized fix always
+  breaks. So the rule is right and its binding is wrong.
+
+- _Approach:_ treat the terminus as a work-unit-level Owner decision that binds thereafter: it survives subject
+  movement and applies to every review lane, frontline included. ARC may report that the subject moved and what
+  changed; it may not silently revoke, re-ask, or route another metered pass on the strength of the movement alone.
+  Preserve the existing distinctions — accepted risk is still not provider clean, not converged, not no-op.
+
+- _Sibling in this same draft:_ "Make Owner-accepted termini settle hosted review blockers" is the third
+  manifestation of one principle — after the Owner accepts, do not force another metered pass or a second authority
+  request. Fold all three together rather than fixing the hosted case alone.
+
+- _Related:_ § Work Unit "Name the holder at every `[invariant]` firing site, or state the owner's standing once and
+  reach it" (`WU_Target: owner-authority-boundary (planned)`) holds the principle; this is its executable instance.
+  An agent using ARC to overrule the Owner is the product failure that capture exists to guard against.
+
+- _Boundary:_ does not re-derive which rules yield to judgment or how an override is disclosed, which the cohort
+  reserves to `judgment-authority-model`. Does not extend the terminus to Errand targets — that is
+  `review-orchestration-right-sizing`'s existing capture, which independently records that the terminus is
+  "inseparable from a delivery member's Candidate boundary" and already contemplates it covering frontline.
+
+- _Evidence:_ observed live during `concurrent-integration-characterization` pre-publication review. The Owner
+  accepted the standard terminus; the approved fix advanced the Candidate; the terminus was dropped and the gate
+  composed `ready / run-frontline` at pass 2 of 2 against the new head. The pass was stopped before it persisted
+  anything, so no pass was consumed.
+
+- _Captured during:_ `concurrent-integration-characterization` pre-publication review, 2026-09-15.
+
+### `[ ]` **Let the Owner discharge a pending verification convergence, as a review terminus is accepted**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: review-protocol-alignment`
+
+- _Observation:_ A review lane can be concluded by explicit Owner judgment — a typed `owner-accepted` mode
+  producing a durable, Candidate-bound terminus that carries live Owner identity and the progress it concluded
+  over. Verification has no analogue. Convergence after an approved fix already reduces to three verdicts —
+  evidence carries (no re-verification at all), fresh (`full`), otherwise `focused` — so narrow re-verification is
+  built and a no-op path exists. But once a convergence is pending, the only exit is an attestation of covering
+  scope: `--scope focused|full` chooses what is supplied, never whether the requirement applies. Every
+  verification ARC asks for beyond the first is therefore effectively blocking, which is a poor default for a
+  project that has looked at the change and would accept it without a further pass.
+
+- _Approach:_ extract the acceptance shape both lanes share — judgment mode, live Owner identity, and the exact
+  subject the acceptance binds — and give convergence its own terminus bound to that primitive. Permit it to
+  discharge a pending convergence only; the initial attestation stays required. That last rule needs no new
+  mechanism, because the initial attestation is already gated structurally on task-list closure while subsequent
+  convergence is a derived evidence verdict.
+
+- _Boundary — stated because the target is the review lane:_ do not reuse the review terminus record itself, and
+  do not model convergence acceptance on its shape. That schema is bound to the standard lane and carries a
+  completed-pass count; convergence has neither lanes nor passes, so reusing it would drag review vocabulary into
+  Candidate state and couple two lifetimes that expire on different events. What the two share is the primitive,
+  not the record — two bindings of one acceptance shape. Bind the acceptance to the exact subject digest: an
+  acceptance that outlives the subject it accepted is precisely the stale-binding failure class the
+  characterization work has been recording.
+
+- _Not a remedy for:_ a convergence demanded over a wrong subject. Where an ambiguous history makes the collected
+  subject name the base's own change rather than the branch's, an Owner acceptance would approve a diff that is
+  not the real one. That correctness defect is routed to `delivery-post-landing-conflict-recovery`; this entry is
+  the ergonomics gap alone, and neither is the other's fix.
+
+- _Captured during:_ `concurrent-integration-characterization` Task 7.3, 2026-09-15.
+
 ### `[ ]` **Make Owner-accepted termini settle hosted review blockers**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-source-authority`), housekeep drain (2026-08-22).
@@ -57,6 +170,44 @@
   hosted-plus-local pre-PR case, not only hosted-only configurations.
 
 ---
+
+### `[ ]` **Give an oversized frontline target a typed route instead of operator reasoning**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ `arc review chunking resolve` returned `consider-chunks / select-review-scope` for a 14,936-line,
+  114-file target — 3x the configured 5,000-line advisory. The signal is advisory by design
+  (`review-chunking.md`: the thresholds "never draw boundaries, cap chunk size, or make a numeric budget a
+  validity rule"), so the policy still resolved `ready / run-frontline` at `coderabbit-cli`.
+
+- _Observation:_ both scope selections available at that point were wrong. `chunked` is an unbacked
+  advertisement — nothing under `src/scripts/review-gate/providers/` implements scoping, so the carrier would
+  review the whole target regardless. `whole-target` hands a 15k-line diff to a carrier that must consume it
+  whole, which is not a review anyone should rely on.
+
+- _Why it needs saying:_ the correct resolution — skip the frontline lane, force `delegated-agent` on the
+  standard lane at chunked scope, where the evaluator is an agent that can curate scopes and aggregate — is
+  reachable only by reading the capability table, the provider directory, and the lane recorders, then reasoning
+  it out. No typed state names it. An operator who trusts the returned policy runs the wrong review.
+
+- _Already owned, deliberately not re-captured:_ `review-source-authority` D2.1-D2.3 owns removing the unbacked
+  `chunked` advertisement and converting a chunked frontline request into a declared `source-scope-ineligible`
+  skip. That covers the chunked request. It does not cover an over-threshold **whole-target** request, which
+  still routes to a carrier that cannot review it well. `chunk-scope-binding` owns the automated per-chunk path
+  and explicitly keeps manual chunk aggregation as the working path meanwhile.
+  `review-signal-convergence` owns response-per-chunk on the live `chunk-pending` arm.
+
+- _Approach:_ decide whether the advisory-only contract should remain absolute at the **lane-routing** boundary.
+  The method's "never a cap" rule governs chunk boundaries; whether a lane may decline a target its only
+  configured source cannot review well is a different question it does not answer. One candidate shape,
+  deliberately not settled: once D2.2 exists, let a frontline lane whose configured sources are all
+  whole-target-only decline an over-threshold target through that same `skipped` arm under its own typed reason,
+  so the operator is told rather than left to infer. A lighter alternative is to leave routing untouched and
+  carry the recommendation in `recommendedActionText`. Either way the standard lane keeps its authority; this
+  removes a hand-derived step, not a decision.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` pre-publication review, 2026-09-18, after the
+  Owner rejected both offered frontline scopes.
 
 ## Operator Selection Override
 

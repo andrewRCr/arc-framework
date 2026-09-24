@@ -106,9 +106,11 @@ export async function classifyGitDeliveryChainContainment(
   }
   const comparison = compareNormalizedDeliveryTree({
     protectedBase,
+    chainBase: protectedBase,
     top,
     finalCandidate,
     lifecyclePaths: input.lifecyclePaths,
+    regenerablePaths: [],
   });
   if (comparison.status === "match") return { status: "contained" };
   return {

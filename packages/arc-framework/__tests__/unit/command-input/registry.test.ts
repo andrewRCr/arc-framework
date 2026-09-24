@@ -68,6 +68,7 @@ describe("command-input schema adapter and registry", () => {
       "delivery compose",
       "delivery plan abandon",
       "delivery plan inventory schema",
+      "errand next",
     ];
     const expectedPaths = source.commands
       .filter((command) => command.path !== "release commit" && command.path !== "release push")

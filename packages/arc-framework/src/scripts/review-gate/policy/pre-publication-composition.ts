@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { parseMetaRecord, toMetaRecord } from "../../../lib/active/meta-reader.js";
+import { workUnitPathTreatmentContext } from "../../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   compareGitNormalizedDeliveryTrees,
@@ -18,16 +19,23 @@ import { CurrentDeliveryLifecycleContributionPathSource } from "../../../lib/del
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
+import { analyzeRevisionOverlap, getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
 import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
-import { candidateReviewResponses } from "../../../lib/work-unit/candidate-attestation.js";
+import {
+  CandidateConvergenceProjectionSchema,
+  candidateReviewResponses,
+  reduceCandidateDurableBaseline,
+  type CandidateManagedRecordV1,
+} from "../../../lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
 import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
+import type { CandidateEffectiveTargetProjection } from
+  "../../../lib/work-unit/candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
@@ -59,9 +67,85 @@ import type {
   ReservationTargetRead,
   TargetRead,
 } from "./pre-publication-request.js";
+import {
+  readPendingCandidateReviewFixAuthority,
+  type PendingCandidateReviewFixAuthority,
+} from "./candidate-review-fix-continuation.js";
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Project the Candidate read used by prepublication, including an authorized pending fix re-entry.
+ *
+ * @param input - Managed Candidate, effective target, and pending fix authority.
+ * @returns A current Candidate projection or a fail-closed blocked read.
+ */
+export function projectPrePublicationCandidateRead(input: {
+  record: CandidateManagedRecordV1;
+  effective: CandidateEffectiveTargetProjection;
+  pending: PendingCandidateReviewFixAuthority;
+}): CandidateRead {
+  const baseline = reduceCandidateDurableBaseline(input.record);
+  if (input.effective.state === "current") {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: input.effective.convergenceVerification,
+      convergenceScope: input.effective.convergenceScope,
+    });
+    return {
+      status: "current",
+      candidateId: input.effective.candidateId,
+      headSha: input.effective.recognizedTarget.revision,
+      subjectDigest: input.effective.recognizedTarget.subject.subjectDigest,
+      implementationChanged: input.effective.implementationChanged,
+      ...convergence,
+      lineageHeadShas: [...new Set([
+        input.record.attestation.baseRevision,
+        ...candidateReviewResponses(input.record)
+          .flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
+        ...input.record.lineageAttestations.map((attestation) => attestation.target.revision),
+        input.effective.recognizedTarget.revision,
+      ])],
+    };
+  }
+  const authorizedPendingFix = input.effective.state === "changed"
+    || input.effective.state === "decision-required";
+  if (authorizedPendingFix && input.pending.status === "selected"
+    && input.pending.candidateId === baseline.candidateId) {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: baseline.convergenceVerification,
+      convergenceScope: baseline.convergenceScope,
+    });
+    return {
+      status: "current",
+      candidateId: baseline.candidateId,
+      headSha: input.pending.reviewedHead,
+      subjectDigest: baseline.target.subject.subjectDigest,
+      implementationChanged: baseline.implementationChanged,
+      ...convergence,
+      pendingReviewTarget: input.pending.reviewedTarget,
+      lineageHeadShas: [...new Set([
+        input.record.attestation.baseRevision,
+        ...candidateReviewResponses(input.record)
+          .flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
+        ...input.record.lineageAttestations.map((attestation) => attestation.target.revision),
+        input.pending.reviewedHead,
+      ])],
+    };
+  }
+  if (input.pending.status === "refused") {
+    return {
+      status: "blocked",
+      reason: `Candidate review-fix authority is unavailable (${input.pending.reason}).`,
+    };
+  }
+  const reason = input.effective.state === "changed" || input.effective.state === "staged-change"
+    ? "Run full work-unit verification to establish a new Candidate lineage root."
+    : input.effective.state === "decision-required"
+      ? `${input.effective.selectionOfferText}\n${input.effective.recommendedActionText}`
+      : `Candidate applicability could not recognize the current target (${input.effective.nextAction}).`;
+  return { status: "blocked", reason };
 }
 
 /**
@@ -115,11 +199,17 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
         protectedBaseRef,
         topRef,
       });
-      return [...paths.workUnitArtifacts, ...paths.sharedProjections];
+      return paths.paths;
     },
     eligibility: {
       observeRef: (ref) => observeDeliveryEligibilityRef(input.exec, ref),
       readAncestry: (ancestor, descendant) => readAncestry(input.exec, ancestor, descendant),
+      readOverlap: (coordinates) => analyzeRevisionOverlap({
+        exec: input.exec,
+        leftRevision: coordinates.leftRevision,
+        rightRevision: coordinates.rightRevision,
+        treatmentContext: workUnitPathTreatmentContext(coordinates.workUnitId),
+      }),
       revalidateLifecycleContribution: (candidate) => revalidateDeliveryLifecycleContribution({
         exec: input.exec,
         ...candidate,
@@ -128,9 +218,11 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
         const compared = await compareGitNormalizedDeliveryTrees({
           exec: input.exec,
           protectedBaseTree: candidate.protectedBase.tree,
+          chainBaseTree: candidate.chainBase.tree,
           topTree: candidate.top.tree,
           finalCandidateTree: candidate.finalCandidate.tree,
           lifecyclePaths: candidate.lifecyclePaths,
+          regenerablePaths: candidate.regenerablePaths,
         });
         if (compared.status === "unavailable") {
           return { status: "refused" as const, reason: "unavailable" as const };
@@ -236,29 +328,23 @@ export function createPrePublicationCompositionDependencies(input: {
         exec: input.exec,
         rawExec: rawGit,
       });
-      if (effective.state !== "current") {
-        const reason = effective.state === "changed" || effective.state === "staged-change"
-          ? "Run full work-unit verification to establish a new Candidate lineage root."
-          : effective.state === "decision-required"
-            ? `${effective.selectionOfferText}\n${effective.recommendedActionText}`
-            : `Candidate applicability could not recognize the current target (${effective.nextAction}).`;
-        return { status: "blocked", reason };
+      let pending: PendingCandidateReviewFixAuthority = { status: "none" };
+      if (effective.state === "changed" || effective.state === "decision-required") {
+        try {
+          pending = await readPendingCandidateReviewFixAuthority({
+            cwd: input.cwd,
+            exec: input.exec,
+            workUnitId: name,
+            candidate: record,
+          });
+        } catch (error) {
+          return {
+            status: "blocked",
+            reason: `Candidate review-fix authority could not be read (${describe(error)}).`,
+          };
+        }
       }
-      return {
-        status: "current",
-        candidateId: effective.candidateId,
-        headSha: effective.recognizedTarget.revision,
-        subjectDigest: effective.recognizedTarget.subject.subjectDigest,
-        implementationChanged: effective.implementationChanged,
-        convergenceVerification: effective.convergenceVerification,
-        lineageHeadShas: [...new Set([
-          record.attestation.baseRevision,
-          ...candidateReviewResponses(record)
-            .flatMap((response) => [response.oldTarget.revision, response.newTarget.revision]),
-          ...record.lineageAttestations.map((attestation) => attestation.target.revision),
-          effective.recognizedTarget.revision,
-        ])],
-      };
+      return projectPrePublicationCandidateRead({ record, effective, pending });
     },
 
     readAssurance: async (workUnit): Promise<AssuranceRead> => {

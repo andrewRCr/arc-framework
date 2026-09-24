@@ -8,6 +8,8 @@ import {
   DeliveryPlanSeamV1Schema,
   DeliveryPlanV1Schema,
   DeliveryStateV1Schema,
+  DeliveryTaskInventoryParentV1Schema,
+  DeliveryTaskRoleV1Schema,
   resolveAuthoredSeamIncidence,
   registerDeliveryDomainSchemas,
   validateDeliveryPlanAuthoringInputV1,
@@ -76,7 +78,7 @@ function validAuthoringInput(): Record<string, unknown> {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [{
       chunkKey: "record-substrate",
       title: "Record substrate",
@@ -220,6 +222,19 @@ describe("DeliveryPlanV1Schema", () => {
 });
 
 describe("DeliveryPlanAuthoringInputV1Schema", () => {
+  it("keeps retired projections readable but refuses them for new authoring", () => {
+    expect(DeliveryPlanV1Schema.safeParse(validPlan()).success).toBe(true);
+
+    const retired = validAuthoringInput();
+    retired.projection = { kind: "wu-integration-target" };
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(retired).success).toBe(false);
+
+    const integrationOnly = validAuthoringInput();
+    const [member] = integrationOnly.members as Array<Record<string, unknown>>;
+    member!.mainlineLandability = "integration-only";
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(integrationOnly).success).toBe(false);
+  });
+
   it("refuses every derived identity, owner, fingerprint, and digest", () => {
     const derivedFields: Array<readonly [readonly (string | number)[], unknown]> = [
       [["planId"], "123e4567-e89b-42d3-a456-426614174000"],
@@ -248,15 +263,24 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
     }
   });
 
-  it("keeps verification scope schema-open while protecting semantic digests by role", () => {
+  it.each(["segment", "member", "work-unit"])("accepts the verification scope %s", (scope) => {
+    expect(DeliveryTaskRoleV1Schema.parse({ kind: "verification", scope })).toEqual({
+      kind: "verification",
+      scope,
+    });
+  });
+
+  it("refuses an unrecognized verification scope in authoring input", () => {
     const input = validAuthoringInput();
     const parents = (input.tasks as { parents: Array<Record<string, unknown>> }).parents;
     parents.splice(1, 0, {
       taskId: "1.2",
       role: { kind: "verification", scope: "future-boundary" },
     });
-    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(true);
+    expect(DeliveryPlanAuthoringInputV1Schema.safeParse(input).success).toBe(false);
+  });
 
+  it("protects semantic digests by verification role", () => {
     const plan = validPlan();
     const planParents = (plan.tasks as { parents: Array<Record<string, unknown>> }).parents;
     planParents[0]!.semanticDigest = null;
@@ -265,6 +289,24 @@ describe("DeliveryPlanAuthoringInputV1Schema", () => {
     planParents[0]!.semanticDigest = digest;
     planParents[1]!.semanticDigest = digest;
     expect(DeliveryPlanV1Schema.safeParse(plan).success).toBe(false);
+  });
+
+  it.each([
+    [{ kind: "implementation" }, digest, null],
+    [{ kind: "verification", scope: "segment" }, digest, null],
+    [{ kind: "verification", scope: "member" }, digest, null],
+    [{ kind: "verification", scope: "work-unit" }, null, digest],
+  ] as const)("binds semantic digest presence for role $0", (role, acceptedDigest, refusedDigest) => {
+    expect(DeliveryTaskInventoryParentV1Schema.safeParse({
+      taskId: "1.1",
+      semanticDigest: acceptedDigest,
+      role,
+    }).success).toBe(true);
+    expect(DeliveryTaskInventoryParentV1Schema.safeParse({
+      taskId: "1.1",
+      semanticDigest: refusedDigest,
+      role,
+    }).success).toBe(false);
   });
 
   it("refuses derived seam incidence, ownership, identity, and fingerprints", () => {

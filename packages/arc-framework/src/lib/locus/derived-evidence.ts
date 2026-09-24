@@ -3,6 +3,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
+import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   readTransientIdentitySnapshot,
   type TransientIdentitySnapshot,
@@ -36,7 +37,7 @@ import type { PrimarySafetyProjection } from "./role-derivation.js";
 export interface DerivedLocusEvidenceIO {
   scanWorktrees(): Promise<RegisteredWorktreeScanResult>;
   listDirectory(path: string): Promise<string[]>;
-  readArchivedMeta(ref: string, slug: string): Promise<ArchivedWorkUnitMetaRead>;
+  readArchivedMeta(checkoutPath: string, ref: string, slug: string): Promise<ArchivedWorkUnitMetaRead>;
   readText(path: string): Promise<string>;
   readMarker(path: string): Promise<WorktreeMarkerGenerationReadResult>;
   readIdentities(): Promise<TransientIdentitySnapshot>;
@@ -54,7 +55,13 @@ export function createDerivedLocusEvidenceIO(options: {
   return {
     scanWorktrees: () => scanRegisteredWorktrees(options.exec),
     listDirectory: (path) => readdir(path),
-    readArchivedMeta: (ref, slug) => readArchivedWorkUnitMetaFromRef(options.exec, ref, slug),
+    readArchivedMeta: async (checkoutPath, ref, slug) => {
+      const exec = bindGitExec(options.exec, checkoutPath);
+      const committed = await readArchivedWorkUnitMetaFromRef(exec, ref, slug);
+      return committed.kind === "absent"
+        ? readStagedArchivedWorkUnitMeta(exec, ref, slug)
+        : committed;
+    },
     readText: (path) => readFile(path, "utf8"),
     readMarker: readWorktreeMarkerGeneration,
     readIdentities: () => readTransientIdentitySnapshot({ exec: options.exec, identity: options.identity }),
@@ -168,7 +175,8 @@ async function readCheckout(
   const archivedRoot = join(worktree.path, ".arc", "completed");
   const archivedRead = archivedSubject === null
     ? null
-    : await io.readArchivedMeta(worktree.head, archivedSubject).catch((error: unknown): ArchivedWorkUnitMetaRead => ({
+    : await io.readArchivedMeta(worktree.path, worktree.head, archivedSubject)
+      .catch((error: unknown): ArchivedWorkUnitMetaRead => ({
         kind: "unreadable",
         reason: errorMessage(error),
       }));
@@ -199,6 +207,76 @@ async function readCheckout(
           : { kind: "error" as const, path: archivedRoot, message: archivedRootError }],
     archivedMetas,
   };
+}
+
+/** Admit only the exact indexed form produced by an uncommitted integration archive sweep. */
+async function readStagedArchivedWorkUnitMeta(
+  exec: GitExec,
+  head: string,
+  slug: string,
+): Promise<ArchivedWorkUnitMetaRead> {
+  const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const archivedPath = new RegExp(
+    `^\\.arc/completed/[^/]+/\\d+_${escapedSlug}/meta-${escapedSlug}\\.md$`,
+    "u",
+  );
+  let indexPaths: string[];
+  try {
+    const { stdout } = await exec("git", ["ls-files", "--cached", "-z", "--", ".arc/completed/"]);
+    indexPaths = stdout.split("\0").filter((path) => archivedPath.test(path));
+  } catch {
+    return { kind: "unreadable", reason: "archive-index-read-failed" };
+  }
+  if (indexPaths.length === 0) return { kind: "absent" };
+  if (indexPaths.length > 1) return { kind: "duplicate", paths: indexPaths.sort() };
+
+  const path = indexPaths[0];
+  if (path === undefined) return { kind: "absent" };
+  const activePath = `.arc/active/meta-${slug}.md`;
+  let activeIndex: string;
+  let activeText: string;
+  let archivedText: string;
+  try {
+    [
+      { stdout: activeIndex },
+      { stdout: activeText },
+      { stdout: archivedText },
+    ] = await Promise.all([
+      exec("git", ["ls-files", "--cached", "-z", "--", `:(literal)${activePath}`]),
+      exec("git", ["show", `${head}:${activePath}`]),
+      exec("git", ["show", `:${path}`]),
+    ]);
+  } catch {
+    return { kind: "unreadable", path, reason: "staged-archive-transition-read-failed" };
+  }
+  if (activeIndex !== "") {
+    return { kind: "unreadable", path, reason: "staged-archive-source-remains-indexed" };
+  }
+
+  try {
+    const active = parseMetaRecord(activeText);
+    const archived = parseMetaRecord(archivedText);
+    if (active.state !== "Integrating"
+      || archived.state !== "Shipped"
+      || active.owner === null
+      || archived.owner !== active.owner
+      || active.branch === null
+      || archived.branch !== null
+      || archived.candidateId !== active.candidateId
+      || archived.taskList !== active.taskList) {
+      return { kind: "unreadable", path, reason: "staged-archive-transition-mismatch" };
+    }
+  } catch {
+    return { kind: "unreadable", path, reason: "staged-archive-meta-invalid" };
+  }
+  return { kind: "read", path, text: archivedText };
+}
+
+function bindGitExec(exec: GitExec, cwd: string): GitExec {
+  return (command, args, options) => exec(command, args, {
+    ...options,
+    cwd: options?.cwd ?? cwd,
+  });
 }
 
 function projectMarker(result: WorktreeMarkerGenerationReadResult): DormantMarkerGenerationEvidence {

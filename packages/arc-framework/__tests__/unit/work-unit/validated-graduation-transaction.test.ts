@@ -7,6 +7,7 @@ import {
   type GraduationStoredArtifact,
   type PrepareGraduationTransactionInput,
 } from "../../../src/lib/work-unit/validated-graduation-transaction.js";
+import { validatePlanningArtifactTuple } from "../../../src/lib/work-unit/planning-artifact-tuple.js";
 
 const ROOT = ".arc/backlog/planned/widget";
 const TARGET = ".arc/active";
@@ -25,21 +26,30 @@ function artifact(basename: string, content: string, mode: "100644" | "100755" =
   };
 }
 
+function observedArtifact(value: GraduationStoredArtifact) {
+  return {
+    path: value.sourcePath,
+    state: { kind: "file" as const, mode: value.mode, contentDigest: value.contentDigest },
+  };
+}
+
 function input(options: {
   workflow?: "draft-design" | "create-spec" | "generate-tasks" | null;
   suppliedClass?: boolean;
+  design?: "draft" | "none";
 } = {}): PrepareGraduationTransactionInput {
+  const hasDraft = options.design !== "none";
   const metaContent = renderMetaFile("widget", {
     state: "Planning",
     owner: "andrew",
     branch: null,
     workClass: options.suppliedClass ? "TBD" : "Heavy",
-    design: ["draft-widget.md"],
-    currentWorkflow: options.workflow === undefined ? "create-spec" : options.workflow,
+    design: hasDraft ? ["draft-widget.md"] : [],
+    currentWorkflow: options.workflow === undefined ? (hasDraft ? "create-spec" : null) : options.workflow,
   });
   const artifacts = [
     artifact("meta-widget.md", metaContent),
-    artifact("draft-widget.md", "# Draft\n"),
+    ...(hasDraft ? [artifact("draft-widget.md", "# Draft\n")] : []),
   ];
   return {
     slug: "widget",
@@ -72,6 +82,32 @@ function input(options: {
 }
 
 describe("prepareValidatedGraduationTransaction", () => {
+  it.each([
+    ["without a companion", false],
+    ["with a companion", true],
+  ])("starts a meta-only planned stub %s in draft-design", (_label, withCompanion) => {
+    const candidate = input({ design: "none" });
+    if (withCompanion) {
+      const notes = artifact("notes-widget.md", "# Notes\n");
+      candidate.artifacts.push(notes);
+      candidate.destinations.push({ path: notes.targetPath, state: { kind: "absent" } });
+    }
+
+    const result = prepareValidatedGraduationTransaction(candidate);
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.transaction.policy.profile).toEqual({ kind: "draft", sourceDesign: [] });
+    expect(result.transaction.policy.workflow).toEqual({ kind: "derived", value: "draft-design" });
+    const meta = parseMetaRecord(new TextDecoder().decode(result.transaction.target.metaBytes));
+    expect(meta.design).toEqual([]);
+    expect(meta.taskList).toBeNull();
+    expect(meta.currentWorkflow).toBe("draft-design");
+    expect(result.transaction.target.artifacts.map(({ basename }) => basename)).toEqual(
+      withCompanion ? ["meta-widget.md", "notes-widget.md"] : ["meta-widget.md"],
+    );
+  });
+
   it("preserves a valid recorded workflow and exact non-meta bytes", () => {
     const result = prepareValidatedGraduationTransaction(input());
     expect(result.status).toBe("ready");
@@ -82,6 +118,42 @@ describe("prepareValidatedGraduationTransaction", () => {
     expect(draft?.mode).toBe("100644");
     expect(new TextDecoder().decode(draft?.bytes)).toBe("# Draft\n");
     expect(result.transaction.reconciliation.notice).toBeNull();
+  });
+
+  it("preserves exact-slug companion artifacts", () => {
+    const withCompanion = input();
+    const notes = artifact("notes-widget.md", "# Notes\n");
+    withCompanion.artifacts.push(notes);
+    withCompanion.destinations.push({ path: notes.targetPath, state: { kind: "absent" } });
+
+    const result = prepareValidatedGraduationTransaction(withCompanion);
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    const preserved = result.transaction.target.artifacts.find(({ basename }) => basename === "notes-widget.md");
+    expect(new TextDecoder().decode(preserved?.bytes)).toBe("# Notes\n");
+  });
+
+  it("refuses a companion from another artifact family", () => {
+    const candidate = input();
+    const metaContent = new TextDecoder().decode(candidate.artifacts[0]!.bytes);
+    const foreignCompanion = artifact("notes-other.md", "# Notes\n");
+
+    expect(validatePlanningArtifactTuple({
+      expectedSlug: "widget",
+      metaPath: `${ROOT}/meta-widget.md`,
+      metaContent,
+      meta: parseMetaRecord(metaContent),
+      artifacts: [
+        observedArtifact(candidate.artifacts[0]!),
+        observedArtifact(candidate.artifacts[1]!),
+        observedArtifact(foreignCompanion),
+      ],
+    })).toMatchObject({
+      status: "refused",
+      reason: "artifact-mismatch",
+      locus: "notes-other.md",
+    });
   });
 
   it("derives only an unset workflow and composes supplied Class into final meta bytes", () => {

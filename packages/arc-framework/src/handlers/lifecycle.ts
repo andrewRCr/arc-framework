@@ -119,6 +119,11 @@ import {
 import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
 import { isGitTransitionOriginOccupied } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
+  DECOMPOSE_MODE_KEYS,
+  decomposeOptionSelected,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
+import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
 } from "../lib/work-unit/transition-record-store.js";
@@ -135,8 +140,10 @@ import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
 import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import { CandidateVerificationEvidenceRefSchema } from
+  "../lib/work-unit/candidate-attestation.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
@@ -161,6 +168,7 @@ import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
   projectCorrectiveDeliveryStatusBoundary,
+  recoverAttestedOwnerTerminusBoundary,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
@@ -190,6 +198,12 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+
+export {
+  DECOMPOSE_MACHINE_READABLE_KEYS,
+  DECOMPOSE_MODE_KEYS,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
 
 // ---------------------------------------------------------------------------
 // Shared dispatch shape — target resolution + candidate surfacing
@@ -516,35 +530,6 @@ export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
 
 /** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
-export const DECOMPOSE_MODE_KEYS = [
-  "preflight",
-  "execute",
-  "extract",
-  "finish",
-  "advanceBase",
-] as const;
-
-/** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
-export const DECOMPOSE_MACHINE_READABLE_KEYS = [
-  ...DECOMPOSE_MODE_KEYS,
-  "apply",
-] as const;
-
-type DecomposeRoutingOptions = Partial<Record<
-  typeof DECOMPOSE_MACHINE_READABLE_KEYS[number],
-  string | boolean
->>;
-
-function decomposeOptionSelected(options: DecomposeRoutingOptions, key: keyof DecomposeRoutingOptions): boolean {
-  const value = options[key];
-  return typeof value === "boolean" ? value : value !== undefined;
-}
-
-/** Whether a decomposition invocation must keep output and parse failures on machine-readable streams. */
-export function isDecomposeMachineReadableInvocation(options: DecomposeRoutingOptions): boolean {
-  return DECOMPOSE_MACHINE_READABLE_KEYS.some((key) => decomposeOptionSelected(options, key));
-}
-
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
   preflight: z.literal(true).optional(),
@@ -643,6 +628,8 @@ export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
+  scope: z.enum(["focused", "full"]).default("full"),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema.optional(),
   expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
 }).strict().superRefine((value, refinement) => {
@@ -782,6 +769,8 @@ export const lifecycleCommandInputRegistrations = [
       "operand.name": "name",
       "option.json": "json",
       "option.new-root": "newRoot",
+      "option.scope": "scope",
+      "option.verification-evidence-ref": "verificationEvidenceRef",
       "option.expected-candidate": "expectedCandidate",
       "option.expected-subject": "expectedSubject",
     },
@@ -1910,7 +1899,7 @@ export async function handlePublish(
       spineRemedy(
         "Submission requires a settled pre-publication boundary.",
         "Resolve the pre-publication lanes",
-        ["arc", "review", "pre-publication", target, "--json"],
+        ["arc", "review", "pre-publication", target],
       ),
       input.json === true,
     );
@@ -2597,6 +2586,8 @@ export async function handleFinalizeStage(
 export interface AttestOptions {
   json?: boolean;
   newRoot?: boolean;
+  scope?: "focused" | "full";
+  verificationEvidenceRef?: string;
   expectedCandidate?: string;
   expectedSubject?: string;
 }
@@ -2614,6 +2605,8 @@ export async function handleAttest(
       name: name?.trim(),
       json: opts.json,
       newRoot: opts.newRoot,
+      scope: opts.scope,
+      verificationEvidenceRef: opts.verificationEvidenceRef,
       expectedCandidate: opts.expectedCandidate,
       expectedSubject: opts.expectedSubject,
     },
@@ -2776,6 +2769,31 @@ export async function handleAttest(
     return;
   }
 
+  // Read here rather than inside attestation's own target dependency: every refusal attestation returns names
+  // a Candidate and the subject digest it was measured against, and a subject that was never collected has
+  // neither. What blocks it is the shape of the branch's history — the same kind of condition as the checks
+  // above, and like them it clears by hand and leaves the same command to re-run.
+  const subject = await collectGitCandidateSubject({
+    cwd: base.cwd,
+    name: input.name,
+    baseBranch: settings["branch.base"],
+    exec: base.io.exec,
+  });
+  if (subject.status !== "collected") {
+    refuseWithRemedy(
+      `\`arc attest\` cannot derive \`${input.name}\`'s subject from a single base `
+        + `(${subject.reason}): ${subject.detail}`,
+      spineRemedy(
+        "A Candidate attests what the branch contributes over one base, which a history leaving two equally "
+          + "good ancestors does not name.",
+        "Merge the configured base into the branch, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+
   let result: Awaited<ReturnType<typeof runAttest>>;
   try {
     result = await runAttest({
@@ -2783,12 +2801,7 @@ export async function handleAttest(
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
       readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
-      currentTarget: (slug) => collectGitCandidateTarget({
-        cwd: base.cwd,
-        name: slug,
-        baseBranch: settings["branch.base"],
-        exec: base.io.exec,
-      }),
+      currentTarget: () => Promise.resolve(subject.target),
       effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
         cwd: base.cwd,
         name: slug,
@@ -2853,7 +2866,14 @@ export async function handleAttest(
               terminus: existingBoundary.terminus,
             })
           : null;
-        const locus = deliveryLocus ?? convergenceResume
+        const ownerTerminusContinuation = recoverAttestedOwnerTerminusBoundary({
+          stored: existingBoundary,
+          workUnit: publication.name,
+          candidateId: publication.candidateId,
+          candidateSubjectDigest: publication.candidateSubjectDigest,
+          repairCurrent: publication.repairCurrent,
+        });
+        const locus = deliveryLocus ?? ownerTerminusContinuation ?? convergenceResume
           ?? (publication.repairCurrent && boundaryMatches
             ? existingBoundary
             : projectCandidateReviewBoundary({
@@ -2866,8 +2886,9 @@ export async function handleAttest(
         if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
           orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
         }
+        const nextAction = boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
         if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
-          orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+          orientation["Next Action"] = formatValue(nextAction, "narrative");
         }
         if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
           orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
@@ -2893,6 +2914,8 @@ export async function handleAttest(
       name: input.name,
       lifecycle: meta.state,
       newRoot: input.newRoot === true,
+      scope: input.scope,
+      verificationEvidenceRef: input.verificationEvidenceRef,
       ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
         ? {}
         : {
@@ -2935,13 +2958,39 @@ export async function handleAttest(
   } else if (result.status === "blocked") {
     p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
   } else if (result.status === "refused") {
-    p.log.error(result.recommendedActionText);
+    if ("expected" in result) {
+      p.log.error([
+        result.recommendedActionText,
+        `Reason: ${result.reason}`,
+        `Expected Candidate: ${result.expected.candidateId}`,
+        `Observed Candidate: ${result.observed.candidateId ?? "[none]"}`,
+        `Expected Subject: ${result.expected.subjectDigest}`,
+        `Observed Subject: ${result.observed.subjectDigest}`,
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    } else {
+      p.log.error([
+        result.recommendedActionText,
+        `Candidate: ${result.candidateId ?? "[none]"}`,
+        `Subject: ${result.subjectDigest}`,
+        `Scope: ${result.requestedScope} requested; ${result.requiredScope} required`,
+        `Fresh evidence: ${result.verificationEvidenceProvided ? "supplied" : "missing"}`,
+        ...(result.nextAction.verificationEvidenceRequired
+          ? []
+          : [`Operation: ${result.nextAction.operation}`]),
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    }
   } else {
     const lines = [
       `Work unit: ${result.locus.workUnit}`,
       `Candidate: ${result.locus.candidateId}`,
       `Locus:     ${result.locus.locus}`,
     ];
+    if ("operation" in result && result.operation === "convergence") {
+      lines.push(`Scope:     ${result.scope}`);
+      lines.push(`Evidence:  ${result.verificationEvidenceRef}`);
+    }
     p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
     p.outro("Done.");
   }

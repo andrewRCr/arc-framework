@@ -17,10 +17,9 @@ import { stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
-import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { resolvePlanningStage } from "../../lib/active/current-workflow-consistency.js";
 import { checkCurrentWorkflowConsistency } from "../../lib/active/current-workflow-consistency.js";
-import { getCurrentBranch } from "../../lib/git/index.js";
+import { getCurrentBranch } from "../../lib/git/exec.js";
 import { createRawGitExec, gitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
@@ -36,20 +35,11 @@ import type {
   SessionType,
   MetaFileCandidate,
 } from "./types.js";
-import { readSubmissionBoundary } from "../../lib/work-unit/submission-boundary-store.js";
-import { readCandidateRecord } from "../../lib/work-unit/candidate-record-store.js";
-import { reduceCandidateDurableBaseline } from
-  "../../lib/work-unit/candidate-attestation.js";
 import {
   type CandidateTargetProjector,
 } from "../../lib/work-unit/candidate-effective-target.js";
-import { projectGitCandidateEffectiveTarget } from
-  "../../lib/work-unit/git-candidate-effective-target.js";
-import {
-  projectCandidateReviewBoundary,
-  recoverPrePublicationBoundary,
-  recoverIntegratingBoundary,
-} from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import type { CandidateReviewFixAuthorityReader } from
+  "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
   "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
@@ -119,10 +109,21 @@ export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
   const { layout, candidates: rawCandidates, warnings } = await readActiveMetaCandidates(options.cwd);
+  const exec = options.exec ?? gitExec;
   const projectCandidateTarget = options.projectCandidateTarget
-    ?? createRepositoryCandidateTargetProjector(options.exec ?? gitExec);
+    ?? createRepositoryCandidateTargetProjector(exec);
+  const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
+    ?? (async (input) => (await import(
+      "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
+    )).readPendingCandidateReviewFixAuthority({ ...input, exec }));
   const candidates = await Promise.all(rawCandidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate, warnings, projectCandidateTarget)));
+    projectCandidateIntegrationBoundary(
+      options.cwd,
+      candidate,
+      warnings,
+      projectCandidateTarget,
+      readPendingCandidateFix,
+    )));
   return {
     mode: "full",
     layout,
@@ -188,8 +189,18 @@ export async function runActiveSessionInitStatusInternal(
   ]);
   const projectCandidateTarget = options.projectCandidateTarget
     ?? createRepositoryCandidateTargetProjector(options.exec);
+  const readPendingCandidateFix = options.readPendingCandidateReviewFixAuthority
+    ?? (async (input) => (await import(
+      "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"
+    )).readPendingCandidateReviewFixAuthority({ ...input, exec: options.exec }));
   const projected = await Promise.all(scan.candidates.map((candidate) =>
-    projectCandidateIntegrationBoundary(options.cwd, candidate, scan.warnings, projectCandidateTarget)));
+    projectCandidateIntegrationBoundary(
+      options.cwd,
+      candidate,
+      scan.warnings,
+      projectCandidateTarget,
+      readPendingCandidateFix,
+    )));
   const semantic = resolveCandidateSemantics(projected, role, identity, scan.warnings);
   const result = await resolveSessionInit(options.cwd, scan.layout, semantic.valid, scan.warnings, currentBranch);
   const resolved = result.resolution === "single"
@@ -361,8 +372,29 @@ async function projectCandidateIntegrationBoundary(
   candidate: MetaFileCandidate,
   warnings: string[],
   projectCandidateTarget: CandidateTargetProjector,
+  readPendingCandidateFix: CandidateReviewFixAuthorityReader,
 ): Promise<MetaFileCandidate> {
   if (candidate.candidateId === null || candidate.candidateId === undefined) return candidate;
+  if (candidate.state === "Active"
+    && normalizeNullablePointer(candidate.currentWorkflow) !== "prepare-work-unit") {
+    return { ...candidate, integrationBoundary: null };
+  }
+  const [
+    { readSubmissionBoundary },
+    { readCandidateRecord },
+    { reduceCandidateDurableBaseline },
+    {
+      projectCandidateFixResumeBoundary,
+      projectCandidateReviewBoundary,
+      recoverPrePublicationBoundary,
+      recoverIntegratingBoundary,
+    },
+  ] = await Promise.all([
+    import("../../lib/work-unit/submission-boundary-store.js"),
+    import("../../lib/work-unit/candidate-record-store.js"),
+    import("../../lib/work-unit/candidate-attestation.js"),
+    import("../../scripts/review-gate/policy/integration-boundary-locus.js"),
+  ]);
   const match = /^meta-(.+)\.md$/u.exec(candidate.filename);
   const slug = match?.[1];
   if (slug === undefined || !SlugSchema.safeParse(slug).success) return candidate;
@@ -375,6 +407,7 @@ async function projectCandidateIntegrationBoundary(
   }
   let candidateSubjectDigest: string;
   let requireExactDurableBoundary = false;
+  let pendingCandidateFix = false;
   try {
     const effective = await projectCandidateTarget({ cwd, name: slug, record });
     if (effective.state === "current") {
@@ -382,6 +415,18 @@ async function projectCandidateIntegrationBoundary(
     } else if (candidate.state === "Integrating") {
       candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
       requireExactDurableBoundary = true;
+    } else if (effective.state === "changed" || effective.state === "decision-required") {
+      const pending = await readPendingCandidateFix({ cwd, workUnitId: slug, candidate: record });
+      if (pending.status === "refused") {
+        warnings.push(`Candidate review-fix authority for ${candidate.filename} is unavailable (${pending.reason}).`);
+        return { ...candidate, integrationBoundary: null };
+      }
+      if (pending.status === "none") {
+        warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
+        return { ...candidate, integrationBoundary: null };
+      }
+      candidateSubjectDigest = reduceCandidateDurableBaseline(record).target.subject.subjectDigest;
+      pendingCandidateFix = true;
     } else {
       warnings.push(`Candidate target for ${candidate.filename} requires ${effective.nextAction}.`);
       return { ...candidate, integrationBoundary: null };
@@ -414,6 +459,16 @@ async function projectCandidateIntegrationBoundary(
     };
   }
   if (candidate.state !== "Active") return candidate;
+  if (pendingCandidateFix) {
+    return {
+      ...candidate,
+      integrationBoundary: projectCandidateFixResumeBoundary({
+        workUnit: slug,
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest,
+      }),
+    };
+  }
   const stored = await readSubmissionBoundary(cwd, slug);
   const recovered = recoverPrePublicationBoundary({
     stored,
@@ -439,7 +494,9 @@ function createRepositoryCandidateTargetProjector(
   return async ({ cwd, name, record }) => {
     let baseBranch = baseBranches.get(cwd);
     if (baseBranch === undefined) {
-      baseBranch = readConfigSettings(cwd).then(({ settings }) => settings["branch.base"]);
+      baseBranch = import("../../lib/config/status-reader.js")
+        .then(({ readConfigSettings }) => readConfigSettings(cwd))
+        .then(({ settings }) => settings["branch.base"]);
       baseBranches.set(cwd, baseBranch);
     }
     let rawExec = rawExecs.get(cwd);
@@ -447,7 +504,9 @@ function createRepositoryCandidateTargetProjector(
       rawExec = createRawGitExec(cwd);
       rawExecs.set(cwd, rawExec);
     }
-    return projectGitCandidateEffectiveTarget({
+    return (await import(
+      "../../lib/work-unit/git-candidate-effective-target.js"
+    )).projectGitCandidateEffectiveTarget({
       cwd,
       name,
       baseBranch: await baseBranch,

@@ -84,7 +84,17 @@ describe("retired locus authority closure", () => {
       scripts: Record<string, string>;
     };
     const testPaths = await collectTestPaths(resolve(packageRoot, "__tests__"));
-    const selectors = packageJson.scripts["test:portability"]?.split(/\s+/u).slice(2) ?? [];
+    expect(packageJson.scripts["test:portability"]).toBe(
+      "node --import tsx src/scripts/run-local-test-tier.ts portability",
+    );
+    const selectors = [
+      "advisory-lock",
+      "user-sync-notes-lock",
+      "ref-tree-cas",
+      "state-ref-race.e2e",
+      "git-executor",
+      "delivery-transfer.e2e",
+    ];
 
     expect(selectors.length).toBeGreaterThan(0);
     for (const selector of selectors) {

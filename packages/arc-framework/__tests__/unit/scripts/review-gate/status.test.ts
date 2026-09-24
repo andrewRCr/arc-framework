@@ -207,6 +207,15 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
       routedObligation: { state: "settled", detail: "The routed review obligation is settled." },
       currentBaseOid: oid("b"),
       baseContained: true,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
       ...overrides,
     }),
   };
@@ -224,17 +233,142 @@ describe("review status", () => {
           "arc", "review", "change-request", "resolve",
           "--head-ref", target.headRef,
           "--head-sha", oid("f"),
-          "--json",
         ],
       },
     });
   });
 
   it("routes a newly advanced base back through the checkpoint", async () => {
-    await expect(resolveReviewStatus({ target }, port({ baseContained: false }))).resolves.toMatchObject({
+    await expect(resolveReviewStatus({ target }, port({
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+    }))).resolves.toMatchObject({
       state: "base-moved",
       nextAction: "rerun-checkpoint",
       currentBaseOid: oid("b"),
+      movement: "overlapping",
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+      terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+    });
+  });
+
+  it("routes a resolved singleton base movement through its work-unit checkpoint", async () => {
+    await expect(resolveReviewStatus({ target }, port({
+      workUnitId: "example",
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+    }))).resolves.toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
+    });
+  });
+
+  it("retains a settled attempt across disjoint non-contained base movement", async () => {
+    await expect(resolveReviewStatus({ target }, port({ baseContained: false }))).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      movement: "disjoint",
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+    });
+  });
+
+  it("reruns the checkpoint with precise unavailable movement evidence", async () => {
+    const detail = "The merge base could not be established for the exact revisions.";
+    await expect(resolveReviewStatus({ target }, port({
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "unavailable", reason: "merge-base-failed" },
+      },
+      baseMovementDetail: detail,
+    }))).resolves.toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      movement: "unknown",
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "unavailable", reason: "merge-base-failed" },
+      },
+      baseMovementDetail: detail,
+      terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+    });
+  });
+
+  it("preserves the settled result when the observed base is contained", async () => {
+    await expect(resolveReviewStatus({ target }, port({
+      baseContained: true,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
+    }))).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      movement: "overlapping",
     });
   });
 
@@ -619,6 +753,19 @@ describe("review status", () => {
     const status = await resolveReviewStatus({ target }, port({
       routedObligation: obligation,
       baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: {
+          status: "available",
+          substantivePaths: ["src/shared.ts"],
+          regenerablePaths: [],
+        },
+      },
     }));
 
     expect(bindDeliveryReviewTerminusOffer(status, {
@@ -629,6 +776,8 @@ describe("review status", () => {
     })).toMatchObject({
       state: "base-moved",
       nextAction: "rerun-checkpoint",
+      movement: "overlapping",
+      checkpointAction: { command: "rerun-checkpoint", workUnit: "example" },
       terminusAction: {
         schemaVersion: 1,
         offer: {
@@ -1361,7 +1510,7 @@ describe("review status", () => {
       deliveryCursor: { currentMember: { target: hostedAction.target } },
       remedy: {
         argv: [
-          "arc", "review", "status", "--work-unit", "example", "--coverage", "incremental", "--json",
+          "arc", "review", "status", "--work-unit", "example", "--coverage", "incremental",
         ],
       },
     });
@@ -1775,6 +1924,242 @@ describe("review status", () => {
     });
   });
 
+  it("routes a discharged selected member to landing while later review remains outstanding", async () => {
+    const secondVehicle = {
+      ...memberVehicle,
+      deliverableId: `sha256:${"d".repeat(64)}`,
+      head: oid("d"),
+    };
+    const secondHostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 2),
+        deliveryTarget(secondHostedTarget, secondVehicle, 2, 2),
+      ],
+      discharges: [
+        deliveryDischarge({ discharged: true, detail: "member one discharged", nextSource: null }),
+        deliveryDischarge({
+          discharged: false,
+          detail: "member two outstanding",
+          nextSource: "codex-pr",
+          requestAdmission: readyAdmission("codex-pr", secondHostedTarget),
+        }),
+      ],
+    });
+    const selectedTarget = { ...target, headSha: memberVehicle.head };
+    const laterTarget = { ...target, headRef: "delivery/member-2", headSha: secondVehicle.head };
+
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
+      selectedMember: { vehicle: memberVehicle, state: "discharged" },
+      routedObligation: {
+        state: "review-required",
+        conjunction: { status: "outstanding" },
+      },
+    });
+    await expect(resolveReviewStatus({ target: laterTarget }, port({
+      actualHeadSha: laterTarget.headSha,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: { target: secondHostedTarget },
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "member-discharged", nextAction: "continue-reconcile" });
+    await expect(resolveReviewStatus({ target: laterTarget }, port({
+      actualHeadSha: laterTarget.headSha,
+      baseContained: false,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "review-required", nextAction: "review-hosted-request" });
+    await expect(resolveReviewStatus({ target: laterTarget }, port({
+      actualHeadSha: laterTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: laterTarget.repository,
+          changeRequest: 42,
+          base: oid("b"),
+          head: laterTarget.headSha,
+        },
+        overlap: { status: "available", substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        coordinates: {
+          repository: selectedTarget.repository,
+          changeRequest: 41,
+          base: oid("b"),
+          head: selectedTarget.headSha,
+        },
+        overlap: { status: "available", substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
+      movement: "overlapping",
+      selectedMember: { vehicle: memberVehicle, state: "discharged" },
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      requiredChecks: "pending",
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "checks-pending", nextAction: "rerun-checkpoint" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      requiredChecks: "failed",
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "blocked", reason: "checks-failed" });
+  });
+
+  it("continues exact pre-terminal member review while protected-base movement overlaps", async () => {
+    const secondVehicle = {
+      ...memberVehicle,
+      deliverableId: `sha256:${"d".repeat(64)}`,
+      head: oid("d"),
+    };
+    const thirdVehicle = {
+      ...memberVehicle,
+      deliverableId: `sha256:${"e".repeat(64)}`,
+      head: oid("e"),
+    };
+    const secondHostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
+    const thirdHostedTarget = { repository: "owner/repo", pullRequest: 43, headSha: thirdVehicle.head };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 3),
+        deliveryTarget(secondHostedTarget, secondVehicle, 2, 3),
+        deliveryTarget(thirdHostedTarget, thirdVehicle, 3, 3),
+      ],
+      discharges: [
+        deliveryDischarge({ discharged: true, detail: "member one discharged", nextSource: null }),
+        deliveryDischarge({
+          discharged: false,
+          detail: "member two outstanding",
+          nextSource: "codex-pr",
+          requestAdmission: readyAdmission("codex-pr", secondHostedTarget),
+        }),
+        deliveryDischarge({ discharged: false, detail: "member three outstanding", nextSource: "codex-pr" }),
+      ],
+    });
+    const selectedTarget = { ...target, headRef: "delivery/member-2", headSha: secondVehicle.head };
+    const baseMovement = {
+      coordinates: {
+        repository: selectedTarget.repository,
+        changeRequest: 42,
+        base: oid("b"),
+        head: selectedTarget.headSha,
+      },
+      overlap: { status: "available" as const, substantivePaths: ["src/shared.ts"], regenerablePaths: [] },
+    };
+
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement,
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      movement: "overlapping",
+      baseMovement,
+      action: { target: secondHostedTarget },
+    });
+    const earlierOutstanding = composeDeliveryReviewObligation({
+      targets: [
+        deliveryTarget(hostedAction.target, memberVehicle, 1, 3),
+        deliveryTarget(secondHostedTarget, secondVehicle, 2, 3),
+        deliveryTarget(thirdHostedTarget, thirdVehicle, 3, 3),
+      ],
+      discharges: [
+        deliveryDischarge({ discharged: false, detail: "member one outstanding", nextSource: "codex-pr",
+          requestAdmission: readyAdmission("codex-pr", hostedAction.target) }),
+        deliveryDischarge({ discharged: false, detail: "member two outstanding", nextSource: "codex-pr" }),
+        deliveryDischarge({ discharged: false, detail: "member three outstanding", nextSource: "codex-pr" }),
+      ],
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement,
+      routedObligation: earlierOutstanding,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        overlap: { status: "unavailable", reason: "classification-failed" },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      movement: "unknown",
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        coordinates: { ...baseMovement.coordinates, changeRequest: 43 },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "blocked", nextAction: "stop", reason: "status-unavailable" });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        coordinates: { ...baseMovement.coordinates, base: oid("c") },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "blocked", nextAction: "stop", reason: "status-unavailable" });
+    if (!("conjunction" in obligation)) throw new Error("expected delivery conjunction");
+    const firstMember = obligation.conjunction.members[0];
+    if (firstMember === undefined) throw new Error("expected first member");
+    const ambiguousObligation = RoutedReviewObligationSchema.parse({
+      ...obligation,
+      conjunction: {
+        ...obligation.conjunction,
+        members: [{
+          ...firstMember,
+          target: { ...firstMember.target, headSha: secondVehicle.head },
+          vehicle: { ...firstMember.vehicle, head: secondVehicle.head },
+        }, ...obligation.conjunction.members.slice(1)],
+      },
+    });
+    await expect(resolveReviewStatus({ target: selectedTarget }, port({
+      actualHeadSha: selectedTarget.headSha,
+      baseContained: false,
+      baseMovement,
+      routedObligation: ambiguousObligation,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+    const terminalTarget = { ...target, headSha: thirdVehicle.head };
+    await expect(resolveReviewStatus({ target: terminalTarget }, port({
+      actualHeadSha: terminalTarget.headSha,
+      baseContained: false,
+      baseMovement: {
+        ...baseMovement,
+        coordinates: { ...baseMovement.coordinates, changeRequest: 43, head: terminalTarget.headSha },
+      },
+      routedObligation: obligation,
+    }))).resolves.toMatchObject({ state: "base-moved", nextAction: "rerun-checkpoint" });
+  });
+
   it("reports a discharged typed conjunction only after every retained member settles", () => {
     const secondVehicle = {
       ...memberVehicle,
@@ -1853,7 +2238,7 @@ describe("review status", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target)] },
     });
   });
 
@@ -1863,7 +2248,121 @@ describe("review status", () => {
       nextAction: "stop",
       reason: "checks-failed",
       requiredChecks: "failed",
-      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target)] },
+    });
+  });
+});
+
+/**
+ * The hold at the review-status reduction, on the vehicle every existing check skips.
+ *
+ * A pre-terminal delivery member is answered by a guard that requires an available overlap. An ambiguous or an
+ * unrelated base is exactly the pair that has none, so the guard fired first and returned a rerun of the read
+ * that produced the condition — the one remedy neither cause can clear.
+ */
+describe("review status over a pre-terminal delivery member whose base will not resolve", () => {
+  /** The exact member the status target names, held short of the terminal so the guard is the one in play. */
+  function preTerminalConjunction() {
+    return {
+      kind: "delivery" as const,
+      status: "outstanding" as const,
+      members: [
+        {
+          position: 1,
+          memberCount: 2,
+          chunkKey: "member-1",
+          title: "Member 1",
+          target: { repository: target.repository, pullRequest: 41, headSha: target.headSha },
+          vehicle: { ...memberVehicle, head: target.headSha },
+          state: "discharged" as const,
+          detail: "The member review is discharged.",
+          progress: conjunctionMemberProgress,
+        },
+        {
+          position: 2,
+          memberCount: 2,
+          chunkKey: "member-2",
+          title: "Member 2",
+          target: { repository: target.repository, pullRequest: 42, headSha: oid("e") },
+          vehicle: { ...memberVehicle, deliverableId: `sha256:${"e".repeat(64)}`, head: oid("e") },
+          state: "outstanding" as const,
+          detail: "The member review is pending.",
+          progress: conjunctionMemberProgress,
+        },
+      ],
+    };
+  }
+
+  const secondVehicle = { ...memberVehicle, deliverableId: `sha256:${"e".repeat(64)}`, head: oid("e") };
+  const secondTarget = { repository: target.repository, pullRequest: 42, headSha: oid("e") };
+  const pendingSecondMember = {
+    state: "review-required" as const,
+    detail: "The member review is pending.",
+    conjunction: preTerminalConjunction(),
+    awaitAction: {
+      ...hostedAwaitAction,
+      handle: { ...hostedAwaitAction.handle, target: secondTarget, vehicle: secondVehicle },
+    },
+  };
+
+  const unresolvableBase = (overlap: { status: "ambiguous" } | { status: "unrelated" }) => port({
+    baseContained: false,
+    routedObligation: pendingSecondMember,
+    baseMovement: {
+      coordinates: {
+        repository: target.repository,
+        changeRequest: 41,
+        base: oid("b"),
+        head: target.headSha,
+      },
+      overlap,
+    },
+  });
+
+  it("states an unrelated base as terminal rather than as unavailable member movement", async () => {
+    const status = await resolveReviewStatus({ target }, unresolvableBase({ status: "unrelated" }));
+
+    // No member-binding read changes whether the pair shares an ancestor, so the fact about the pair is
+    // answered before the guard that cannot bind it.
+    expect(status).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "base-unrelated",
+      baseMovementCause: "unrelated",
+    });
+    expect(status).not.toMatchObject({ reason: "status-unavailable" });
+  });
+
+  it("sends an ambiguous base to the checkpoint rather than to a rerun of this read", async () => {
+    const status = await resolveReviewStatus({ target }, unresolvableBase({ status: "ambiguous" }));
+
+    expect(status).toMatchObject({
+      state: "base-moved",
+      nextAction: "rerun-checkpoint",
+      baseMovementCause: "ambiguous",
+    });
+  });
+
+  it("still reports unavailable member movement when the base resolved and the member did not bind", async () => {
+    const status = await resolveReviewStatus({ target }, port({
+      baseContained: false,
+      routedObligation: pendingSecondMember,
+      baseMovement: {
+        coordinates: {
+          repository: target.repository,
+          changeRequest: 99,
+          base: oid("b"),
+          head: target.headSha,
+        },
+        overlap: { status: "available", substantivePaths: ["src/example.ts"], regenerablePaths: [] },
+      },
+    }));
+
+    expect(status).toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "status-unavailable",
+      detail: "Pre-terminal delivery-member base movement is unavailable for the exact selected request.",
     });
   });
 });

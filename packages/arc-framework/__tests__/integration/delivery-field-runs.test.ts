@@ -8,6 +8,7 @@ import { createRawGitExec } from "../../src/lib/io-context.js";
 import { inspectDeliveryBranch } from "../../src/lib/delivery/from-branch.js";
 import { constructDeliveryPlanRevision } from "../../src/lib/delivery/plan.js";
 import { DeliveryPlanAuthoringInputV1Schema } from "../../src/lib/delivery/schema.js";
+import type { DeliveryTaskInventoryEntry } from "../../src/lib/delivery/task-inventory.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   ROLLING_CLOSEOUT_MERGE,
@@ -113,7 +114,7 @@ describe("recorded delivery field runs", () => {
       ? "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1"
       : "9cd88752-ef99-4e21-a41f-234bc98f35e0";
     const seams = adjacentFieldSeams(run);
-    const terminalParent = {
+    const terminalParent: DeliveryTaskInventoryEntry = {
       taskId: "1.1",
       semanticDigest: null,
       role: { kind: "verification" as const, scope: "work-unit" },

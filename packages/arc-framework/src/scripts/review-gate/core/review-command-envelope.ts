@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
+import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
   attestNewRootArgv,
   SpineRemedySchema,
@@ -30,6 +31,7 @@ import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
+  GitObjectIdSchema,
   ReviewRequestV2Schema,
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
@@ -69,6 +71,7 @@ export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
 export const ReviewCommandErrorCodeSchema = z.enum([
   "invalid-input",
   "corrupt-state",
+  "uncertain-provider-execution",
   "unexpected-failure",
 ]);
 export type ReviewCommandErrorCode = z.infer<typeof ReviewCommandErrorCodeSchema>;
@@ -87,7 +90,7 @@ export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewPrePublication
 
 /** The idempotent pre-publication re-attempt — the resume point every refusal returns to. */
 function prePublicationResumeArgv(workUnit: string): readonly string[] {
-  return ["arc", "review", "pre-publication", workUnit, "--json"];
+  return ["arc", "review", "pre-publication", workUnit];
 }
 
 const PRE_PUBLICATION_REMEDIES: Record<
@@ -102,6 +105,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
   "corrupt-state": (workUnit) => spineRemedy(
     "Pre-publication reduces only intact durable review evidence.",
     "Repair the reported durable record, then re-run",
+    prePublicationResumeArgv(workUnit),
+  ),
+  "uncertain-provider-execution": (workUnit) => spineRemedy(
+    "A frontline provider may have started without a durable outcome.",
+    "Inspect the provider run and settle an explicit retry decision, then re-run",
     prePublicationResumeArgv(workUnit),
   ),
   "unexpected-failure": (workUnit) => spineRemedy(
@@ -526,7 +534,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "unavailable",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineUnavailableRetryReasonSchema),
   ),
   envelopeVariant(
@@ -538,7 +546,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "timed-out",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineTimedOutReasonSchema),
   ),
   envelopeVariant(
@@ -550,7 +558,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "failed",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineFailedRetryReasonSchema),
   ),
   envelopeVariant(
@@ -653,6 +661,19 @@ const HostedSettlementPlanSchema = z.strictObject({
   afterFixFindingIds: z.array(IdentifierSchema),
 });
 
+/** Exact work-unit locus for authoring a Candidate-bound private-member fix. */
+export const CandidateBoundMemberFixAuthoringSchema = z.strictObject({
+  kind: z.literal("candidate"),
+  workUnit: SlugSchema,
+  head: GitObjectIdSchema,
+  ref: z.string().trim().min(1),
+  checkoutPath: z.string().trim().min(1),
+  deliverySuffixReconstruction: z.literal("after-candidate-advance"),
+});
+export type CandidateBoundMemberFixAuthoring = z.infer<
+  typeof CandidateBoundMemberFixAuthoringSchema
+>;
+
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
@@ -668,7 +689,7 @@ const DeliveryMemberResponsePayloadSchema = z.strictObject({
 const DeliveryCorrectionActionSchema = z.strictObject({
   argv: z.tuple([
     z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
-    z.literal("-"), z.literal("--json"),
+    z.literal("-"),
   ]),
   input: z.strictObject({
     repository: z.string().trim().min(1),
@@ -693,6 +714,7 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
       reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
+      authoring: CandidateBoundMemberFixAuthoringSchema.optional(),
     }),
   ),
   envelopeVariant(
@@ -838,6 +860,17 @@ export const ReduceEnvelopeSchema = z.union([
       ...ReductionBasePayload,
       retryCommand: z.enum(["local-attest", "frontline-run"]),
       requestRef: DurableReferenceSchema,
+    }),
+  ),
+  envelopeVariant(
+    "review-reduce",
+    "retryable",
+    "operator-repair",
+    z.strictObject({
+      ...ReductionBasePayload,
+      retryCommand: z.literal("frontline-run"),
+      requestRef: DurableReferenceSchema,
+      retryOfOperationId: IdentifierSchema,
     }),
   ),
   envelopeVariant(

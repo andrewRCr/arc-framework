@@ -77,15 +77,22 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 
 ## Delivery-Member Variant
 
-A non-terminal member of a planned delivery stack is a review and merge boundary inside one work unit, not a
-second work unit. Use the member form below:
+A member of a planned delivery stack is a review and merge boundary inside one work unit, not a second work
+unit. Every member of a multi-member delivery — the terminal included — carries the shared form below:
 
 ```text
-{work-unit-slug} [{position}/{total}]: {member title}
+{type}({work-unit-slug}): [{position}/{total}] {member title}
 ```
 
+One delivery is one work unit, so a single Conventional Commits type governs every member and the work-unit slug
+serves as the shared scope. The scope carries delivery identity and `[{position}/{total}]` carries the range, so an
+open-pull-request list shows the whole stack even where the host cannot link the requests natively. `arc delivery
+publish` composes these titles from the delivery plan and the terminal title you author — don't hand-write the
+prefix. A one-member delivery is not a stack: its single request keeps an ordinary work-unit title with no position.
+
 The position is stack-review metadata; commit-format rules continue to govern the commits that land. The title
-already supplies delivery identity, position, and member scope. Do not add a `Delivery` field that repeats them.
+already supplies delivery identity, position, and this member's own summary. Do not add a `Delivery` field that
+repeats them.
 
 The body uses the ordinary template's reviewer-facing roles, with content scoped to this member:
 
@@ -106,8 +113,8 @@ one layer of a stack.}
 
 `Changes` remains recommended rather than required when the Summary fully carries a small member. `Test Plan`,
 `Out of Scope`, and `Follow-Up Work` retain their ordinary content gates, as does the `Local review` field. The
-terminal member uses the ordinary work-unit template because it carries the lifecycle artifacts and closes the
-work unit.
+terminal member uses the ordinary work-unit template body because it carries the lifecycle artifacts and closes the
+work unit; its title takes the shared member form above.
 
 Design is content-gated for delivery members. Include `Design` only when the intended reviewers can resolve the
 reference from the code repository, an accessible URL, or the configured ARC backing store. The design need not be

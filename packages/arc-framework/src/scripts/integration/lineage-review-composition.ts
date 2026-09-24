@@ -22,6 +22,11 @@ import {
   LocalReviewOperationStateStore,
 } from "../review-gate/hosts/local/operation-state-store.js";
 import { deriveLocalReviewTarget } from "../review-gate/hosts/local/repository-target.js";
+import {
+  composeCandidateResponseConfirmation,
+  readCandidateSpan,
+} from "./candidate-response-confirmation.js";
+import type { CandidateResponseConfirmationAction } from "./settlement-plan.js";
 import type { SettlementAction } from "./settlement-plan.js";
 
 /** The settlement actions one Candidate span composes, with the approved sets they were built from. */
@@ -98,24 +103,11 @@ export function createLineageReviewComposer(input: {
     return resolved;
   };
 
-  // Revisions the Candidate covers, indexed oldest-first so the plan follows the work's own order.
-  const candidateSpan = async (baseRevision: string, approvedHead: string): Promise<Map<string, number>> => {
-    const { stdout } = await input.exec("git", ["rev-list", `${baseRevision}..${approvedHead}`], {
-      cwd: input.cwd,
-      objectAccess: "local-only",
-    });
-    const order = new Map<string, number>();
-    order.set(baseRevision, -1);
-    stdout.trim().split("\n").filter((line) => line !== "").reverse().forEach((revision, index) => {
-      order.set(revision, index);
-    });
-    return order;
-  };
-
-  // Every approved response in the lineage settles at the head the checkpoint approves, so one
-  // derivation of the current change set serves the whole plan — including sets that authorized no
-  // fix and therefore moved no implementation themselves. Refusing a different head keeps
-  // composition bound to the exact revision the reducer validated.
+  // Fix-bearing responses in the lineage settle at the head the checkpoint approves, so one
+  // derivation of the current change set serves those actions. A no-fix member-shaped response
+  // instead retains its exact origin: the terminal Candidate is a different target kind even when
+  // both targets name the same commit. Refusing a different checkpoint head keeps composition bound
+  // to the exact revision the reducer validated.
   const settledTarget = async (approvedHead: string): Promise<ReviewTarget> => {
     const { settings } = await readConfigSettings(input.cwd);
     const target = await deriveLocalReviewTarget({
@@ -154,11 +146,16 @@ export function createLineageReviewComposer(input: {
     }
     const named = new Set(candidateReviewResponses(record).map(({ dispositionId }) => dispositionId));
     const [span, enumerated] = await Promise.all([
-      candidateSpan(record.attestation.baseRevision, approvedHead),
+      readCandidateSpan(input, record.attestation.baseRevision, approvedHead),
       dispositionIndex.listDispositionRecords(),
     ]);
 
-    const covered = new Map<string, { approved: ApprovedDispositionRecord; origin: ReviewTarget }>();
+    const covered = new Map<string, {
+      approved: ApprovedDispositionRecord;
+      origin: ReviewTarget;
+      order: number;
+      privateAction: CandidateResponseConfirmationAction | null;
+    }>();
     for (const approved of enumerated) {
       const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
       const required = approved.candidate !== null
@@ -166,10 +163,32 @@ export function createLineageReviewComposer(input: {
         && approved.candidate.candidateId === record.attestation.candidateId;
       if (!required) continue;
       const origin = await originTarget(approved, required);
-      if (origin === null || !span.has(origin.headSha)) {
+      if (origin === null) {
         throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
       }
-      if (!covered.has(dispositionId)) covered.set(dispositionId, { approved, origin });
+      const ordinaryOrder = span.get(origin.headSha);
+      const privateProof = ordinaryOrder === undefined
+        ? await composeCandidateResponseConfirmation({
+            ...input,
+            workUnit,
+            approvedHead,
+            approvedBase,
+            approved,
+          })
+        : null;
+      const order = ordinaryOrder ?? privateProof?.order;
+      if (order === undefined) {
+        throw new Error(`The approved disposition record ${dispositionId} is outside the Candidate span.`);
+      }
+      if (covered.has(dispositionId)) {
+        throw new Error(`The approved disposition record ${dispositionId} has ambiguous Candidate origins.`);
+      }
+      covered.set(dispositionId, {
+        approved,
+        origin,
+        order,
+        privateAction: privateProof?.action ?? null,
+      });
     }
     for (const dispositionId of named) {
       if (!covered.has(dispositionId)) {
@@ -181,16 +200,16 @@ export function createLineageReviewComposer(input: {
     // Lineage order no longer supplies a composition order, so span position — tiebroken by the
     // disposition identity — supplies one that two runs at the same head reproduce exactly.
     const scoped = [...covered].sort(([leftId, left], [rightId, right]) => (
-      (span.get(left.origin.headSha) ?? Number.MAX_SAFE_INTEGER)
-        - (span.get(right.origin.headSha) ?? Number.MAX_SAFE_INTEGER)
-      || leftId.localeCompare(rightId)
+      left.order - right.order || leftId.localeCompare(rightId)
     ));
     const fixTarget = await settledTarget(approvedHead);
-    const actions = scoped.map(([, { approved, origin }]) => {
+    const actions: SettlementAction[] = scoped.map(([, { approved, origin, privateAction }]) => {
+      if (privateAction !== null) return privateAction;
       const dispositions = approved.approvedDisposition;
+      const hasFix = dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix");
       return composeReviewResponseSettlementAction({
         originTarget: origin,
-        fixTarget,
+        fixTarget: !hasFix && origin.kind === "delivery-member" ? origin : fixTarget,
         request: {
           schemaVersion: 1,
           source: approved.source.kind === "attested-local"

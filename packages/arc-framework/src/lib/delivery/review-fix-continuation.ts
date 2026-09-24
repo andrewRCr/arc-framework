@@ -8,7 +8,7 @@ import {
   findExactPendingSelectedRefresh,
   hasExactPendingSelectedRefresh,
 } from "./suffix-reconciliation.js";
-import { canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
 import type { ApprovedDispositionRecord } from
   "../../scripts/review-gate/core/advisory-records.js";
 import type { HostedFindingsResponsePlan } from
@@ -243,7 +243,8 @@ export function selectPendingDeliveryReviewFixAuthority(input: {
   readonly workUnitId: string;
   readonly records: readonly ApprovedDispositionRecord[];
 }): PendingDeliveryReviewFixAuthority {
-  const pending = input.records.filter((record) => record.deliveryMember?.workUnitId === input.workUnitId
+  const pending = input.records.filter((record) => record.candidate === null
+    && record.deliveryMember?.workUnitId === input.workUnitId
     && record.fixAuthorization !== null
     && record.deliveryMemberFixResponse === null);
   if (pending.some((record) => !recordHasExactPendingDeliveryFixAuthority(record))) {
@@ -412,6 +413,7 @@ export interface DeliveryReviewFixContinuationProjectionInput {
   readonly request: DeliveryReviewFixContinueRequest;
   readonly entry: DeliveryEntryInspectionResult;
   readonly state?: DeliveryRevisionedRecord<DeliveryStateV1>;
+  readonly landedDeliverableIds?: readonly string[];
   readonly route?: DeliveryReviewFixRouteResult;
   readonly activeBranch?: string;
   readonly authoring?: DeliveryReviewFixAuthoringReadiness;
@@ -429,7 +431,7 @@ export interface DeliveryReviewFixContinuationProjectionInput {
 
 function resumeAction(request: DeliveryReviewFixContinueRequest) {
   return {
-    argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"] as const,
+    argv: ["arc", "delivery", "review-fix", "continue", "-"] as const,
     input: { repository: request.repository, remote: request.remote },
   };
 }
@@ -452,7 +454,7 @@ function projectPendingSelectedRefresh(input: {
   }
   return dispatch({
     kind: "delivery-refresh-execute" as const,
-    argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
+    argv: ["arc", "delivery", "refresh", "execute", "-"] as const,
     input: {
       planId: input.planId,
       repository: input.request.repository,
@@ -493,7 +495,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     }
     return dispatch({
       kind: "delivery-review-fix-acknowledge" as const,
-      argv: ["arc", "delivery", "review-fix", "acknowledge", "-", "--json"] as const,
+      argv: ["arc", "delivery", "review-fix", "acknowledge", "-"] as const,
       input: { ...entry.acknowledgementInput, verification: request.verification },
     }, "Acknowledge the exact scoped verification, then invoke this continuation again.");
   }
@@ -503,7 +505,10 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
 
   if ((entry.status === "candidate-verification-required" || entry.status === "correction-routing-required")
     && input.state !== undefined) {
-    const selectedDeliverableId = findExactPendingSelectedRefresh(input.state.value);
+    const selectedDeliverableId = findExactPendingSelectedRefresh(
+      input.state.value,
+      input.landedDeliverableIds,
+    );
     if (selectedDeliverableId !== null) {
       return projectPendingSelectedRefresh({
         request,
@@ -527,7 +532,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       }
       return dispatch({
         kind: "delivery-refresh-execute" as const,
-        argv: ["arc", "delivery", "refresh", "execute", "-", "--json"] as const,
+        argv: ["arc", "delivery", "refresh", "execute", "-"] as const,
         input: {
           planId: entry.planId,
           repository: request.repository,
@@ -542,7 +547,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       }
       return dispatch({
         kind: "delivery-refresh-adopt" as const,
-        argv: ["arc", "delivery", "refresh", "adopt", "-", "--json"] as const,
+        argv: ["arc", "delivery", "refresh", "adopt", "-"] as const,
         input: {
           planId: entry.planId,
           repository: request.repository,
@@ -553,7 +558,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     }
     return dispatch({
       kind: "delivery-reconcile" as const,
-      argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+      argv: ["arc", "delivery", "reconcile", "-"] as const,
       input: {
         planId: entry.planId,
         repository: request.repository,
@@ -565,6 +570,9 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
   }
 
   if (entry.status === "correction-routing-required") {
+    if (input.landedDeliverableIds?.includes(entry.selectedDeliverableId)) {
+      return { status: "refused" as const, reason: "review-fix-route-mismatch" };
+    }
     if (input.state !== undefined
       && hasExactPendingSelectedRefresh(input.state.value, entry.selectedDeliverableId)) {
       return projectPendingSelectedRefresh({
@@ -625,7 +633,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       if (input.authoring?.status === "ready") {
         return dispatch({
           kind: "delivery-reconcile" as const,
-          argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+          argv: ["arc", "delivery", "reconcile", "-"] as const,
           input: {
             planId: entry.planId,
             repository: request.repository,
@@ -640,7 +648,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (route.route === "terminal-rebind") {
       return dispatch({
         kind: "delivery-reconcile" as const,
-        argv: ["arc", "delivery", "reconcile", "-", "--json"] as const,
+        argv: ["arc", "delivery", "reconcile", "-"] as const,
         input: route.reconcileInput,
       }, "Rebind the exact terminal publication, then invoke this continuation again.");
     }
@@ -657,7 +665,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       if (input.authoring?.status !== "ready") return authoringStop();
       return dispatch({
         kind: "delivery-review-fix-publish" as const,
-        argv: ["arc", "delivery", "review-fix", "publish", "-", "--json"] as const,
+        argv: ["arc", "delivery", "review-fix", "publish", "-"] as const,
         input: {
           planId: entry.planId,
           selectedDeliverableId: entry.selectedDeliverableId,
@@ -671,14 +679,40 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
     if (protectedBaseRef === null || input.activeBranch === undefined) {
       return { status: "refused" as const, reason: "review-fix-rematerialization-unavailable" };
     }
+    const pendingVerificationDerivation = entry.derivedFrom.kind === "pending-verification"
+      ? entry.derivedFrom
+      : null;
+    const pendingVerification = pendingVerificationDerivation !== null
+      ? input.state?.value.pendingReviewFixVerification ?? null
+      : null;
+    if (pendingVerificationDerivation !== null
+      && (input.state === undefined
+        || canonicalDigest(input.state.value) !== pendingVerificationDerivation.continuationDigest
+        || pendingVerification === null
+        || pendingVerification.selectedDeliverableId !== entry.selectedDeliverableId)) {
+      return { status: "refused" as const, reason: "review-fix-rematerialization-unavailable" };
+    }
+    const pendingVerificationSupersession = pendingVerificationDerivation === null
+      || pendingVerification === null
+      ? null
+      : {
+          pendingVerification,
+          expectedStateRevision: entry.stateRevision,
+          continuationDigest: pendingVerificationDerivation.continuationDigest,
+        };
     return dispatch({
       kind: "delivery-rematerialize" as const,
-      argv: ["arc", "delivery", "rematerialize", "-", "--json"] as const,
+      argv: ["arc", "delivery", "rematerialize", "-"] as const,
       input: {
         planId: entry.planId,
         protectedBaseRef,
         topRef: `refs/heads/${input.activeBranch}`,
         selectedDeliverableIds: [entry.selectedDeliverableId],
+        ...(pendingVerificationSupersession === null
+          ? {}
+          : {
+              supersedePendingReviewFixVerification: pendingVerificationSupersession,
+            }),
         repository: request.repository,
         remote: request.remote,
       },
@@ -721,6 +755,7 @@ export function projectDeliveryReviewFixContinuation(input: DeliveryReviewFixCon
       recommendedActionText: entry.recommendedActionText,
     };
   }
+  if (entry.status === "repair-required") return entry;
   if (entry.status === "refused") return entry;
   return {
     status: "idle" as const,

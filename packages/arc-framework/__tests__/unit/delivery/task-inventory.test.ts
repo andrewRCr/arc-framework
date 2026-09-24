@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDeliveryTaskInventory,
   extractTaskGoalInventory,
+  isDeliveryTaskAssignable,
 } from "../../../src/lib/delivery/task-inventory.js";
 
 function taskList(goalLines: readonly string[], options?: {
@@ -10,6 +11,7 @@ function taskList(goalLines: readonly string[], options?: {
   readonly title?: string;
   readonly peerLines?: readonly string[];
 }): string {
+  const marker = options?.marker ?? " ";
   return [
     "## Delivery Plan",
     "",
@@ -19,12 +21,12 @@ function taskList(goalLines: readonly string[], options?: {
     "",
     "## **Phase 1:** Implementation",
     "",
-    `### \`[${options?.marker ?? " "}]\` **1.1 ${options?.title ?? "Build inventory"}**`,
+    `### \`[${marker}]\` **1.1 ${options?.title ?? "Build inventory"}**`,
     "",
     ...goalLines,
     ...(options?.peerLines ?? []),
     "",
-    "    - `[ ]` **1.1.a Child task**",
+    `    - \`[${marker}]\` **1.1.a Child task**`,
     "",
     "        - _Goal:_ Child intent must not enter the parent inventory.",
     "",
@@ -120,6 +122,37 @@ describe("buildDeliveryTaskInventory", () => {
           { taskId: "2.1", role: { kind: "verification", scope: "work-unit" } },
         ],
       },
+    });
+  });
+
+  it("classifies the segment close-out suffix as assignable segment verification", () => {
+    const result = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Exercise the segment exit criterion.",
+    ]).replace(
+      "### `[ ]` **1.1 Build inventory**",
+      "### `[ ]` **1.1 Build inventory** — validate exit criterion at segment scope",
+    ));
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.inventory.parents[0]).toMatchObject({
+      taskId: "1.1",
+      semanticDigest: expect.stringMatching(/^sha256:/u),
+      role: { kind: "verification", scope: "segment" },
+    });
+    expect(isDeliveryTaskAssignable(result.inventory.parents[0]!)).toBe(true);
+  });
+
+  it("does not classify a segment suffix inside the bold task title", () => {
+    const result = buildDeliveryTaskInventory(taskList([
+      "- _Goal:_ Keep title prose out of role classification.",
+    ], { title: "Build inventory — validate exit criterion at segment scope" }));
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.inventory.parents[0]).toMatchObject({
+      taskId: "1.1",
+      role: { kind: "implementation" },
     });
   });
 

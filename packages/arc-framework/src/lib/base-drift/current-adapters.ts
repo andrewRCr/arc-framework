@@ -5,33 +5,52 @@
  */
 
 import { parseMetaRecord } from "../active/meta-reader.js";
+import {
+  classifyPathTreatment,
+  type PathTreatmentContext,
+} from "../evidence-applicability/index.js";
 import type {
   BaseDriftCommitInput,
   IntegrationEvidenceResolver,
   IntegrationEvidenceResolverFactory,
   IntegrationIdentity,
-  ReconciliationClassifier,
+  PathTreatmentClassifier,
   ResolverEvent,
   ResolverRead,
 } from "../git/base-drift-types.js";
 import type { GitExec } from "../git/exec.js";
-import { ROADMAP_PATH } from "../status/roadmap-regeneration-assert.js";
 import {
   readCompletedEvidenceFromRef,
   type CompletedEvidenceRead,
   type ShippedWorkUnitRecord,
 } from "../work-unit/completed-index.js";
+import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
+import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 
 export interface CurrentBaseDriftAdapters {
   resolverFactory: IntegrationEvidenceResolverFactory;
-  classifyReconciliation: ReconciliationClassifier;
+  classifyReconciliation: PathTreatmentClassifier;
+}
+
+/** Construct explicit identity and projection coordinates for one work unit. */
+export function workUnitPathTreatmentContext(workUnit: string): PathTreatmentContext {
+  return {
+    workUnit,
+    projectionPaths: new Set([
+      resolveCandidateRecordRelativePath(workUnit),
+      resolveSubmissionBoundaryPath(workUnit),
+    ]),
+  };
 }
 
 /** Bind current completed-meta and readiness-projection adapters. */
-export function createCurrentBaseDriftAdapters(exec: GitExec): CurrentBaseDriftAdapters {
+export function createCurrentBaseDriftAdapters(
+  exec: GitExec,
+  treatmentContext: PathTreatmentContext = {},
+): CurrentBaseDriftAdapters {
   return {
     resolverFactory: (baseOid) => createCompletedMetaResolver(exec, baseOid),
-    classifyReconciliation: (path) => path === ROADMAP_PATH ? "regenerable" : "substantive",
+    classifyReconciliation: (path) => classifyPathTreatment(path, treatmentContext),
   };
 }
 

@@ -189,12 +189,14 @@ _CI & configuration:_
 ### CLI Package Testing
 
 - **Framework**: Vitest
-- **Execution**: `npm test` (full suite), `npm run test:unit` (unit only)
-- **Structure**: Three tiers by isolation level:
-    - **Unit** (`__tests__/unit/`) — Pure function and module tests, no side effects
+- **Execution**: `npm test` (routine unit + integration lane), `npm run test:full` (all projects),
+  `npm run test:unit` (unit projects only)
+- **Structure**: Four Vitest projects across three isolation tiers:
+    - **Unit** and **unit-mocks** (`__tests__/unit/`) — Pure function and module tests, with mock-heavy files
+      isolated in their own project
     - **Integration** (`__tests__/integration/`) — Module interaction, may use temp filesystem
     - **E2E** (`__tests__/e2e/`) — Full CLI invocation against real (temporary) git repos
-- **Command**: `npm test` (unit + integration, then E2E)
+- **Command**: `npm test` (unit + unit-mocks + integration); `npm run test:full` also includes E2E
 
 See `strategy-testing-methodology.md` for TDD decision tree, tier boundaries, mocking rules, and vertical-slice
 workflow.

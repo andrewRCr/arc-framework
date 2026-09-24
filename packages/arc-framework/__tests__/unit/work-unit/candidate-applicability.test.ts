@@ -110,7 +110,7 @@ describe("Candidate applicability", () => {
         path: ".arc/system/.internal/candidates/example.json",
         mode: "100644",
         digest: canonicalDigest({ source: "Candidate projection" }),
-        treatment: "candidate-projection",
+        treatment: "evidence-neutral",
       },
     ]);
     const input = request(currentSubject);
@@ -159,6 +159,12 @@ describe("Candidate applicability", () => {
       state: "decision-required",
       nextAction: "request-authority",
       verdict: "clean-divergence",
+      applicability: {
+        verdict: "supplemental",
+        residual: paths,
+        reason: "bounded-clean-divergence",
+        judgmentRequired: true,
+      },
       baselineTarget: {
         revision: oid("a"),
         subjectDigest: input.baselineTarget.subject.subjectDigest,
@@ -194,6 +200,12 @@ describe("Candidate applicability", () => {
       state: "decision-required",
       nextAction: "request-authority",
       verdict: "interaction",
+      applicability: {
+        verdict: "fresh",
+        residual: null,
+        reason: "interaction",
+        judgmentRequired: false,
+      },
       baselineTarget: { revision: oid("a") },
       currentTarget: { revision: oid("c") },
       currentBase: oid("b"),

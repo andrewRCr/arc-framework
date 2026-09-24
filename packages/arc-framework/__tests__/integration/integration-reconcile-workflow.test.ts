@@ -50,8 +50,9 @@ describe("integration current-WU reconcile workflow", () => {
     const step = content.slice(start, end);
 
     expect(step).toContain("`terminal-rebind-required / reconcile-delivery-state`");
-    expect(step).toContain("payload.reconcileInput");
-    expect(step).toContain("arc delivery reconcile - --json");
+    expect(step).toContain("`remedy.argv`");
+    expect(step).toContain("`remedy.stdin`");
+    expect(step).toContain("adds no new operation");
     expect(step).toContain("`rebound / rerun-checkpoint`");
     expect(step).not.toMatch(/terminal[^\n]*recovery operation/iu);
   });
@@ -70,6 +71,19 @@ describe("integration current-WU reconcile workflow", () => {
     expect(step).toMatch(/already-open Step 2 review[\s\S]*restart this step/iu);
   });
 
+  it.each(WORKFLOWS)("commits a renewed shipped delivery boundary without private review replay in %s", async (path) => {
+    const content = await readFile(path, "utf8");
+    const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
+    const end = content.indexOf("### 11) Post-merge worktree cleanup", start);
+    const step = content.slice(start, end);
+
+    expect(step).toContain("`candidate-publication-required / refresh-shipped-delivery`");
+    expect(step).toContain("`candidate-publication-commit-required / commit-boundary`");
+    expect(step).toMatch(/refresh-shipped-delivery[\s\S]*payload\.attestArgv[\s\S]*restart this step/iu);
+    expect(step).toMatch(/commit-boundary[\s\S]*refresh publication boundary[\s\S]*restart this step/iu);
+    expect(step).toMatch(/refresh-shipped-delivery[\s\S]*does not enter private pre-publication review/iu);
+  });
+
   it.each(WORKFLOWS)("orders typed procedures around the final integration interlock in %s", async (path) => {
     const content = await readFile(path, "utf8");
     const start = content.indexOf("### 10) Behind-base reconcile gate and merge");
@@ -77,12 +91,12 @@ describe("integration current-WU reconcile workflow", () => {
     const step = content.slice(start, end);
     const orderedSurfaces = [
       "arc wu reconcile {name} --apply --json",
-      "arc integrate checkpoint {name} --json",
-      "arc base merge --expected-base {payload.safety.baseOid} --expected-head {payload.candidateHead} --json",
+      "arc integrate checkpoint {name}",
+      "checkpoint's supplied `remedy.argv` unchanged",
       "payload.interlockSurface.machineEvidence.text",
       "**Extension report** · `#pre-merge`",
       "`integration-interlock`:",
-      "arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json",
+      "arc integrate merge {name} --checkpoint {payload.checkpointHandle}",
     ];
 
     expect(start).toBeGreaterThan(-1);
@@ -112,8 +126,8 @@ describe("integration current-WU reconcile workflow", () => {
     expect(flatStep.slice(mergedOnly, postMergeRerun)).not.toContain("arc review status");
     expect(step).toMatch(/`pending`[\s\S]*requires direction/u);
 
+    expect(flatStep).toContain("Clearance never carries across the overlapping base-merge arm");
     for (const invariant of [
-      "Clearance never carries.",
       "Advisory receipts are not merge authority.",
       "The integration interlock is the sole merge authority.",
     ]) {

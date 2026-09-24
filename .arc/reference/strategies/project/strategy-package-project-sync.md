@@ -160,11 +160,11 @@ arc-in-git files are annotated explicitly.
 ### Framework files (must match between copies)
 
 Framework is the default classification: every resolved recipe path not listed in the classifier's Scaffolded or
-Configurable sets. The self-hosting configuration currently resolves 86 Framework files. Membership is derived from
+Configurable sets. The self-hosting configuration currently resolves 101 Framework files. Membership is derived from
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
-### Configurable files (project sections expected to differ) — 35
+### Configurable files (project sections expected to differ) — 44
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -185,9 +185,15 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 - `system/extensions/post-pr-open.md`
 - `system/extensions/pre-push-review.md`
 - `system/extensions/pre-spec-finalization-review.md`
+- `system/methods/assess-boundary-fit.md`
+- `system/methods/assess-design-proportionality.md`
+- `system/methods/assess-draft-readiness.md`
+- `system/methods/assess-evidence-applicability.md`
+- `system/methods/adversarial-review.md`
 - `system/methods/classify-work-unit.md`
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
+- `system/methods/design-audit.md`
 - `system/methods/frontline-review.md`
 - `system/methods/standard-review.md`
 - `system/methods/implementation-audit.md`
@@ -200,7 +206,10 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 - `system/methods/review-triage.md`
 - `system/methods/session-state.md`
 - `system/methods/spec-review.md`
+- `system/methods/task-audit.md`
 - `system/methods/test-first.md`
+- `system/methods/testing-standards.md`
+- `system/methods/validate-criteria.md`
 
 ### Package-only files (not in `.arc/` — expected)
 
@@ -229,12 +238,12 @@ Configurable sets. The self-hosting configuration currently resolves 86 Framewor
 
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
-| Framework      | 86    | Wholesale replaced. No conflicts.                     |
-| Configurable   | 35    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 101   | Wholesale replaced. No conflicts.                     |
+| Configurable   | 44    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 125. **Template counterparts:** 11. Conditional recipe arms change installed
+**Self-hosting installed files:** 149. **Template counterparts:** 11. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 

@@ -4,6 +4,7 @@ import {
   declareInteractionSite,
   type CommandInputDeclaration,
 } from "./lib/command-input/declaration.js";
+import { DEV_BUILD_REFRESH_COMMAND_PATHS } from "./lib/dev-check.js";
 
 const terminalSubprocessPolicy = {
   acquisition: "subprocess" as const,
@@ -32,9 +33,19 @@ const hostedGhSubprocessPolicy = {
   subprocess: "close-stdin" as const,
 };
 
+const devBuildRefreshSubprocessPolicy = {
+  acquisition: "subprocess" as const,
+  schemaOwnership: "none" as const,
+  cancellation: "not-applicable" as const,
+  automation: { noInput: "same" as const, flags: [], acceptedSyntax: [] },
+  mutationBoundary: "post-action development build refresh",
+  subprocess: "close-stdin" as const,
+};
+
 const nativeDeliveryCommandPaths: ReadonlySet<string> = new Set([
   "delivery native link",
   "delivery native land-prepare",
+  "delivery native land-release",
   "delivery native land-select",
   "delivery native land-status",
   "delivery native land-submit",
@@ -70,6 +81,7 @@ const rawGitCommandPaths = [
   "delivery land prepare",
   "delivery native link",
   "delivery native land-prepare",
+  "delivery native land-release",
   "delivery native land-select",
   "delivery native land-status",
   "delivery native land-submit",
@@ -98,7 +110,7 @@ const rawGitCommandPaths = [
   "reopen",
   "repoint-design",
   "resume",
-  "review chunking resolve",
+  "review changeset resolve",
   "review change-request resolve",
   "review planning-grooming resolve",
   "review planning-lane",
@@ -147,5 +159,14 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       { file: "scripts/review-gate/hosted/gh-process.ts", kind: "subprocess", callee: "execa", occurrence: 1 },
       hostedGhSubprocessPolicy,
     )] : []),
+  ],
+})), ...DEV_BUILD_REFRESH_COMMAND_PATHS.map((commandPath) => ({
+  commandPath,
+  aliases: [],
+  sites: [
+    declareInteractionSite(
+      { file: "lib/dev-check.ts", kind: "subprocess", callee: "execFile", occurrence: 1 },
+      devBuildRefreshSubprocessPolicy,
+    ),
   ],
 }))] satisfies readonly CommandInputDeclaration[];

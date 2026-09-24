@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { lint } from "markdownlint/promise";
@@ -9,21 +10,35 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGitExec } from "../helpers/integration.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
+import { resolveIndexedMarkdownCheckerPaths } from "../../src/lib/markdown/checker-alignment.js";
 import {
   runIndexedMarkdownCertification,
   type RunIndexedMarkdownCertificationOptions,
 } from "../../src/lib/markdown/indexed-lint.js";
 import { MARKDOWN_SELECTION } from "../../src/lib/markdown/selection.js";
+import { main as runStagedMarkdownCommand } from "../../src/scripts/lint-markdown-staged.js";
 
 const execFileAsync = promisify(execFile);
+const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const runtimeVersions = { markdownlint: "0.40.0", stringWidth: "8.1.0" };
 
 let root: string;
 
-async function write(path: string, content: string): Promise<void> {
+async function write(path: string, content: string | Uint8Array): Promise<void> {
   const target = join(root, ...path.split("/"));
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, content);
+}
+
+async function stageExecutingCheckerSources(): Promise<void> {
+  const runtimePaths = await resolveIndexedMarkdownCheckerPaths({
+    root: repositoryRoot,
+    readBlob: async (cwd, path) => readFile(join(cwd, ...path.split("/"))),
+  });
+  await Promise.all(runtimePaths.map(async (path) => {
+    await write(path, await readFile(join(repositoryRoot, ...path.split("/"))));
+  }));
+  await execFileAsync("git", ["add", "--all"], { cwd: root });
 }
 
 function rootConfig(config: Record<string, unknown>): string {
@@ -123,6 +138,104 @@ describe("indexed Markdown certification", () => {
         message: expect.stringContaining("requires a blank line"),
       }),
     ]);
+  });
+
+  it("rejects a staged task list whose completed parent hides an open subtask", async () => {
+    await stageFixture();
+    const path = ".arc/active/tasks-hidden.md";
+    await write(path, [
+      "### `[x]` **1.1 Completed parent**",
+      "",
+      "    - `[ ]` **1.1.a Hidden open child**",
+    ].join("\n"));
+    await execFileAsync("git", ["add", path], { cwd: root });
+
+    const result = await runIndexedMarkdownCertification(options());
+    expect(result.diagnostics).toEqual([{
+      path,
+      line: 3,
+      message: `${path}:3: Task-list structure is malformed: open subtask 1.1.a at line 3 appears beneath completed parent 1.1 at line 1`,
+    }]);
+
+    await stageExecutingCheckerSources();
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      await expect(runStagedMarkdownCommand(root)).resolves.toBe(1);
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining(
+        `${path}:3: Task-list structure is malformed: open subtask 1.1.a`,
+      ));
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+
+  it("runs segmentation validation over the same indexed content map", async () => {
+    await stageFixture();
+    await write(
+      ".arc/active/tasks-segmented.md",
+      [
+        "## **Phase 1:** Build",
+        "",
+        "_Mode:_ `layer` — closes on settled structure.",
+        "",
+        "### `[ ]` **1.1 Build the structure**",
+        "",
+        "- _Goal:_ Build the structure.",
+        "",
+        "## **Phase 2:** Verification",
+        "",
+        "### `[ ]` **2.1 Verify the work unit**",
+      ].join("\n"),
+    );
+    await execFileAsync("git", ["add", ".arc/active/tasks-segmented.md"], { cwd: root });
+
+    const result = await runIndexedMarkdownCertification(options());
+    expect(result.diagnostics).toEqual([{
+      path: ".arc/active/tasks-segmented.md",
+      line: 1,
+      message: ".arc/active/tasks-segmented.md:1: Segment closing at Phase 1 has no _Exit criterion:_",
+    }]);
+  });
+
+  it("keeps the segmentation verdict bound to index bytes", async () => {
+    await stageFixture();
+    const path = ".arc/active/tasks-segmented.md";
+    await write(path, [
+      "## **Phase 1:** Build",
+      "",
+      "_Mode:_ `layer` — closes on settled structure.",
+      "",
+      "### `[ ]` **1.1 Build the structure**",
+      "",
+      "- _Goal:_ Build the structure.",
+      "",
+      "## **Phase 2:** Verification",
+      "",
+      "### `[ ]` **2.1 Verify the work unit**",
+    ].join("\n"));
+    await execFileAsync("git", ["add", path], { cwd: root });
+    await write(path, [
+      "## **Phase 1:** Build",
+      "",
+      "_Mode:_ `layer` — closes on settled structure.",
+      "",
+      "_Exit criterion:_ The structure is settled.",
+      "",
+      "### `[ ]` **1.1 Build the structure**",
+      "",
+      "- _Goal:_ Build the structure.",
+      "",
+      "## **Phase 2:** Verification",
+      "",
+      "### `[ ]` **2.1 Verify the work unit**",
+    ].join("\n"));
+
+    const result = await runIndexedMarkdownCertification(options());
+    expect(result.diagnostics).toEqual([{
+      path,
+      line: 1,
+      message: `${path}:1: Segment closing at Phase 1 has no _Exit criterion:_`,
+    }]);
   });
 
   it("fails candidate/runtime dependency drift before invoking markdownlint", async () => {

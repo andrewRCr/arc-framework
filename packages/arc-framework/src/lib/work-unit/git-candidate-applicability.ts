@@ -8,6 +8,10 @@ import {
   DeliveryContributionEndpointsSchema,
 } from "../delivery/contribution-proof.js";
 import { proveGitDeliveryContribution } from "../delivery/git-contribution-proof.js";
+import {
+  classifyPredecessorRelation,
+  type AncestryAnswer,
+} from "../delivery/predecessor-relation.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import {
   CandidateApplicabilityRequestSchema,
@@ -56,7 +60,7 @@ function failure(
 
 function unavailable(
   request: CandidateApplicabilityRequest,
-  reason: "merge-base-missing" | "merge-base-ambiguous",
+  reason: "merge-base-missing",
   detail: string,
 ): CandidateApplicabilityResult {
   return CandidateApplicabilityResultSchema.parse({
@@ -66,6 +70,43 @@ function unavailable(
     reason,
     detail,
   });
+}
+
+/** Refuse a pair with more than one best ancestor, saying how many and what clears it. */
+function ambiguous(
+  request: CandidateApplicabilityRequest,
+  mergeBaseCount: number,
+): CandidateApplicabilityResult {
+  return CandidateApplicabilityResultSchema.parse({
+    ...candidateApplicabilityResultBase(request),
+    state: "classification-unavailable",
+    nextAction: "stop",
+    reason: "merge-base-ambiguous",
+    detail: "Multiple baseline-to-current merge bases are available.",
+    mergeBaseCount,
+    remedy: {
+      kind: "candidate-rebaseline-required",
+      text:
+        "Re-pin the durable baseline over freshly verified content by rooting a new lineage. No merge clears this pair: both compared elements are fixed, so an append-only merge leaves their two best ancestors where they were.",
+    },
+  });
+}
+
+/**
+ * Answer one containment question, keeping a read that failed apart from a read that said no.
+ *
+ * `--is-ancestor` exits zero for yes and one for no, so every other exit is the read itself failing. Reporting
+ * that as a no would place the pair as a divergence on the strength of an answer nobody got.
+ */
+async function ancestry(exec: RawGitExec, ancestor: string, descendant: string): Promise<AncestryAnswer> {
+  const args = ["merge-base", "--is-ancestor", ancestor, descendant];
+  try {
+    await exec(args, { objectAccess: "local-only" });
+    return "ancestor";
+  } catch (error) {
+    const rejected = normalizeGitRejection(error, { command: "git", args });
+    return rejected.kind === "nonzero-exit" && rejected.exitCode === 1 ? "not-ancestor" : "unresolvable";
+  }
 }
 
 function movement(
@@ -111,6 +152,35 @@ export interface GitCandidateApplicabilityInput {
   readonly observeEndpoints: () => Promise<{ candidateHead: string; baseHead: string }>;
 }
 
+/**
+ * Read every best common ancestor of the pinned baseline and the observed base.
+ *
+ * A pair with none reports none rather than raising: having no ancestor is an answer about the pair, which
+ * the caller states in its own words, and it reaches this reader as two different Git outcomes.
+ *
+ * @param exec - The Git boundary.
+ * @param baselineRevision - The pinned baseline target revision.
+ * @param currentBase - The independently observed base revision.
+ * @returns Every ancestor the pair has, or nothing when it has none.
+ */
+async function readBaselineMergeBases(
+  exec: RawGitExec,
+  baselineRevision: string,
+  currentBase: string,
+): Promise<readonly string[] | null> {
+  const args = ["merge-base", "--all", baselineRevision, currentBase];
+  let result;
+  try {
+    result = await exec(args, { objectAccess: "local-only" });
+  } catch (error) {
+    const rejected = normalizeGitRejection(error, { command: "git", args });
+    if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") return null;
+    throw rejected;
+  }
+  const mergeBases = decodeLines(result.stdout);
+  return mergeBases.length === 0 ? null : mergeBases;
+}
+
 /** Derive D4 structural facts from exact current Git endpoints and classify the Candidate target. */
 export async function projectGitCandidateApplicability(
   input: GitCandidateApplicabilityInput,
@@ -122,30 +192,37 @@ export async function projectGitCandidateApplicability(
     if (request.baselineTarget.subject.subjectDigest === request.currentTarget.subject.subjectDigest) {
       return classifyCandidateApplicability(request, null);
     }
-    const mergeBaseArgs = [
-      "merge-base", "--all", request.baselineTarget.revision, request.currentBase,
-    ];
-    let mergeBaseResult;
-    try {
-      mergeBaseResult = await input.exec(mergeBaseArgs, { objectAccess: "local-only" });
-    } catch (error) {
-      const rejected = normalizeGitRejection(error, { command: "git", args: mergeBaseArgs });
-      if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") {
-        return unavailable(request, "merge-base-missing", "No baseline-to-current merge base is available.");
-      }
-      throw rejected;
-    }
-    const mergeBases = decodeLines(mergeBaseResult.stdout);
-    if (mergeBases.length === 0) {
+    const mergeBases = await readBaselineMergeBases(
+      input.exec,
+      request.baselineTarget.revision,
+      request.currentBase,
+    );
+    if (mergeBases === null) {
       return unavailable(request, "merge-base-missing", "No baseline-to-current merge base is available.");
     }
-    if (mergeBases.length > 1) {
-      return unavailable(
-        request,
-        "merge-base-ambiguous",
-        "Multiple baseline-to-current merge bases are available.",
-      );
+    // How the base moved under the pinned baseline, named by topology rather than inferred from the count.
+    // The baseline is the bound element and the observed base the moved one, so a base that took the baseline
+    // in reads as the append-only advance, and only a pair where neither contains the other can carry more
+    // than one ancestor at all.
+    const [baselineInBase, baseInBaseline] = await Promise.all([
+      ancestry(input.exec, request.baselineTarget.revision, request.currentBase),
+      ancestry(input.exec, request.currentBase, request.baselineTarget.revision),
+    ]);
+    const relation = classifyPredecessorRelation({
+      boundHead: request.baselineTarget.revision,
+      observedHead: request.currentBase,
+      boundIsAncestorOfObserved: baselineInBase,
+      observedIsAncestorOfBound: baseInBaseline,
+      mergeBaseCount: mergeBases.length,
+    });
+    if (relation.kind === "unknown") {
+      return failure(request, "git-failure", "The baseline-to-base ancestry could not be established.");
     }
+    if (relation.kind === "diverged" && relation.mergeBaseCount > 1) {
+      // Read off the variant rather than the list, so the count the pair was placed at is the count it reports.
+      return ambiguous(request, relation.mergeBaseCount);
+    }
+    // Every surviving variant has one side containing the other or diverging from it at a single ancestor.
     const mergeBase = ObjectIdSchema.parse(mergeBases[0]);
     const [beforeBase, beforeMember, afterBase, afterMember] = await Promise.all([
       coordinate(input.exec, mergeBase),

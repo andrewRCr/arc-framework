@@ -352,6 +352,50 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ---
 
+### `[ ]` **Re-evaluate the `standalone` context-footer anchor and its parenthetical set**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: naming-conventions`
+
+- _Observation:_ this WU already owns "Reconcile the commit-footer meta-category set across method, hook, and
+  test", but every thread under it concerns the `Context: meta-*.md (...)` set — `decomposition`, `graduation`, the
+  `(activation)` init/activate split, promote / park / resume. The `standalone` anchor is a second, independent
+  enum sharing the same three homes, and it has not been looked at: `lib/commit-check/policy.ts` pins it to
+  `(maintenance|planning|documentation|refactor|code review)`.
+
+- _Observation:_ that set has no token for an errand whose change is a capability addition. `run-errand` closes on
+  `Context: standalone (<kind>)`, and errands routinely land `feat` commits, so a `feat(...)` subject is forced to
+  declare itself `(maintenance)` in the same message — the footer contradicts the type, and the parenthetical stops
+  carrying the signal it exists to carry. Hit live registering three review request schemas behind `--schema`.
+
+- _Approach:_ settle the token, then reconcile all three homes across both copies exactly as the sibling
+  meta-category thread already plans — `commit-footer.md` § Standalone anchor, `STANDALONE_FOOTER_PATTERN` and its
+  suggestion strings in `lib/commit-check/policy.ts`, and the footer test. Design fork: add a token (a `feature` /
+  `capability` analogue of the meta set's action-nouns), or state that the standalone set is deliberately
+  kind-of-work rather than type-of-change and say so where the author is reading. The meta set's legibility
+  constraint carries over — the parenthetical must read without ARC knowledge.
+
+- _Boundary:_ the two enums are separate regexes, so neither blocks the other; they belong in one pass for
+  coherence, not by dependency.
+
+- _Design fork raised at capture (2026-09-18), and it is wider than adding a token:_ `standalone` may be the wrong
+  anchor rather than an incomplete one. The method's own contract is that the footer names the deepest spec-shaped
+  artifact and stays grep-searchable, and `standalone` satisfies neither — it names nothing and resolves to
+  nothing. Two candidate directions, plus the reason to reject a third:
+    - **Anchor on the errand's canonical identity.** An errand carries a `key` and `claimId` and an `originEntry`
+      back-pointer to its capture, so `Context: errand-<slug> (...)` resolves to a real record. The branch name
+      already carries the slug, but only the merge commit preserves it on the base branch — a per-commit footer is
+      durable where that is not. Needs a fallback for partial-protection errands, which have no portable identity.
+    - **Prune the parenthetical to what the type does not already carry.** `maintenance`, `documentation`, and
+      `refactor` restate the conventional-commit type; `planning` and `code review` do not. The forced
+      `feat(...)` + `(maintenance)` contradiction is this duplication surfacing, not a missing token.
+    - **Dropping the footer entirely when nothing anchors it** is the weaker option: a required field that is
+      legitimately sometimes absent cannot be validated, so the hook loses the ability to tell a correct omission
+      from a forgotten one, and the two signals the type cannot carry are lost with it.
+
+- _Captured during:_ the `register-review-request-schemas` errand, 2026-09-18.
+
 ## Problem / Motivation
 
 ARC already uses `{TYPE}.{QUALIFIER}` for two paired doc families — `DEV-RULES.{ARC,PROJECT}` and

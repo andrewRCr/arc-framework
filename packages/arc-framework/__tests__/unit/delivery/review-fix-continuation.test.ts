@@ -30,7 +30,7 @@ import {
   createFixAuthorization,
 } from "../../../src/scripts/review-gate/core/fix-authorization.js";
 import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import { deliveryPlanFixture, deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const plan = deliveryStackPlanFixture();
@@ -148,7 +148,10 @@ function deliveryDispositionRecord(input: {
 
 const openTaskDerivation = { kind: "open-task", taskId: "1.1", leafTaskId: "1.1.R.a" } as const;
 
-function correctionEntry(): DeliveryEntryInspectionResult {
+function correctionEntry(): Extract<
+  DeliveryEntryInspectionResult,
+  { readonly status: "correction-routing-required" }
+> {
   return {
     status: "correction-routing-required",
     nextAction: "plan-review-fix",
@@ -409,6 +412,28 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("ignores Candidate-owned private frontline fixes when selecting a public member response", () => {
+    const privateReview = deliveryDispositionRecord({ operationId: "private-member-review" });
+    const privateCandidate = ApprovedDispositionRecordSchema.parse({
+      ...privateReview,
+      candidate: {
+        workUnit: plan.workUnitId,
+        candidateId: canonicalDigest({ candidate: "private-member-review" }),
+      },
+      source: { kind: "frontline", outcomeRef: "frontline-outcome/private-member-review" },
+    });
+    const publicPending = deliveryDispositionRecord({ operationId: "public-member-review" });
+
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [privateCandidate],
+    })).toEqual({ status: "none" });
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [privateCandidate, publicPending],
+    })).toMatchObject({ status: "selected", operationId: publicPending.operationId });
+  });
+
   it("refuses ambiguous or internally inexact pending hosted member authority", () => {
     const first = deliveryDispositionRecord({ operationId: "operation-first" });
     const second = deliveryDispositionRecord({ operationId: "operation-second" });
@@ -597,7 +622,7 @@ describe("delivery review-fix continuation projection", () => {
       status: "verification-required",
       verification: {
         target: continuation.verification.target,
-        tier1Reuse: { targetTree: continuation.verification.target.tree },
+        tier1ReuseCriteria: { targetTree: continuation.verification.target.tree },
       },
       resumeAction: { input: { repository: request.repository, remote: request.remote } },
     });
@@ -686,7 +711,95 @@ describe("delivery review-fix continuation projection", () => {
     });
     expect(result).toMatchObject({ status });
     if (actionKind !== undefined) expect(result).toMatchObject({ action: { kind: actionKind } });
+    if (actionKind === "delivery-rematerialize") {
+      expect(result).not.toHaveProperty("action.input.supersedePendingReviewFixVerification");
+    }
     if (status === "authoring-required") expect(result).toMatchObject({ derivedFrom: openTaskDerivation });
+  });
+
+  it("carries pending-verification supersession into rematerialization as a selected change", () => {
+    const pendingReviewFixVerification = {
+      selectedDeliverableId,
+      memberDeliverableIds: [selectedDeliverableId],
+    };
+    const pendingState = {
+      ...currentChainState(),
+      pendingReviewFixVerification,
+    };
+    const result = projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        ...correctionEntry(),
+        derivedFrom: {
+          kind: "pending-verification",
+          continuationDigest: canonicalDigest(pendingState),
+        },
+      },
+      route: route("rematerialize"),
+      state: { revision: 3, value: pendingState },
+      activeBranch: "feat/example",
+      authoring: {
+        status: "ready",
+        kind: "top",
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        head: "a".repeat(40),
+        tree: "b".repeat(40),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "dispatch",
+      action: {
+        kind: "delivery-rematerialize",
+        input: {
+          supersedePendingReviewFixVerification: {
+            pendingVerification: pendingReviewFixVerification,
+            expectedStateRevision: 3,
+            continuationDigest: canonicalDigest(pendingState),
+          },
+        },
+      },
+    });
+  });
+
+  it("refuses rematerialization when the pending-verification derivation has moved", () => {
+    const pendingReviewFixVerification = {
+      selectedDeliverableId,
+      memberDeliverableIds: [selectedDeliverableId],
+    };
+    const pendingState = {
+      ...currentChainState(),
+      pendingReviewFixVerification,
+    };
+    const movedState = {
+      ...pendingState,
+      pendingReviewFixVerification: {
+        ...pendingReviewFixVerification,
+        memberDeliverableIds: [selectedDeliverableId, plan.members[1]!.deliverableId],
+      },
+    };
+
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: {
+        ...correctionEntry(),
+        derivedFrom: {
+          kind: "pending-verification",
+          continuationDigest: canonicalDigest(pendingState),
+        },
+      },
+      route: route("rematerialize"),
+      state: { revision: 4, value: movedState },
+      activeBranch: "feat/example",
+      authoring: {
+        status: "ready",
+        kind: "top",
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        head: "a".repeat(40),
+        tree: "b".repeat(40),
+      },
+    })).toEqual({ status: "refused", reason: "review-fix-rematerialization-unavailable" });
   });
 
   it("refuses terminal authoring until the exact top locus is observed", () => {
@@ -826,6 +939,54 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("does not mistake a landed predecessor for a pending M2 refresh or correction", () => {
+    const laterMember = plan.members[1];
+    if (laterMember === undefined) throw new Error("continuation fixture requires a later member");
+    const state = currentChainState();
+    const afterLanding = {
+      revision: 4,
+      value: {
+        ...state,
+        members: state.members.map((member, index) => index === 1
+          ? { ...member, coordinates: { ...member.coordinates!, base: "e".repeat(40) } }
+        : member),
+      },
+    };
+    const laterRoute = route("provider-refresh");
+    if (laterRoute.status !== "planned" || laterRoute.route !== "provider-refresh") {
+      throw new Error("continuation fixture requires a provider-refresh route");
+    }
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      state: afterLanding,
+      landedDeliverableIds: [selectedDeliverableId],
+      route: laterRoute,
+    })).toEqual({ status: "refused", reason: "review-fix-route-mismatch" });
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: { ...correctionEntry(), selectedDeliverableId: laterMember.deliverableId },
+      state: afterLanding,
+      landedDeliverableIds: [selectedDeliverableId],
+      route: {
+        ...laterRoute,
+        selectedDeliverableId: laterMember.deliverableId,
+        affectedDeliverableIds: [laterMember.deliverableId],
+      },
+      authoring: {
+        status: "authoring-required",
+        kind: "candidate",
+        ref: "refs/arc/delivery-candidates/plan/second",
+        checkoutPath: "/repo/.git/gate/second",
+      },
+    })).toMatchObject({
+      status: "authoring-required",
+      selectedDeliverableId: laterMember.deliverableId,
+      nextAction: "author-correction",
+      authoring: { kind: "candidate", checkoutPath: "/repo/.git/gate/second" },
+    });
+  });
+
   it("finishes a unique pending selected refresh before Candidate verification", () => {
     expect(projectDeliveryReviewFixContinuation({
       request,
@@ -868,7 +1029,7 @@ describe("delivery review-fix continuation projection", () => {
     if (result.status !== "dispatch") throw new Error("retained refresh must dispatch");
     expect(result.action).toEqual({
       kind: "delivery-refresh-execute",
-      argv: ["arc", "delivery", "refresh", "execute", "-", "--json"],
+      argv: ["arc", "delivery", "refresh", "execute", "-"],
       input: {
         planId: plan.planId,
         repository: request.repository,
@@ -920,7 +1081,7 @@ describe("delivery review-fix continuation projection", () => {
             deliveryStatusAction: {
               kind: "resolve-delivery-status" as const,
               workUnitId: plan.workUnitId,
-              command: `arc review status --work-unit ${plan.workUnitId} --json`,
+              command: `arc review status --work-unit ${plan.workUnitId}`,
               interactionText: recommendedActionText,
             },
             recommendedActionText,
@@ -977,5 +1138,20 @@ describe("delivery review-fix continuation projection", () => {
       stateRevision: 10,
       recommendedActionText,
     });
+  });
+
+  it("preserves retired-projection repair through the review-fix continuation", () => {
+    const retired = deliveryPlanFixture();
+    const entry: DeliveryEntryInspectionResult = {
+      status: "repair-required",
+      nextAction: "reauthor-plan",
+      reason: "unsupported-projection",
+      planId: retired.planId,
+      planRevision: retired.planRevision,
+      entry: retired.entry,
+      recommendedActionText: "Re-author the retired projection before continuing.",
+    };
+
+    expect(projectDeliveryReviewFixContinuation({ request, entry })).toEqual(entry);
   });
 });

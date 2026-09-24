@@ -57,6 +57,19 @@ function classicRequiredContexts(value: unknown): string[] {
     : stringArray(checks.contexts, "branch.protection.required_status_checks.contexts");
 }
 
+function classicStrictCurrentness(value: unknown): boolean {
+  const branch = record(value, "branch");
+  if (branch.protection === undefined || branch.protection === null) return false;
+  const protection = record(branch.protection, "branch.protection");
+  if (protection.required_status_checks === undefined || protection.required_status_checks === null) return false;
+  const checks = record(protection.required_status_checks, "branch.protection.required_status_checks");
+  if (checks.strict === undefined) return false;
+  if (typeof checks.strict !== "boolean") {
+    throw new Error("branch.protection.required_status_checks.strict: expected a boolean");
+  }
+  return checks.strict;
+}
+
 function rulesetRequiredContexts(value: unknown): string[] {
   if (!Array.isArray(value)) throw new Error("branch-rules: expected page array");
   return value.flatMap((page, pageIndex) => {
@@ -82,6 +95,57 @@ function rulesetRequiredContexts(value: unknown): string[] {
       ));
     });
   });
+}
+
+function rulesetStrictCurrentness(value: unknown): boolean {
+  if (!Array.isArray(value)) throw new Error("branch-rules: expected page array");
+  return value.some((page, pageIndex) => {
+    if (!Array.isArray(page)) throw new Error(`branch-rules[${pageIndex}]: expected an array page`);
+    return page.some((item, ruleIndex) => {
+      const rule = record(item, `branch-rules[${pageIndex}][${ruleIndex}]`);
+      if (rule.type !== "required_status_checks") return false;
+      const parameters = record(
+        rule.parameters,
+        `branch-rules[${pageIndex}][${ruleIndex}].parameters`,
+      );
+      const strict = parameters.strict_required_status_checks_policy;
+      if (strict === undefined) return false;
+      if (typeof strict !== "boolean") {
+        throw new Error(
+          `branch-rules[${pageIndex}][${ruleIndex}].parameters.strict_required_status_checks_policy: expected a boolean`,
+        );
+      }
+      return strict;
+    });
+  });
+}
+
+export interface GhRequiredStatusPolicy {
+  contexts: string[];
+  strictCurrentness: boolean;
+}
+
+/** Read applicable classic and ruleset required-status policy for one exact base ref. */
+export async function readGhRequiredStatusPolicy(
+  runner: HostedProcessRunner,
+  repository: string,
+  baseRef: string,
+  signal: AbortSignal,
+): Promise<GhRequiredStatusPolicy> {
+  const encodedBaseRef = encodeURIComponent(baseRef);
+  const [branchResult, rulesResult] = await Promise.all([
+    runner.run(["api", `repos/${repository}/branches/${encodedBaseRef}`], { signal }),
+    runner.run([
+      "api", "--paginate", "--slurp",
+      `repos/${repository}/rules/branches/${encodedBaseRef}?per_page=100`,
+    ], { signal }),
+  ]);
+  const branch = parse(branchResult.stdout, "branch");
+  const rules = parse(rulesResult.stdout, "branch-rules");
+  return {
+    contexts: [...new Set([...classicRequiredContexts(branch), ...rulesetRequiredContexts(rules)])],
+    strictCurrentness: classicStrictCurrentness(branch) || rulesetStrictCurrentness(rules),
+  };
 }
 
 function mergeConfiguredChecks(
@@ -146,18 +210,7 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
   ): Promise<string[]> {
     for (;;) {
       const baseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal));
-      const encodedBaseRef = encodeURIComponent(baseRef);
-      const [branchResult, rulesResult] = await Promise.all([
-        runner.run(["api", `repos/${repository}/branches/${encodedBaseRef}`], { signal }),
-        runner.run([
-          "api", "--paginate", "--slurp",
-          `repos/${repository}/rules/branches/${encodedBaseRef}?per_page=100`,
-        ], { signal }),
-      ]);
-      const contexts = [...new Set([
-        ...classicRequiredContexts(parse(branchResult.stdout, "branch")),
-        ...rulesetRequiredContexts(parse(rulesResult.stdout, "branch-rules")),
-      ])];
+      const { contexts } = await readGhRequiredStatusPolicy(runner, repository, baseRef, signal);
       const currentBaseRef = pullRequestBaseRef(await readPullRequest(repository, pullRequest, signal));
       if (currentBaseRef === baseRef) return contexts;
     }
@@ -190,9 +243,9 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
   }
 
   return {
-    resolveRepository: async () => {
+    resolveRepository: async (signal) => {
       const value = record(parse(
-        (await runner.run(["repo", "view", "--json", "nameWithOwner"])).stdout,
+        (await runner.run(["repo", "view", "--json", "nameWithOwner"], { signal })).stdout,
         "repository",
       ), "repository");
       if (typeof value.nameWithOwner !== "string" || value.nameWithOwner === "") {

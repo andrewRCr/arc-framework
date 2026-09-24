@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareDeliveryContribution,
   DeliveryContributionProofResultSchema,
+  projectDeliveryContributionEndpoints,
 } from "../../../src/lib/delivery/contribution-proof.js";
 
 const sha1 = (digit: string): string => digit.repeat(40);
@@ -38,6 +39,31 @@ describe("delivery contribution proof", () => {
       ...input,
       after: { ...input.after, member: { ...input.after.member, tree: input.before.member.tree } },
     })).toEqual({ status: "reapply-required" });
+  });
+
+  it("projects persisted members and eligibility records to strict proof coordinates", () => {
+    const input = endpoints();
+    const persistedMember = { base: sha1("9"), ...input.before.member };
+    const eligibilityPredecessor = {
+      deliverableId: "member-1",
+      ref: "refs/heads/candidate-1",
+      ...input.after.predecessor,
+    };
+    const eligibilityMember = {
+      deliverableId: "member-2",
+      ref: "refs/heads/candidate-2",
+      ...input.after.member,
+    };
+    expect(projectDeliveryContributionEndpoints({
+      before: {
+        predecessor: input.before.predecessor,
+        member: persistedMember,
+      },
+      after: {
+        predecessor: eligibilityPredecessor,
+        member: eligibilityMember,
+      },
+    })).toEqual(input);
   });
 
   it("rejects a conflicted proof without exact path evidence", () => {

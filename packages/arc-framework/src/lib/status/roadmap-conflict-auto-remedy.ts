@@ -88,6 +88,8 @@ export interface RoadmapConflictAutoRemedyDeps {
   writeFile: (path: string, content: string) => Promise<void>;
   /** Optional fixed base branch; omitted reads arc-config.yml. */
   baseBranch?: string;
+  /** Optional exact base revision used for merge-stage selection. */
+  baseRevision?: string;
   /** Optional fixed render stamp for tests. */
   renderedRef?: RenderRoadmapFromIndexOptions["renderedRef"];
   /** Optional index transaction seam; production captures the repository index. */
@@ -161,7 +163,7 @@ export async function applyRoadmapConflictAutoRemedy(
   let indexTransaction: GitIndexTransaction | undefined;
   try {
     const baseBranch = deps.baseBranch ?? await readBaseBranch(deps.cwd);
-    const baseRef = configuredBaseRef(baseBranch);
+    const baseRef = deps.baseRevision ?? configuredBaseRef(baseBranch);
     let exec = deps.exec;
     if (eligibility.trigger === "unmerged-only-roadmap") {
       indexTransaction = deps.captureIndexState === undefined

@@ -4,6 +4,15 @@ import { z } from "zod";
 
 import { canonicalDigest } from "../canonical/canonical-json.js";
 import {
+  MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
+} from "../evidence-applicability/schema.js";
+import {
+  composeEvidenceDelta,
+  EvidenceApplicabilityResultSchema,
+  reduceEvidenceApplicability,
+} from "../evidence-applicability/index.js";
+import {
   DeliveryContributionEndpointsSchema,
   DeliveryContributionProofResultSchema,
 } from "../delivery/contribution-proof.js";
@@ -14,8 +23,8 @@ const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ApplicabilityPathSchema = z.string().min(1).refine(isManagedPath, "must be a managed repository path");
 
-export const MAX_CANDIDATE_APPLICABILITY_PATHS = 200;
-export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = 16_384;
+export const MAX_CANDIDATE_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
+export const MAX_CANDIDATE_APPLICABILITY_PATH_BYTES = MAX_EVIDENCE_APPLICABILITY_PATH_BYTES;
 export const CANDIDATE_APPLICABILITY_CHOICES = ["covered", "targeted-check", "changed"] as const;
 export const CandidateApplicabilityChoicesSchema = z.tuple([
   z.literal("covered"),
@@ -64,6 +73,22 @@ export type CandidateApplicabilityStructuralFacts = z.infer<
   typeof CandidateApplicabilityStructuralFactsSchema
 >;
 
+/**
+ * The one route out of an ambiguous pinned pair: re-pin the baseline.
+ *
+ * It carries no command to run because merging is the remedy this pair cannot take. Both elements are fixed —
+ * the baseline is reduced from a durable record and the base is observed — so an append-only merge advances the
+ * branch and leaves the compared revisions, and their two best ancestors, exactly where they were. Clearing it
+ * takes a fresh authority transition that pins a new baseline, which is a ceremony rather than a command this
+ * reader can name.
+ */
+export const CandidateRebaselineRemedySchema = z.strictObject({
+  kind: z.literal("candidate-rebaseline-required"),
+  /** The clearing act in the operator's own terms, for a reader that renders this rather than branching on it. */
+  text: z.string().min(1),
+});
+export type CandidateRebaselineRemedy = z.infer<typeof CandidateRebaselineRemedySchema>;
+
 const ResultCommon = {
   schemaVersion: z.literal(1),
   mode: z.literal("candidate-applicability"),
@@ -83,6 +108,7 @@ export const CandidateApplicabilityDecisionResultSchema = z.strictObject({
   state: z.literal("decision-required"),
   nextAction: z.literal("request-authority"),
   verdict: z.enum(["clean-divergence", "interaction"]),
+  applicability: EvidenceApplicabilityResultSchema,
   projection: DeliveryContributionEndpointsSchema,
   paths: BoundedApplicabilityPathsSchema,
   choices: CandidateApplicabilityChoicesSchema,
@@ -140,11 +166,20 @@ export const CandidateApplicabilityResultSchema = z.union([
     nextAction: z.literal("stop"),
     reason: z.enum([
       "merge-base-missing",
-      "merge-base-ambiguous",
       "residual-empty",
       "residual-unbounded",
     ]),
     detail: z.string().min(1),
+  }),
+  z.strictObject({
+    ...ResultCommon,
+    state: z.literal("classification-unavailable"),
+    nextAction: z.literal("stop"),
+    reason: z.literal("merge-base-ambiguous"),
+    detail: z.string().min(1),
+    /** How many best common ancestors the pair has. Its own arm, so a refusal cannot ship without it. */
+    mergeBaseCount: z.number().int().min(2),
+    remedy: CandidateRebaselineRemedySchema,
   }),
 ]);
 export type CandidateApplicabilityResult = z.infer<typeof CandidateApplicabilityResultSchema>;
@@ -241,7 +276,7 @@ export function classifyCandidateApplicability(
       );
       const reviewableResidual = structural.proof.paths.filter((path) =>
         treatments.get(path) === "reviewable" || !treatments.has(path));
-      // Candidate-owned projections and other operational entries deliberately do not participate
+      // Candidate-owned projections and other evidence-neutral entries deliberately do not participate
       // in the reviewable subject. D4 still compares complete Git trees, so its exact tree residual
       // can contain those post-attestation writes even when the reapplied reviewable contribution is
       // identical. Unknown paths remain substantive and therefore fail closed into the judgment arm.
@@ -305,12 +340,18 @@ export function classifyCandidateApplicability(
         verdict,
         paths: bounded.data,
       });
+      const applicability = reduceEvidenceApplicability(composeEvidenceDelta({
+        cause: "member-rewrite",
+        endpoints: structural.endpoints,
+        proof: { ...structural.proof, paths: bounded.data },
+      }), "review-clearance");
       const presentation = decisionPresentation({ request, verdict, paths: bounded.data, ...digests });
       return CandidateApplicabilityResultSchema.parse({
         ...candidateApplicabilityResultBase(request),
         state: "decision-required",
         nextAction: "request-authority",
         verdict,
+        applicability,
         projection: structural.endpoints,
         paths: bounded.data,
         choices: CANDIDATE_APPLICABILITY_CHOICES,

@@ -3,6 +3,7 @@ purpose: Capture session state so the next session can resume with full context 
 audience: agent
 arc:
   methods:
+    - commit-format
     - session-state
   extensions:
     - pre-push-review
@@ -136,8 +137,13 @@ Use this path only for `handoffLocus.value.kind === "leave-errand"`.
     ```text
     chore(errand): checkpoint <slug>
 
+    - Preserve resumable Errand state for <slug>
+
     Context: standalone (<kind>)
     ```
+
+   **Subject-length guard.** Apply [`commit-format`][commit-format]'s literal-workflow-subject identity fallback to
+   `<slug>`; keep the exact identity in the body.
 
 3. **Preserve and leave the exact Errand** — before leaving, retain the exact surviving return checkout from the
    same derived frame: the marker parent when it resolves to one registered checkout, otherwise the physical primary
@@ -266,9 +272,8 @@ Update session state files before ending session:
     `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from
     staged content.
 
-    **Subject-length guard.** Codified position templates fit under the 72-char hook limit with
-    typical WU/task names. Long WU names (>~30 chars) may force shortened forms — convention for
-    fallback: trim WU name to its last segment.
+    **Subject-length guard.** Apply [`commit-format`][commit-format]'s literal-workflow-subject identity fallback to
+    the WU-name component of `<position>`; keep the exact identity in the body and `Context:` footer.
 
     **Body-length guard.** Do not put both full task titles on one `Last Completed` / `Next Task`
     line — the body template above wraps deliberately. The release wrapper auto-wraps `-m` bodies
@@ -664,7 +669,7 @@ Resolve each candidate branch's exact local head with
 (never block on CI):
 
 ```bash
-arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json
+arc review change-request resolve --head-ref <branch> --head-sha <head-sha>
 ```
 
 An unavailable local head is **failed / blocked**; never substitute a host-reported or remembered head.
@@ -711,6 +716,7 @@ lives behind `arc user save` / `arc user sync`.
 note to anchor.
 
 [arc-methods-session]: ../../../methods/session-state.md
+[commit-format]: ../../../methods/commit-format.md
 [commit-footer]: ../../../methods/commit-footer.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

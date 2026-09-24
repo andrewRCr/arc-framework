@@ -13,6 +13,7 @@ import {
   deliveryFourMemberStackPlanFixture,
   deliveryPlanFixture,
   deliveryStackPlanWithMemberTitlesFixture,
+  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -142,6 +143,40 @@ function reservedProviderRefreshFixture() {
 }
 
 describe("delivery suffix reconciliation", () => {
+  it("ignores a landed predecessor edge while selecting an unlanded review-fix refresh", () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const current = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => {
+        if (member.coordinates === null) throw new Error("fixture member must be bound");
+        const base = index === 0
+          ? fixture.target!.coordinates!.head
+          : members[index - 1]!.coordinates!.head;
+        return { ...member, coordinates: { ...member.coordinates, base } };
+      }),
+    };
+    const landedFirst = {
+      ...current,
+      members: current.members.map((member, index) => index === 1
+        ? { ...member, coordinates: { ...member.coordinates!, base: "e".repeat(40) } }
+        : member),
+    };
+    const landedPrefix = [plan.members[0]!.deliverableId];
+
+    expect(findExactPendingSelectedRefresh(landedFirst)).toBe(plan.members[0]!.deliverableId);
+    expect(findExactPendingSelectedRefresh(landedFirst, landedPrefix)).toBeNull();
+
+    const publishedSecond = {
+      ...landedFirst,
+      members: landedFirst.members.map((member, index) => index === 1
+        ? { ...member, coordinates: { ...member.coordinates!, head: "f".repeat(40) } }
+        : member),
+    };
+    expect(findExactPendingSelectedRefresh(publishedSecond, landedPrefix))
+      .toBe(plan.members[1]!.deliverableId);
+  });
+
   it("selects the earliest pending refresh when later publication creates a second chain break", () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);
@@ -264,6 +299,42 @@ describe("delivery suffix reconciliation", () => {
     expect(result).toEqual({ status: "refused", reason: "selected-member-moved" });
     expect(proveContribution).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("keeps landed M1 outside the pending selector when adopting M2 refresh", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(800 + index) },
+        coordinates: {
+          ...member.coordinates!,
+          base: index === 0 ? fixture.target!.coordinates!.head
+            : index === 1 ? "e".repeat(40) : members[index - 1]!.coordinates!.head,
+          head: index === 1 ? "f".repeat(40) : member.coordinates!.head,
+        },
+      })),
+    };
+    const affectedDeliverableIds = plan.members.slice(1, -1).map(({ deliverableId }) => deliverableId);
+
+    const result = await adoptExternalDeliverySuffixRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      affectedDeliverableIds,
+      selectedDeliverableId: affectedDeliverableIds[0],
+      landedDeliverableIds: [plan.members[0]!.deliverableId],
+      observeResult: async () => ({ status: "refused", reason: "observation-unavailable" }),
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "observation-unavailable" });
   });
 
   it("refuses dependent adoption when the selected member has not published a correction", async () => {
@@ -541,6 +612,14 @@ describe("delivery suffix reconciliation", () => {
       conflictResolution: {
         ...offered.resolutionInput,
         scope: { kind: "dependent-suffix", selectedDeliverableId: affected[1]! },
+      },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    })).resolves.toEqual({ status: "refused", reason: "conflict-resolution-mismatch" });
+    await expect(adoptExternalDeliverySuffixRefresh({
+      ...common,
+      conflictResolution: {
+        ...offered.resolutionInput,
+        scope: { kind: "native-suffix", operationId: "operation-1" },
       },
       stateStore: { publish: async () => { throw new Error("must not persist"); } },
     })).resolves.toEqual({ status: "refused", reason: "conflict-resolution-mismatch" });
@@ -1087,6 +1166,51 @@ describe("delivery suffix reconciliation", () => {
     expect(rewriteRef).not.toHaveBeenCalled();
   });
 
+  it("preserves narrow lifecycle and ref-adapter refusal diagnostics", async () => {
+    const { plan, state } = movedFixture();
+    const member = state.members[1]!;
+    const request = { target: state.target, members: [{ ...member }] };
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested: request,
+      revalidateLifecycle: async () => ({
+        status: "refused", reason: "entry-unavailable", paths: ["meta.md"],
+      }),
+      rewriteRef: async () => { throw new Error("must not rewrite"); },
+      observeResult: async () => { throw new Error("must not observe"); },
+      proveContribution: async () => { throw new Error("must not prove"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "lifecycle-contribution",
+      paths: ["meta.md"],
+      detail: "Lifecycle revalidation refused: entry-unavailable.",
+    });
+
+    const writes: DeliveryStateV1[] = [];
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested: request,
+      revalidateLifecycle: async () => ({ status: "ok" }),
+      rewriteRef: async () => ({ status: "refused", reason: "stale-lease" }),
+      observeResult: async () => { throw new Error("must not observe"); },
+      proveContribution: async () => { throw new Error("must not prove"); },
+      stateStore: { publish: async (_id, value, revision) => {
+        writes.push(value);
+        return { status: "ok", value: { revision: revision + 1, value } };
+      } },
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "rewrite-refused",
+      detail: "Ref rewrite refused: stale-lease.",
+    });
+    expect(writes).toHaveLength(1);
+  });
+
   it("refuses a foreign requested target before lifecycle checks, reservation, or ref mutation", async () => {
     const { plan, state } = movedFixture();
     const member = state.members[1]!;
@@ -1131,6 +1255,7 @@ describe("delivery suffix reconciliation", () => {
     const result = await executeDeliverySuffixRewrite({
       plan, current: { revision: 7, value: state }, deliverableId: member.deliverableId, requested,
       contributionMode: "selected-change",
+      operationMode: "selected-change",
       revalidateLifecycle: async () => ({ status: "ok" }),
       rewriteRef: async () => ({ status: "rewritten" }), observeResult: async () => requested,
       proveContribution,
@@ -1140,5 +1265,91 @@ describe("delivery suffix reconciliation", () => {
     });
     expect(result.status).toBe("applied");
     expect(proveContribution).not.toHaveBeenCalled();
+  });
+
+  it("does not let the equivalence exemption stand in for internal selected-change authority", async () => {
+    const { plan, state } = movedFixture();
+    const member = state.members[1]!;
+    const rewriteRef = vi.fn();
+    const publish = vi.fn();
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: state },
+      deliverableId: member.deliverableId,
+      requested: { target: state.target, members: [{ ...member }] },
+      contributionMode: "selected-change",
+      revalidateLifecycle: async () => ({ status: "ok" }),
+      rewriteRef,
+      observeResult: async () => { throw new Error("must not observe"); },
+      proveContribution: async () => { throw new Error("must not prove"); },
+      stateStore: { publish },
+    })).resolves.toEqual({ status: "refused", reason: "selected-change-authority-required" });
+    expect(rewriteRef).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("carries pending-verification identity through a rematerialization rewrite", async () => {
+    const plan = deliveryThreeMemberStackPlanFixture();
+    const fixtureState = deliveryStateFixture(plan);
+    const state = {
+      ...fixtureState,
+      members: fixtureState.members.map((candidate, index) => index === 1
+        ? { ...candidate, changeRequest: { providerId: "github", changeRequestId: "402" } }
+        : candidate),
+    };
+    const member = state.members[1]!;
+    const pending = {
+      ...state,
+      pendingReviewFixVerification: {
+        selectedDeliverableId: member.deliverableId,
+        memberDeliverableIds: [member.deliverableId],
+      },
+    };
+    const requested = { target: pending.target, members: [{ ...member }] };
+    const writes: DeliveryStateV1[] = [];
+    const dependencies = {
+      revalidateLifecycle: async () => ({ status: "ok" as const }),
+      rewriteRef: async () => ({ status: "rewritten" as const }),
+      observeResult: async () => requested,
+      proveContribution: async () => ({ status: "accepted" as const, proof: "tree-equality" as const }),
+      stateStore: { publish: async (_id: string, value: DeliveryStateV1, revision: number) => {
+        writes.push(value);
+        return {
+          status: "ok" as const,
+          value: { revision: revision + 1, value },
+        };
+      } },
+    };
+
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: pending },
+      deliverableId: member.deliverableId,
+      requested,
+      ...dependencies,
+    })).resolves.toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+
+    await expect(executeDeliverySuffixRewrite({
+      plan,
+      current: { revision: 7, value: pending },
+      deliverableId: member.deliverableId,
+      requested,
+      contributionMode: "selected-change",
+      supersedePendingReviewFixVerification: pending.pendingReviewFixVerification,
+      ...dependencies,
+    })).resolves.toMatchObject({ status: "applied" });
+    expect(writes[0]).toMatchObject({
+      pendingReviewFixVerification: null,
+      activeOperation: {
+        kind: "rewrite",
+        mode: "review-fix",
+        reviewFixSelectedDeliverableId: member.deliverableId,
+        reviewFixVerificationDeliverableIds: [member.deliverableId],
+      },
+    });
+    expect(writes[1]).toMatchObject({
+      pendingReviewFixVerification: pending.pendingReviewFixVerification,
+      activeOperation: null,
+    });
   });
 });

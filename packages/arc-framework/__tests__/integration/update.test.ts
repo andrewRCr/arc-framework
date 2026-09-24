@@ -187,7 +187,7 @@ describe("update integration — baseline (real recipe)", () => {
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-        "session-state", "spec-review", "task-audit", "test-first",
+        "session-state", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ].map((n) => `system/methods/${n}.md`),
       ...[

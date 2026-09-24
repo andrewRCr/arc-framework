@@ -4,6 +4,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 import ts from "typescript";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
@@ -118,9 +120,9 @@ describe("decomposition v3 authority boundary", () => {
 
     expect(projectMethod).toBe(packageMethod);
     expect(packageMethod).toContain("name: assess-boundary-fit");
-    expect(packageMethod).toContain("stays one WU + delivery-plan candidate");
+    expect(packageMethod).toMatch(softWrappedProse("stays one WU + delivery-plan candidate"));
     expect(packageMethod).toContain("new-evidence delta");
-    expect(packageMethod).toContain("concern multiplicity is a third axis");
+    expect(packageMethod).toMatch(softWrappedProse("concern multiplicity is a third axis"));
     expect(packageMethod).not.toContain("parentPosition");
     expect(packageMethod).not.toContain("surviving-origin");
     expect(packageMethod).toMatch(/core retirement\s+transform remains unchanged/u);

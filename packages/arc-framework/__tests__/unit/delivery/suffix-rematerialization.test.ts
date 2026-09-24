@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { reconcileDeliveryExecution } from "../../../src/lib/delivery/landing.js";
+import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import {
   completeDeliverySuffixMutationTail,
   executeFreshDeliverySuffixRematerialization,
@@ -8,6 +11,7 @@ import {
 } from "../../../src/lib/delivery/suffix-rematerialization.js";
 import type { DeliveryContributionEndpoints } from "../../../src/lib/delivery/contribution-proof.js";
 import type { DeliveryEligibilitySnapshot } from "../../../src/lib/delivery/eligibility.js";
+import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import {
   deliveryFourMemberStackPlanFixture,
   deliveryThreeMemberStackPlanFixture,
@@ -32,11 +36,18 @@ function fixture() {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: target.ref, ...target.coordinates! },
+    chainBase: target.coordinates!,
+    predecessorRelation: {
+      kind: "advanced",
+      observedTip: target.coordinates!.head,
+      chainBase: target.coordinates!.head,
+    },
     top: { ref: "refs/heads/feat/control", head: "d".repeat(40), tree: "e".repeat(40) },
     members: [{ deliverableId: second.deliverableId, ref: "refs/heads/candidate/second", head: "a".repeat(40), tree: "b".repeat(40) }, {
       deliverableId: third.deliverableId, ref: "refs/heads/candidate/third", head: "c".repeat(40), tree: "d".repeat(40),
     }],
     lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
+    regenerablePaths: [],
   };
   return { plan, state, facts, snapshot, first, second, third };
 }
@@ -373,6 +384,36 @@ describe("delivery suffix rematerialization", () => {
     expect(proveCarried).toHaveBeenCalledOnce();
   });
 
+  it("compares a disjoint suffix against the persisted chain base", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    const observedTip = { head: "9".repeat(40), tree: "8".repeat(40) };
+    const disjointSnapshot: DeliveryEligibilitySnapshot = {
+      ...snapshot,
+      protectedBase: { ref: snapshot.protectedBase.ref, ...observedTip },
+      predecessorRelation: {
+        kind: "diverged",
+        observedTip: observedTip.head,
+        chainBase: snapshot.chainBase.head,
+        mergeBase: snapshot.chainBase.head,
+        mergeBaseCount: 1,
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+    };
+
+    const result = await prepareDeliverySuffixRematerialization({
+      plan,
+      state,
+      facts,
+      eligibleSnapshot: disjointSnapshot,
+      selectedDeliverableIds: [second.deliverableId],
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+    });
+    expect(result.status).toBe("prepared");
+    if (result.status !== "prepared") return;
+    expect(result.rewrites[0]?.requested.members[0]?.coordinates?.base).toBe(snapshot.chainBase.head);
+  });
+
   it("recloses and re-proves each rewrite against the preceding persisted result", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const initial = deliveryStateFixture(plan);
@@ -386,6 +427,12 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
+      chainBase: target.coordinates!,
+      predecessorRelation: {
+        kind: "advanced",
+        observedTip: target.coordinates!.head,
+        chainBase: target.coordinates!.head,
+      },
       top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
@@ -394,8 +441,10 @@ describe("delivery suffix rematerialization", () => {
         tree: String(index + 4).repeat(40),
       })),
       lifecyclePaths: [],
+      regenerablePaths: [],
     };
     const seenRevisions: number[] = [];
+    const seenSnapshots: DeliveryEligibilitySnapshot[] = [];
     const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }));
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [initial.members[1]!.deliverableId],
@@ -410,8 +459,9 @@ describe("delivery suffix rematerialization", () => {
       reobserveCandidate: async () => true,
       resolveCoordinate,
       proveCarried,
-      apply: async ({ current: input, rewrite }) => {
+      apply: async ({ current: input, rewrite, snapshot: admittedSnapshot }) => {
         seenRevisions.push(input.revision);
+        seenSnapshots.push(admittedSnapshot);
         current = {
           revision: input.revision + 1,
           value: {
@@ -433,16 +483,58 @@ describe("delivery suffix rematerialization", () => {
       },
     });
     expect(seenRevisions).toEqual([7, 8]);
+    expect(seenSnapshots).toEqual([snapshot, snapshot]);
     expect(proveCarried).toHaveBeenCalledTimes(6);
   });
 
-  it("resumes after a persisted predecessor rewrite without weakening carried contribution proof", async () => {
+  it("preserves an exact reservation refusal without a live supersession", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    let seenSupersession: unknown;
+    const apply = vi.fn(async (
+      input: Parameters<DeliverySuffixRematerializationDependencies["apply"]>[0],
+    ) => {
+      seenSupersession = input.supersedePendingReviewFixVerification;
+      return {
+        status: "refused" as const,
+        reason: "pending-review-fix-verification" as const,
+      };
+    });
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+    }, {
+      reobserve: async () => ({
+        status: "observed",
+        plan,
+        current: { revision: 7, value: state },
+        facts,
+        snapshot,
+      }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply,
+    });
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+    expect(apply).toHaveBeenCalledWith(expect.objectContaining({
+      rewrite: expect.objectContaining({ deliverableId: second.deliverableId }),
+    }));
+    expect(seenSupersession).toBeUndefined();
+  });
+
+  it("carries pending verification through an earlier predecessor rewrite", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const initial = deliveryStateFixture(plan);
-    let current = { revision: 7, value: initial };
     const first = initial.members[0]!;
-    const selected = initial.members[1]!;
+    const selected = initial.members[2]!;
     const target = initial.target!;
+    const pendingReviewFixVerification = {
+      selectedDeliverableId: selected.deliverableId,
+      memberDeliverableIds: [selected.deliverableId, initial.members[3]!.deliverableId],
+    };
+    let current: { revision: number; value: DeliveryStateV1 } = {
+      revision: 7,
+      value: { ...initial, pendingReviewFixVerification },
+    };
     const suffix = plan.members.slice(1);
     const snapshot: DeliveryEligibilitySnapshot = {
       planId: plan.planId,
@@ -450,6 +542,12 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
+      chainBase: target.coordinates!,
+      predecessorRelation: {
+        kind: "advanced",
+        observedTip: target.coordinates!.head,
+        chainBase: target.coordinates!.head,
+      },
       top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
@@ -458,6 +556,298 @@ describe("delivery suffix rematerialization", () => {
         tree: String(index + 4).repeat(40),
       })),
       lifecyclePaths: [],
+      regenerablePaths: [],
+    };
+    const supersessions: unknown[] = [];
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [selected.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification: pendingReviewFixVerification,
+        expectedStateRevision: current.revision,
+        continuationDigest: canonicalDigest(current.value),
+      },
+    }, {
+      reobserve: async () => ({
+        status: "observed",
+        plan,
+        current,
+        facts: {
+          target: current.value.target,
+          members: current.value.members,
+          landedDeliverableIds: [first.deliverableId],
+        },
+        snapshot,
+      }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      apply: async ({ current: input, rewrite, supersedePendingReviewFixVerification }) => {
+        const supersession: unknown = supersedePendingReviewFixVerification;
+        supersessions.push(supersession);
+        if (JSON.stringify(supersession) !== JSON.stringify(pendingReviewFixVerification)) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
+        }
+        current = {
+          revision: input.revision + 1,
+          value: {
+            ...input.value,
+            pendingReviewFixVerification,
+            members: input.value.members.map((member) => member.deliverableId === rewrite.deliverableId
+              ? { ...member, ...rewrite.requested.members[0] }
+              : member),
+          },
+        };
+        return { status: "applied", state: current };
+      },
+    });
+
+    expect(result).toMatchObject({ status: "rematerialized", selectedDeliverableId: selected.deliverableId });
+    expect(result).toMatchObject({
+      verification: { memberDeliverableIds: pendingReviewFixVerification.memberDeliverableIds },
+    });
+    expect(supersessions).toEqual([pendingReviewFixVerification, pendingReviewFixVerification]);
+  });
+
+  async function expectPredecessorRecovery(recoveryKind: "cleared" | "adopted"): Promise<void> {
+    const { plan, state, snapshot, first, second } = fixture();
+    const pendingReviewFixVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const pending = { ...state, pendingReviewFixVerification };
+    const before = { target: state.target, members: [first] };
+    const requested = {
+      ...before,
+      members: [{
+        ...first,
+        coordinates: first.coordinates === null
+          ? null
+          : { ...first.coordinates, head: "e".repeat(40) },
+      }],
+    };
+    const reserved = reserveDeliveryOperation({ revision: 7, value: pending }, plan, {
+      operationId: "operation-rematerialize-predecessor",
+      kind: "rewrite",
+      mode: "review-fix",
+      affectedDeliverableIds: [first.deliverableId],
+      expectedStateRevision: 7,
+      before,
+      requested,
+      supersedePendingReviewFixVerification: pendingReviewFixVerification,
+      reviewFixSelectedDeliverableId: second.deliverableId,
+      reviewFixVerificationDeliverableIds: pendingReviewFixVerification.memberDeliverableIds,
+    });
+    if (reserved.status !== "reserved") throw new Error("fixture must reserve the predecessor rewrite");
+    let current: { revision: number; value: DeliveryStateV1 } = { revision: 8, value: reserved.state };
+    const recovery = await reconcileDeliveryExecution({
+      planId: plan.planId,
+      current,
+      observation: {
+        observe: async () => ({
+          status: "observed" as const,
+          value: recoveryKind === "cleared" ? before : requested,
+        }),
+      },
+      stateStore: { publish: async (_planId, value, expectedRevision) => {
+        if (expectedRevision !== current.revision) {
+          return { status: "refused" as const, reason: "version-conflict" as const };
+        }
+        current = { revision: current.revision + 1, value };
+        return { status: "ok" as const, value: current };
+      } },
+    });
+    if (recovery.status !== "retryable" || recovery.action !== "delivery-rematerialize") {
+      throw new Error("recovery must return a rematerialization rerun");
+    }
+    if (!("reviewFixSelectedDeliverableId" in recovery.selector)) {
+      throw new Error("recovery must retain the selected rematerialization subject");
+    }
+    const selector = recovery.selector;
+    const supersession = selector.supersedePendingReviewFixVerification;
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [selector.reviewFixSelectedDeliverableId],
+      supersedePendingReviewFixVerification: supersession,
+    }, {
+      reobserve: async () => ({
+        status: "observed",
+        plan,
+        current,
+        facts: {
+          target: current.value.target,
+          members: current.value.members,
+          landedDeliverableIds: [first.deliverableId],
+        },
+        snapshot,
+      }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+      apply: async ({ current: input, rewrite, supersedePendingReviewFixVerification }) => {
+        if (JSON.stringify(supersedePendingReviewFixVerification)
+          !== JSON.stringify(pendingReviewFixVerification)) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
+        }
+        current = {
+          revision: input.revision + 1,
+          value: {
+            ...input.value,
+            members: input.value.members.map((member) => member.deliverableId === rewrite.deliverableId
+              ? { ...member, ...rewrite.requested.members[0] }
+              : member),
+          },
+        };
+        return { status: "applied", state: current };
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "rematerialized",
+      selectedDeliverableId: second.deliverableId,
+      verification: { memberDeliverableIds: pendingReviewFixVerification.memberDeliverableIds },
+    });
+  }
+
+  it("executes a cleared predecessor recovery through its returned supersession identity", async () => {
+    await expectPredecessorRecovery("cleared");
+  });
+
+  it("executes an adopted predecessor recovery through its returned supersession identity", async () => {
+    await expectPredecessorRecovery("adopted");
+  });
+
+  it("refuses a delayed supersession when pending verification has expanded", async () => {
+    const { plan, state, facts, snapshot, second, third } = fixture();
+    const projectedPendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const newerPendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId, third.deliverableId],
+    };
+    const current = {
+      revision: 7,
+      value: { ...state, pendingReviewFixVerification: newerPendingVerification },
+    };
+    const projectedState = { ...state, pendingReviewFixVerification: projectedPendingVerification };
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification: projectedPendingVerification,
+        expectedStateRevision: current.revision,
+        continuationDigest: canonicalDigest(projectedState),
+      },
+    }, {
+      reobserve: async () => ({ status: "observed", plan, current, facts, snapshot }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply: async ({ supersedePendingReviewFixVerification }) => {
+        if (supersedePendingReviewFixVerification === undefined) return { status: "refused" };
+        if (JSON.stringify(supersedePendingReviewFixVerification)
+          !== JSON.stringify(newerPendingVerification)) {
+          return { status: "refused", reason: "pending-review-fix-verification" };
+        }
+        return { status: "applied", state: current };
+      },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("refuses a delayed supersession after its pending marker is cleared", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    const pendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const projectedState = { ...state, pendingReviewFixVerification: pendingVerification };
+    const current = { revision: 8, value: state };
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification,
+        expectedStateRevision: 7,
+        continuationDigest: canonicalDigest(projectedState),
+      },
+    }, {
+      reobserve: async () => ({ status: "observed", plan, current, facts, snapshot }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply: async () => ({ status: "applied", state: current }),
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("refuses a delayed supersession after an identical marker is recreated", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    const pendingVerification = {
+      selectedDeliverableId: second.deliverableId,
+      memberDeliverableIds: [second.deliverableId],
+    };
+    const projectedState = { ...state, pendingReviewFixVerification: pendingVerification };
+    const current = { revision: 9, value: projectedState };
+
+    const result = await executeFreshDeliverySuffixRematerialization({
+      selectedDeliverableIds: [second.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification,
+        expectedStateRevision: 7,
+        continuationDigest: canonicalDigest(projectedState),
+      },
+    }, {
+      reobserve: async () => ({ status: "observed", plan, current, facts, snapshot }),
+      reobserveCandidate: async () => true,
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "tree-equality" }),
+      apply: async () => ({ status: "applied", state: current }),
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "pending-review-fix-verification" });
+  });
+
+  it("resumes after a persisted predecessor rewrite without weakening carried contribution proof", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const initial = deliveryStateFixture(plan);
+    const first = initial.members[0]!;
+    const selected = initial.members[1]!;
+    const pendingReviewFixVerification = {
+      selectedDeliverableId: selected.deliverableId,
+      memberDeliverableIds: [selected.deliverableId, initial.members[2]!.deliverableId],
+    };
+    let current = {
+      revision: 7,
+      value: { ...initial, pendingReviewFixVerification },
+    };
+    const target = initial.target!;
+    const suffix = plan.members.slice(1);
+    const snapshot: DeliveryEligibilitySnapshot = {
+      planId: plan.planId,
+      workUnitId: plan.workUnitId,
+      planRevision: plan.planRevision,
+      planDigest: plan.planDigest,
+      protectedBase: { ref: target.ref, ...target.coordinates! },
+      chainBase: target.coordinates!,
+      predecessorRelation: {
+        kind: "advanced",
+        observedTip: target.coordinates!.head,
+        chainBase: target.coordinates!.head,
+      },
+      top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
+      members: suffix.map((member, index) => ({
+        deliverableId: member.deliverableId,
+        ref: `refs/heads/candidate-${index + 2}`,
+        head: String(index + 7).repeat(40),
+        tree: String(index + 4).repeat(40),
+      })),
+      lifecyclePaths: [],
+      regenerablePaths: [],
     };
     const originalBaseByMemberHead = new Map(initial.members.slice(2).map((member) => [
       member.coordinates!.head,
@@ -487,13 +877,18 @@ describe("delivery suffix rematerialization", () => {
       reobserveCandidate: async () => true,
       resolveCoordinate,
       proveCarried,
-      apply: async ({ current: input, rewrite }) => {
+      apply: async ({ current: input, rewrite, supersedePendingReviewFixVerification }) => {
         applyCount += 1;
         if (interruptSecondRewrite && applyCount === 2) return { status: "refused" as const };
+        if (JSON.stringify(supersedePendingReviewFixVerification)
+          !== JSON.stringify(pendingReviewFixVerification)) {
+          return { status: "refused" as const, reason: "pending-review-fix-verification" as const };
+        }
         current = {
           revision: input.revision + 1,
           value: {
             ...input.value,
+            pendingReviewFixVerification,
             members: input.value.members.map((member) => member.deliverableId === rewrite.deliverableId
               ? { ...member, ...rewrite.requested.members[0] }
               : member),
@@ -505,14 +900,27 @@ describe("delivery suffix rematerialization", () => {
 
     await expect(executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [selected.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification: pendingReviewFixVerification,
+        expectedStateRevision: current.revision,
+        continuationDigest: canonicalDigest(current.value),
+      },
     }, dependencies)).resolves.toEqual({ status: "refused", reason: "rewrite-refused" });
     const interruptedRevision = current.revision;
     interruptSecondRewrite = false;
     applyCount = 0;
     const resumed = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [selected.deliverableId],
+      supersedePendingReviewFixVerification: {
+        pendingVerification: pendingReviewFixVerification,
+        expectedStateRevision: current.revision,
+        continuationDigest: canonicalDigest(current.value),
+      },
     }, dependencies);
-    expect(resumed).toMatchObject({ status: "rematerialized" });
+    expect(resumed).toMatchObject({
+      status: "rematerialized",
+      verification: { memberDeliverableIds: pendingReviewFixVerification.memberDeliverableIds },
+    });
     expect(current.revision).toBeGreaterThan(interruptedRevision);
   });
 

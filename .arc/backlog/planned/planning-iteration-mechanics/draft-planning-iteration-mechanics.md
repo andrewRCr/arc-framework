@@ -19,6 +19,30 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Re-check inbox entries adopted into a draft when the draft crystallizes into a spec**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _WU_Target:_ `planning-iteration-mechanics`
+
+- _Observation:_ A `USER-INBOX` entry was captured 2026-09-09, marked `_Adopted:_ folded into
+  draft-test-suite-right-sizing.md § Measurement instrument`, and then did not survive draft→spec crystallization.
+  Its substance — that Vitest's `list --shard` accepts the shard argument and silently returns the whole tier,
+  producing plausible-looking but false partition evidence — was absent from the finished spec, which said only
+  that shard membership is asked of Vitest through `vitest list`. Rediscovering it cost an adversarial pass plus
+  an empirical run. The draft is retired to the notes companion at spec finalization, so nothing re-checks the
+  transfer afterward.
+
+- _Approach:_ The fork is where the re-check lives and what it can actually check. Substance-level verification is
+  not mechanical. Two cheaper shapes: record `_Adopted:_` against the destination spec section rather than the
+  draft, retiring the entry only once the spec carries it; or add a create-spec finalization step that walks the
+  entries marked adopted into this draft and confirms each survived. Settle which before building either.
+
+- _Note:_ this is planning-stage mechanics, which is why it routes to `planning-iteration-mechanics` rather than
+  minting a stub. Route it into that WU's draft at drain rather than leaving it here.
+
+- _Captured during:_ `test-suite-right-sizing` planning close, 2026-09-10.
+
 ### `[ ]` **Make success-criteria marking express the assertions being verified**
 
 - _Routed from:_ split `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-20).
@@ -239,6 +263,34 @@
   or other gate where post-integration evidence may legitimately define completion.
 
 ---
+
+### `[ ]` **Let a task plan mark a pin-only task distinctly from a build task**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- _WU_Target:_ `planning-iteration-mechanics`
+
+- _Observation:_ A task whose behavior the tree already satisfies and a task that must build that behavior are
+  formally identical in a task list: both carry ``Build `test-first` (one behavior at a time):`` and a behavior
+  list. But they demand different execution discipline — a build task runs RED first, while a pin-only task
+  cannot, and owes a reconstruct-and-revert per behavior instead. The distinction decides whether the increment
+  proves anything, and nothing in the entry form carries it.
+
+- _Why it matters more than a lost turn:_ the two misreadings fail in opposite directions. Reading pin-only as
+  build produces redundant code beside a route that already worked. Reading it correctly but skipping the
+  reconstructions produces a green report over tests that pin nothing — silent, and indistinguishable from
+  success in the record.
+
+- _Approach:_ Likely a marker peer to the test-first one rather than prose, since prose in a parent's
+  `_Rationale:_` is what failed here. Settle whether the signal belongs to the task entry, to the `test-first`
+  marker's vocabulary, or to `arc-task-audit` as a detector — the third only catches it after authoring. Note
+  that `testing-standards` already owns the reconstruct-and-revert procedure, so the marker would be selecting an
+  existing discipline, not minting one.
+
+- _Observation on reach:_ this is not specific to characterization work. Any task whose behavior is already
+  incidentally satisfied hits it, which is why it reads as a form gap rather than one plan's wording.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Task 2.3, 2026-09-17.
 
 ## Problem / Motivation
 

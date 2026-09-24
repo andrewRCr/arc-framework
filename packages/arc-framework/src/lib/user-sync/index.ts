@@ -52,8 +52,10 @@ export {
 
 export {
   resolveExecutionNextOffer,
+  resolveExecutionStartupOffer,
   type ExecutionNextOffer,
   type ExecutionOfferResolution,
+  type ExecutionStartupOfferResolution,
 } from "./execution-offer.js";
 
 export {
@@ -248,11 +250,12 @@ export {
 export {
   acquireAdvisoryLock,
   releaseAdvisoryLock,
-  getNotesLockPath,
   AdvisoryLockTimeoutError,
   type AdvisoryLockHandle,
   type AdvisoryLockOptions,
   type IsProcessAliveFn,
-} from "./notes-lock.js";
+} from "../advisory-lock.js";
+
+export { getNotesLockPath } from "./notes-lock.js";
 
 export type { CrossWuShape } from "./types.js";

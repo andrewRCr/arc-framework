@@ -16,7 +16,11 @@ import {
 } from "../lib/locus/derived-reader.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { createUserSurfaceResolver } from "../lib/user-surfaces.js";
+import type { DeliveryEntryInspectionResult } from "../lib/delivery/entry-inspection.js";
 import { inspectRepositoryDeliveryEntry } from "../lib/delivery/repository-entry.js";
+import type { DeliveryCorrectionProjection } from "../lib/locus/subject-meta.js";
+import { readPendingCandidateReviewFixAuthority } from
+  "../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
 export interface DerivedLocusStateProbeOptions {
   readonly cwd: string;
@@ -24,6 +28,38 @@ export interface DerivedLocusStateProbeOptions {
   readonly baseBranch: string;
   readonly activeExtensions?: readonly string[];
   readonly exec: GitExec;
+}
+
+const DELIVERY_CORRECTION_STATUS_BY_ENTRY_STATUS = {
+  "not-applicable": "none",
+  "authoring-required": "none",
+  "canonicalize-provisional": "none",
+  "validate-canonical": "none",
+  "repair-required": "none",
+  "resume-bound": "none",
+  "correction-routing-required": "authoring-required",
+  "review-fix-verification-required": "scoped-verification-required",
+  "candidate-renewal-required": "candidate-renewal-required",
+  "candidate-verification-required": "verification-required",
+  "correction-route-ambiguous": "refused",
+  "continue-publication": "none",
+  "resolve-delivery-status": "none",
+  "reopen-permitted": "none",
+  "reopen-bound": "none",
+  refused: "refused",
+} as const satisfies Record<
+  DeliveryEntryInspectionResult["status"],
+  DeliveryCorrectionProjection["status"]
+>;
+
+/** Project one delivery-entry result into the session's delivery-correction vocabulary. */
+export function projectDeliveryEntryCorrection(
+  result: Pick<DeliveryEntryInspectionResult, "status" | "recommendedActionText">,
+): DeliveryCorrectionProjection {
+  const status = DELIVERY_CORRECTION_STATUS_BY_ENTRY_STATUS[result.status];
+  return status === "refused"
+    ? { status, message: result.recommendedActionText }
+    : { status };
 }
 
 /** Read the entering frame without record, lock, or process evidence. */
@@ -70,24 +106,7 @@ export async function runDerivedLocusStateProbe(
           baseBranch: options.baseBranch,
           exec: options.exec,
         });
-        if (result.status === "review-fix-verification-required") {
-          return { status: "scoped-verification-required" };
-        }
-        if (result.status === "correction-routing-required") {
-          return { status: "authoring-required" };
-        }
-        if (result.status === "candidate-verification-required") {
-          return { status: "verification-required" };
-        }
-        if (result.status === "candidate-renewal-required") {
-          return { status: "candidate-renewal-required" };
-        }
-        if (result.status === "correction-route-ambiguous") {
-          return { status: "refused", message: result.recommendedActionText };
-        }
-        return result.status === "refused"
-          ? { status: "refused", message: result.recommendedActionText }
-          : { status: "none" };
+        return projectDeliveryEntryCorrection(result);
       },
       projectCandidateTarget: ({ cwd, name, record }) => projectGitCandidateEffectiveTarget({
         cwd,
@@ -97,6 +116,13 @@ export async function runDerivedLocusStateProbe(
         exec: options.exec,
         rawExec: createRawGitExec(cwd),
       }),
+      readPendingCandidateReviewFixAuthority: ({ cwd, workUnitId, candidate }) =>
+        readPendingCandidateReviewFixAuthority({
+          cwd,
+          exec: options.exec,
+          workUnitId,
+          candidate,
+        }),
     },
   });
 }

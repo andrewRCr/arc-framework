@@ -254,11 +254,12 @@ function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): Worktr
 }
 
 function baseDistance(
-  overrides: Partial<BaseDistanceStatusResult> = {},
+  overrides: Partial<Extract<BaseDistanceStatusResult, { verdict: "clean" | "reconcile" }>> = {},
 ): Awaited<ReturnType<SessionInitProbes["baseDistance"]>> {
   const value: BaseDistanceStatusResult = {
     mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
     base: "main", baseOid: "a".repeat(40),
+    movement: "disjoint",
     integrationEvidence: {
       coverage: "complete", scannedCommitCount: 0, events: [],
       unclassifiedCommitCount: 0, truncated: false, limitations: [],
@@ -266,18 +267,34 @@ function baseDistance(
     overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
     register: null,
     ...overrides,
+    headOid: overrides.headOid ?? "b".repeat(40),
   };
-  // Compared as literals rather than through `includes`, so the narrowed state reaches
-  // the returned value: the not-applicable arm is bounded to exactly these states, and
-  // an unnarrowed `WorktreeSyncState` would let this helper build a pair the envelope
-  // rule refuses.
-  const { state } = value;
-  if (state === "skipped" || state === "no-remote" || state === "detached-head") {
-    return { ...value, state, remoteEvidence: "not-applicable" };
-  }
   const { failureReason, ...result } = value;
   void failureReason;
   return { ...result, remoteEvidence: "exact" };
+}
+
+function unavailableBaseDistance(
+  state: "no-remote" | "detached-head",
+): Awaited<ReturnType<SessionInitProbes["baseDistance"]>> {
+  const base = state === "detached-head" ? null : "main";
+  return {
+    mode: "advisory", verdict: "unavailable", state, ahead: 0, behind: 0,
+    base, baseOid: null, headOid: null,
+    integrationEvidence: null, overlap: null, register: null,
+    unavailableReason: state,
+    detail: state === "no-remote"
+      ? "No remote is configured for base-distance evidence."
+      : "Base-distance evidence is unavailable from a detached HEAD.",
+    coordinates: { base, baseOid: null, headOid: null },
+    continuation: {
+      kind: "terminal-explanation",
+      terminalExplanation: state === "no-remote"
+        ? "Configure a remote before requesting base-distance evidence."
+        : "Check out a branch before requesting base-distance evidence.",
+    },
+    remoteEvidence: "not-applicable",
+  };
 }
 
 function baseBranchSync(
@@ -1635,6 +1652,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
       expect(result.baseDistance.value.state).toBe("remote-ahead");
       expect(result.baseDistance.value.behind).toBe(5);
       expect(result.baseDistance.value.base).toBe("main");
+      expect(result.baseDistance.value.movement).toBe("disjoint");
       // Behind-base drift surfaces an advisory reconcile offer (never gates).
       expect(result.baseDistance.value.recommendedAction).toBe("surface");
       expect(result.baseDistance.value.recommendedPromptText).toBe("Analyzer register text.");
@@ -1649,32 +1667,33 @@ describe("runSessionInitStatus — base-distance slot", () => {
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("clean");
+      expect(result.baseDistance.value.movement).toBe("disjoint");
       expect(result.baseDistance.value.recommendedAction).toBe("skip");
     }
   });
 
   it("carries a degraded no-remote slot through to the envelope", async () => {
     const probes = sessionInitProbes({
-      baseDistance: vi.fn(async () => baseDistance({ verdict: "unavailable", state: "no-remote" })),
+      baseDistance: vi.fn(async () => unavailableBaseDistance("no-remote")),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("no-remote");
+      expect(result.baseDistance.value).not.toHaveProperty("movement");
     }
   });
 
   it("carries a degraded detached-head slot (null base) through to the envelope", async () => {
     const probes = sessionInitProbes({
-      baseDistance: vi.fn(async () => baseDistance({
-        verdict: "unavailable", state: "detached-head", base: null,
-      })),
+      baseDistance: vi.fn(async () => unavailableBaseDistance("detached-head")),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.baseDistance.ok).toBe(true);
     if (result.baseDistance.ok) {
       expect(result.baseDistance.value.state).toBe("detached-head");
       expect(result.baseDistance.value.base).toBeNull();
+      expect(result.baseDistance.value).not.toHaveProperty("movement");
     }
   });
 
@@ -2129,10 +2148,8 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "dirty",
       "domainRules",
       "errandState",
-      "errandSweep",
       "extensions",
       "identity",
-      "inboxState",
       "loadSet",
       "locusGuidance",
       "mode",
@@ -2910,6 +2927,7 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "main",
       hasBackingMeta: false,
       includeDiscovery: true,
+      includeNudge: true,
     });
     expect(result.errandState?.ok).toBe(true);
     if (result.errandState?.ok) {
@@ -2938,6 +2956,24 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "feat/x",
       hasBackingMeta: true,
       includeDiscovery: false,
+      includeNudge: true,
+    });
+  });
+
+  it("does not request the reminder nudge on a linked worktree", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "feat/x" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+
+    await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.errandState).toHaveBeenCalledWith(expect.anything(), {
+      currentBranch: "feat/x",
+      hasBackingMeta: true,
+      includeDiscovery: false,
+      includeNudge: false,
     });
   });
 
@@ -3064,7 +3100,7 @@ describe("runSessionInitStatus — retired-subdir detection slot", () => {
 });
 
 describe("runSessionInitStatus — errand-staleness sweep slot", () => {
-  it("fires the sweep when identity resolved, passing the identity", async () => {
+  it("fires the sweep when identity resolved on the primary worktree, passing the identity", async () => {
     const probes = sessionInitProbes({
       errandSweep: vi.fn(async () => ({ stale: [{ slug: "old-errand", created: "2026-05-01", ageDays: 24 }] })),
     });
@@ -3074,6 +3110,16 @@ describe("runSessionInitStatus — errand-staleness sweep slot", () => {
     if (result.errandSweep?.ok) {
       expect(result.errandSweep.value.stale[0]?.slug).toBe("old-errand");
     }
+  });
+
+  it("omits the sweep on a linked worktree", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.errandSweep).not.toHaveBeenCalled();
+    expect("errandSweep" in result).toBe(false);
   });
 
   it("omits the sweep when identity is absent", async () => {
@@ -3097,7 +3143,7 @@ describe("runSessionInitStatus — errand-staleness sweep slot", () => {
 });
 
 describe("runSessionInitStatus — inbox-state slot", () => {
-  it("fires the probe when identity resolved, passing the identity", async () => {
+  it("fires the probe when identity resolved on the primary worktree, passing the identity", async () => {
     const probes = sessionInitProbes({
       inboxState: vi.fn(async () => ({ routableCount: 3, executeBoundCount: 1, housekeepNeeded: true })),
     });
@@ -3107,6 +3153,30 @@ describe("runSessionInitStatus — inbox-state slot", () => {
     if (result.inboxState?.ok) {
       expect(result.inboxState.value).toEqual({ routableCount: 3, executeBoundCount: 1, housekeepNeeded: true });
     }
+  });
+
+  it("omits the slot on a linked worktree", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.inboxState).not.toHaveBeenCalled();
+    expect("inboxState" in result).toBe(false);
+  });
+
+  it("omits primary-only hygiene when worktree identity is unresolved", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: async () => { throw new Error("identity boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.errandSweep).not.toHaveBeenCalled();
+    expect(probes.inboxState).not.toHaveBeenCalled();
+    expect("errandSweep" in result).toBe(false);
+    expect("inboxState" in result).toBe(false);
+    expect(probes.errandState).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      includeNudge: false,
+    }));
   });
 
   it("omits the slot when identity is absent", async () => {

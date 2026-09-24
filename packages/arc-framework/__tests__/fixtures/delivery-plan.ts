@@ -1,7 +1,9 @@
 import { bindDesignInventory } from "../../src/lib/delivery/design-inventory.js";
 import { constructDeliveryPlanRevision } from "../../src/lib/delivery/plan.js";
+import type { DeliveryTaskInventoryEntry } from "../../src/lib/delivery/task-inventory.js";
 import {
   DeliveryPlanAuthoringInputV1Schema,
+  type DeliveryPlanAuthoringInputV1,
   type DeliveryPlanV1,
 } from "../../src/lib/delivery/schema.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
@@ -84,12 +86,12 @@ function buildDeliveryPlanFixture(
     ];
   const ordinalNames = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"];
   const chunkKeys = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
-  const assignableParents = Array.from({ length: memberCount }, (_, index) => ({
+  const assignableParents: DeliveryTaskInventoryEntry[] = Array.from({ length: memberCount }, (_, index) => ({
     taskId: `1.${index + 1}`,
     semanticDigest: canonicalDigest({ goal: ordinalNames[index] }),
     role: { kind: "verification" as const, scope: "member" },
   }));
-  const parents = [
+  const parents: DeliveryTaskInventoryEntry[] = [
     ...assignableParents,
     {
       taskId: "2.1",
@@ -97,7 +99,7 @@ function buildDeliveryPlanFixture(
       role: { kind: "verification" as const, scope: "work-unit" },
     },
   ];
-  const authoring = DeliveryPlanAuthoringInputV1Schema.parse({
+  const rawAuthoring = {
     schemaVersion: 1,
     semanticsVersion: "delivery-plan/v1",
     workUnitId,
@@ -119,7 +121,10 @@ function buildDeliveryPlanFixture(
       mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
     })),
     seams: [],
-  });
+  };
+  const authoring = projection === "stack-to-main"
+    ? DeliveryPlanAuthoringInputV1Schema.parse(rawAuthoring)
+    : rawAuthoring as unknown as DeliveryPlanAuthoringInputV1;
   const design = bindDesignInventory({
     artifacts: [{
       artifactId: "spec-delivery-plan-record.md",

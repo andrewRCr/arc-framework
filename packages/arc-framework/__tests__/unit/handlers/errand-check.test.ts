@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRunActiveInFlight = vi.fn();
 const mockGitExec = vi.fn();
+const mockWithLockedUserInbox = vi.fn();
+const mockResolveIdentityWithPrompt = vi.fn();
 const mockStdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
 vi.mock("@clack/prompts", () => ({
@@ -23,7 +25,10 @@ vi.mock("../../../src/commands/active.js", () => ({
   runActiveInFlight: (...args: unknown[]) => mockRunActiveInFlight(...args),
 }));
 
-vi.mock("../../../src/commands/user.js", () => ({ runUserInboxRemove: vi.fn() }));
+vi.mock("../../../src/commands/user.js", () => ({
+  runUserInboxRemove: vi.fn(),
+  withLockedUserInbox: (...args: unknown[]) => mockWithLockedUserInbox(...args),
+}));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({ settings: { "branch.base": "main", "team.mode": "false" } }),
@@ -39,7 +44,8 @@ vi.mock("../../../src/lib/release/wu-resolution.js", () => ({
   resolveOriginatingMetaPath: async () => undefined,
 }));
 
-vi.mock("../../../src/lib/user-sync/index.js", () => ({
+vi.mock("../../../src/lib/user-sync/index.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/user-sync/index.js")>(),
   clearErrandPartialPushMarker: vi.fn(),
   recordErrandPartialPushMarker: vi.fn(),
 }));
@@ -54,15 +60,16 @@ vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", () => ({
 
 vi.mock("../../../src/handlers/shared.js", () => ({
   requireArcProjectRoot: () => "/repo",
-  resolveIdentityWithPrompt: async () => "andrew",
+  resolveIdentityWithPrompt: (...args: unknown[]) => mockResolveIdentityWithPrompt(...args),
 }));
 
-const { handleErrandCheck } = await import("../../../src/handlers/errand.js");
+const { handleErrandCheck, handleErrandNext } = await import("../../../src/handlers/errand.js");
 
 describe("handleErrandCheck", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockStdoutWrite.mockImplementation(() => true);
+    mockResolveIdentityWithPrompt.mockResolvedValue("andrew");
     mockRunActiveInFlight.mockResolvedValue({
       entries: [
         {
@@ -76,6 +83,13 @@ describe("handleErrandCheck", () => {
       warnings: [],
       snapshot: { refs: {}, worktrees: {} },
       reachable: true,
+    });
+    mockWithLockedUserInbox.mockResolvedValue({
+      postImage: {
+        state: "present",
+        content: "# User Inbox\n\n## Errand\n\n### `[ ]` **First queued Errand**\n\n"
+          + "- _Disposition:_ `execute-bound`\n",
+      },
     });
     mockGitExec.mockImplementation(async (_cmd: string, args: string[]) => {
       if (args.join(" ") === "rev-parse --show-toplevel") return { stdout: "/repo\n", stderr: "" };
@@ -110,5 +124,50 @@ describe("handleErrandCheck", () => {
     expect(mockRunActiveInFlight).toHaveBeenCalledWith(expect.objectContaining({
       localOnly: false,
     }));
+  });
+
+  it("resolves the first execute-bound capture without opening it", async () => {
+    await handleErrandNext({ json: true });
+
+    const output = mockStdoutWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
+    expect(JSON.parse(output)).toMatchObject({
+      state: "available",
+      nextAction: "open-errand",
+      nextOffer: { kind: "errand", key: "First queued Errand", parentCheckoutPath: null },
+    });
+  });
+
+  it("refuses startup until every malformed queue entry is corrected", async () => {
+    mockWithLockedUserInbox.mockResolvedValueOnce({
+      postImage: {
+        state: "present",
+        content: "# User Inbox\n\n## Errand\n\n### `[ ]` Malformed sibling\n\n"
+          + "- _Observation:_ unreadable.\n\n### `[ ]` **First queued Errand**\n\n"
+          + "- _Disposition:_ `execute-bound`\n",
+      },
+    });
+
+    await handleErrandNext({ json: true });
+
+    const output = mockStdoutWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
+    expect(JSON.parse(output)).toMatchObject({
+      state: "refused",
+      nextAction: "stop",
+      reason: expect.stringContaining("Malformed USER-INBOX entry heading"),
+      retryCommand: "arc errand next --json",
+    });
+  });
+
+  it("keeps identity probe failures inside the typed refusal boundary", async () => {
+    mockResolveIdentityWithPrompt.mockRejectedValueOnce(new Error("identity configuration is unreadable"));
+
+    await handleErrandNext({ json: true });
+
+    const output = mockStdoutWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
+    expect(JSON.parse(output)).toMatchObject({
+      state: "refused",
+      nextAction: "stop",
+      reason: "identity configuration is unreadable",
+    });
   });
 });

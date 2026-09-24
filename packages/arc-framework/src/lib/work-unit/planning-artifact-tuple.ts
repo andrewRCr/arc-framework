@@ -11,6 +11,7 @@ import {
 import { canonicalize } from "../canonical/canonical-json.js";
 import type { V3PlanObservedPathState } from "./decompose-v3-plan.js";
 import type { V3DecomposeMachine } from "./decompose-v3-schema.js";
+import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 
 export interface PlanningArtifact {
   path: string;
@@ -65,14 +66,11 @@ function expectedProfile(
   };
 }
 
-function expectedDesign(slug: string, kind: PlanningProfile["kind"]): string[] {
-  return [...expectedProfile(slug, kind).sourceDesign];
-}
-
 function inferOrdinaryProfile(
   slug: string,
   design: readonly string[],
 ): PlanningProfile | null {
+  if (design.length === 0) return { kind: "draft", sourceDesign: [] };
   for (const kind of ["draft", "single-spec", "paired-spec"] as const) {
     const profile = expectedProfile(slug, kind);
     if (canonicalize(design) === canonicalize(profile.sourceDesign)) return profile;
@@ -105,9 +103,11 @@ function validateArtifactFamily(
   }
   const seen = new Set<string>();
   const byBasename = new Map<string, PlanningArtifact>();
+  const familyMatcher = artifactMatcher(input.expectedSlug);
   for (const artifact of input.artifacts) {
     const basename = posix.basename(artifact.path);
     if (posix.dirname(artifact.path) !== directory
+      || !familyMatcher.test(basename)
       || seen.has(basename)
       || !canonicalFile(artifact.state)) {
       return {
@@ -133,21 +133,13 @@ function validateArtifactFamily(
     };
   }
 
-  const expected = new Set([
+  const required = new Set([
     expectedMeta,
-    ...expectedDesign(input.expectedSlug, profile.kind),
+    ...profile.sourceDesign,
     ...taskArtifacts,
   ]);
-  for (const basename of expected) {
+  for (const basename of required) {
     if (!byBasename.has(basename)) {
-      return {
-        refusal: { status: "refused", reason: "artifact-mismatch", locus: basename },
-        seedPresent: false,
-      };
-    }
-  }
-  for (const basename of byBasename.keys()) {
-    if (!expected.has(basename)) {
       return {
         refusal: { status: "refused", reason: "artifact-mismatch", locus: basename },
         seedPresent: false,

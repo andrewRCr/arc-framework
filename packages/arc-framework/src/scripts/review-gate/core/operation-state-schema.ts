@@ -16,6 +16,7 @@ import {
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
+import { BoundFrontlineResponseBindingSchema } from "./frontline-response-binding.js";
 import { HostedFindingSchema } from "../hosted/await.js";
 import {
   HostedProviderIdSchema,
@@ -25,6 +26,7 @@ import {
   hostedRequestHandleMatchesProgress,
 } from "../hosted/request.js";
 import { DeliveryLocalReviewAdmissionSchema } from "../policy/delivery-local-review-admission.js";
+import { ReviewRubricIdentitySchema } from "../policy/standard-review-schema.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -36,7 +38,8 @@ const OperationEnvelopeShape = {
 };
 const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
-  z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema }),
+  // Older local attempts have no claim binding; readers must not let them settle a new Errand claim.
+  z.strictObject({ kind: z.literal("errand"), identity: IdentifierSchema, claimId: IdentifierSchema.optional() }),
   z.strictObject({ kind: z.literal("delivery-member"), identity: IdentifierSchema }),
 ]);
 
@@ -59,6 +62,7 @@ export const FrontlineRunStateSchema = z.strictObject({
   passCount: z.number().int().nonnegative(),
   policyVersion: CanonicalDigestSchema,
   sourceBindingId: CanonicalDigestSchema,
+  responseBinding: BoundFrontlineResponseBindingSchema.optional(),
 });
 export type FrontlineRunState = z.infer<typeof FrontlineRunStateSchema>;
 
@@ -201,6 +205,8 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
 const LocalLaneAttemptBindingSchema = z.strictObject({
   vehicle: ReviewVehicleSchema,
   target: ReviewTargetSchema,
+  // Older attempts remain readable but cannot settle a current rubric without this binding.
+  rubricIdentity: ReviewRubricIdentitySchema.optional(),
   deliveryAdmission: DeliveryLocalReviewAdmissionSchema.optional(),
 }).superRefine((local, context) => {
   if ((local.vehicle.kind === "delivery-member") !== (local.target.kind === "delivery-member")) {

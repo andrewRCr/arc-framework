@@ -12,11 +12,13 @@ import {
   DeliveryHostEffectIdentityV1Schema,
   DeliveryOperationCommonV1Schema,
   DeliveryOperationSnapshotV1Schema,
+  DeliveryPendingReviewFixVerificationV1Schema,
   DeliveryPublishEffectV1Schema,
   DeliveryStateV1Schema,
   DeliveryTerminalAuthoringMovementV1Schema,
   DeliveryTopRemedyEffectV1Schema,
   type DeliveryActiveOperationV1,
+  type DeliveryNativeObservedSuffixMemberV1,
   type DeliveryOperationSnapshotV1,
   type DeliveryPlanV1,
   type DeliveryStateV1,
@@ -35,6 +37,7 @@ export const DeliveryOperationReservationRequestV1Schema = z.discriminatedUnion(
       ...reservationFields,
       kind: z.literal("rewrite"),
       mode: z.enum(["review-fix", "selected-change", "provider-adoption", "provider-refresh"]),
+      supersedePendingReviewFixVerification: DeliveryPendingReviewFixVerificationV1Schema.optional(),
       terminalAuthoringMovement: DeliveryTerminalAuthoringMovementV1Schema.optional(),
       reviewFixSelectedDeliverableId: DeliveryCanonicalDigestSchema.optional(),
       reviewFixVerificationDeliverableIds: z.array(DeliveryCanonicalDigestSchema).min(1).optional(),
@@ -235,14 +238,49 @@ function reviewFixSelectionMatchesState(
   const stateOrder = state.members
     .filter(({ deliverableId }) => verificationIds.includes(deliverableId))
     .map(({ deliverableId }) => deliverableId);
-  return (operation.mode === "provider-refresh" || operation.mode === "provider-adoption")
-    && selectedIndex >= 0
+  const validSelection = selectedIndex >= 0
     && selectedIndex < state.members.length - 1
-    && operation.affectedDeliverableIds.includes(operation.reviewFixSelectedDeliverableId)
     && verificationIds.includes(operation.reviewFixSelectedDeliverableId)
     && new Set(verificationIds).size === verificationIds.length
-    && canonicalize(stateOrder) === canonicalize(verificationIds)
+    && canonicalize(stateOrder) === canonicalize(verificationIds);
+  if (!validSelection) return false;
+  if (operation.mode === "review-fix") return true;
+  return (operation.mode === "provider-refresh" || operation.mode === "provider-adoption")
+    && operation.affectedDeliverableIds.includes(operation.reviewFixSelectedDeliverableId)
     && verificationIds.every((deliverableId) => operation.affectedDeliverableIds.includes(deliverableId));
+}
+
+function clearDeliveryOperationReservation(state: DeliveryStateV1): DeliveryStateV1 | null {
+  const operation = state.activeOperation;
+  const selectedDeliverableId = operation?.kind === "rewrite" && operation.mode === "review-fix"
+    ? operation.reviewFixSelectedDeliverableId
+    : undefined;
+  const memberDeliverableIds = operation?.kind === "rewrite" && operation.mode === "review-fix"
+    ? operation.reviewFixVerificationDeliverableIds
+    : undefined;
+  if ((selectedDeliverableId === undefined) !== (memberDeliverableIds === undefined)) return null;
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...state,
+    activeOperation: null,
+    pendingReviewFixVerification: selectedDeliverableId === undefined
+      || memberDeliverableIds === undefined
+      ? state.pendingReviewFixVerification
+      : { selectedDeliverableId, memberDeliverableIds },
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Project the cleared state for one validated retryable reservation.
+ *
+ * @param current - Published reservation state and its store-owned revision
+ * @returns Cleared state with any carried rematerialization verification restored, or null when invalid
+ */
+export function projectDeliveryOperationRetryState(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+): DeliveryStateV1 | null {
+  const active = validateDeliveryActiveOperation(current);
+  return active.status === "valid" ? clearDeliveryOperationReservation(active.state) : null;
 }
 
 /**
@@ -304,7 +342,7 @@ function applyObservedSnapshot(
   const observedByDeliverable = new Map(
     observed.members.map((member) => [member.deliverableId, member]),
   );
-  const parsed = DeliveryStateV1Schema.safeParse({
+  return clearDeliveryOperationReservation({
     ...state,
     target: observed.target,
     members: state.members.map((member) => {
@@ -316,9 +354,7 @@ function applyObservedSnapshot(
         coordinates: result.coordinates,
       };
     }),
-    activeOperation: null,
   });
-  return parsed.success ? parsed.data : null;
 }
 
 function matchesHostAssignedResult(
@@ -387,13 +423,36 @@ export function reserveDeliveryOperation(
     return { status: "refused", reason: "operation-active" };
   }
   const pendingVerification = parsedState.data.pendingReviewFixVerification;
-  const supersedesPendingVerification = pendingVerification !== null
-    && parsedRequest.data.kind === "rewrite"
-    && parsedRequest.data.mode === "selected-change"
-    && canonicalize(parsedRequest.data.affectedDeliverableIds)
+  const rewriteRequest = parsedRequest.data.kind === "rewrite" ? parsedRequest.data : null;
+  const explicitPendingVerificationSupersession = rewriteRequest?.supersedePendingReviewFixVerification;
+  if (explicitPendingVerificationSupersession !== undefined
+    && (rewriteRequest === null || rewriteRequest.mode !== "review-fix" || pendingVerification === null)) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  const supersedesSelectedChangeVerification = pendingVerification !== null
+    && rewriteRequest !== null
+    && rewriteRequest.mode === "selected-change"
+    && canonicalize(rewriteRequest.affectedDeliverableIds)
       === canonicalize(pendingVerification.memberDeliverableIds)
-    && parsedRequest.data.affectedDeliverableIds.length === 1
-    && parsedRequest.data.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+    && rewriteRequest.affectedDeliverableIds.length === 1
+    && rewriteRequest.affectedDeliverableIds[0] === pendingVerification.selectedDeliverableId;
+  const supersedesExactPendingVerification = pendingVerification !== null
+    && explicitPendingVerificationSupersession !== undefined
+    && canonicalize(explicitPendingVerificationSupersession) === canonicalize(pendingVerification);
+  const carriesReviewFixContinuation = rewriteRequest?.mode === "review-fix"
+    && (rewriteRequest.reviewFixSelectedDeliverableId !== undefined
+      || rewriteRequest.reviewFixVerificationDeliverableIds !== undefined);
+  if (carriesReviewFixContinuation && explicitPendingVerificationSupersession === undefined) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  if (supersedesExactPendingVerification && rewriteRequest !== null
+    && (rewriteRequest.reviewFixSelectedDeliverableId !== pendingVerification.selectedDeliverableId
+      || canonicalize(rewriteRequest.reviewFixVerificationDeliverableIds)
+        !== canonicalize(pendingVerification.memberDeliverableIds))) {
+    return { status: "refused", reason: "operation-invalid" };
+  }
+  const supersedesPendingVerification = supersedesSelectedChangeVerification
+    || supersedesExactPendingVerification;
   if (pendingVerification !== null && !supersedesPendingVerification) {
     return { status: "refused", reason: "pending-review-fix-verification" };
   }
@@ -529,6 +588,100 @@ export function beginNativeDeliverySubmission(
       ...active.operation,
       stateRevision: current.revision,
       native: { ...active.operation.native, phase: "submitting" },
+    },
+  });
+  return parsed.success
+    ? { status: "begun", state: parsed.data }
+    : { status: "refused", reason: "state-invalid" };
+}
+
+export type BeginNativeDeliverySettlementResult =
+  | { readonly status: "begun"; readonly state: DeliveryStateV1 }
+  | {
+      readonly status: "refused";
+      readonly reason: "state-invalid" | "operation-stale" | "wrong-operation" | "not-submitted";
+    };
+
+/**
+ * What each settlement-phase refusal asks the operator to do, keyed by the condition the transition observed.
+ *
+ * The two a settled landing actually reaches want opposite acts. A record that no longer validates has to be
+ * repaired before anything can be written against it; a record that moved past the revision this settlement read
+ * is cleared by reobserving it, and telling the operator to restore a subject that never changed sends them
+ * after the wrong thing. The other two are carried so a fifth reason cannot be added without an answer.
+ */
+export const DELIVERY_NATIVE_SETTLEMENT_PHASE_REMEDIES: Record<
+  Extract<BeginNativeDeliverySettlementResult, { status: "refused" }>["reason"],
+  string
+> = {
+  "state-invalid":
+    "Keep the reservation and repair the native landing record, which no longer validates, before retrying "
+    + "settlement.",
+  "operation-stale":
+    "Keep the reservation and rerun `arc delivery native land-status` to re-read the landing state, which "
+    + "moved past the revision this settlement observed.",
+  "wrong-operation":
+    "Restore the exact native landing reservation before retrying settlement; the operation the landing record "
+    + "holds is not the one this settlement began under.",
+  "not-submitted":
+    "Submit the native landing before settling it; its reservation is still in the prepared phase.",
+};
+
+/**
+ * Keep every coordinate the reservation already established, admitting only refs it has not recorded yet.
+ *
+ * A settlement that wedges past its first publish reruns from a fresh observation, and that observation cannot
+ * see what the earlier run wrote: the absorbed terminal top is outside the suffix slice, and a member ref moved
+ * by something other than ARC reads back as the head it now sits at. Replacing the record wholesale would swap
+ * a head ARC wrote for one it merely observed, and the head ARC wrote is the only restore target a decline has.
+ */
+function reconcileObservedSuffix(
+  recorded: readonly DeliveryNativeObservedSuffixMemberV1[] | undefined,
+  observed: readonly DeliveryNativeObservedSuffixMemberV1[],
+): readonly DeliveryNativeObservedSuffixMemberV1[] {
+  if (recorded === undefined || recorded.length === 0) return observed;
+  const established = new Map(recorded.map((member) => [member.deliverableId, member]));
+  const observedIds = new Set(observed.map((member) => member.deliverableId));
+  return [
+    ...observed.map((member) => established.get(member.deliverableId) ?? member),
+    ...recorded.filter((member) => !observedIds.has(member.deliverableId)),
+  ];
+}
+
+/**
+ * Record the freshly observed remaining suffix on one submitted native reservation before its refs move.
+ *
+ * @param current - The exact reservation record the settlement observed its suffix under.
+ * @param operationId - The reservation this settlement belongs to.
+ * @param observedSuffix - The complete observed remaining suffix, in plan order. Entries the reservation has
+ *   already recorded are kept over their reobservation; entries it carries and this observation does not are
+ *   carried forward.
+ * @returns The state to publish against `current.revision`, or a closed refusal.
+ */
+export function beginNativeDeliverySettlement(
+  current: DeliveryRevisionedRecord<DeliveryStateV1>,
+  operationId: string,
+  observedSuffix: readonly DeliveryNativeObservedSuffixMemberV1[],
+): BeginNativeDeliverySettlementResult {
+  const active = validateDeliveryActiveOperation(current);
+  if (active.status === "blocked") {
+    return { status: "refused", reason: active.reason === "state-invalid" ? "state-invalid" : "operation-stale" };
+  }
+  if (active.operation.kind !== "land" || active.operation.mode !== "native"
+    || active.operation.native === null || active.operation.operationId !== operationId) {
+    return { status: "refused", reason: "wrong-operation" };
+  }
+  if (active.operation.native.phase === "prepared") return { status: "refused", reason: "not-submitted" };
+  const parsed = DeliveryStateV1Schema.safeParse({
+    ...active.state,
+    activeOperation: {
+      ...active.operation,
+      stateRevision: current.revision,
+      native: {
+        ...active.operation.native,
+        phase: "settling",
+        observedSuffix: reconcileObservedSuffix(active.operation.native.observedSuffix, observedSuffix),
+      },
     },
   });
   return parsed.success

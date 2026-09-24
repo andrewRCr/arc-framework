@@ -8,7 +8,7 @@ import {
   type WorktreeHuskStamp,
 } from "../git/worktree-marker.js";
 import { digestBytes } from "../kernel/index.js";
-import type { AdvisoryLockOptions } from "../user-sync/notes-lock.js";
+import type { AdvisoryLockOptions } from "../advisory-lock.js";
 import {
   createNodeTeardownSelectionReader,
   teardownSelectionsEqual,

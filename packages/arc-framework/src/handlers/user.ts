@@ -61,9 +61,9 @@ import {
 import type { GitExec } from "../lib/git/exec.js";
 import {
   acquireAdvisoryLock,
-  getNotesLockPath,
   releaseAdvisoryLock,
-} from "../lib/user-sync/notes-lock.js";
+} from "../lib/advisory-lock.js";
+import { getNotesLockPath } from "../lib/user-sync/notes-lock.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import { gitFailureText } from "../lib/git/process-error.js";
 import {
@@ -385,11 +385,6 @@ export async function handleUserClose(wuName: string): Promise<void> {
   p.outro("Done.");
 }
 
-/**
- * Drop the slug-matched entry from the developer's `USER-INBOX`. Idempotent —
- * an absent entry or a missing inbox reports a clean no-op rather than failing,
- * so the errand-completion / drain / finalize call sites can replay it freely.
- */
 /** Options for the `arc user inbox-remove` subcommand. */
 export interface UserInboxRemoveOptions {
   /** UTF-8 file containing the capture's inner bold title, or `-` for stdin. */
@@ -409,6 +404,11 @@ export const UserInboxRemoveInputSchema = z.object({
   if (count !== 1) refinement.addIssue({ code: "custom", message: "Provide exactly one inbox title source." });
 });
 
+/**
+ * Drop the slug-matched entry from the developer's `USER-INBOX`. Idempotent —
+ * an absent entry or a missing inbox reports a clean no-op rather than failing,
+ * so the errand-completion / drain / finalize call sites can replay it freely.
+ */
 export async function handleUserInboxRemove(
   literal: string | undefined,
   opts: UserInboxRemoveOptions,

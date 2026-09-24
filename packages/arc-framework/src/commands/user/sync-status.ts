@@ -50,6 +50,7 @@ import type {
   InspectUserSyncOptions,
   UserDiskStatus,
   UserIOContext,
+  NearestNoteSearch,
   UserSessionLocalNoteFreshness,
   UserRemoteStatus,
   UserSessionInitStatusOptions,
@@ -79,10 +80,13 @@ export async function inspectUserSyncState(
   options: InspectUserSyncOptions,
 ): Promise<UserSyncState> {
   const { cwd, io, identity } = options;
+  const currentWuNameTask = resolveCurrentWuName(cwd, io.exec);
   const [refInspection, diskInspection, localNoteFreshness] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
-    inspectDiskVsLocalSnapshot(cwd, io, identity),
-    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
+    currentWuNameTask.then((currentWuName) =>
+      inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName)),
+    currentWuNameTask.then((currentWuName) =>
+      inspectSessionLocalNoteFreshness({ cwd, io, identity, currentWuName })),
   ]);
   const coherenceState = await resolveUserSyncCoherenceState({
     cwd,
@@ -303,10 +307,18 @@ export async function runUserSessionInitStatus(
     });
   }
 
+  const currentWuNameTask = resolveCurrentWuName(cwd, io.exec);
+  const noteSearchTask = currentWuNameTask.then((currentWuName) =>
+    findNearestUserNote({ cwd, io, identity, currentWuName }));
+  const localNoteFreshnessTask = Promise.all([currentWuNameTask, noteSearchTask])
+    .then(([currentWuName, search]) =>
+      inspectSessionLocalNoteFreshness({ cwd, io, identity, currentWuName, search }));
+
   const [refInspection, localNoteFreshness, diskInspection] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
-    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
-    inspectDiskVsLocalSnapshot(cwd, io, identity),
+    localNoteFreshnessTask,
+    currentWuNameTask.then((currentWuName) =>
+      inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName, noteSearchTask)),
   ]);
   return buildUserSessionInitStatusResult({
     identity,
@@ -379,10 +391,11 @@ async function inspectSessionLocalNoteFreshness(input: {
   cwd: string;
   io: UserIOContext;
   identity: string;
-  currentWuName?: string;
+  currentWuName: string | undefined;
+  search?: NearestNoteSearch;
 }): Promise<UserSessionLocalNoteFreshness> {
-  const currentWuName = input.currentWuName ?? await resolveCurrentWuName(input.cwd, input.io.exec);
-  const { note } = await findNearestUserNote({ ...input, currentWuName });
+  const { currentWuName } = input;
+  const { note } = input.search ?? await findNearestUserNote({ ...input, currentWuName });
   if (!note) {
     return {
       state: "missing",
@@ -1743,9 +1756,9 @@ async function inspectDiskVsLocalSnapshot(
   cwd: string,
   io: UserIOContext,
   identity: string,
-  currentWuName?: string,
+  currentWuName: string | undefined,
+  precomputedSearch?: Promise<NearestNoteSearch>,
 ): Promise<DiskVsSnapshotInspection> {
-  const resolvedCurrentWuName = currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
   let diskManifest: SyncManifest | null = null;
 
   try {
@@ -1753,7 +1766,7 @@ async function inspectDiskVsLocalSnapshot(
       cwd,
       io,
       identity,
-      currentWuName: resolvedCurrentWuName,
+      currentWuName,
     });
     if (Object.keys(diskResult.manifest.files).length > 0) {
       diskManifest = diskResult.manifest;
@@ -1768,8 +1781,8 @@ async function inspectDiskVsLocalSnapshot(
       cwd,
       io,
       identity,
-      currentWuName: resolvedCurrentWuName,
-    });
+      currentWuName,
+    }, precomputedSearch === undefined ? undefined : await precomputedSearch);
   } catch {
     return {
       state: diskManifest ? "different" : "same",

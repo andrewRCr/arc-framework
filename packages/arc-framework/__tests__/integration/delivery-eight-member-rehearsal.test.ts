@@ -107,6 +107,7 @@ describe("eight-member delivery integration rehearsal", () => {
       recognition: { kind: "durable" as const },
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
+      convergenceScope: null,
     };
     const predecessor = initial.members.at(-2)!;
     const terminal = initial.members.at(-1)!;
@@ -125,6 +126,7 @@ describe("eight-member delivery integration rehearsal", () => {
         candidateSubjectDigest: candidate.recognizedTarget.subject.subjectDigest,
       },
       repository: "owner/repo",
+      protectedTargetRef: initial.target!.ref,
       request: {
         binding: terminal.changeRequest!,
         repository: "owner/repo",
@@ -431,6 +433,9 @@ describe("eight-member delivery integration rehearsal", () => {
       retirement: {
         observeLocalRef: async () => ({ status: "absent" }),
         observeRemoteRef: async () => ({ status: "absent" }),
+        // The rehearsal binds the terminal to one exact head, so identity is the only relation it
+        // models; a distinct pair is one this rehearsal establishes nothing about.
+        readAncestry: async (ancestor, descendant) => ancestor === descendant ? "ancestor" : "not-ancestor",
         readTerminalRequest: async () => ({
           status: "observed",
           request: {

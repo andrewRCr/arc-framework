@@ -2,12 +2,13 @@
 
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
+import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
 import { listCurrentWuArtifactPaths } from "../work-unit/reference-reconcile.js";
+import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
 
 /** Repository paths through which one work unit can contribute lifecycle state. */
 export interface DeliveryLifecycleContributionPaths {
-  readonly workUnitArtifacts: readonly ManagedPath[];
-  readonly sharedProjections: readonly ManagedPath[];
+  readonly paths: readonly ManagedPath[];
 }
 
 /** Storage/projection boundary for repository-materialized lifecycle contributions. */
@@ -70,13 +71,19 @@ export function classifyDeliveryTerminalDelta(input: {
 }
 
 /** Compare exact entry identities only at the supplied lifecycle-contribution paths. */
-export function compareDeliveryLifecycleContribution(_input: {
+export function compareDeliveryLifecycleContribution(input: {
   readonly paths: readonly string[];
   readonly protectedBase: DeliveryLifecycleTreeState;
+  readonly chainBase: DeliveryLifecycleTreeState;
   readonly candidate: DeliveryLifecycleTreeState;
+  readonly regenerablePaths: readonly string[];
 }): DeliveryLifecycleContributionComparison {
-  const mismatchedPaths = [...new Set(_input.paths)]
-    .filter((path) => !sameEntry(_input.protectedBase.get(path), _input.candidate.get(path)))
+  const regenerable = new Set(input.regenerablePaths);
+  const mismatchedPaths = [...new Set(input.paths)]
+    .filter((path) => !sameEntry(
+      (regenerable.has(path) ? input.chainBase : input.protectedBase).get(path),
+      input.candidate.get(path),
+    ))
     .sort(byteSort);
   return mismatchedPaths.length === 0
     ? { status: "match", mismatchedPaths }
@@ -86,9 +93,11 @@ export function compareDeliveryLifecycleContribution(_input: {
 /** Exact normalized completeness comparison for a final disposable candidate tree. */
 export function compareNormalizedDeliveryTree(input: {
   readonly protectedBase: DeliveryLifecycleTreeState;
+  readonly chainBase: DeliveryLifecycleTreeState;
   readonly top: DeliveryLifecycleTreeState;
   readonly finalCandidate: DeliveryLifecycleTreeState;
   readonly lifecyclePaths: readonly string[];
+  readonly regenerablePaths: readonly string[];
 }):
   | { readonly status: "match" }
   | {
@@ -98,8 +107,9 @@ export function compareNormalizedDeliveryTree(input: {
       readonly mismatchedPaths: readonly string[];
     } {
   const expected = new Map(input.top);
+  const regenerable = new Set(input.regenerablePaths);
   for (const path of input.lifecyclePaths) {
-    const baseEntry = input.protectedBase.get(path);
+    const baseEntry = (regenerable.has(path) ? input.chainBase : input.protectedBase).get(path);
     if (baseEntry == null) expected.delete(path);
     else expected.set(path, baseEntry);
   }
@@ -162,16 +172,20 @@ implements DeliveryLifecycleContributionPathSource {
           this.input.readArtifactsAtRef(input.topRef, input.workUnitId),
         ])
       : [[], []] as const;
-    const workUnitArtifacts = [...new Set([
+    const workUnitArtifacts = [
       ...currentArtifacts.map(validateManagedPath),
       ...refArtifacts.flat(),
-    ])].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+    ];
     const projectReadinessPath = this.input.projectReadinessPath === undefined
       ? resolveArcPath({ kind: "project-document", document: "roadmap" })
       : this.input.projectReadinessPath;
     return {
-      workUnitArtifacts,
-      sharedProjections: projectReadinessPath === null ? [] : [projectReadinessPath],
+      paths: [...new Set([
+        ...workUnitArtifacts,
+        ...(projectReadinessPath === null ? [] : [projectReadinessPath]),
+        validateManagedPath(resolveCandidateRecordRelativePath(input.workUnitId)),
+        validateManagedPath(resolveSubmissionBoundaryPath(input.workUnitId)),
+      ])].sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
     };
   }
 }

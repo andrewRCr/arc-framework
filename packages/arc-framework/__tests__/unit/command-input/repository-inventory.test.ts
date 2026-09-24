@@ -129,6 +129,22 @@ describe("repository command-input inventory", () => {
     );
   });
 
+  it("excludes rejection-only review JSON flags from accepted inputs", () => {
+    const rejectedPaths = [
+      "review change-request resolve",
+      "review status",
+      "review resolve",
+      "review merge-method resolve",
+      "review checks await",
+      "review pre-publication",
+    ];
+    for (const path of rejectedPaths) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.options.some((option) => option.flags === "--json"), path).toBe(false);
+      expect(inventory.entries.some((entry) => entry.identity === `${path}:option.json`), path).toBe(false);
+    }
+  });
+
   it("requires every discovered interaction policy to come from a command-owned declaration", () => {
     const declared = new Set(commandInputPolicyDeclarations.flatMap((declaration) => declaration.sites.flatMap(
       (site) => {
@@ -220,6 +236,7 @@ describe("repository command-input inventory", () => {
       "delivery land apply",
       "delivery land prepare",
       "delivery native land-prepare",
+      "delivery native land-release",
       "delivery native land-select",
       "delivery native land-status",
       "delivery native land-submit",
@@ -250,7 +267,7 @@ describe("repository command-input inventory", () => {
       "repoint-design",
       "resume",
       "review change-request resolve",
-      "review chunking resolve",
+      "review changeset resolve",
       "review planning-grooming resolve",
       "review planning-lane",
       "review pre-publication",
@@ -266,6 +283,20 @@ describe("repository command-input inventory", () => {
     ]);
   });
 
+  it("assigns the post-action development build refresh to its head-moving command families", () => {
+    const refreshCommands = inventory.entries
+      .filter((entry) => entry.siteId === "interaction.lib-dev-check.ts-subprocess-execfile-1")
+      .map((entry) => entry.commandPath)
+      .sort();
+
+    expect(refreshCommands).toEqual([
+      "base merge",
+      "delivery review-fix continue",
+      "errand close",
+      "errand open",
+    ]);
+  });
+
   it("assigns the close-stdin hosted GitHub boundary to every reachable command family", () => {
     const hostedCommands = inventory.entries
       .filter((entry) => entry.siteId === "interaction.scripts-review-gate-hosted-gh-process.ts-subprocess-execa-1")
@@ -274,6 +305,7 @@ describe("repository command-input inventory", () => {
 
     expect(hostedCommands).toEqual([
       "delivery native land-prepare",
+      "delivery native land-release",
       "delivery native land-select",
       "delivery native land-status",
       "delivery native land-submit",

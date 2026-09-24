@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 const WORKFLOWS = [
   join(
@@ -50,8 +52,8 @@ describe("session-init delivery-position workflow", () => {
     const content = await readFile(path, "utf8");
 
     expect(content).toContain("`deliveryPosition.value.line` verbatim exactly once");
-    expect(content).toContain("Do not re-read delivery state or derive coordinates, counts,");
-    expect(content).toContain("Omit an `ok + null` slot");
+    expect(content).toMatch(softWrappedProse("Do not re-read delivery state or derive coordinates, counts,"));
+    expect(content).toMatch(softWrappedProse("Omit an `ok + null` slot"));
   });
 
   it("keeps the package and installed probe reference byte-identical", async () => {
@@ -61,6 +63,6 @@ describe("session-init delivery-position workflow", () => {
 
     expect(installedReference).toBe(packageReference);
     expect(packageReference).toContain("| `deliveryPosition`");
-    expect(packageReference).toContain("It never mutates state, fetches objects, updates refs, or prompts");
+    expect(packageReference).toMatch(softWrappedProse("It never mutates state, fetches objects, updates refs, or prompts"));
   });
 });

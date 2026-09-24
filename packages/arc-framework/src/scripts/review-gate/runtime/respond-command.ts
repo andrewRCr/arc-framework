@@ -50,11 +50,19 @@ import type {
   LocalReviewSourceStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
-import { RespondEnvelopeSchema } from "../core/review-command-envelope.js";
+import {
+  frontlineResponseBindingMatchesTarget,
+  type BoundFrontlineResponseBinding,
+} from "../core/frontline-response-binding.js";
+import {
+  RespondEnvelopeSchema,
+  type CandidateBoundMemberFixAuthoring,
+} from "../core/review-command-envelope.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
-import { consumeFixAuthorization } from "../core/fix-authorization.js";
+import { consumeFixAuthorization, createFixAuthorization } from "../core/fix-authorization.js";
+import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import { projectReviewResponse } from "../core/response-plan.js";
 import {
   ReviewResponseSettlementRequestSchema,
@@ -67,6 +75,9 @@ import {
   projectCandidateDeltaVerification,
   recordCandidateVerifiedResponse,
 } from "../policy/pre-publication-procedure.js";
+import {
+  computeFrontlineSourceBindingId,
+} from "../policy/frontline-operation.js";
 import {
   projectFrontlineResponse,
 } from "../policy/frontline-response.js";
@@ -149,6 +160,8 @@ export interface CandidateLineageBinding {
   /** Effective projection of the repository's current committed target. */
   effective: CandidateEffectiveTargetProjection;
   current: CandidateLineageTarget;
+  /** Exact current Candidate target retaining the reviewed target's kind and diff base. */
+  candidateFixTarget: ReviewTarget;
   /**
    * Reviewable paths the index does not carry, read alongside the subject it does.
    *
@@ -178,6 +191,11 @@ export interface RespondCommandDependencies {
     originatingTarget: ReviewTarget;
     hostedTarget: HostedTarget;
   }): Promise<{ currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null>;
+  /** Active work-unit checkout where a Candidate-bound private-member fix must be authored. */
+  resolveCandidateFixAuthoring(input: {
+    workUnit: string;
+    expectedHead: string;
+  }): Promise<CandidateBoundMemberFixAuthoring | null>;
   now(): string;
   /** Null when the response target identifies no active or archived Candidate lineage. */
   readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
@@ -223,6 +241,7 @@ interface ResolvedResponseSource {
   dispositionContext: DispositionSourceContext;
   actors: ResponseActors;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
+  responseBinding?: BoundFrontlineResponseBinding;
   frontlineOutcome?: FrontlineExecutionOutcome;
   hostedAttempt?: {
     operationId: string;
@@ -390,6 +409,14 @@ async function resolveLocalSource(
     throw new RespondCommandError("corrupt-state", "local response operation is unavailable");
   }
   const state = persisted.state;
+  assertLocalReviewClaimBinding(state);
+  if (state.vehicle.kind === "errand") {
+    const activeErrand = await dependencies.resolveActiveErrand();
+    if (activeErrand === null || activeErrand.key !== state.vehicle.identity
+      || activeErrand.claimId !== state.vehicle.claimId) {
+      throw new RespondCommandError("invalid-input", "local review Errand claim does not match the active Errand");
+    }
+  }
   const [receipt, localSource, actors] = await Promise.all([
     dependencies.readReceipt(reference.durableRef),
     dependencies.sourceStore.readSource(state.sourceRef),
@@ -452,8 +479,18 @@ async function resolveFrontlineSource(
   if (state.targetId !== record.outcome.target.targetId
     || state.sourceIdentity !== record.sourceIdentity
     || state.outcome !== record.outcome.outcome
-    || state.passCount !== record.outcome.pass) {
+    || state.passCount !== record.outcome.pass
+    || state.sourceBindingId !== computeFrontlineSourceBindingId(
+      record.outcome.source,
+      record.responseBinding,
+    )
+    || canonicalize(state.responseBinding ?? null) !== canonicalize(record.responseBinding ?? null)) {
     throw new RespondCommandError("corrupt-state", "frontline response source snapshot mismatch");
+  }
+  const responseBinding = record.responseBinding;
+  if (responseBinding !== undefined
+    && !frontlineResponseBindingMatchesTarget(record.outcome.target, responseBinding)) {
+    throw new RespondCommandError("corrupt-state", "Frontline response binding does not match its exact targets");
   }
   if (record.outcome.outcome !== "findings") {
     throw new RespondCommandError("invalid-input", "frontline response requires a findings outcome");
@@ -476,6 +513,7 @@ async function resolveFrontlineSource(
     },
     actors: await dependencies.resolveFrontlineActors(),
     frontlineOutcome: record.outcome,
+    ...(responseBinding === undefined ? {} : { responseBinding }),
   };
 }
 
@@ -619,11 +657,44 @@ async function persistCandidateResponse(
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
-  const lineage = await dependencies.readCandidateLineage(source.target);
+  const candidateTarget = source.responseBinding?.candidate.target ?? source.target;
+  const lineage = await dependencies.readCandidateLineage(candidateTarget);
   if (lineage === null) {
     throw new RespondCommandError(
       "invalid-input",
       "a verified fix requires a work unit carrying the reviewed managed Candidate record",
+    );
+  }
+  const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  const candidateBinding = existing?.candidate;
+  const privateMemberBindingMatches = source.responseBinding === undefined
+    ? existing?.deliveryMember === null
+    : existing?.deliveryMember !== null
+      && existing?.deliveryMember !== undefined
+      && canonicalize(existing.deliveryMember) === canonicalize(source.responseBinding.deliveryMember);
+  let expectedAuthorization;
+  try {
+    expectedAuthorization = createFixAuthorization({
+      dispositionState: dispositions,
+      oldTarget: source.target,
+    });
+  } catch {
+    expectedAuthorization = null;
+  }
+  if (existing === null
+    || candidateBinding === null
+    || candidateBinding === undefined
+    || candidateBinding.workUnit !== lineage.workUnit
+    || candidateBinding.candidateId !== lineage.record.attestation.candidateId
+    || existing.errand !== null
+    || !privateMemberBindingMatches
+    || canonicalize(existing.approvedDisposition) !== canonicalize(dispositions)
+    || canonicalize(existing.source) !== canonicalize(source.source)
+    || expectedAuthorization === null
+    || canonicalize(existing.fixAuthorization) !== canonicalize(expectedAuthorization)) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified Candidate fix requires its exact approved response record and fix authorization",
     );
   }
   if (lineage.unstagedReviewablePaths.length > 0) {
@@ -649,7 +720,7 @@ async function persistCandidateResponse(
     const matching = matchingResponses[0];
     if (matching === undefined
       || matching.candidateId !== lineage.record.attestation.candidateId
-      || matching.oldTarget.revision !== source.target.headSha
+      || matching.oldTarget.revision !== candidateTarget.headSha
       || matching.newTarget.revision !== recordedResponses.at(-1)?.newTarget.revision
       || matching.approvedBy !== dispositions.approval.approvedBy
       || matching.appliedBy !== dispositions.dispositionSet.proposedBy
@@ -671,7 +742,7 @@ async function persistCandidateResponse(
       },
     });
   }
-  if (lineage.reviewed.recognizedTarget.revision !== source.target.headSha) {
+  if (lineage.reviewed.recognizedTarget.revision !== candidateTarget.headSha) {
     throw new RespondCommandError("invalid-input", "Candidate review authority belongs to a different exact target");
   }
   const projection = projectCandidateDeltaVerification({
@@ -685,7 +756,7 @@ async function persistCandidateResponse(
       // The prior Candidate subject may have survived ceremony commits after its attestation.
       // Preserve the exact reviewed revision so lineage-wide review authority can find the pass
       // record that belongs to the approved response.
-      oldTarget: { ...projection.oldTarget, revision: source.target.headSha },
+      oldTarget: { ...projection.oldTarget, revision: candidateTarget.headSha },
     },
     dispositionId: dispositions.dispositionSet.dispositionSetId,
     approvedBy: dispositions.approval.approvedBy,
@@ -1023,6 +1094,15 @@ export async function respondToReviewCommand(
     throw new RespondCommandError("invalid-input", "hosted response proposal requires an unsettled findings attempt");
   }
   const confirmation = await dependencies.confirmTarget(source.target);
+  const recordedFix = verifiedFix === undefined
+    ? null
+    : await dependencies.dispositionStore.readDispositionRecord(source.operationId);
+  if (verifiedFix !== undefined && recordedFix === null) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "a verified fix requires its exact approved response record",
+    );
+  }
   const currentTarget = confirmation.state === "stale-target"
     ? confirmation.currentTarget
     : confirmation.target;
@@ -1047,6 +1127,19 @@ export async function respondToReviewCommand(
       ? null
       : deliveryMemberFixTarget.currentTarget;
   }
+  const candidateBoundFix = verifiedFix !== undefined
+    && recordedFix?.candidate !== null
+    && recordedFix?.candidate !== undefined
+    && source.hostedAttempt?.vehicle === undefined
+    && source.deliveryAdmission?.vehicle === undefined
+    ? await dependencies.readCandidateLineage(source.responseBinding?.candidate.target ?? source.target)
+    : null;
+  if (candidateBoundFix !== null) {
+    const reviewedCandidateTarget = source.responseBinding?.candidate.target ?? source.target;
+    changedTarget = candidateBoundFix.candidateFixTarget.targetId === reviewedCandidateTarget.targetId
+      ? null
+      : candidateBoundFix.candidateFixTarget;
+  }
   if (verifiedFix !== undefined && changedTarget === null) {
     throw new RespondCommandError(
       "invalid-input",
@@ -1059,7 +1152,9 @@ export async function respondToReviewCommand(
     return staleTargetEnvelope(source.operationId, settledFixTarget, currentTarget);
   }
   if (confirmation.state === "stale-target" && verifiedFix === undefined && settledFixTarget === undefined) {
-    const lineage = await dependencies.readCandidateLineage(source.target);
+    const lineage = await dependencies.readCandidateLineage(
+      source.responseBinding?.candidate.target ?? source.target,
+    );
     const currentness = lineage === null
       ? null
       : projectEffectiveCandidateCurrentness(lineage.effective);
@@ -1135,10 +1230,9 @@ export async function respondToReviewCommand(
         dependencies,
       );
     }
-    if (await dependencies.readCandidateLineage(source.target) === null) {
-      return persistErrandResponse(source, dispositions, changedTarget, verifiedFix, dependencies);
-    }
-    return persistCandidateResponse(source, dispositions, verifiedFix, dependencies);
+    return recordedFix?.candidate === null || recordedFix?.candidate === undefined
+      ? persistErrandResponse(source, dispositions, changedTarget, verifiedFix, dependencies)
+      : persistCandidateResponse(source, dispositions, verifiedFix, dependencies);
   }
   const plan = projectApprovedResponse(source, dispositions);
   if (plan.state !== "ready-to-fix" && plan.state !== "ready-to-close") {
@@ -1150,13 +1244,66 @@ export async function respondToReviewCommand(
         outcome: source.frontlineOutcome,
         dispositionState: dispositions,
       });
-  const deliveryMember = source.hostedAttempt?.vehicle ?? source.deliveryAdmission?.vehicle ?? null;
-  const lineage = deliveryMember === null
-    ? unchangedCandidateLineage ?? await dependencies.readCandidateLineage(source.target)
-    : null;
+  const deliveryMember = source.responseBinding?.deliveryMember
+    ?? source.hostedAttempt?.vehicle
+    ?? source.deliveryAdmission?.vehicle
+    ?? null;
+  const lineage = source.responseBinding === undefined && deliveryMember !== null
+    ? null
+    : unchangedCandidateLineage ?? await dependencies.readCandidateLineage(
+        source.responseBinding?.candidate.target ?? source.target,
+      );
   const errand = lineage === null && deliveryMember === null
     ? await dependencies.resolveActiveErrand()
     : null;
+  const requiresCandidateMemberAuthoring = plan.state === "ready-to-fix"
+    && source.responseBinding !== undefined;
+  let candidateMemberAuthoring: CandidateBoundMemberFixAuthoring | null = null;
+  if (requiresCandidateMemberAuthoring && lineage === null) {
+    throw new RespondCommandError(
+      "corrupt-state",
+      "Candidate-bound delivery-member fix authoring requires the active work-unit checkout.",
+    );
+  }
+  if (requiresCandidateMemberAuthoring && lineage !== null) {
+    const binding = source.responseBinding?.candidate;
+    if (binding === undefined
+      || binding.workUnit !== lineage.workUnit
+      || binding.candidateId !== lineage.record.attestation.candidateId
+      || binding.target.headSha !== lineage.reviewed.recognizedTarget.revision) {
+      throw new RespondCommandError(
+        "corrupt-state",
+        "Candidate-bound delivery-member fix authoring does not match its managed Candidate lineage.",
+      );
+    }
+    const currentness = projectEffectiveCandidateCurrentness(lineage.effective);
+    if (!("status" in currentness) || currentness.status !== "current") {
+      return staleTargetEnvelope(source.operationId, binding.target, lineage.candidateFixTarget);
+    }
+    if (currentness.recognizedRevision !== lineage.candidateFixTarget.headSha) {
+      throw new RespondCommandError(
+        "corrupt-state",
+        "Candidate-bound delivery-member fix authoring resolved inconsistent current Candidate heads.",
+      );
+    }
+    if (lineage.unstagedReviewablePaths.length > 0) {
+      throw new RespondCommandError(
+        "invalid-input",
+        "Candidate-bound delivery-member fix authoring requires no unstaged reviewable paths; found: "
+          + lineage.unstagedReviewablePaths.join(", "),
+      );
+    }
+    candidateMemberAuthoring = await dependencies.resolveCandidateFixAuthoring({
+      workUnit: lineage.workUnit,
+      expectedHead: currentness.recognizedRevision,
+    });
+  }
+  if (requiresCandidateMemberAuthoring && candidateMemberAuthoring === null) {
+    throw new RespondCommandError(
+      "corrupt-state",
+      "Candidate-bound delivery-member fix authoring requires the active work-unit checkout.",
+    );
+  }
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
   const record = ApprovedDispositionRecordSchema.parse({
     schemaVersion: 1,
@@ -1198,7 +1345,7 @@ export async function respondToReviewCommand(
   }
   const alreadySettled = existing !== null;
   const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
-  if (plan.state === "ready-to-fix" && deliveryMember !== null) {
+  if (plan.state === "ready-to-fix" && deliveryMember !== null && lineage === null) {
     const repository = source.hostedAttempt?.target.repository ?? source.deliveryAdmission?.target.repository;
     if (repository === undefined || plan.fixAuthorization === null) {
       throw new RespondCommandError(
@@ -1218,7 +1365,7 @@ export async function respondToReviewCommand(
         fixAuthorization: plan.fixAuthorization,
         deliveryMember,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository, remote: "origin" },
         },
         ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
@@ -1246,6 +1393,7 @@ export async function respondToReviewCommand(
           }),
       ...(frontlineFollowUp === undefined ? {} : { frontlineFollowUp }),
       ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
+      ...(candidateMemberAuthoring === null ? {} : { authoring: candidateMemberAuthoring }),
     },
   });
 }

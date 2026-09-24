@@ -23,6 +23,101 @@ export interface ChangeRequestResolutionPort {
   searchByHeadSha(repository: string, headSha: string): Promise<readonly ChangeRequestCandidate[]>;
 }
 
+export const ChangeRequestMergeCoordinatesSchema = z.strictObject({
+  repository: z.string().trim().min(1),
+  changeRequest: z.number().int().positive(),
+  baseRef: z.string().trim().min(1),
+  base: GitObjectIdSchema,
+  head: GitObjectIdSchema,
+});
+export type ChangeRequestMergeCoordinates = z.infer<typeof ChangeRequestMergeCoordinatesSchema>;
+
+const MergeObservationCoordinatesShape = ChangeRequestMergeCoordinatesSchema.shape;
+const MergeObservationEvidenceShape = { evidenceRef: z.string().trim().min(1).optional() };
+
+/** Provider-neutral, exact-coordinate host admission observation. */
+export const ChangeRequestMergeObservationSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    ...MergeObservationCoordinatesShape,
+    ...MergeObservationEvidenceShape,
+    state: z.literal("mergeable"),
+  }),
+  z.strictObject({
+    ...MergeObservationCoordinatesShape,
+    ...MergeObservationEvidenceShape,
+    state: z.literal("base-currentness-required"),
+    detail: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    ...MergeObservationCoordinatesShape,
+    ...MergeObservationEvidenceShape,
+    state: z.literal("refused"),
+    detail: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    ...MergeObservationCoordinatesShape,
+    ...MergeObservationEvidenceShape,
+    state: z.literal("unresolved"),
+    detail: z.string().trim().min(1),
+  }),
+]);
+export type ChangeRequestMergeObservation = z.infer<typeof ChangeRequestMergeObservationSchema>;
+
+export interface ChangeRequestMergeObservationPort {
+  observe(
+    coordinates: ChangeRequestMergeCoordinates,
+    options?: { signal?: AbortSignal; baseContained?: boolean },
+  ): Promise<unknown>;
+}
+
+function unresolvedMergeObservation(
+  coordinates: ChangeRequestMergeCoordinates,
+  detail: string,
+): ChangeRequestMergeObservation {
+  return { ...coordinates, state: "unresolved", detail };
+}
+
+/** Normalize one adapter observation to the provider-neutral exact-coordinate contract. */
+export async function observeChangeRequestMergeAdmission(
+  input: ChangeRequestMergeCoordinates,
+  port: ChangeRequestMergeObservationPort,
+  options?: { signal?: AbortSignal; baseContained?: boolean },
+): Promise<ChangeRequestMergeObservation> {
+  const coordinates = ChangeRequestMergeCoordinatesSchema.parse(input);
+  let observed: unknown;
+  try {
+    observed = await port.observe(coordinates, options);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const detail = message.replace(/\s+/gu, " ").trim().slice(0, 1_024);
+    return unresolvedMergeObservation(
+      coordinates,
+      detail === "" ? "Host admission observation failed." : `Host admission observation failed: ${detail}`,
+    );
+  }
+  const parsed = ChangeRequestMergeObservationSchema.safeParse(observed);
+  if (!parsed.success) {
+    return unresolvedMergeObservation(
+      coordinates,
+      "Host admission evidence was malformed or unavailable.",
+    );
+  }
+  const value = parsed.data;
+  if (
+    value.repository !== coordinates.repository
+    || value.changeRequest !== coordinates.changeRequest
+    || value.baseRef !== coordinates.baseRef
+    || value.base !== coordinates.base
+    || value.head !== coordinates.head
+  ) {
+    return unresolvedMergeObservation(
+      coordinates,
+      "Host admission evidence did not match the requested coordinates.",
+    );
+  }
+  return value;
+}
+
 export const ChangeRequestResolveCliInputSchema = z.object({
   headRef: z.string().trim().min(1),
   headSha: GitObjectIdSchema,
@@ -125,7 +220,6 @@ function classifyCandidates(
         targetRef.headRef,
         "--head-sha",
         targetRef.headSha,
-        "--json",
       ],
     ),
   };

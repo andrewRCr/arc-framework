@@ -83,6 +83,10 @@ window.
 <!-- Reserved for post-implementation learnings per the three-tier amendment model
      (strategy-adr-methodology.md). Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
 
+**Amendment (2026-09-10):** Disposition-set approval authorizes the verification scope for an approved fix; a later
+lineage attestation must bind fresh evidence at least as broad as that scope before convergence advances. The
+Candidate root attestation and its subject-digest applicability remain unchanged.
+
 ---
 
 [Integration Strategy]: ../strategies/arc/strategy-integration.md

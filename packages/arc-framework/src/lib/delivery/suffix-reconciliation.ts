@@ -12,6 +12,7 @@ import {
   DeliveryOperationSnapshotV1Schema,
   DeliveryStateV1Schema,
   type DeliveryOperationSnapshotV1,
+  type DeliveryPendingReviewFixVerificationV1,
   type DeliveryPlanV1,
   type DeliveryStateV1,
   type DeliveryTerminalAuthoringMovementV1,
@@ -54,10 +55,15 @@ export interface DeliveryProviderRefreshConflict {
 /** Response-owned selector for one exact dependent-suffix conflict decision. */
 export interface DeliveryProviderConflictResolutionInput {
   readonly planId: string;
-  readonly scope: {
-    readonly kind: "dependent-suffix";
-    readonly selectedDeliverableId: string;
-  };
+  readonly scope:
+    | {
+        readonly kind: "dependent-suffix";
+        readonly selectedDeliverableId: string;
+      }
+    | {
+        readonly kind: "native-suffix";
+        readonly operationId: string;
+      };
   readonly expectedStateRevision: number;
   readonly observedSuffixDigest: string;
   readonly conflicts: readonly DeliveryProviderRefreshConflict[];
@@ -116,9 +122,12 @@ export function hasExactPendingSelectedRefresh(
   return true;
 }
 
-/** Resolve the earliest selected member whose published head has not reached its dependent suffix. */
-export function findExactPendingSelectedRefresh(state: DeliveryStateV1): string | null {
-  for (let index = 0; index < state.members.length - 1; index += 1) {
+/** Resolve the earliest unlanded member whose published head has not reached its dependent suffix. */
+export function findExactPendingSelectedRefresh(
+  state: DeliveryStateV1,
+  landedDeliverableIds: readonly string[] = [],
+): string | null {
+  for (let index = landedDeliverableIds.length; index < state.members.length - 1; index += 1) {
     const selected = state.members[index];
     const dependent = state.members[index + 1];
     if (selected?.coordinates === null || selected?.coordinates === undefined
@@ -578,12 +587,23 @@ export async function executeDeliverySuffixRewrite(input: {
   /** Selected review fixes are authorized content changes, not false equivalence claims. */
   readonly contributionMode?: "prove-equivalent" | "selected-change";
   readonly operationMode?: "review-fix" | "selected-change";
-  readonly revalidateLifecycle: () => Promise<{ readonly status: "ok" | "refused" }>;
+  readonly supersedePendingReviewFixVerification?: DeliveryPendingReviewFixVerificationV1;
+  readonly revalidateLifecycle: () => Promise<
+    | { readonly status: "ok" }
+    | {
+        readonly status: "refused";
+        readonly reason?: string;
+        readonly paths?: readonly string[];
+      }
+  >;
   readonly rewriteRef: (input: {
     readonly ref: string;
     readonly beforeHead: string;
     readonly requestedHead: string;
-  }) => Promise<{ readonly status: "rewritten" | "adopted" | "refused" }>;
+  }) => Promise<
+    | { readonly status: "rewritten" | "adopted" }
+    | { readonly status: "refused"; readonly reason?: string }
+  >;
   readonly observeResult: () => Promise<DeliveryOperationSnapshotV1>;
   readonly proveContribution: () => Promise<DeliveryContributionProofResult>;
   readonly stateStore: StateWriter;
@@ -594,14 +614,23 @@ export async function executeDeliverySuffixRewrite(input: {
       readonly status: "refused";
       readonly reason:
         | "position-mismatch"
+        | "selected-change-authority-required"
         | "lifecycle-contribution"
+        | "pending-review-fix-verification"
         | "reservation-refused"
         | "state-conflict"
         | "precondition-mismatch"
         | "rewrite-refused"
         | "ambiguous-result";
+      readonly paths?: readonly string[];
+      readonly detail?: string;
     }
 > {
+  if (input.contributionMode === "selected-change"
+    && input.operationMode !== "selected-change"
+    && input.supersedePendingReviewFixVerification === undefined) {
+    return { status: "refused", reason: "selected-change-authority-required" };
+  }
   const member = input.current.value.members.find((candidate) => candidate.deliverableId === input.deliverableId);
   const requestedMember = input.requested.members[0];
   if (canonicalize(input.requested.target) !== canonicalize(input.current.value.target)
@@ -610,8 +639,14 @@ export async function executeDeliverySuffixRewrite(input: {
     || requestedMember.changeRequest?.providerId !== member.changeRequest?.providerId
     || requestedMember.changeRequest?.changeRequestId !== member.changeRequest?.changeRequestId
     || requestedMember.coordinates === null) return { status: "refused", reason: "position-mismatch" };
-  if ((await input.revalidateLifecycle()).status !== "ok") {
-    return { status: "refused", reason: "lifecycle-contribution" };
+  const lifecycle = await input.revalidateLifecycle();
+  if (lifecycle.status !== "ok") {
+    return {
+      status: "refused",
+      reason: "lifecycle-contribution",
+      ...(lifecycle.paths === undefined ? {} : { paths: lifecycle.paths }),
+      ...(lifecycle.reason === undefined ? {} : { detail: `Lifecycle revalidation refused: ${lifecycle.reason}.` }),
+    };
   }
   const before: DeliveryOperationSnapshotV1 = {
     target: input.current.value.target,
@@ -630,8 +665,25 @@ export async function executeDeliverySuffixRewrite(input: {
     expectedStateRevision: input.current.revision,
     before,
     requested: input.requested,
+    ...(input.supersedePendingReviewFixVerification === undefined
+      ? {}
+      : {
+          supersedePendingReviewFixVerification: input.supersedePendingReviewFixVerification,
+          reviewFixSelectedDeliverableId:
+            input.supersedePendingReviewFixVerification.selectedDeliverableId,
+          reviewFixVerificationDeliverableIds:
+            input.supersedePendingReviewFixVerification.memberDeliverableIds,
+        }
+    ),
   });
-  if (reserved.status !== "reserved") return { status: "refused", reason: "reservation-refused" };
+  if (reserved.status !== "reserved") {
+    return {
+      status: "refused",
+      reason: reserved.reason === "pending-review-fix-verification"
+        ? reserved.reason
+        : "reservation-refused",
+    };
+  }
   const persistedReservation = await input.stateStore.publish(
     input.plan.planId, reserved.state, input.current.revision,
   );
@@ -644,7 +696,13 @@ export async function executeDeliverySuffixRewrite(input: {
     beforeHead: member.coordinates.head,
     requestedHead: requestedMember.coordinates.head,
   });
-  if (rewritten.status === "refused") return { status: "refused", reason: "rewrite-refused" };
+  if (rewritten.status === "refused") {
+    return {
+      status: "refused",
+      reason: "rewrite-refused",
+      ...(rewritten.reason === undefined ? {} : { detail: `Ref rewrite refused: ${rewritten.reason}.` }),
+    };
+  }
   const observed = await input.observeResult();
   if (input.contributionMode !== "selected-change") {
     const proof = await input.proveContribution();
@@ -671,6 +729,7 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   readonly current: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly affectedDeliverableIds: readonly string[];
   readonly selectedDeliverableId?: string;
+  readonly landedDeliverableIds?: readonly string[];
   readonly terminalAuthoringMovement?: DeliveryTerminalAuthoringMovementV1;
   readonly conflictResolution?: DeliveryProviderConflictResolutionInput;
 } & ProviderAdoptionExecutionDependencies): Promise<
@@ -703,11 +762,13 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   if (input.current.value.activeOperation !== null) {
     return { status: "refused", reason: "operation-active" };
   }
-  if (input.conflictResolution !== undefined && (
+  const suppliedResolution = input.conflictResolution;
+  if (suppliedResolution !== undefined && (
     input.selectedDeliverableId === undefined
-    || input.conflictResolution.planId !== input.plan.planId
-    || input.conflictResolution.scope.selectedDeliverableId !== input.selectedDeliverableId
-    || input.conflictResolution.expectedStateRevision !== input.current.revision
+    || suppliedResolution.scope.kind !== "dependent-suffix"
+    || suppliedResolution.planId !== input.plan.planId
+    || suppliedResolution.scope.selectedDeliverableId !== input.selectedDeliverableId
+    || suppliedResolution.expectedStateRevision !== input.current.revision
   )) {
     return { status: "refused", reason: "conflict-resolution-mismatch" };
   }
@@ -718,7 +779,10 @@ export async function adoptExternalDeliverySuffixRefresh(input: {
   const selectedIndex = input.selectedDeliverableId === undefined
     ? -1
     : input.affectedDeliverableIds.indexOf(input.selectedDeliverableId);
-  const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(input.current.value);
+  const pendingSelectedDeliverableId = findExactPendingSelectedRefresh(
+    input.current.value,
+    input.landedDeliverableIds,
+  );
   if (input.selectedDeliverableId !== undefined && (
     selectedIndex < 0
     || pendingSelectedDeliverableId !== input.selectedDeliverableId

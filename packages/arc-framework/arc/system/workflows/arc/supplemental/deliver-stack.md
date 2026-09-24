@@ -3,11 +3,13 @@ purpose: Execute or resume one canonical delivery stack through exact-head revie
 audience: agent
 arc:
   methods:
+    - assess-evidence-applicability
     - frontline-review
     - standard-review
     - implementation-audit
     - review-triage
     - review-response
+    - review-chunking
     - validate-criteria
   extensions:
     - pre-push-review
@@ -29,7 +31,7 @@ branch names, task-list tables, or provider order.
 Run the delivery-owned read before eligibility or mutation:
 
 ```bash
-arc delivery entry inspect --input - --json
+arc delivery entry inspect -
 ```
 
 The request carries either the attended `assess-boundary-fit` disposition (plus confirmation when a provisional plan
@@ -40,12 +42,14 @@ workflow never parses headings, derives members, or re-decides cohesion:
 
 - `not-applicable` returns to ordinary work-unit execution, including singleton integration from the pre-push door.
 - `authoring-required` enters the existing inventory-schema, `from-tasks`, author-slot, and compose sequence.
+- `repair-required` with `reauthor-plan` re-enters the returned `entry` path, authors a supported replacement
+  revision, composes it, and reruns entry inspection before eligibility.
 - `canonicalize-provisional` runs that same canonicalization sequence or its receipt-pinned recovery.
 - `validate-canonical` advances to eligibility.
 - `continue-publication` invokes `publicationAction.command` unchanged before reading position.
 - `resume-bound` reads delivery position and reconciles any named active operation before continuing.
 - `correction-routing-required` and `review-fix-verification-required` invoke the selector-free
-  `arc delivery review-fix continue - --json` procedure below. The controller owns the selected member, persisted
+  `arc delivery review-fix continue -` procedure below. The controller owns the selected member, persisted
   operation, exact verification, and acknowledgment locators; workflow prose carries none of them.
 - `refused` stops before every eligibility or mutation verb after rendering the precomposed refusal.
 
@@ -59,23 +63,46 @@ evidence; a pre-publication caller returns after eligibility closes, while deliv
 Resolve the complete plan's exact disposable authoring locators:
 
 ```bash
-arc delivery authoring locate - --json
+arc delivery authoring locate -
 ```
 
-Record each authored cut at its returned private candidate ref and run project gates in the matching returned
-detached gate path. Do not leave ordinary local branches or branched worktrees for these cuts — ARC may interpret
-them as work-unit loci or cleanup residue. The private refs are identity-free locators only and grant no delivery
-authority.
+Record each authored cut at its returned private candidate ref and returned matching detached gate path. Do not leave
+ordinary local branches or branched worktrees for these cuts — ARC may interpret them as work-unit loci or cleanup
+residue. The private refs are identity-free locators only and grant no delivery authority. Gate execution waits for
+the materialized member scale recheck below.
 
 The write half of that locus is typed too, so a correction interrupted between authoring and its gate replay
-completes without hand-writing a ref in the ARC-owned namespace. `arc delivery authoring rematerialize - --json`
+completes without hand-writing a ref in the ARC-owned namespace. `arc delivery authoring rematerialize -`
 prepares the exact private ref and detached gate pair at the current public member;
-`arc delivery authoring rebind - --json` binds a clean detached authoring head to its candidate ref. Both take the
+`arc delivery authoring rebind -` binds a clean detached authoring head to its candidate ref. Both take the
 exact inputs the correction continuation dispatches in-process and refuse with the executor's own typed reason on a
 dirty locus, a moved head or tree, a stale state revision, or an active operation.
 
+For every returned locator in plan order, compose the exact materialized member target from its private candidate
+head and plan-ordered predecessor boundary, then invoke:
+
 ```bash
-arc delivery eligibility prepare - --json
+arc review changeset resolve -
+```
+
+Supply the member's `{ kind, baseRef, diffBaseSha, headSha }` and any exact-target scope selection retained from
+member closeout. Dispatch only on the typed result:
+
+- `disabled / none`, `below-threshold / continue-review`, and `scope-selected / continue-review` continue.
+- `consider-chunks / select-review-scope` renders `recommendedActionText` and applies the
+  [`review-chunking` method][review-chunking]. For a selected bounded-review route, reinvoke the resolver and require
+  `scope-selected / continue-review`. An explicit capable whole-target choice closes the attention disposition while
+  retaining the unchanged `consider-chunks` result and exact-target selection. An honest coherent member re-cut that
+  has no bound selection stops for the Owner's decision.
+- `evidence-unavailable / continue-review`, `delivery-bound / continue-review`, and every malformed or unsupported
+  result stop before gate execution.
+
+No Tier 2 command starts until every exact member target has a closed result and disposition. Retain each exact-target
+selection for the calling pre-publication review. This recheck governs the current materialization only; later target
+movement requires another exact check.
+
+```bash
+arc delivery eligibility prepare -
 ```
 
 Run the complete Tier 2 command set in every returned checkout. For each zero-exit run, report one result in the
@@ -95,8 +122,13 @@ returned member order, bound to that member's exact coordinates:
 Supply the snapshot and complete `gateResults` list to close the same observation window:
 
 ```bash
-arc delivery eligibility close - --json
+arc delivery eligibility close -
 ```
+
+Invoke each eligibility verb once for its observation window. Dispatch only on the typed result and render any
+supplied `nextAction` or `recommendedActionText`; a re-prepare action starts a new window rather than replaying either
+verb inside the current one. Mechanical eligibility and terminal-position classification do not fire an evidence-
+applicability method.
 
 ## Validate and publish
 
@@ -120,11 +152,14 @@ deliverable ID plus the ordinary terminal request as `terminalPresentation`:
 ```
 
 `summary`, terminal `title`, and terminal `body` are required; `changes` and `designReference` are content-gated.
+Author the terminal `title` as an ordinary Conventional Commits subject: in a multi-member delivery it is also the
+source of the delivery-wide identity, so the verb takes its type from there and refuses
+(`terminal-title-not-conventional`) when it is not an admitted conventional subject.
 Supply that complete presentation set with the plan ID, repository locators, the same candidate refs and checkout
 locators, and the same `gateResults` list to the sole initial mutation verb:
 
 ```bash
-arc delivery publish - --json
+arc delivery publish -
 ```
 
 A refusal stops without publication. The verb resolves the current plan and originating top from repository-owned
@@ -134,16 +169,19 @@ every member ref before opening any request: delivery refs in plan order, the co
 ordinary top-branch push, then
 requests bottom-up. Each request is based on its predecessor branch; the terminal request uses the originating branch
 over the highest delivery ref. Set `draft` from the configured `merge.lock` posture (`draft` ⇒ `true`) so every request
-opens under the configured hold; the landing sequence releases that lock only after readiness. The verb derives
-non-terminal titles from the canonical plan and uses authored presentation only when creating a missing request; an
-exact existing request is adopted unchanged. A failed request step retains its reservation for `reconcile` or an exact
-publication retry.
+opens under the configured hold; the landing sequence releases that lock only after readiness. The verb composes every
+request title in a multi-member delivery as `{type}({work-unit-slug}): [{n}/{N}] {summary}` — one shared type and
+scope taken from the authored terminal title, positions from the canonical plan, and non-terminal summaries from the
+plan's member titles — so delivery identity and the complete range stay visible even when the host cannot link the
+requests natively. A one-member delivery is not a stack and keeps its authored title unchanged. Authored
+presentation is used only when creating a missing request; an exact existing request is adopted unchanged. A
+failed request step retains its reservation for `reconcile` or an exact publication retry.
 
 After interruption, rerun the candidate gates before invoking the mutation verb again. Resume any persisted
 reservation through:
 
 ```bash
-arc delivery reconcile - --json
+arc delivery reconcile -
 ```
 
 Supply only the plan, repository, and remote locators. The verb dispatches on the persisted operation kind and
@@ -168,7 +206,9 @@ After approval, invoke the returned `submitAction` unchanged. A `retryable` resu
 - `retryable / preserved / delivery-publish` with `operationKind: publish` revalidates and retries
   `arc delivery publish` against the retained reservation.
 - `retryable / cleared / delivery-rematerialize` with `operationKind: rewrite` and `mode: review-fix` reruns
-  `arc delivery rematerialize`.
+  `arc delivery rematerialize`; when present, pass its `supersedePendingReviewFixVerification` unchanged as the
+  exact authority to supersede the restored verification marker. Its `reviewFixSelectedDeliverableId` and
+  `reviewFixVerificationDeliverableIds` retain the corresponding correction subject.
 - `retryable / cleared / delivery-review-fix-publish` with `operationKind: rewrite` and
   `mode: selected-change` reruns `arc delivery review-fix publish` from the returned selected-member subject.
 - `retryable / preserved / delivery-refresh-adopt` with `operationKind: rewrite` and
@@ -187,32 +227,38 @@ After approval, invoke the returned `submitAction` unchanged. A `retryable` resu
   `arc delivery top-remedy`.
 
 For every arm, use the returned selector's exact `planId`, `operationId`, `affectedDeliverableIds`, `operationKind`,
-and narrow `mode` when present as the authoritative reservation subject. Render `recommendedActionText` verbatim and
-let the named ordinary verb reobserve and prepare every other input; workflow prose infers neither a selector nor a
-recovery policy. Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous
-result, stops with its reason rendered.
+and narrow `mode`, `reviewFixSelectedDeliverableId`, `reviewFixVerificationDeliverableIds`, and
+`supersedePendingReviewFixVerification` when present as the authoritative reservation, correction subject, and
+supersession identity. Render `recommendedActionText` verbatim and let the named ordinary verb reobserve and
+prepare every other input; workflow prose infers neither a selector nor a recovery policy.
+Any unlisted action/transition/selector pairing, or any blocked, refused, unavailable, or ambiguous result, stops
+with its reason rendered.
 
 Only after every request ID exists, compose the exact non-terminal native-link request without `optIn` and invoke:
 
 ```bash
-arc delivery native link - --json
+arc delivery native link -
 ```
 
-Only `decision-required` continues. Render both texts verbatim — `recommendedOptInText` and
+An initial `unlinked` result, returned after exact plan/state validation, enters the ordinary singleton path without
+an operator choice; `refused` stops. Only `decision-required` reaches the choice. Render both texts verbatim —
+`recommendedOptInText` and
 `recommendedOptOutText` — before asking the operator to choose. This is the choice surface, not a capability check.
 After the choice, set `optIn` to its exact boolean value and resubmit the otherwise unchanged request:
 
 ```bash
-arc delivery native link - --json
+arc delivery native link -
 ```
 
-The terminal is never registered. A one-member delivery has no registration set and skips both invocations. `linked`
-continues only after a fresh exact host observation. An opt-out `unlinked` result makes zero native host calls and
-enters the ordinary singleton path. `downgrade-required` renders `recommendedActionText` verbatim and invokes the
-explicit unlink verb; `refused` stops. On the linked path, refresh presentation facts before every landing:
+The terminal is never registered. A one-member delivery has no registration set and skips both invocations. A
+two-member delivery has a singleton registration set below the provider floor, so its initial read returns
+`unlinked` without resubmission. `linked` continues only after a fresh exact host observation. An opt-out `unlinked`
+result makes zero native host calls and enters the ordinary singleton path. `downgrade-required` renders
+`recommendedActionText` verbatim and invokes the explicit unlink verb; `refused` stops. On the linked path, refresh
+presentation facts before every landing:
 
 ```bash
-arc delivery native observe - --json
+arc delivery native observe -
 ```
 
 Provider registration never selects member order and never enters the delivery plan or state.
@@ -222,7 +268,7 @@ Provider registration never selects member order and never enters the delivery p
 Immediately after the fresh native observation, select the service-owned arm:
 
 ```bash
-arc delivery native land-select - --json
+arc delivery native land-select -
 ```
 
 The selector request carries only the plan, repository, remote, and merge-choice inputs — no member coordinates or
@@ -231,15 +277,16 @@ non-terminal remainder before provider observation. An `unlinked` arm or a prece
 invokes the presentation-only degradation verb:
 
 ```bash
-arc delivery native unlink - --json
+arc delivery native unlink -
 ```
 
 The request carries the exact `planId` and current native member subject retained from the link/observation route;
 it derives no position facts. The handler revalidates both against canonical plan/state before provider access.
 Only its fresh `unlinked` result continues through the ordinary singleton path below. Every other result renders its
 precomposed guidance and stops without a landing mutation. `blocked` likewise renders `recommendedActionText` and
-stops. A `linked-single` or explicitly selected direct `linked-atomic` result binds `selectedDeliverableId` to its
-first returned member and settles exact member review authority before set-wide preparation.
+stops. `queue-not-atomic` remains this native refusal: render its supplied sequential fallback without synthesizing an
+enqueue route. A `linked-single` or explicitly selected direct `linked-atomic` result binds `selectedDeliverableId`
+to its first returned member and settles exact member review authority before set-wide preparation.
 
 ### Settle exact member review authority
 
@@ -254,14 +301,29 @@ The vehicle binds the review to the exact head supplied by delivery; no second m
 review evidence exists. Resolve its exact open change request and pass the resolver's `targetRef` to:
 
 ```bash
-arc review status --target '{targetRef}' --json
+arc review status --target '{targetRef}'
 ```
 
-The default action requests complete coverage. When the exact corrective delta warrants only a focused supplemental
-hosted pass, request it from the same first-outstanding member position instead of editing an action:
+No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
+A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
+attention disposition while retaining `consider-chunks`. Require the returned review action to carry either the
+exact-target chunked scope selection or, for the whole-target route, the exact-target forced hosted invocation selected
+by the Owner. A missing or stale selection returns to the owning route rather than editing the action or invoking a
+carrier.
+
+After the Owner selects the whole-target route, re-enter the same exact target with that configured hosted source:
 
 ```bash
-arc review status --target '{targetRef}' --coverage incremental --json
+arc review status --target '{targetRef}' --source <hosted-source-id>
+```
+
+The source-less form retains the automatic chunked route.
+
+The default action requests complete coverage. When a typed applicability recommendation requires a focused
+supplemental hosted pass, request it from the same first-outstanding member position instead of editing an action:
+
+```bash
+arc review status --target '{targetRef}' --coverage incremental
 ```
 
 Pass the returned action unchanged. Re-enter without `--coverage` after the supplemental attempt concludes; an
@@ -272,7 +334,7 @@ Only explicit approval of that exact consequence admits one additional pass; on 
 with the returned consequence serialized unchanged:
 
 ```bash
-arc review status --target '{targetRef}' --ceiling-override '{consequence}' --json
+arc review status --target '{targetRef}' --ceiling-override '{consequence}'
 ```
 
 `review-hosted-request` means pass the returned action unchanged to:
@@ -331,11 +393,14 @@ arc review checks await \
   --pull-request <action.handle.target.pullRequest> \
   --head-sha <action.handle.target.headSha> \
   --timeout-ms 10000 \
-  --poll-interval-ms 10000 \
-  --json
+  --poll-interval-ms 10000
 ```
 
-Surface failed required `checks` and any `diagnosticFailures`; begin read-only diagnosis when either is present.
+Surface failed required `checks` and any `diagnosticFailures`; when either is present, begin read-only diagnosis by
+inspecting every returned `failureLogs.logs[].path` before deciding the failure, and surface `failureLogs.failures`
+when retrieval is partial or unavailable.
+`unavailable / retry` surfaces `cause`, `detail`, current `checks`, and `diagnosticFailures`, retains the same
+hosted-review `action`, and ends this foreground attempt.
 `pending / await`, `green / complete`, and `not-required / complete` retain the same hosted-review `action`; only
 that action re-enters hosted await. `failed / stop`, stale or mismatched targets, and blocked reads stop with the
 action intact. This observation does not become review settlement, feed the review driver, move the exact head, or
@@ -348,27 +413,42 @@ finding settlement, execute the returned settlement plan in phase order through:
 arc review hosted settle -
 ```
 
-`resolve-review-applicability` renders `selectionAction.interactionText`, obtains the Owner's typed choice, and
-submits the returned `selectionAction` unchanged as `offer` beside that `selection` to:
+`resolve-review-applicability` renders `selectionAction.interactionText` before the Owner's typed choice.
+
+**Method fire-point** · [`assess-evidence-applicability`][assess-evidence-applicability]: Only when the typed
+member-rewrite result carries `selectionAction.projection.applicability.judgmentRequired: true`, or a projection in
+`selectionAction.projections` carries the same field, load and apply the method to each such bounded review residual
+and show its `supplemental | fresh` recommendation before selection. A
+`judgmentRequired: false` result is final, `merge-safety` never fires the method, and mechanical eligibility or
+terminal position never substitutes for this result.
+
+Obtain the Owner's typed choice and submit the returned `selectionAction` unchanged as `offer` beside that
+`selection` to:
 
 ```bash
 arc candidate applicability resolve {workUnitId} -
 ```
 
 Commit a returned `commit-selection`, then re-enter through `arc review status`. `continue` retains the earlier
-attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns and
-check/base movement return to their typed checkpoint; `upgrade` and every `stop` remain stops. After any concluded
-attempt, invoke status again. The CLI selects the next retained target; only `settled / continue-reconcile` permits
-either landing preparation. A returned typed discharge conjunction must be `discharged`; the typed settled variant
-without a conjunction is also authoritative because no delivery-member conjunction remains to discharge.
+attempt; `request-review` re-enters status and receives the ordinary hosted request action. Applicability reruns,
+check failures, and `base-moved / rerun-checkpoint` return to their typed checkpoint; `upgrade` and every `stop`
+remain stops. Classified base movement on an exact pre-terminal member follows the returned ordinary review or
+discharge action; unavailable or mismatched member movement stops. After any concluded attempt, invoke status again
+for the arm-selected exact member target. A `member-discharged / continue-reconcile`
+result permits that member's landing when `selectedMember.vehicle.deliverableId` matches the arm selection and its
+target matches the resolved `targetRef`; later members may still need review. `settled / continue-reconcile` also
+permits landing when a returned typed discharge conjunction is `discharged`; the typed settled variant without a
+conjunction is also authoritative because no delivery-member conjunction remains to discharge. No other review-status
+result permits landing preparation.
 
 Apply `frontline-review`, then `standard-review` or `implementation-audit` as applicable, and settle findings through
 `review-triage` and `review-response` before returning to the calling landing arm.
 
-Only the settled native arm advances to set-wide preparation:
+Only a native arm admitted by `member-discharged / continue-reconcile` or `settled / continue-reconcile` advances to
+set-wide preparation:
 
 ```bash
-arc delivery native land-prepare - --json
+arc delivery native land-prepare -
 ```
 
 The request carries the selected arm, operation identity, and repository, remote, and protected-target locators —
@@ -385,8 +465,8 @@ merge-lock reads.
 After approval, submit only the prepared effect:
 
 ```bash
-arc delivery native land-submit - --json
-arc delivery native land-status - --json
+arc delivery native land-submit -
+arc delivery native land-status -
 ```
 
 For ordinary polling after submission, use `land-status`. `pending` retains the reservation and polls the same
@@ -394,21 +474,68 @@ persisted effect identity again. After a restart or interruption, invoke the gen
 plan, repository, and remote locators:
 
 ```bash
-arc delivery reconcile - --json
+arc delivery reconcile -
 ```
 
 A recovered `prepared` reservation makes no provider observation: it re-presents the exact member/head set and
 consequence behind the same integration interlock, then invokes its returned `submitAction` unchanged after approval.
 A recovered `submitting` reservation never resubmits: a persisted identity returns to polling, while a missing
-identity is resolved only from exact all/partial/none/ambiguous effect facts.
+identity is resolved only from exact all/partial/none/ambiguous effect facts. A recovered `settling` reservation —
+an applied effect whose suffix settlement was interrupted after local member refs moved — also never resubmits: it
+returns to polling on its persisted identity and re-enters settlement from freshly observed facts.
 
 Only a `retryable` / `cleared` / `delivery-native-land-select` result, returned after a persisted terminal `failed`
 effect and exact `none-landed` observation, returns to preparation and a new interlock. `pending`, `partial-landed`,
-unavailable, expired, contradictory, or ambiguous results stop with the reservation intact. A suffix reconciliation
-refusal likewise retains that reservation; rerun `land-status` to reobserve and settle it without resubmitting. An
-`applied` result is returned only after a `linked-single` result settles the complete recognized suffix-retarget path,
-including contribution proof before new-head review admission, or a `linked-atomic` result performs its final
-no-suffix state write.
+unavailable, expired, contradictory, or ambiguous results stop with the reservation intact. An `applied` result is
+returned only after a `linked-single` result settles the complete recognized suffix-retarget path, including
+contribution proof before new-head review admission, or a `linked-atomic` result performs its final no-suffix state
+write.
+
+### Settle a disclosed suffix collision
+
+A suffix reconciliation refusal retains the reservation. Never resubmit the effect to clear one — the landing has
+already applied. Dispatch only on the typed result:
+
+- `conflict-resolution-required` — carries `conflicts` and a `resolutionInput`. The operator chooses: resubmit that
+  `resolutionInput` unchanged as `conflictResolution` on `arc delivery native land-status` to accept the listed
+  collisions under the held reservation, or resolve the listed member paths and rerun `land-status` with no
+  resolution to settle the reobserved suffix.
+- `blocked / conflict-resolution-mismatch` — the resubmitted resolution does not match the suffix observed now.
+  Rerun `land-status` with no resolution for the current disclosure, then resubmit that one unchanged.
+- `blocked / contribution-conflicted` carrying `conflictPreparation` — the terminal top could not absorb the highest
+  member. Merge the highest member into the checked-out terminal top by hand, resolving the listed `paths`;
+  `conflictPreparation` supplies the merge parents and the logical merge base, and its `mergeTree.argv` lists the
+  collisions. Rerun `land-status` to absorb the merged top.
+- every other refusal keeps the reservation and stops.
+
+### Decline a settled landing
+
+An operator who will not adopt a settled landing releases its reservation rather than settling it. The decline
+restores every local ref the settlement moved — the member refs and, once the absorber has run, the terminal
+top; it never reverses the landing the host performed.
+
+```bash
+arc delivery native land-release -
+```
+
+The request carries the plan, repository, remote, and the `operationId` of the held reservation. Dispatch only on
+the typed result:
+
+- `released` — the reservation is cleared. `restorations` lists every local ref put back with the head it
+  returned to; `landed` names the effect and the members it covers, all of which stay landed. A non-null
+  `standingRemoteTop` names the terminal ref the settlement published outward and the head it wrote there — the
+  decline is local-only, so read that ref and decide what it should carry before continuing.
+- `retryable / preserved / delivery-native-land-status` — nothing landed, so there is nothing to decline. Rerun
+  `land-status`, which owns that reconciliation.
+- `blocked` carrying a `lease` — a local ref the settlement moved is not where it left it, or could not be read at
+  all. The refusal names the ref, and both heads when it observed one; nothing was written and the reservation
+  still stands. A ref that moved is cleared by restoring it; a ref reported absent, malformed, or unreadable
+  carries no observed head and is cleared by making that ref readable first. Then rerun the decline.
+- `blocked / reservation-not-submitted` — a prepared reservation submitted no effect to decline; take it back
+  through `arc delivery reconcile`, which preserves the reservation and re-presents the landing for a
+  deliberate choice.
+- every other refusal keeps the reservation and stops. A pending, queued, partly landed, or contradictory effect is
+  never declined.
 
 ## Review and land the current member
 
@@ -421,34 +548,45 @@ Supply only the canonical plan identity and repository and remote locators:
 Read the next action from fresh handler observation:
 
 ```bash
-arc delivery position - --json
+arc delivery position -
 ```
 
 Dispatch only on its typed route. `review-member` enters the review and landing path below with the returned
 `selectedDeliverableId`. `teardown-member` skips review and landing and enters the teardown path below with its
 exact `selectedDeliverableId`. `terminal-handoff` delegates to the terminal workflow. `operation-active` invokes
-`arc delivery reconcile - --json` with the same locators and follows the recovery dispatch above.
+`arc delivery reconcile -` with the same locators and follows the recovery dispatch above.
 `review-fix-routing-required` with `nextAction: plan-review-fix` renders its `recommendedActionText`, then invokes
-the selector-free `arc delivery review-fix continue - --json` procedure below with no member or operation selector.
+the selector-free `arc delivery review-fix continue -` procedure below with no member or operation selector.
 The controller derives the approved correction's member from the open correction task or, when none exists, the exact
 unsettled approved review response; never infer that selection from terminal branch movement. Every other refusal
 stops.
 
 For `review-member`, settle exact member review authority above with the returned `selectedDeliverableId`. Only its
-`settled / continue-reconcile` result returns here for ordinary landing preparation.
+`member-discharged / continue-reconcile` result for that exact selected member, or its
+`settled / continue-reconcile` result, returns here for ordinary landing preparation.
 
 The preparation request carries that selection plus plan, repository, remote, target, lock, and tree locators — no
 position facts. The handler freshly reobserves position before preparing the singleton effect.
 
 ```bash
-arc delivery land prepare - --json
+arc delivery land prepare -
 ```
 
-Render the prepared singleton member/head and its consequence. Fire one `integration-interlock` for exactly that
-effect. Approval authorizes only the displayed member/head; no other member or later head inherits it. After approval:
+The handler freshly reobserves native-stack presence before any sequential reservation. Dispatch only on the typed
+result:
+
+- `prepared` — render the singleton member/head and its consequence. Fire one `integration-interlock` for exactly that
+  effect. Approval authorizes only the displayed member/head; no other member or later head inherits it.
+- `refused / registered-native-stack` — no reservation exists. Follow `recommendedActionText` to
+  `arc delivery native land-select`. Do not unlink, change the selected member, or treat the refusal as merge
+  approval.
+- `refused / native-observation-unavailable` — restore authoritative observation; do not sequential-prepare.
+- every other refusal stops.
+
+After `prepared` approval:
 
 ```bash
-arc delivery land apply - --json
+arc delivery land apply -
 ```
 
 The apply request carries the prepared presentation and repository locators, not position facts. The service
@@ -466,7 +604,7 @@ land prepare and a new integration interlock; it never reuses approval. A blocke
 typed reconcile route and stops when that route does not settle:
 
 ```bash
-arc delivery reconcile - --json
+arc delivery reconcile -
 ```
 
 When landing refuses for a genuine conflict, `native-stale-suffix` requirement, or host up-to-date policy — or when
@@ -474,7 +612,7 @@ the operator explicitly chooses a refresh — plan from current canonical state.
 this arm; it follows the semantic native-selection transition above.
 
 ```bash
-arc delivery refresh plan - --json
+arc delivery refresh plan -
 ```
 
 The request carries only the plan and repository locators plus that exact trigger. With no `mechanics` selection, an
@@ -485,7 +623,7 @@ Supply `"mechanics": "operator-initiated"` only when the operator explicitly sel
 to:
 
 ```bash
-arc delivery refresh execute - --json
+arc delivery refresh execute -
 ```
 
 The provider-neutral service derives the exact bound remainder from plan and state. Its adapter prepares the native
@@ -515,7 +653,7 @@ while it runs, and the terminal top remains outside it. After the external opera
 complete observation:
 
 ```bash
-arc delivery refresh adopt - --json
+arc delivery refresh adopt -
 ```
 
 The request carries only the plan and repository locators; the CLI derives the remaining suffix. Before reserving,
@@ -549,7 +687,7 @@ Before authoring or publishing any approved correction while the canonical deliv
 delivery-owned continuation with no member, operation, or state selector:
 
 ```bash
-arc delivery review-fix continue - --json
+arc delivery review-fix continue -
 ```
 
 The request carries only the repository and remote identities. The command derives the current member and exact next
@@ -571,6 +709,8 @@ selector reconstructed in prose.
 - `authority-required / dispatch-authority-action` preserves the exact Candidate-renewal, publication, or delivery
   status action. Candidate renewal requires `unchanged` before re-entry. A delivery-status action resumes the
   provider-neutral retained-member reducer directly; only its exact hosted-request result authorizes provider work.
+- `repair-required / reauthor-plan` re-enters the returned `entry` authoring path, composes a supported replacement,
+  then re-enters this continuation before correction work resumes.
 - `idle / continue-work-unit` returns to the current non-delivery task. Every `refused` or downstream
   conflict/authority stop renders its typed reason and retains the durable continuation for retry.
 
@@ -590,8 +730,9 @@ continuation. Invoke [`validate-criteria`][validate-criteria] at member scope on
 `memberDeliverableIds`. The linked selector contains the selected changed member plus every operator-approved
 conflicted dependent; the rematerialized selector contains every contribution the arbiter found changed. An
 arbiter-accepted contribution-equivalent dependent member is absent and re-verifies nothing. Bind Tier 1 to
-`verification.target`. Rerun by default. Reuse is admissible only under `tier1Reuse` when an existing passed result
-names exactly `targetTree` and every covered input is unchanged; inconclusive evidence reruns the tier.
+`verification.target`. Rerun by default. Reuse is admissible only under `tier1ReuseCriteria` when
+an existing passed result names exactly `targetTree` and every covered input is unchanged; inconclusive evidence
+reruns the tier.
 
 Retain the completed checks as one `verificationResult`: the primary selects `targeted`, `focused`, or `full` to
 describe the scope actually run, echoes the exact `target`, records non-empty evidence references for the
@@ -609,7 +750,7 @@ closure. These actions ride the same finding-disposition approval; do not add an
 After a member is authoritatively landed and its request is merged or closed, remove only its proven residue:
 
 ```bash
-arc delivery teardown - --json
+arc delivery teardown -
 ```
 
 The request carries the position result's exact `selectedDeliverableId` plus the current plan, repository, protected
@@ -628,7 +769,7 @@ proven member branch. Follow only its returned `nextAction`:
   invoke the reserved mutation surface with the current plan ID and returned repository, protected base, and action:
 
 ```bash
-arc delivery top-remedy - --json
+arc delivery top-remedy -
 ```
 
 The command freshly rederives the terminal position and exact remedy before reserving and mutating. Follow
@@ -645,6 +786,8 @@ delivery arm from the current Candidate and retained member bindings, and its ex
 terminal merge. Do not fire a delivery interlock here.
 
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
+[assess-evidence-applicability]: ../../../methods/assess-evidence-applicability.md
+[review-chunking]: ../../../methods/review-chunking.md
 [review-response]: ../../../methods/review-response.md
 [review-triage]: ../../../methods/review-triage.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md

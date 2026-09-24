@@ -291,6 +291,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "assess-boundary-fit.md",
       "assess-design-proportionality.md",
       "assess-draft-readiness.md",
+      "assess-evidence-applicability.md",
       "adversarial-review.md",
       "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
@@ -309,6 +310,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "spec-review.md",
       "task-audit.md",
       "test-first.md",
+      "testing-standards.md",
       "validate-criteria.md",
       "README.md",
     ];
@@ -350,11 +352,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+        "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
+        "assess-evidence-applicability", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
-        "session-state", "spec-review", "task-audit", "test-first",
+        "session-state", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];
       const extensionNames = [

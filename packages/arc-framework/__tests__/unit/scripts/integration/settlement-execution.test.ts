@@ -8,6 +8,7 @@ import {
 } from "../../../../src/scripts/integration/settlement-execution.js";
 import {
   composeCanonicalSettlementPlan,
+  composeCandidateResponseConfirmationAction,
   composeHostedSettlementAction,
 } from "../../../../src/scripts/integration/settlement-plan.js";
 import {
@@ -93,7 +94,51 @@ function hostedAction(character: string) {
   });
 }
 
+function candidateConfirmationAction() {
+  return composeCandidateResponseConfirmationAction({
+    dispositionId: digest("1"),
+    operationId: digest("2"),
+    workUnit: "example",
+    candidateId: digest("3"),
+    responseId: digest("4"),
+    memberTargetId: digest("5"),
+    candidateOriginTargetId: digest("6"),
+    deliveryMember: {
+      kind: "delivery-member",
+      planId: "573a0507-31a0-478d-b2cb-bd2a849e787b",
+      deliverableId: digest("7"),
+      workUnitId: "example",
+      head: oid("8"),
+    },
+    approvedBase: oid("a"),
+  });
+}
+
 describe("integration settlement execution", () => {
+  it("confirms an existing Candidate response without replaying either review channel", async () => {
+    const action = candidateConfirmationAction();
+    const plan = composeCanonicalSettlementPlan([action]);
+    const dependencies: SettlementExecutionDependencies = {
+      settleHosted: () => Promise.reject(new Error("unexpected hosted settlement")),
+      settleReviewResponse: () => Promise.reject(new Error("unexpected review-response replay")),
+      confirmCandidateResponse: async () => ({ state: "confirmed" }),
+    };
+
+    await expect(executeSettlementPlan(plan, dependencies)).resolves.toEqual({
+      state: "settled",
+      completedActions: 1,
+    });
+    await expect(executeSettlementPlan(plan, {
+      ...dependencies,
+      confirmCandidateResponse: async () => ({ state: "invalidated", reason: "stale" }),
+    })).resolves.toEqual({
+      state: "invalidated",
+      reason: "stale",
+      dispositionId: action.dispositionId,
+      completedActions: 0,
+    });
+  });
+
   it("resumes a partially settled plan without duplicate effects", async () => {
     const plan = composeCanonicalSettlementPlan([hostedAction("b"), hostedAction("c")]);
     const settled = new Set<string>();
@@ -138,6 +183,7 @@ describe("integration settlement execution", () => {
         };
       },
       settleReviewResponse: async () => ({ state: "settled" }),
+      confirmCandidateResponse: () => Promise.reject(new Error("unexpected Candidate response confirmation")),
     };
 
     await expect(executeSettlementPlan(plan, dependencies)).resolves.toMatchObject({
@@ -172,6 +218,7 @@ describe("integration settlement execution", () => {
         nextAction: "stop",
       }),
       settleReviewResponse: async () => ({ state: "settled" }),
+      confirmCandidateResponse: () => Promise.reject(new Error("unexpected Candidate response confirmation")),
     };
 
     await expect(executeSettlementPlan(
@@ -189,6 +236,7 @@ describe("integration settlement execution", () => {
         seen.push(input);
         return { state: "already-settled" };
       },
+      confirmCandidateResponse: () => Promise.reject(new Error("unexpected Candidate response confirmation")),
     };
 
     await expect(executeSettlementPlan(
@@ -208,6 +256,7 @@ describe("integration settlement execution", () => {
     const dependencies: SettlementExecutionDependencies = {
       settleHosted: () => Promise.reject(new Error("unexpected hosted settlement")),
       settleReviewResponse: async () => ({ state }),
+      confirmCandidateResponse: () => Promise.reject(new Error("unexpected Candidate response confirmation")),
     };
 
     await expect(executeSettlementPlan(

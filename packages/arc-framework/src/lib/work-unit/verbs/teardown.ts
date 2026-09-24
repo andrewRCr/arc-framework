@@ -65,7 +65,11 @@ import {
 } from "../../git/worktree-roster.js";
 import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
 import { localPathsEqual } from "../../local-path-identity.js";
-import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
+import {
+  branchToWorkUnitSlug,
+  readCompletedEvidenceFromRef,
+  readShippedWorkUnitsFromRef,
+} from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
   gitTransitionExpectedLifecycle,
@@ -1305,10 +1309,19 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     } catch {
       return {
         status: "rejected",
-        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
+        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown. `
+          + "Restore access to that ref, then retry the same teardown command.",
       };
     }
-    shipped = (await readShippedWorkUnitsFromRef(exec, proofTarget.head)).has(name);
+    const completedEvidence = await readCompletedEvidenceFromRef(exec, proofTarget.head);
+    if (completedEvidence.status === "unavailable") {
+      return {
+        status: "rejected",
+        reason: `Could not read completed lifecycle evidence from \`${authorityRef}\`; refusing teardown. `
+          + "Restore access to that ref's completed index, then retry the same teardown command.",
+      };
+    }
+    shipped = completedEvidence.records.has(name);
   }
   const mode: TeardownMode = params.mode ?? (shipped ? "shipped" : "abandoned");
   if (params.mode === "shipped" && !shipped) {

@@ -4,19 +4,64 @@ import type {
   CandidateApplicabilityRequest,
   CandidateApplicabilityResult,
 } from "./candidate-applicability.js";
+import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 import {
   CandidateLineageTargetSchema,
+  CandidateConvergenceProjectionSchema,
   diffCandidateSubjectSnapshots,
   projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
   type CandidateCurrentnessProjection,
+  type CandidateConvergenceProjection,
   type CandidateLineageTarget,
   type CandidateManagedRecordV1,
 } from "./candidate-attestation.js";
 
 export type NonApplicableProjection = Exclude<CandidateApplicabilityResult, { state: "applicable" }>;
 
-export interface CandidateEffectiveCurrentProjection {
+/** Exact bound command that deliberately replaces one invalidated Candidate root. */
+export interface CandidateReRootContinuation {
+  readonly argv: [
+    "arc",
+    "attest",
+    Slug,
+    "--new-root",
+    "--expected-candidate",
+    string,
+    "--expected-subject",
+    string,
+    "--json",
+  ];
+}
+
+/**
+ * Project the guarded re-root command shared by attestation and recovery diagnostics.
+ *
+ * @param input - Work-unit slug plus the exact invalidated Candidate and replacement subject digests.
+ * @returns The exact argv required to establish the replacement lineage root.
+ */
+export function projectCandidateReRootContinuation(input: {
+  readonly name: string;
+  readonly candidateId: string;
+  readonly subjectDigest: string;
+}): CandidateReRootContinuation {
+  const name = SlugSchema.parse(input.name);
+  return {
+    argv: [
+      "arc",
+      "attest",
+      name,
+      "--new-root",
+      "--expected-candidate",
+      input.candidateId,
+      "--expected-subject",
+      input.subjectDigest,
+      "--json",
+    ],
+  };
+}
+
+export type CandidateEffectiveCurrentProjection = {
   readonly schemaVersion: 1;
   readonly mode: "candidate-effective-target";
   readonly state: "current";
@@ -33,8 +78,7 @@ export interface CandidateEffectiveCurrentProjection {
         readonly residualDigest: string;
       };
   readonly implementationChanged: boolean;
-  readonly convergenceVerification: "satisfied" | "pending";
-}
+} & CandidateConvergenceProjection;
 
 export interface CandidateEffectiveChangedProjection {
   readonly schemaVersion: 1;
@@ -101,6 +145,10 @@ export async function projectEffectiveCandidateTarget(
   const baseline = reduceCandidateDurableBaseline(input.record);
   const durableCurrentness = projectCandidateCurrentness({ record: input.record, current });
   if (durableCurrentness.status === "current") {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: durableCurrentness.convergenceVerification,
+      convergenceScope: durableCurrentness.convergenceScope,
+    });
     return {
       schemaVersion: 1,
       mode: "candidate-effective-target",
@@ -111,7 +159,7 @@ export async function projectEffectiveCandidateTarget(
       recognizedTarget: current,
       recognition: { kind: "durable" },
       implementationChanged: durableCurrentness.implementationChanged,
-      convergenceVerification: durableCurrentness.convergenceVerification,
+      ...convergence,
     };
   }
 
@@ -129,6 +177,10 @@ export async function projectEffectiveCandidateTarget(
     if (baselineCurrentness.status !== "current") {
       throw new Error("Candidate durable baseline did not reduce to a current target");
     }
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: baselineCurrentness.convergenceVerification,
+      convergenceScope: baselineCurrentness.convergenceScope,
+    });
     return {
       schemaVersion: 1,
       mode: "candidate-effective-target",
@@ -144,7 +196,7 @@ export async function projectEffectiveCandidateTarget(
         residualDigest: applicability.residualDigest,
       },
       implementationChanged: baselineCurrentness.implementationChanged,
-      convergenceVerification: baselineCurrentness.convergenceVerification,
+      ...convergence,
     };
   }
 
@@ -177,12 +229,16 @@ export function projectEffectiveCandidateCurrentness(
   input: CandidateEffectiveTargetProjection,
 ): CandidateEffectiveCurrentnessProjection {
   if (input.state === "current") {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: input.convergenceVerification,
+      convergenceScope: input.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: input.candidateId,
       recognizedRevision: input.recognizedTarget.revision,
       implementationChanged: input.implementationChanged,
-      convergenceVerification: input.convergenceVerification,
+      ...convergence,
     };
   }
   if (input.state === "changed" || input.state === "staged-change") {
@@ -210,12 +266,16 @@ export function projectStagedCandidateCurrentness(input: {
   const staged = CandidateLineageTargetSchema.parse(input.staged);
   if (input.committed.state === "current"
     && input.committed.recognizedTarget.subject.subjectDigest === staged.subject.subjectDigest) {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: input.committed.convergenceVerification,
+      convergenceScope: input.committed.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: input.committed.candidateId,
       recognizedRevision: staged.revision,
       implementationChanged: input.committed.implementationChanged,
-      convergenceVerification: input.committed.convergenceVerification,
+      ...convergence,
     };
   }
   return projectCandidateCurrentness({ record: input.record, current: staged });

@@ -648,6 +648,7 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
     ahead: z.number().int().nonnegative(),
     behind: z.number().int().nonnegative(),
     baseOid: z.string().nullable(),
+    movement: z.enum(["disjoint", "overlapping", "unknown"]).optional(),
     unavailableReason: z.string().optional(),
   },
 ).loose().superRefine((value, context) => {
@@ -666,6 +667,9 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
           && ["exact", "pending-fetch", "unreachable"].includes(value.remoteEvidence);
   if (!evidenceMatches) {
     context.addIssue({ code: "custom", path: ["remoteEvidence"], message: "must match base-distance state" });
+  }
+  if (healthy !== (value.movement !== undefined)) {
+    context.addIssue({ code: "custom", path: ["movement"], message: "must be present only for healthy readings" });
   }
   const countsMatch = value.state === "remote-ahead"
     ? value.ahead === 0 && value.behind > 0
@@ -693,7 +697,7 @@ export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchem
             ? value.unavailableReason === "remote-base-absent" && value.baseOid === null
             : value.remoteEvidence === "pending-fetch"
               ? value.unavailableReason === "base-object-pending-fetch" && value.baseOid !== null
-              : value.unavailableReason === undefined && value.baseOid === null;
+              : value.unavailableReason === "remote-evidence-unreachable" && value.baseOid === null;
   if (!unavailableShapeMatches) {
     context.addIssue({ code: "custom", path: ["unavailableReason"], message: "must match base-distance evidence" });
   }
@@ -1045,6 +1049,9 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     }
   }
 
+  const primaryCheckout = worktree?.identity !== undefined
+    && (worktree.identity as { kind?: string }).kind === "primary";
+
   const recoveryRequired = worktree?.state === "branch-gone" && rosterSuccessful;
   requireExactPresence(value, context, "recovery", recoveryRequired);
 
@@ -1052,8 +1059,11 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     requireExactPresence(value, context, "orphanBranchSweep", true);
   }
 
-  for (const key of ["retiredSubdirs", "errandSweep", "inboxState", "partialPushMarker"] as const) {
+  for (const key of ["retiredSubdirs", "partialPushMarker"] as const) {
     requireExactPresence(value, context, key, identityKnown);
+  }
+  for (const key of ["errandSweep", "inboxState"] as const) {
+    requireExactPresence(value, context, key, identityKnown && primaryCheckout);
   }
 
   requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
@@ -1087,8 +1097,14 @@ const SessionInitProbeResultRuntimeSchema = SessionInitEnvelopeObjectSchema.supe
     value.active.ok && value.active.value.resolution === "none",
   );
 
-  if (hasOwn(value, "compactionAdvisory") && !identityKnown) {
-    addPresenceIssue(context, "compactionAdvisory", "requires a resolved identity");
+  if (hasOwn(value, "compactionAdvisory") && (!identityKnown || !primaryCheckout)) {
+    addPresenceIssue(
+      context,
+      "compactionAdvisory",
+      identityKnown
+        ? "forbidden on a linked worktree"
+        : "requires a resolved identity",
+    );
   }
 
   if (
