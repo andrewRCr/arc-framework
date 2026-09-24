@@ -758,7 +758,7 @@ describe("delivery landing", () => {
     await expect(applyRefusal(({ deps }) => ({
       host: { ...deps.host, mergeRequest: async () => ({ status: "refused", reason: "conflict" }) },
     }))).resolves.toMatchObject({ cause: { stage: "merge-submission", reason: "conflict",
-      recommendedActionText: expect.stringContaining("arc delivery refresh plan") } });
+      recommendedActionText: expect.stringMatching(/arc delivery reconcile.*arc delivery refresh plan/su) } });
   });
 
   it("reobserves after lock release and never adopts target movement without the matching merge", async () => {

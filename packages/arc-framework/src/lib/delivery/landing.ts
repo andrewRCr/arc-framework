@@ -743,8 +743,10 @@ export async function applyDeliveryLanding(input: {
           stage: "merge-submission",
           reason: "conflict",
           recommendedActionText:
-            "Run `arc delivery refresh plan` for the current delivery position. Follow its exact "
-            + "`arc delivery refresh execute` route when available, or restack externally and run "
+            "Run `arc delivery reconcile` to settle the retained landing reservation. Only after it proves "
+            + "no merge applied and clears the reservation, run `arc delivery refresh plan` for the current "
+            + "delivery position. Follow its exact `arc delivery refresh execute` route when available, "
+            + "or restack externally and run "
             + "`arc delivery refresh adopt` after resolving conflicts. This build adopts only a clean restack.",
         });
       }
