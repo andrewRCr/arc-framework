@@ -3,7 +3,7 @@
   "slug": "delivery-landing-conflict-refusal",
   "claimId": "6cc7b58f2e71da65c5aece40c735c3b0",
   "createdAt": "2026-09-24T01:14:50.726Z",
-  "updatedAt": "2026-09-24T01:14:50.726Z",
+  "updatedAt": "2026-09-24T02:00:36.833Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Give a conflicting delivery member's landing a typed conflict refusal that names refresh",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give a conflicting delivery member's landing a typed conflict refusal that names refresh",
   "originEntrySourceDigest": "sha256:605457814b4735fe61efca3551987a58242ed70af37eade629271ab3a524e793",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/delivery-landing-conflict-refusal",
+    "headSha": "4f7b8a3eb3bd71c9bdeadf127d0836ac309186c2"
+  }
 }
