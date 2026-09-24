@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "delivery-from-branch-ancestry-refusal",
+  "claimId": "62d7a0f1917a6e3d792efe9650ca5fdb",
+  "createdAt": "2026-09-24T03:32:27.787Z",
+  "updatedAt": "2026-09-24T03:32:27.787Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Refuse operational ancestry read failures when classifying two-parent delivery branch commits",
+  "branch": "chore/delivery-from-branch-ancestry-refusal",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
