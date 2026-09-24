@@ -46,7 +46,6 @@ describe("merge-method resolution", () => {
           "resolve",
           "--stack-position",
           "intermediate",
-          "--json",
         ],
       },
     });
@@ -92,7 +91,7 @@ describe("merge-method resolution", () => {
       reason: "method-disallowed",
       configuredMethod: "rebase",
       allowedMethods: ["merge", "squash"],
-      remedy: { argv: ["arc", "review", "merge-method", "resolve", "--json"] },
+      remedy: { argv: ["arc", "review", "merge-method", "resolve"] },
     });
   });
 
@@ -106,7 +105,7 @@ describe("merge-method resolution", () => {
       reason: "policy-unreadable",
       configuredMethod: "squash",
       allowedMethods: [],
-      remedy: { argv: ["arc", "review", "merge-method", "resolve", "--json"] },
+      remedy: { argv: ["arc", "review", "merge-method", "resolve"] },
     });
   });
 

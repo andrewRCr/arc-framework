@@ -16,7 +16,11 @@ import {
 } from "../../../src/lib/locus/derived-reader.js";
 import { projectDurableCandidateTarget } from "../../helpers/candidate.js";
 
-const projectorInputs = vi.hoisted(() => [] as Array<{ activeExtensions?: readonly string[] }>);
+const projectorInputs = vi.hoisted(() => [] as Array<{
+  cwd: string;
+  activeExtensions?: readonly string[];
+  foreignCheckout?: boolean;
+}>);
 
 vi.mock("../../../src/lib/locus/subject-meta.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../src/lib/locus/subject-meta.js")>();
@@ -153,6 +157,39 @@ describe("dormant derived roster reader", () => {
       context: { sessionType: "execution" },
     });
     expect(projectCandidateMutationOwner(result)).toEqual({ status: "owned", workUnit: "demo" });
+  });
+
+  it("marks only non-entering subject projections as foreign", async () => {
+    const entering = "/repo/demo";
+    const sibling = "/repo/sibling";
+    const enteringMeta = meta(entering);
+    const siblingMeta = meta(sibling, "sibling");
+    const files = new Map([
+      [enteringMeta.path, enteringMeta.text],
+      [`${entering}/.arc/active/tasks-demo.md`, "## **Phase 1:** Demo\n\n### `[ ]` **1.1 Do it**\n"],
+      [siblingMeta.path, siblingMeta.text],
+      [`${sibling}/.arc/active/tasks-sibling.md`, "## **Phase 1:** Sibling\n\n### `[ ]` **1.1 Do it**\n"],
+    ]);
+
+    await readDerivedLocusFrame({
+      ...baseOptions({
+        topology: {
+          ok: true,
+          worktrees: [
+            { path: entering, head: "a".repeat(40), branch: "feat/demo", detached: false, primary: false },
+            { path: sibling, head: "b".repeat(40), branch: "feat/sibling", detached: false, primary: false },
+          ],
+        },
+        checkouts: [wuEvidence(entering), wuEvidence(sibling, "sibling")],
+        subjectMetaIO: subjectIO(files),
+      }),
+      enteringCheckoutPath: entering,
+    });
+
+    expect(projectorInputs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ cwd: entering, foreignCheckout: false }),
+      expect.objectContaining({ cwd: sibling, foreignCheckout: true }),
+    ]));
   });
 
   it("refuses a branch carrier while the marker-owned work-unit origin is unresolved", async () => {

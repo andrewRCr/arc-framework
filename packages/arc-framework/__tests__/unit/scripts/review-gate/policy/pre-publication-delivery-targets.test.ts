@@ -31,6 +31,11 @@ function dependencies(failure?: EvidenceFailure): PreBindingDeliveryReviewTarget
         ? null
         : coordinates.get(ref) ?? null),
       readAncestry: vi.fn(async () => "ancestor" as const),
+      readOverlap: vi.fn(async () => ({
+        status: "available" as const,
+        mergeBase: oid("a"),
+        overlap: { status: "available" as const, substantivePaths: [], regenerablePaths: [] },
+      })),
       revalidateLifecycleContribution: vi.fn(async () => ({ status: "ok" as const })),
       compareNormalizedCompleteness: vi.fn(async () => failure === "incoherent"
         ? { status: "refused" as const, reason: "mismatched" as const }
@@ -67,6 +72,22 @@ function dependencies(failure?: EvidenceFailure): PreBindingDeliveryReviewTarget
 }
 
 describe("composePreBindingDeliveryReviewTargets", () => {
+  it("preserves sanitized caught failure detail", async () => {
+    const deps = dependencies();
+    deps.resolveDelivery = vi.fn(async () => {
+      throw new Error("candidate record read failed\nwhile resolving delivery");
+    });
+
+    await expect(composePreBindingDeliveryReviewTargets({
+      workUnitId: "delivery-plan-record",
+      baseRef: "main",
+    }, deps)).resolves.toEqual({
+      status: "refused",
+      reason: "evidence-unavailable",
+      detail: "candidate record read failed while resolving delivery",
+    });
+  });
+
   it("projects every member in plan order and uses the originating top for the terminal target", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const result = await composePreBindingDeliveryReviewTargets({

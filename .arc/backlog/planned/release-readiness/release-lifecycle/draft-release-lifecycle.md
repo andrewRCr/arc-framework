@@ -42,6 +42,46 @@ downstream WUs surface the felt need.
 
 ---
 
+### `[ ]` **Say in DEV-RULES that the early npm publish is not a release**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ `DEV-RULES.PROJECT.md:115-118` asserts "ARC is currently pre-public-release," but
+  `@arc-framework/cli` has been on the public npm registry since 2026-03-10 (`0.0.0`, then `0.1.0` on
+  2026-04-03) and shows ~22 downloads a month. Nothing was announced, documented, or intended for use, so the
+  posture is accurate in substance; the registry traffic is mirror and scanner noise that any public name
+  attracts.
+
+- _Why it needs saying:_ two hosted reviewers in a row raised adopter-upgrade compatibility against this errand
+  on the strength of the published artifact — CodeRabbit indirectly, then codex-pr as a blocking Major finding
+  demanding a migration reader the rule forbids. Each cost a verification round, and the second had to be
+  rejected against the rule. A reviewer working from the repository cannot distinguish a reserved name from a
+  released product, and will keep reaching the same wrong conclusion.
+
+- _Approach:_ one clause in the compatibility posture stating that an unannounced pre-release artifact on a
+  public registry does not constitute release, and that the posture ends at the first announced release rather
+  than at first publish. It is a disclosure of existing intent, not a change of policy.
+
+- _Reach the reviewer, not only the rule:_ `DEV-RULES.PROJECT` is not in any channel a hosted reviewer reads. It
+  reaches one only when a diff happens to touch it, which is why both reviewers here missed it. Carry a concise
+  companion clause inside the `arc:review-guidance` block, which `review-activity-contracts` records as the sole
+  channel by which an ARC rubric reaches a hosted reviewer. The block is duplicated by hand — AGENTS.md lines
+  29-59 and the `.coderabbit.yaml` `path_instructions` copy — so the clause lands in both until
+  `lint:arc:review-guidance` enforces the pairing.
+
+- _Evidence for the placement:_ the codex finding cited `AGENTS.md#L44-L46` and closed on "the review rubric's
+  compatibility and repository-contract dimensions" — exactly the two rubric lines it had been given. The rubric
+  dimension fired correctly; what was missing was the posture that scopes it. Attaching the clause to that
+  dimension is therefore targeted rather than decorative.
+
+- _Scope it as the rule scopes it:_ cover only unpublished project-owned contracts and development-only persisted
+  state, cite `DEV-RULES.PROJECT` as the authority rather than restating the rule, and carry the same retirement
+  trigger. A blanket "pre-release, compatibility does not apply" would suppress legitimate findings — the
+  external-seam enforcement test and the CLI's own command surface remain live obligations.
+
+- _Captured during:_ the `noop-json-flag-retirement` errand, PR #652, 2026-09-19; placement decided with the Owner
+  the same day.
+
 ## Problem / Motivation
 
 ARC models the **contribution side** of release activity via per-WU Release Notes Entries (WOR

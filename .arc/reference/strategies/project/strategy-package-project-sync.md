@@ -188,6 +188,7 @@ Configurable sets. The self-hosting configuration currently resolves 103 Framewo
 - `system/methods/assess-boundary-fit.md`
 - `system/methods/assess-design-proportionality.md`
 - `system/methods/assess-draft-readiness.md`
+- `system/methods/assess-evidence-applicability.md`
 - `system/methods/adversarial-review.md`
 - `system/methods/classify-work-unit.md`
 - `system/methods/commit-footer.md`

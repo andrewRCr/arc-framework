@@ -82,22 +82,13 @@ function actionFor(outcome: Awaited<ReturnType<typeof executeFrontlineRun>>["out
     case "findings":
       return { state: "findings", nextAction: "respond" } as const;
     case "timed-out":
-      return { state: "timed-out", nextAction: "retry" } as const;
+      return { state: "timed-out", nextAction: "operator-repair" } as const;
     case "stale-target":
       return { state: "stale-target", nextAction: "prepare-current-target" } as const;
     case "unavailable":
-      return ["rate-limited", "transient-unavailable"].includes(outcome.reason.class)
-        ? { state: "unavailable", nextAction: "retry" } as const
-        : { state: "unavailable", nextAction: "operator-repair" } as const;
+      return { state: "unavailable", nextAction: "operator-repair" } as const;
     case "failed":
-      return [
-        "transient-transport",
-        "process-failure",
-        "signal-termination",
-        "unexpected-adapter-failure",
-      ].includes(outcome.reason.class)
-        ? { state: "failed", nextAction: "retry" } as const
-        : { state: "failed", nextAction: "operator-repair" } as const;
+      return { state: "failed", nextAction: "operator-repair" } as const;
     case "pass-cap-exhausted":
       throw new Error("frontline run cannot produce pass-cap-exhausted");
   }
@@ -192,6 +183,9 @@ export async function runFrontlineReviewCommand(
     source,
     ...(request.responseBinding === undefined ? {} : { responseBinding: request.responseBinding }),
     generation: 0,
+    ...(request.retryOfOperationId === undefined
+      ? {}
+      : { retryOfOperationId: request.retryOfOperationId }),
     pass: readyPayload.pass,
     maxPasses: readyPayload.maxPasses,
     lockWaitMs: Math.min(
@@ -209,10 +203,17 @@ export async function runFrontlineReviewCommand(
     now: dependencies.now(),
   });
   const transition = actionFor(terminal.outcome);
+  const diagnostics = transition.nextAction === "operator-repair"
+    ? [{
+        code: "frontline-explicit-retry",
+        message: "This exact request replays its durable outcome. Inspect the provider failure before starting "
+          + `a new review with retryOfOperationId: '${terminal.operationId}'.`,
+      }]
+    : [];
   return FrontlineRunEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-frontline-run",
-    diagnostics: [],
+    diagnostics,
     ...transition,
     payload: {
       operationId: terminal.operationId,

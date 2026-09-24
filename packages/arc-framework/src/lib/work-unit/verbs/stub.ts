@@ -14,7 +14,7 @@
  * The verb stays thin per the executor's contract: it validates + supplies the
  * judgment inputs, registers the `scaffold` artifact runner its edge declares,
  * and dispatches through {@link executeTransition}; the executor fires the
- * table-driven legs (here, just the `scaffold` write) and the render
+ * table-driven `scaffold` write, stages the created meta, then renders the
  * side-effects. The commitment selects which of the two `stub` edges fires
  * (provisional vs planned) and projects to the physical destination directory.
  *
@@ -205,7 +205,11 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
 
   const outcome = await executeTransition(
     { ...ctx.executor, scaffoldOrRemove },
-    { verb: "stub", slug: params.name, inputs: { commitment, suggestion: params.suggestion } },
+    {
+      verb: "stub",
+      slug: params.name,
+      inputs: { commitment, scaffoldMetaPath: metaPath, suggestion: params.suggestion },
+    },
   );
 
   if (outcome.status !== "ok") {

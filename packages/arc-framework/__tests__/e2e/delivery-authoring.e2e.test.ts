@@ -177,7 +177,7 @@ describe("delivery authoring write verbs", () => {
     await chmod(fakeGh, 0o755);
 
     const located = await runArcWithStdin(
-      ["delivery", "authoring", "locate", "-", "--json"],
+      ["delivery", "authoring", "locate", "-"],
       repository,
       `${JSON.stringify({ planId: plan.planId })}\n`,
     );
@@ -236,7 +236,7 @@ describe("delivery authoring write verbs", () => {
     overrides: Record<string, unknown> = {},
   ) {
     return runArcWithStdin(
-      ["delivery", "authoring", "rematerialize", "-", "--json"],
+      ["delivery", "authoring", "rematerialize", "-"],
       repository,
       rematerializeRequest(fixture, expectedStateRevision, overrides),
       { env: fixture.env },
@@ -273,7 +273,7 @@ describe("delivery authoring write verbs", () => {
     const omittedFindingPaths = JSON.parse(rematerializeRequest(fixture)) as Record<string, unknown>;
     delete omittedFindingPaths.requiredFindingPaths;
     const omitted = await runArcWithStdin(
-      ["delivery", "authoring", "rematerialize", "-", "--json"],
+      ["delivery", "authoring", "rematerialize", "-"],
       repository,
       `${JSON.stringify(omittedFindingPaths)}\n`,
       { env: fixture.env },
@@ -351,7 +351,7 @@ describe("delivery authoring write verbs", () => {
       ...overrides,
     })}\n`;
     const rebind = (input: string) => runArcWithStdin(
-      ["delivery", "authoring", "rebind", "-", "--json"],
+      ["delivery", "authoring", "rebind", "-"],
       repository,
       input,
       { env: fixture.env },

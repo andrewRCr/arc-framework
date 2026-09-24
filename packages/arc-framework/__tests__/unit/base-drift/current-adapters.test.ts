@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createCompletedMetaResolver } from "../../../src/lib/base-drift/current-adapters.js";
+import {
+  createCompletedMetaResolver,
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../../../src/lib/base-drift/current-adapters.js";
 import type { BaseDriftCommitInput, IntegrationEvent } from "../../../src/lib/git/base-drift-types.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -20,6 +24,29 @@ function input(subject: string, acceptedPrNumber?: number): BaseDriftCommitInput
     ...(acceptedPrNumber === undefined ? {} : { acceptedPrNumber }),
   };
 }
+
+describe("current path-treatment adapter", () => {
+  it("binds explicit work-unit and projection coordinates without ambient identity", () => {
+    const classify = createCurrentBaseDriftAdapters(
+      vi.fn() as unknown as GitExec,
+      workUnitPathTreatmentContext("example"),
+    ).classifyReconciliation;
+
+    expect(classify("packages/arc-framework/src/example.ts")).toBe("reviewable");
+    expect(classify(".arc/active/tasks-example.md")).toBe("evidence-neutral");
+    expect(classify(".arc/active/tasks-sibling.md")).toBe("reviewable");
+    expect(classify(".arc/system/.internal/candidates/example.json")).toBe("evidence-neutral");
+    expect(classify(".arc/backlog/ROADMAP.md")).toBe("regenerable");
+  });
+
+  it("leaves work-unit paths reviewable when no identity is supplied", () => {
+    const classify = createCurrentBaseDriftAdapters(vi.fn() as unknown as GitExec)
+      .classifyReconciliation;
+
+    expect(classify(".arc/active/tasks-example.md")).toBe("reviewable");
+    expect(classify(".arc/backlog/ROADMAP.md")).toBe("regenerable");
+  });
+});
 
 describe("completed-meta integration resolver", () => {
   it("builds the base archive index once and uniquely enriches topology by PR", async () => {

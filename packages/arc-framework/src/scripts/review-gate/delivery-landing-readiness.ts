@@ -1,6 +1,7 @@
 /** Delivery landing admission over existing exact-target review authority. */
 
 import type { ChangeRequestTargetRef } from "./change-request.js";
+import { selectDischargedDeliveryMember } from "./status.js";
 import type { RoutedReviewObligation, ReviewStatusPort } from "./status.js";
 
 export type DeliveryLandingReviewReadiness =
@@ -18,7 +19,7 @@ export type DeliveryLandingReviewReadiness =
  *
  * @param target - Exact delivery-member change-request target selected for landing.
  * @param port - Existing production review-status observation boundary.
- * @returns Ready only for the same observed head with settled review authority and passing checks.
+ * @returns Ready only for the same observed head with discharged member review and passing checks.
  */
 export async function assessDeliveryLandingReviewReadiness(
   target: ChangeRequestTargetRef,
@@ -33,7 +34,11 @@ export async function assessDeliveryLandingReviewReadiness(
   if (observation.actualHeadSha !== target.headSha) {
     return { status: "refused", reason: "stale-target" };
   }
-  if (observation.routedObligation.state !== "settled") {
+  const obligation = observation.routedObligation;
+  const reviewDischarged = "conjunction" in obligation
+    ? selectDischargedDeliveryMember(target, obligation.conjunction) !== null
+    : obligation.state === "settled";
+  if (!reviewDischarged) {
     return { status: "refused", reason: "review-unsettled" };
   }
   if (observation.requiredChecks !== "green" && observation.requiredChecks !== "not-required") {

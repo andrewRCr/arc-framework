@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Brings the CI guest up at login, so a restart needs no operator action. The
+  host account auto-logs in, which is what turns "at login" into "at boot".
+
+  This file is a template, not an installable agent: launchd performs no
+  variable expansion, and log paths must be absolute, so the account's home
+  directory would otherwise have to be written into a tracked file. start.sh
+  substitutes __CI_HOME__ when it renders the agent into
+  ~/Library/LaunchAgents/, keeping the account name a local input.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.arc.local-ci</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/limactl</string>
+        <string>start</string>
+        <string>arc-ci</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- launchd hands a process a minimal PATH that excludes the Homebrew
+         prefix; limactl shells out to tools that live beside it. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>__CI_HOME__/Library/Logs/com.arc.local-ci.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__CI_HOME__/Library/Logs/com.arc.local-ci.err.log</string>
+</dict>
+</plist>

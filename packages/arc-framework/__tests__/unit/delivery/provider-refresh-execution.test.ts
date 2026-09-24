@@ -884,6 +884,49 @@ describe("provider refresh publication classification", () => {
     });
   });
 
+  it("keeps landed M1 outside the pending selector when executing M2 refresh", async () => {
+    const plan = deliveryFourMemberStackPlanFixture();
+    const fixture = deliveryStateFixture(plan);
+    const state = {
+      ...fixture,
+      members: fixture.members.map((member, index, members) => ({
+        ...member,
+        changeRequest: { providerId: "github", changeRequestId: String(800 + index) },
+        coordinates: {
+          ...member.coordinates!,
+          base: index === 0 ? fixture.target!.coordinates!.head
+            : index === 1 ? oid("e") : members[index - 1]!.coordinates!.head,
+          head: index === 1 ? oid("f") : member.coordinates!.head,
+        },
+      })),
+    };
+    const selectedDeliverableId = plan.members[1]!.deliverableId;
+
+    const result = await executeDeliveryProviderRefresh({
+      plan,
+      current: { revision: 7, value: state },
+      repository: "owner/repo",
+      scope: { kind: "dependent-suffix", selectedDeliverableId },
+      facts: positionFacts(state, [plan.members[0]!.deliverableId]),
+    }, {
+      preparation: { prepare: async () => ({ status: "refused", reason: "provider-unavailable" }) },
+      preflightTop: readyTop,
+      observeMemberRefCheckouts: clearMemberRefCheckouts,
+      observePublishedHeads: async () => { throw new Error("must not observe publication"); },
+      rewriteMemberRef: async () => { throw new Error("must not rewrite"); },
+      observeResult: async () => { throw new Error("must not observe result"); },
+      readTargetAncestry: exactTargetAncestry,
+      proveContribution: async () => { throw new Error("must not prove"); },
+      absorbTop: async () => { throw new Error("must not absorb"); },
+      publishTop: async () => { throw new Error("must not publish"); },
+      rewriteLocalRef: async () => { throw new Error("must not rewrite locally"); },
+      cleanupPreparedCandidates: async () => { throw new Error("must not clean up"); },
+      stateStore: { publish: async () => { throw new Error("must not persist"); } },
+    });
+
+    expect(result).toEqual({ status: "refused", reason: "provider-unavailable" });
+  });
+
   it("refuses dependent refresh when the selected member has not published a correction", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const fixture = deliveryStateFixture(plan);

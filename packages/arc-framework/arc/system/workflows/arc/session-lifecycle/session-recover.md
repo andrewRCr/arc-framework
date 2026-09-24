@@ -30,8 +30,8 @@ When the supplied command carries `--seed-path <path>`, preserve that exact oper
 handoff; the audit validates that the path belongs to exactly one registered checkout and binds fresh recovery
 probes to that checkout.
 
-Require `mode: "recover-audit"`. If the command fails or the report is malformed, stop,
-surface that recovery cannot establish live state, and ask for direction.
+Require `mode: "recover-audit"`. If the command fails or the report is malformed, surface that recovery cannot
+establish live state and stop automatic recovery under Step 2's Owner-direction boundary.
 Do not manually reconstruct a seed from the harness summary.
 
 The report's required `recover.derivedLocusState` is the sole topology/frame read. `recover.recoveryFrame`,
@@ -47,11 +47,18 @@ Use them only as context after the deterministic recovery checks and harness sum
 
 ## 2. Interpret The Verdict
 
-If `verdict.status === "stop"`, surface the structured reason details and stop. The CLI has already
-checked seed presence/schema, identity, the fresh entering-checkout frame, load-set drift, dirty path-set drift,
+If `verdict.status === "stop"`, surface the structured reason details and stop automatic recovery. The CLI has
+already checked seed presence/schema, identity, the fresh entering-checkout frame, load-set drift, dirty path-set drift,
 and non-planning task-cursor drift when a cursor exists. For an unresolved entering checkout or identity-basis
 failure, also render the matching `report.recover.locusGuidance` text verbatim. Do not choose another row or repair
 the graph in workflow prose.
+
+A stop does not decide the project or work-unit Owner's next action. Preserve the pending marker; do not claim a
+ready audit, load a guessed context, or clear the marker. Bounded diagnosis or repair and a retry of the exact audit
+may proceed within existing authority. A task instruction given before the stop is not authorization to resume
+project work with unresolved recovery. Subject to higher-priority harness instructions, only a fresh Owner
+acknowledgement of the disclosed stop may authorize a fresh-session re-entry or another named continuation; disclose
+that recovery remains unverified. Otherwise ask for direction.
 
 A `seed-locus-unresolved` stop means the selected seed path and registered checkout topology did not select one exact
 recovery checkout. Surface its typed message; do not retry from another directory or degrade it to `seed-missing`.

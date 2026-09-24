@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { renderMetaFile } from "../../../../src/lib/active/meta-reader.js";
 import { composeProjectReadinessView } from "../../../../src/lib/status/project-view.js";
 import type {
-  DeliveryMemberLookup,
-  DeliveryMemberLookupResult,
+  DeliveryMemberIdentity,
+  DeliveryMemberIdentityLookup,
+  DeliveryMemberIdentityLookupResult,
 } from "../../../../src/scripts/review-gate/core/delivery-member-lookup.js";
 import {
   evaluateReviewReadiness,
@@ -14,6 +15,10 @@ import {
 } from "../../../../src/scripts/review-gate/readiness.js";
 
 const SHA = "a".repeat(40);
+const SUCCESSOR_SHA = "f".repeat(40);
+const FURTHER_SUCCESSOR_SHA = "9".repeat(40);
+/** A head the member's own binding sits below, so the pair reads as this member's advance. */
+const MEMBER_ADVANCED_HEAD = "e".repeat(40);
 const ROOT = "/tree";
 const PLAN_ID = "3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 const DELIVERABLE_ID = `sha256:${"b".repeat(64)}`;
@@ -124,16 +129,25 @@ function memberVehicle(
   };
 }
 
+function memberIdentity(
+  overrides: Partial<{ planId: string; deliverableId: string; workUnitId: string }> = {},
+): DeliveryMemberIdentity {
+  return { planId: PLAN_ID, deliverableId: DELIVERABLE_ID, workUnitId: "demo", ...overrides };
+}
+
 function resolvedMember(
   overrides: Partial<{
     planId: string;
     deliverableId: string;
     workUnitId: string;
+    head: string;
+    successorHeads: readonly string[];
     isFinalMember: boolean;
   }> = {},
-): DeliveryMemberLookupResult {
+): DeliveryMemberIdentityLookupResult {
+  const isFinalMember = overrides.isFinalMember ?? false;
   return {
-    status: "resolved",
+    status: "bound",
     member: {
       planId: PLAN_ID,
       deliverableId: DELIVERABLE_ID,
@@ -143,21 +157,35 @@ function resolvedMember(
       headRef: "delivery/demo/member-1",
       head: SHA,
       candidateHead: SHA,
-      isFinalMember: false,
+      // Stacked by default, because that is what a non-final member is: one with members bound on top of it.
+      // The plan's last member is the one with nothing above, so it carries no head to be bounded by.
+      successorHeads: isFinalMember ? [] : [SUCCESSOR_SHA, FURTHER_SUCCESSOR_SHA],
+      isFinalMember,
       ...overrides,
     },
   };
 }
 
-function memberLookup(
-  result: DeliveryMemberLookupResult,
-  heads: string[] = [],
-): DeliveryMemberLookup {
+function memberLookup(result: DeliveryMemberIdentityLookupResult): DeliveryMemberIdentityLookup {
+  return { resolveMemberByIdentity: async () => result };
+}
+
+/**
+ * A lookup that answers only the exact identity it was built for.
+ *
+ * The hand-off is the behavior under test wherever this is used: readiness spells the work unit one
+ * way and the delivery record spells it another, so a lookup that discriminates proves the rename
+ * arrived without anyone reading the arguments it was called with.
+ */
+function identityLookup(expected: DeliveryMemberIdentity): DeliveryMemberIdentityLookup {
   return {
-    resolveMemberByHead: async (headObjectId) => {
-      heads.push(headObjectId);
-      return result;
-    },
+    resolveMemberByIdentity: async (identity) => (
+      identity.planId === expected.planId
+        && identity.deliverableId === expected.deliverableId
+        && identity.workUnitId === expected.workUnitId
+        ? resolvedMember()
+        : { status: "no-plan" }
+    ),
   };
 }
 
@@ -921,7 +949,7 @@ describe("delivery-member authentication against delivery state", () => {
 
   it.each([
     ["unavailable", { status: "unavailable" } as const, "delivery-state-unavailable"],
-    ["unbound", { status: "unbound" } as const, "delivery-member-unbound"],
+    ["in-plan-unbound", { status: "in-plan-unbound" } as const, "delivery-member-unbound"],
   ])("refuses an %s lookup answer with its own fact", async (_case, answer, code) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
@@ -935,67 +963,279 @@ describe("delivery-member authentication against delivery state", () => {
   });
 
   it.each([
-    ["plan", { planId: "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e" }, "vehicle.planId"],
-    ["deliverable", { deliverableId: `sha256:${"c".repeat(64)}` }, "vehicle.deliverableId"],
-    ["work unit", { workUnitId: "other-unit" }, "vehicle.workUnitSlug"],
-  ])("refuses a disagreeing %s with one mismatch fact naming its path", async (_field, drift, path) => {
+    ["no plan carries the work unit", { status: "no-plan" } as const, "delivery-plan-absent", "vehicle.workUnitSlug"],
+    ["the resolved plan is another", { status: "plan-mismatch" } as const, "delivery-plan-mismatch", "vehicle.planId"],
+    [
+      "the plan omits the deliverable",
+      { status: "not-in-plan" } as const,
+      "delivery-member-not-in-plan",
+      "vehicle.deliverableId",
+    ],
+  ])("refuses an identity miss where %s under its own code", async (_case, answer, code, path) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember(drift)) },
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
     );
 
     expect(result).toMatchObject({
       state: "invalid",
-      payload: { facts: [{ code: "delivery-member-mismatch", path }] },
+      payload: { facts: [{ code, path }] },
     });
   });
 
-  it("emits one mismatch fact per disagreeing field", async () => {
+  it.each([
+    ["no-plan", { status: "no-plan" } as const],
+    ["plan-mismatch", { status: "plan-mismatch" } as const],
+    ["not-in-plan", { status: "not-in-plan" } as const],
+  ])("names a route out of the %s miss rather than the condition alone", async (_case, answer) => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      {
-        fs: buildFs({}),
-        deliveryMemberLookup: memberLookup(resolvedMember({
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
+    );
+
+    expect(result.state).toBe("invalid");
+    if (result.state !== "invalid") return;
+    // Each miss is cleared differently, so a shared remedy would direct two of the three at inputs that
+    // cannot reach what failed — the same defect as sharing one code.
+    expect(result.payload.facts[0]?.message).toMatch(/Reserve|Re-read/u);
+  });
+
+  it("emits the retired shared code on no identity miss at all", async () => {
+    for (const answer of [
+      { status: "no-plan" } as const,
+      { status: "plan-mismatch" } as const,
+      { status: "not-in-plan" } as const,
+      { status: "in-plan-unbound" } as const,
+      { status: "unavailable" } as const,
+    ]) {
+      const result = await evaluateReviewReadiness(
+        readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+        { fs: buildFs({}), deliveryMemberLookup: memberLookup(answer) },
+      );
+
+      expect(JSON.stringify(result)).not.toContain("delivery-member-mismatch");
+    }
+  });
+
+  it("reports at most one identity miss, because the lookup answers with one arm", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(
+        memberVehicle({
           planId: "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
           deliverableId: `sha256:${"c".repeat(64)}`,
-          workUnitId: "other-unit",
-        })),
-      },
+          workUnitSlug: "other-unit",
+        }),
+        { headBranch: "delivery/plan/03" },
+      ),
+      { fs: buildFs({}), deliveryMemberLookup: identityLookup(memberIdentity()) },
     );
 
     expect(result).toMatchObject({
       state: "invalid",
-      payload: {
-        facts: [
-          { code: "delivery-member-mismatch", path: "vehicle.planId" },
-          { code: "delivery-member-mismatch", path: "vehicle.deliverableId" },
-          { code: "delivery-member-mismatch", path: "vehicle.workUnitSlug" },
-        ],
-      },
+      payload: { facts: [{ code: "delivery-plan-absent", path: "vehicle.workUnitSlug" }] },
     });
   });
 
-  it("admits a fully agreeing resolution, authenticating the live pull-request head", async () => {
-    const heads: string[] = [];
+  it("hands the vehicle's own identity to the lookup, renaming the work unit it spells as a slug", async () => {
     const result = await evaluateReviewReadiness(
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
-      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember(), heads) },
+      { fs: buildFs({}), deliveryMemberLookup: identityLookup(memberIdentity()) },
     );
 
     expect(result.state).toBe("ready");
-    expect(heads).toEqual([SHA]);
   });
 
-  it("admits an assertion whose plan id differs from the resolution's only in case", async () => {
+  it("hands the asserted plan id through as written, leaving the admission to the lookup", async () => {
     const result = await evaluateReviewReadiness(
       readinessRequest(
         memberVehicle({ planId: PLAN_ID.toUpperCase() }),
         { headBranch: "delivery/plan/03" },
       ),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: identityLookup(memberIdentity({ planId: PLAN_ID.toUpperCase() })),
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  it("admits a member whose recorded head the head under review descends from", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+        // Two reads, not one: the head under review sits above this member's recorded head and below the
+        // next member's, which is the only span that belongs to this member alone.
+        readDeliveryAncestry: async (ancestor) =>
+          ancestor === MEMBER_ADVANCED_HEAD ? "ancestor" : "not-ancestor",
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  /**
+   * Members stack, so a head placed above one member's recorded head is placed above every earlier member's
+   * too. Without the upper bound the member selected from the request's own identity would admit a sibling's
+   * head, and the review of one member's change request would be credited to another's vehicle.
+   */
+  it.each([
+    ["carries the next member's recorded head", "ancestor" as const,
+      "delivery-member-successor-reached", "vehicle.deliverableId"],
+    ["cannot be placed against it", "unresolvable" as const,
+      "delivery-member-successor-unavailable", "pullRequest.headSha"],
+  ])("refuses an advance that %s", async (_case, successorAnswer, code, path) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+        readDeliveryAncestry: async (ancestor) =>
+          ancestor === MEMBER_ADVANCED_HEAD ? "ancestor" : successorAnswer,
+      },
+    );
+
+    expect(result).toMatchObject({ state: "invalid", payload: { facts: [{ code, path }] } });
+  });
+
+  /**
+   * The heads bound above a member are not ordered among themselves: an approved review fix republishes one
+   * member's coordinates alone, so a member two positions up can record a head that no longer descends from
+   * the one immediately above. Reading only the nearest would clear exactly that head.
+   */
+  it("refuses an advance that reaches a head bound above the nearest one", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+        // The nearest head above is not carried — that is the republished one — while the head two positions
+        // up is. A bound that stopped at the nearest would read this as this member's own advance.
+        readDeliveryAncestry: async (ancestor) =>
+          ancestor === SUCCESSOR_SHA ? "not-ancestor" : "ancestor",
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-successor-reached", path: "vehicle.deliverableId" }] },
+    });
+  });
+
+  it("admits an advance over a member the state binds nothing above", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD, successorHeads: [] })),
+        // Answering every read "ancestor" would refuse if anything were compared. Nothing is: with no
+        // head recorded above, there is no sibling head the head under review could be.
+        readDeliveryAncestry: async () => "ancestor",
+      },
+    );
+
+    expect(result.state).toBe("ready");
+  });
+
+  it("leaves an exact member head admitted without reading for a successor", async () => {
+    const readDeliveryAncestry = vi.fn(async () => "ancestor" as const);
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()), readDeliveryAncestry },
+    );
+
+    // The head under review is this member's recorded head, which is identity rather than topology, so the
+    // bound has nothing to add and the successor is never asked about.
+    expect(result.state).toBe("ready");
+    expect(readDeliveryAncestry).not.toHaveBeenCalledWith(SUCCESSOR_SHA, expect.anything());
+  });
+
+  // One read and two refusals. Both leave the member unadmitted, so a single code reads as harmless until the
+  // operator acts on it: the stale one asserts the head under review does not descend from the binding, which
+  // only the `not-ancestor` answer establishes, and it draws a rebind the unread case does not need.
+  it.each([
+    ["the review head does not descend from it", "not-ancestor" as const, "delivery-member-stale"],
+    ["ancestry could not be established", "unresolvable" as const, "delivery-member-relation-unavailable"],
+  ])("refuses a moved binding where %s, under its own reason", async (_case, answer, code) => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+        readDeliveryAncestry: async () => answer,
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code, path: "pullRequest.headSha" }] },
+    });
+  });
+
+  it("states the unread direction as unread rather than as a head that moved", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+        readDeliveryAncestry: async () => "unresolvable",
+      },
+    );
+
+    // The prose is the whole remedy here — the fact carries no dispatchable act — so the refusal has to say
+    // what it could not read and name the fetch that clears it, not assert a descent nobody established.
+    expect(result).toMatchObject({
+      payload: {
+        facts: [{
+          message: "The member's recorded head is not the head under review, and whether the head under "
+            + "review descends from it could not be read. Fetch the member's recorded head and rerun.",
+        }],
+      },
+    });
+  });
+
+  it("leaves an unmoved binding admitted with no ancestry reader supplied", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       { fs: buildFs({}), deliveryMemberLookup: memberLookup(resolvedMember()) },
     );
 
     expect(result.state).toBe("ready");
+  });
+
+  it("refuses a moved binding with no ancestry reader, rather than admitting the movement", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD })),
+      },
+    );
+
+    // An absent reader answers `unresolvable`, so this refuses under the unread reason for the same cause the
+    // injected reader reports it under: nobody established which way the pair relates.
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-relation-unavailable", path: "pullRequest.headSha" }] },
+    });
+  });
+
+  it("still names the terminal member when the head under review advanced past its binding", async () => {
+    const result = await evaluateReviewReadiness(
+      readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
+      {
+        fs: buildFs({}),
+        deliveryMemberLookup: memberLookup(resolvedMember({ head: MEMBER_ADVANCED_HEAD, isFinalMember: true })),
+        readDeliveryAncestry: async () => "ancestor",
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "invalid",
+      payload: { facts: [{ code: "delivery-member-terminal", path: "vehicle.deliverableId" }] },
+    });
   });
 
   it("refuses the plan's final member and admits a non-final one", async () => {
@@ -1088,7 +1328,7 @@ describe("delivery-member evaluation without work-unit lifecycle readiness", () 
       readinessRequest(memberVehicle(), { headBranch: "delivery/plan/03" }),
       {
         fs: buildFs({}, { missingRoot: true }),
-        deliveryMemberLookup: memberLookup({ status: "unbound" }),
+        deliveryMemberLookup: memberLookup({ status: "in-plan-unbound" }),
       },
     );
 

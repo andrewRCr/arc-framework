@@ -300,6 +300,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "assess-boundary-fit.md",
       "assess-design-proportionality.md",
       "assess-draft-readiness.md",
+      "assess-evidence-applicability.md",
       "adversarial-review.md",
       "classify-work-unit.md", "commit-footer.md",
       "commit-format.md",
@@ -370,7 +371,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness", "adversarial-review",
+        "assess-boundary-fit", "assess-design-proportionality", "assess-draft-readiness",
+        "assess-evidence-applicability", "adversarial-review",
         "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",

@@ -12,9 +12,12 @@
 
 import { describe, it, expect } from "vitest";
 
+import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { digestBytes } from "../../../../src/lib/canonical/canonical-json.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
+import { validatePlanningArtifactTuple } from "../../../../src/lib/work-unit/planning-artifact-tuple.js";
 import { runStub, type StubContext, type StubParams } from "../../../../src/lib/work-unit/verbs/stub.js";
 
 const CWD = "/repo";
@@ -29,12 +32,14 @@ interface Harness {
   ctx: StubContext;
   writes: { path: string; content: string }[];
   mkdirs: string[];
+  staged: string[];
 }
 
 /** Build a `runStub` context of spies over an empty index + an in-memory fs. */
 function buildHarness(): Harness {
   const writes: Harness["writes"] = [];
   const mkdirs: string[] = [];
+  const staged: string[] = [];
 
   const sideEffects: ExecuteTransitionContext["sideEffects"] = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user"] satisfies SideEffectId[]) {
@@ -52,6 +57,9 @@ function buildHarness(): Harness {
     writeCurrentWorkflowField: async () => {},
     writeDesignField: async () => {},
     writeSoftFields: async () => {},
+    stageMeta: async (path) => {
+      staged.push(path);
+    },
     sideEffects,
   };
 
@@ -64,7 +72,7 @@ function buildHarness(): Harness {
     },
   };
 
-  return { ctx: { executor, fs }, writes, mkdirs };
+  return { ctx: { executor, fs }, writes, mkdirs, staged };
 }
 
 const BASE: StubParams = {
@@ -102,7 +110,7 @@ describe("runStub — priority enforcement", () => {
 
 describe("runStub — scaffolds the selected tier", () => {
   it("scaffolds the planned-tier meta under backlog/ when both are supplied", async () => {
-    const { ctx, writes, mkdirs } = buildHarness();
+    const { ctx, writes, mkdirs, staged } = buildHarness();
 
     const result = await runStub(ctx, { ...BASE, commitment: "planned", priority: "P1" });
 
@@ -122,6 +130,7 @@ describe("runStub — scaffolds the selected tier", () => {
     expect(writes[0]!.content).toContain("# Metadata: foo");
     expect(writes[0]!.content).toContain("Planning");
     expect(writes[0]!.content).toContain("P1");
+    expect(staged).toEqual([result.metaPath]);
   });
 
   it("preserves accepted display sentinels at the semantic renderer boundary", async () => {
@@ -133,6 +142,34 @@ describe("runStub — scaffolds the selected tier", () => {
     expect(writes).toHaveLength(1);
     expect(writes[0]!.content).toContain("- **Origin:** [internal]");
     expect(writes[0]!.content).toContain("- **Design:** [none]");
+  });
+
+  it("emits a planned meta that the planning launch validator accepts", async () => {
+    const { ctx, writes } = buildHarness();
+    const result = await runStub(ctx, BASE);
+
+    expect(result.status).toBe("scaffolded");
+    if (result.status !== "scaffolded") return;
+    const content = writes[0]!.content;
+    expect(validatePlanningArtifactTuple({
+      expectedSlug: "foo",
+      metaPath: result.metaPath,
+      metaContent: content,
+      meta: parseMetaRecord(content),
+      artifacts: [{
+        path: result.metaPath,
+        state: {
+          kind: "file",
+          mode: "100644",
+          contentDigest: digestBytes(new TextEncoder().encode(content)),
+        },
+      }],
+    })).toMatchObject({
+      status: "valid",
+      profile: { kind: "draft", sourceDesign: [] },
+      expectedWorkflow: "draft-design",
+      taskAuthority: "none",
+    });
   });
 
   it("routes a provisional commitment to the provisional tier (edge disambiguation)", async () => {

@@ -2,7 +2,10 @@
 
 import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
-import type { DeliveryEligibilityCoordinates } from "./eligibility.js";
+import {
+  deriveDeliveryRewriteLifecycleRevalidation,
+  type DeliveryEligibilityCoordinates,
+} from "./eligibility.js";
 import type { DeliveryNativeStackObservation } from "./native-stack.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "./position.js";
 import {
@@ -725,6 +728,30 @@ export type DeliveryReviewFixPublicationResult =
       readonly recommendedActionText: string;
     }
   | { readonly status: "refused"; readonly reason: string };
+
+/**
+ * Bind a selected review-fix publication to its recorded chain predecessor.
+ *
+ * @param input - Current delivery state, selected member, candidate ref, and lifecycle paths.
+ * @returns The registry-aware lifecycle comparison input, or null when the selected member is unbound.
+ */
+export function deriveDeliveryReviewFixLifecycleRevalidation(input: {
+  readonly state: DeliveryStateV1;
+  readonly selectedDeliverableId: string;
+  readonly candidateRef: string;
+  readonly lifecyclePaths: readonly string[];
+}): ReturnType<typeof deriveDeliveryRewriteLifecycleRevalidation> | null {
+  const member = input.state.members.find(({ deliverableId }) => deliverableId === input.selectedDeliverableId);
+  const protectedBaseRef = input.state.target?.ref;
+  if (member?.coordinates === null || member?.coordinates === undefined || protectedBaseRef === undefined) return null;
+  return deriveDeliveryRewriteLifecycleRevalidation({
+    protectedBaseRef,
+    requestedPredecessorHead: member.coordinates.base,
+    candidateRef: input.candidateRef,
+    lifecyclePaths: input.lifecyclePaths,
+    workUnitId: input.state.workUnitId,
+  });
+}
 
 /** Validate and publish only the selected member before provider-native suffix refresh execution. */
 export async function publishSelectedDeliveryReviewFix(input: {

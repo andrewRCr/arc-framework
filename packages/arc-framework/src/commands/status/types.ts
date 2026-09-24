@@ -118,12 +118,6 @@ export type SessionInitWorktreeValue = (
 };
 
 /**
- * Base-distance slot in the session-init envelope. Extends the raw probe
- * result (HEAD vs `origin/<base>`) with the same precomputed action + prompt
- * text pair as the worktree slot, so the workflow renders a behind-base
- * reconcile offer without re-deriving it from state.
- */
-/**
  * A base-distance reading that resolved before any snapshot evidence was consulted.
  *
  * Bounded to exactly those arms: unbounded, the intersection also admitted
@@ -137,6 +131,12 @@ export type BaseDistanceNotApplicableResult = BaseDistanceStatusResult & {
   remoteEvidence: "not-applicable";
 };
 
+/**
+ * Base-distance slot in the session-init envelope. Extends the raw probe
+ * result (HEAD vs `origin/<base>`) with the same precomputed action + prompt
+ * text pair as the worktree slot, so the workflow renders a behind-base
+ * reconcile offer without re-deriving it from state.
+ */
 export type SessionInitBaseDistanceValue = (
   BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult
 ) & {
@@ -344,9 +344,9 @@ export interface SessionInitProbeResult {
   /**
    * Pre-computed errand-staleness sweep — errands pending past the configured
    * threshold (`inbox.remind_after_days`, default 1), surfaced for
-   * execute-or-demote. Advisory only. Present whenever identity resolved (the
-   * source is identity-scoped); omitted only when identity is absent. Unlike the
-   * worktree sweep it is not worktree-gated.
+   * execute-or-demote. Advisory only. Present when identity resolved on the
+   * primary worktree; omitted when identity is absent or the session is a linked
+   * worktree.
    */
   errandSweep?: Probe<ErrandStalenessSweepResult>;
   /**
@@ -380,9 +380,9 @@ export interface SessionInitProbeResult {
   /**
    * Pre-computed inbox-state probe — routable and execute-bound entry counts in
    * `USER-INBOX`, plus a `housekeepNeeded` flag, so the Orient arm offers
-   * housekeep from a machine-resolved signal rather than an agent re-scan. Present whenever
-   * identity resolved (the source is identity-scoped); omitted only when
-   * identity is absent.
+   * housekeep from a machine-resolved signal rather than an agent re-scan. Present
+   * when identity resolved on the primary worktree; omitted when identity is
+   * absent or the session is a linked worktree.
    */
   inboxState?: Probe<InboxStateResult>;
   /**
@@ -399,8 +399,9 @@ export interface SessionInitProbeResult {
   /**
    * Pre-computed user-notes compaction advisory — local notes-ref history size
    * compared to the internal threshold, plus a once-per-calendar-day nudge
-   * marker. Present when identity resolved and the optional probe is supplied;
-   * omitted when identity is absent or the probe is not supplied. Workflow
+   * marker. Present when identity resolved on the primary worktree and the
+   * optional probe is supplied; omitted when identity is absent, the session is
+   * a linked worktree, or the probe is not supplied. Workflow
    * renders it as offer-only guidance and never auto-runs compaction.
    */
   compactionAdvisory?: Probe<NotesCompactionSessionAdvisoryResult>;
@@ -738,20 +739,21 @@ export interface SessionInitProbes {
   /**
    * Errand-staleness sweep resolver. Receives the resolved identity; the handler
    * resolves the candidate entries and the `inbox.remind_after_days` threshold,
-   * then ages them. Fired in the eager phase whenever identity resolved;
-   * advisory, read-only.
+   * then ages them. Fired only on the primary worktree when identity resolved;
+   * omitted on linked worktrees. Advisory, read-only.
    */
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
   /**
    * Errand-state resolver. The orchestrator supplies the current branch,
-   * backing-meta signal, and the Orient/discovery gate. The handler binds the
-   * shared in-flight oracle (errand discovery derives from it), config, and
-   * nudge-marker reads.
+   * backing-meta signal, the Orient/discovery gate, and whether to read the
+   * once-per-day reminder nudge marker (primary only). The handler binds the
+   * shared in-flight oracle (errand discovery derives from it) and config.
    */
   errandState: (context: SessionRemoteContext, input: {
     currentBranch: string | null;
     hasBackingMeta: boolean;
     includeDiscovery: boolean;
+    includeNudge: boolean;
   }) => Promise<ErrandStateResult>;
   /**
    * Materializable-WU oracle slice. Fires the oracle's bounded network read
@@ -778,8 +780,9 @@ export interface SessionInitProbes {
   }) => Promise<WorkUnitStateResult>;
   /**
    * Inbox-state resolver. Receives the resolved identity; the handler reads
-   * `user/{identity}/USER-INBOX.md` and counts its routable and execute-bound entries. Fired in
-   * the eager phase whenever identity resolved; advisory, read-only.
+   * `user/{identity}/USER-INBOX.md` and counts its routable and execute-bound entries. Fired only
+   * on the primary worktree when identity resolved; omitted on linked
+   * worktrees. Advisory, read-only.
    */
   inboxState: (identity: string) => Promise<InboxStateResult>;
   /**
@@ -789,7 +792,7 @@ export interface SessionInitProbes {
    * eager phase whenever identity resolved; read-only, network-free.
    */
   partialPushMarker: (identity: string) => Promise<PartialPushMarkerSurfaceResult>;
-  /** User-notes compaction advisory resolver. Fired eagerly whenever identity resolved when provided. */
+  /** User-notes compaction advisory resolver. Fired on the primary worktree when identity resolved. */
   compactionAdvisory?: (identity: string) => Promise<NotesCompactionSessionAdvisoryResult>;
 }
 

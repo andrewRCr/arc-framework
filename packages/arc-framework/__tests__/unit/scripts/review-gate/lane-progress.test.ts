@@ -470,6 +470,110 @@ describe("hosted await lane recording", () => {
     expect(replay).toEqual(concluded);
   });
 
+  it("rejects selection added to a caller-supplied await handle after an unselected request", async () => {
+    const store = createStore();
+    await recordHostedPendingRequest(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      handle: deliveryHandle,
+      now: "2026-08-15T12:00:00Z",
+    });
+    const selectedHandle = {
+      ...deliveryHandle,
+      invocation: { mode: "force" as const, sourceId: deliveryHandle.provider },
+    };
+
+    await expect(recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: selectedHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:01:00Z",
+    })).rejects.toThrow("selected hosted attempt has no matching admitted request");
+  });
+
+  it("rejects a selected pending await without an admitted selected request", async () => {
+    const store = createStore();
+    await recordHostedPendingRequest(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      handle: deliveryHandle,
+      now: "2026-08-15T12:00:00Z",
+    });
+    const selectedHandle = {
+      ...deliveryHandle,
+      invocation: { mode: "force" as const, sourceId: deliveryHandle.provider },
+    };
+
+    await expect(recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: selectedHandle,
+        action: { schemaVersion: 1, handle: selectedHandle },
+        state: "pending",
+        nextAction: "await",
+        elapsedMs: 10,
+      },
+      now: "2026-08-15T12:01:00Z",
+    })).rejects.toThrow("selected hosted attempt has no matching admitted request");
+  });
+
+  it("advances an admitted selected request to a durable clean result", async () => {
+    const store = createStore();
+    const selectedHandle = {
+      ...deliveryHandle,
+      invocation: { mode: "force" as const, sourceId: deliveryHandle.provider },
+    };
+    await recordHostedPendingRequest(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      handle: selectedHandle,
+      now: "2026-08-15T12:00:00Z",
+    });
+    const stillPending = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: selectedHandle,
+        action: { schemaVersion: 1, handle: selectedHandle },
+        state: "pending",
+        nextAction: "await",
+        elapsedMs: 10,
+      },
+      now: "2026-08-15T12:00:30Z",
+    });
+    const concluded = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...deliveryHostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle: selectedHandle,
+        state: "clean",
+        nextAction: "complete",
+        reviewUrl: "https://example.invalid/review",
+      },
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    expect(concluded.attempts).toEqual([expect.objectContaining({
+      outcome: "clean",
+      hosted: expect.objectContaining({ handle: selectedHandle }),
+    })]);
+    expect(stillPending.attempts).toEqual([expect.objectContaining({ outcome: "pending" })]);
+  });
+
   it("retains the exact pending handle when unattended waiting requests inspection or extension", async () => {
     const store = createStore();
     const state = await recordHostedAwaitAttempt(store, {
@@ -661,6 +765,30 @@ describe("frontline lane recording", () => {
     });
     expect(state?.completedPasses).toBe(1);
     expect(state?.attempts[0]).toMatchObject({ chunkSeriesComplete: true });
+  });
+
+  it("supersedes a timed-out generation when its retry settles", async () => {
+    const store = createStore();
+    await recordFrontlineAttempt(store, {
+      attemptId: "frontline-generation-0",
+      outcome: frontlineOutcome("timed-out", { class: "execution-timeout" }),
+      now: "2026-08-15T12:00:00Z",
+    });
+    const state = await recordFrontlineAttempt(store, {
+      attemptId: "frontline-generation-1",
+      outcome: frontlineOutcome("findings", null),
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    expect(state).toMatchObject({
+      completedPasses: 1,
+      attempts: [{
+        attemptId: "frontline-generation-1",
+        sourceId: "coderabbit",
+        outcome: "findings",
+        chunkSeriesComplete: true,
+      }],
+    });
   });
 });
 

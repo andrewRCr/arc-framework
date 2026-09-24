@@ -18,6 +18,47 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make on-demand strategy loads section-addressable**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _WU_Target:_ `knowledge-architecture`
+
+- _Observation:_ A narrow dev-build handoff change fired `strategy-session-operations` because it touched a handoff
+  step, forcing the agent to read all 1,169 lines even though only the small lifecycle/failure contract was relevant.
+  The strategy trigger correctly made the doctrine reachable, but its whole-file granularity spent context and several
+  reads on unrelated loading, notes, interlock, and portability material.
+
+- _Approach:_ carry this as live evidence into `knowledge-architecture`'s existing "author for humans, address for
+  agents" direction. Let a strategy trigger resolve an exact stable section/read mode while preserving the coherent
+  monolith for human readers; coordinate the addressing substrate with `composable-workflows` rather than inventing a
+  second fragment mechanism.
+
+- _Captured during:_ `make-self-mutating-correction-drives-hand-off-a-fresh-dev-build` Errand, 2026-09-10.
+
+### `[ ]` **Make supplemental analysis reachable without knowing the file exists**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _Observation:_ `.arc/reference/supplemental/analysis/**` holds durable evidence records that outlive their work
+  unit, and nothing summons them. No `STRATEGY-INDEX` firing condition names the directory, no method loads from
+  it, and no always-loaded surface points at it — a document there reaches a later session only if that session
+  already knows the filename. This is now the second recorded instance: WORKING-MEMORY carries the same gap for
+  `analysis-load-set-scoping`, whose removal trigger is written as "its findings are reachable from an
+  always-loaded surface rather than only by knowing the file exists".
+
+- _Evidence:_ `test-suite-right-sizing` writes `analysis-test-suite-cost-baseline.md` as the durable measurement
+  record its spec, its task list, and at least two successor work units read from. Its own corrections during
+  planning — the remote-leak call sites, and the per-file metric's exclusion of transform and import time — are
+  exactly the kind of finding a later reader must not miss, and exactly the kind nothing routes them to.
+
+- _Approach:_ Two candidate shapes, and the choice is the point: a `STRATEGY-INDEX` firing condition covering the
+  analysis directory as a class, or per-document absorption into the strategy that owns each one. The first is
+  atomic; the second is a routing model for supplemental material generally, and touches
+  `strategy-knowledge-evolution` territory. Settle which before doing either.
+
+- _Captured during:_ `test-suite-right-sizing` planning close, 2026-09-10.
+
 ### `[ ]` **Groom method-loading owners around the landed dependency substrate**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-08-22);

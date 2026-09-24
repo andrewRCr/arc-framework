@@ -510,7 +510,7 @@ describe("composeProjectReadinessView", () => {
     expect(wrongSlug.records.some((record) => record.slug === oldSlug)).toBe(true);
   });
 
-  it("keeps a genuine live sibling ahead of its completed tree record", async () => {
+  it("keeps a completed record authoritative over a branch-only sibling claim", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const ownSlug = "own-transition";
     const ownBranch = `feat/${ownSlug}`;
@@ -543,9 +543,14 @@ describe("composeProjectReadinessView", () => {
     });
 
     expect(input.records.find((record) => record.slug === siblingSlug)).toMatchObject({
-      location: "active",
-      state: "Active",
-      priority: "P1",
+      location: "completed",
+      state: "Shipped",
+      priority: "P3",
+      source: { kind: "completed-index" },
+      sources: expect.arrayContaining([
+        expect.objectContaining({ kind: "completed-index" }),
+        expect.objectContaining({ kind: "in-flight-meta" }),
+      ]),
     });
   });
 
@@ -830,8 +835,7 @@ describe("mergeProjectReadinessRecords", () => {
         priority: "P3",
         cohort: "old-cohort",
       }),
-      record("superseded", {
-        location: "active",
+      inFlightRecord("superseded", {
         owner: "active-owner",
         priority: "P1",
         cohort: "new-cohort",
@@ -845,11 +849,76 @@ describe("mergeProjectReadinessRecords", () => {
         owner: "active-owner",
         priority: "P1",
         cohort: "new-cohort",
-        source: expect.objectContaining({ kind: "active-meta" }),
+        source: expect.objectContaining({ kind: "in-flight-meta" }),
         sources: expect.arrayContaining([
-          expect.objectContaining({ kind: "active-meta" }),
+          expect.objectContaining({ kind: "in-flight-meta" }),
           expect.objectContaining({ kind: "backlog-stub" }),
         ]),
+      }),
+    ]);
+  });
+
+  it("keeps canonical Shipped state terminal over branch observations and parked overlays", () => {
+    const completed = record("terminal", {
+      location: "completed",
+      state: "Shipped",
+      priority: "P2",
+    });
+    const observed = inFlightRecord("terminal", {
+      state: "Active",
+      priority: "P1",
+      scheduling: "parked",
+    });
+
+    const forward = mergeProjectReadinessRecords([completed, observed]);
+    const reverse = mergeProjectReadinessRecords([observed, completed]);
+
+    expect(forward).toEqual(reverse);
+    expect(forward).toEqual([
+      expect.objectContaining({
+        slug: "terminal",
+        location: "completed",
+        state: "Shipped",
+        priority: "P2",
+        source: expect.objectContaining({ kind: "completed-index" }),
+        sources: [
+          expect.objectContaining({ kind: "completed-index" }),
+          expect.objectContaining({ kind: "in-flight-meta" }),
+        ],
+      }),
+    ]);
+    expect(forward[0]).not.toHaveProperty("scheduling");
+  });
+
+  it("keeps canonical active state ahead of an older completed record", () => {
+    const records = mergeProjectReadinessRecords([
+      record("reactivated", { location: "completed", state: "Shipped" }),
+      record("reactivated", { location: "active", state: "Active", priority: "P1" }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "reactivated",
+        location: "active",
+        state: "Active",
+        priority: "P1",
+        source: expect.objectContaining({ kind: "active-meta" }),
+      }),
+    ]);
+  });
+
+  it("does not grant terminal authority to a non-Shipped completed record", () => {
+    const records = mergeProjectReadinessRecords([
+      record("incomplete-archive", { location: "completed", state: "Integrating" }),
+      inFlightRecord("incomplete-archive", { state: "Active", priority: "P1" }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "incomplete-archive",
+        location: "active",
+        state: "Active",
+        source: expect.objectContaining({ kind: "in-flight-meta" }),
       }),
     ]);
   });
@@ -1152,4 +1221,19 @@ function record(
     dependsOn: [],
     ...fields,
   };
+}
+
+function inFlightRecord(
+  slug: string,
+  fields: Partial<ProjectReadinessRecordCandidate> = {},
+): ProjectReadinessRecordCandidate {
+  return record(slug, {
+    location: "active",
+    source: {
+      kind: "in-flight-meta",
+      location: "active",
+      path: `origin/feat/${slug}:.arc/active/meta-${slug}.md`,
+    },
+    ...fields,
+  });
 }

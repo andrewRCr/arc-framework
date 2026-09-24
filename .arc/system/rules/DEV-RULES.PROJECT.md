@@ -23,6 +23,39 @@ Four gate behaviors that reference does not carry, each of which fails quietly:
   run cannot hide a dirty index.
 - Run **both** type checks before declaring types green. Vitest's esbuild transpile skips type-checking, so a
   test-only type error passes a source-only check and surfaces only at commit.
+- `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
+  not evidence that the changed code passed.
+
+### Size and complexity baseline
+
+`src/**` gates on function length, file length, cyclomatic complexity, nesting depth, and nested callbacks;
+`__tests__/**` gates on file length only, because `describe` bodies make a per-function limit meaningless there.
+The thresholds live in `eslint.config.js`, which is their only authority. Violations that predate the gate are
+recorded in `packages/arc-framework/eslint-suppressions.json`, which the lint run reads automatically.
+
+That record is a **floor — "no worse than this" — not a backlog.** It bounds new debt; reducing what it already
+holds is separate, owned work, and nothing about the record's size is a commitment.
+
+Four behaviors decide whether the gate tells the truth:
+
+- **Run it through the npm scripts.** Baseline keys are relative to the directory ESLint runs in, so a bare
+  `npx eslint <path>` from the repository root finds no baseline and reports every recorded violation as new.
+  `lint:ts` and `lint:ts:file` both run with the package as their working directory.
+- **Only a whole-project run can shrink the record.** Pruning examines just the files in the current run, so a
+  per-file run can never notice that a violation was fixed. After reducing one, run `lint:ts` — it exits 2 and
+  names the unused suppression — then re-run it with `--prune-suppressions` and commit the shrunk record.
+- **A new violation surfaces its whole bucket.** Suppressions count violations per file per rule, never per
+  line, so exceeding a recorded count reports _every_ violation of that rule in the file. Attribute by diff:
+  the violations on lines the branch changed are its own, and the rest are pre-existing. The count delta
+  against the recorded entry is only the minimum the gate will accept — it under-reports a change that fixed
+  one violation while adding two.
+- **Never re-run `--suppress-rule` to clear a red gate.** That records the new violation as permanent debt,
+  which is the one thing the record exists to prevent.
+
+The record cannot see two things, and both close by remediation rather than by more gate. An already-recorded
+unit can grow worse while its count stays put. And a swap is invisible: fix one violation of a rule in a file
+while adding another of the same rule to the same file, and the bucket stays exactly full — the run stays green
+and pruning finds nothing to report.
 
 ### Selecting what to run
 
@@ -39,6 +72,21 @@ provably cannot affect; never spend thought on the cheap ones.
 | No Markdown touched            | The code checks                         | nothing — the Markdown side costs ~7.6s  |
 | Mixed, config, or unrecognized | Everything                              | nothing — fail closed                    |
 
+**Test-lane selection — derive it from changed paths.** Changes confined to one test lane run that lane's command:
+`test:changed` selects both `unit` and `unit-mocks`, while integration and E2E have separate commands. Source or
+tooling changes reach every tier through the routine local lane plus required CI.
+
+| Changed paths                                     | Local test command            | Required remainder                 |
+| ------------------------------------------------- | ----------------------------- | ---------------------------------- |
+| `__tests__/unit/**` or isolated unit-mock files   | `npm run -s test:changed`     | none                               |
+| `__tests__/integration/**` only                   | `npm run -s test:integration` | none                               |
+| `__tests__/e2e/**` only                           | `npm run -s test:e2e`         | none                               |
+| `src/**`, build/test config, or unrecognized code | `npm test`                    | E2E and portability in required CI |
+
+`npm test` is the routine local lane: unit, unit-mocks, and integration in one admitted run. E2E is enforced by
+the heavy CI lane before merge; run it locally only when E2E files changed or when explicitly requested. Run
+`npm run test:full` when a deliberate whole-project local test pass is useful.
+
 The ARC contract checks (`lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`) validate
 methodology artifacts rather than code, are corpus-wide by design, and cost ~0.7s combined — so they ride with
 any Markdown change and never earn a relevance carve-out of their own. They are also required in CI: omitting
@@ -50,11 +98,11 @@ code: it reaches every check.
 **Unchanged tree — a completed tier is not re-executed over an unchanged tree.** A green result stays valid
 until an input it covers changes. When a boundary calls for a tier that already ran green and the delta since
 reaches nothing that tier covers, report it as already satisfied instead of re-running it; a skip that goes
-unrecorded reads as coverage nobody actually has. This narrows repeat runs of the same tier — it never licenses
-running a tier partially, and Tier 3 in particular is still run whole.
+unrecorded reads as coverage nobody actually has. This narrows repeat runs of the same tier; complete every
+project-designated check in the selected gate.
 
-Re-running **is** warranted after a base merge, after any review-driven fix, and at the first full-suite
-attestation of composed work — each introduces state no prior run saw.
+Re-running **is** warranted after a base merge, after any review-driven fix, and at the first composed-work
+attestation — each introduces state no prior run saw.
 
 ## Testing Requirements
 
@@ -75,6 +123,12 @@ expectation, observe fresh external state, refuse mismatches, and disclose any r
 capability merely because the platform cannot enforce a guarantee ARC does not require at comparable seams. This does
 not relax distrust of agent self-attestation or exactness over ARC-owned single-writer records.
 
+**Recovery-complete refusals:** An operational refusal is incomplete unless it distinguishes terminal failure from a
+recoverable stop. A recoverable refusal must preserve a safe retry or restart route, report the observed condition,
+name an actionable remedy, and keep the normal success path reachable after repair. At material boundaries,
+verification must cover both the refusal and successful continuation after the condition is repaired. Do not add
+guard-only dead ends.
+
 **TypeScript standards:**
 
 - Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries
@@ -85,6 +139,20 @@ not relax distrust of agent self-attestation or exactness over ARC-owned single-
   (never bake one consumer's "safe default" into a shared resolver — e.g. identity helpers)
 - TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
   describing the module's purpose
+- Write inside the size gate rather than against it: in `src/**`, functions ≤100 lines and cyclomatic
+  complexity ≤15, files ≤1000 lines, nesting depth and nested callbacks ≤4; in `__tests__/**`, files
+  ≤1500 lines and nothing else — blank lines and comments do not count, and `eslint.config.js` is the
+  authority
+
+## Self-Hosting Defects
+
+This repository uses ARC to build ARC, so an ARC refusal or workflow dead end may expose an unfinished or defective
+control, not a final veto. Diagnose it and make safe, in-scope repairs and retries. If the repair is not already owned
+or planned, propose a proportionate Errand or work-unit capture at the next natural report boundary; routing the defect
+does not itself halt the present task. Continue by the narrowest sound path. Before crossing a failed ARC control,
+disclose why it appears defective and what remains unverified, then obtain explicit Owner direction for that specific
+workaround. Never report a failed check as passed or bypass higher-priority instructions or independently required
+quality and merge gates.
 
 ## Documentation Standards
 

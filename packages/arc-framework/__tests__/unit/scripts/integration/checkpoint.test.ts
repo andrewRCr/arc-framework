@@ -4,12 +4,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkpointIntegration,
+  CheckpointAmbiguousBaseError,
+  type DeliveryClassifierCommand,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
+import { CandidateSubjectUncollectableError } from "../../../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
+import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -57,6 +61,8 @@ const CLEAN_DRIFT = {
   behind: 0,
   base: "main",
   baseOid: oid("b"),
+  headOid: oid("c"),
+  movement: "disjoint" as const,
   integrationEvidence: {
     coverage: "complete" as const,
     scannedCommitCount: 0,
@@ -79,6 +85,8 @@ function dependencies(): IntegrationCheckpointDependencies {
       behind: 1,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
+      movement: "overlapping",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 1,
@@ -87,10 +95,20 @@ function dependencies(): IntegrationCheckpointDependencies {
         truncated: false,
         limitations: [],
       },
-      overlap: { status: "available", substantivePaths: [], regenerablePaths: ["ROADMAP.md"] },
+      overlap: { status: "available", substantivePaths: ["src/example.ts"], regenerablePaths: [] },
       register: { kind: "attention", text: "Base moved." },
     }),
-    readReconcileHost: async () => ({ state: "mergeable" }),
+    readMovementObservation: async () => ({
+      feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+      admission: {
+        state: "mergeable",
+        repository: "owner/repo",
+        changeRequest: 42,
+        baseRef: "main",
+        base: oid("b"),
+        head: oid("c"),
+      },
+    }),
     classifyDeliveryDrift: async () => ({ status: "not-applicable" }),
     readLifecycle: async () => ({
       workUnit: "example",
@@ -107,11 +125,13 @@ function dependencies(): IntegrationCheckpointDependencies {
       recognizedRevision: oid("c"),
       implementationChanged: false,
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     }),
     composeCandidateApplicabilityResolutionSelector: async () => {
       throw new Error("a current Candidate does not require an applicability selector");
     },
     readCandidatePublication: async () => ({ status: "current" as const }),
+    readDeliveryTerminalRemedy: async () => null,
     composeDelivery: async () => ({ status: "not-applicable" }),
     readShippedDeliveryPublicationCommit: async () => ({ status: "none" }),
     resolveMergeMethod: async (_repository, stackPosition) => ({
@@ -147,7 +167,10 @@ function dependencies(): IntegrationCheckpointDependencies {
       },
     }),
     composeSettlementPlan: async () => composeCanonicalSettlementPlan([]),
-    createHandle: async () => `checkpoint-v1:${oid("c")}:${digest("e")}`,
+    createHandle: async () => ({
+      status: "created",
+      handle: `checkpoint-v1:${oid("c")}:${digest("e")}`,
+    }),
   };
 }
 
@@ -210,20 +233,20 @@ describe("integration checkpoint", () => {
       });
   });
 
-  it("returns a typed refusal when applicability selector composition fails", async () => {
+  /** The bounded decision that routes the checkpoint into composing an applicability resolution selector. */
+  function boundedApplicabilityDecision() {
     const subject = (source: string) => createCandidateSubjectSnapshot([{
       path: "src/example.ts",
       mode: "100644",
       digest: canonicalDigest({ source }),
       treatment: "reviewable",
     }]);
-    const request = {
+    const decision = classifyCandidateApplicability({
       candidateId: digest("c"),
       baselineTarget: { revision: oid("a"), subject: subject("prior") },
       currentTarget: { revision: oid("c"), subject: subject("current") },
       currentBase: oid("b"),
-    };
-    const decision = classifyCandidateApplicability(request, {
+    }, {
       endpoints: {
         before: {
           predecessor: { head: oid("1"), tree: oid("2") },
@@ -237,6 +260,11 @@ describe("integration checkpoint", () => {
       proof: { status: "refused", reason: "contribution-diverged", paths: ["src/example.ts"] },
     });
     if (decision.state !== "decision-required") throw new Error("expected a bounded applicability decision");
+    return decision;
+  }
+
+  it("returns a typed refusal when applicability selector composition fails", async () => {
+    const decision = boundedApplicabilityDecision();
 
     for (const drift of ["reconcile", "clean"] as const) {
       const deps = dependencies();
@@ -256,6 +284,46 @@ describe("integration checkpoint", () => {
     }
   });
 
+  it("names the merge when a selector stops on a base the branch does not resolve against", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readCandidate = async () => boundedApplicabilityDecision();
+    deps.composeCandidateApplicabilityResolutionSelector = async () => {
+      throw new CheckpointAmbiguousBaseError("The selector's subject has more than one base coordinate.");
+    };
+
+    // The ordinary composition refusal invites a rerun, and a rerun reads the same history and stops the same
+    // way. Only the merge that collapses the pair changes the answer, so the refusal has to ask for it.
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The selector's subject has more than one base coordinate.",
+        remedy: {
+          invariant: "A checkpoint composes over the one revision the branch contributes against, which a "
+            + "history leaving two equally good ancestors does not name.",
+          argv: ["arc", "integrate", "checkpoint", "example"],
+        },
+      });
+  });
+
+  it("names the same merge when delivery composition stops on it", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.composeDelivery = async () => {
+      throw new CheckpointAmbiguousBaseError("The delivery terminal's predecessor base is not one coordinate.");
+    };
+
+    // The second raise reaches a different catch, so proving one proves nothing about the other.
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The delivery terminal's predecessor base is not one coordinate.",
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
+      });
+  });
+
   it("returns a safe behind-base verdict with the validated facts", async () => {
     const deps = dependencies();
     const readCandidate = deps.readCandidate;
@@ -263,23 +331,130 @@ describe("integration checkpoint", () => {
       ? readCandidate(workUnit, baseRevision)
       : null;
 
-    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
-      .resolves.toMatchObject({
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+    expect(result).toMatchObject({
         state: "reconcile",
         nextAction: "reconcile-base",
+        reason: "base-reconcile-required",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", oid("c"),
+          ],
+        },
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
           candidateHead: oid("c"),
-          safety: {
-            baseOid: oid("b"),
+          observation: {
+            movement: "overlapping",
             integrationEvidenceComplete: true,
-            overlapAvailable: true,
-            substantivePaths: [],
-            regenerablePaths: ["ROADMAP.md"],
-            host: { state: "mergeable" },
-            safe: true,
+            feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+            admission: { state: "mergeable", base: oid("b"), head: oid("c") },
           },
         },
+      });
+    if (result.state !== "reconcile") throw new Error("expected base reconciliation");
+    expect(BaseMergeInputSchema.parse({
+      expectedBase: result.remedy.argv[4],
+      expectedHead: result.remedy.argv[6],
+    })).toEqual({ expectedBase: oid("b"), expectedHead: oid("c") });
+  });
+
+  it("continues directly to approval for disjoint exact-pair movement", async () => {
+    const deps = dependencies();
+    const readDrift = deps.readDrift;
+    deps.readDrift = async (workUnit) => {
+      const drift = await readDrift(workUnit);
+      if (drift.verdict !== "clean" && drift.verdict !== "reconcile") {
+        throw new Error("expected a healthy drift reading");
+      }
+      return {
+        ...drift,
+        movement: "disjoint",
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      };
+    };
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "ready",
+        nextAction: "request-approval",
+        payload: {
+          movementObservation: {
+            movement: "disjoint",
+            feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+            admission: { state: "mergeable", base: oid("b"), head: oid("c") },
+          },
+        },
+      });
+  });
+
+  it("blocks when drift and merge observations name different heads", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => ({ ...CLEAN_DRIFT, headOid: oid("d") });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "unsafe-reconcile",
+        detail: "Git feasibility belongs to a different head than the drift observation.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("d") },
+        payload: {
+          drift: { headOid: oid("d") },
+          observation: { feasibility: { head: oid("c") }, admission: { head: oid("c") } },
+        },
+      });
+  });
+
+  it("returns the distinct regenerable reconcile continuation", async () => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: {
+        state: "regenerable-conflict", base: oid("b"), head: oid("c"), paths: ["ROADMAP.md"],
+      },
+      admission: {
+        state: "mergeable", repository: "owner/repo", changeRequest: 42, baseRef: "main",
+        base: oid("b"), head: oid("c"),
+      },
+    });
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "reconcile",
+        nextAction: "reconcile-regenerable",
+        reason: "regenerable-reconcile-required",
+        remedy: {
+          argv: [
+            "arc", "base", "merge",
+            "--expected-base", oid("b"),
+            "--expected-head", oid("c"),
+            "--regenerate-roadmap",
+          ],
+        },
+        payload: { candidateHead: oid("c") },
+      });
+  });
+
+  it("preserves unresolved host detail and one bounded retry remedy", async () => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+      admission: {
+        state: "unresolved",
+        repository: "owner/repo",
+        changeRequest: 42,
+        baseRef: "main",
+        base: oid("b"),
+        head: oid("c"),
+        detail: "Host is still computing exact admission.",
+      },
+    });
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "host-pending",
+        payload: { detail: "Host is still computing exact admission." },
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
       });
   });
 
@@ -299,10 +474,12 @@ describe("integration checkpoint", () => {
       status: "reconcile",
       nextAction: "reconcile-base",
       safetyClass: "residual-contained",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c"), mergeBase: oid("a") },
     });
-    deps.readReconcileHost = async () => {
+    const readMovementObservation = deps.readMovementObservation;
+    deps.readMovementObservation = async (workUnit, drift) => {
       events.push("host-read");
-      return { state: "mergeable" };
+      return readMovementObservation(workUnit, drift);
     };
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -311,7 +488,7 @@ describe("integration checkpoint", () => {
         nextAction: "reconcile-base",
         payload: {
           drift: { verdict: "reconcile", baseOid: oid("b") },
-          safety: { safe: true, baseOid: oid("b"), substantivePaths: ["terminal.ts"] },
+          observation: { movement: "overlapping", feasibility: { state: "clean" } },
         },
       });
     expect(events).toEqual(["host-read"]);
@@ -332,6 +509,7 @@ describe("integration checkpoint", () => {
       status: "reconcile",
       nextAction: "reconcile-base",
       safetyClass: "generic",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c"), mergeBase: oid("a") },
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -339,7 +517,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "unsafe-reconcile",
-        payload: { safety: { safe: false, substantivePaths: ["union-only.ts"] } },
+        payload: { observation: { movement: "overlapping" } },
       });
   });
 
@@ -349,10 +527,12 @@ describe("integration checkpoint", () => {
     deps.classifyDeliveryDrift = async () => ({
       status: "unavailable",
       detail: "The delivery predecessor coordinate is unavailable.",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+      nextAction: { command: "rerun-checkpoint", workUnit: "example" },
     });
-    deps.readReconcileHost = async () => {
+    deps.readMovementObservation = async () => {
       events.push("host-read");
-      return { state: "mergeable" };
+      throw new Error("must not read movement observations");
     };
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
@@ -363,28 +543,115 @@ describe("integration checkpoint", () => {
         payload: {
           reason: "drift-classification-unavailable",
           detail: "The delivery predecessor coordinate is unavailable.",
+          driftEvidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+          classifierAction: { command: "rerun-checkpoint", workUnit: "example" },
         },
       });
     expect(events).toEqual([]);
   });
 
-  it("blocks as an unsafe reconcile when the host says the merge conflicts", async () => {
-    // The analyzer half is clean and the only drifted path is regenerable; host mergeability is
-    // still the whole host signal, because a conflict report names no paths to weigh against it.
+  /**
+   * The classifier names four acts and the refusal beside them has to be the act each one names.
+   *
+   * Three of them are reached by doing something other than running this command again: two merges the
+   * checkpoint cannot perform for the operator, and a baseline that has to be re-pinned because both revisions
+   * of its pair are fixed and no merge moves either. Only the unnamed act resumes here.
+   */
+  it.each<[DeliveryClassifierCommand, string, readonly string[]]>([
+    [
+      "rerun-checkpoint",
+      "Apply the returned delivery remedy or resolve its reported evidence, then re-run",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+    [
+      "reconcile-base",
+      "Merge the configured base into the branch, then re-run",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+    [
+      "merge-unrelated",
+      "give the two one common ancestor and re-run",
+      ["git", "merge", "--allow-unrelated-histories", oid("b")],
+    ],
+    [
+      "rebaseline",
+      "Re-pin the durable baseline over freshly verified content by rooting a new lineage",
+      ["arc", "attest", "example", "--new-root"],
+    ],
+  ])("hands back the act a classifier naming %s reports, not the command that reported it", async (
+    command,
+    correction,
+    argv,
+  ) => {
     const deps = dependencies();
-    deps.readReconcileHost = async () => ({ state: "conflicting" });
+    deps.classifyDeliveryDrift = async () => ({
+      status: "unavailable",
+      detail: "The delivery predecessor coordinate is unavailable.",
+      evidence: { baseRevision: oid("b"), baselineRevision: oid("c") },
+      nextAction: { command, workUnit: "example" },
+    });
+
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+
+    expect(result).toMatchObject({ state: "blocked", reason: "delivery-terminal-blocked" });
+    expect(result).toHaveProperty("remedy.argv", argv);
+    expect((result as { remedy: { text: string } }).remedy.text).toContain(correction);
+  });
+
+  it("preserves terminal predecessor-overlap evidence and explanation", async () => {
+    const deps = dependencies();
+    deps.classifyDeliveryDrift = async () => ({
+      status: "refused",
+      reason: "predecessor-overlap",
+      paths: ["src/shared.ts"],
+      explanation: "Protected-base movement overlaps the retained delivery predecessor contribution.",
+      evidence: {
+        baseRevision: oid("b"),
+        baselineRevision: oid("c"),
+        mergeBase: oid("a"),
+        substantivePaths: ["src/shared.ts"],
+        regenerablePaths: [],
+        residualPaths: [],
+        predecessorPaths: ["src/shared.ts"],
+      },
+    });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "blocked",
-        reason: "unsafe-reconcile",
+        reason: "delivery-terminal-blocked",
         payload: {
-          safety: {
-            substantivePaths: [],
-            regenerablePaths: ["ROADMAP.md"],
-            host: { state: "conflicting" },
-            safe: false,
+          reason: "predecessor-overlap",
+          paths: ["src/shared.ts"],
+          explanation: "Protected-base movement overlaps the retained delivery predecessor contribution.",
+          driftEvidence: {
+            baseRevision: oid("b"),
+            baselineRevision: oid("c"),
+            mergeBase: oid("a"),
+            predecessorPaths: ["src/shared.ts"],
           },
+        },
+      });
+  });
+
+  it("blocks with exact paths when Git feasibility reports a substantive conflict", async () => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: {
+        state: "substantive-conflict", base: oid("b"), head: oid("c"), paths: ["src/conflict.ts"],
+      },
+      admission: {
+        state: "mergeable", repository: "owner/repo", changeRequest: 42, baseRef: "main",
+        base: oid("b"), head: oid("c"),
+      },
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "conflict",
+        payload: {
+          paths: ["src/conflict.ts"],
         },
       });
   });
@@ -399,7 +666,14 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: null,
+      headOid: null,
       unavailableReason: "fetch-failed",
+      detail: "The remote base could not be fetched.",
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: {
+        kind: "terminal-explanation",
+        terminalExplanation: "Restore remote access before retrying the authoritative drift read.",
+      },
       integrationEvidence: null,
       overlap: null,
       register: { kind: "degraded", text: "Remote unavailable." },
@@ -411,8 +685,73 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "drift-unavailable",
+        remedy: {
+          invariant: "The checkpoint requires an authoritative base-drift read.",
+          text: expect.stringContaining(
+            "Resolve the reported authoritative drift failure, then re-run the checkpoint",
+          ),
+          argv: ["arc", "integrate", "checkpoint", "example"],
+        },
         payload: {
           drift: { verdict: "unavailable", unavailableReason: "fetch-failed" },
+        },
+      });
+  });
+
+  /**
+   * Leaves the branch and its base with no provable movement between them, by the stated cause.
+   *
+   * Both causes report the same movement token, and the whole checkpoint is the only place that shows which act
+   * an operator is actually sent to perform: the plan carries a reason, and the remedy answering it is chosen a
+   * layer above.
+   */
+  function unknownMovement(status: "ambiguous" | "unrelated") {
+    return {
+      ...CLEAN_DRIFT,
+      verdict: "reconcile" as const,
+      state: "diverged" as const,
+      behind: 1,
+      movement: "unknown" as const,
+      overlap: { status },
+      register: { kind: "attention" as const, text: "Base movement is unknown." },
+    };
+  }
+
+  it("hands back the hand merge when the branch and its base share no history", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => unknownMovement("unrelated");
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: "stop",
+        reason: "base-unrelated",
+        remedy: {
+          invariant: "Base movement can be proved only between revisions with a common ancestor.",
+          argv: ["git", "merge", "--allow-unrelated-histories", oid("b")],
+        },
+      });
+  });
+
+  it("refuses the whole command when the branch and its base share more than one merge base", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => unknownMovement("ambiguous");
+    // The subject reader answers this history the way the repository does: it cannot collect against a pair
+    // naming two best ancestors, so the command never reaches the movement plan's reconcile arm.
+    deps.readCandidate = async () => {
+      throw new CandidateSubjectUncollectableError(
+        "merge-base-ambiguous",
+        "The revisions have more than one best merge base.",
+      );
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: "The revisions have more than one best merge base.",
+        remedy: {
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
       });
   });
@@ -488,6 +827,8 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
+      movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 0,
@@ -526,6 +867,38 @@ describe("integration checkpoint", () => {
             },
             extensionReport: { label: "Extension report", content: null },
           },
+        },
+      });
+  });
+
+  it("returns a typed recompose result when the Candidate record moves before persistence", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.createHandle = async () => ({
+      status: "recompose-required",
+      expectedRecordVersion: digest("a"),
+      observedRecordVersion: digest("b"),
+    });
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toEqual({
+        schemaVersion: 1,
+        mode: "integrate-checkpoint",
+        workUnit: "example",
+        state: "recompose-required",
+        nextAction: "rerun-checkpoint",
+        reason: "candidate-record-moved",
+        detail: "The Candidate record changed before checkpoint persistence completed.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("c") },
+        remedy: {
+          invariant: "The ready composition binds the exact satisfied Candidate head.",
+          text: "The ready composition binds the exact satisfied Candidate head. Resolve the reported composition "
+            + "failure, then re-run: `arc integrate checkpoint example`.",
+          argv: ["arc", "integrate", "checkpoint", "example"],
+        },
+        payload: {
+          expectedRecordVersion: digest("a"),
+          observedRecordVersion: digest("b"),
         },
       });
   });
@@ -583,7 +956,7 @@ describe("integration checkpoint", () => {
         nextAction: "retarget",
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "delivery", "top-remedy", "-", "--json"],
+          argv: ["arc", "delivery", "top-remedy", "-"],
           stdin: {
             planId: PLAN_ID,
             action: "retarget",
@@ -598,6 +971,95 @@ describe("integration checkpoint", () => {
         },
       });
     expect(events).toEqual([]);
+  });
+
+  it.each([
+    ["retarget", "pending host admission"],
+    ["reopen-and-retarget", "closed terminal request"],
+  ] as const)("returns %s before %s blocks checkpointing", async (action, condition) => {
+    const deps = dependencies();
+    const events: string[] = [];
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.readMovementObservation = condition === "closed terminal request"
+      ? async () => {
+          events.push("host-admission");
+          throw new Error("The terminal request is closed.");
+        }
+      : async () => {
+          events.push("host-admission");
+          return {
+            feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+            admission: {
+              state: "unresolved", repository: "owner/repo", changeRequest: 42,
+              baseRef: "main",
+              base: oid("b"), head: oid("c"), detail: "Host admission is pending.",
+            },
+          };
+        };
+    deps.readDeliveryTerminalRemedy = async () => {
+      events.push("terminal-target");
+      return {
+        status: "blocked",
+        nextAction: action,
+        reason: "top-target-mismatch",
+        planId: PLAN_ID,
+        remedy: {
+          nextAction: action,
+          repository: "owner/repo",
+          changeRequestId: "42",
+          protectedBaseRef: "main",
+        },
+      };
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        nextAction: action,
+        reason: "delivery-terminal-blocked",
+        remedy: {
+          argv: ["arc", "delivery", "top-remedy", "-"],
+          stdin: { planId: PLAN_ID, action, repository: "owner/repo", protectedBaseRef: "main" },
+        },
+      });
+    expect(events).toEqual(["terminal-target"]);
+  });
+
+  it("reobserves delivery after host admission before composing readiness", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const events: string[] = [];
+    deps.readDeliveryTerminalRemedy = async () => {
+      events.push("terminal-target");
+      return null;
+    };
+    const readMovementObservation = deps.readMovementObservation;
+    deps.readMovementObservation = async (workUnit, drift) => {
+      events.push("host-admission");
+      return readMovementObservation(workUnit, drift);
+    };
+    let deliveryReads = 0;
+    deps.composeDelivery = async () => {
+      events.push("full-delivery");
+      deliveryReads += 1;
+      return {
+        status: "blocked",
+        nextAction: "retarget",
+        reason: "top-target-mismatch",
+        planId: PLAN_ID,
+        remedy: {
+          nextAction: "retarget",
+          repository: "owner/repo",
+          changeRequestId: "42",
+          protectedBaseRef: "main",
+        },
+      };
+    };
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({ state: "blocked", nextAction: "retarget" });
+    expect(deliveryReads).toBe(1);
+    expect(events).toEqual(["terminal-target", "host-admission", "full-delivery"]);
   });
 
   it("stops when a delivery terminal result lacks coordinates for its retarget remedy", async () => {
@@ -615,7 +1077,7 @@ describe("integration checkpoint", () => {
         nextAction: "stop",
         reason: "delivery-terminal-blocked",
         remedy: {
-          argv: ["arc", "integrate", "checkpoint", "example", "--json"],
+          argv: ["arc", "integrate", "checkpoint", "example"],
         },
         payload: {
           nextAction: "retarget",
@@ -638,6 +1100,11 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "terminal-rebind-required",
         nextAction: "reconcile-delivery-state",
+        reason: "delivery-terminal-rebind-required",
+        remedy: {
+          argv: ["arc", "delivery", "reconcile", "-"],
+          stdin: { planId: PLAN_ID, repository: "owner/repo" },
+        },
         payload: {
           reconcileInput: { planId: PLAN_ID, repository: "owner/repo" },
         },
@@ -656,6 +1123,7 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "candidate-publication-required",
         nextAction: "resume-pre-publication",
+        reason: "candidate-publication-stale",
         payload: {
           attestArgv: ["arc", "attest", "example", "--json"],
         },
@@ -738,6 +1206,13 @@ describe("integration checkpoint", () => {
       .resolves.toMatchObject({
         state: "candidate-publication-commit-required",
         nextAction: "commit-boundary",
+        reason: "candidate-publication-boundary-staged",
+        detail: "The shipped delivery publication boundary is staged and requires a commit before checkpointing.",
+        coordinates: { observedBaseOid: oid("b"), observedHeadOid: oid("c") },
+        continuation: {
+          kind: "terminal-explanation",
+          terminalExplanation: expect.stringContaining("exact staged"),
+        },
         payload: {
           boundaryPath: ".arc/system/.internal/candidates/example.boundary.json",
         },
@@ -854,6 +1329,8 @@ describe("integration checkpoint", () => {
       behind: 0,
       base: "main",
       baseOid: oid("b"),
+      headOid: oid("c"),
+      movement: "disjoint",
       integrationEvidence: {
         coverage: "complete",
         scannedCommitCount: 0,
@@ -871,18 +1348,52 @@ describe("integration checkpoint", () => {
       recognizedRevision: oid("c"),
       implementationChanged: true,
       convergenceVerification: "pending",
+      convergenceScope: "full",
     });
 
     await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
       .resolves.toMatchObject({
         state: "blocked",
         reason: "candidate-convergence-pending",
+        nextAction: "run-convergence-verification",
+        action: {
+          kind: "run-convergence-verification",
+          requiredScope: "full",
+          verificationEvidenceRefRequired: true,
+          attestArgv: [
+            "arc", "attest", "example", "--scope", "full",
+            "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+          ],
+        },
         payload: {
           candidate: {
             implementationChanged: true,
             convergenceVerification: "pending",
+            convergenceScope: "full",
           },
         },
+      });
+  });
+
+  it("refuses a ready change request that differs from the host-admission request", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    const composeReady = deps.composeReady;
+    deps.composeReady = async (input) => {
+      const ready = await composeReady(input);
+      return {
+        ...ready,
+        statusSummary: {
+          ...ready.statusSummary,
+          changeRequest: { ...ready.statusSummary.changeRequest, pullRequest: 43 },
+        },
+      };
+    };
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        payload: { detail: "ready composition does not bind the exact approved request and Candidate head" },
       });
   });
 
@@ -907,7 +1418,7 @@ describe("integration checkpoint", () => {
         state: "blocked",
         nextAction: "stop",
         reason: "hosted-reservation-pending",
-        remedy: { argv: ["arc", "review", "pre-publication", "example", "--json"] },
+        remedy: { argv: ["arc", "review", "pre-publication", "example"] },
         payload: {
           requirement: { id: "hosted-review-reservation", state: "pending" },
         },

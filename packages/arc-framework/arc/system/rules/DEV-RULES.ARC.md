@@ -93,7 +93,8 @@ integration interlock:
 - candidate-tail cleanup
 - archive composition and closeout
 - lifecycle sweep and readiness regeneration
-- a typed safe base reconcile
+- a typed base reconcile selected from complete host-admission evidence, whose overlap is disclosed and whose
+  resulting head passes Tier 1 before fresh checkpoint applicability and exact-head authorization
 
 An implementation or finding-driven fix still requires its structured approval gate before commit, and no
 provisional candidate may merge without exact-head integration authorization. A pre-composition direction may

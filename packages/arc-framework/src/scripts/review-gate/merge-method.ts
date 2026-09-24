@@ -26,7 +26,7 @@ export interface MergeMethodPolicyPort {
  */
 export function mergeMethodResolveArgv(stackPosition: MergeMethodStackPosition): string[] {
   return stackPosition === "non-delivery"
-    ? ["arc", "review", "merge-method", "resolve", "--json"]
+    ? ["arc", "review", "merge-method", "resolve"]
     : [
         "arc",
         "review",
@@ -34,7 +34,6 @@ export function mergeMethodResolveArgv(stackPosition: MergeMethodStackPosition):
         "resolve",
         "--stack-position",
         stackPosition,
-        "--json",
       ];
 }
 

@@ -11,6 +11,32 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Distinguish intentionally deferred CI from failed review diagnostics**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: ci-defer-heavy-reconciliation`
+
+- _Observation:_ during PR #583 review, `ci-defer-heavy` correctly skipped the heavy jobs and kept `ci-ok` and
+  `merge-ok` red as the merge-safety backstop. The required-check diagnostic projected that intentional deferral as
+  ordinary `failed / stop`, forcing the hosted-review workflow to stop even though CodeRabbit was still pending and
+  no executed CI job had failed. An agent must inspect labels and job skips manually to distinguish the expected
+  review-time state from a real correct-fast failure.
+
+- _Approach:_ expose the effective exact-head deferral state through required-check observation and return a typed
+  intentionally-deferred review diagnostic while the governing review activity remains pending. Preserve red
+  `ci-ok` / `merge-ok`, the draft lock, and final fail-closed merge behavior; the distinction changes operational
+  guidance and review continuation only, never treats deferred checks as green or complete. Once review settles,
+  ordinary reconciliation must remove deferral, schedule the required heavy jobs, and return to normal pending,
+  green, or failed check semantics.
+
+- _Boundary:_ `review-signal-convergence` may consume the typed state when coordinating review continuation, but it
+  should not own CI deferral policy or aggregate-gate semantics. Keep those authoritative in
+  `ci-defer-heavy-reconciliation` and avoid a second review-side deferral model.
+
+- _Captured during:_ `resume-scoped-review-fix-verification-before-candidate-reroot` full-final review, PR #583,
+  2026-09-09.
+
 ### `[ ]` **Reduce hosted CI consumption without weakening the aggregate gate**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-08-10).
@@ -32,6 +58,33 @@
   read-only exact-head readiness projection is extracted as an immediate Errand.
 
 ---
+
+### `[ ]` **Clear deferred heavy CI when review ends without a provider verdict**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: ci-defer-heavy-reconciliation`
+
+- _Observation:_ the existing entries there both assume review settles with a provider verdict — the label is
+  removed by an approving review, and the gap recorded from PR #583 is that a `commented` event fails to remove
+  it. An Owner-directed review stop has no verdict at all: no further pass is requested, so no approving review
+  can ever arrive and the label can never auto-clear. The deferral outlives the review cycle it was scoped to.
+
+- _Observation:_ the agent-facing half compounds it. `arc review checks await` reported `failed / stop` for
+  `ci-ok` and `merge-ok`, which under the workflow's own dispatch is a stop. Distinguishing designed deferral
+  from a real failure took reading the rollup job log, the PR labels, the `ci-defer-review` workflow source, and
+  the native review state — four manual reads to conclude that nothing was wrong. That is a turn stop spent on
+  expected behavior.
+
+- _Approach:_ fold the no-verdict termination into the effective-state reconciliation the stub already plans, so
+  a review cycle that ends by Owner direction reconciles deferral the same way an approving verdict does. The
+  typed intentionally-deferred diagnostic that entry already proposes is what makes this automatable: with it,
+  the agent continues on a typed state instead of stopping on an indistinguishable `failed`.
+
+- _Boundary:_ this is the same mechanism and the same owner — not a second deferral model, and per the steering
+  map not something to fold into the review protocol chain or the delivery recovery ladder.
+
+- _Captured during:_ the `function-size-ratchet` errand, PR #647, 2026-09-18.
 
 ## Problem / Motivation
 

@@ -161,15 +161,27 @@ export type DeliveryNativeStackLinkResult =
   | { readonly status: "downgrade-required"; readonly reason: string; readonly recommendedActionText: string }
   | { readonly status: "refused"; readonly reason: string; readonly recommendedActionText: string };
 
+const NATIVE_REGISTRATION_MEMBER_FLOOR = 2;
+
 /**
- * Compose the operator-facing native registration choice before any provider read or mutation.
+ * Resolve whether the exact non-terminal set can reach the native registration choice.
  *
- * @returns The precomposed costs, benefits, and exact continuation for the opt-in field.
+ * @param members - Exact non-terminal delivery members proposed for registration.
+ * @returns The unlinked continuation below the provider floor, otherwise the operator choice.
  */
-export function composeDeliveryNativeStackLinkDecision(): Extract<
+export function resolveDeliveryNativeStackLinkDecision(
+  members: readonly DeliveryNativeStackMember[],
+): Extract<
   DeliveryNativeStackLinkResult,
-  { readonly status: "decision-required" }
+  { readonly status: "decision-required" | "unlinked" }
 > {
+  if (members.length < NATIVE_REGISTRATION_MEMBER_FLOOR) {
+    return {
+      status: "unlinked",
+      recommendedActionText:
+        "Native registration needs at least two non-terminal members; continue through the unlinked executor.",
+    };
+  }
   return {
     status: "decision-required",
     recommendedOptInText:
@@ -217,7 +229,7 @@ export async function linkPlannedDeliveryNativeStack(input: {
   readonly repository: string;
   readonly baseRef: string;
   readonly members: readonly DeliveryNativeStackMember[];
-  readonly optIn: boolean;
+  readonly optIn?: boolean;
 }, port: DeliveryNativeStackPort): Promise<DeliveryNativeStackLinkResult> {
   if (input.state.pendingReviewFixVerification !== null) {
     return {
@@ -248,6 +260,7 @@ export async function linkPlannedDeliveryNativeStack(input: {
       recommendedActionText: "Register exactly the current planned non-terminal member set.",
     };
   }
+  if (input.optIn === undefined) return resolveDeliveryNativeStackLinkDecision(derived.input.members);
   return linkDeliveryNativeStack({ ...derived.input, optIn: input.optIn }, port);
 }
 
@@ -267,12 +280,8 @@ export async function linkDeliveryNativeStack(
   if (!input.optIn) {
     return { status: "unlinked", recommendedActionText: "Continue through the complete unlinked executor." };
   }
-  if (input.members.length < 2) {
-    return {
-      status: "unlinked",
-      recommendedActionText: "Native registration needs at least two members; continue through the unlinked executor.",
-    };
-  }
+  const decision = resolveDeliveryNativeStackLinkDecision(input.members);
+  if (decision.status === "unlinked") return decision;
   const subject: DeliveryNativeStackInput = { repository: input.repository, members: input.members };
   const initial = await observeDeliveryNativeStack(subject, port);
   if (initial.status === "refused") {

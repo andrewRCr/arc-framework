@@ -9,6 +9,17 @@ as `arc status --session-init --json`). It does **not** apply to content under
 templates) — that content ships to adopters who install the CLI globally and invoke
 it as bare `arc ...`.
 
+## Self-hosting recovery
+
+When any `npx arc ...` command exits before emitting its ordinary result with the complete
+self-hosting stale-build refusal (`error: arc dev build is stale (...)`, refusal
+against stale `dist`, and the `npm run build:fast` remedy), run `npm run build:fast`
+once in the same checkout and retry the exact command once without asking. This rebuilds
+a derived local artifact; it is not a verdict on the retried command. If the build fails,
+the retry remains stale, or any other failure occurs, stop and follow that command's normal
+failure or recovery path. For `npx arc recover audit ...`, preserve the recovery marker
+when stopping. Do not generalize this repair beyond the complete stale-build refusal.
+
 ## Review guidelines
 
 > _These guidelines govern **requested hosted code reviews** via the review gate (for example, a hosted Codex

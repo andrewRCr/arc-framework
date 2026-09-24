@@ -1,6 +1,6 @@
 ---
 name: arc-session
-description: Initialize an ARC session — resume or start a work unit, or handle isolated work with --errand [<slug|description>], --housekeep, or --plan <stub>.
+description: Initialize an ARC session — resume or start a work unit, or handle isolated work with --errand [<slug|description>] [--next], --housekeep, or --plan <stub>.
 disable-model-invocation: false
 ---
 
@@ -13,9 +13,12 @@ shape, active-meta hints, or a second worktree scan.
 An optional positional argument supplies an **entry seed** — a spec pointer or description that the workflow's
 new-work arm consumes (confirmed before use). A bare invocation enters per the probe.
 
-An optional `--next` flag is a **per-invocation auto-proceed modifier** for an active work unit's Next Action.
+A standalone `--next` flag is a **per-invocation auto-proceed modifier** for an active work unit's Next Action.
 It never relocates the checkout, never starts new work, and is not a configuration default. The workflow decides
 whether the resolved arm can skip its final proceed prompt; otherwise `--next` falls back to normal orientation.
+Combined with a bare `--errand`, it instead selects the first execute-bound Errand through
+`arc errand next --json` after notes sync, then enters the ordinary Errand Launch path. This is startup selection
+only; terminal `nextOffer` continues to own sibling continuation.
 
 An optional `--start <slug>` flag is the **focused-recon arm** — the agentic know-what-to-start door, symmetric
 with the no-agent bare `arc start <slug>`. Checkout-preserving and arm-orthogonal (it launches the named target
@@ -30,6 +33,8 @@ active — the resumed work unit's checkout is preserved. Each is orthogonal to 
 
 - `--errand [<slug|description>]` — isolated atomic work. A bare `--errand` (no slug/description) is supported:
   the entry elicits the concern, or adopts a flagged `USER-INBOX § Errand` capture.
+  `--errand --next` adopts the first execute-bound capture in file order without elicitation; it cannot also carry
+  a slug or description.
 - `--housekeep` — drain the user inbox to its authoritative homes (reaches the `arc-housekeep` skill).
 - `--plan <stub>` — groom a `backlog/` stub's draft (`planned` or `provisional`) in place, resumable via
   `--plan <stub>` across sessions.

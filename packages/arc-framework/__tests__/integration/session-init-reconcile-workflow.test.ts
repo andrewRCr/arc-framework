@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 const WORKFLOWS = [
   join(
@@ -31,14 +33,14 @@ describe("session-init current-WU reconcile workflow", () => {
     expect(content).toContain(
       "**Current WU reconcile:** {currentWuReconcile.value.recommendedPromptText}",
     );
-    expect(content).toContain("do not apply tracked edits during\n  session initialization");
+    expect(content).toMatch(softWrappedProse("do not apply tracked edits during session initialization"));
   });
 
   it.each(WORKFLOWS)("dispatches only the CLI-owned user-reference action in %s", async (path) => {
     const content = await readFile(path, "utf8");
 
     expect(content).toContain("`userReferenceReconcile.value.recommendedAction`");
-    expect(content).toContain("`apply` invokes the precomposed\n`recommendedCommand`");
+    expect(content).toMatch(softWrappedProse("`apply` invokes the precomposed `recommendedCommand`"));
     expect(content).toContain(
       '`userReferenceReconcile.value.recommendedAction == "surface"`',
     );

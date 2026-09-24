@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
+import { selectIntegrationTempRoot } from "./__tests__/helpers/integration-temp-root.js";
 import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-policy.js";
 
 // Absolute package root from this config file — not process.cwd(). `root: "."`
@@ -26,6 +27,10 @@ if (process.platform === "win32") {
 } else {
   process.env.TMPDIR = canonicalTempRoot;
 }
+
+// Integration fixtures are write-heavy and short-lived. Use Linux's memory-backed root
+// only when it can execute the shims created by integration tests.
+const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
 
 // Test repositories must not inherit developer-machine Git configuration. A
 // long-lived workstation can carry `arc.identity` globally even when a fixture
@@ -79,6 +84,7 @@ export default defineConfig({
           name: "integration",
           root: packageRoot,
           include: ["__tests__/integration/**/*.test.ts"],
+          ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
           globalSetup: ["__tests__/integration/global-setup.ts"],
           testTimeout: 30_000,
           passWithNoTests: true,

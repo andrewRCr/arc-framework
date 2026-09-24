@@ -8,6 +8,36 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Give every shipped-but-uninstalled file a recipe disposition**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: TBD`
+
+- _Observation:_ the install set is a hand-maintained list, and roughly a dozen workflow and method files sit in
+  the package source without a recipe disposition, so they reach no project. The failure is silent in both
+  directions: a file can be present in both copies, listed in an index, referenced by installed content, and
+  still install nowhere, because every check that would notice runs against a project instance where the file is
+  present.
+
+- _Scope:_ the population, not the first instance. The testing-standards method was one case — three installed
+  surfaces declared or linked it while nothing installed it — and it is owned by `plan-segmentation`, which
+  installs it as a configurable file. This entry is the remaining set and the general defect behind it.
+
+- _Approach:_ derive the install set rather than hand-listing it, or land a check that fails when installed
+  content references a path carrying no recipe disposition. A dangling reference from installed content is the
+  sharpest available signal and is mechanically detectable.
+
+- _Captured during:_ `plan-segmentation` task generation — grounding the fire-point split against its actual ship
+  surface, 2026-09-07.
+
+---
+
 ## Problem
 
 `init-recipe.json` is the effective authority for what reaches an installed project, but its file inventory is

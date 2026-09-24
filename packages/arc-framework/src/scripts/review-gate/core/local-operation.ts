@@ -23,7 +23,7 @@ import type { ReviewOperationStateStore } from "./ports.js";
 import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
 
 const LocalOperationIdentityPreimageSchema = z.strictObject({
-  domain: z.literal("arc.review-gate.local-operation-id/v1"),
+  domain: z.enum(["arc.review-gate.local-operation-id/v1", "arc.review-gate.local-operation-id/v2"]),
   targetId: ReviewCanonicalDigestSchema,
   requirementId: ReviewCanonicalDigestSchema,
   authorIdentity: ReviewIdentifierSchema,
@@ -32,6 +32,8 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
   deliveryAdmissionDigest: ReviewCanonicalDigestSchema.nullable(),
+  errandClaimId: ReviewIdentifierSchema.optional(),
+  requestId: ReviewCanonicalDigestSchema.optional(),
 });
 
 export interface LocalReviewAdmissionInput {
@@ -75,6 +77,28 @@ export class LocalReviewAdmissionError extends Error {
 }
 
 /**
+ * Refuse legacy or contradictory local requests before they can consume receipt evidence.
+ *
+ * @param state - Persisted local request and the vehicle it purports to review.
+ * @returns Nothing when the request binds the exact Errand claim, or carries none outside Errands.
+ */
+export function assertLocalReviewClaimBinding(
+  state: Pick<LocalReviewState, "vehicle" | "request">,
+): void {
+  const claimId = state.request.carrier.kind === "local-change-set"
+    ? state.request.carrier.errandClaimId
+    : undefined;
+  if (state.vehicle.kind === "errand") {
+    if (state.vehicle.claimId === undefined || claimId === undefined
+      || claimId !== state.vehicle.claimId) {
+      throw new LocalReviewAdmissionError("local review request does not bind its Errand claim");
+    }
+  } else if (claimId !== undefined) {
+    throw new LocalReviewAdmissionError("non-Errand local review request carries an Errand claim");
+  }
+}
+
+/**
  * Derives one local request and operation identity from canonical admission facts.
  *
  * @param input - Exact target, requirement, actors, policy binding, and mechanism.
@@ -85,6 +109,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
   const requirement = validateReviewRequirement(target, input.requirement);
   const policyBindingDigest = ReviewCanonicalDigestSchema.parse(input.policyBindingDigest);
   const requestMechanism = ReviewIdentifierSchema.parse(input.requestMechanism);
+  const errandClaimId = input.authority.vehicle.kind === "errand"
+    ? input.authority.vehicle.claimId
+    : undefined;
   const carrier = createLocalChangeSetCarrier({
     target,
     requirementId: requirement.requirementId,
@@ -106,9 +133,12 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     },
     generation: 0,
     requestMechanism,
+    ...(errandClaimId === undefined ? {} : { errandClaimId }),
   });
   const preimage = LocalOperationIdentityPreimageSchema.parse({
-    domain: "arc.review-gate.local-operation-id/v1",
+    domain: errandClaimId === undefined
+      ? "arc.review-gate.local-operation-id/v1"
+      : "arc.review-gate.local-operation-id/v2",
     targetId: target.targetId,
     requirementId: requirement.requirementId,
     authorIdentity: input.authority.authorIdentity,
@@ -119,6 +149,12 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
       ? null
       : canonicalDigest(input.deliveryAdmission),
+    ...(errandClaimId === undefined
+      ? {}
+      : {
+          errandClaimId,
+          requestId: carrier.request.requestId,
+        }),
   });
   const operationId = `local-${canonicalDigest(preimage).slice("sha256:".length)}`;
   return {
@@ -157,6 +193,7 @@ export async function resolveLocalReviewAdmission(
   const admission = createLocalReviewAdmission(input);
   const persisted = await dependencies.store.readOperation(admission.operationId);
   if (persisted.state === null) return { state: "new", ...admission };
+  if (persisted.state.kind === "local-review") assertLocalReviewClaimBinding(persisted.state);
   if (persisted.state.kind !== "local-review"
     || persisted.state.operationId !== admission.operationId
     || persisted.state.targetId !== admission.target.targetId

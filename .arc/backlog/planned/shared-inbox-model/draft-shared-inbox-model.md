@@ -16,6 +16,46 @@
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
 
+### `[ ]` **Isolate exact-entry inbox settlement from unrelated malformed entries**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _WU_Target:_ `shared-inbox-model`
+
+- _Observation:_ Closing PR #589 cleaned the merged Errand's refs, then refused its origin-capture settlement because
+  two unrelated Work Unit captures carried an Errand-only `_Disposition: route-on-drain` field. The intended entry
+  remained recoverable, but completion required manually correcting foreign captures and confirming the now-foreign
+  retained generation. One malformed entry can therefore interrupt an unrelated lifecycle transition after partial
+  cleanup.
+
+- _Approach:_ Make exact-entry settlement validate and mutate only the addressed capture while preserving unrelated
+  entries byte-for-byte. Surface malformed foreign entries as separate diagnostics without poisoning the target
+  operation. Settle transaction ordering so ref cleanup cannot precede a capture failure without an ordinary
+  idempotent retry path; coordinate the analogous shared-ledger recovery constraints in
+  `identity-conflict-recovery` without conflating the two stores.
+
+- _Captured during:_ `make-self-mutating-correction-drives-hand-off-a-fresh-dev-build` post-merge close, 2026-09-11.
+
+- _Additional routed recurrence:_ **Exact-entry settlement still aborts a lifecycle transition after partial
+  cleanup** — `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: shared-inbox-model`
+
+- _Relation:_ a second instance of this WU's existing entry "Isolate exact-entry inbox settlement from unrelated
+  malformed entries", which recorded the PR #589 occurrence. Recurrence evidence only; the approach there stands.
+
+- _Observation:_ `arc errand close delivery-entry-input-shape` reaped the merged Errand's refs, then refused its
+  origin-capture settlement because an unrelated § Errand capture carried a descriptor ahead of its
+  `_Disposition:_`. Completing required correcting the foreign entry and re-running with
+  `--confirm-foreign-generation`, exactly the #589 shape. Two properties the earlier instance did not establish:
+  the trigger is not specific to a retired `_Disposition: route-on-drain` field — any displacing descriptor does
+  it — and the ordering hazard survived #589, so ref cleanup still precedes capture settlement.
+
+- _Note:_ the refusal's legibility half shipped separately (PR #651); it now names the offending descriptor. That
+  shortens recovery but does not address the transaction ordering, which is this WU's half.
+
+- _Captured during:_ the `delivery-entry-input-shape` errand close, 2026-09-18.
+
 ### `[ ]` **Reopen promote-by-default under parallelism-GA shared-file churn**
 
 - _Routed from:_ parallelism-GA operating review and housekeep drain (2026-07-20).
@@ -69,6 +109,29 @@
   owns deterministic entry I/O and arc-backend supplies the long-term cross-store consistency contract.
 
 ---
+
+### `[ ]` **Give USER-INBOX a managed amend path so enrichment does not bypass the write lock**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ the managed inbox surface is `inbox-mark-execute-bound` and `inbox-remove` — mark, order, and
+  delete. There is no verb that amends an existing capture. Enriching one (adding observations to a live entry,
+  which grooming asks for routinely) therefore has to be a raw whole-file rewrite, outside the serialized path
+  that `inbox-writer.ts` documents itself as running inside ("one exact entry mutation in a lock-serialized inbox
+  batch"). On 2026-09-19 this session appended to a Work Unit capture by direct edit while the primary session
+  concurrently closed two shipped Errands, which removes their originating captures. Both survived on
+  interleaving alone. The file is gitignored, so a lost write leaves no diff, no history, and no recovery.
+
+- _Not a defect in the managed path:_ the lock is real and the managed verbs use it. The gap is that the managed
+  surface does not cover a normal operation, so the normal operation routes around the lock.
+
+- _Approach:_ add an amend/append verb that takes an entry title plus the block to merge, and runs through the
+  same locked read-modify-write as the existing mutations. A content-digest precondition with a re-read
+  instruction on mismatch would also close the raw-edit case for callers that still need one.
+
+- _Scope:_ the inbox write surface only; no change to entry grammar, sections, or the execute-bound queue.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` integration, 2026-09-19.
 
 ## Problem / Motivation
 

@@ -79,7 +79,7 @@ describe("identity claim races", () => {
   beforeEach(async () => {
     dir = await createTempRepo();
     initialHead = await makeCommit(dir, "init");
-    remoteDir = await addBareRemote(dir);
+    remoteDir = await addBareRemote(dir, { callerOwnsCleanup: true });
   });
 
   afterEach(async () => {

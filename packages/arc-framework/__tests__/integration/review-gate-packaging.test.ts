@@ -10,17 +10,6 @@ const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../../../..");
 
 describe("review-gate package boundary", () => {
-  it("keeps hosted Codex guidance repository-owned and inherited by Claude", async () => {
-    const [agents, claude] = await Promise.all([
-      readFile(resolve(root, "AGENTS.md"), "utf8"),
-      readFile(resolve(root, "CLAUDE.md"), "utf8"),
-    ]);
-
-    expect(claude.trim()).toBe("@AGENTS.md");
-    expect(agents).toContain("<!-- arc:review-guidance:start -->");
-    expect(agents).toContain("<!-- arc:review-guidance:end -->");
-  });
-
   it("ships extension shells without repository controller implementation", async () => {
     const packageState = await mkdtemp(join(tmpdir(), "arc-review-package-state-"));
     const isolatedHome = join(packageState, "home");

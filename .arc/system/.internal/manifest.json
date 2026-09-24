@@ -377,6 +377,11 @@
       "layer": "core",
       "pristine_hash": "31df8dd23ea958124bd7c56de986851dbcb06d1f62904a027ad3a577ef7d0b3d"
     },
+    "system/methods/assess-evidence-applicability.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "04c954d70b488b37b037cd259cc8ff67f01f72e826c0cd845dfb82cba0be45de"
+    },
     "system/methods/adversarial-review.md": {
       "classification": "Configurable",
       "layer": "core",

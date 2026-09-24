@@ -464,6 +464,44 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(authorityReadIndex).toBeGreaterThan(fetchIndex);
   });
 
+  it("refuses unavailable completed evidence and completes after the same-command retry", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE_META], {
+      baseMetas: [SHIPPED_META],
+      branches: ["feat/demo"],
+    });
+    const baseExec = ctx.exec;
+    let completedReadUnavailable = true;
+    ctx.exec = async (command, args, options) => {
+      if (completedReadUnavailable && args[0] === "ls-tree" && args.includes(".arc/completed/")) {
+        throw new Error("completed tree unavailable");
+      }
+      return await baseExec(command, args, options);
+    };
+
+    const refused = await runTeardown(ctx, {
+      name: "demo",
+      base: "main",
+      protection: "full",
+    });
+
+    expect(refused).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(
+        /could not read completed lifecycle evidence from `origin\/main`.*retry the same teardown command/iu,
+      ),
+    });
+    expect(calls).not.toContainEqual(expect.arrayContaining(["for-each-ref"]));
+
+    completedReadUnavailable = false;
+    const retried = await runTeardown(ctx, {
+      name: "demo",
+      base: "main",
+      protection: "full",
+    });
+
+    expect(retried.status).toBe("torn-down");
+  });
+
   it("fails closed when the configured lifecycle authority ref cannot be resolved", async () => {
     const { ctx, calls } = buildCtx([ACTIVE_META], {
       branches: ["feat/demo"],
@@ -480,6 +518,7 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/could not resolve lifecycle authority ref `origin\/main`/i);
+    expect(result.reason).toMatch(/retry the same teardown command/i);
     expect(calls).not.toContainEqual(expect.arrayContaining(["for-each-ref"]));
   });
 
@@ -497,7 +536,9 @@ describe("runTeardown — arc-state authority gate", () => {
 
     expect(result).toMatchObject({
       status: "rejected",
-      reason: expect.stringMatching(/could not resolve lifecycle authority ref `origin\/main`/i),
+      reason: expect.stringMatching(
+        /could not resolve lifecycle authority ref `origin\/main`.*retry the same teardown command/i,
+      ),
     });
     expect(calls).not.toContainEqual(expect.arrayContaining(["ls-tree"]));
   });
