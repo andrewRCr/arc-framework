@@ -180,8 +180,9 @@ Two consequences are accepted.
   does not.
 - **"Can carry" is a judgment read.** The delivery classifier refuses any change to a landed member, which narrows
   the question to the unlanded members and the terminal; nothing computes the answer. And a hole large enough to
-  be an unauthored design area, while the work unit's identity still holds, is the Owner's call between the design
-  arm at `high` and re-entering the planning stage — this procedure never makes that call.
+  be an unauthored design area, while the work unit's identity still holds, is the Owner's call: use the design arm
+  at `high`, or stop this procedure for a separate planning-stage decision. This procedure neither selects nor
+  performs any resulting lifecycle move.
 
 ## The amendment record
 

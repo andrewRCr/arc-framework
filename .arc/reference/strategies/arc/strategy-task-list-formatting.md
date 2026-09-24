@@ -255,9 +255,9 @@ Preserves original numbering and audit trail. Documents mid-implementation disco
 
 **A completed parent is never reopened to host corrective work.** `[x]` is terminal derived state and does not
 reverse; execution resumes at the first open parent in document order, so work hung beneath a completed one is
-never reached. A corrective parent is reused only while it is still open — a completed `X.R` never absorbs the
-next amendment. When an amendment changes what a completed task recorded, that task keeps its marker and the
-corrective parent carries the work.
+never reached. A corrective parent is reused for work on the same amendment only while it is still open; a later
+amendment gets its own parent even if `X.R` remains open. When an amendment changes what a completed task recorded,
+that task keeps its marker and the corrective parent carries the work.
 
 **Placement.** The corrective parent sits in the phase whose work it corrects, ahead of that phase's verifiers,
 and is never nested under one — a verifier records an outcome, it never hosts the work that produces one. See

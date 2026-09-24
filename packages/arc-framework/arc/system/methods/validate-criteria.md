@@ -104,16 +104,16 @@ An amendment landing after a member's boundary report supplements that report ra
 [`amend-design`][amend-design] owns the amendment record and its `## Amendments` log; what follows is the report
 side of that closure.
 
-A member's **effective report** is its base boundary report plus its ordered deltas. For a same-locus entry, the
-latest delta supplies the current evidence and state while the effective entry inherits the base
-`criterion-digest`; the delta never restates it. A criterion the amendment appended is present only in the delta
-and must carry its own `criterion-digest`. The span is the latest delta's. Consume the effective report wherever
-the work-unit-scope walk above consumes the base one — dispositioning a member group and detecting cross-boundary
-regressions read it the same way.
+A member's **effective report** is its base boundary report plus its ordered deltas. Apply each delta to the
+effective report produced by all preceding deltas. For a same-locus entry, the delta supplies current evidence and
+state while inheriting the `criterion-digest` from the preceding effective entry, including one introduced by an
+earlier delta; the delta never restates it. An appended criterion must carry its own `criterion-digest`. The latest
+delta supplies the span. Consume the effective report wherever the work-unit-scope walk above consumes the base one —
+dispositioning a member group and detecting cross-boundary regressions read it the same way.
 
 A **delta** here is a supplement to one member's report, not a diff of the work tree. It carries the changed
 criteria with their evidence, any criteria the amendment appended with theirs and a new digest, the new span, and
-the summary. Unchanged criteria are omitted, and a digest already recorded in the base report is never restated.
+the summary. Unchanged criteria are omitted, and a digest already recorded in an effective entry is never restated.
 
 Each entry carries a **per-criterion verdict** saying why it is present or absent — a judgment applied per
 criterion, not the report-level verdict the adversarial companion below returns:

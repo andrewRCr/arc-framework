@@ -231,8 +231,9 @@ Two consequences are accepted. **Extraction moves scope, not code:** a landed me
 classifier refuses `landed-member-changed`), so when the invalidated part has already landed, the origin ships it
 as-is and the new work unit corrects it post-merge — unless a later unlanded member can carry the correction in-WU,
 in which case the design arm applies and the ceiling does not. And a hole so large it is really an unauthored design
-area, while the identity still holds, is the Owner's call between the design arm at `high` and re-entering the
-planning stage; the procedure never makes that call.
+area, while the identity still holds, is the Owner's call between the design arm at `high` and stopping this
+procedure for a separate planning-stage decision. The procedure neither selects nor performs any resulting lifecycle
+move.
 
 The delivery classifier sharpens the ceiling on one side without deciding it. When an amendment supersedes a design
 element covered by a landed member, the classifier refuses any change to that member, so the replacement can only
@@ -381,12 +382,13 @@ withdrawal, the work unit reopens and the ordinary rules apply (D6).
 
 **The delta form.** A delta is a **supplement to** the member's report, never a second report: the changed criteria
 (including any the amendment appended, with their own evidence), the new span, and the summary; unchanged criteria
-are omitted; a same-locus delta inherits its base digest in the effective entry without restating it, while an
-appended criterion carries its own new digest. `validate-criteria` gains one composition rule alongside its report
-schema: a member's **effective report** is its base boundary report plus its ordered deltas — latest same-locus
-evidence and state with the inherited digest, appended criteria present only in the delta, the span the latest
-delta's — and the work-unit-scope walk consumes the effective report where it consumes the base one
-today. **The walk finds the deltas through the log:** the `## Amendments` rows are the index, and each row's
+are omitted; a same-locus delta inherits the preceding effective entry's digest without restating it, whether that
+entry came from the base or an earlier delta, while an appended criterion carries its own new digest.
+`validate-criteria` gains one composition rule alongside its report schema: a member's **effective report** is its
+base boundary report plus ordered deltas. Each same-locus entry takes the latest evidence and state and inherits the
+preceding effective entry's digest; appended criteria enter with their new digest, and the latest delta supplies the
+span. The work-unit-scope walk consumes this effective report where it would consume the base one today.
+**The walk finds the deltas through the log:** the `## Amendments` rows are the index, and each row's
 `_Work:_` locates the corrective parent whose closing subtask carries the delta. A walk that discovered deltas
 positionally, or by scanning every revision parent in a member's range, would be a second authority over the same
 fact.
@@ -719,8 +721,8 @@ inventing it; scale does not fire.
   superseded. _Supersedes:_ § Cross-cutting Considerations ¶Forward compatibility. _Trigger:_ door. _Work:_ 2.6.
   _Revalidated:_ verify-work-unit.
 - **A2** — 2026-09-11 — task: the shipped meta-reference pattern refuses the `X.R2` ids the placement rules settle.
-  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ pending → 6.1.
+  _Supersedes:_ none. _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ 6.1.
 - **A3** — 2026-09-12 — task: the shipped closure section carries the Candidate-applicability ownership D8 states
-  and its derivation dropped. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ pending → 6.1.
+  and its derivation dropped. _Supersedes:_ none. _Trigger:_ door. _Work:_ 2.R. _Revalidated:_ 6.1.
 - **A4** — 2026-09-12 — spec-depth: the broad meta-reference pattern reads an artifact-prefixed method filename as a
-  work-unit artifact. _Supersedes:_ none. _Trigger:_ 5.2 must-stop. _Work:_ 5.R. _Revalidated:_ pending → 6.1.
+  work-unit artifact. _Supersedes:_ none. _Trigger:_ 5.2 must-stop. _Work:_ 5.R. _Revalidated:_ 6.1.
