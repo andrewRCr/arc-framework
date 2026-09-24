@@ -1703,14 +1703,25 @@ function rejectUnsupportedReviewJson(_command: Command, actionCommand: Command):
   );
 }
 
+function rejectUnsupportedReviewOutputJson(this: Command): void {
+  const commandPath = formatCommandPath(this);
+  this.error(
+    `error: option '--json' is unsupported for ${commandPath}; JSON output is automatic. `
+      + `See '${commandPath} --help' for accepted inputs.`,
+    { exitCode: 1, code: "arc.review.unsupportedJsonOption" },
+  );
+}
+
 reviewCmd
   .command("change-request")
   .description("Exact-head change-request operations")
   .command("resolve")
-  .description("Resolve the host disposition for one exact head")
+  .description("Resolve the host disposition for one exact head as JSON")
   .requiredOption("--head-ref <branch>", "Proposed branch name")
   .requiredOption("--head-sha <oid>", "Exact Git object ID for the proposed head")
   .option("--require-remote", "Require the remote branch to match the exact head")
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(withInteractionContext(
     { machineReadable: () => true },
     async (context, options: ReviewChangeRequestResolveOptions) => {
@@ -1720,12 +1731,14 @@ reviewCmd
 
 reviewCmd
   .command("status")
-  .description("Resolve exact-target review, check, and base status")
+  .description("Resolve exact-target review, check, and base status as JSON")
   .option("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
   .option("--work-unit <slug>", "Resolve the live stacked-delivery review continuation")
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
   .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
   .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(withInteractionContext(
     { machineReadable: () => true },
     async (context, options: ReviewStatusOptions) => {
@@ -1763,12 +1776,14 @@ reviewCmd
   .command("merge-method")
   .description("Configured merge-method operations")
   .command("resolve")
-  .description("Validate the configured method against live repository policy")
+  .description("Validate the configured method against live repository policy as JSON")
   .option(
     "--stack-position <position>",
     "Merge-method stack position (non-delivery, intermediate, or top)",
     "non-delivery",
   )
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(async (options: ReviewMergeMethodResolveOptions) => {
     await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options);
   });
@@ -1777,12 +1792,14 @@ reviewCmd
   .command("checks")
   .description("Required status-check operations")
   .command("await")
-  .description("Await required checks on one exact pull-request head")
+  .description("Await required checks on one exact pull-request head as JSON")
   .requiredOption("--repository <owner/repo>", "Exact repository coordinates")
   .requiredOption("--pull-request <number>", "Pull-request number")
   .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
   .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
   .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(async (options: ReviewChecksAwaitOptions) => {
     await (await import("./handlers/review.js")).handleReviewChecksAwait(options);
   });
@@ -2079,6 +2096,8 @@ reviewCmd
     "Per-lane review scope, frontline invocation, and approved ceiling override as JSON",
   )
   .option("--resume <token>", "Replay the exact prior pre-publication judgment inputs")
+  .addOption(new Option("--json").hideHelp())
+  .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(withInteractionContext(
     { machineReadable: () => true },
     async (context, name: string, options: ReviewPrePublicationOptions) => {
