@@ -129,6 +129,22 @@ describe("repository command-input inventory", () => {
     );
   });
 
+  it("excludes rejection-only review JSON flags from accepted inputs", () => {
+    const rejectedPaths = [
+      "review change-request resolve",
+      "review status",
+      "review resolve",
+      "review merge-method resolve",
+      "review checks await",
+      "review pre-publication",
+    ];
+    for (const path of rejectedPaths) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.options.some((option) => option.flags === "--json"), path).toBe(false);
+      expect(inventory.entries.some((entry) => entry.identity === `${path}:option.json`), path).toBe(false);
+    }
+  });
+
   it("requires every discovered interaction policy to come from a command-owned declaration", () => {
     const declared = new Set(commandInputPolicyDeclarations.flatMap((declaration) => declaration.sites.flatMap(
       (site) => {

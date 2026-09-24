@@ -98,6 +98,29 @@ describe("command-input source scanner", () => {
     });
   });
 
+  it("excludes rejected JSON flags while retaining supported hidden options", () => {
+    const result = scanCommanderSource({
+      file: "src/cli.ts",
+      sourceText: `
+        const program = new Command();
+        const review = program.command("review");
+        review.command("request")
+          .addOption(new Option("--json").hideHelp())
+          .hook("preAction", rejectUnsupportedReviewJson);
+        review.command("output")
+          .addOption(new Option("--json").hideHelp())
+          .on("option:json", rejectUnsupportedReviewOutputJson);
+        review.command("supported")
+          .addOption(new Option("--json").hideHelp());
+      `,
+    });
+
+    expect(result.commands.find((command) => command.path === "review request")?.options).toEqual([]);
+    expect(result.commands.find((command) => command.path === "review output")?.options).toEqual([]);
+    expect(result.commands.find((command) => command.path === "review supported")?.options)
+      .toMatchObject([{ flags: "--json" }]);
+  });
+
   it("distinguishes a mandatory value from explicit option presence when a default supplies it", async () => {
     const result = scanCommanderSource({
       file: "src/cli.ts",

@@ -229,6 +229,10 @@ describe("documented command surface", () => {
   });
 
   it("passes `--json` only to commands that declare it, across every guidance tree", async () => {
+    expect(declaresJson.has("review status")).toBe(false);
+    expect(declaresJson.has("review resolve")).toBe(false);
+    expect(declaresJson.has("status")).toBe(true);
+
     const documents = await Promise.all(GUIDANCE_ROOTS.map(async ({ path }) => {
       const entries = await readdir(path, { recursive: true });
       const markdown = entries.filter((entry) => entry.endsWith(".md"));
