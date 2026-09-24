@@ -140,6 +140,26 @@ describe("branch-derived delivery facts", () => {
     })).resolves.toEqual({ status: "refused", reason: "merge-tree-write-tree-unsupported" });
   });
 
+  it("refuses a base absorb when its ancestry read is unavailable", async () => {
+    const exec = createRawGitExec(repository);
+    let ancestryReadFailed = false;
+    const failingExec: typeof exec = async (args, options) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor"
+        && args[2] === baseAdvance && args[3] === baseAdvance) {
+        ancestryReadFailed = true;
+        throw new Error("synthetic ancestry read failure");
+      }
+      return exec(args, options);
+    };
+
+    await expect(inspectDeliveryBranch({
+      exec: failingExec,
+      base: "main",
+      head: "HEAD",
+    })).resolves.toEqual({ status: "refused", reason: "ambient-purity-unproven" });
+    expect(ancestryReadFailed).toBe(true);
+  });
+
   it("uses an explicit historical base line instead of the moving configured base", async () => {
     const result = await inspectDeliveryBranch({
       exec: createRawGitExec(repository),
@@ -211,6 +231,24 @@ describe("branch-derived delivery facts", () => {
       base: "main",
       head: "HEAD",
     })).resolves.toEqual({ status: "refused", reason: "ambient-purity-unproven" });
+
+    const currentBase = await oid(repository, "main");
+    const exec = createRawGitExec(repository);
+    let ancestryReadFailed = false;
+    const failingExec: typeof exec = async (args, options) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor"
+        && args[2] === currentBase && args[3] === currentBase) {
+        ancestryReadFailed = true;
+        throw new Error("synthetic ancestry read failure");
+      }
+      return exec(args, options);
+    };
+    await expect(inspectDeliveryBranch({
+      exec: failingExec,
+      base: "main",
+      head: "HEAD",
+    })).resolves.toEqual({ status: "refused", reason: "ambient-purity-unproven" });
+    expect(ancestryReadFailed).toBe(true);
   });
 
   it("preserves arbitrary rename endpoints in cumulative contribution shape", async () => {
