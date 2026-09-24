@@ -166,6 +166,7 @@ describe("packaged review CLI surfaces", () => {
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(help.stdout).toContain("--schema");
+    expect(help.stdout).not.toContain("--json");
     const output = JSON.parse(result.stdout) as {
       rootId: string;
       schemas: Record<string, AnySchema>;
@@ -201,6 +202,20 @@ describe("packaged review CLI surfaces", () => {
     expect(help.stdout).toContain("changeDeterminacy");
     expect(help.stdout).toContain("ownership");
     expect(help.stdout).toContain("surfaceAuthority");
+  });
+
+  it.each([
+    { name: "review resolve", command: ["review", "resolve"] },
+    { name: "review hosted await", command: ["review", "hosted", "await"] },
+  ])("explains unsupported --json at $name", async ({ command }) => {
+    const result = await runCli([...command, invalidInputPath, "--json"], { cwd: fixtureRoot });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--json");
+    expect(result.stderr).toContain("JSON request file");
+    expect(result.stderr).toContain("'-' for stdin");
+    expect(result.stderr).toContain("JSON output is automatic");
   });
 
   it("rejects combining schema discovery with a request source", async () => {
