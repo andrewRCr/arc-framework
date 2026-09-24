@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** create-spec Gate 1 — second adversarial pass folded; claim-family coherence sweep closed
+- **Last Completed:** create-spec — passes three through fifteen folded plus one approved fix (checkpoint `8c43f7a7d`)
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Held for the storage-substrate program (Owner, 2026-09-24) until the storage cutover; see SESSION-NOTES
 
-- **Next Action:** create-spec Gate 1 — run the authorized third adversarial pass (above the `Heavy` cap)
-  over draft + spec, then surface the spec for Gate 1 approval
+- **Next Action:** After the storage cutover: re-scope D4 and D6 against the storage contract (D1–D3, D8, D9 expected
+  to survive), then create-spec — the next adversarial pass, then Gate 1
 
 - **PR URL:** [none]
 - **Completed:** [none]
