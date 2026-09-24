@@ -48,16 +48,16 @@ permissions:
 env:
   VITEST_MAX_WORKERS: ${{ vars.ARC_CI_VITEST_MAX_WORKERS || (vars.ARC_CI_LINUX_RUNNER && '1') || '' }}
 
-# Cancel superseded work for the same ref. The group deliberately omits the
-# event name: a label toggle and a push against one pull request are the same
-# lane of work, and keying on the event let them run concurrently, paying twice
-# to test one head. Push and pull_request runs still never cancel each other,
-# because a branch ref and a pull-request merge ref are different groups.
+# Cancel superseded work for the same ref, except when a PR title or body edit
+# queues another run. A base retarget still cancels the stale merge candidate.
+# The group omits the event name so a label toggle and a PR synchronize share
+# one lane, avoiding duplicate work on one head. Push and pull_request runs
+# remain separate because branch refs and PR merge refs have different groups.
 # Duplicate push runs skip downstream jobs after classification when an open PR
 # already owns the same branch head.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.base != null }}
 
 jobs:
   # Classify the change on three independent axes:
