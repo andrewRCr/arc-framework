@@ -1694,6 +1694,15 @@ const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
 
+function rejectUnsupportedReviewJson(_command: Command, actionCommand: Command): void {
+  if (actionCommand.opts().json !== true) return;
+  actionCommand.error(
+    `error: option '--json' is unsupported for ${formatCommandPath(actionCommand)}; `
+      + "pass a JSON request file or '-' for stdin. JSON output is automatic.",
+    { exitCode: 1, code: "arc.review.unsupportedJsonOption" },
+  );
+}
+
 reviewCmd
   .command("change-request")
   .description("Exact-head change-request operations")
@@ -1737,6 +1746,8 @@ reviewCmd
       + '{"judgment":{"mode":"owner-accepted"}}\n',
   )
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(withInteractionContext(
     { machineReadable: true },
     async (context, input: string | undefined, opts: { schema?: boolean }) => {
@@ -1782,6 +1793,8 @@ reviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-readiness-request", input);
@@ -1822,6 +1835,8 @@ reviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .addHelpText("after", `\nRequest JSON:\n  ${planningGroomingResolveHelp}\n`)
   .action(withInteractionContext(
     { machineReadable: true },
@@ -1843,6 +1858,8 @@ reviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-resolve-request", input);
@@ -1861,6 +1878,8 @@ frontlineCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-frontline-resolve-request", input);
@@ -1875,6 +1894,8 @@ frontlineCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(withInteractionContext(
     { machineReadable: true },
     async (context, input: string | undefined, opts: { schema?: boolean }) => {
@@ -1900,6 +1921,8 @@ hostedCmd
     "\nContinuation:\n  Submit the emitted action unchanged to `arc review hosted await -`.\n",
   )
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-request-request", input);
@@ -1918,6 +1941,8 @@ hostedCmd
     "\nPending continuation:\n  Submit the emitted action unchanged to this command.\n",
   )
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-await-request", input);
@@ -1932,6 +1957,8 @@ hostedCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-settle-request", input);
@@ -1948,6 +1975,8 @@ reviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-chunking-resolve-request", input);
@@ -1966,6 +1995,8 @@ localReviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-prepare-request", input);
@@ -1980,6 +2011,8 @@ localReviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-attest-request", input);
@@ -1994,6 +2027,8 @@ localReviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-resume-request", input);
@@ -2008,6 +2043,8 @@ reviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-respond-request", input);
@@ -2022,6 +2059,8 @@ reviewCmd
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
   .action(async (input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-reduce-request", input);
