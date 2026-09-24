@@ -218,6 +218,29 @@ describe("packaged review CLI surfaces", () => {
     expect(result.stderr).toContain("JSON output is automatic");
   });
 
+  it.each([
+    { name: "review change-request resolve", command: ["review", "change-request", "resolve"],
+      args: ["--head-ref", "feat/example", "--head-sha", "a".repeat(40)] },
+    { name: "review status", command: ["review", "status"], args: [] },
+    { name: "review merge-method resolve", command: ["review", "merge-method", "resolve"], args: [] },
+    { name: "review checks await", command: ["review", "checks", "await"], args: [] },
+    { name: "review pre-publication", command: ["review", "pre-publication"], args: ["example"] },
+  ])("explains automatic JSON output at $name", async ({ name, command, args }) => {
+    const [result, help] = await Promise.all([
+      runCli([...command, ...args, "--json"], { cwd: fixtureRoot }),
+      runCli([...command, "--help"], { cwd: fixtureRoot }),
+    ]);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(name);
+    expect(result.stderr).toContain("JSON output is automatic");
+    expect(result.stderr).toContain(`${name} --help`);
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain("as JSON");
+    expect(help.stdout).not.toContain("--json");
+  });
+
   it("rejects combining schema discovery with a request source", async () => {
     const result = await runCli([
       "review", "changeset", "resolve", invalidInputPath, "--schema",
