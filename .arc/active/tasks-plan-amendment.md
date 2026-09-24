@@ -548,18 +548,18 @@ source and the project copy.
           forty-five keys explicitly, and dropping one would break that shape rather than express inheritance.
         - The narrowing rationale moved into the shared shipped comment, so the two strict blocks are identical.
 
-- _Outcome:_ Both alternations failed the same way — an unguarded left edge — and both now require a
-  non-identifier, non-dot character there. A2 predicted the task-id case; A4 was the same defect reaching a
-  filename, found only because registering the extracted method tripped it. The shipped defaults, both hook
-  copies, and this repository's config move as one, and the repo now overrides only the broad pattern, where it
-  still genuinely differs.
-
     - `[x]` **5.R.c Narrow the shipped `hooks.meta_ref_patterns` default**
         - The artifact-name alternation now requires a non-identifier, non-dot character to its left, so
           `resolve-plan-segmentation.md` no longer reads as a work-unit `plan-*` artifact while real `tasks-*`,
           `plan-*`, and `notes-*` references still match, including one reached through a path separator.
         - The package `arc-config.yml` default, its comment's rationale, both hook copies, and this repository's
           override moved together; the two hook copies stay byte-identical.
+
+- _Outcome:_ Both alternations failed the same way — an unguarded left edge — and both now require a
+  non-identifier, non-dot character there. A2 predicted the task-id case; A4 was the same defect reaching a
+  filename, found only because registering the extracted method tripped it. The shipped defaults, both hook
+  copies, and this repository's config move as one, and the repo now overrides only the broad pattern, where it
+  still genuinely differs.
 
 ### `[x]` **5.4 Reachable and installable procedure — D12** — validate exit criterion at segment scope
 

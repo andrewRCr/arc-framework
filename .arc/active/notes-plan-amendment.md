@@ -1,6 +1,11 @@
 # Notes: plan-amendment
 
-**Contents:** precedent survey behind the record design · adversarial-pass history · forward-compat check detail
+## Contents
+
+- [Precedent survey](#precedent-survey--why-the-record-is-edit-in-place-plus-a-log)
+- [Adversarial-pass history](#adversarial-pass-history)
+- [Forward-compat check detail](#forward-compat-check-detail-2026-09-11)
+- [A1 — the always-loaded footprint claim](#a1--the-always-loaded-footprint-claim)
 
 ## Precedent survey — why the record is edit-in-place plus a log
 
