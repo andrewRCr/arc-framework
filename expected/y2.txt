@@ -1,0 +1,25 @@
+== touching: fix m1's line, m3 rewrote the next
+  plain: STOP m1(fix) conflict s.txt  
+  RES1: STOP m3 conflict s.txt  
+  RES1+TERMRES: 1217656c7c04725b4989f906c4c1b7be155dc144 2e340f206a01d7b8e5d742aa44e40d13de301127 29a162bddf2411454f35869a3384e9aa0793adb9 
+    terminal complete; m1 s.txt=[a b M1FIXED d e ] m1.txt=[m1 ] m2 s.txt=[a b M1FIXED d e ] m3 s.txt=[a b M1FIXED D3 e ]
+== touching mixed: fix M1, drop Z of m3's W Z
+  plain: STOP m1(fix) conflict s.txt  
+  RES1: STOP m3 conflict s.txt  
+  RES1+TERMRES: 926ff356514b45cc1d6d714b9edd02a34c02029f a3f437f6337968e4e0c43b796545a80fabf773e2 fbf98dbf504f1d4d9a5db3d0d47a429f1b119809 
+    terminal complete; m1 s.txt=[a b c d M1FIXED ] m1.txt=[m1 ] m2 s.txt=[a b c d M1FIXED ] m3 s.txt=[a b c d M1FIXED W ]
+== touching mixed: fix M1, remove m3's W
+  plain: STOP m1(fix) conflict s.txt  
+  RES1: STOP m3 conflict s.txt  
+  RES1+TERMRES: 9171fc9e22171574943c1696e7834362325e894c 3b20863e87f20832fdb8e37c4b6369ad1f1a7f7b 0895f5fcc22dacd53575e355a7fe7daaf5ca9cd7 
+    terminal complete; m1 s.txt=[a b M1FIXED c d ] m1.txt=[m1 ] m2 s.txt=[a b M1FIXED c d ] m3 s.txt=[a b M1FIXED c d ]
+== wholly later: fix m3's rewritten hunk; m1 keeps its own
+  plain: STOP m1(fix) conflict s.txt  
+  RES1: 2431d2a4d1a52e4f12a82a5b3397ccb7abe8adcd 3d92968dba856eedf93481ad61a2769149687097 fae1eda7be72560d6f373de1f115f1452e1a766e 
+  RES1+TERMRES: 2431d2a4d1a52e4f12a82a5b3397ccb7abe8adcd 3d92968dba856eedf93481ad61a2769149687097 fae1eda7be72560d6f373de1f115f1452e1a766e 
+    terminal complete; m1 s.txt=[a b.m1 c ] m1.txt=[m1 ] m2 s.txt=[a b.m1 c ] m3 s.txt=[a b.FIXED c ]
+== mixed removal: fix m1, drop a line of m3's own file
+  plain: STOP m1(fix) conflict m3.txt  
+  RES1: 0b0979c07b85140c1ea24fd93c0ccf00f9d3cc0f f2ec86ab357aa1f9883f01b360542fa916ec88fb 72d182ef70cba6cb03f3c77100b3a7aa66b70a88 
+  RES1+TERMRES: 0b0979c07b85140c1ea24fd93c0ccf00f9d3cc0f f2ec86ab357aa1f9883f01b360542fa916ec88fb 72d182ef70cba6cb03f3c77100b3a7aa66b70a88 
+    terminal complete; m1 s.txt=[a b c ] m1.txt=[m1 FIXED ] m2 s.txt=[a b c ] m3 s.txt=[a b c ]

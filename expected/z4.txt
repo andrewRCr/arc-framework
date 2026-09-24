@@ -1,0 +1,6 @@
+== one commit(s), placed on m1: N terminal complete; m3 s.txt=[a b c d e f M2 ]
+  continuation (m1, stopped top): equal-N=yes complete
+  without the recorded top: equal-N=yes complete
+== two commit(s), placed on m1: N terminal complete; m3 s.txt=[a b c d e f M2 ]
+  continuation (m1, stopped top): equal-N=yes complete
+  without the recorded top: equal-N=yes complete

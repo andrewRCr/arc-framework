@@ -1,0 +1,26 @@
+a: second correction on m3.txt placed on m3
+  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  continuation (m1, stopped top): STOP m1(fix) conflict m3.txt  
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 23f6ae1b872d998d9e44745761c6b045122ef0d6 
+  equal : NO
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+b: second correction unplaced
+  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  continuation (m1, stopped top): STOP m1(fix) conflict m3.txt  
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 23f6ae1b872d998d9e44745761c6b045122ef0d6 
+  equal : NO
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+c: disjoint base move, placed on m1
+  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  continuation (m1, stopped top): 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 f57ae3d19a1512290e6ab29366b4a31a67b6f0af 
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 f57ae3d19a1512290e6ab29366b4a31a67b6f0af 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+d: disjoint base move, unplaced
+  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  continuation (m1, stopped top): 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 f57ae3d19a1512290e6ab29366b4a31a67b6f0af 
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 f57ae3d19a1512290e6ab29366b4a31a67b6f0af 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]

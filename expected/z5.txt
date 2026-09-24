@@ -1,0 +1,12 @@
+  stop: STOP m1(fix) conflict s.txt key=11807ffc
+  stop: STOP m2 conflict s.txt key=57f297b357354
+  stop: STOP m2(fix) conflict s.txt key=ad9dff25
+== full rebuild N: 1217656c7c04725b4989f906c4c1b7be155dc144 54dfee6fc8984d1463011aea7a4a48cf688ddcde 826de7a43542e46ebd432d0dba6b63cc5332cbe2 
+    terminal complete; s.txt m1=[a b M1FIXED d e ] m2=[a b M1FIXED e ] m3=[a b M1FIXED e ]
+  recomposed, recorded top: equal-N=NO 1217656c7c04725b4989f906c4c1b7be155dc144 e6fff59707d3cf79325
+    terminal INCOMPLETE; s.txt m1=[a b M1FIXED d e ] m2=[a b M1FIXED M2 e ] m3=[a b M1FIXED M2 e ]
+  recomposed, recorded top gated to the placement: equal-N=NO 1217656c7c04725b4989f906c4c1b7be155dc144 e6fff59707d3cf79325
+    terminal INCOMPLETE; s.txt m1=[a b M1FIXED d e ] m2=[a b M1FIXED M2 e ] m3=[a b M1FIXED M2 e ]
+  recomposed, cherry-pick test alone: equal-N=NO STOP m1(fix) conflict s.txt key=11807ffc660340c3b6b5e1fdd969
+  recomposed, a first-merge conflict read as not carried: equal-N=NO STOP m1(fix) conflict s.txt key=11807ffc660340c3b6b5e1fdd969
+  the constructed chain bound (construct over it): equal-N=yes

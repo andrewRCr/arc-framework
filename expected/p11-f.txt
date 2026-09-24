@@ -1,0 +1,21 @@
+F1: the loop stopped after m1's fix; a second correction deletes m2.txt, placed on m2
+  loop candidates N: 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 d3024d8e7cdfdba1975eb335133a8bb1c16e5ba3
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f fb362f855bf6dc47e462ffa95c6f01e28a2d4d80 673152cc126f85acb1c416fb1ac30b95cab12846 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f fb362f855bf6dc47e462ffa95c6f01e28a2d4d80 673152cc126f85acb1c416fb1ac30b95cab12846 
+  equal : yes
+  mixed: terminal vs top complete; m2.txt absent; s.txt=[a b c M3 ]
+  cands: terminal vs top complete; m2.txt absent; s.txt=[a b c M3 ]
+F2: the first correction deletes m2.txt, placed on m2; the loop rewrote m1 only; then B2 moves
+  loop candidates N: 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 15140b2e6c01d090401f362b3504f1d00d44bea2 61e77f7695dd9dd724f3b821782fe4121c969177
+  mixed : 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 15140b2e6c01d090401f362b3504f1d00d44bea2 43f2527560b9f882d16c2403ef6ec15f56134716 
+  cands : 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 15140b2e6c01d090401f362b3504f1d00d44bea2 43f2527560b9f882d16c2403ef6ec15f56134716 
+  equal : yes
+  mixed: terminal vs top complete; m2.txt absent; s.txt=[a b c M3 ]
+  cands: terminal vs top complete; m2.txt absent; s.txt=[a b c M3 ]
+F3: the first correction removes the terminal's M3 line from s.txt, unplaced; the loop rewrote m1 only; then B2 moves
+  loop candidates N: 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 b6f2b68ad4ce1f0898562ba95aeca32e43e5c8a3 d71c072910adba24731603ddf88b98428cdc1f71
+  mixed : 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 b6f2b68ad4ce1f0898562ba95aeca32e43e5c8a3 2b67fcbb55e33f37037af39f6a42ef1e19e809d5 
+  cands : 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 b6f2b68ad4ce1f0898562ba95aeca32e43e5c8a3 2b67fcbb55e33f37037af39f6a42ef1e19e809d5 
+  equal : yes
+  mixed: terminal vs top complete; m2.txt present; s.txt=[a b c ]
+  cands: terminal vs top complete; m2.txt present; s.txt=[a b c ]

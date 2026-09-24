@@ -1,0 +1,8 @@
+== part
+  FOLDUP=1: STOP m1(fix) conflict s.txt  
+  FOLDUP=0: STOP m1(fix) conflict s.txt  
+== whole
+  FOLDUP=1: fd5a241a5fba1226006a59a350ac2035a25d5c74 3813d8244e47499ee2b2e5f4a29af9b65b06ebf2 40e89ec68e567a9708f0a1d80d6e8a3b4c8c4883 
+    terminal vs top: complete
+  FOLDUP=0: fd5a241a5fba1226006a59a350ac2035a25d5c74 3813d8244e47499ee2b2e5f4a29af9b65b06ebf2 688325bc57f06808fb98ecb15bd2eb02a6780560 
+    terminal vs top: INCOMPLETE

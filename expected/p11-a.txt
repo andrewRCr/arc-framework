@@ -1,0 +1,21 @@
+A1: second correction deletes m3.txt (a file only the terminal authored), unplaced (terminal)
+  mixed : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 91cd3e98d869773872b27fa203bb0a2d50225ea6   TOLD(after advance)=3af693f
+  cands : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 91cd3e98d869773872b27fa203bb0a2d50225ea6   TOLD=3af693f
+  equal : yes
+  mixed terminal vs top: complete   m3.txt in mixed terminal: absent  t.txt=[t T3 MAIN ]
+  cands terminal vs top: complete   m3.txt in cands terminal: absent  t.txt=[t T3 MAIN ]
+  top t.txt=[t T3 MAIN ]
+A2: second correction removes the T3 line the terminal added to the shared t.txt, unplaced (terminal)
+  mixed : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 59be8bbf590575b215155c894ef92e8c71c4c6dd   TOLD(after advance)=3af693f
+  cands : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 59be8bbf590575b215155c894ef92e8c71c4c6dd   TOLD=3af693f
+  equal : yes
+  mixed terminal vs top: complete   m3.txt in mixed terminal: present  t.txt=[t MAIN ]
+  cands terminal vs top: complete   m3.txt in cands terminal: present  t.txt=[t MAIN ]
+  top t.txt=[t MAIN ]
+A3: control — second correction MODIFIES m3.txt (not a pure removal)
+  mixed : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 09b1fffe005e2428197653eacf626be1419fd70e   TOLD(after advance)=3af693f
+  cands : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 09b1fffe005e2428197653eacf626be1419fd70e   TOLD=3af693f
+  equal : yes
+  mixed terminal vs top: complete   m3.txt in mixed terminal: present  t.txt=[t T3 MAIN ]
+  cands terminal vs top: complete   m3.txt in cands terminal: present  t.txt=[t T3 MAIN ]
+  top t.txt=[t T3 MAIN ]

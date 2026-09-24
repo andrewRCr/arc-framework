@@ -1,0 +1,12 @@
+== fix in m1.txt, placed on m3
+  full rebuild N: 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 ea3e95f08251c4ca55de64342afe13a7bb6bf8b2 -> complete
+  N m1 m1.txt=[m1 ] m3 m1.txt=[m1 FIXED ]
+  continuation (m3, stopped top): 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 a066c90a0a46fa11a37bab928e7f173611b4574b  -> INCOMPLETE equal-N=NO
+  cont m3 m1.txt=[m1 ]
+  same run without CONT_TOP (cherry-pick test alone): 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 ea3e95f08251c4ca55de64342afe13a7bb6bf8b2  -> complete equal-N=yes
+== fix in q.txt, placed on m3
+  full rebuild N: 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 c60db3a6fb835514a0dc21e33d4124a6e588ed99 -> complete
+  N m1 q.txt=[q m1 ADAPTED ] m3 q.txt=[q m1FIXED ADAPTED ]
+  continuation (m3, stopped top): 4a071c42c8d600c821eb15d4d6501cfc1b79411c 671a4d62a34f8c42d85af8d1f4a6e6d696128ffb 70abc13d65f54026d61f9be58616c699b4f1dfcf  -> complete equal-N=NO
+  cont m3 q.txt=[q m1FIXED ADAPTED ]
+  same run without CONT_TOP (cherry-pick test alone): 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 c60db3a6fb835514a0dc21e33d4124a6e588ed99  -> complete equal-N=yes

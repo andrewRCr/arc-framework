@@ -1,0 +1,9 @@
+== gap 0
+  on m1: STOP m1(fix) conflict s.txt   mixed? no
+  on m3: face66f9b6452866c8d97e68d5b711a58200650c bc1ed12be155fef552542eb0968760869f5382cc b1747b6248747d06b7fba429c90dde190e88b6d7 
+    terminal complete; s.txt in m1=[a b M1 d e ] in m3=[a b M1FIXED D3 e ]
+== gap 1
+  on m1: e38d937a641541ffba960c8a86809111dc3d58ea 9d4ca00f0fa37de14aeabff4db7ed618e32483a2 eb42417037e3037b3cbd93c94a522ff2f6b7da1c  mixed? yes
+    s.txt in m1=[a b M1FIXED p0 d e ] terminal complete
+  on m3: 762888d79509eebdf840c35ef2c72c7c61bfed5a 288c39ee0b68bff55c8549469edb7e46e3049967 a02854ed97fd3eb2a4a0319a32e3befcce7ab707 
+    terminal complete; s.txt in m1=[a b M1 p0 d e ] in m3=[a b M1FIXED p0 D3 e ]

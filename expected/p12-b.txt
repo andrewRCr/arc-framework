@@ -1,0 +1,32 @@
+a: second correction on m3.txt placed on m3
+  N: 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 8bd30fdab0b2d34aee590aaa4d00bc39c5d39f6d  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  mixed : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 39ceb6283a274f157d818ad36fd166cc7e1826d8 9089646f824e69fcf907f03427202eb0e2ba0952 
+  mixed authcheck (own AU):  ok; AU3=[m3.txt  m3.txt    s.txt]
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 23f6ae1b872d998d9e44745761c6b045122ef0d6 
+  equal : NO
+  mixed: terminal complete; s.txt m2=[a b c d e f M2 ] m3=[a b c d e f ]; authcheck  ok
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+b: second correction on m3.txt unplaced
+  N: 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 8bd30fdab0b2d34aee590aaa4d00bc39c5d39f6d  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  mixed : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 39ceb6283a274f157d818ad36fd166cc7e1826d8 9089646f824e69fcf907f03427202eb0e2ba0952 
+  mixed authcheck (own AU):  ok; AU3=[m3.txt  m3.txt    s.txt]
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 23f6ae1b872d998d9e44745761c6b045122ef0d6 
+  equal : NO
+  mixed: terminal complete; s.txt m2=[a b c d e f M2 ] m3=[a b c d e f ]; authcheck  ok
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+c: control — disjoint base move, rebuild placed on m1
+  N: 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 8bd30fdab0b2d34aee590aaa4d00bc39c5d39f6d  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  mixed : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 f57ae3d19a1512290e6ab29366b4a31a67b6f0af 
+  mixed authcheck (own AU):  ok; AU3=[m3.txt ]
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 f57ae3d19a1512290e6ab29366b4a31a67b6f0af 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]; authcheck  ok
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]
+d: disjoint base move, rebuild unplaced
+  N: 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 8bd30fdab0b2d34aee590aaa4d00bc39c5d39f6d  N terminal vs FT: complete; N m2 s.txt=[a b c d e f ]
+  mixed : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 39ceb6283a274f157d818ad36fd166cc7e1826d8 c7cc3d28ac44a84a1a85d2bc52bde7841995ac1c 
+  mixed authcheck (own AU):  ok; AU3=[m3.txt     s.txt]
+  cands : 10cc7dfcfb19e06b3ad166eeab8c1948502d37e7 9f6ea66783d89a2add5f275d9508512a94f66fc9 f57ae3d19a1512290e6ab29366b4a31a67b6f0af 
+  equal : NO
+  mixed: terminal complete; s.txt m2=[a b c d e f M2 ] m3=[a b c d e f ]; authcheck  ok
+  cands: terminal complete; s.txt m2=[a b c d e f ] m3=[a b c d e f ]

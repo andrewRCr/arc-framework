@@ -1,0 +1,11 @@
+== gap 0
+  on m1: STOP m1(fix) conflict s.txt   mixed? no
+  on m1 BOUND: STOP m1(fix) conflict s.txt  
+  on m3: 64239a3d63b114cf39426e7847c9d2f02be9aac9 c363800f0a3583678107ce9fb0d3e14d9dc126ef 9a3bf795c3b41b042025346a6bfaa40b6d44f960 
+    terminal complete; s.txt in m1=[a b M1 c d ] in m3=[a b M1FIXED c d ]
+== gap 1
+  on m1: 776f9184f787c1853398979e844ee58b1ec2616d efe43697b4862bd21c34a7bba84337ff1d1ab11d c899a6734722a778f4ecd8723891e543b2d9b279  mixed? yes
+    s.txt in m1=[a b M1FIXED p0 c d ] terminal complete
+  on m1 BOUND: STOP m3(fold) later member [s.txt ] 
+  on m3: 446e2b51288ce27313927a5a23c749b0f308f8c2 f00463b42b32ae82f75f4ebb9bf9cbd5177f23f5 bd432b274bcc8251f17a3c7d6b1825df15edeb0b 
+    terminal complete; s.txt in m1=[a b M1 p0 c d ] in m3=[a b M1FIXED p0 c d ]

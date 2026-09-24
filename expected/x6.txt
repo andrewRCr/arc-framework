@@ -1,0 +1,1 @@
+stopped run's construct, placed on m1: STOP m1(fix) conflict s.txt  

@@ -1,0 +1,34 @@
+X-m2-place0: second correction removes M2
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]
+  cands: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]
+X-m2-place2: second correction removes M2
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 337f09a70c0224ac0eda60f8303eec577ef58a89 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 337f09a70c0224ac0eda60f8303eec577ef58a89 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c ] m3=[a b c ]
+  cands: terminal complete; s.txt m2=[a b c ] m3=[a b c ]
+X-m2-place3: second correction removes M2
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]
+  cands: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]
+X-mod-place0: second correction removes M2m3
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]
+  cands: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]
+X-mod-place2: second correction removes M2m3
+  mixed : STOP m2(fix) conflict s.txt  
+  cands : STOP m2(fix) conflict s.txt  
+  equal : yes
+X-mod-place3: second correction removes M2m3
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 27e72496536407c8e0ac47879c0eada33ad823c0 877a032775fe5689774e13697a03d835894dd215 
+  equal : yes
+  mixed: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]
+  cands: terminal complete; s.txt m2=[a b c M2 ] m3=[a b c ]

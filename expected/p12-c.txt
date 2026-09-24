@@ -1,0 +1,8 @@
+== fileline
+  FOLDUP=1: STOP m1(fix) conflict m3.txt  
+  FOLDUP=0: STOP m1(fix) conflict m3.txt  
+== span
+  FOLDUP=1: 0b0979c07b85140c1ea24fd93c0ccf00f9d3cc0f f2ec86ab357aa1f9883f01b360542fa916ec88fb f9501ef61d8f9113a62e4d5b73a98c2054ea9471 
+    terminal vs top: complete
+  FOLDUP=0: 0b0979c07b85140c1ea24fd93c0ccf00f9d3cc0f f2ec86ab357aa1f9883f01b360542fa916ec88fb 00a3283d65999e75c5f73ea2c479c8af9ccb2630 
+    terminal vs top: INCOMPLETE

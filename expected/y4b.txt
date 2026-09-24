@@ -1,0 +1,18 @@
+== same (run 1 recorded 2 resolutions)
+  without the continuation's top: STOP m1(fix) conflict s.txt key=11807ffc660340c3b6b5e1fdd969fdfeb00f8d
+  continuation: 1217656c7c04725b4989f906c4c1b7be155dc144 e6fff59707d3cf79325df99211fc1e639d55335f 681f62bedccfdcbb4e0bb1e0fa0aad21d4b45cf2 
+    terminal complete; s.txt m1=[a b M1FIXED d e ] m2=[a b M1FIXED M2 e ] m3=[a b M1FIXED M2 e ]
+    same objects as run 1: yes
+== disjoint (run 1 recorded 2 resolutions)
+  without the continuation's top: STOP m1(fix) conflict s.txt key=ad779baab2b502d2371388d5b1f75bbff53647
+  continuation: 1217656c7c04725b4989f906c4c1b7be155dc144 e6fff59707d3cf79325df99211fc1e639d55335f bf311cfeeaa993c3283684a05750eb02c3c85e8c 
+    terminal complete; s.txt m1=[a b M1FIXED d e ] m2=[a b M1FIXED M2 e ] m3=[a b M1FIXED M2 e ]
+== shared (run 1 recorded 2 resolutions)
+  without the continuation's top: STOP m1(fix) conflict s.txt key=9ab653d12ffad2c3464d9ac448e40f33f75453
+  continuation: 1a9d89c19f4b6b434f197f707bad317dbcb54715 206613ea305e48f4bf994b84589c1feb0214b361 55982f0d34064ddd233ae21574c1b52d146ea96a 
+    terminal complete; s.txt m1=[A b M1FIXED d e ] m2=[A b M1FIXED M2 e ] m3=[A b M1FIXED M2 e ]
+== second correction on m1's line after run 1's chain was adopted: its compositions are new, run 1's records unused
+  over the adopted chain: STOP m1(fix) conflict s.txt key=874f318a472fa88de4702ca7f4110b5117b66a
+  after m1's new resolution: STOP m2 conflict s.txt key=c10b83f6167ebff7f5343f58eba37981bec43740:c1
+  after m2's: e802664000ab010070c3eef6550fcacbf45d13d9 0a03326b76e112e89ef7205d1b9295f88d0af510 ade06fd87ab0c163e5df0d733a35f7590af59b4e 
+    terminal complete; s.txt m1=[a b M1FIXED2 d e ] m2=[a b M1FIXED2 M2 e ] m3=[a b M1FIXED2 M2 e ]

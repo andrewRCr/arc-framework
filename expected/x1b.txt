@@ -1,0 +1,4 @@
+two-commit correction, nothing moved, re-run place=1: equal-to-full-rebuild=yes; m2 s.txt=[a b c d e f ] terminal complete
+two-commit correction, nothing moved, re-run place=0: equal-to-full-rebuild=NO; m2 s.txt=[a b c d e f M2 ] terminal complete
+one-commit correction, nothing moved, re-run place=1: equal-to-full-rebuild=yes; m2 s.txt=[a b c d e f ] terminal complete
+one-commit correction, nothing moved, re-run place=0: equal-to-full-rebuild=NO; m2 s.txt=[a b c d e f M2 ] terminal complete

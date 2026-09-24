@@ -1,0 +1,34 @@
+== b0 span
+  N (unbroken construct over FT): 1af83cf8b3c316c1b0dc847555e8deff6a003e8c 866c28083e5897c7e23a20781b21ba8227d8df78 e078501afe65711f26f72748479458181ae8fe12
+  N terminal vs FT: complete
+  mixed: 1af83cf8b3c316c1b0dc847555e8deff6a003e8c 866c28083e5897c7e23a20781b21ba8227d8df78 e337c03f197f68be16f12800b715a814bfbc302c 
+  cands: 1af83cf8b3c316c1b0dc847555e8deff6a003e8c 866c28083e5897c7e23a20781b21ba8227d8df78 e337c03f197f68be16f12800b715a814bfbc302c 
+  equal: yes
+  mixed terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j ]
+  cands terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j ]
+== b0 ctl
+  N (unbroken construct over FT): 1af83cf8b3c316c1b0dc847555e8deff6a003e8c 866c28083e5897c7e23a20781b21ba8227d8df78 8328c5f5507828472a459f3966212cb9d772bb81
+  N terminal vs FT: complete
+  mixed: 1af83cf8b3c316c1b0dc847555e8deff6a003e8c 866c28083e5897c7e23a20781b21ba8227d8df78 5fa099a0d6e3fe8b57ed4994141ccd6b5408df59 
+  cands: 1af83cf8b3c316c1b0dc847555e8deff6a003e8c 866c28083e5897c7e23a20781b21ba8227d8df78 5fa099a0d6e3fe8b57ed4994141ccd6b5408df59 
+  equal: yes
+  mixed terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j Z m3 ]
+  cands terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j Z m3 ]
+== b1 span
+Aborting commit due to empty commit message.
+  N (unbroken construct over FT): e36a0d81768886a5993f6b43bff0d18f155effa2 679ab936c5f344c93e371e6efff0003f2c8c79ed 4b0225b96f8dd9c2a86bdfe4a73858d2b4f37227
+  N terminal vs FT: complete
+  mixed: e36a0d81768886a5993f6b43bff0d18f155effa2 679ab936c5f344c93e371e6efff0003f2c8c79ed c36d9e052b907a32414ba7dfc2e18eec04a79d7c 
+  cands: e36a0d81768886a5993f6b43bff0d18f155effa2 679ab936c5f344c93e371e6efff0003f2c8c79ed c36d9e052b907a32414ba7dfc2e18eec04a79d7c 
+  equal: yes
+  mixed terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j ]
+  cands terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j ]
+== b1 ctl
+Aborting commit due to empty commit message.
+  N (unbroken construct over FT): e36a0d81768886a5993f6b43bff0d18f155effa2 679ab936c5f344c93e371e6efff0003f2c8c79ed 830807b062ef1d9fced56fe2d694bfe689c7edd2
+  N terminal vs FT: complete
+  mixed: e36a0d81768886a5993f6b43bff0d18f155effa2 679ab936c5f344c93e371e6efff0003f2c8c79ed fd3c4fbbfebf54e534a26eb9831ee3807b7caad2 
+  cands: e36a0d81768886a5993f6b43bff0d18f155effa2 679ab936c5f344c93e371e6efff0003f2c8c79ed fd3c4fbbfebf54e534a26eb9831ee3807b7caad2 
+  equal: yes
+  mixed terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j Z m3 ]
+  cands terminal vs T2: complete; s.txt=[a b FIXED c d e f g h i j Z m3 ]

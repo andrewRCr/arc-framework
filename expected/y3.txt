@@ -1,0 +1,14 @@
+== disjoint
+  plain: STOP m1(fix) conflict s.txt  
+  RES1+TERMRES: 1217656c7c04725b4989f906c4c1b7be155dc144 2e340f206a01d7b8e5d742aa44e40d13de301127 4912b579b66075f4f7397451d2528f9f323fdc4a 
+    terminal complete; m1 s.txt=[a b M1FIXED d e ] m3 s.txt=[a b M1FIXED D3 e ]
+    m1 s.txt=[a b M1FIXED d e ] parents: 1 authored: m1.txt s.txt 
+    m2 s.txt=[a b M1FIXED d e ] parents: 1 authored: m2.txt 
+    m3 s.txt=[a b M1FIXED D3 e ] parents: 1 authored: m3.txt s.txt 
+== shared
+  plain: STOP m1(fix) conflict s.txt  
+  RES1+TERMRES: 1a9d89c19f4b6b434f197f707bad317dbcb54715 1db5abafe407f9f9aaf30094f56c2fe0b62ab1b1 f35c9dd7eb7b7f39caca3f20ea35d9a4668db504 
+    terminal complete; m1 s.txt=[A b M1FIXED d e ] m3 s.txt=[A b M1FIXED D3 e ]
+    m1 s.txt=[A b M1FIXED d e ] parents: 1 authored: m1.txt s.txt 
+    m2 s.txt=[A b M1FIXED d e ] parents: 1 authored: m2.txt 
+    m3 s.txt=[A b M1FIXED D3 e ] parents: 1 authored: m3.txt s.txt 

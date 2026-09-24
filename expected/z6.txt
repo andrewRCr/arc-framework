@@ -1,0 +1,4 @@
+== placement 3, fix in m1.txt: gated recomposition equal-N=yes; constructed chain bound equal-N=yes
+== placement 3, fix in q.txt: gated recomposition equal-N=yes; constructed chain bound equal-N=yes
+== placement 0, fix in m1.txt: gated recomposition equal-N=yes; constructed chain bound equal-N=yes
+== placement 0, fix in q.txt: gated recomposition equal-N=yes; constructed chain bound equal-N=yes

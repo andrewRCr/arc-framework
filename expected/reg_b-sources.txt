@@ -18,9 +18,9 @@ G full rebuild, fix on m2                      guard=PASS                   comp
 G re-run over mixed chain, own predecessors    guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
                                                idempotent over its own output: ===
    vs full rebuild: ===
-G re-run over mixed chain, list neighbours     guard=PASS                   INCOMPLETE d3=ancestor     shape=111  auth= ok            tipcheck= none
-                                               idempotent over its own output: ==*
-   vs full rebuild: ==*
+G re-run over mixed chain, list neighbours     guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
+                                               idempotent over its own output: ===
+   vs full rebuild: ===
 G re-run, stopped after member 1               guard=PASS                   complete   d3=ancestor     shape=111  auth= ok            tipcheck= none
                                                idempotent over its own output: ===
    vs full rebuild: ===

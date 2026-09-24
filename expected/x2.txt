@@ -1,0 +1,16 @@
+== gap 0
+  on m1: STOP m1(fix) conflict s.txt  mixed? no
+  on m3: bb392838ff637057173cc6e0563aad1578429c9d 14bd734ae05bf1cc9f507c32227463afc97aee21 e13cea07ff148f41f7d3b197a9113d32bb39d47a 
+    terminal complete; s.txt in m1=[a b c d M1 ] in m3=[a b c d M1FIXED W ]
+== gap 1
+  on m1: STOP m1(fix) conflict s.txt  mixed? yes
+  on m3: 622374f33ba5cf2ff92b6bc8ee1ed270184a7104 4489ccda4df452de3c427a0eef96a42063f4dae0 3d0698b1f4bbbd95842ea86621139e3b7fba062d 
+    terminal complete; s.txt in m1=[a b c d M1 p0 ] in m3=[a b c d M1FIXED p0 W ]
+== gap 2
+  on m1: STOP m1(fix) conflict s.txt  mixed? yes
+  on m3: 4818a0ebe53d3a3b42cc85f69d02206955878820 c3c4401bf09964136192eda383b697469308fe38 6820b52686c431471a41f775403998fd8e76edf3 
+    terminal complete; s.txt in m1=[a b c d M1 p0 p1 ] in m3=[a b c d M1FIXED p0 p1 W ]
+== gap 3
+  on m1: STOP m1(fix) conflict s.txt  mixed? yes
+  on m3: 0643fa5239f8b0768461af0bf83aa1b010f943a8 f9ca5f8152366cf28cb6763a8e10dc0202192d5c 74e130c57f4e3be14736f9035133099094b577d9 
+    terminal complete; s.txt in m1=[a b c d M1 p0 p1 p2 ] in m3=[a b c d M1FIXED p0 p1 p2 W ]

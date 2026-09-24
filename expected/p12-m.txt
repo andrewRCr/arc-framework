@@ -1,0 +1,33 @@
+== removal mixed
+  on m1: STOP m1(fix) conflict m3.txt  mixed? yes
+  on m3: b7393eefb193da6603a67d450f684986522457f6 98fbe61ba0fd269552a214c67275efe1d75c1d3f cc5066037d2c5d27aec69c0c2b7a9e7a885f9f63 
+    terminal complete; m1.txt in m1=[m1 ] s.txt in m1=[a b m1 c d e f g h ]
+  split, m1 part on m1: eb7ed841e9ed764e886a8738de41786fa7323b5f e6183b200193e11c70f9b72183ff1216bc92dff5 5cb7f81fff3f069b2a5f29008aeff7dcd52ed558 
+  split, the rest on m3: eb7ed841e9ed764e886a8738de41786fa7323b5f e6183b200193e11c70f9b72183ff1216bc92dff5 495644b2d7ace7966fbebc026ebb620d233010ee 
+    terminal complete; m1 kept from the first: yes; m1.txt in m1=[m1 FIXED ] s.txt in m1=[a b m1 c d e f g h ]
+== removal alone
+  on m1: STOP m1(fix) conflict m3.txt  mixed? no
+  on m3: b7393eefb193da6603a67d450f684986522457f6 98fbe61ba0fd269552a214c67275efe1d75c1d3f b84a50f90b45cad8b6869cdad3f58b35a43e9fed 
+    terminal complete; m1.txt in m1=[m1 ] s.txt in m1=[a b m1 c d e f g h ]
+== rewrite mixed
+  on m1: STOP m1(fix) conflict s.txt  mixed? yes
+  on m3: b7393eefb193da6603a67d450f684986522457f6 98fbe61ba0fd269552a214c67275efe1d75c1d3f 0e2062c6d4a6440f1fac8401a01d34f98f998bc8 
+    terminal complete; m1.txt in m1=[m1 ] s.txt in m1=[a b m1 c d e f g h ]
+  split, m1 part on m1: eb7ed841e9ed764e886a8738de41786fa7323b5f e6183b200193e11c70f9b72183ff1216bc92dff5 1bebf8c48059a216d819b5326c7f0b7439cf7c50 
+  split, the rest on m3: eb7ed841e9ed764e886a8738de41786fa7323b5f e6183b200193e11c70f9b72183ff1216bc92dff5 45f992923fcee01377254a23cb2924db6282c6ed 
+    terminal complete; m1 kept from the first: yes; m1.txt in m1=[m1 FIXED ] s.txt in m1=[a b m1 c d e f g h ]
+== rewrite alone
+  on m1: STOP m1(fix) conflict s.txt  mixed? no
+  on m3: b7393eefb193da6603a67d450f684986522457f6 98fbe61ba0fd269552a214c67275efe1d75c1d3f 52e90d1397d28364be196624322be041beb05e39 
+    terminal complete; m1.txt in m1=[m1 ] s.txt in m1=[a b m1 c d e f g h ]
+== same-file mixed
+  on m1: STOP m1(fix) conflict s.txt  mixed? yes
+  on m3: b7393eefb193da6603a67d450f684986522457f6 98fbe61ba0fd269552a214c67275efe1d75c1d3f df7fb7f4744b0c360454917979b5656ce3e9eb8a 
+    terminal complete; m1.txt in m1=[m1 ] s.txt in m1=[a b m1 c d e f g h ]
+  split, m1 part on m1: deeb96e5b9bad89bc195c3e437be45fa514e8add 18f2c8573ebbc3edaacd1e329ba603b3d9889e80 99942e2f7243a9c5a0bd7e20b4bb9084dc218765 
+  split, the rest on m3: deeb96e5b9bad89bc195c3e437be45fa514e8add 18f2c8573ebbc3edaacd1e329ba603b3d9889e80 c0900805764c2e8f6dc946138ae41c4cda662f94 
+    terminal complete; m1 kept from the first: yes; m1.txt in m1=[m1 ] s.txt in m1=[a b FIXED c d e f g h ]
+== same-file alone
+  on m1: STOP m1(fix) conflict s.txt  mixed? no
+  on m3: b7393eefb193da6603a67d450f684986522457f6 98fbe61ba0fd269552a214c67275efe1d75c1d3f 1d29d3484c6a3341c1f165e14108d626a87236d4 
+    terminal complete; m1.txt in m1=[m1 ] s.txt in m1=[a b m1 c d e f g h ]

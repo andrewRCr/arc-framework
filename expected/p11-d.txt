@@ -1,0 +1,4 @@
+candidates N: 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 4c45eec9f6007c71dde4a2a80afa023df62fedc2  (N terminal complete vs FT)
+  mixed : 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 1c2b090f32713718c2320ac76b5502af9e788c10  -> terminal complete, m3.txt absent
+  cands : 4a071c42c8d600c821eb15d4d6501cfc1b79411c f8e269fd6db217d473befcfeb2fdf2094eb2ade0 1c2b090f32713718c2320ac76b5502af9e788c10  -> terminal complete, m3.txt absent
+  equal : yes

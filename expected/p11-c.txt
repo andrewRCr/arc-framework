@@ -1,0 +1,48 @@
+B1: second correction removes the M3 line the terminal appended to shared s.txt (outside R(B)), unplaced
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 048e28905c15cbd7f9548462193085c58bed00b0 7d13298d7a6211bc8819eb41642734f4c7260aae 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 048e28905c15cbd7f9548462193085c58bed00b0 7d13298d7a6211bc8819eb41642734f4c7260aae 
+  equal : yes
+  mixed: terminal vs top complete; s.txt m2=[a M2 b c ] m3=[a M2 b c ]
+  cands: terminal vs top complete; s.txt m2=[a M2 b c ] m3=[a M2 b c ]
+  top s.txt=[a M2 b c ]
+  advance from the pre-fix top: m3s -> drop M3
+B2: second correction removes the M2 line m2 (above the break) added to s.txt, placed on m2
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 d3024d8e7cdfdba1975eb335133a8bb1c16e5ba3 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 d3024d8e7cdfdba1975eb335133a8bb1c16e5ba3 
+  equal : yes
+  mixed: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c M3 ]
+  cands: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c M3 ]
+  top s.txt=[a b c M3 ]
+  advance from the pre-fix top: m3s -> drop M2
+B3: the FIRST correction itself is for m2 (above the break) and removes m2's line; loop rewrote m1 (re-anchor) only
+  loop candidates N: 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 b6f2b68ad4ce1f0898562ba95aeca32e43e5c8a3 dc559143dd542de0163c18ce355adb18542e5890
+  mixed : 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 b6f2b68ad4ce1f0898562ba95aeca32e43e5c8a3 dc559143dd542de0163c18ce355adb18542e5890 
+  cands : 48fdad7b94ce91e8ccd83156d98b6f915faaeca3 b6f2b68ad4ce1f0898562ba95aeca32e43e5c8a3 dc559143dd542de0163c18ce355adb18542e5890 
+  equal : yes
+  mixed: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c M3 ]
+  cands: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c M3 ]
+  top s.txt=[a b c M3 ]
+  advance from the pre-fix top: m3s -> drop M2 (first fix)
+C1: shared s.txt, only the terminal appended M3; the second correction removes M3 (unplaced)
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 337f09a70c0224ac0eda60f8303eec577ef58a89 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 337f09a70c0224ac0eda60f8303eec577ef58a89 
+  equal : yes
+  mixed: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c ]
+  cands: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c ]
+  top s.txt=[a b c ]
+  advance from the pre-fix top: m3s -> drop M3
+C2: same, correction placed on the terminal explicitly (3)
+  mixed : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 337f09a70c0224ac0eda60f8303eec577ef58a89 
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 337f09a70c0224ac0eda60f8303eec577ef58a89 
+  equal : yes
+  mixed: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c ]
+  cands: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c ]
+  top s.txt=[a b c ]
+  advance from the pre-fix top: m3s -> drop M3
+C3: control with carry off (BREAK10=0 ADV10=0) — the pre-advance reading
+  mixed : STOP m3 conflict t.txt  
+  cands : 437f026310d604f7057ef17803b2e2fb938f319f 55e9b0a1cbd9e40f53164d04795d695bc302acf4 337f09a70c0224ac0eda60f8303eec577ef58a89 
+  equal : NO
+  cands: terminal vs top complete; s.txt m2=[a b c ] m3=[a b c ]
+  top s.txt=[a b c ]
+  advance from the pre-fix top: m3s -> drop M3

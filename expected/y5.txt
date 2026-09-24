@@ -1,0 +1,17 @@
+== touching: fix m1's line, m3 rewrote the next
+  bound: 1217656c7c04725b4989f906c4c1b7be155dc144 2e340f206a01d7b8e5d742aa44e40d13de301127 29a162bddf2411454f35869a3384e9aa0793adb9 
+    terminal complete; m1 s.txt=[a b M1FIXED d e ] m3 s.txt=[a b M1FIXED D3 e ] m1 changed: yes
+== touching mixed: fix M1, drop Z of m3's W Z
+  bound: STOP m3(fold) later member [s.txt ] 
+    m1 changed by its resolution: yes
+  split, m1's part: 926ff356514b45cc1d6d714b9edd02a34c02029f a3f437f6337968e4e0c43b796545a80fabf773e2 5e50bf0b551ed4ff05d2fc480fd53810d9e76492 
+    terminal complete; m1 s.txt=[a b c d M1FIXED ] m3 s.txt=[a b c d M1FIXED W Z ]; the rest (drop Z) remains terminal work
+== touching mixed: fix M1, remove m3's W
+  bound: STOP m3(fix) conflict s.txt (later member)  
+    m1 changed by its resolution: yes
+== wholly later: fix m3's rewritten hunk; m1 keeps its own
+  bound: STOP m3(fold) later member [s.txt ] 
+    m1 changed by its resolution: no
+== mixed removal: fix m1, drop a line of m3's own file
+  bound: STOP m3(fold) later member [m3.txt ] 
+    m1 changed by its resolution: yes

@@ -1,0 +1,16 @@
+== s1 (spanning fix+rm m3)
+  N (unbroken construct over FT): 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 91cd3e98d869773872b27fa203bb0a2d50225ea6
+  N terminal vs FT: complete
+  mixed: 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 fb1e90e56acd614690f9aec233588609a6deec46 
+  cands: 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 fb1e90e56acd614690f9aec233588609a6deec46 
+  equal: yes
+  mixed terminal vs T2: complete
+  cands terminal vs T2: complete
+== s0 (control: fix only)
+  N (unbroken construct over FT): 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 1a219125acfb9e628cbd456b9a5e1c29d57a229b
+  N terminal vs FT: complete
+  mixed: 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 3abf30fc86747756d5f0d9559ef9820d538de10c 
+  cands: 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 3abf30fc86747756d5f0d9559ef9820d538de10c 
+  equal: yes
+  mixed terminal vs T2: complete
+  cands terminal vs T2: complete
