@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "archive-cadence-manual",
+  "claimId": "549ad9222b82d2763753964e21384c4c",
+  "createdAt": "2026-09-24T17:51:05.803Z",
+  "updatedAt": "2026-09-24T17:51:05.803Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Switch this repository's archive cadence to manual so singleton landings stop wedging",
+  "branch": "chore/archive-cadence-manual",
+  "origin": "inbox",
+  "originEntry": "Switch this repository's archive cadence to manual so singleton landings stop wedging",
+  "originEntrySourceDigest": "sha256:78ccf16b88d8ba04945162260bdf18358b586f4c5dabf92d05c148eb439817d7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
