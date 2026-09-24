@@ -1,0 +1,9 @@
+== d1
+  N (construct the loop was binding): STOP ENTANGLED m1 s.txt
+== d2
+  N (construct the loop was binding): STOP ENTANGLED m1 s.txt
+== d3
+  N (construct the loop was binding): 38c45fad284f4fc8c22fbb8976f24dd8fda48b4b 554f535321592613c073df73f87dbfca89ebe9ab 7b0d7559b7af9cb8b9dc3a80dad5606bd7f83e05
+  mixed : STOP m3(fold) later member [s.txt ] 
+  cands : STOP m3(fold) later member [s.txt ] 
+  equal : yes

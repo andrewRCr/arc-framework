@@ -1,0 +1,13 @@
+one commit: fix m1 and drop L
+  pre   : 45603f7952215d2edb62981e385a9fb30e72a335 4c7472b8d2af75ddf73c1905beb2c632c153934b 3f1dfb73d3dae3bb811f8b1e5d032a15e501ac46 
+  pre terminal t.txt: t T3 MAIN a b c d e f g h 
+  bound : STOP m3(fold) later member [t.txt ] 
+two commits: fix m1, then drop L
+  pre   : 45603f7952215d2edb62981e385a9fb30e72a335 4c7472b8d2af75ddf73c1905beb2c632c153934b 3f1dfb73d3dae3bb811f8b1e5d032a15e501ac46 
+  pre terminal t.txt: t T3 MAIN a b c d e f g h 
+  bound : STOP m3(fold) later member [t.txt ] 
+control: fix m1 only
+  pre   : df38c65130d9fe4739111870521b35cf17a8e8da 2daf119ce66be71db06b3153d7e4b75edb0a525a a64502434bcb886e7e24c77b523f8821534dd349 
+  pre terminal t.txt: t T3 MAIN a b c d e f g h L 
+  bound : df38c65130d9fe4739111870521b35cf17a8e8da 2daf119ce66be71db06b3153d7e4b75edb0a525a a64502434bcb886e7e24c77b523f8821534dd349 
+  bound terminal t.txt: t T3 MAIN a b c d e f g h L 

@@ -20,14 +20,15 @@ rset() { local c p1 p2 out mt
     { sed -n '2,/^$/p' <<< "$out" | sed '/^$/d'; git diff --name-only "$mt" "$c"; }
   done | grep -vx "$LIFE" | sort -u | tr '\n' ' '; }
 # resolve7 BASE OURS THEIRS K: three-way tree; conflicts U R take the attributed version (absent in the top = removed)
-rk() { local k=$1 i below="" all=""; for ((i=1;i<=n;i++)); do all="$all ${AU[$i]}"; [ $i -le "$k" ] && below="$below ${AU[$i]}"; done
+rk() { local k=$1 i a below="" all=""; for ((i=1;i<=n;i++)); do if [ "${NOAUTH:-1}" = 1 ] && [ -n "${AUA[$i]+x}" ]; then a=${AUA[$i]}; else a=${AU[$i]}; fi
+    all="$all $a"; [ $i -le "$k" ] && below="$below $a"; done
   { inter "$RB" "$below"; minus "$RB" "$all"; } | words | tr '\n' ' '; }
 resolve7() { local out t q b idx paths; out=$(git merge-tree --write-tree --name-only --merge-base="$1" "$2" "$3")
   t=$(sed -n 1p <<< "$out"); paths=$( { sed -n '2,/^$/p' <<< "$out" | sed '/^$/d'; rk "$4" | words; } | sort -u)
   [ -z "$paths" ] && { echo "$t"; return 0; }
   idx=$(mktemp); rm -f "$idx"; GIT_INDEX_FILE=$idx git read-tree "$t"
   for q in $paths; do
-    if ! blob "$(norm "$TOP")" "$q" > /dev/null && [ -z "$(laterlist "$q" "$4")" ]; then
+    if ! blob "$(asrc)" "$q" > /dev/null && [ -z "$(laterlist "$q" "$4")" ]; then
       GIT_INDEX_FILE=$idx git update-index --force-remove "$q"; continue; fi
     b=$(attributed "$q" "$4") || { echo "ENTANGLED m$4 $q" >&2; rm -f "$idx"; return 1; }
     GIT_INDEX_FILE=$idx git update-index --add --cacheinfo "100644,$b,$q"

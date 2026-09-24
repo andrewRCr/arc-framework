@@ -43,7 +43,9 @@ blob() { git rev-parse -q --verify "$1:$2" 2>/dev/null; }
 cat_or_empty() { local b; b=$(blob "$1" "$2") && git cat-file -p "$b" || true; }
 # attributed PATH K: the top's version of PATH with every later member's own commits to it reverted (RESOLVE=hunk),
 # or the top's version only when no later commit touched it (RESOLVE=file); status 1 when entangled
-attributed() { local q=$1 k=$2 c d; d=$(mktemp -d); cat_or_empty "$(norm "$TOP")" "$q" > "$d/r"
+# asrc: the source attribution reads — the top, or on a mixed chain the top with the uncarried part undone (ASRC)
+asrc() { if [ -n "${ASRC:-}" ]; then echo "$ASRC"; else norm "$TOP"; fi; }
+attributed() { local q=$1 k=$2 c d; d=$(mktemp -d); cat_or_empty "$(asrc)" "$q" > "$d/r"
   for c in $(laterlist "$q" "$k"); do
     [ "${RESOLVE:-hunk}" = file ] && { rm -rf "$d"; return 1; }
     cat_or_empty "$c" "$q" > "$d/b"; cat_or_empty "$c^1" "$q" > "$d/t"

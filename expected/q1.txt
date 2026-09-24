@@ -3,7 +3,6 @@ Q1a: second correction deletes m3.txt, placed on m1, BOUND=1
   cands : STOP m3(fold) later member [m3.txt ] 
   equal : yes
 Q1b: second correction removes T3 from shared t.txt, placed on m1, BOUND=1
-  mixed : 6ee4060a89269d13484372680ca69add06e4753f 5bc1e7a6a8fcbec1e1162e8e25706b5f608556f5 59be8bbf590575b215155c894ef92e8c71c4c6dd 
+  mixed : STOP m3(fold) later member [t.txt ] 
   cands : STOP m3(fold) later member [t.txt ] 
-  equal : NO
-  mixed terminal m3.txt: present
+  equal : yes

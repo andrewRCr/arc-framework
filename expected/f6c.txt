@@ -1,0 +1,13 @@
+one commit: fix m1 and drop T3
+  pre   : b97b1073c711afc46d8cf36ebbe7c398bb96bdce 15d3b01361ee618ed5ee719e7bae6135979ca63b 19169e2fdede0c34a27e6e25370425acdf9690b2 
+  pre   m1/m3 t.txt: MAIN t a b c d e f g h / MAIN t a b c D e f g h 
+  bound : STOP m3(fold) later member [t.txt ] 
+two commits: fix m1, then drop T3
+  pre   : b97b1073c711afc46d8cf36ebbe7c398bb96bdce 15d3b01361ee618ed5ee719e7bae6135979ca63b 19169e2fdede0c34a27e6e25370425acdf9690b2 
+  pre   m1/m3 t.txt: MAIN t a b c d e f g h / MAIN t a b c D e f g h 
+  bound : STOP m3(fold) later member [t.txt ] 
+control: fix m1 only
+  pre   : df38c65130d9fe4739111870521b35cf17a8e8da 2daf119ce66be71db06b3153d7e4b75edb0a525a a7395b927653a354d20c40482e358f44e98c9a77 
+  pre   m1/m3 t.txt: t a b c d e f g h / MAIN t a b c D e f g h T3 
+  bound : df38c65130d9fe4739111870521b35cf17a8e8da 2daf119ce66be71db06b3153d7e4b75edb0a525a a7395b927653a354d20c40482e358f44e98c9a77 
+  bound m1/m3 t.txt: t a b c d e f g h / MAIN t a b c D e f g h T3 

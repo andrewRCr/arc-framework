@@ -4,11 +4,11 @@
   RES1+RES2: 1217656c7c04725b4989f906c4c1b7be155dc144 e6fff59707d3cf79325df99211fc1e639d55335f 681f62bedccfdcbb4e0bb1e0fa0aad21d4b45cf2 
     terminal complete; s.txt m1=[a b M1FIXED d e ] m2=[a b M1FIXED M2 e ] m3=[a b M1FIXED M2 e ]
 == re-run over the mixed chain (m1 bound, m2 m3 old), nothing moved
-  plain: STOP m1(fix) conflict s.txt  
+  plain: STOP m2 conflict s.txt  
   RES2: STOP m1(fix) conflict s.txt  
     same objects as run 1: NO
 == re-run over the mixed chain after a disjoint base move absorbed by the top
-  plain: STOP m1(fix) conflict s.txt  
+  plain: STOP m2 conflict s.txt  
   RES2: STOP m1(fix) conflict s.txt  
 == the re-runs with m1 resolved to its own version (it already carries the correction)
   nothing moved: 1217656c7c04725b4989f906c4c1b7be155dc144 e6fff59707d3cf79325df99211fc1e639d55335f 681f62bedccfdcbb4e0bb1e0fa0aad21d4b45cf2 

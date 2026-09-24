@@ -18,8 +18,11 @@ dkeep() { local all c r; declare -A drop; all=$(git rev-list --reverse --no-merg
   for c in $all; do [ -z "${drop[$c]}" ] && echo "$c"; done | tac; }
 # dlist PATH: kept delta commits touching PATH, newest first
 dlist() { [ -z "$DKEEP" ] && return 0; git rev-list --full-history --no-merges "$TOP" "^$TOLD" "^$TIP" -- "$1" | grep -Fx -f <(echo "$DKEEP"); }
+# Attribution reads from the split point at every member — the delta's commits reverted wherever it is placed — so
+# the delta reaches a member only through the fold. ATTRSPLIT=0 is the superseded reading, reverting them only at
+# members below the placement.
 laterlist() { local q=$1 k=$2 i
-  [ "$PLACE" -gt "$k" ] && dlist "$q"
+  { [ "$PLACE" -gt "$k" ] || [ "${ATTRSPLIT:-1}" = 1 ]; } && dlist "$q"
   for ((i=n;i>k;i--)); do git rev-list --no-merges "${H[$i]}" "^${P[$i]}" "^$TIP" -- "$q"; done; }
 # split8: the split point (a commit whose tree is the base absorption the delta carries), or status 1 with the entangled
 # path on stderr (needs TOP, TOLD, TIP, ATOP, DKEEP)
@@ -60,7 +63,7 @@ carry10() { local out t q b idx rkp confl x rbs=$RB at=$ATOP
   [ -z "$rkp" ] && { RB=$rbs; echo "$t"; return 0; }
   idx=$(mktemp); rm -f "$idx"; GIT_INDEX_FILE=$idx git read-tree "$t"
   for q in $rkp; do
-    if ! blob "$(norm "$TOP")" "$q" > /dev/null && [ -z "$(laterlist "$q" "$4")" ]; then
+    if ! blob "$(asrc)" "$q" > /dev/null && [ -z "$(laterlist "$q" "$4")" ]; then
       GIT_INDEX_FILE=$idx git update-index --force-remove "$q"; continue; fi
     b=$(attributed "$q" "$4") || { RB=$rbs; echo "ENTANGLED m$4 $q" >&2; rm -f "$idx"; return 1; }
     GIT_INDEX_FILE=$idx git update-index --add --cacheinfo "100644,$b,$q"
@@ -108,7 +111,7 @@ rf() { local k=$1 lo=$2 b=$3 l=$4 r=$5 lt; shift 5
   ck "$k" fx "$b" "$l" "$r"; }
 
 construct2() {
-  RESD=$(mktemp -d)
+  RESD=$(mktemp -d); ASRC=""
   TIP=$1; TOP=$2; local sp=$3; PLACE=${4:-0}; local hs=${sp%%|*} ps=${sp##*|} k x fx="" ob prev c par absb defer=""
   H=("" $hs); P=("" $ps); n=$(( ${#H[@]} - 1 )); [ "$PLACE" = 0 ] && PLACE=$n
   is_anc "${P[1]}" "$TOP" || { echo "REFUSE anchor-not-in-top: recut from the top's history"; return 1; }
@@ -127,23 +130,32 @@ construct2() {
   RXB=""; RXT=""; RPB=""; RPT=""; RXK=0; local rxp="" rpp=""
   if [ -n "$TOLD0" ] && [ "${ADV12:-1}" = 1 ]; then
     local old cur curp sc q s1 sn sf out rt e et o2 bq carried qs qb i; old=$(norm "${P[$k0]}"); cur=$(norm "$TOLD"); curp=$cur
+    # The record is read re-anchored mechanically onto the base the members below the break absorbed, so a conflict
+    # the base movement alone causes is not read as carried; a path whose re-anchor conflicts keeps the raw record.
+    # HROLD=0 is the superseded reading of the raw record.
+    local oldr=""; if [ "${HROLD:-1}" = 1 ]; then local ob0 ob1 ro; ob0=$(git merge-base "${P[$k0]}" "$TIP"); ob1=$(git merge-base "${H[$((k0-1))]}" "$TIP")
+      if [ "$(git rev-parse "$ob0")" != "$(git rev-parse "$ob1")" ]; then ro=$(git merge-tree --write-tree --name-only --merge-base="$ob0" "$old" "$(norm "$ob1")" 2>/dev/null)
+        oldr=$(tree "$old"); local rq; for rq in $(git diff --name-only "$(norm "$ob0")" "$(norm "$ob1")"); do
+          grep -qx "$rq" <(sed -n '2,/^$/p' <<< "$ro") && continue; oldr=$(withq "$oldr" "$rq" "$(tc "$(sed -n 1p <<< "$ro")")"); done
+        oldr=$(tc "$oldr"); fi; fi
     for sc in $(git rev-list --first-parent --no-merges "$TOLD" "^$TOLD0"); do
       [ "$(ntree "$sc")" = "$(ntree "$sc^1")" ] && continue
       s1=$(norm "$sc^1"); sn=$(norm "$sc"); carried=0; qs=(); qb=()
       for q in $(git diff --name-only "$s1" "$sn"); do
         sf=$(tc "$(withq "$(tree "$s1")" "$q" "$sn")")
-        out=$(git merge-tree --write-tree --merge-base="$s1" "$old" "$sf" 2>/dev/null) || { if [ "${NOTCARRIED:-0}" = 1 ]; then qs+=("$q"); qb+=("$s1"); else carried=1; fi; continue; }
+        local oq=$old; [ -n "$oldr" ] && oq=$oldr
+        out=$(git merge-tree --write-tree --merge-base="$s1" "$oq" "$sf" 2>/dev/null) || { if [ "${NOTCARRIED:-0}" = 1 ]; then qs+=("$q"); qb+=("$s1"); else carried=1; fi; continue; }
         e=$(sed -n 1p <<< "$out"); bq=$s1
         if [ "${HUNK12:-1}" = 1 ]; then
           # hunk level: fold onto s1 the part of the change that reached the old record (old -> E on q); what is left
           # between that and sn is the residual, whole-path when nothing reached it or when this second merge conflicts
-          et=$(tc "$(withq "$(tree "$old")" "$q" "$e")")
-          o2=$(git merge-tree --write-tree --merge-base="$old" "$s1" "$et" 2>/dev/null) || { qs+=("$q"); qb+=("$s1"); continue; }
+          et=$(tc "$(withq "$(tree "$oq")" "$q" "$e")")
+          o2=$(git merge-tree --write-tree --merge-base="$oq" "$s1" "$et" 2>/dev/null) || { qs+=("$q"); qb+=("$s1"); continue; }
           bq=$(tc "$(withq "$(tree "$s1")" "$q" "$(sed -n 1p <<< "$o2")")")
           [ "$(blob "$bq" "$q")" != "$(blob "$s1" "$q")" ] && carried=1
           [ "$(blob "$bq" "$q")" = "$(blob "$sn" "$q")" ] && continue
         else
-          [ "$(blob "$e" "$q")" = "$(blob "$old" "$q")" ] || { carried=1; continue; }
+          [ "$(blob "$e" "$q")" = "$(blob "$oq" "$q")" ] || { carried=1; continue; }
         fi
         qs+=("$q"); qb+=("$bq")
       done
@@ -159,10 +171,17 @@ construct2() {
     if [ -n "${rxp// /}" ]; then RXB=$cur; RXT=$(norm "$TOLD"); if [ "${RSPLIT:-0}" = 1 ]; then RXK=$k0; else RXK=$PLACE; fi; fi
     [ -n "${rpp// /}" ] && { RPB=$curp; RPT=$(norm "$TOLD"); }
   fi
+  # Attribution also reads the top with the uncarried part undone, since that part too reaches the chain only
+  # through the fold at the placement (not under ATTRSPLIT=0)
+  if [ "${ATTRSPLIT:-1}" = 1 ] && [ -n "$RXB" ]; then
+    ASRC=$(compose "$RXT" "$(norm "$TOP")" "$RXB" 2>"$ERR") || { echo "STOP attribution source conflict"; return 1; }; fi
   ATOP=$(git merge-base "$TOP" "$TIP"); J=0; local first=${FIRST:-auto}
   [ "$first" = auto ] && { if constructed_shape; then first=0; else first=1; fi; }
   local dau; dau=$(git rev-list --no-merges "$TOP" "^$TOLD" "^$TIP" | while read -r c; do git diff-tree --no-commit-id --name-only -r "$c"; done | grep -vx "$LIFE" | sort -u | tr '\n' ' '); dau="$dau $rpp"
-  AU=(); for ((k=1;k<=n;k++)); do AU[$k]=$(authored "${H[$k]}" "${P[$k]}" "$TIP"); [ "$PLACE" = $k ] && AU[$k]="${AU[$k]} $dau"
+  # The delta's and the uncarried part's paths make the placed member an author for the guard and the re-anchor
+  # decision, but not for attribution's share, which reads each member's own range (AUA); NOAUTH=0 is the superseded
+  # reading, counting them there too
+  AUA=(); AU=(); for ((k=1;k<=n;k++)); do AU[$k]=$(authored "${H[$k]}" "${P[$k]}" "$TIP"); AUA[$k]=${AU[$k]}; [ "$PLACE" = $k ] && AU[$k]="${AU[$k]} $dau"
     [ "$RXK" = $k ] && AU[$k]="${AU[$k]} $rxp"; done
   local beyond; beyond=$(git diff --name-only "$ATOP" "$TIP" | tr '\n' ' ')
   for ((k=1;k<=n;k++)); do x=$(inter "${AU[$k]}" "$beyond"); [ -n "${x// /}" ] && { echo "REFUSE merge-base-into-top m$k:[$x]"; return 1; }; done
@@ -176,8 +195,11 @@ construct2() {
   [ -n "$FORCEJ" ] && J=$FORCEJ
   DKEEP=$(dkeep)
   if [ "$TOLD" != "$TOP" ]; then fx=$(split8 2>"$ERR") || { echo "STOP m$PLACE entangled-delta $(cat "$ERR")"; return 1; }; fi
-  { [ -n "$fx" ] || [ -n "$RPB" ]; } && [ "$J" != 0 ] && [ "$PLACE" -ge "$J" ] && defer=1
-  local rdefer=""; [ -n "$RXB" ] && [ "$J" != 0 ] && [ "$RXK" -ge "$J" ] && rdefer=1
+  { [ -n "$fx" ] || [ -n "$RPB" ]; } && { { [ "$J" != 0 ] && [ "$PLACE" -ge "$J" ]; } || [ "${ATTRSPLIT:-1}" = 1 ]; } && defer=1
+  local rdefer=""; [ -n "$RXB" ] && { { [ "$J" != 0 ] && [ "$RXK" -ge "$J" ]; } || [ "${ATTRSPLIT:-1}" = 1 ]; } && rdefer=1
+  # BOUND=1: the later-member stop is read at the fold itself — a fold that changes a member above the placement
+  # stops, whether the member absorbs or is carried (not under ATTRSPLIT=0, whose attribution already holds the delta)
+  local lstop=""; [ "${BOUND:-0}" = 1 ] && [ "${ATTRSPLIT:-1}" = 1 ] && lstop=1; local tb
   # stage 1: reapply; the delta folded here only when the placed member does not absorb
   T0=(); T0[1]=$(ntree "${H[1]}"); local brk=0
   for ((k=1;k<=n;k++)); do
@@ -206,18 +228,31 @@ construct2() {
   local -a TA
   if [ -n "$rdefer" ]; then TA=(); for ((k=1;k<=n;k++)); do TA[$k]=${T[$k]}; done; for ((k=RXK;k<=n;k++)); do
     [ "${FOLDPATH:-1}" = 1 ] && [ $k -gt "$RXK" ] && { T[$k]=$(ck $k re "$(tc "${TA[$((k-1))]}")" "$(tc "${T[$((k-1))]}")" "$(tc "${TA[$k]}")" 2>"$ERR") || { echo "STOP m$k conflict $(cat "$ERR")"; return 1; }; }
-    T[$k]=$(rf $k $RXK "$RXB" "$(tc "${T[$k]}")" "$RXT" 2>"$ERR") || { echo "STOP m$k(fix) conflict $(cat "$ERR")"; return 1; }; done; fi
+    { [ "${FOLDUP:-1}" = 0 ] && [ $k -gt "$RXK" ]; } && continue
+    tb=${T[$k]}; T[$k]=$(rf $k $RXK "$RXB" "$(tc "${T[$k]}")" "$RXT" 2>"$ERR") || { echo "STOP m$k(fix) conflict $(cat "$ERR")"; return 1; }
+    [ -n "$lstop" ] && [ $k -gt "$PLACE" ] && [ "$tb" != "${T[$k]}" ] && { echo "STOP m$k(fold) later member [$(git diff --name-only "$tb" "${T[$k]}" | tr '\n' ' ')]"; return 1; }; done; fi
   if [ -n "$defer" ]; then TA=(); for ((k=1;k<=n;k++)); do TA[$k]=${T[$k]}; done; for ((k=PLACE;k<=n;k++)); do
     [ "${FOLDPATH:-1}" = 1 ] && [ $k -gt "$PLACE" ] && { T[$k]=$(ck $k re "$(tc "${TA[$((k-1))]}")" "$(tc "${T[$((k-1))]}")" "$(tc "${TA[$k]}")" 2>"$ERR") || { echo "STOP m$k conflict $(cat "$ERR")"; return 1; }; }
     [ -n "$RPB" ] && { T[$k]=$(rf $k $PLACE "$RPB" "$(tc "${T[$k]}")" "$RPT" 2>"$ERR") || { echo "STOP m$k(fix) conflict $(cat "$ERR")"; return 1; }; }
+    { [ "${FOLDUP:-1}" = 0 ] && [ $k -gt "$PLACE" ]; } && continue
+    tb=${T[$k]}
     [ -n "$fx" ] && { T[$k]=$(rf $k $PLACE "$(norm "$fx")" "$(tc "${T[$k]}")" "$(norm "$TOP")" 2>"$ERR") || { echo "STOP m$k(fix) conflict $(cat "$ERR")"; return 1; }; }
+    [ -n "$lstop" ] && [ $k -gt "$PLACE" ] && [ "$tb" != "${T[$k]}" ] && { echo "STOP m$k(fold) later member [$(git diff --name-only "$tb" "${T[$k]}" | tr '\n' ' ')]"; return 1; }
   done; fi
   # BOUND=1: the bound route, where rematerialization proves every member but the selected one a reapplication of its
   # published range onto its new predecessor. Modelled where no absorption applies: a fold that changed such a member
   # stops, as the exact-member stop does. A member carried across a break is checked against the carry itself, which
-  # takes the attributed share of the recorded resolution the proof admits; an absorbing member's R(B) admission is not.
+  # takes the attributed share of the recorded resolution the proof admits, read as the proof reads it, the delta
+  # included above the placement; an absorbing member's R(B) admission is not modelled.
   if [ "${BOUND:-0}" = 1 ]; then local rp v; for ((k=2;k<=n;k++)); do
-    [ "$k" = "$PLACE" ] && continue; { [ "$J" != 0 ] && [ $k -ge "$J" ]; } && continue
+    [ "$k" = "$PLACE" ] && continue
+    if [ "${ATTRSPLIT:-1}" = 1 ] && [ $k -gt "$PLACE" ] && [ "$brk" != 0 ] && [ $k -ge "$brk" ] && ! { [ "$J" != 0 ] && [ $k -ge "$J" ]; }; then
+      # the proof, which reads the top, admits the member's attributed share as the top gives it, the delta and the
+      # uncarried part included above the placement
+      rp=$(ATTRSPLIT=0; ASRC=""; PLACE=0; carry10 "$(norm "${P[$k]}")" "$(tc "${T[$((k-1))]}")" "$(norm "${H[$k]}")" "$k" "${P[$k]}" "$(git merge-base "${H[$((brk-1))]}" "$TIP")" 2>/dev/null) \
+        || rp=$(resk $k re "$(norm "${P[$k]}")" "$(tc "${T[$((k-1))]}")" "$(norm "${H[$k]}")" 2>/dev/null) || rp=""
+      [ "$rp" = "${T[$k]}" ] || { echo "PROOF-REFUSES m$k [$(git diff --name-only "$rp" "${T[$k]}" 2>/dev/null | tr '\n' ' ')]"; return 1; }; continue; fi
+    { [ "$J" != 0 ] && [ $k -ge "$J" ]; } && continue
     if [ "$brk" != 0 ] && [ $k -ge "$brk" ]; then
       # a member carried across the break: its proof admits the carry's attributed share of the recorded resolution
       rp=$(carry10 "$(norm "${P[$k]}")" "$(tc "${T[$((k-1))]}")" "$(norm "${H[$k]}")" "$k" "${P[$k]}" "$(git merge-base "${H[$((brk-1))]}" "$TIP")" 2>/dev/null) \
