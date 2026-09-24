@@ -3,7 +3,7 @@
   "slug": "archive-cadence-manual",
   "claimId": "549ad9222b82d2763753964e21384c4c",
   "createdAt": "2026-09-24T17:51:05.803Z",
-  "updatedAt": "2026-09-24T17:51:05.803Z",
+  "updatedAt": "2026-09-24T18:08:07.003Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Switch this repository's archive cadence to manual so singleton landings stop wedging",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Switch this repository's archive cadence to manual so singleton landings stop wedging",
   "originEntrySourceDigest": "sha256:78ccf16b88d8ba04945162260bdf18358b586f4c5dabf92d05c148eb439817d7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/archive-cadence-manual",
+    "headSha": "d665c17b631c33709eaf82d6c399ec783e335e5f"
+  }
 }
