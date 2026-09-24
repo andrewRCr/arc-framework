@@ -453,6 +453,30 @@ describe("GhDeliveryHostPort", () => {
         provider: { kind: "http", status: 422, exitCode: 1 },
       });
 
+    const conflict: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the merge commit cannot be cleanly created.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(conflict).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "conflict" });
+
+    const branchPolicy: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the base branch policy prohibits the merge.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(branchPolicy).mergeRequest(effect))
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "command-failed", exitCode: 1 },
+      });
+
     const commandFailure: HostedProcessRunner = { run: async () => {
       throw new HostedProcessError("merge failed", "credential-bearing provider output", 2);
     } };

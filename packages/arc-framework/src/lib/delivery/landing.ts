@@ -435,8 +435,9 @@ export const DeliveryLandingRefusalCauseSchema = z.discriminatedUnion("stage", [
   z.strictObject({ stage: z.literal("merge-policy-revalidation"), reason: z.literal("policy-unavailable") }),
   z.strictObject({
     stage: z.literal("merge-submission"),
-    reason: z.enum(["queued", "malformed", "unavailable"]),
+    reason: z.enum(["queued", "malformed", "unavailable", "conflict"]),
     provider: DeliveryHostProviderFailureSchema.optional(),
+    recommendedActionText: z.string().min(1).optional(),
   }),
   z.strictObject({
     stage: z.literal("merged-result-reconciliation"),
@@ -737,6 +738,16 @@ export async function applyDeliveryLanding(input: {
   const submitted = await input.host.mergeRequest(operation.effect);
   if (submitted.status !== "submitted") {
     if (submitted.reason !== "native-stack-required") {
+      if (submitted.reason === "conflict") {
+        return landingRefused({
+          stage: "merge-submission",
+          reason: "conflict",
+          recommendedActionText:
+            "Run `arc delivery refresh plan` for the current delivery position. Follow its exact "
+            + "`arc delivery refresh execute` route when available, or restack externally and run "
+            + "`arc delivery refresh adopt` after resolving conflicts. This build adopts only a clean restack.",
+        });
+      }
       return landingRefused({
         stage: "merge-submission",
         reason: submitted.reason,
