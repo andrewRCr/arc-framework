@@ -213,13 +213,19 @@ construct2() {
     [ -n "$fx" ] && { T[$k]=$(rf $k $PLACE "$(norm "$fx")" "$(tc "${T[$k]}")" "$(norm "$TOP")" 2>"$ERR") || { echo "STOP m$k(fix) conflict $(cat "$ERR")"; return 1; }; }
   done; fi
   # BOUND=1: the bound route, where rematerialization proves every member but the selected one a reapplication of its
-  # published range onto its new predecessor. Modelled only where no absorption and no break apply (the R(B) admission
-  # is not modelled): a fold that changed such a member stops, as the exact-member stop does.
+  # published range onto its new predecessor. Modelled where no absorption applies: a fold that changed such a member
+  # stops, as the exact-member stop does. A member carried across a break is checked against the carry itself, which
+  # takes the attributed share of the recorded resolution the proof admits; an absorbing member's R(B) admission is not.
   if [ "${BOUND:-0}" = 1 ]; then local rp v; for ((k=2;k<=n;k++)); do
     [ "$k" = "$PLACE" ] && continue; { [ "$J" != 0 ] && [ $k -ge "$J" ]; } && continue
-    { [ "$brk" != 0 ] && [ $k -ge "$brk" ]; } && continue
+    if [ "$brk" != 0 ] && [ $k -ge "$brk" ]; then
+      # a member carried across the break: its proof admits the carry's attributed share of the recorded resolution
+      rp=$(carry10 "$(norm "${P[$k]}")" "$(tc "${T[$((k-1))]}")" "$(norm "${H[$k]}")" "$k" "${P[$k]}" "$(git merge-base "${H[$((brk-1))]}" "$TIP")" 2>/dev/null) \
+        || rp=$(resk $k re "$(norm "${P[$k]}")" "$(tc "${T[$((k-1))]}")" "$(norm "${H[$k]}")" 2>/dev/null) || rp=""
+    else
     # a reapplication the agent resolved is admitted as the named resolution, as the dependent-suffix scope admits one
     rp=$(compose "$(norm "${P[$k]}")" "$(tc "${T[$((k-1))]}")" "$(norm "${H[$k]}")" 2>/dev/null) || { v="RES$k"; rp=${!v:-}; [ -z "$rp" ] && [ "${BTERM:-0}" = 1 ] && [ "$k" = "$n" ] && rp=$(ntree "$TOP"); }
+    fi
     [ "$rp" = "${T[$k]}" ] || { echo "STOP m$k(fold) later member [$(git diff --name-only "$rp" "${T[$k]}" 2>/dev/null | tr '\n' ' ')]"; return 1; }
   done; fi
   [ "$J" = 1 ] && AU[1]="${AU[1]} $(rk 1)"

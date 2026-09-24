@@ -1,0 +1,4 @@
+  N (loop's candidates): 1731470a4dc09511082a1c91d9edadcba2552e9a 87adf2e1df076d6b88bc25df4af7035aa5059ac0 931af5e242b98473a01a5f693b1809297313cef5
+  mixed : STOP m3(fold) later member [m3.txt ] 
+  cands : STOP m3(fold) later member [m3.txt ] 
+  equal : yes

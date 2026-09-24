@@ -12,13 +12,13 @@ during that spec's planning to test candidate rules against concrete topologies 
 
 **Status.** This is evidence, not authority. The spec is the contract; where the model and the spec or the
 implementation disagree, that is a finding to route, never a reason to follow the model. The model covers the git
-algebra only — no Delivery State, refs, reservations, provider, or controller. It was written by the spec's author; four
+algebra only — no Delivery State, refs, reservations, provider, or controller. It was written by the spec's author; five
 independent review passes contributed cases: the eleventh `p11-a`, `p11-c`, and `p11-d` (`p11-c` since repaired: its
 setup left m2's line out of the shared file, so two of its removals were empty commits), the twelfth `p12-a` through
-`p12-d`, the thirteenth `x1` through `x6` with `x1b`, and the fourteenth `z1` through `z3`, all kept as written; the
-fourteenth's `z2b`, which ran `z2`'s defect a second round, was not kept. The rest is the author's own, so it catches
-divergence between the implementation and the model, not a misconception the two share. It lives on this non-merging
-branch through the work unit's implementation and is deleted when the work unit is archived.
+`p12-d`, the thirteenth `x1` through `x6` with `x1b`, the fourteenth `z1` through `z3`, and the fifteenth `q1` and `q2`,
+all kept as written; the fourteenth's `z2b`, which ran `z2`'s defect a second round, was not kept. The rest is the
+author's own, so it catches divergence between the implementation and the model, not a misconception the two share. It
+lives on this non-merging branch through the work unit's implementation and is deleted when the work unit is archived.
 
 ## Running
 
@@ -56,9 +56,11 @@ member k's reapplication, after which its fold still runs, and `FIX<k>` for its 
 whole fold. Otherwise it stops, printing the composition's key under `SHOWKEY=1`. `TERMRES=1` takes the corrected top's
 normalized tree at a conflicted terminal, as construct does before publication. `BOUND=1`, off by default, adds the
 bound route's contribution proof: every member but the placed one must equal its range's three-way reapplication on its
-rebuilt predecessor, or the resolution supplied for that reapplication, checked only for members with no absorption and
-no break, and a fold that would change any other member stops as the later-member stop. `BTERM=1`, with `BOUND=1` and
-`TERMRES=1`, is the rejected alternative `y6` records: the top's version taken at a conflicted bound terminal.
+rebuilt predecessor, or the resolution supplied for that reapplication, checked for members with no absorption — a
+member carried across a break against the carry itself, which takes the attributed share of the recorded resolution the
+proof admits — and a fold that would change any other member stops as the later-member stop. `run.sh` runs `q1` and `q2`
+under it. `q2`'s header also names `BRKCHK=1`, which no library here reads. `BTERM=1`, with `BOUND=1` and `TERMRES=1`,
+is the rejected alternative `y6` records: the top's version taken at a conflicted bound terminal.
 
 Every unbroken-chain case is byte-identical under `BREAK10=0`, and every case before `p11-*` under `ADV12=0`. `HUNK12=0`
 changes only `p12-a`. `RSPLIT=1` changes `p12-b`, `x1b`, and `x1bc`: `p12-b`'s cells a, b, and d re-run a stopped
@@ -146,6 +148,8 @@ Each layer sources the one below and redefines what changed.
 | `z4`                 | Placed on m1, the binding stopped after m2; one correction fixing m1's file and removing the terminal's line in the shared file, in one commit and in two                                                                                 | A placement strictly below the member below the break recomposes identically with and without the recorded top                                                                                                                                           |
 | `z5`                 | `y4b`'s shape with one commit fixing m1's line and removing m2's adjacent line, every conflict resolved by composition, the binding stopped after m1; recomposed four ways, and the constructed chain bound                               | Every recomposition fails: the recorded top, gated or not, leaves m2 and the terminal with the line, and the cherry-pick test alone or a first-merge conflict read as not carried stops at m1 again; the constructed chain bound equals the full rebuild |
 | `z6`                 | `z2`'s and `z3`'s shapes, recomposed with the recorded top gated to the placement, and the constructed chain bound                                                                                                                        | Gating repairs these shapes, and the constructed chain bound equals the full rebuild in each                                                                                                                                                             |
+| `q1`                 | `p11-a`'s re-anchoring shape under `BOUND=1`, the loop stopped after m1's fix, a second correction placed on m1: removing the terminal's own file (`Q1a`), and removing the terminal's line from the file the base merge resolved (`Q1b`) | `Q1a` takes the later-member stop at the terminal as over the loop's candidates; `Q1b` differs: the mixed chain completes, the carry's attribution taking the removal into the terminal, which the proof admits, where the candidates stop               |
+| `q2`                 | No base movement, each member adding its own file; the loop stopped after m1's fix; a second correction removing the terminal's file, placed on m1, under `BOUND=1`                                                                       | The mixed chain takes the later-member stop at the terminal as over the loop's candidates; under `ADV12=0`, which reads the passed removal as carried, it rebuilds the loop's candidates exactly, dropping the removal                                   |
 | `reg/a-overlap`      | First cut; overlap on m1 or m2 reconciled on the top; entangled members; disjoint movement                                                                                                                                                | Re-anchor and terminal absorption                                                                                                                                                                                                                        |
 | `reg/b-new`          | Departures on a member's path and a base-added path; the top fixing a base-added file                                                                                                                                                     | The terminal carry proof against R(B)                                                                                                                                                                                                                    |
 | `reg/b-sources`      | Sequential pre-publication fixes; a binding stopped after m2 and re-run; a hand recut                                                                                                                                                     | Member sources and placement                                                                                                                                                                                                                             |
