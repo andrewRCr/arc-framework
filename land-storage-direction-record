@@ -3,7 +3,7 @@
   "slug": "land-storage-direction-record",
   "claimId": "86ae5e38c08276b7c4b5f7b3189668c1",
   "createdAt": "2026-09-24T15:46:54.151Z",
-  "updatedAt": "2026-09-24T15:46:54.151Z",
+  "updatedAt": "2026-09-24T17:13:39.522Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Land the storage-substrate direction record: both analyses and ADR-035 as Proposed",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Land the storage-substrate direction record: both analyses and ADR-035 as Proposed",
   "originEntrySourceDigest": "sha256:088f5fb4e9a8bb6997b72a46a5b9795fbf503b5cfecc958c42317487c2cf90a1",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/land-storage-direction-record",
+    "headSha": "4836e75709ff5fcc9df5250e6c785f2170ffdc7c"
+  }
 }
