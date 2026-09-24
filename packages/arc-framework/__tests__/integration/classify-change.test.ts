@@ -785,6 +785,17 @@ describe("classify-change.sh decide (pure arms)", () => {
     });
   });
 
+  it("runs heavy after a base retarget even when the head changes only docs", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const head = await writeAndCommit(repo, { "README.md": "head docs\n" }, "docs only");
+
+    expect(await decide(repo, "pull_request", base, head, {
+      CLASSIFY_BASE_RETARGETED: "true",
+    })).toEqual({ weight: "heavy", reason: "unverified" });
+  });
+
   it("is heavy/unverified when the change touches the code surface", async () => {
     const repo = await createTempRepo();
     tempDirs.push(repo);
@@ -1297,6 +1308,26 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
       weight: "light",
       reason: "verified",
     });
+  });
+
+  it("reruns heavy checks when a green head is retargeted to another code base", async () => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await execFileAsync("git", ["checkout", "--detach", base], { cwd: repo });
+    const newBase = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/base.ts": "export const fromBase = true;\n" },
+      "alternate code base",
+    );
+    await execFileAsync("git", ["checkout", "--detach", head], { cwd: repo });
+    await injectChecks(checksDir, code, allGreen());
+
+    expect(await decide(repo, checksDir, "pull_request", newBase, head)).toEqual({
+      weight: "light",
+      reason: "verified",
+    });
+    expect(await decide(repo, checksDir, "pull_request", newBase, head, {
+      CLASSIFY_BASE_RETARGETED: "true",
+    })).toEqual({ weight: "heavy", reason: "unverified" });
   });
 
   it("reuses a green code tree across a later ordinary packaged-prose edit", async () => {

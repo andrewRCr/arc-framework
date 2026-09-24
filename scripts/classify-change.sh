@@ -274,7 +274,8 @@ _all_heavy_checks_passed() {
 # ambiguous change set runs heavy — an unknown change must never be mistaken for
 # docs-only. The docs-only arm is decided with no Checks-API call; the
 # verified-tree lookback for a code-touching pull request is the one live seam,
-# layered in separately.
+# layered in separately. CLASSIFY_BASE_RETARGETED forces fresh verification of
+# a PR merge candidate whose base changed without a head commit.
 cmd_decide() {
   local event="${1:-}" base="${2:-}" head="${3:-}"
   local weight reason
@@ -289,7 +290,12 @@ cmd_decide() {
     classification="$(_classify_diff_changes "${event}" "${base}" "${head}")"
   fi
 
-  if [[ "${classification}" == "unknown" ]]; then
+  if [[ "${event}" == "pull_request" && "${CLASSIFY_BASE_RETARGETED:-false}" == "true" ]]; then
+    # Previous green checks belong to the old base/head merge candidate. Even a
+    # docs-only head needs fresh verification against the newly selected base.
+    weight=heavy
+    reason=unverified
+  elif [[ "${classification}" == "unknown" ]]; then
     # Empty or unresolvable change set → fail-safe heavy.
     weight=heavy
     reason=unverified

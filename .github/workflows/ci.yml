@@ -148,6 +148,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
+          # A base edit changes the merge candidate without changing the head's
+          # code tree, so previous green head checks cannot justify a light run.
+          CLASSIFY_BASE_RETARGETED: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.changes.base != null }}
         run: |
           # changed_all - the whole change (PR base...head, or push delta) - drives
           # the lane (merge policy) decision below. The weight axis (CI cost) is
