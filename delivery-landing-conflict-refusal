@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "delivery-landing-conflict-refusal",
+  "claimId": "6cc7b58f2e71da65c5aece40c735c3b0",
+  "createdAt": "2026-09-24T01:14:50.726Z",
+  "updatedAt": "2026-09-24T01:14:50.726Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give a conflicting delivery member's landing a typed conflict refusal that names refresh",
+  "branch": "chore/delivery-landing-conflict-refusal",
+  "origin": "inbox",
+  "originEntry": "Give a conflicting delivery member's landing a typed conflict refusal that names refresh",
+  "originEntrySourceDigest": "sha256:605457814b4735fe61efca3551987a58242ed70af37eade629271ab3a524e793",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
