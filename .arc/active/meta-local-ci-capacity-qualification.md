@@ -1,8 +1,8 @@
 # Metadata: local-ci-capacity-qualification
 
-| **State** | **Owner** | **Branch**                              | **Class** | **Priority** |
-| --------- | --------- | --------------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `chore/local-ci-capacity-qualification` | `Light`   | `P1`         |
+| **State**     | **Owner** | **Branch**                              | **Class** | **Priority** |
+| ------------- | --------- | --------------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `chore/local-ci-capacity-qualification` | `Light`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:6f5247dbea2653caa3386452b5e06ab42d354bfcdcec472ffa18567396a29758`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 5.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
