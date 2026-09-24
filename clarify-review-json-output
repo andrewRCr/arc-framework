@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "clarify-review-json-output",
+  "claimId": "78b952f1d3c720a42b331cf05f9dec95",
+  "createdAt": "2026-09-24T02:40:43.011Z",
+  "updatedAt": "2026-09-24T02:40:43.011Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Clarify automatic JSON output on flag-driven review commands",
+  "branch": "chore/clarify-review-json-output",
+  "origin": "inbox",
+  "originEntry": "Clarify automatic JSON output on flag-driven review commands",
+  "originEntrySourceDigest": "sha256:8c4002de3d9003ce1d4cf21f9d7b5d4cce4a3ae8154a26f02657543090299f0d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
