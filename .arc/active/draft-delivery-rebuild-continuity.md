@@ -10,6 +10,11 @@
   inputs did not change.
 - **Planning posture:** `Class: Heavy`, `P1`. The failures are proven from captured field incidents; the mechanism
   needs design across authoring, reconstruction, and evidence applicability.
+- **Held (2026-09-24):** at Planning, for the storage-substrate program, which moves planning and operational state off
+  tracked branch files. On resume, D4 and D6, which depends on it, are re-scoped against that storage contract and the
+  observe-and-attest direction in `analysis-stacked-delivery-build-vs-compose.md` and
+  `analysis-storage-substrate-direction.md`; D1–D3, D8, and D9 are expected to survive. The draft stays the governing
+  design record, unretired, with the spec unapproved.
 
 ---
 
