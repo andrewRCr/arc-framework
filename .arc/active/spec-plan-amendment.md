@@ -205,9 +205,11 @@ advances no stage pointer, and repoints nothing; their ceremony steps are skippe
 `composable-workflows` makes the scoping structural.
 
 **The assurance invariant:** an amendment's artifacts pass the gates the originals passed, over the amendment's
-footprint, at the amendment's depth. The adversarial rubric is `assess-design-proportionality` plus `design-audit`
-plus `spec-review`'s coherence slice — the finalization rubric the original cleared, minus nothing. Prior findings
-carry through `adversarial-review`'s `prior-findings` input so untouched elements are never re-attacked; closure
+footprint, at the amendment's depth. The depth rule above governs whether an adversarial pass is omitted, offered,
+or recommended. When an eligible pass is authorized, its rubric is `assess-design-proportionality` plus
+`design-audit` plus `spec-review`'s coherence slice — the finalization rubric the original cleared, minus nothing.
+Prior findings carry through `adversarial-review`'s `prior-findings` input so untouched elements are never
+re-attacked; closure
 re-runs the detecting verification (D8).
 
 **The accretion guard** covers many `low` amendments summing to a design nobody re-read: the log makes accretion
@@ -379,10 +381,11 @@ withdrawal, the work unit reopens and the ordinary rules apply (D6).
 
 **The delta form.** A delta is a **supplement to** the member's report, never a second report: the changed criteria
 (including any the amendment appended, with their own evidence), the new span, and the summary; unchanged criteria
-are omitted, digests stay in the record where they exist and are never restated. `validate-criteria` gains one
-composition rule alongside its report schema: a member's **effective report** is its base boundary report plus its
-ordered deltas — same-locus entries overridden by the latest delta, appended criteria present only in the delta, the
-span the latest delta's — and the work-unit-scope walk consumes the effective report where it consumes the base one
+are omitted; a same-locus delta inherits its base digest in the effective entry without restating it, while an
+appended criterion carries its own new digest. `validate-criteria` gains one composition rule alongside its report
+schema: a member's **effective report** is its base boundary report plus its ordered deltas — latest same-locus
+evidence and state with the inherited digest, appended criteria present only in the delta, the span the latest
+delta's — and the work-unit-scope walk consumes the effective report where it consumes the base one
 today. **The walk finds the deltas through the log:** the `## Amendments` rows are the index, and each row's
 `_Work:_` locates the corrective parent whose closing subtask carries the delta. A walk that discovered deltas
 positionally, or by scanning every revision parent in a member's range, would be a second authority over the same

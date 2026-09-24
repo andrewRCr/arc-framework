@@ -58,7 +58,7 @@ _Exit criterion:_ {specific scenario that proves the segment's capability}
      depth `_Retired in:_` takes. Preserved verbatim across completion, and outside the Goal's
      descriptor extent, so the digest a bound delivery plan compares does not move. -->
 
-    - _Amended in:_ {task-id}.R ({amendment-id})
+    - _Amended in:_ {corrective-parent-id} ({amendment-id})
 
     - `[ ]` **1.2.a {Subtask description}**
         - {detail bullet — plan now, outcome at `[x]`}

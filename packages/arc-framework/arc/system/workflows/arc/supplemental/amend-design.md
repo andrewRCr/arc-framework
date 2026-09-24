@@ -148,7 +148,8 @@ Skip their ceremony steps by reference.
 ### The assurance invariant
 
 An amendment's artifacts pass the gates the originals passed, over the amendment's footprint, at the amendment's
-depth. Run the adversarial pass on the finalization rubric the original cleared, minus nothing —
+depth. The depth ladder governs whether an adversarial pass is omitted, offered, or recommended. When an eligible
+pass is authorized, run it on the finalization rubric the original cleared, minus nothing —
 [`assess-design-proportionality`][assess-design-proportionality], [`design-audit`][design-audit], and
 [`spec-review`][spec-review]'s coherence slice — and pass prior findings through `adversarial-review`'s
 `prior-findings` input so untouched elements are never re-attacked. Closure re-runs the detecting check
