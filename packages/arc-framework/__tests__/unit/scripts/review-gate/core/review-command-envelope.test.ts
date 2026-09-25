@@ -180,6 +180,17 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
   }],
 }));
 const dispositionReportText = "Verification: full\n\nFinding F1: The source supports this finding.";
+const provisionalPassAssessment = {
+  status: "provisional",
+  lane: "standard",
+  admittedLogicalPass: 2,
+  configuredMaxPasses: 2,
+  proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major" },
+  capPosition: "at-ceiling",
+  potentialStopReason: "cap-exhausted",
+  nextPassAuthority: "none",
+  summaryText: "Provisional pass 2 of 2; approval and response are pending; no next-pass authority.",
+} as const;
 
 describe("review command envelopes", () => {
   it.each([
@@ -314,7 +325,10 @@ describe("review command envelopes", () => {
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
       state: "awaiting-approval", nextAction: "obtain-approval",
-      payload: { operationId: "local-1", proposal: dispositionProposal, dispositionReportText },
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText,
+        provisionalPassAssessment,
+      },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),

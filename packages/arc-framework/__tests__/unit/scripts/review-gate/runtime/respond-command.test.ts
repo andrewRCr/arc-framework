@@ -87,6 +87,7 @@ function fixture(
     candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777",
   },
   scopeMode: "whole-target" | "chunked" = "whole-target",
+  logicalPass = 1,
 ) {
   const target = createReviewTarget({
     schemaVersion: 2,
@@ -127,7 +128,7 @@ function fixture(
     authority,
     laneSourceId: "delegated-agent",
     lineage,
-    logicalPass: 1,
+    logicalPass,
     retryGeneration: 0,
     scopeMode,
     coverageAdmission: { requestedCoverage: "complete" },
@@ -453,6 +454,10 @@ function dependencies(records: ReturnType<typeof fixture>) {
         },
       };
     },
+    readConfiguredLanePolicy: async (lane) => ({
+      sources: lane === "frontline" ? ["coderabbit-cli"] : ["delegated-agent"],
+      maxPasses: 2,
+    }),
     captureConditionalNextPass: async (input) => ({
       authorizationId: computeConditionalPassAuthorizationId({
         ...input,
@@ -1127,6 +1132,69 @@ describe("review response command", () => {
         ].join("\n"),
       },
     });
+  });
+
+  it.each([
+    { logicalPass: 2, maxPasses: 2, severity: "major" as const,
+      capPosition: "at-ceiling", stopReason: "cap-exhausted" },
+    { logicalPass: 1, maxPasses: 3, severity: "major" as const,
+      capPosition: "below-ceiling", stopReason: null },
+    { logicalPass: 2, maxPasses: 2, severity: "minor" as const,
+      capPosition: "at-ceiling", stopReason: null },
+  ])("reports a provisional standard pass assessment at pass $logicalPass of $maxPasses", async ({
+    logicalPass, maxPasses, severity, capPosition, stopReason,
+  }) => {
+    const records = fixture(workUnitVehicle, undefined, undefined, "whole-target", logicalPass);
+    const deps = dependencies(records);
+    deps.readConfiguredLanePolicy = async () => ({ sources: ["delegated-agent"], maxPasses });
+    const response = await respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: severity,
+          disposition: "fix",
+          rationale: "The source supports a fix.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, deps);
+    expect(response).toMatchObject({
+      state: "awaiting-approval",
+      nextAction: "obtain-approval",
+      payload: {
+        provisionalPassAssessment: {
+          status: "provisional",
+          lane: "standard",
+          admittedLogicalPass: logicalPass,
+          configuredMaxPasses: maxPasses,
+          proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: severity },
+          capPosition,
+          potentialStopReason: stopReason,
+          nextPassAuthority: "none",
+        },
+      },
+    });
+    if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
+    const assessment = response.payload.provisionalPassAssessment;
+    expect(assessment.summaryText).toContain(`Pass ${logicalPass} of ${maxPasses}`);
+    expect(assessment.summaryText).toContain(`highest proposed severity: ${severity}`);
+    expect(assessment.summaryText).toContain("Approval and response are pending");
+    expect(assessment.summaryText).toContain("does not establish coverage or convergence");
+    expect(assessment.summaryText).toContain("grants no next-pass authority");
+    if (stopReason === "cap-exhausted") {
+      expect(assessment.summaryText).toContain("Potential stop: cap-exhausted");
+    } else {
+      expect(assessment.summaryText).not.toContain("Potential stop:");
+    }
+    expect(response.payload.dispositionReportText).toContain("### Finding F1");
+    expect(response.payload.dispositionReportText).not.toContain("Provisional");
   });
 
   it("returns a contained canonical report with its native source label", async () => {
@@ -2941,6 +3009,19 @@ describe("review response command", () => {
       },
     });
     if (proposal.state !== "awaiting-approval") throw new Error("frontline proposal was not materialized");
+    expect(proposal.payload.provisionalPassAssessment).toMatchObject({
+      status: "provisional",
+      lane: "frontline",
+      admittedLogicalPass: 1,
+      configuredMaxPasses: 2,
+      proposedSignal: { confirmedFindingCount: 0, maxConfirmedSeverity: null },
+      capPosition: "below-ceiling",
+      potentialStopReason: null,
+      nextPassAuthority: "none",
+    });
+    expect(proposal.payload.provisionalPassAssessment.summaryText).toContain("Pass 1 of 2");
+    expect(proposal.payload.provisionalPassAssessment.summaryText).toContain("source-verified findings are proposed");
+    expect(proposal.payload.provisionalPassAssessment.summaryText).toContain("grants no next-pass authority");
     expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricVersion");
     expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricDigest");
 

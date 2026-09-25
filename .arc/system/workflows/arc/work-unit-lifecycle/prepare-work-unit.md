@@ -157,7 +157,10 @@ arc review respond -
 ```
 
 Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes
-presentation. Obtain complete-set approval over that exact report and canonical set before any mutation or
+presentation. Co-present `payload.provisionalPassAssessment.summaryText` and an agent cost-and-signal recommendation
+for stopping or requesting a named next pass. This assessment is provisional until the approved response and policy
+continuation establish the verified action. Keep disposition approval distinct from any later one-pass ceiling
+authorization. Obtain complete-set approval over that exact report and canonical set before any mutation or
 commitment; the approver need not repeat its canonical digest. Submit the exact approved set through a second call:
 
 ```bash

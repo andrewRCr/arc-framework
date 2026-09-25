@@ -87,6 +87,14 @@ Separate adjacent findings with `---`. The command assigns report-local `F` labe
 retaining producer-native labels, capture ordinals, and references. ARC assessment appears before reviewer severity;
 the author-owned rationale and recommendation must make each account understandable without the raw review.
 
+For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
+report in the same turn. It identifies the admitted pass, configured ceiling, proposed finding signal, and potential
+stop reason. Its status is provisional: verified response and coverage have not yet resolved the next action.
+Add an agent recommendation to stop or request a named next pass, explaining the expected signal and cost. Keep
+disposition approval separate from next-pass authorization. A disposition approval alone never grants a pass above
+the ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and pass if
+it returns `approval-required / obtain-ceiling-override`.
+
 Obtain complete-set approval over the report and canonical identity before the caller's second `arc review respond -`
 invocation. Approval records the exact target, producer result, policy/rubric context, proposing actor, verification
 scope, complete dispositions, approving actor, and approval time. Conversational approval need not recite the digest.

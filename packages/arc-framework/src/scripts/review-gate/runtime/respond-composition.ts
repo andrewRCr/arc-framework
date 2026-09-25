@@ -100,6 +100,16 @@ export function createRespondDependencies(input: {
     settingsPromise ??= readConfigSettings(input.cwd);
     return (await settingsPromise).settings;
   };
+  const readConfiguredLanePolicy: RespondCommandDependencies["readConfiguredLanePolicy"] = async (lane) =>
+    resolveConfiguredLanePolicy({
+      lane,
+      settings: await settings(),
+      preferences: createLocalFrontlineSourcePreferenceReader({
+        cwd: input.cwd,
+        exec: input.exec,
+        readFile: (path) => readFile(path, "utf8"),
+      }),
+    });
   const transitionPrefixes = (record: CandidateManagedRecordV1): CandidateManagedRecordV1[] =>
     Array.from({ length: record.transitions.length + 1 }, (_, length) =>
       CandidateManagedRecordV1Schema.parse({
@@ -378,16 +388,9 @@ export function createRespondDependencies(input: {
         now: new Date().toISOString(),
       });
     },
+    readConfiguredLanePolicy,
     resolvePolicy: async (request, confirmedProducerTarget) => {
-      const configured = await resolveConfiguredLanePolicy({
-        lane: request.lane,
-        settings: await settings(),
-        preferences: createLocalFrontlineSourcePreferenceReader({
-          cwd: input.cwd,
-          exec: input.exec,
-          readFile: (path) => readFile(path, "utf8"),
-        }),
-      });
+      const configured = await readConfiguredLanePolicy(request.lane);
       const retainedSources = configured.sources.length === 0
         ? [...new Set(request.attempts.map(({ sourceId }) => sourceId))]
         : configured.sources;

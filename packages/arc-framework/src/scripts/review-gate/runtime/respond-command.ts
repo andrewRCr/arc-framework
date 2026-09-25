@@ -62,6 +62,7 @@ import {
   RespondEnvelopeSchema,
   type CandidateBoundMemberFixAuthoring,
 } from "../core/review-command-envelope.js";
+import { ProvisionalPassAssessmentSchema } from "../core/provisional-pass-assessment.js";
 import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
@@ -96,6 +97,7 @@ import {
   type ReviewPolicyCommandRequest,
   type ReviewResolveEnvelope,
 } from "../policy/review-policy-driver.js";
+import type { LanePolicyConfig } from "../policy/lane-policy-config.js";
 
 const AuthorDispositionFieldsSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
@@ -335,6 +337,8 @@ export interface RespondCommandDependencies {
     request: ReviewPolicyCommandRequest,
     confirmedProducerTarget: ReviewTarget,
   ): Promise<ReviewResolveEnvelope>;
+  /** Read the lane's effective current config without resolving or spending review policy. */
+  readConfiguredLanePolicy(lane: "frontline" | "standard"): Promise<LanePolicyConfig>;
   captureConditionalNextPass(input: {
     lane: "frontline" | "standard";
     repositoryId: string;
@@ -1549,6 +1553,58 @@ async function withdrawConditionalResponseAuthority(
     });
 }
 
+function projectProvisionalPassAssessment(input: {
+  proposal: ProposedDispositionSet;
+  lane: "frontline" | "standard";
+  admittedLogicalPass: number;
+  configuredMaxPasses: number;
+}): z.infer<typeof ProvisionalPassAssessmentSchema> {
+  const severityRank = { minor: 1, major: 2, critical: 3 } as const;
+  let confirmedFindingCount = 0;
+  let maxConfirmedSeverity: z.infer<typeof ReviewSeveritySchema> | null = null;
+  for (const finding of input.proposal.dispositionSet.findings) {
+    if (finding.sourceVerification !== "verified") continue;
+    confirmedFindingCount += 1;
+    if (maxConfirmedSeverity === null
+      || severityRank[finding.verifiedSeverity] > severityRank[maxConfirmedSeverity]) {
+      maxConfirmedSeverity = finding.verifiedSeverity;
+    }
+  }
+  const capPosition = input.admittedLogicalPass < input.configuredMaxPasses
+    ? "below-ceiling" as const
+    : input.admittedLogicalPass === input.configuredMaxPasses
+      ? "at-ceiling" as const
+      : "above-ceiling" as const;
+  const material = maxConfirmedSeverity === "major" || maxConfirmedSeverity === "critical";
+  const potentialStopReason = material && capPosition !== "below-ceiling"
+    ? "cap-exhausted" as const
+    : null;
+  const proposedSignal = { confirmedFindingCount, maxConfirmedSeverity };
+  const signalText = confirmedFindingCount === 0
+    ? "No source-verified findings are proposed."
+    : `${confirmedFindingCount} source-verified finding${confirmedFindingCount === 1 ? " is" : "s are"} proposed; `
+      + `highest proposed severity: ${maxConfirmedSeverity}.`;
+  const capText = potentialStopReason === null
+    ? "No cap stop is asserted from this proposal."
+    : "Potential stop: cap-exhausted if another pass is needed after approval and response; "
+      + "an explicit ceiling decision is required.";
+  return ProvisionalPassAssessmentSchema.parse({
+    status: "provisional",
+    lane: input.lane,
+    admittedLogicalPass: input.admittedLogicalPass,
+    configuredMaxPasses: input.configuredMaxPasses,
+    proposedSignal,
+    capPosition,
+    potentialStopReason,
+    nextPassAuthority: "none",
+    summaryText: `Provisional ${input.lane} pass assessment: Pass ${input.admittedLogicalPass} `
+      + `of ${input.configuredMaxPasses} under the current configured ceiling (${capPosition}). `
+      + `${signalText} ${capText} `
+      + "Approval and response are pending. This proposal does not establish coverage or convergence, "
+      + "and grants no next-pass authority. Recommend any further review from its expected cost and signal.",
+  });
+}
+
 async function prepareResponseProposal(
   request: z.infer<typeof RespondProposalRequestSchema>,
   source: ResolvedResponseSource,
@@ -1604,6 +1660,14 @@ async function prepareResponseProposal(
       }
     }
     const proposal = prepareDispositionProposal(request, source);
+    const lane = source.result.kind === "frontline" ? "frontline" : "standard";
+    const configured = await dependencies.readConfiguredLanePolicy(lane);
+    const provisionalPassAssessment = projectProvisionalPassAssessment({
+      proposal,
+      lane,
+      admittedLogicalPass: source.result.admission.logicalPass,
+      configuredMaxPasses: configured.maxPasses,
+    });
     return RespondEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-respond",
@@ -1618,6 +1682,7 @@ async function prepareResponseProposal(
           dispositionSet: proposal.dispositionSet,
           producerFindings: source.findings,
         }),
+        provisionalPassAssessment,
       },
     });
 }

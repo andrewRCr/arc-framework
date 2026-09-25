@@ -28,6 +28,7 @@ import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 import { ProposedDispositionSetSchema } from "./disposition-records.js";
+import { ProvisionalPassAssessmentSchema } from "./provisional-pass-assessment.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
@@ -710,6 +711,7 @@ export const RespondEnvelopeSchema = z.union([
         expectedFixPaths: z.array(z.string().trim().min(1)),
       }).optional(),
       dispositionReportText: z.string().trim().min(1),
+      provisionalPassAssessment: ProvisionalPassAssessmentSchema,
     }),
   ),
   envelopeVariant(
