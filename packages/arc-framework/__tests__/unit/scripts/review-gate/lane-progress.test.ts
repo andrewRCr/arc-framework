@@ -5,7 +5,7 @@ import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/
 import { LaneProgressStateSchema, type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 
 
-import { captureConditionalNextPassAuthorization, consumeConditionalNextPassAuthorization, hostedAwaitLaneOutcome, invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation, laneContinuationOperationId, laneProgressOperationId, readLaneProgressAcrossLineage, readLaneProgressOwner, recordLaneAttempt, settleLaneAttempt, withdrawConditionalNextPassAuthorization } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { captureConditionalNextPassAuthorization, consumeConditionalNextPassAuthorization, hostedAwaitLaneOutcome, invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation, laneContinuationOperationId, laneProgressOperationId, readCandidateInheritedLaneProgress, readLaneProgressAcrossLineage, readLaneProgressOwner, recordLaneAttempt, settleLaneAttempt, withdrawConditionalNextPassAuthorization } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 
 
@@ -95,6 +95,94 @@ async function seedConditionalAuthorization(
 }
 
 describe("lane progress", () => {
+  it("sums nested Candidate ancestor pass budgets without importing old attempts", async () => {
+    const store = createStore();
+    const oldest = `sha256:${"1".repeat(64)}`;
+    const middle = `sha256:${"2".repeat(64)}`;
+    for (const [index, candidateId] of [oldest, middle].entries()) {
+      const lineage = { kind: "candidate" as const, candidateId };
+      await recordLaneAttempt(store, {
+        ...attempt,
+        attemptId: `ancestor-${index}`,
+        lineage,
+        outcome: "findings",
+        consumedPass: true,
+      });
+      await settleLaneAttempt(store, {
+        lane: "standard", repositoryId: attempt.repositoryId,
+        headSha: attempt.headSha, lineage,
+        attemptId: `ancestor-${index}`, now: attempt.now,
+      });
+    }
+    const result = await readCandidateInheritedLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId, headSha: objectId("d"),
+      ancestors: [middle, oldest].map((candidateId) => ({
+        candidateId, baseRevision: objectId("a"), reviewResponseCount: 1,
+      })),
+    });
+    expect(result.inheritedCompletedPasses).toBe(2);
+    expect(result.inheritedCompletePasses).toBe(0);
+    expect(result.ancestorOwners.map(({ owner }) => owner?.attempts[0]?.attemptId))
+      .toEqual(["ancestor-1", "ancestor-0"]);
+  });
+
+  it("distinguishes a zero-attempt ancestor from a missing owner with a recorded response", async () => {
+    const store = createStore();
+    const ancestor = {
+      candidateId: `sha256:${"3".repeat(64)}`, baseRevision: objectId("a"), reviewResponseCount: 0,
+    };
+    expect((await readCandidateInheritedLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId,
+      headSha: objectId("d"), ancestors: [ancestor],
+    })).inheritedCompletedPasses).toBe(0);
+    await expect(readCandidateInheritedLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId,
+      headSha: objectId("d"), ancestors: [{ ...ancestor, reviewResponseCount: 1 }],
+    })).rejects.toThrow(/Restore the shared review operation/u);
+  });
+  it("refuses a predecessor pending pass or unsettled findings until they are resolved", async () => {
+    const pendingStore = createStore();
+    const candidateId = `sha256:${"4".repeat(64)}`;
+    const lineage = { kind: "candidate" as const, candidateId };
+    const input = {
+      lane: "standard" as const, repositoryId: attempt.repositoryId,
+      headSha: objectId("d"),
+      ancestors: [{ candidateId, baseRevision: objectId("a"), reviewResponseCount: 0 }],
+    };
+    await recordLaneAttempt(pendingStore, {
+      ...attempt, lineage, outcome: "pending", consumedPass: false,
+    });
+    await expect(readCandidateInheritedLaneProgress(pendingStore, input)).rejects
+      .toThrow(/restore a branch worktree at the predecessor Candidate record/u);
+    const store = createStore();
+    await recordLaneAttempt(store, {
+      ...attempt, lineage, outcome: "findings", consumedPass: true,
+    });
+    await expect(readCandidateInheritedLaneProgress(store, input)).rejects
+      .toThrow(/restore a branch worktree at the predecessor Candidate record/u);
+    await settleLaneAttempt(store, {
+      lane: "standard", repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha, lineage, attemptId: attempt.attemptId,
+      now: attempt.now,
+    });
+    expect((await readCandidateInheritedLaneProgress(store, input)).inheritedCompletedPasses).toBe(1);
+  });
+  it("lets a superseding root continue after old failed or unavailable zero-pass outcomes", async () => {
+    const outcomes = ["rate-limited", "transient-unavailable", "timed-out", "terminal-failure"] as const;
+    for (const [index, outcome] of outcomes.entries()) {
+      const store = createStore();
+      const candidateId = `sha256:${String(index + 5).repeat(64)}`;
+      await recordLaneAttempt(store, {
+        ...attempt, lineage: { kind: "candidate", candidateId },
+        outcome, consumedPass: false,
+      });
+      const inherited = await readCandidateInheritedLaneProgress(store, {
+        lane: "standard", repositoryId: attempt.repositoryId, headSha: objectId("d"),
+        ancestors: [{ candidateId, baseRevision: objectId("a"), reviewResponseCount: 0 }],
+      });
+      expect(inherited.inheritedCompletedPasses).toBe(0);
+    }
+  });
   it("retains the latest original-head producer for Candidate applicability", async () => {
     const store = createStore();
     const lineage = { kind: "candidate" as const, candidateId: `sha256:${"5".repeat(64)}` };

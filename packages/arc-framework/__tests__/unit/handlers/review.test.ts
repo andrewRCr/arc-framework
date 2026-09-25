@@ -2339,12 +2339,57 @@ describe("handleReviewPrePublication", () => {
       readBoundary: async () => ({ boundary: null, version: null }),
       recoverAttestationOrdering: vi.fn(),
       persistBoundary: vi.fn(),
+      persistAcceptedFrontlineSkip: vi.fn(),
       write: vi.fn(),
       warn: vi.fn(),
       setExitCode: vi.fn(),
       ...overrides,
     };
   }
+
+  it("persists an accepted singleton frontline skip before standard review admission", async () => {
+    const exactTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "1".repeat(40),
+      diffBaseTree: "2".repeat(40),
+      headSha: target.headSha,
+      headTree: "3".repeat(40),
+    });
+    const skippedRequest = {
+      ...request,
+      target: exactTarget,
+      frontline: {
+        ...request.frontline,
+        frontlineActive: true,
+        sources: ["coderabbit-cli"],
+        invocation: { mode: "skip" as const },
+      },
+      standard: { ...request.standard, sources: ["delegated-agent"] },
+    };
+    const dependencies = boundary({
+      readText: async () => JSON.stringify({ frontline: { invocation: { mode: "skip" } } }),
+      compose: vi.fn(async () => ({ status: "composed", request: skippedRequest, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
+    expect(dependencies.persistAcceptedFrontlineSkip).toHaveBeenCalledExactlyOnceWith(
+      "/repo",
+      {
+        workUnit: "example",
+        candidateId: request.candidateId,
+        repositoryId: exactTarget.repositoryId,
+        headSha: exactTarget.headSha,
+      },
+    );
+    const envelope = JSON.parse(String(dependencies.write.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(envelope).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", payload: { lane: "standard", pass: 1 } },
+    });
+  });
 
   it("emits the projected locus and reserves the hosted source before pull-request binding", async () => {
     const dependencies = boundary({

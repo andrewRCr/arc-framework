@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import type { CandidateConvergenceProjection } from
+import type { CandidateConvergenceProjection, CandidateSupersessionAncestor } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 import type { LanePolicyConfig } from "./lane-policy-config.js";
@@ -27,6 +27,7 @@ import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
   ReviewLaneJudgmentSchema,
+  type ReviewLaneJudgment,
 } from "./review-policy-driver.js";
 import { bindReviewPolicyEvidence } from "./review-policy-evidence.js";
 import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
@@ -118,6 +119,7 @@ export type CandidateRead =
     subjectDigest: string;
     implementationChanged: boolean;
     lineageHeadShas: readonly string[];
+    supersessionAncestors?: readonly CandidateSupersessionAncestor[];
     /** Exact originating target retained only while an approved fix awaits response settlement. */
     pendingReviewTarget?: ReviewTarget;
   } & CandidateConvergenceProjection);
@@ -168,7 +170,12 @@ export interface PrePublicationCompositionDependencies {
     headSha: string,
     lineageHeadShas: readonly string[],
     lineage?: LaneSubjectLineage,
+    supersessionAncestors?: readonly CandidateSupersessionAncestor[],
   ): Promise<LaneProgressProjection>;
+  readSingletonFrontlinePhaseClosed?(
+    candidateId: string,
+    ancestors: readonly CandidateSupersessionAncestor[],
+  ): Promise<boolean>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
@@ -353,10 +360,39 @@ function readComposedLaneProgress(
   headSha: string,
   lineageHeadShas: readonly string[],
   lineage?: LaneSubjectLineage,
+  supersessionAncestors: readonly CandidateSupersessionAncestor[] = [],
 ): Promise<LaneProgressProjection> {
   return lineage === undefined
     ? dependencies.readLaneProgress(lane, headSha, lineageHeadShas)
-    : dependencies.readLaneProgress(lane, headSha, lineageHeadShas, lineage);
+    : supersessionAncestors.length === 0
+      ? dependencies.readLaneProgress(lane, headSha, lineageHeadShas, lineage)
+      : dependencies.readLaneProgress(lane, headSha, lineageHeadShas, lineage, supersessionAncestors);
+}
+
+function candidateAncestorsForLineage(
+  candidate: CandidateRead,
+  lineage?: LaneSubjectLineage,
+): readonly CandidateSupersessionAncestor[] {
+  return lineage?.kind === "candidate" && candidate.status === "current"
+    ? candidate.supersessionAncestors ?? [] : [];
+}
+
+async function laneInvocation(input: {
+  lane: ReviewLane;
+  lineage?: LaneSubjectLineage;
+  candidate: CandidateRead;
+  judgment?: ReviewLaneJudgment;
+  dependencies: PrePublicationCompositionDependencies;
+}): Promise<ReviewLaneJudgment["invocation"]> {
+  if (input.lane !== "frontline" || input.lineage?.kind !== "candidate"
+    || input.dependencies.readSingletonFrontlinePhaseClosed === undefined) {
+    return input.judgment?.invocation;
+  }
+  const closed = await input.dependencies.readSingletonFrontlinePhaseClosed(
+    input.lineage.candidateId,
+    candidateAncestorsForLineage(input.candidate, input.lineage),
+  );
+  return closed ? { mode: "skip" } : input.judgment?.invocation;
 }
 
 /**
@@ -518,10 +554,12 @@ export async function composePrePublicationReviewRequest(
       lane === "frontline" ? frontlinePolicy : standardPolicy,
       await readComposedLaneProgress(
         dependencies, lane, policyTarget.headSha, lineageHeadShas, lineage,
+        candidateAncestorsForLineage(candidate, lineage),
       ),
     ];
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
+    const invocation = await laneInvocation({ lane, lineage, candidate, judgment, dependencies });
     const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
     const historicalAttempt = await applicableHistoricalAttempt({
       lane, progress, exactTarget, lineage, workUnit: input.workUnit, policyTarget, dependencies,
@@ -537,9 +575,7 @@ export async function composePrePublicationReviewRequest(
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
-      ...(judgment?.invocation === undefined
-        ? {}
-        : { invocation: judgment.invocation }),
+      ...(invocation === undefined ? {} : { invocation }),
       ...(lane !== "standard"
         || judgment?.terminus === undefined
         || ownerTerminusAuthority?.status !== "authorized"

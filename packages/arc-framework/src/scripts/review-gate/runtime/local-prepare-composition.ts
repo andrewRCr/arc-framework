@@ -65,7 +65,10 @@ import type { LocalPrepareDependencies } from "./local-prepare.js";
 import { resolveReviewStatus } from "../status.js";
 import { createReviewStatusPort } from "../status-composition.js";
 import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
-import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
+import {
+  readCandidateRecord,
+  readRepositoryCandidateSupersessionChain,
+} from "../../../lib/work-unit/candidate-record-store.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import {
   LaneSubjectLineageSchema,
@@ -379,6 +382,18 @@ export function createLocalPrepareDependencies(input: {
         vehicleKind: vehicle.kind,
         vehicleIdentity: vehicle.identity,
         headSha: target.headSha,
+      });
+    },
+    resolveSupersessionAncestors: async (workUnitId, candidateId) => {
+      const record = await readCandidateRecord(input.cwd, workUnitId);
+      if (record === null || record.attestation.candidateId !== candidateId) {
+        throw new Error("Candidate supersession authority is unavailable for local review");
+      }
+      return readRepositoryCandidateSupersessionChain({
+        cwd: input.cwd,
+        workUnit: workUnitId,
+        record,
+        exec: input.exec,
       });
     },
     composeAssurance: async (authority: LocalReviewAuthority) => {

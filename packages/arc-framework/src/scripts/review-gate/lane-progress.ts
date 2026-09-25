@@ -666,10 +666,8 @@ export async function recordLocalPendingAttempt(
 /** Conclude one admitted hosted dispatch that did not produce an acknowledgment handle. */
 export { recordHostedRequestConclusion, bindHostedAttemptDisposition, settleHostedAttemptFinding,
   supersedeHostedAttemptDisposition, inspectHostedAttemptDispositionSupersession,
-  HostedDispositionSupersessionError }
-  from "./lane-progress-hosted-settlement.js";
-export type { HostedDispositionSupersessionResult, HostedDispositionSupersessionInput }
-  from "./lane-progress-hosted-settlement.js";
+  HostedDispositionSupersessionError } from "./lane-progress-hosted-settlement.js";
+export type { HostedDispositionSupersessionResult, HostedDispositionSupersessionInput } from "./lane-progress-hosted-settlement.js";
 
 export { captureConditionalNextPassAuthorization, withdrawConditionalNextPassAuthorization,
   invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation,
@@ -947,7 +945,7 @@ function selectHistoricalOwnerAttempt(attempts: readonly LaneAttempt[], lane: La
 
 /** Read one complete lineage owner without applying an exact-head projection. */
 export async function readLaneProgressOwnerVersioned(
-  store: ReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   input: {
     lane: LaneProgressState["lane"];
     repositoryId: string;
@@ -966,7 +964,7 @@ export async function readLaneProgressOwnerVersioned(
 
 /** Read one complete lineage owner without applying an exact-head projection. */
 export async function readLaneProgressOwner(
-  store: ReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   input: {
     lane: LaneProgressState["lane"];
     repositoryId: string;
@@ -976,6 +974,8 @@ export async function readLaneProgressOwner(
 ): Promise<LaneProgressState | null> {
   return (await readLaneProgressOwnerVersioned(store, input)).state;
 }
+
+export { readCandidateInheritedLaneProgress } from "./lane-progress-supersession.js";
 
 /** Read exact performed-response evidence from its existing lane-owner attempt. */
 export async function readLaneResponsePerformance(

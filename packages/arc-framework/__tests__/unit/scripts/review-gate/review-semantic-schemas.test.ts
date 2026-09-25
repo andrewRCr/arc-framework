@@ -196,7 +196,7 @@ describe("review semantic schemas", () => {
         id: "review-operation-state",
         version: 1,
         owner: "operation-state",
-        variants: ["frontline-run", "review-suspension", "local-review", "lane-progress"],
+        variants: ["frontline-run", "frontline-phase", "review-suspension", "local-review", "lane-progress"],
       },
     ]);
     expect(new Set(REVIEW_DURABLE_RECORD_INVENTORY.map(({ id }) => id)).size)

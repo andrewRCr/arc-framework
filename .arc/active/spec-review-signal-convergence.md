@@ -94,6 +94,12 @@ provider-capability non-goal without adding a provider-selection, configuration,
 terminal adversarial review and Owner clarification that rejecting CodeRabbit's ordinary incremental review would
 defeat the work unit's cost and continuation goals.
 
+Amended 2026-09-25 — Keep review-pass usage and the singleton frontline phase across an explicitly validated
+superseding Candidate root. This corrects the observed landing route in which `attest --new-root` hid two settled
+standard passes and reopened frontline. It does not carry old-target review clearance, add a work-unit-wide budget,
+or change delivery-member activity decisions. — Prompted by the Owner's one-time frontline direction and approval
+to repair the live cap reset before another evaluator runs.
+
 ## Proposed Design
 
 ### 1. Give `withstood` one advisory meaning
@@ -214,7 +220,10 @@ derived display count of those whose effective coverage is complete. Both derive
 not caller counters or the number of result records. Retries, pending observations, unavailable attempts, failed
 results, disposition/settlement replays, and target movement consume no additional pass. A complete chunk aggregate
 consumes one; individual chunks do not. For delivery, lineage is the existing stable member identity within the
-plan, never the WU as one shared allowance. Non-delivery lanes retain their existing target lineage.
+plan, never the WU as one shared allowance. A Candidate's explicitly validated supersession chain retains consumed
+passes across new roots; unrelated roots never share an allowance. Other non-delivery lanes retain their existing
+target lineage. Historical attempts keep their original targets and authority; inherited spend does not establish
+current-target clearance or applicability.
 
 Runtime allocates `logicalPass = completedPasses + 1` at admission and preserves it through retries, fallback, and
 chunks. A completed pass followed by a fix remains counted on the old target; the next fresh review receives the
@@ -406,6 +415,13 @@ and runtime-resolved subject lineage. For delivery, use the existing plan/work-u
 for a Candidate-backed singleton use its current authorized Candidate lineage; other head-bound paths retain their
 existing exact-head allowance, scoped to the active vehicle identity. Do not infer identity from a caller string,
 merge unrelated Candidate roots, or turn this into WU-wide allowance. Missing lineage authority refuses admission.
+An explicitly validated `supersedes` chain is one authorized singleton review-budget lineage: compose prior owners'
+completed pass counts for display and every new admission, retain native attempts on their original owners, and
+allocate new attempts only under the current root. Missing expected predecessor evidence refuses with an actionable
+recovery path rather than silently granting a new allowance. Frontline stays open only until its normal terminal
+follow-up closes it, an explicit initial skip closes it, or standard review is durably admitted. Once closed for this
+singleton lineage, a changed head or superseding root cannot automatically reopen it; explicit new frontline work
+requires a separate decision. The closure is activity state, not a clean review result or clearance.
 Head, host change-request coordinates, and source-specific vehicle facts belong to each attempt, not one mutable
 container discriminator. Head-specific readers become projections of this owner. Hosted/local fallback must retain
 both source histories, and members sharing a head must not share requests, pending admissions, or counts.

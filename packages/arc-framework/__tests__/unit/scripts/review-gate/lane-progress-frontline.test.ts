@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createFrontlineAdmission } from "../../../../src/scripts/review-gate/core/frontline-admission.js";
-import { frontlineLaneOutcome, recordFrontlineAttempt, readLaneProgress, readLaneProgressAcrossLineage, recordLaneAttempt } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { frontlineLaneOutcome, recordFrontlineAttempt, readCandidateInheritedLaneProgress, readLaneProgress, readLaneProgressAcrossLineage, recordLaneAttempt, settleLaneAttempt } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 import { reduceReviewRouting } from "../../../../src/scripts/review-gate/policy/routing.js";
 
@@ -141,6 +141,30 @@ function frontlineOutcome(
 }
 
 describe("frontline lane recording", () => {
+  it("allows a frontline-only response with no standard ancestor owner", async () => {
+    const store = createStore();
+    const admission = await recordPendingFrontline(store);
+    await recordFrontlineAttempt(store, {
+      admission, outcome: frontlineOutcome("findings", null), now: "2026-08-15T12:00:00Z",
+    });
+    const dispositionSetId = `sha256:${"9".repeat(64)}`;
+    await settleLaneAttempt(store, {
+      lane: "frontline", repositoryId: frontlineTarget.repositoryId,
+      headSha: frontlineTarget.headSha, lineage: frontlineLineage,
+      attemptId: admission.operationId, dispositionSetId,
+      producedHeadSha: objectId("e"), now: "2026-08-15T12:01:00Z",
+    });
+    const inherited = await readCandidateInheritedLaneProgress(store, {
+      lane: "standard", repositoryId: frontlineTarget.repositoryId,
+      headSha: objectId("e"), ancestors: [{
+        candidateId: frontlineLineage.candidateId,
+        baseRevision: frontlineTarget.headSha,
+        reviewResponseCount: 1, reviewDispositionIds: [dispositionSetId],
+      }],
+    });
+    expect(inherited.inheritedCompletedPasses).toBe(0);
+    expect(inherited.ancestorOwners[0]?.owner).toBeNull();
+  });
   it("preserves the unavailable-class distinction the fall-through decision reads", () => {
     expect(frontlineLaneOutcome("unavailable", "rate-limited")).toBe("rate-limited");
     expect(frontlineLaneOutcome("unavailable", "transient-unavailable")).toBe("transient-unavailable");

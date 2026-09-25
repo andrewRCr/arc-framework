@@ -49,6 +49,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
     readRecord: async () => ({ record: storedRecord, version: recordVersion }),
     currentTarget: async () => currentTarget,
     effectiveTarget: (name, record) => projectDurableCandidateTarget({ cwd: "/repo", name, record }),
+    inspectReRootReviewAuthority: async () => null,
     publish: async (input) => {
       publicationCount += 1;
       storedRecord = input.record;
@@ -107,6 +108,41 @@ async function pendingHarness(approvedVerification: "focused" | "full") {
 }
 
 describe("runAttest", () => {
+  it("keeps the predecessor Candidate current while a review attempt needs settlement", async () => {
+    const fixture = harness();
+    await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
+    const predecessorId = fixture.state().storedRecord?.attestation.candidateId;
+    if (predecessorId === undefined) throw new Error("missing predecessor Candidate");
+    fixture.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+    const refused = await runAttest({
+      ...fixture.context,
+      inspectReRootReviewAuthority: async () => ({
+        lane: "standard", attemptId: "pending-review", outcome: "pending",
+        reviewHeadSha: CHANGED_REVISION, recordRevision: REVISION,
+      }),
+    }, { name: "example", lifecycle: "Active", newRoot: true });
+    expect(refused).toMatchObject({
+      status: "refused", reason: "re-root-live-review", candidateId: predecessorId,
+      lane: "standard", attemptId: "pending-review", outcome: "pending",
+      reviewHeadSha: CHANGED_REVISION, recordRevision: REVISION,
+      nextAction: {
+        kind: "recover-owning-branch-review",
+        reviewHeadSha: CHANGED_REVISION, candidateRecordRevision: REVISION,
+        reviewArgv: ["arc", "review", "pre-publication", "example"],
+      },
+    });
+    if (refused.status !== "refused" || refused.reason !== "re-root-live-review") {
+      throw new Error("expected live predecessor review refusal");
+    }
+    expect(refused.recommendedActionText).toContain("same owning branch and checkout");
+    expect(refused.recommendedActionText).toContain("merge the preserved changed ref back (never rebase)");
+    expect(refused.recommendedActionText).toContain("approval for branch restoration");
+    expect(fixture.state().storedRecord?.attestation.candidateId).toBe(predecessorId);
+    expect(fixture.state().publicationCount).toBe(1);
+    expect((await runAttest(fixture.context, {
+      name: "example", lifecycle: "Active", newRoot: true,
+    })).status).toBe("attested");
+  });
   it("rejects an unfilled convergence evidence placeholder before publication", async () => {
     const { fixture } = await pendingHarness("full");
     const publicationCount = fixture.state().publicationCount;

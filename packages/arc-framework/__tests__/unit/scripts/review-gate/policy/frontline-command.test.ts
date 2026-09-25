@@ -4,6 +4,8 @@ import { createReviewTarget } from
   "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createFrontlineAdmission } from
   "../../../../../src/scripts/review-gate/core/frontline-admission.js";
+import type { LaneSubjectLineage } from
+  "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import type { ReviewOperationState } from
   "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from
@@ -18,6 +20,8 @@ import {
   settleLaneAttempt,
 } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { resolveFrontlineCommand } from "../../../../../src/scripts/review-gate/policy/frontline-command.js";
+import { readSingletonFrontlinePhaseClosure, recordSingletonFrontlineInitialSkip } from
+  "../../../../../src/scripts/review-gate/policy/frontline-phase.js";
 import { normalizeFrontlineOutcome } from
   "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { FrontlineSourceRegistry } from "../../../../../src/scripts/review-gate/policy/frontline-source.js";
@@ -93,6 +97,7 @@ function dependencies(store = operationStore(), maxPasses = 2) {
     registry: registry(),
     operationStore: store,
     resolveLineage: async () => lineage,
+    resolveSupersessionAncestors: async () => [],
     withLaneOperationLock: async <T>(_operationId: string, action: () => Promise<T>) => action(),
     confirmDispositionSetCurrent: async () => true,
     readMaxPasses: async () => maxPasses,
@@ -100,10 +105,14 @@ function dependencies(store = operationStore(), maxPasses = 2) {
   };
 }
 
-function completedAdmission(logicalPass: number, maxPasses: number) {
+function completedAdmission(
+  logicalPass: number,
+  maxPasses: number,
+  ownerLineage: Extract<LaneSubjectLineage, { kind: "candidate" }> = lineage,
+) {
   const routing = { facts: routineCode, decision: reduceReviewRouting(routineCode) };
   return createFrontlineAdmission({
-    lineage,
+    lineage: ownerLineage,
     target,
     routing,
     frontlineReview: {
@@ -125,14 +134,15 @@ async function recordCompletedPass(
   store: ReviewOperationStateStore,
   logicalPass: number,
   maxPasses: number,
+  ownerLineage: Extract<LaneSubjectLineage, { kind: "candidate" }> = lineage,
 ): Promise<void> {
-  const admission = completedAdmission(logicalPass, maxPasses);
+  const admission = completedAdmission(logicalPass, maxPasses, ownerLineage);
   await recordLaneAttempt(store, {
     lane: "frontline",
     repositoryId: target.repositoryId,
     changeRequestId: null,
     headSha: target.headSha,
-    lineage,
+    lineage: ownerLineage,
     logicalPass,
     retryGeneration: 0,
     attemptId: admission.operationId,
@@ -145,6 +155,145 @@ async function recordCompletedPass(
 }
 
 describe("frontline workflow command", () => {
+  it("allocates a new Candidate's frontline pass after a validated superseded owner", async () => {
+    const store = operationStore();
+    const ancestorLineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"2".repeat(64)}`,
+    } as const;
+    await recordCompletedPass(store, 1, 3, ancestorLineage);
+    const deps = {
+      ...dependencies(store, 3),
+      resolveSupersessionAncestors: async () => [{
+        candidateId: ancestorLineage.candidateId,
+        baseRevision: oid("a"),
+        reviewResponseCount: 0,
+      }],
+    };
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      target,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+    }, deps)).resolves.toMatchObject({
+      state: "ready",
+      payload: { pass: 2, admission: { logicalPass: 2, lineage } },
+    });
+    await expect(readLaneProgressOwner(store, {
+      lane: "frontline",
+      repositoryId: target.repositoryId,
+      headSha: target.headSha,
+      lineage: ancestorLineage,
+    })).resolves.toMatchObject({ completedPasses: 1, attempts: [
+      expect.objectContaining({ logicalPass: 1, outcome: "clean" }),
+    ] });
+  });
+
+  it("closes an accepted singleton skip durably without recording a clean attempt", async () => {
+    const store = operationStore();
+    const deps = dependencies(store);
+    const skipped = await resolveFrontlineCommand({
+      schemaVersion: 1,
+      target,
+      changeSet: routineCode,
+      invocation: { mode: "skip" },
+    }, deps);
+    expect(skipped).toMatchObject({ state: "skipped", nextAction: "none" });
+    await expect(readSingletonFrontlinePhaseClosure(store, {
+      repositoryId: target.repositoryId,
+      candidateIds: [lineage.candidateId],
+    })).resolves.toMatchObject({ closedBy: "initial-skip" });
+    await expect(readLaneProgressOwner(store, {
+      lane: "frontline",
+      repositoryId: target.repositoryId,
+      headSha: target.headSha,
+      lineage,
+    })).resolves.toBeNull();
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      target,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+    }, deps)).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+  });
+
+  it("inherits a validated initial skip after Candidate supersession", async () => {
+    const store = operationStore();
+    const ancestorId = `sha256:${"3".repeat(64)}`;
+    await recordSingletonFrontlineInitialSkip(store, {
+      repositoryId: target.repositoryId,
+      candidateId: ancestorId,
+      now: "2026-09-08T12:00:00Z",
+    });
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      target,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+    }, {
+      ...dependencies(store),
+      resolveSupersessionAncestors: async () => [{
+        candidateId: ancestorId,
+        baseRevision: oid("a"),
+        reviewResponseCount: 0,
+      }],
+    })).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+  });
+
+  it("refuses an initial skip while frontline findings remain unresolved", async () => {
+    const store = operationStore();
+    const admission = completedAdmission(1, 2);
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: target.repositoryId,
+      changeRequestId: null,
+      headSha: target.headSha,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: admission.operationId,
+      sourceId: source.sourceId,
+      outcome: "findings",
+      consumedPass: true,
+      frontline: { admission, effectiveCoverage: "complete" },
+      now: "2026-09-08T12:00:00Z",
+    });
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      target,
+      changeSet: routineCode,
+      invocation: { mode: "skip" },
+    }, dependencies(store))).rejects.toThrow(/unresolved frontline findings/u);
+    await expect(readSingletonFrontlinePhaseClosure(store, {
+      repositoryId: target.repositoryId,
+      candidateIds: [lineage.candidateId],
+    })).resolves.toBeNull();
+  });
+
+  it("keeps singleton frontline closed after a standard pending admission", async () => {
+    const store = operationStore();
+    await recordLaneAttempt(store, {
+      lane: "standard",
+      repositoryId: target.repositoryId,
+      changeRequestId: null,
+      headSha: target.headSha,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: "standard-pending-1",
+      sourceId: "delegated-agent",
+      outcome: "pending",
+      consumedPass: false,
+      now: "2026-09-08T12:00:00Z",
+    });
+    await expect(resolveFrontlineCommand({
+      schemaVersion: 1,
+      target,
+      changeSet: routineCode,
+      invocation: { mode: "force", sourceId: "review-command" },
+    }, dependencies(store))).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
+  });
+
   it("derives a fresh logical pass and allowance from durable lineage state", async () => {
     const store = operationStore();
     await recordCompletedPass(store, 1, 3);

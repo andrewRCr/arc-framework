@@ -13,16 +13,27 @@ import {
 import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { ReviewTargetCoordinatesSchema } from "../core/review-target-coordinates.js";
+import type { CandidateSupersessionAncestor } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewOperationStateStore } from "../core/ports.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import {
   consumeConditionalNextPassAuthorization,
   laneContinuationOperationId,
   readLaneProgressOwner,
+  readCandidateInheritedLaneProgress,
   recordLaneAttempt,
 } from "../lane-progress.js";
 import { FrontlineInvocationOverrideSchema } from "./frontline-resolution.js";
-import { resolveFrontlineReview, type FrontlineSemanticRecord } from "./frontline-semantic.js";
+import {
+  FrontlineSemanticRecordSchema,
+  resolveFrontlineReview,
+  type FrontlineSemanticRecord,
+} from "./frontline-semantic.js";
+import {
+  readSingletonFrontlinePhaseClosure,
+  recordSingletonFrontlineInitialSkip,
+} from "./frontline-phase.js";
 import type {
   FrontlineSourcePreferenceReader,
   FrontlineSourceRegistry,
@@ -92,6 +103,9 @@ interface FrontlineCommandDependencies {
     target: ReviewTarget,
     vehicle: FrontlineCommandRequest["vehicle"],
   ): Promise<LaneSubjectLineage>;
+  resolveSupersessionAncestors(
+    lineage: LaneSubjectLineage,
+  ): Promise<readonly CandidateSupersessionAncestor[]>;
   withLaneOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
   confirmDispositionSetCurrent: (
     producerId: string,
@@ -191,12 +205,15 @@ async function admitNewFrontlineOperation(
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
   initialOwner: Awaited<ReturnType<typeof readLaneProgressOwner>>,
+  inheritedCompletedPasses: number,
   maxPasses: ReviewPass,
   semantic: Awaited<ReturnType<typeof resolveFrontlineReview>>,
   payload: Pick<FrontlineCommandResult["payload"], "routing" | "frontlineReview">,
   base: Pick<FrontlineCommandResult, "schemaVersion" | "mode" | "diagnostics">,
 ): Promise<FrontlineCommandResult> {
-  const logicalPass = ReviewPassSchema.parse((initialOwner?.completedPasses ?? 0) + 1);
+  const logicalPass = ReviewPassSchema.parse(
+    inheritedCompletedPasses + (initialOwner?.completedPasses ?? 0) + 1,
+  );
   if (logicalPass > maxPasses) {
     throw new Error("frontline pass allowance is exhausted");
   }
@@ -271,25 +288,64 @@ async function admitNewFrontlineOperation(
   });
 }
 
-async function resolveFrontlineCommandWithinLock(
-  parsed: FrontlineCommandRequest,
-  lineage: LaneSubjectLineage,
-  dependencies: FrontlineCommandDependencies,
-): Promise<FrontlineCommandResult> {
-  const owner = await readLaneProgressOwner(dependencies.operationStore, {
+async function readSingletonFrontlinePhase(input: {
+  parsed: FrontlineCommandRequest;
+  lineage: LaneSubjectLineage;
+  owner: Awaited<ReturnType<typeof readLaneProgressOwner>>;
+  dependencies: FrontlineCommandDependencies;
+}): Promise<{
+  inheritedCompletedPasses: number;
+  closed: boolean;
+  unresolvedFindings: boolean;
+}> {
+  const { parsed, lineage, owner, dependencies } = input;
+  const ancestors = lineage.kind === "candidate"
+    ? await dependencies.resolveSupersessionAncestors(lineage)
+    : [];
+  const inherited = await readCandidateInheritedLaneProgress(dependencies.operationStore, {
     lane: "frontline",
+    repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    ancestors,
+  });
+  const unresolvedFindings = [owner, ...inherited.ancestorOwners.map(({ owner: prior }) => prior)]
+    .some((progress) => progress?.attempts.some((attempt) => attempt.outcome === "findings") === true);
+  if (lineage.kind !== "candidate") {
+    return {
+      inheritedCompletedPasses: 0,
+      closed: false,
+      unresolvedFindings,
+    };
+  }
+  const currentStandard = await readLaneProgressOwner(dependencies.operationStore, {
+    lane: "standard",
     repositoryId: parsed.target.repositoryId,
     headSha: parsed.target.headSha,
     lineage,
   });
-  const pending = owner?.attempts.filter((attempt) => (
-    attempt.outcome === "pending" && attempt.frontline !== undefined
-  )) ?? [];
-  if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
-  const pendingAdmission = pending[0]?.frontline?.admission;
-  if (pendingAdmission !== undefined) {
-    return resumePendingFrontlineAdmission(pendingAdmission, parsed, lineage, dependencies);
-  }
+  const inheritedStandard = await readCandidateInheritedLaneProgress(dependencies.operationStore, {
+    lane: "standard",
+    repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    ancestors,
+  });
+  const marker = await readSingletonFrontlinePhaseClosure(dependencies.operationStore, {
+    repositoryId: parsed.target.repositoryId,
+    candidateIds: [lineage.candidateId, ...ancestors.map(({ candidateId }) => candidateId)],
+  });
+  return {
+    inheritedCompletedPasses: inherited.inheritedCompletedPasses,
+    closed: marker !== null
+      || currentStandard?.attempts.length !== undefined && currentStandard.attempts.length > 0
+      || inheritedStandard.ancestorOwners.some(({ owner: prior }) => (prior?.attempts.length ?? 0) > 0),
+    unresolvedFindings,
+  };
+}
+
+async function resolveFrontlineSelection(
+  parsed: FrontlineCommandRequest,
+  dependencies: FrontlineCommandDependencies,
+) {
   const routing = resolveReviewRouting(parsed.changeSet);
   const configuredMaxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
   const conditionalCeiling = parsed.policyJudgment?.ceilingOverride;
@@ -321,12 +377,66 @@ async function resolveFrontlineCommandWithinLock(
         : `${diagnostic.tier} frontline source '${diagnostic.sourceId}' could not be applied`,
     })),
   ];
-  const base = {
-    schemaVersion: 1,
-    mode: "review-frontline-resolve",
-    diagnostics,
-  } as const;
+  const base = { schemaVersion: 1, mode: "review-frontline-resolve", diagnostics } as const;
+  return { routing, maxPasses, semantic, payload, diagnostics, base };
+}
+
+async function resolveFrontlineCommandWithinLock(
+  parsed: FrontlineCommandRequest,
+  lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies,
+): Promise<FrontlineCommandResult> {
+  const owner = await readLaneProgressOwner(dependencies.operationStore, {
+    lane: "frontline",
+    repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    lineage,
+  });
+  const pending = owner?.attempts.filter((attempt) => (
+    attempt.outcome === "pending" && attempt.frontline !== undefined
+  )) ?? [];
+  if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
+  const pendingAdmission = pending[0]?.frontline?.admission;
+  if (pendingAdmission !== undefined) {
+    return resumePendingFrontlineAdmission(pendingAdmission, parsed, lineage, dependencies);
+  }
+  const phase = await readSingletonFrontlinePhase({ parsed, lineage, owner, dependencies });
+  if (phase.unresolvedFindings) {
+    throw new Error("unresolved frontline findings must be settled before another frontline resolution");
+  }
+  const { routing, maxPasses, semantic, payload, diagnostics, base } =
+    await resolveFrontlineSelection(parsed, dependencies);
+  if (phase.closed) {
+    return FrontlineResolveEnvelopeSchema.parse({
+      ...base,
+      diagnostics: [...diagnostics, {
+        code: "frontline-phase-closed",
+        message: "The singleton frontline phase is already closed for this Candidate lineage.",
+      }],
+      state: "skipped",
+      nextAction: "none",
+      payload: {
+        routing: payload.routing,
+        frontlineReview: FrontlineSemanticRecordSchema.parse({
+          schemaVersion: 1,
+          semanticsVersion: "frontline-review/v1",
+          action: "skip",
+          reasons: routing.decision.reasons,
+          source: null,
+          maxPasses: 0,
+          promptText: null,
+        }),
+      },
+    });
+  }
   if (semantic.frontlineReview.action === "skip") {
+    if (lineage.kind === "candidate" && parsed.invocation.mode === "skip") {
+      await recordSingletonFrontlineInitialSkip(dependencies.operationStore, {
+        repositoryId: parsed.target.repositoryId,
+        candidateId: lineage.candidateId,
+        now: dependencies.now(),
+      });
+    }
     return FrontlineResolveEnvelopeSchema.parse({
       ...base,
       state: "skipped",
@@ -342,5 +452,7 @@ async function resolveFrontlineCommandWithinLock(
       payload,
     });
   }
-  return admitNewFrontlineOperation(parsed, lineage, dependencies, owner, maxPasses, semantic, payload, base);
+  return admitNewFrontlineOperation(
+    parsed, lineage, dependencies, owner, phase.inheritedCompletedPasses, maxPasses, semantic, payload, base,
+  );
 }

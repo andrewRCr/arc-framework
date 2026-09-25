@@ -244,6 +244,59 @@ async function seedAcknowledgedRequest(
 }
 
 describe("hosted await lane recording", () => {
+  it("allocates and replays a hosted pass after a validated superseded Candidate", async () => {
+    const store = createStore();
+    const ancestorLineage = { kind: "candidate" as const, candidateId: `sha256:${"7".repeat(64)}` };
+    await recordLaneAttempt(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      changeRequestId: "pull/42",
+      headSha: objectId("9"),
+      lineage: ancestorLineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: "ancestor-standard-review",
+      sourceId: "coderabbit-pr",
+      outcome: "clean",
+      consumedPass: true,
+      now: "2026-08-15T11:00:00Z",
+    });
+    const supersessionAncestors = [{
+      candidateId: ancestorLineage.candidateId,
+      baseRevision: objectId("a"),
+      reviewResponseCount: 0,
+    }];
+    const request: HostedRequestEnvelope = {
+      schemaVersion: 1,
+      target: handle.target,
+      provider: handle.provider,
+      coverage: handle.requestedCoverage,
+    };
+    let authorizedPass = 0;
+    const decision = await recordHostedRequestAdmission(store, {
+      repositoryId: "repo-1",
+      lineage: hostedAdmission.lineage,
+      supersessionAncestors,
+      request,
+      ...hostedContext,
+      authorizeCapacity: async ({ logicalPass }) => { authorizedPass = logicalPass; },
+      now: "2026-08-15T12:00:00Z",
+    });
+    expect(decision).toMatchObject({ state: "admitted", admission: { logicalPass: 2 } });
+    expect(authorizedPass).toBe(2);
+    expect(await readHostedRequestAdmissionReplay(store, {
+      repositoryId: "repo-1",
+      lineage: hostedAdmission.lineage,
+      supersessionAncestors,
+      reviewTarget: hostedReviewTarget,
+      request,
+    })).toEqual({ state: "ambiguous-delivery" });
+    expect((await store.readOperation(laneProgressOperationId({
+      lane: "standard", repositoryId: "repo-1", headSha: handle.target.headSha,
+      lineage: ancestorLineage,
+    }))).state).toMatchObject({ completedPasses: 1 });
+  });
+
   it("replays only the current Candidate lineage and exact target through a keyed read", async () => {
     const store = createStore();
     await seedAcknowledgedRequest(store, handle);

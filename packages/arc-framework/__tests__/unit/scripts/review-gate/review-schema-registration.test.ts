@@ -53,6 +53,7 @@ const reviewIdentities = [
   "frontline-execution-outcome",
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
+  "frontline-phase-state",
   "review-frontline-run-request",
   "frontline-run-state",
   "lane-progress-state",

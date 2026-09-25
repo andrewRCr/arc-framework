@@ -32,6 +32,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "frontline-execution-outcome",
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
+  "frontline-phase-state",
   "frontline-run-state",
   "inbox-state",
   "lane-progress-state",

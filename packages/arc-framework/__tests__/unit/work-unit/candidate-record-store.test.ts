@@ -13,12 +13,16 @@ import {
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 import {
   readCandidateRecord,
+  readRepositoryCandidateSupersessionChain,
+  readRepositoryCandidateRecordRevision,
   readCandidateRecordVersion,
   readCandidateRecordVersioned,
   writeCandidateRecord,
   CandidateRecordVersionConflictError,
   type CandidateRecordStoreFs,
 } from "../../../src/lib/work-unit/candidate-record-store.js";
+import { serializeCandidateManagedRecord } from
+  "../../../src/lib/work-unit/candidate-attestation.js";
 
 function record(): CandidateManagedRecordV1 {
   const subject = createCandidateSubjectSnapshot([
@@ -40,6 +44,47 @@ function record(): CandidateManagedRecordV1 {
     lineageAttestations: [],
   };
 }
+
+describe("Candidate supersession history", () => {
+  it("pins recovery to the commit containing the exact predecessor Candidate", async () => {
+    const predecessor = record();
+    const revision = "b".repeat(40);
+    expect(await readRepositoryCandidateRecordRevision({
+      cwd: "/repo", workUnit: "example", candidateId: predecessor.attestation.candidateId,
+      exec: async (_command, args) => args[0] === "log"
+        ? { stdout: `${revision}\n` }
+        : { stdout: serializeCandidateManagedRecord(predecessor) },
+    })).toBe(revision);
+  });
+  it("reads only the linked predecessor and stops before unrelated older records", async () => {
+    const predecessor = record();
+    const current = CandidateManagedRecordV1Schema.parse({
+      ...predecessor,
+      attestation: createCandidateAttestation({
+        workUnit: "example", subject: predecessor.subject, baseRevision: "b".repeat(40),
+        attestedBy: "andrew", attestedAt: "2026-08-13T14:00:00.000Z",
+        verificationEvidenceRef: "tasks-example.md#re-root",
+        supersedes: predecessor.attestation.candidateId,
+      }),
+    });
+    const seen: string[] = [];
+    const ancestors = await readRepositoryCandidateSupersessionChain({
+      cwd: "/repo", workUnit: "example", record: current,
+      exec: async (_command, args) => {
+        seen.push(args.join(" "));
+        if (args[0] === "log") return { stdout: `${"a".repeat(40)}\n${"b".repeat(40)}\n${"c".repeat(40)}\n` };
+        return { stdout: serializeCandidateManagedRecord(predecessor) };
+      },
+    });
+    expect(ancestors).toEqual([{
+      candidateId: predecessor.attestation.candidateId,
+      baseRevision: predecessor.attestation.baseRevision,
+      recordRevision: "a".repeat(40),
+      reviewResponseCount: 0,
+    }]);
+    expect(seen).toHaveLength(2);
+  });
+});
 
 function recordWithLineage(
   scope: "focused" | "full",

@@ -71,6 +71,11 @@ it is absent. After the active Work Unit Owner explicitly accepts the current re
 `owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The Owner's
 decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains current.
 
+For a singleton Candidate lineage, frontline is an opening phase. Its configured allowance applies while that phase
+is open. An accepted initial skip or durable standard admission closes it; changed heads and validated Candidate
+supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited completed
+standard passes still count toward the ceiling, while older producer evidence remains bound to its original target.
+
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
 requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
 continuation. For `ready / run-frontline`, `nextAction.command` advances into the frontline resolver; retain

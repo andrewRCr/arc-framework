@@ -63,12 +63,15 @@ import {
 } from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import type { CandidateSupersessionAncestor } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import {
   consumeConditionalNextPassAuthorization,
   readLaneProgressOwner,
   readLaneProgressOwnerVersioned,
   recordLocalReceiptConclusion,
   recordLocalPendingAttempt,
+  readCandidateInheritedLaneProgress,
 } from "../lane-progress.js";
 import {
   DeliveryLocalReviewAdmissionSchema,
@@ -86,6 +89,7 @@ import {
   selectPendingLocalReplayAttempt,
   sharedLogicalPassCoverageMatches,
 } from "../policy/local-review-coverage-selection.js";
+import { cleanupExpired, retryLaneOwnerConflicts } from "./local-prepare-retry.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
 
@@ -174,6 +178,10 @@ export interface LocalPrepareDependencies {
     deliveryAdmission?: DeliveryLocalReviewAdmission,
     member?: LocalReviewMemberCoordinates,
   ): Promise<LaneSubjectLineage>;
+  resolveSupersessionAncestors(
+    workUnitId: string,
+    candidateId: string,
+  ): Promise<readonly CandidateSupersessionAncestor[]>;
   composeAssurance(authority: LocalReviewAuthority): Promise<AssuranceComposition>;
   resolvePolicy(): LocalReviewPolicyBindingResolution;
   validatePolicySelection(
@@ -220,28 +228,6 @@ export interface LocalPrepareDependencies {
 
 function diagnostics(messages: readonly string[]) {
   return messages.map((message) => ({ code: "local-prepare", message }));
-}
-
-function cleanupExpired(state: LocalReviewState, nowInput: string): boolean {
-  const admittedAt = Date.parse(state.updatedAt);
-  const now = Date.parse(nowInput);
-  if (!Number.isFinite(admittedAt) || !Number.isFinite(now)) {
-    throw new Error("invalid local review cleanup clock");
-  }
-  return now >= admittedAt + state.cleanupTtlMs;
-}
-
-async function retryLaneOwnerConflicts<T>(
-  action: (attempt: number) => Promise<T>,
-): Promise<T | null> {
-  for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
-    try {
-      return await action(attempt);
-    } catch (error) {
-      if (!isReviewVersionConflict(error)) throw error;
-    }
-  }
-  return null;
 }
 
 /** Stable durable-state failure at the local prepare boundary. */
@@ -546,6 +532,18 @@ async function resolveSettlementPolicyAdmission(
     && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
     && attempt.headSha !== target.headSha
   ))?.attemptId;
+  const ancestors = lineage.kind === "candidate" && input.authority.vehicle.kind === "work-unit"
+    ? await dependencies.resolveSupersessionAncestors(
+      input.authority.vehicle.identity,
+      lineage.candidateId,
+    )
+    : [];
+  const inherited = await readCandidateInheritedLaneProgress(dependencies.operationStore, {
+    lane: "standard",
+    repositoryId,
+    headSha: target.headSha,
+    ancestors,
+  });
   return dependencies.validatePolicyAdmission({
     repositoryId,
     target,
@@ -554,7 +552,7 @@ async function resolveSettlementPolicyAdmission(
       ? { workUnitId: input.authority.vehicle.identity }
       : {}),
     standardReview: projection,
-    completedPasses: owner?.completedPasses ?? 0,
+    completedPasses: inherited.inheritedCompletedPasses + (owner?.completedPasses ?? 0),
     attempts: policyAttempts,
     terminalResponsePerformed: currentAttempts.at(-1)?.outcome === "settled-findings",
     ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),

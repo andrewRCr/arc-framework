@@ -32,7 +32,14 @@ import type { GitExec } from "../lib/git/exec.js";
 import { canonicalDigest, canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
 import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
-import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
+import {
+  readCandidateRecord,
+  readRepositoryCandidateSupersessionChain,
+} from "../lib/work-unit/candidate-record-store.js";
+import type {
+  CandidateManagedRecordV1,
+  CandidateSupersessionAncestor,
+} from "../lib/work-unit/candidate-attestation.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { resolveUserIdentity } from "./shared.js";
@@ -112,6 +119,7 @@ import {
   prePublicationBoundary,
   projectPrePublicationReview,
   type PrePublicationReviewEnvelope,
+  type PrePublicationReviewRequest,
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
 import {
   CandidateReviewResumeBoundarySchema,
@@ -151,6 +159,7 @@ import {
 } from "../scripts/review-gate/policy/frontline-command.js";
 import {
   LaneSubjectLineageSchema,
+  type LaneSubjectLineage,
 } from "../scripts/review-gate/core/lane-admission.js";
 import { confirmNonDeliveryIncrementalApplicability } from
   "../scripts/review-gate/policy/local-review-coverage-selection.js";
@@ -158,10 +167,13 @@ import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import {
   projectReviewPolicyAttempt,
+  resolveReviewPolicy,
   ReviewPolicyCommandRequestSchema,
   ReviewResolveEnvelopeSchema,
   type ReviewPolicyCommandRequest,
 } from "../scripts/review-gate/policy/review-policy-driver.js";
+import { recordSingletonFrontlineInitialSkip } from
+  "../scripts/review-gate/policy/frontline-phase.js";
 import {
   assertEvidenceBoundReviewExecutionAdmission,
   resolveEvidenceBoundReviewPolicy,
@@ -233,6 +245,8 @@ import {
   hostedLaneAttemptId,
   laneContinuationOperationId,
   readHostedRequestAdmissionReplay,
+  readCandidateInheritedLaneProgress,
+  readLaneProgressOwner,
   readLaneResponsePerformance,
   readLaneProgress,
   recordHostedRequestAdmission,
@@ -2252,23 +2266,44 @@ async function resolveHostedProgressContext(input: {
   };
 }
 
+async function resolveFrontlineSupersessionAncestors(
+  root: string,
+  exec: GitExec,
+  lineage: LaneSubjectLineage,
+): Promise<readonly CandidateSupersessionAncestor[]> {
+  if (lineage.kind !== "candidate") return [];
+  const live = await readLocalReviewLiveContext({ exec, cwd: root });
+  const workUnitId = live.context.workUnit?.identity;
+  if (workUnitId === undefined) {
+    throw new Error("frontline Candidate supersession authority is unavailable");
+  }
+  const record = await readCandidateRecord(root, workUnitId);
+  if (record === null || record.attestation.candidateId !== lineage.candidateId) {
+    throw new Error("frontline Candidate supersession authority is unavailable");
+  }
+  return readRepositoryCandidateSupersessionChain({ cwd: root, workUnit: workUnitId, record, exec });
+}
+
+async function deriveFrontlineCommandRequest(
+  request: FrontlineResolveRequest,
+  root: string,
+  exec: GitExec,
+): Promise<FrontlineCommandRequest> {
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  const repositoryId = await resolveRepositoryIdentity(publisher);
+  return FrontlineCommandRequestSchema.parse({
+    ...request,
+    target: await deriveLocalReviewTargetFromCoordinates({
+      exec, cwd: root, repositoryId, coordinates: request.target,
+    }),
+  });
+}
+
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
   const exec = createGitExec();
   return {
     ...defaultReviewHandlerBoundary(),
-    deriveRequest: async (request, root) => {
-      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
-      const repositoryId = await resolveRepositoryIdentity(publisher);
-      return FrontlineCommandRequestSchema.parse({
-        ...request,
-        target: await deriveLocalReviewTargetFromCoordinates({
-          exec,
-          cwd: root,
-          repositoryId,
-          coordinates: request.target,
-        }),
-      });
-    },
+    deriveRequest: (request, root) => deriveFrontlineCommandRequest(request, root, exec),
     resolve: async (request, root) => {
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const operationStore = new LocalReviewOperationStateStore(publisher);
@@ -2343,6 +2378,8 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
             headSha: target.headSha,
           });
         },
+        resolveSupersessionAncestors: (lineage) =>
+          resolveFrontlineSupersessionAncestors(root, exec, lineage),
         readMaxPasses: async () => Number((
           await readConfigSettings(root)
         ).settings["review.frontline_max_passes"]),
@@ -2856,6 +2893,24 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
   request(input: unknown): Promise<unknown>;
 }
 
+async function hostedCandidateSupersessionAncestors(input: {
+  root: string;
+  lineage: LaneSubjectLineage;
+  candidateRecord: CandidateManagedRecordV1 | null;
+}): Promise<readonly CandidateSupersessionAncestor[]> {
+  if (input.lineage.kind !== "candidate") return [];
+  if (input.candidateRecord === null
+    || input.candidateRecord.attestation.candidateId !== input.lineage.candidateId) {
+    throw new Error("Hosted Candidate supersession authority is unavailable");
+  }
+  return readRepositoryCandidateSupersessionChain({
+    cwd: input.root,
+    workUnit: input.candidateRecord.attestation.workUnit,
+    record: input.candidateRecord,
+    exec: gitExec,
+  });
+}
+
 function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
   const { adapters, port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
@@ -2873,9 +2928,15 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
         admitCapacity: false,
       });
+      const replayAncestors = await hostedCandidateSupersessionAncestors({
+        root,
+        lineage: replayContext.lineage,
+        candidateRecord: replayContext.candidateRecord,
+      });
       const replay = await readHostedRequestAdmissionReplay(replayContext.store, {
         repositoryId: replayContext.repositoryId,
         lineage: replayContext.lineage,
+        supersessionAncestors: replayAncestors,
         reviewTarget: replayContext.reviewTarget,
         request,
       });
@@ -2895,6 +2956,17 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
         settings,
         admitCapacity: true,
+      });
+      const supersessionAncestors = await hostedCandidateSupersessionAncestors({
+        root,
+        lineage: context.lineage,
+        candidateRecord: context.candidateRecord,
+      });
+      const inheritedProgress = await readCandidateInheritedLaneProgress(context.store, {
+        lane: "standard",
+        repositoryId: context.repositoryId,
+        headSha: request.target.headSha,
+        ancestors: supersessionAncestors,
       });
       const actorIdentity = await port.currentActorIdentity();
       const policy = await resolveConfiguredLanePolicy({
@@ -3028,6 +3100,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
               : { correctionScope: request.correctionScope }),
             maxPasses: policy.maxPasses,
             logicalPass,
+            inheritedCompletedPasses: inheritedProgress.inheritedCompletedPasses,
             ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
             ...(request.ceilingOverride === undefined
               ? {}
@@ -3064,7 +3137,8 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
           lane: "standard",
           frontlineActive: false,
           standardReview,
-          completedPasses: progress?.completedPasses ?? 0,
+          completedPasses: (progress?.completedPasses ?? 0)
+            + inheritedProgress.inheritedCompletedPasses,
           attempts: currentAttempts.map(projectReviewPolicyAttempt),
           ...(request.invocation === undefined
             ? {}
@@ -3107,6 +3181,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             () => recordHostedRequestAdmission(context.store, {
               repositoryId: context.repositoryId,
               lineage: context.lineage,
+              supersessionAncestors,
               request: admittedRequest,
               ...(progressVehicle === undefined ? {} : { progressVehicle }),
               reviewTarget: context.reviewTarget,
@@ -3413,6 +3488,12 @@ export interface ReviewPrePublicationHandlerDependencies {
     judgment: ReviewPrePublicationJudgment,
   ): Promise<PrePublicationComposition>;
   persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
+  persistAcceptedFrontlineSkip(root: string, input: {
+    workUnit: string;
+    candidateId: string;
+    repositoryId: string;
+    headSha: string;
+  }): Promise<void>;
   recoverAttestationOrdering(
     root: string,
     boundary: IntegrationBoundaryLocus,
@@ -3421,6 +3502,60 @@ export interface ReviewPrePublicationHandlerDependencies {
   write(text: string): void;
   warn(text: string): void;
   setExitCode(code: number): void;
+}
+
+async function persistAcceptedFrontlineSkip(input: {
+  root: string;
+  workUnit: string;
+  candidateId: string;
+  repositoryId: string;
+  headSha: string;
+  exec: GitExec;
+}): Promise<void> {
+  const lineage = { kind: "candidate" as const, candidateId: input.candidateId };
+  await withRepositoryReviewOperationLock(input.exec, input.root, laneContinuationOperationId({
+    lane: "frontline",
+    repositoryId: input.repositoryId,
+    headSha: input.headSha,
+    lineage,
+  }), 10_000, async () => {
+    const [record, observedHead] = await Promise.all([
+      readCandidateRecord(input.root, input.workUnit),
+      input.exec("git", ["rev-parse", "HEAD"], { cwd: input.root }),
+    ]);
+    if (record?.attestation.candidateId !== input.candidateId
+      || observedHead.stdout.trim() !== input.headSha) {
+      throw new Error("accepted frontline skip no longer matches the current Candidate target");
+    }
+    const store = new LocalReviewOperationStateStore(
+      new RepositoryGitCommonStatePublisher(input.exec, input.root),
+    );
+    const owner = await readLaneProgressOwner(store, {
+      lane: "frontline",
+      repositoryId: input.repositoryId,
+      headSha: input.headSha,
+      lineage,
+    });
+    if (owner?.attempts.some(({ outcome }) => outcome === "findings") === true) {
+      throw new Error("unresolved frontline findings must be settled before skipping frontline review");
+    }
+    await recordSingletonFrontlineInitialSkip(store, {
+      repositoryId: input.repositoryId,
+      candidateId: input.candidateId,
+      now: new Date().toISOString(),
+    });
+  });
+}
+
+function acceptedSingletonFrontlineSkip(
+  request: PrePublicationReviewRequest,
+  envelope: PrePublicationReviewEnvelope,
+): request is PrePublicationReviewRequest & { target: { kind: "change-set" } } {
+  return request.target?.kind === "change-set"
+    && request.responseBinding === undefined
+    && request.frontline.invocation?.mode === "skip"
+    && resolveReviewPolicy(request.frontline).state === "skipped"
+    && envelope.nextAction.kind !== "run-self-review";
 }
 
 function buildPrePublicationResumeCommand(input: {
@@ -3517,6 +3652,11 @@ function defaultPrePublicationDependencies(
         : settled), snapshot.version);
       await exec("git", ["add", "--", path], { cwd: root });
     },
+    persistAcceptedFrontlineSkip: (root, accepted) => persistAcceptedFrontlineSkip({
+      root,
+      ...accepted,
+      exec,
+    }),
     recoverAttestationOrdering: async (root, recovered, expectedVersion) => {
       const path = await writeSubmissionBoundary(root, recovered, expectedVersion);
       await exec("git", ["add", "--", path], { cwd: root });
@@ -3825,6 +3965,14 @@ export async function handleReviewPrePublication(
       envelope = PrePublicationReviewEnvelopeSchema.parse({
         ...envelope,
         nextAction,
+      });
+    }
+    if (acceptedSingletonFrontlineSkip(composition.request, envelope)) {
+      await dependencies.persistAcceptedFrontlineSkip(root, {
+        workUnit: composition.request.workUnit,
+        candidateId: composition.request.candidateId,
+        repositoryId: composition.request.target.repositoryId,
+        headSha: composition.request.target.headSha,
       });
     }
     // The settled locus is where the durable publication boundary is written. Recording it here —

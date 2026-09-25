@@ -31,21 +31,27 @@ import {
   CandidateConvergenceProjectionSchema,
   candidateReviewResponses,
   reduceCandidateDurableBaseline,
+  type CandidateSupersessionAncestor,
   type CandidateManagedRecordV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { CandidateEffectiveTargetProjection } from
   "../../../lib/work-unit/candidate-effective-target.js";
-import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
+import {
+  readCandidateRecord,
+  readRepositoryCandidateSupersessionChain,
+} from "../../../lib/work-unit/candidate-record-store.js";
 import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
+import type { ReviewOperationStateStore } from "../core/ports.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
+import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../hosts/local/frontline-source-preferences.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { createRepositoryReviewResultReader } from
@@ -63,8 +69,12 @@ import {
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import {
   readLaneProgressAcrossLineage,
+  readCandidateInheritedLaneProgress,
+  readLaneProgressOwner,
   readLaneResponsePerformance,
 } from "../lane-progress.js";
+import { readSingletonFrontlinePhaseClosure } from "./frontline-phase.js";
+import { projectFrontlineFollowUpAdvice, type FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import { confirmNonDeliveryIncrementalApplicability } from "./local-review-coverage-selection.js";
@@ -208,6 +218,7 @@ export function projectPrePublicationCandidateRead(input: {
   record: CandidateManagedRecordV1;
   effective: CandidateEffectiveTargetProjection;
   pending: PendingCandidateReviewFixAuthority;
+  supersessionAncestors?: readonly CandidateSupersessionAncestor[];
 }): CandidateRead {
   const baseline = reduceCandidateDurableBaseline(input.record);
   if (input.effective.state === "current") {
@@ -229,6 +240,7 @@ export function projectPrePublicationCandidateRead(input: {
         ...input.record.lineageAttestations.map((attestation) => attestation.target.revision),
         input.effective.recognizedTarget.revision,
       ])],
+      supersessionAncestors: input.supersessionAncestors ?? [],
     };
   }
   const authorizedPendingFix = input.effective.state === "changed"
@@ -254,6 +266,7 @@ export function projectPrePublicationCandidateRead(input: {
         ...input.record.lineageAttestations.map((attestation) => attestation.target.revision),
         input.pending.reviewedHead,
       ])],
+      supersessionAncestors: input.supersessionAncestors ?? [],
     };
   }
   if (input.pending.status === "refused") {
@@ -411,6 +424,36 @@ export function selectPrePublicationReservationTarget(input: {
   };
 }
 
+/** Close singleton frontline after an accepted skip or a terminal frontline/standard admission. */
+export async function singletonFrontlinePhaseClosed(
+  store: Pick<ReviewOperationStateStore, "readOperation">,
+  input: {
+    repositoryId: string;
+    candidateIds: readonly string[];
+    readSettledFindingsAdvice?: (producerId: string) => Promise<FrontlineFollowUpAdvice>;
+  },
+): Promise<boolean> {
+  if (await readSingletonFrontlinePhaseClosure(store, input) !== null) return true;
+  for (const id of input.candidateIds) {
+    const standardOwner = await readLaneProgressOwner(store, {
+      lane: "standard", repositoryId: input.repositoryId, headSha: "",
+      lineage: { kind: "candidate", candidateId: id },
+    });
+    if (standardOwner?.attempts.length) return true;
+    const frontlineOwner = await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: input.repositoryId, headSha: "",
+      lineage: { kind: "candidate", candidateId: id },
+    });
+    for (const attempt of frontlineOwner?.attempts ?? []) {
+      if (!attempt.terminalProducer) continue;
+      if (attempt.outcome === "clean") return true;
+      if (attempt.outcome === "settled-findings" && input.readSettledFindingsAdvice !== undefined
+        && (await input.readSettledFindingsAdvice(attempt.attemptId)).action === "stop") return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Bind the canonical Candidate, meta, host, identity, and durable-progress reads to the composition.
  *
@@ -429,6 +472,8 @@ export function createPrePublicationCompositionDependencies(input: {
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const rawGit = createRawGitExec(input.cwd);
   const store = new LocalReviewOperationStateStore(publisher);
+  const resultReader = createRepositoryReviewResultReader(publisher);
+  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup(input);
   const deliveryReviewTargetDependencies = createPreBindingDeliveryReviewTargetDependencies(input);
   let repositoryIdPromise: Promise<string> | null = null;
@@ -484,8 +529,8 @@ export function createPrePublicationCompositionDependencies(input: {
     };
 
   return {
-    resultReader: createRepositoryReviewResultReader(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    resultReader,
+    dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
     confirmIncrementalApplicability: (workUnit, predecessor, current, policyTarget) =>
       confirmPriorProducerApplicability(
@@ -496,6 +541,14 @@ export function createPrePublicationCompositionDependencies(input: {
       const name = SlugSchema.parse(workUnit);
       const record = await readCandidateRecord(input.cwd, name);
       if (record === null) return { status: "missing" };
+      let supersessionAncestors: readonly CandidateSupersessionAncestor[];
+      try {
+        supersessionAncestors = await readRepositoryCandidateSupersessionChain({
+          cwd: input.cwd, workUnit: name, record, exec: input.exec,
+        });
+      } catch (error) {
+        return { status: "blocked", reason: `Candidate supersession cannot be validated (${describe(error)}).` };
+      }
       const effective = await projectGitCandidateEffectiveTarget({
         cwd: input.cwd,
         name,
@@ -520,7 +573,7 @@ export function createPrePublicationCompositionDependencies(input: {
           };
         }
       }
-      return projectPrePublicationCandidateRead({ record, effective, pending });
+      return projectPrePublicationCandidateRead({ record, effective, pending, supersessionAncestors });
     },
 
     readAssurance: async (workUnit): Promise<AssuranceRead> => {
@@ -661,13 +714,51 @@ export function createPrePublicationCompositionDependencies(input: {
       return { status: "authorized", ownerIdentity: live.context.workUnit.owner };
     },
 
-    readLaneProgress: async (lane, headSha, lineageHeadShas, lineage) => readLaneProgressAcrossLineage(store, {
-      lane,
-      repositoryId: await repositoryId(),
-      headSha,
-      lineageHeadShas,
-      ...(lineage === undefined ? {} : { lineage }),
-    }),
+    readLaneProgress: async (lane, headSha, lineageHeadShas, lineage, supersessionAncestors = []) => {
+      const repository = await repositoryId();
+      const current = await readLaneProgressAcrossLineage(store, {
+        lane, repositoryId: repository, headSha, lineageHeadShas,
+        ...(lineage === undefined ? {} : { lineage }),
+      });
+      if (lineage?.kind !== "candidate" || supersessionAncestors.length === 0) return current;
+      const inherited = await readCandidateInheritedLaneProgress(store, {
+        lane, repositoryId: repository, headSha, ancestors: supersessionAncestors,
+      });
+      if (current.status === "unrecorded") {
+        return inherited.inheritedCompletedPasses === 0 && inherited.inheritedCompletePasses === 0
+          ? current
+          : {
+              status: "recorded", completedPasses: inherited.inheritedCompletedPasses,
+              completePasses: inherited.inheritedCompletePasses, attempts: [],
+            };
+      }
+      return {
+        ...current,
+        completedPasses: current.completedPasses + inherited.inheritedCompletedPasses,
+        completePasses: current.completePasses + inherited.inheritedCompletePasses,
+      };
+    },
+    readSingletonFrontlinePhaseClosed: async (candidateId, ancestors) => {
+      const repository = await repositoryId();
+      const candidateIds = [candidateId, ...ancestors.map(({ candidateId: id }) => id)];
+      return singletonFrontlinePhaseClosed(store, {
+        repositoryId: repository, candidateIds,
+        readSettledFindingsAdvice: async (producerId) => {
+          const result = await resultReader.readResult(producerId);
+          if (result.kind !== "frontline") {
+            throw new Error("settled frontline owner does not match its immutable result");
+          }
+          const dispositions = await dispositionStore.readDispositionRecord(producerId);
+          if (dispositions === null) {
+            throw new Error("settled frontline findings lack an approved disposition record");
+          }
+          return projectFrontlineFollowUpAdvice({
+            outcome: result.outcome,
+            dispositionState: currentApprovedDispositionNode(dispositions).approvedDisposition,
+          });
+        },
+      });
+    },
 
     readLanePolicy: async (lane) => resolveConfiguredLanePolicy({
       lane,

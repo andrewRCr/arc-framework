@@ -172,6 +172,7 @@ describe("local review member preparation", () => {
         confirmTarget: async (target: typeof memberTarget) => ({ state: "current" as const, target }),
         resolveAuthority,
         resolveLineage,
+        resolveSupersessionAncestors: async () => [],
         composeAssurance,
         resolvePolicy,
         validatePolicySelection: () => undefined,
@@ -238,6 +239,49 @@ describe("local review member preparation", () => {
       evaluatorIdentity: "evaluator-1",
       routingFacts,
     };
+
+    it("admits a local pass after a validated superseded Candidate without copying attempts", async () => {
+      const context = fixture();
+      const ancestorId = `sha256:${"6".repeat(64)}`;
+      await recordLaneAttempt(context.dependencies.operationStore, {
+        lane: "standard",
+        repositoryId: "repo-1",
+        changeRequestId: null,
+        headSha: objectId("9"),
+        lineage: { kind: "candidate", candidateId: ancestorId },
+        logicalPass: 1,
+        retryGeneration: 0,
+        attemptId: "ancestor-local-review",
+        sourceId: "delegated-agent",
+        outcome: "clean",
+        consumedPass: true,
+        now: "2026-08-06T16:00:00Z",
+      });
+      const validatePolicyAdmission = vi.fn(async () => ({ state: "ready" as const, pass: 2 }));
+      const dependencies = {
+        ...context.dependencies,
+        resolveSupersessionAncestors: async () => [{
+          candidateId: ancestorId,
+          baseRevision: objectId("a"),
+          reviewResponseCount: 0,
+        }],
+        validatePolicyAdmission,
+      };
+      await expect(prepareLocalReview(request, dependencies)).resolves.toMatchObject({
+        state: "ready",
+        payload: { request: { logicalPass: 2 } },
+      });
+      expect(validatePolicyAdmission).toHaveBeenCalledWith(expect.objectContaining({
+        completedPasses: 1,
+        attempts: [],
+      }));
+      await expect(readLaneProgressOwner(context.dependencies.operationStore, {
+        lane: "standard",
+        repositoryId: "repo-1",
+        headSha: objectId("9"),
+        lineage: { kind: "candidate", candidateId: ancestorId },
+      })).resolves.toMatchObject({ completedPasses: 1 });
+    });
 
     it("publishes a member vehicle over a member target when a selector is supplied", async () => {
       const context = fixture();
@@ -1214,6 +1258,7 @@ describe("local review member preparation", () => {
         kind: "candidate" as const,
         candidateId: `sha256:${"7".repeat(64)}`,
       }),
+      resolveSupersessionAncestors: async () => [],
       composeAssurance: async () => ({
         status: "resolved" as const,
         assurance: { workContext: "work-unit" as const, workClass: "Heavy" as const },
@@ -1344,6 +1389,7 @@ describe("local review member preparation", () => {
           kind: "candidate" as const,
           candidateId: `sha256:${"7".repeat(64)}`,
         }),
+        resolveSupersessionAncestors: async () => [],
         composeAssurance: async () => ({
           status: "resolved" as const,
           assurance: { workContext: "work-unit" as const, workClass: "Heavy" as const },

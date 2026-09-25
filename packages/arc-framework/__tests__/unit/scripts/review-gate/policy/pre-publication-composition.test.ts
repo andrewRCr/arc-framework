@@ -20,12 +20,17 @@ import { createReviewTarget } from
   "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
+import type { ReviewOperationState } from
+  "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { laneProgressOperationId } from
+  "../../../../../src/scripts/review-gate/lane-progress.js";
 import { LocalTargetDerivationError } from
   "../../../../../src/scripts/review-gate/hosts/local/repository-target.js";
 import {
   confirmNoPullRequestCandidatePriorProducer,
   noPullRequestCandidatePriorApplicability,
   resolvePrePublicationDiffBase,
+  singletonFrontlinePhaseClosed,
 } from
   "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 
@@ -33,6 +38,47 @@ const baseRef = "main";
 const headSha = "a".repeat(40);
 const firstBase = "b".repeat(40);
 const secondBase = "c".repeat(40);
+
+describe("singleton frontline phase across Candidate roots", () => {
+  it("stays closed after an ancestor terminal result before standard admission", async () => {
+    const ancestorId = `sha256:${"1".repeat(64)}`;
+    const currentId = `sha256:${"2".repeat(64)}`;
+    const operationId = laneProgressOperationId({
+      lane: "frontline", repositoryId: "repo-1", headSha,
+      lineage: { kind: "candidate", candidateId: ancestorId },
+    });
+    let outcome: "clean" | "findings" | "settled-findings" = "clean";
+    const store = {
+      readOperation: async (id: string) => ({
+        version: 1,
+        state: id === operationId ? {
+          kind: "lane-progress", lane: "frontline", repositoryId: "repo-1",
+          lineage: { kind: "candidate", candidateId: ancestorId },
+          attempts: [{ attemptId: "frontline-attempt", terminalProducer: true, outcome }],
+        } as unknown as ReviewOperationState : null,
+      }),
+    };
+    const input = { repositoryId: "repo-1", candidateIds: [currentId, ancestorId] };
+    expect(await singletonFrontlinePhaseClosed(store, input)).toBe(true);
+    outcome = "findings";
+    expect(await singletonFrontlinePhaseClosed(store, input)).toBe(false);
+    outcome = "settled-findings";
+    expect(await singletonFrontlinePhaseClosed(store, {
+      ...input,
+      readSettledFindingsAdvice: async () => ({
+        action: "follow-up-after-fix", pass: 2, maxPasses: 2, nextCommand: "frontline-resolve",
+      }),
+    })).toBe(false);
+    expect(await singletonFrontlinePhaseClosed(store, {
+      ...input,
+      readSettledFindingsAdvice: async () => ({ action: "stop", reason: "pass-cap-exhausted" }),
+    })).toBe(true);
+    outcome = "clean";
+    expect(await singletonFrontlinePhaseClosed(store, {
+      repositoryId: "repo-1", candidateIds: [currentId],
+    })).toBe(false);
+  });
+});
 
 describe("pre-publication diff base", () => {
   it("accepts the sole best ancestor for both exact target paths", async () => {

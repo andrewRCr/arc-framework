@@ -85,6 +85,16 @@ export const FrontlineRunStateSchema = z.strictObject({
 });
 export type FrontlineRunState = z.infer<typeof FrontlineRunStateSchema>;
 
+/** Durable singleton Candidate phase closure for an accepted initial frontline skip. */
+export const FrontlinePhaseStateSchema = z.strictObject({
+  ...OperationEnvelopeShape,
+  kind: z.literal("frontline-phase"),
+  repositoryId: IdentifierSchema,
+  candidateId: CanonicalDigestSchema,
+  closedBy: z.literal("initial-skip"),
+});
+export type FrontlinePhaseState = z.infer<typeof FrontlinePhaseStateSchema>;
+
 export const ReviewSuspensionStateSchema = z.strictObject({
   ...OperationEnvelopeShape,
   kind: z.literal("review-suspension"),
@@ -707,6 +717,7 @@ export type LaneProgressState = z.infer<typeof LaneProgressStateSchema>;
 
 export const ReviewOperationStateSchema = z.discriminatedUnion("kind", [
   FrontlineRunStateSchema,
+  FrontlinePhaseStateSchema,
   ReviewSuspensionStateSchema,
   LocalReviewStateSchema,
   LaneProgressStateSchema,
@@ -717,6 +728,11 @@ export type ReviewOperationState = z.infer<typeof ReviewOperationStateSchema>;
 export function registerReviewOperationStateSchemas(registry: KernelRegistry): KernelRegistry {
   registry.register(FrontlineRunStateSchema, {
     id: "frontline-run-state",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(FrontlinePhaseStateSchema, {
+    id: "frontline-phase-state",
     version: 1,
     migrationPosture: "strict-current",
   });

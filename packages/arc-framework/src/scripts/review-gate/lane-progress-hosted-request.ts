@@ -9,8 +9,28 @@ import { HostedAwaitResultSchema, type HostedAwaitResult } from "./hosted/await.
 import { createHostedAdmission, hostedAdmissionMatchesRequest, hostedAwaitAction, hostedLaneAttemptId, HostedRequestEnvelopeSchema, type HostedAdmission, type HostedProgressVehicle, type HostedRequestEnvelope, type HostedRequestHandle, type HostedRequestAdmissionResolution } from "./hosted/request.js";
 import { hostedAwaitLaneOutcome, laneProgressOperationId, recordLaneAttempt } from "./lane-progress.js";
 import { consumeConditionalNextPassAuthorization } from "./lane-progress-conditional.js";
+import type { CandidateSupersessionAncestor } from
+  "../../lib/work-unit/candidate-attestation.js";
+import { readCandidateInheritedLaneProgress } from "./lane-progress.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
+
+async function inheritedHostedCompletedPasses(
+  store: Pick<ReviewOperationStateStore, "readOperation">,
+  input: {
+    repositoryId: string;
+    headSha: string;
+    supersessionAncestors?: readonly CandidateSupersessionAncestor[];
+  },
+): Promise<number> {
+  const inherited = await readCandidateInheritedLaneProgress(store, {
+    lane: "standard",
+    repositoryId: input.repositoryId,
+    headSha: input.headSha,
+    ancestors: input.supersessionAncestors ?? [],
+  });
+  return inherited.inheritedCompletedPasses;
+}
 
 export type HostedRequestAdmissionDecision = HostedRequestAdmissionResolution;
 
@@ -67,6 +87,7 @@ export async function readHostedRequestAdmissionReplay(
     lineage: LaneSubjectLineage;
     reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
     request: HostedRequestEnvelope;
+    supersessionAncestors?: readonly CandidateSupersessionAncestor[];
   },
 ): Promise<HostedRequestAdmissionDecision | null> {
   const request = HostedRequestEnvelopeSchema.parse(input.request);
@@ -86,7 +107,12 @@ export async function readHostedRequestAdmissionReplay(
     || !laneSubjectOwnerMatches(progress.lineage, input.lineage)) {
     return { state: "ambiguous-delivery" };
   }
-  const activeLogicalPass = progress.completedPasses + 1;
+  const inheritedCompletedPasses = await inheritedHostedCompletedPasses(store, {
+    repositoryId: input.repositoryId,
+    headSha: request.target.headSha,
+    supersessionAncestors: input.supersessionAncestors,
+  });
+  const activeLogicalPass = inheritedCompletedPasses + progress.completedPasses + 1;
   const matchingAttempts = progress.attempts.filter((attempt) => (
     attempt.logicalPass === activeLogicalPass
     && attempt.hosted !== undefined
@@ -234,6 +260,7 @@ export async function recordHostedRequestAdmission(
   input: {
     repositoryId: string;
     lineage: LaneSubjectLineage;
+    supersessionAncestors?: readonly CandidateSupersessionAncestor[];
     request: HostedRequestEnvelope;
     progressVehicle?: HostedProgressVehicle;
     reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
@@ -262,7 +289,12 @@ export async function recordHostedRequestAdmission(
     const existing = state !== null && state.kind === "lane-progress"
       ? LaneProgressStateSchema.parse(state)
       : null;
-    const logicalPass = (existing?.completedPasses ?? 0) + 1;
+    const inheritedCompletedPasses = await inheritedHostedCompletedPasses(store, {
+      repositoryId: input.repositoryId,
+      headSha: input.request.target.headSha,
+      supersessionAncestors: input.supersessionAncestors,
+    });
+    const logicalPass = inheritedCompletedPasses + (existing?.completedPasses ?? 0) + 1;
     const admittedReplay = admittedHostedReplay(existing, input, logicalPass);
     if (admittedReplay !== undefined) {
       const result = replayHostedRequestResult(input.request, admittedReplay);

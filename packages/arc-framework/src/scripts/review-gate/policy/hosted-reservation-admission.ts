@@ -409,6 +409,8 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly correctionScope?: IncrementalReviewScope;
   readonly maxPasses: number;
   readonly logicalPass: number;
+  /** Completed passes on explicitly validated superseded Candidate owners. */
+  readonly inheritedCompletedPasses?: number;
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
@@ -446,7 +448,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
     target: input.target,
     frontlineActive: false,
     standardReview: input.reservation.obligation,
-    completedPasses: input.progress?.completedPasses ?? 0,
+    completedPasses: (input.progress?.completedPasses ?? 0) + (input.inheritedCompletedPasses ?? 0),
     attempts,
     sources: input.reservation.sources,
     maxPasses: input.maxPasses,
@@ -506,7 +508,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
     lane: "standard",
     frontlineActive: false,
     standardReview: input.reservation.obligation,
-    completedPasses: input.progress?.completedPasses ?? 0,
+    completedPasses: (input.progress?.completedPasses ?? 0) + (input.inheritedCompletedPasses ?? 0),
     attempts,
     ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),

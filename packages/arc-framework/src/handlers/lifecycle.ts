@@ -49,6 +49,11 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
+import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
+import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
+import { readLaneProgressOwner } from "../scripts/review-gate/lane-progress.js";
+import { livePredecessorReviewAttempt } from "../scripts/review-gate/lane-progress-supersession.js";
 import {
   createRawGitExec,
   createUserIOContext,
@@ -156,6 +161,7 @@ import {
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
+  readRepositoryCandidateRecordRevision,
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
@@ -2911,6 +2917,26 @@ export async function handleAttest(
         exec: base.io.exec,
         rawExec: createRawGitExec(base.cwd),
       }),
+      inspectReRootReviewAuthority: async (_slug, candidateId) => {
+        const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
+        const store = new LocalReviewOperationStateStore(publisher);
+        const repositoryId = await resolveRepositoryIdentity(publisher);
+        for (const lane of ["frontline", "standard"] as const) {
+          const owner = await readLaneProgressOwner(store, {
+            lane, repositoryId, headSha: subject.target.revision,
+            lineage: { kind: "candidate", candidateId },
+          });
+          if (owner === null) continue;
+          const live = livePredecessorReviewAttempt(owner);
+          if (live !== null) return {
+            lane, ...live,
+            recordRevision: await readRepositoryCandidateRecordRevision({
+              cwd: base.cwd, workUnit: input.name, candidateId, exec: base.io.exec,
+            }),
+          };
+        }
+        return null;
+      },
       publish: async (publication) => {
         let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
         if (deliveryRenewal.status === "ready") {
@@ -3049,7 +3075,16 @@ export async function handleAttest(
   } else if (result.status === "blocked") {
     p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
   } else if (result.status === "refused") {
-    if ("expected" in result) {
+    if (result.reason === "re-root-live-review") {
+      p.log.error([
+        result.recommendedActionText,
+        `Candidate: ${result.candidateId}`,
+        `Live ${result.lane} attempt: ${result.attemptId} (${result.outcome})`,
+        `Review head: ${result.reviewHeadSha}`,
+        `Predecessor Candidate record commit: ${result.recordRevision}`,
+        `Next after restoring this owning checkout to the review head: ${result.nextAction.reviewArgv.join(" ")}`,
+      ].join("\n"));
+    } else if ("expected" in result) {
       p.log.error([
         result.recommendedActionText,
         `Reason: ${result.reason}`,
