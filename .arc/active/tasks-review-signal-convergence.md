@@ -4,68 +4,10 @@
 
 ---
 
-<!-- arc:delivery-plan:start -->
-## Delivery Plan
+## Landing Route
 
-- **Plan Revision:** `2`
-- **Plan Digest:** `sha256:e71cadb7bce7b7c7dccedfcdd1d665402e135852dfcc17e9b7eeda13b7b9d52f`
-- **Projection:** `stack-to-main`
-- **Landability:** All members are `independently-landable`.
-
-### Members
-
-| #   | Member                                                 | Chunk key                        |
-| --- | ------------------------------------------------------ | -------------------------------- |
-| 1   | Review vocabulary and advisory loops                   | `review-vocabulary`              |
-| 2   | Native review admission and accounting                 | `native-review-admission`        |
-| 3   | Immutable producer evidence and approval binding       | `sealed-review-evidence`         |
-| 4   | Verified judgment and recognizable reports             | `verified-finding-reports`       |
-| 5   | Evidence-derived convergence and response continuation | `evidence-driven-convergence`    |
-| 6   | Incremental coverage and member progression            | `incremental-review-convergence` |
-| 7   | Publication continuation and attestation ordering      | `publication-continuation`       |
-
-#### Member coverage
-
-| #   | Tasks                                      | Design elements                                                                |
-| --- | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| 1   | `1.1`, `1.2`, `1.3`, `1.4`                 | `rfc:design-1`, `rfc:design-2`, `rfc:design-3`, `rfc:design-7`                 |
-| 2   | `2.1`, `2.2`, `2.3`, `2.4`, `2.5`, `2.6`   | `rfc:design-3`, `rfc:design-5`, `rfc:design-7`                                 |
-| 3   | `3.1`, `3.2`, `3.3`, `3.4`                 | `rfc:design-4`, `rfc:design-5`                                                 |
-| 4   | `4.1`, `4.2`, `4.3`, `4.4`, `4.5`, `4.R`   | `rfc:design-4`, `rfc:design-7`                                                 |
-| 5   | `5.1`, `5.1.R`, `5.2`, `5.3`, `5.4`, `5.5` | `rfc:design-3`, `rfc:design-4`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
-| 6   | `6.1`, `6.2`, `6.3`, `6.4`, `6.5`          | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7`                 |
-| 7   | `7.1`, `7.2`, `7.3`, `7.4`                 | `rfc:design-7`, `rfc:design-8`                                                 |
-
-### Named seams
-
-| #   | Seam                                    | Members | Owner | Design elements                                                |
-| --- | --------------------------------------- | ------- | ----- | -------------------------------------------------------------- |
-| 1   | Coverage to member progression          | 5, 6    | 6     | `rfc:design-3`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
-| 2   | Native admission to immutable evidence  | 2, 3    | 3     | `rfc:design-3`, `rfc:design-5`                                 |
-| 3   | Review through publication readiness    | 5, 6, 7 | 7     | `rfc:design-7`, `rfc:design-8`                                 |
-| 4   | Approved judgment to convergence signal | 3, 4, 5 | 5     | `rfc:design-4`, `rfc:design-5`, `rfc:design-6`, `rfc:design-7` |
-
-#### Acceptance
-
-- **1. Coverage to member progression:** Adequate complete or predecessor-backed incremental evidence uses one
-  convergence rule and advances the first outstanding member only after response performance. Partial evidence,
-  settlement, or applicability alone cannot erase material signal. Logical pass, complete coverage, and exact Owner
-  acceptance stay distinct.
-
-- **2. Native admission to immutable evidence:** Every terminal producer retains its exact admitted lineage, pass,
-  source, and coverage through sealing and read-side resolution. Replay and interrupted writes repair the same
-  producer/count without competing terminal authority.
-
-- **3. Review through publication readiness:** Returned public actions preserve approved responses, applicable evidence,
-  and count-neutral re-entry through convergence attestation and readiness. At-cap completion incurs no extra evaluator
-  call; premature commits stop, explicit recovery grants no clearance, and post-readiness replay preserves advanced
-  authority.
-
-- **4. Approved judgment to convergence signal:** The exact complete producer-bound current approved finding set
-  survives correction and supplies verified-only materiality to every policy/discharge path. Clean needs no empty
-  disposition; provider completion is not clearance, report styling is not authority, and no approved response is
-  discarded.
-<!-- arc:delivery-plan:end -->
+This work unit lands as one branch per the storage program's landing decision (2026-09-24).
+The former delivery members are review chunks; the unpublished stack plan was dropped.
 
 ## **Phase 1:** Establish review vocabulary and advisory loop semantics
 
