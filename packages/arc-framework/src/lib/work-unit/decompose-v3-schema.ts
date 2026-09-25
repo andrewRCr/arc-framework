@@ -175,12 +175,14 @@ const OutgoingDispositionSchema = z.discriminatedUnion("kind", [
   DropSchema,
 ]);
 const InternalEdgeSchema = z.strictObject({ from: DecomposeSlugSchema, to: DecomposeSlugSchema });
+const ExternalEdgeSchema = z.strictObject({ from: DecomposeSlugSchema, to: DecomposeSlugSchema });
 
 const StarterAuthoringSchema = z.strictObject({
   shape: AuthorSlotSchema,
   placement: AuthorSlotSchema,
   destinations: AuthorSlotSchema,
   internalEdges: AuthorSlotSchema,
+  externalEdges: AuthorSlotSchema,
   sourceAllocations: z.array(z.strictObject({
     sourceId: DigestSchema,
     ownership: AuthorSlotSchema,
@@ -194,6 +196,7 @@ const CompletedAuthoringSchema = z.strictObject({
   placement: PlacementSchema,
   destinations: z.array(DestinationSchema),
   internalEdges: z.array(InternalEdgeSchema),
+  externalEdges: z.array(ExternalEdgeSchema),
   sourceAllocations: z.array(z.strictObject({
     sourceId: DigestSchema,
     ownership: z.enum(["destination-owned", "cohort-shared"]),
@@ -233,6 +236,7 @@ export interface V3DecomposeMapIssue {
     | "authoring-identity"
     | "authoring-order"
     | "source-shape"
+    | "companion-disposition"
     | "destination-coverage"
     | "placement-cardinality"
     | "shape-cardinality";
@@ -489,6 +493,24 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
     },
   };
   const { authoring } = parsed.data;
+  if (extraction) {
+    const companionIndex = parsed.data.machine.sourceUnits.findIndex((unit, index) => {
+      const artifact = unit.sourcePath.split("/").at(-1);
+      return artifact !== undefined
+        && !parsed.data.machine.planningProfile.sourceDesign.includes(artifact)
+        && authoring.sourceAllocations[index]?.disposition.kind !== "retained-origin";
+    });
+    if (companionIndex >= 0) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "companion-disposition",
+          path: `authoring.sourceAllocations.${companionIndex}.disposition`,
+          message: "Extraction companion allocations must remain at the surviving origin.",
+        },
+      };
+    }
+  }
   for (const [index, allocation] of authoring.sourceAllocations.entries()) {
     if (allocation.disposition.kind !== "retained-origin") continue;
     if (!extraction) {
@@ -514,10 +536,12 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
   }
   const destinationIds = authoring.destinations.map(({ destinationId }) => destinationId);
   const internalIds = authoring.internalEdges.map(({ from, to }) => `${from}\0${to}`);
+  const externalIds = authoring.externalEdges.map(({ from, to }) => `${from}\0${to}`);
   const newCount = authoring.destinations.filter(({ kind }) => kind === "new-member").length;
   const existingCount = authoring.destinations.filter(({ kind }) => kind === "existing-home").length;
   const unorderedPath = !ordered(destinationIds) ? "authoring.destinations"
     : !ordered(internalIds) ? "authoring.internalEdges"
+      : !ordered(externalIds) ? "authoring.externalEdges"
       : authoring.incomingDispositions.findIndex(({ disposition }) =>
         disposition.kind === "replace" && !ordered(disposition.replacementTargets)) >= 0
         ? "authoring.incomingDispositions"
@@ -567,6 +591,18 @@ export function decodeV3DecomposeCutMap(input: unknown): V3DecomposeCutMapDecode
           },
         };
       }
+    }
+  }
+  for (const [index, edge] of authoring.externalEdges.entries()) {
+    if (!dependencyRecipients.has(edge.from)) {
+      return {
+        status: "rejected",
+        issue: {
+          code: "authoring-identity",
+          path: `authoring.externalEdges.${index}.from`,
+          message: "Reference one dependency-capable destination declared by authoring.destinations.",
+        },
+      };
     }
   }
   for (const [index, edge] of authoring.incomingDispositions.entries()) {
@@ -660,6 +696,7 @@ export function createV3DecomposeStarterMap(machine: V3DecomposeMachine): V3Deco
       placement: author,
       destinations: author,
       internalEdges: author,
+      externalEdges: author,
       sourceAllocations: machine.sourceUnits.map(({ sourceId }) => ({
         sourceId,
         ownership: author,

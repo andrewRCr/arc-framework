@@ -1,11 +1,12 @@
 /** Git-backed Candidate subject collection for one work-unit branch. */
 
 import type { GitExec } from "../git/exec.js";
+import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { isGitObjectId } from "../git/object-id.js";
 import { readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
+import { classifyPathTreatment } from "../evidence-applicability/index.js";
 import {
   identifyWorkUnitArtifactPath,
-  isProjectDocumentPath,
   type WorkUnitArtifactKind,
 } from "../layout/index.js";
 import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
@@ -32,6 +33,29 @@ export interface CollectGitCandidateTargetInput {
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
   readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
 }
+
+/**
+ * Raised where a caller must classify one exact subject and the branch's history names none.
+ *
+ * The collection itself refuses typed, but a caller that has nothing to classify without one cannot carry that
+ * refusal onward as a result. Raising it under its own type is what keeps the reason and the collection's own
+ * words reaching the boundary that reports them, instead of arriving as an anonymous failure a frame later.
+ */
+export class CandidateSubjectUncollectableError extends Error {
+  constructor(public readonly reason: "merge-base-ambiguous", detail: string) {
+    super(detail);
+    this.name = "CandidateSubjectUncollectableError";
+  }
+}
+
+/** A collected subject, or the reason the branch and its base leave no single revision to collect one against. */
+export type CandidateSubjectCollection =
+  | { readonly status: "collected"; readonly target: CandidateLineageTarget }
+  | {
+      readonly status: "refused";
+      readonly reason: "merge-base-ambiguous";
+      readonly detail: string;
+    };
 
 /** Resolve the configured base from its materialized remote-tracking ref, falling back to the local branch. */
 export async function resolveGitCandidateBaseRevision(input: {
@@ -98,7 +122,7 @@ function ownArtifactAt(
  * Resolve where one path's content lands in the subject, and the treatment it receives there.
  *
  * The key differs from the classified path only for a relocated own artifact, whose content follows
- * the artifact while the location it vacated stays an operational entry.
+ * the artifact while the location it vacated stays an evidence-neutral entry.
  */
 function classifyCandidateSubjectPath(
   name: string,
@@ -106,16 +130,9 @@ function classifyCandidateSubjectPath(
   projectionPaths: ReadonlySet<string>,
 ): { key: string; treatment: CandidateSubjectEntryInput["treatment"] } {
   const own = ownArtifactAt(name, path);
-  if (own !== null && own.key !== path) {
-    return { key: own.key, treatment: own.artifact === "meta" ? "operational" : "reviewable" };
-  }
   return {
-    key: path,
-    treatment: projectionPaths.has(path)
-      ? "candidate-projection"
-      : own?.artifact === "meta" || isProjectDocumentPath(path)
-        ? "operational"
-        : "reviewable",
+    key: own?.key ?? path,
+    treatment: classifyPathTreatment(path, { workUnit: name, projectionPaths }),
   };
 }
 
@@ -135,7 +152,7 @@ export interface CollectUnstagedReviewablePathsInput {
  *
  * The subject below is the index, so content edited but left unstaged — and reviewable files Git is not
  * tracking at all — would be attested away without appearing anywhere in the result. Only paths whose
- * content reaches the subject as `reviewable` are reported: operational writes and the Candidate's own
+ * content reaches the subject as `reviewable` are reported: evidence-neutral writes and the Candidate's own
  * projections move without changing what review sees, so gating on them would refuse an ordinary
  * lifecycle tree.
  *
@@ -157,10 +174,21 @@ export async function collectUnstagedReviewablePaths(
     .sort(compareUtf8);
 }
 
-/** Collect the staged work-unit subject, or one exact committed subject, relative to its configured base. */
-export async function collectGitCandidateTarget(
+/**
+ * Collect the staged work-unit subject, or one exact committed subject, relative to its configured base.
+ *
+ * The subject is the base-relative diff from the single base the branch and its configured base share, rather
+ * than the set the branch's own commits name. The two disagree in both directions: a path changed and reverted
+ * within the branch leaves a permanent entry in the commit-derived set, so currentness never clears, while a
+ * path the branch keeps its own side of across a base merge appears in no commit's diff at all and goes
+ * uncontributed.
+ *
+ * @param input - The checkout, the work unit, its configured base, and the Git boundary to read through.
+ * @returns The collected subject, or the refusal naming why there is no single base to collect it against.
+ */
+export async function collectGitCandidateSubject(
   input: CollectGitCandidateTargetInput,
-): Promise<CandidateLineageTarget> {
+): Promise<CandidateSubjectCollection> {
   const name = SlugSchema.parse(input.name);
   const baseBranch = input.baseBranch.trim();
   if (baseBranch === "") throw new Error("Candidate subject collection requires a configured base branch");
@@ -171,8 +199,22 @@ export async function collectGitCandidateTarget(
   const baseRevision = input.baseRevision
     ?? await resolveGitCandidateBaseRevision({ cwd: input.cwd, baseBranch, exec: input.exec });
   if (!isGitObjectId(baseRevision)) throw new Error("Cannot resolve the Candidate base revision");
-  const base = (await input.exec("git", ["merge-base", head, baseRevision], options)).stdout.trim();
-  if (!isGitObjectId(base)) throw new Error("Cannot resolve the Candidate base revision");
+  // Read every best common ancestor rather than the one Git would otherwise hand back. Over a history
+  // leaving two, the ancestor that read picks decides which half of the branch's work the subject reports,
+  // and names neither the choice nor the alternative — so what an attestation binds as the contribution
+  // depends on a selection nothing recorded. Refusing is what keeps that half from being bound at all.
+  const sole = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, options),
+    leftRevision: head,
+    rightRevision: baseRevision,
+  });
+  if (sole.status === "ambiguous") {
+    return { status: "refused", reason: "merge-base-ambiguous", detail: sole.detail };
+  }
+  // A base that cannot be read, and one the branch shares no lineage with, both already reached the caller
+  // as a raised failure and still do; only the choice made silently is converted here.
+  if (sole.status !== "resolved") throw new Error("Cannot resolve the Candidate base revision");
+  const base = sole.mergeBase;
   const changed = (await input.exec(
     "git",
     input.revision === undefined
@@ -206,7 +248,7 @@ export async function collectGitCandidateTarget(
     const classification = classifyCandidateSubjectPath(name, path, projectionPaths);
     if (classification.key !== path) {
       // Reaching the artifact's new location is a lifecycle write, so the location itself is
-      // operational and the content it carries stays keyed to the artifact. The move alone leaves the
+      // evidence-neutral and the content it carries stays keyed to the artifact. The move alone leaves the
       // reviewable subject byte-identical; an edit made along the way still lands as a changed entry.
       if (entry !== null) {
         if (relocated.has(classification.key)) {
@@ -214,7 +256,7 @@ export async function collectGitCandidateTarget(
         }
         relocated.set(classification.key, { digest, mode, treatment: classification.treatment });
       }
-      entries.set(path, { path, digest, mode, treatment: "operational" });
+      entries.set(path, { path, digest, mode, treatment: "evidence-neutral" });
       if (entry === null) absentPaths.add(path);
       continue;
     }
@@ -232,10 +274,13 @@ export async function collectGitCandidateTarget(
       treatment: relocatedEntry.treatment,
     });
   }
-  return CandidateLineageTargetSchema.parse({
-    revision: head,
-    subject: createCandidateSubjectSnapshot([...entries.values()]),
-  });
+  return {
+    status: "collected",
+    target: CandidateLineageTargetSchema.parse({
+      revision: head,
+      subject: createCandidateSubjectSnapshot([...entries.values()]),
+    }),
+  };
 }
 
 function compareUtf8(left: string, right: string): number {

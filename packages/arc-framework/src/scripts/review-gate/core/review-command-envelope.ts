@@ -4,13 +4,10 @@ import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
 
-import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
+import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
-  attestNewRootArgv,
   SpineRemedySchema,
-  spineRemedy,
-  type SpineRemedy,
 } from "../../integration/spine-refusal.js";
 import {
   FrontlineFailedRepairReasonSchema,
@@ -25,7 +22,6 @@ import {
   ReviewPolicyCommandRequestSchema,
   ReviewResolveEnvelopeSchema,
 } from "../policy/review-policy-driver.js";
-import { PrePublicationReviewEnvelopeSchema } from "../policy/pre-publication-procedure.js";
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
@@ -35,16 +31,14 @@ import { ProposedDispositionSetSchema } from "./disposition-records.js";
 import { FixAuthorizationSchema } from "./fix-authorization-records.js";
 import { NormalizedLocalReviewResultSchema } from "./local-review-result.js";
 import {
+  GitObjectIdSchema,
   ReviewRequestV2Schema,
   ReviewTargetSchema,
 } from "./gate-contract-v2-schema.js";
 import { LocalReviewerPayloadSchema } from "./local-review-payload.js";
 import { LocalReviewCoverageSelectionActionSchema } from "./local-review-coverage.js";
 import { FrontlineAdmissionSchema } from "./frontline-admission.js";
-import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
-import { HostedRequestResultSchema, HostedTargetSchema } from "../hosted/request.js";
-import { HostedAwaitResultSchema } from "../hosted/await.js";
-import { HostedSettleResultSchema } from "../hosted/settle.js";
+import { HostedTargetSchema } from "../hosted/request.js";
 import { StandardReviewObligationProjectionSchema } from
   "../policy/standard-review-projection-schema.js";
 
@@ -76,6 +70,7 @@ export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
 export const ReviewCommandErrorCodeSchema = z.enum([
   "invalid-input",
   "corrupt-state",
+  "uncertain-provider-execution",
   "unexpected-failure",
 ]);
 export type ReviewCommandErrorCode = z.infer<typeof ReviewCommandErrorCodeSchema>;
@@ -93,68 +88,7 @@ export type ReviewPrePublicationRefusalCode = z.infer<
 export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewPrePublicationRefusalCode[] =
   ReviewPrePublicationRefusalCodeSchema.options;
 
-/** The idempotent pre-publication re-attempt — the resume point every refusal returns to. */
-function prePublicationResumeArgv(workUnit: string): readonly string[] {
-  return ["arc", "review", "pre-publication", workUnit, "--json"];
-}
-
-const PRE_PUBLICATION_REMEDIES: Record<
-  ReviewPrePublicationRefusalCode,
-  (workUnit: string) => SpineRemedy
-> = {
-  "invalid-input": (workUnit) => spineRemedy(
-    "Pre-publication resolves only a request it can read.",
-    "Correct the reported input, then re-run",
-    prePublicationResumeArgv(workUnit),
-  ),
-  "corrupt-state": (workUnit) => spineRemedy(
-    "Pre-publication reduces only intact durable review evidence.",
-    "Repair the reported durable record, then re-run",
-    prePublicationResumeArgv(workUnit),
-  ),
-  "unexpected-failure": (workUnit) => spineRemedy(
-    "A refused pre-publication leaves the Candidate resumable at the same boundary.",
-    "Resolve the reported failure, then re-run",
-    prePublicationResumeArgv(workUnit),
-  ),
-  "candidate-unexplained-delta": (workUnit) => spineRemedy(
-    "Pre-publication review requires the current reviewable subject to belong to the verified Candidate lineage.",
-    "Run full verification, then establish a new Candidate root",
-    attestNewRootArgv(workUnit),
-  ),
-  "attestation-ordering-conflict": (workUnit) => spineRemedy(
-    "Pre-publication review cannot cross an unacknowledged post-attestation head change.",
-    "Re-enter the pending continuation and select its explicit recovery action",
-    prePublicationResumeArgv(workUnit),
-  ),
-};
-
-/**
- * Resolve the corrective remedy for one pre-publication refusal.
- *
- * @param code - The typed refusal shape the envelope reports.
- * @param workUnit - The refused work unit, interpolated into the resume command.
- * @returns The remedy naming the failed invariant and one corrective command.
- */
-export function prePublicationRemedy(code: ReviewPrePublicationRefusalCode, workUnit: string): SpineRemedy {
-  return PRE_PUBLICATION_REMEDIES[code](workUnit);
-}
-
-/**
- * Resolve the remedy for a refusal whose own work-unit operand never resolved.
- *
- * The resume command interpolates a slug, so a refusal that rejected the operand itself has no
- * exact re-attempt to name; it names the discovery that produces a usable one instead.
- *
- * @returns The remedy naming work-unit discovery.
- */
-export function prePublicationTargetRemedy(): SpineRemedy {
-  return spineRemedy(
-    "Pre-publication runs against one existing work unit.",
-    "Name an existing work unit, then re-run",
-    ["arc", "status", "--project", "--json"],
-  );
-}
+export { prePublicationRemedy, prePublicationTargetRemedy } from "./pre-publication-remedy.js";
 
 const RepositoryPreconditionDiagnosticSchema = z.strictObject({
   code: z.literal("repository-precondition"),
@@ -550,7 +484,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "unavailable",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineUnavailableRetryReasonSchema),
   ),
   envelopeVariant(
@@ -562,7 +496,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "timed-out",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineTimedOutReasonSchema),
   ),
   envelopeVariant(
@@ -574,7 +508,7 @@ export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant(
     "review-frontline-run",
     "failed",
-    "retry",
+    "operator-repair",
     FrontlineReasonPayload(FrontlineFailedRetryReasonSchema),
   ),
   envelopeVariant(
@@ -710,6 +644,19 @@ const DispositionSupersessionRefusalPayloadSchema = z.strictObject({
   currentDispositionSetId: CanonicalDigestSchema.optional(),
 });
 
+/** Exact work-unit locus for authoring a Candidate-bound private-member fix. */
+export const CandidateBoundMemberFixAuthoringSchema = z.strictObject({
+  kind: z.literal("candidate"),
+  workUnit: SlugSchema,
+  head: GitObjectIdSchema,
+  ref: z.string().trim().min(1),
+  checkoutPath: z.string().trim().min(1),
+  deliverySuffixReconstruction: z.literal("after-candidate-advance"),
+});
+export type CandidateBoundMemberFixAuthoring = z.infer<
+  typeof CandidateBoundMemberFixAuthoringSchema
+>;
+
 const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
@@ -730,7 +677,7 @@ const DeliveryMemberResponsePayloadSchema = z.strictObject({
 const DeliveryCorrectionActionSchema = z.strictObject({
   argv: z.tuple([
     z.literal("arc"), z.literal("delivery"), z.literal("review-fix"), z.literal("continue"),
-    z.literal("-"), z.literal("--json"),
+    z.literal("-"),
   ]),
   input: z.strictObject({
     repository: z.string().trim().min(1),
@@ -773,6 +720,7 @@ export const RespondEnvelopeSchema = z.union([
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
       reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
+      authoring: CandidateBoundMemberFixAuthoringSchema.optional(),
     }),
   ),
   envelopeVariant(
@@ -955,6 +903,17 @@ export const ReduceEnvelopeSchema = z.union([
   ),
   envelopeVariant(
     "review-reduce",
+    "retryable",
+    "operator-repair",
+    z.strictObject({
+      ...ReductionBasePayload,
+      retryCommand: z.literal("frontline-run"),
+      requestRef: DurableReferenceSchema,
+      retryOfOperationId: IdentifierSchema,
+    }),
+  ),
+  envelopeVariant(
+    "review-reduce",
     "stale-target",
     "prepare-current-target",
     z.strictObject({
@@ -1066,27 +1025,4 @@ function remedialErrorVariant<Mode extends ReviewCommandMode, Code extends Revie
   return errorVariant(mode, code).extend({ remedy: SpineRemedySchema });
 }
 
-/** Register every command envelope as a strict-current protocol contract. */
-export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
-  for (const [id, schema] of [
-    ["review-readiness-envelope", ReviewReadinessEnvelopeSchema],
-    ["review-resolve-envelope", ReviewResolveEnvelopeSchema],
-    ["review-frontline-resolve-envelope", FrontlineResolveEnvelopeSchema],
-    ["review-chunking-resolve-envelope", ReviewChunkingResolveEnvelopeSchema],
-    ["review-planning-grooming-resolve-envelope", PlanningGroomingReviewEnvelopeSchema],
-    ["review-frontline-run-envelope", FrontlineRunEnvelopeSchema],
-    ["review-local-prepare-envelope", LocalPrepareEnvelopeSchema],
-    ["review-local-attest-envelope", LocalAttestEnvelopeSchema],
-    ["review-respond-envelope", RespondEnvelopeSchema],
-    ["review-reduce-envelope", ReduceEnvelopeSchema],
-    ["review-local-resume-envelope", LocalResumeEnvelopeSchema],
-    ["review-hosted-request-envelope", HostedRequestResultSchema],
-    ["review-hosted-await-envelope", HostedAwaitResultSchema],
-    ["review-hosted-settle-envelope", HostedSettleResultSchema],
-    ["review-pre-publication-envelope", PrePublicationReviewEnvelopeSchema],
-    ["review-command-error-envelope", ReviewCommandErrorEnvelopeSchema],
-  ] as const) {
-    registry.register(schema, { id, version: 1, migrationPosture: "strict-current" });
-  }
-  return registry;
-}
+export { registerReviewCommandEnvelopeSchemas } from "./review-command-envelope-registry.js";

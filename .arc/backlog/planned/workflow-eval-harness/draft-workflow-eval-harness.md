@@ -12,6 +12,25 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Take `amend-design` as an early eval fixture**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: workflow-eval-harness`
+
+- _Observation:_ The procedure-evolution check-doc names evals as the judgment layer's only correctness
+  instrument, peer to typecheck and lint. `amend-design` is about to ship as the largest new judgment surface the
+  corpus has added — an outcome-keyed five-step decision tree, three arms with distinct authority, a depth ladder,
+  and a ceiling — reached from five detection sites plus a skill door. Nothing statically checks any of it, and its
+  failure mode is quiet: a wrong arm costs either ceremony on a trivial fix or an unreviewed design change.
+
+- _Approach:_ use it as an early fixture rather than a later one. The tree's steps are keyed to outcomes and are
+  meant to be exclusive, which makes them unusually testable for judgment prose: a case that matches two steps, or
+  none, is a defect in the tree rather than in the reviewer.
+
+- _Captured during:_ `plan-amendment` task generation, forward-compat check against the procedure-evolution
+  check-doc, 2026-09-11.
+
 ### `[ ]` **Reframe this WU as the type system for the prose layer**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: workflow-eval-harness`), housekeep drain (2026-07-18);

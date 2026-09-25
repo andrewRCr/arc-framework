@@ -60,17 +60,26 @@ const DeliveryPlanAuthoringTaskParentV1Schema = z.strictObject({
   role: DeliveryTaskRoleV1Schema,
 });
 
-const AuthoredDeliveryPlanMemberShape = {
+const DeliveryPlanMemberIntentShape = {
   chunkKey: SlugSchema,
   title: NonEmptyTextSchema,
   contract: NonEmptyTextSchema,
   taskIds: z.array(ParentTaskIdSchema),
   designElementIds: z.array(DeliveryOpaqueIdSchema),
+};
+
+const AuthoredDeliveryPlanMemberShape = {
+  ...DeliveryPlanMemberIntentShape,
+  mainlineLandability: z.literal("independently-landable"),
+};
+
+const PersistedDeliveryPlanMemberShape = {
+  ...DeliveryPlanMemberIntentShape,
   mainlineLandability: z.enum(["independently-landable", "integration-only"]),
 };
 
 const DeliveryPlanMemberShape = {
-  ...AuthoredDeliveryPlanMemberShape,
+  ...PersistedDeliveryPlanMemberShape,
   deliverableId: DeliveryCanonicalDigestSchema,
   semanticFingerprint: DeliveryCanonicalDigestSchema,
 };
@@ -142,10 +151,7 @@ export const DeliveryPlanAuthoringInputV1Schema = z.strictObject({
     parents: z.array(DeliveryPlanAuthoringTaskParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
-  projection: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("wu-integration-target") }),
-    z.strictObject({ kind: z.literal("stack-to-main") }),
-  ]),
+  projection: z.strictObject({ kind: z.literal("stack-to-main") }),
   members: z.array(z.strictObject(AuthoredDeliveryPlanMemberShape)).min(1),
   seams: z.array(z.strictObject({
     seamKey: SlugSchema,
@@ -264,6 +270,14 @@ export const DeliveryMergePolicyBindingV1Schema = z.strictObject({
 });
 export type DeliveryMergePolicyBindingV1 = z.infer<typeof DeliveryMergePolicyBindingV1Schema>;
 
+/** One remaining suffix member as freshly observed before its local ref was rewritten. */
+export const DeliveryNativeObservedSuffixMemberV1Schema = z.strictObject({
+  deliverableId: DeliveryCanonicalDigestSchema,
+  ref: DeliveryOpaqueIdSchema,
+  coordinates: DeliveryMemberCoordinatesV1Schema,
+});
+export type DeliveryNativeObservedSuffixMemberV1 = z.infer<typeof DeliveryNativeObservedSuffixMemberV1Schema>;
+
 export const DeliveryLandEffectV1Schema = z.strictObject({
   providerId: DeliveryOpaqueIdSchema,
   repository: DeliveryOpaqueIdSchema,
@@ -341,7 +355,8 @@ export const DeliveryActiveOperationV1Schema = z.discriminatedUnion("kind", [
     mode: z.enum(["sequential", "native"]),
     native: z.strictObject({
       arm: z.enum(["linked-single", "linked-atomic"]),
-      phase: z.enum(["prepared", "submitting"]),
+      phase: z.enum(["prepared", "submitting", "settling"]),
+      observedSuffix: z.array(DeliveryNativeObservedSuffixMemberV1Schema).min(1).optional(),
     }).nullable(),
     effect: DeliveryLandEffectV1Schema,
     effectIdentity: DeliveryHostEffectIdentityV1Schema.nullable(),

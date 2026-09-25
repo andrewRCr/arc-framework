@@ -63,6 +63,7 @@ function findingThread(body = "[P1] boundary failure"): HostedGitHubThread {
     comments: [{
       id: "123",
       reviewId: "PRR_1",
+      replyToReviewId: null,
       actorIdentity: "199175422",
       body,
       url: "https://github.com/owner/repo/pull/42#discussion_r1",

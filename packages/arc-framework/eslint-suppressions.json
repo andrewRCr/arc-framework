@@ -1,0 +1,1798 @@
+{
+  "__tests__/e2e/delivery-plan.e2e.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/e2e/errand.e2e.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/e2e/session-init.e2e.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/helpers/candidate-lineage-suite.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/helpers/delivery-position-suite.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/integration/decompose-v3-repository-plan.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/integration/review-fan-out-lifecycle.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/integration/status.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/integration/user.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/active/meta-reader.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/git/in-flight-derivation.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/handlers/delivery-execution.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/handlers/lifecycle-verbs.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/handlers/review.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/save-load.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/scripts/review-gate/policy/hosted-reservation-discharge.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/scripts/review-gate/runtime/respond-command.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/scripts/review-gate/status.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/status/run.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/sync-orchestrator.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "__tests__/unit/user-status.test.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/cli.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/commands/active/status.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/init-input.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/commands/init.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/join-input.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/commands/reconfigure.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/rename.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/start.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/commands/status/run.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/status/schema.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/update.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/user/paired-push.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/user/push-fetch.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/commands/user/save-load.ts": {
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/commands/user/sync-status.ts": {
+    "complexity": {
+      "count": 8
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/commands/view/run.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/handlers/candidate.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/delivery-execution.ts": {
+    "complexity": {
+      "count": 18
+    },
+    "max-depth": {
+      "count": 13
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 9
+    }
+  },
+  "src/handlers/delivery-review-fix-release-effects.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/delivery-transfer.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/delivery.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/errand.ts": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 6
+    }
+  },
+  "src/handlers/init.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/installation.ts": {
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/handlers/join.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/handlers/lifecycle.ts": {
+    "complexity": {
+      "count": 9
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 4
+    }
+  },
+  "src/handlers/recover.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/release/commit-message-preflight.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/handlers/release/commit.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/release/push.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/release/setup/install.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/release/setup/uninstall.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/review.ts": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 5
+    }
+  },
+  "src/handlers/start.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/handlers/status.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/sync.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/user-sync.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/handlers/user.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/lib/active/cohort-consistency.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/active/current-workflow-consistency.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/advisory-lock.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/change-facts.ts": {
+    "complexity": {
+      "count": 4
+    }
+  },
+  "src/lib/change-stats.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/command-input/declaration.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/command-input/inventory.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/command-input/resolution.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/command-input/source-scanner.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 7
+    }
+  },
+  "src/lib/commit-check/policy.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/compaction-seed/emitter.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/coupling-audit/contracts.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/coupling-audit/scan.ts": {
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/amendment.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/authoring-store.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/chain-absorption.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/chain-adoption.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/closeout.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/compose.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/coverage.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/eligibility.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/lib/delivery/entry-inspection.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/from-branch.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/git-landing-result.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/git-materialization.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/landing.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/lib/delivery/local-stores.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/materialization.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/native-landing.ts": {
+    "complexity": {
+      "count": 6
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/lib/delivery/native-stack.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/operation.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/plan.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/position.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/provider-refresh-execution.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/provider-refresh-observation.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/public-review-continuation-git.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/public-review-continuation.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/repository-entry.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/residue-reaping.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/retirement.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/delivery/review-fix-candidate-gate.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/delivery/review-fix-continuation.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/review-fix-driver.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/review-fix-record-effects.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/review-fix.ts": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/lib/delivery/suffix-reconciliation.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/lib/delivery/suffix-rematerialization.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/lib/delivery/teardown.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/terminal-integration.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/delivery/top-remedy.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/abandon-locus.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/change-request-lifecycle.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/close-locus.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/errand/exact-branch-generation.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/identity-transaction.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/identity-transitions.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/errand/leave.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/link.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/open-runtime.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/open.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/partial-settle-runtime.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/promote-runtime.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/promote.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/errand/terminal-result.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/evidence-applicability/reducer.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/frontmatter/method.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/base-branch-sync.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/git/base-distance.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/base-integration-evidence.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "src/lib/git/base-sync.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/git/foreign-artifact-detection.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/in-flight-derivation.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/lib/git/inbound-pull.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/object-availability.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/process-executor.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/push-worktree.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/remote-ref-reader.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/git/worktree-marker.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/lib/git/worktree-sync.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/hook-manager.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/io-context.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/kernel/canonical/canonical-json.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/layout/identification.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/load-set/projection.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/local-test-admission.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/locus/derived-evidence.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/locus/derived-lifecycle-evidence.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/locus/derived-reader.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/locus/derived-roster.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/locus/occupancy-marker.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/locus/provisioning-marker.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/locus/provisioning.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/locus/subject-meta.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/manifest/apply.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/manifest/store.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/markdown/authority.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/recover/audit.ts": {
+    "complexity": {
+      "count": 5
+    }
+  },
+  "src/lib/recover/integration-correction.ts": {
+    "complexity": {
+      "count": 6
+    }
+  },
+  "src/lib/release/audit-log.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/release/commit-message-assembly.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/release/commit-message-source.ts": {
+    "complexity": {
+      "count": 4
+    }
+  },
+  "src/lib/session-init/branch-gone-cascade.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/session-init/delivery-position-facts.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/lib/session-init/lifecycle-residue-sweep.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/session-init/stale-worktree-sweep.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/status/project-view.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/task-list/cursor.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/task-list/file-cursor.ts": {
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/lib/task-list/scanner.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/task-list/segmentation.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/template/recipe.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/test-cost/capture.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/test-cost/retained.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/compaction.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/inbox-writer.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/notes-publication-proof.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/user-sync/notes-ref.ts": {
+    "max-depth": {
+      "count": 2
+    }
+  },
+  "src/lib/user-sync/orphan-classification.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/view-artifact.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/view-renderer.ts": {
+    "complexity": {
+      "count": 5
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/candidate-applicability-resolution.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/candidate-applicability.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/candidate-attestation.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/candidate-mutation-owner.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/composed-lifecycle-index.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/work-unit/decompose-content.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-conservation.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-finish-operation.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/lib/work-unit/decompose-v3-materializer.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-plan.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-preflight.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-refresh.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-repository-plan.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-retirement-delta.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-schema.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-thinning.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/decompose-v3-topology.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/direct-retirement-driver.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/executor-context.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-candidate-effective-target.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-candidate-subject.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-decompose-transition-base-advancement.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-decompose-v3-preflight.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-graduation-transaction.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-owned-decompose-candidate-cleanup.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/git-retirement-authorization-context.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/lifecycle-executor.ts": {
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/lib/work-unit/mutators/reconcile-work-unit-worktree.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/park-planning-landing.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/lib/work-unit/park-retirement-proof.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/planning-artifact-tuple.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/rename-worktree-transaction.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/retirement-authorization.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/side-effects/discharge-dep-edges.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/validated-graduation-transaction.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/abandon.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/attest.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/park-resume.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/publish.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/rename.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/stub.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/work-unit/verbs/teardown.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/base/merge-composition.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 4
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/scripts/base/merge.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/delivery/hosts/github-refresh.ts": {
+    "complexity": {
+      "count": 5
+    },
+    "max-depth": {
+      "count": 19
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/scripts/delivery/hosts/github.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/scripts/integration/candidate-response-confirmation.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/integration/checkpoint-composition.ts": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 5
+    }
+  },
+  "src/scripts/integration/checkpoint.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/integration/errand-merge-composition.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/integration/errand-merge.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/integration/lineage-review-composition.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/integration/merge-composition.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/integration/merge.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/delivery-binding-lookup.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/execution.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/local-operation.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/receipt-payload.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/response-plan.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/core/verdict.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/hosted/coderabbit.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/hosted/gh-process.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/hosted/settle.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/hosts/github/merge-observation.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/hosts/local/review-authority.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/candidate-review-fix-continuation.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/scripts/review-gate/policy/earlier-review-applicability.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/scripts/review-gate/policy/earlier-review-attempts.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/frontline-outcome.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/hosted-reservation-admission.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/hosted-reservation-discharge.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
+    }
+  },
+  "src/scripts/review-gate/policy/pre-publication-composition.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/pre-publication-delivery-targets.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/pre-publication-request.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/review-applicability-authority.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/review-applicability-resolution.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/scripts/review-gate/policy/review-chunking-command.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/review-contribution-applicability.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/review-policy-driver.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/policy/routing.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/providers/coderabbit/frontline-agent.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/scripts/review-gate/providers/coderabbit/frontline-execution.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/readiness.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/frontline-run-command.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/local-attest-command.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/local-attestation.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/local-prepare-composition.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/local-prepare.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/local-resume-command.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/reduce-command.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/scripts/review-gate/runtime/respond-command.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/runtime/respond-composition.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/status-composition.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 4
+    }
+  },
+  "src/scripts/review-gate/status-errand.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/scripts/review-gate/status.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  }
+}

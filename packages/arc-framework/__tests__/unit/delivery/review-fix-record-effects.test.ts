@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   classifyDeliveryReviewFixStagedRecords,
   deliveryReviewFixRecordCommitMessage,
+  deliveryReviewFixRecordCommitMessagesMatch,
   deliveryReviewFixRecordDigest,
   isDeliveryReviewFixRecordCommitMessage,
   isDeliveryReviewFixVerificationResponseAppend,
@@ -10,6 +11,8 @@ import {
   settleDeliveryReviewFixRecordEffects,
   type DeliveryReviewFixRecordEffectPorts,
 } from "../../../src/lib/delivery/review-fix-record-effects.js";
+import { assembleCommitMessageParagraphs } from
+  "../../../src/lib/release/commit-message-assembly.js";
 import { carryDeliveryReviewFixPublicBoundary } from "../../../src/lib/delivery/review-fix.js";
 import { projectDeliveryPublicReviewContinuation } from
   "../../../src/lib/delivery/public-review-continuation.js";
@@ -208,6 +211,30 @@ describe("delivery review-fix record effects", () => {
       message: message.replace(/sha256:[0-9a-f]{64}/u, "sha256:invalid"),
       recordClass: "review-applicability-selection",
       context: "meta-example-work-unit.md (integration)",
+    })).toBe(false);
+  });
+
+  it("recognizes the exact machine-owned message after release wrapping", () => {
+    const records = [{ path: candidatePath, digest: `sha256:${"d".repeat(64)}` }];
+    const expected = deliveryReviewFixRecordCommitMessage(
+      "candidate-boundary-projection",
+      "meta-example-work-unit.md (integration)",
+      records,
+    );
+    const wrapped = new TextDecoder()
+      .decode(assembleCommitMessageParagraphs([expected], 100))
+      .trimEnd();
+
+    expect(wrapped).not.toBe(expected);
+    expect(isDeliveryReviewFixRecordCommitMessage({
+      message: wrapped,
+      recordClass: "candidate-boundary-projection",
+      context: "meta-example-work-unit.md (integration)",
+    })).toBe(true);
+    expect(deliveryReviewFixRecordCommitMessagesMatch({ observed: wrapped, expected })).toBe(true);
+    expect(deliveryReviewFixRecordCommitMessagesMatch({
+      observed: wrapped.replace(/sha256:[0-9a-f]{64}/u, `sha256:${"e".repeat(64)}`),
+      expected,
     })).toBe(false);
   });
 

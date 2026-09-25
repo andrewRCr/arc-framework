@@ -1,6 +1,7 @@
 /** Git composition for the shared effective Candidate target projection. */
 
 import type { RawGitExec } from "../change-facts.js";
+import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
 import {
@@ -18,9 +19,29 @@ import {
 } from "./candidate-effective-target.js";
 import { projectGitCandidateApplicability } from "./git-candidate-applicability.js";
 import {
-  collectGitCandidateTarget,
+  CandidateSubjectUncollectableError,
+  collectGitCandidateSubject,
   resolveGitCandidateBaseRevision,
+  type CandidateSubjectCollection,
 } from "./git-candidate-subject.js";
+
+/**
+ * The collected subject, or this projection's own answer for one it could not collect: a raise.
+ *
+ * Every arm the projection can return names a current target by revision and subject digest, so a subject that
+ * was never collected has no reading here — not even a non-applicable one, which would need the same digest to
+ * say so. Filling that slot from the durable baseline would put a target in a typed result that nothing observed.
+ *
+ * Under the collection's own type, because a caller that reads this projection to decide a route has to tell
+ * this cause from any other projection failure: the branch and the base leaving no single ancestor is cleared
+ * by a merge, and every other failure here is cleared by reading again.
+ */
+function collectedSubject(collection: CandidateSubjectCollection) {
+  if (collection.status !== "collected") {
+    throw new CandidateSubjectUncollectableError(collection.reason, collection.detail);
+  }
+  return collection.target;
+}
 
 async function readCommit(input: {
   cwd: string;
@@ -37,24 +58,50 @@ async function readCommit(input: {
   return revision;
 }
 
-/** Resolve the sole historical base coordinate for one exact Candidate target. */
-export async function resolveGitCandidateTargetBase(input: {
+/** The sole base coordinate one exact Candidate target records, or the reason there is not exactly one. */
+export type CandidateTargetBaseResolution =
+  | { readonly status: "resolved"; readonly base: string }
+  | { readonly status: "refused"; readonly reason: "merge-base-ambiguous"; readonly detail: string };
+
+export interface GitCandidateTargetBaseInput {
   readonly cwd: string;
   readonly revision: string;
   readonly baseBranch: string;
   readonly baseRevision?: string;
   readonly exec: GitExec;
-}): Promise<string> {
+}
+
+/**
+ * Read the sole historical base coordinate for one exact Candidate target.
+ *
+ * A target recording more than one base records none of them, which is a condition an operator can clear by
+ * merging the base in — so it is answered rather than raised, and answered apart from a target that has no
+ * base at all. That second reading is what a raise says here, and it is not the same condition.
+ *
+ * @param input - The checkout, the exact target revision, its configured base, and the Git boundary.
+ * @returns The sole base coordinate, or the refusal naming the history that leaves more than one.
+ */
+export async function readGitCandidateTargetBase(
+  input: GitCandidateTargetBaseInput,
+): Promise<CandidateTargetBaseResolution> {
   const baseRevision = input.baseRevision ?? await resolveGitCandidateBaseRevision(input);
-  const output = (await input.exec("git", ["merge-base", "--all", input.revision, baseRevision], {
-    cwd: input.cwd,
-    objectAccess: "local-only",
-  })).stdout.trim();
-  const revisions = output === "" ? [] : output.split(/\r?\n/u);
-  if (revisions.length !== 1 || revisions[0] === undefined || !isGitObjectId(revisions[0])) {
+  const options = { cwd: input.cwd, objectAccess: "local-only" as const };
+  const sole = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, options),
+    leftRevision: input.revision,
+    rightRevision: baseRevision,
+  });
+  if (sole.status === "ambiguous") {
+    return {
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The Candidate target has more than one base coordinate.",
+    };
+  }
+  if (sole.status !== "resolved" || !isGitObjectId(sole.mergeBase)) {
     throw new Error("The Candidate target has no sole base coordinate.");
   }
-  return revisions[0];
+  return { status: "resolved", base: sole.mergeBase };
 }
 
 export interface GitCandidateEffectiveTargetInput {
@@ -94,22 +141,22 @@ export async function projectGitCandidateEffectiveTarget(
     return { candidateHead, baseHead };
   };
   const observed = await observeEndpoints();
-  const committed = await collectGitCandidateTarget({
+  const committed = collectedSubject(await collectGitCandidateSubject({
     cwd: input.cwd,
     name: input.name,
     baseBranch: input.baseBranch,
     baseRevision: observed.baseHead,
     exec: input.exec,
     revision: observed.candidateHead,
-  });
+  }));
   if (input.target === undefined) {
-    const staged = await collectGitCandidateTarget({
+    const staged = collectedSubject(await collectGitCandidateSubject({
       cwd: input.cwd,
       name: input.name,
       baseBranch: input.baseBranch,
       baseRevision: observed.baseHead,
       exec: input.exec,
-    });
+    }));
     const stagedCurrentness = projectCandidateCurrentness({ record: input.record, current: staged });
     if (stagedCurrentness.status === "current") {
       const reobserved = {

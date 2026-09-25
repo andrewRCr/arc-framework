@@ -277,7 +277,7 @@ describe("review command envelopes", () => {
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
-      state: "timed-out", nextAction: "retry",
+      state: "timed-out", nextAction: "operator-repair",
       payload: operationPayload({ reason: { class: "execution-timeout" } }),
     }],
     [FrontlineRunEnvelopeSchema, {
@@ -548,14 +548,14 @@ describe("review command envelopes", () => {
   });
 
   it.each([
-    ["rate-limited", "retry"],
-    ["transient-unavailable", "retry"],
+    ["rate-limited", "operator-repair"],
+    ["transient-unavailable", "operator-repair"],
     ["source-unbound", "operator-repair"],
     ["capability-unsupported", "operator-repair"],
-    ["transient-transport", "retry"],
-    ["process-failure", "retry"],
-    ["signal-termination", "retry"],
-    ["unexpected-adapter-failure", "retry"],
+    ["transient-transport", "operator-repair"],
+    ["process-failure", "operator-repair"],
+    ["signal-termination", "operator-repair"],
+    ["unexpected-adapter-failure", "operator-repair"],
     ["invalid-output", "operator-repair"],
     ["authorization-rejected", "operator-repair"],
   ] as const)("maps frontline reason class %s only to %s", (reasonClass, nextAction) => {
@@ -573,7 +573,7 @@ describe("review command envelopes", () => {
     expect(FrontlineRunEnvelopeSchema.parse(envelope)).toEqual(envelope);
     expect(() => FrontlineRunEnvelopeSchema.parse({
       ...envelope,
-      nextAction: nextAction === "retry" ? "operator-repair" : "retry",
+      nextAction: "retry",
     })).toThrow();
   });
 

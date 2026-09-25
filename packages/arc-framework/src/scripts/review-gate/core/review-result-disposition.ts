@@ -100,21 +100,31 @@ export function validateApprovedDispositionRecordForResult(
   if (record.operationId !== result.producerId || record.repositoryId !== result.repositoryId) {
     throw new Error("approved disposition record does not name its immutable producer");
   }
+  if (approvedRecordSourceMatchesResult(record, result)) return record;
+  throw new Error("approved disposition record source does not match its immutable producer");
+}
+
+function approvedRecordSourceMatchesResult(
+  record: ApprovedDispositionRecord,
+  result: ReviewResult,
+): boolean {
   const source = record.source;
   if (source.kind === "attested-local" && result.kind === "attested-local") {
     const reference = parseReviewSourceReference(source.receiptRef, "attested-local");
-    if (reference.operationId === result.producerId
+    return reference.operationId === result.producerId
       && reference.durableRef === result.receiptRef
-      && source.localSourceRef === result.localSourceRef) return record;
-  } else if (source.kind === "frontline" && result.kind === "frontline") {
-    const reference = parseReviewSourceReference(source.outcomeRef, "frontline");
-    if (reference.operationId === result.producerId
-      && reference.durableRef === result.outcomeRef) return record;
-  } else if (source.kind === "hosted" && result.kind === "hosted") {
-    const reference = parseReviewSourceReference(source.attemptRef, "hosted");
-    if (reference.operationId === result.laneOperationId
-      && reference.durableRef === result.producerId
-      && source.hostedResultId === result.resultDigest) return record;
+      && source.localSourceRef === result.localSourceRef;
   }
-  throw new Error("approved disposition record source does not match its immutable producer");
+  if (source.kind === "frontline" && result.kind === "frontline") {
+    const reference = parseReviewSourceReference(source.outcomeRef, "frontline");
+    return reference.operationId === result.producerId
+      && reference.durableRef === result.outcomeRef;
+  }
+  if (source.kind === "hosted" && result.kind === "hosted") {
+    const reference = parseReviewSourceReference(source.attemptRef, "hosted");
+    return reference.operationId === result.laneOperationId
+      && reference.durableRef === result.producerId
+      && source.hostedResultId === result.resultDigest;
+  }
+  return false;
 }

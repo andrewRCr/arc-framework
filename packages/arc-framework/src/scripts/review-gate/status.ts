@@ -2,6 +2,13 @@
 
 import { z } from "zod";
 
+import {
+  BaseMovementObservationSchema,
+  composeEvidenceDelta,
+  reduceEvidenceApplicability,
+  type BaseMovementObservation,
+} from "../../lib/evidence-applicability/index.js";
+
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
@@ -74,6 +81,7 @@ export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
   coverage: HostedReviewCoverageSchema.optional(),
+  sourceId: ReviewStatusSourceIdSchema.optional(),
 });
 export type ReviewStatusTargetInput = z.infer<typeof ReviewStatusTargetInputSchema>;
 export const ReviewStatusWorkUnitInputSchema = z.strictObject({
@@ -179,6 +187,32 @@ export const DeliveryReviewConjunctionSchema = z.strictObject({
   }
 });
 export type DeliveryReviewConjunction = z.infer<typeof DeliveryReviewConjunctionSchema>;
+
+/** Select one uniquely exact member without granting review clearance. */
+function selectExactDeliveryMember(
+  target: z.infer<typeof ChangeRequestTargetRefSchema>,
+  conjunction: DeliveryReviewConjunction,
+): DeliveryReviewConjunction["members"][number] | null {
+  const matches = conjunction.members.filter((member) =>
+    member.target.repository.toLowerCase() === target.repository.toLowerCase()
+      && member.target.headSha === target.headSha);
+  return matches.length === 1 ? matches[0] ?? null : null;
+}
+
+/**
+ * Select one uniquely exact discharged member from a delivery review conjunction.
+ *
+ * @param target - Exact member change-request target selected by the caller.
+ * @param conjunction - Fresh routed review state for the complete delivery.
+ * @returns The discharged selected member, or null when the binding is absent or ambiguous.
+ */
+export function selectDischargedDeliveryMember(
+  target: z.infer<typeof ChangeRequestTargetRefSchema>,
+  conjunction: DeliveryReviewConjunction,
+): DeliveryReviewConjunction["members"][number] | null {
+  const member = selectExactDeliveryMember(target, conjunction);
+  return member?.state === "discharged" ? member : null;
+}
 
 export const DeliveryReviewCursorSchema = z.strictObject({
   status: z.enum(["outstanding", "discharged"]),
@@ -812,6 +846,7 @@ export function composeDeliveryReviewObligation(input: {
 
 export const RequiredCheckStatusSchema = z.enum(["green", "pending", "failed", "not-required", "unavailable"]);
 export type RequiredCheckStatus = z.infer<typeof RequiredCheckStatusSchema>;
+const ReviewStatusMovementSchema = z.enum(["disjoint", "overlapping", "unknown"]);
 
 const ReviewStatusBaseShape = {
   schemaVersion: z.literal(1),
@@ -820,6 +855,10 @@ const ReviewStatusBaseShape = {
   requiredChecks: RequiredCheckStatusSchema,
   routedObligation: RoutedReviewObligationSchema,
   currentBaseOid: GitObjectIdSchema.nullable(),
+  movement: ReviewStatusMovementSchema,
+  baseMovement: BaseMovementObservationSchema.nullable(),
+  baseMovementDetail: z.string().trim().min(1).optional(),
+  baseMovementCause: z.enum(["read-failed", "ambiguous", "unrelated"]).optional(),
   deliveryCursor: DeliveryReviewCursorSchema.optional(),
 };
 
@@ -827,6 +866,27 @@ const ReviewStatusSettledSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("settled"),
   nextAction: z.literal("continue-reconcile"),
+});
+const ReviewStatusMemberDischargedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("member-discharged"),
+  nextAction: z.literal("continue-reconcile"),
+  selectedMember: DeliveryReviewConjunctionMemberSchema,
+}).superRefine((result, context) => {
+  const selected = "conjunction" in result.routedObligation
+    ? selectDischargedDeliveryMember(result.target, result.routedObligation.conjunction)
+    : null;
+  if (selected === null || result.selectedMember.state !== "discharged"
+    || !sameDeliveryReviewMemberVehicle(result.selectedMember.vehicle, selected.vehicle)
+    || result.selectedMember.target.pullRequest !== selected.target.pullRequest
+    || result.selectedMember.target.repository.toLowerCase() !== selected.target.repository.toLowerCase()
+    || result.selectedMember.target.headSha !== selected.target.headSha) {
+    context.addIssue({
+      code: "custom",
+      path: ["selectedMember"],
+      message: "selected landing member must match one discharged exact delivery target",
+    });
+  }
 });
 const ReviewStatusRunReviewSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -914,17 +974,31 @@ const ReviewStatusChecksPendingSchema = z.strictObject({
   state: z.literal("checks-pending"),
   nextAction: z.literal("rerun-checkpoint"),
 });
-const ReviewStatusBaseMovedSchema = z.strictObject({
+const ReviewStatusCheckpointActionSchema = z.strictObject({
+  command: z.literal("rerun-checkpoint"),
+  workUnit: SlugSchema,
+});
+const ReviewStatusBaseMovedShape = {
   ...ReviewStatusBaseShape,
   state: z.literal("base-moved"),
   nextAction: z.literal("rerun-checkpoint"),
   terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
-});
+};
+const ReviewStatusBaseMovedSchema = z.union([
+  z.strictObject({
+    ...ReviewStatusBaseMovedShape,
+    checkpointAction: ReviewStatusCheckpointActionSchema,
+  }),
+  z.strictObject({
+    ...ReviewStatusBaseMovedShape,
+    terminalExplanation: z.string().trim().min(1),
+  }),
+]);
 const ReviewStatusBlockedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
-  reason: z.enum(["stale-target", "checks-failed", "status-unavailable"]),
+  reason: z.enum(["stale-target", "checks-failed", "status-unavailable", "base-unrelated"]),
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
@@ -954,6 +1028,7 @@ const ReviewStatusCoverageRequiredSchema = z.strictObject({
 });
 export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
+  | z.infer<typeof ReviewStatusMemberDischargedSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
   | z.infer<typeof ReviewStatusHostedAwaitSchema>
@@ -973,6 +1048,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusBlockedSchema>;
 const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
   ReviewStatusSettledSchema,
+  ReviewStatusMemberDischargedSchema,
   ReviewStatusRunReviewSchema,
   ReviewStatusHostedRequestSchema,
   ReviewStatusHostedAwaitSchema,
@@ -1062,7 +1138,7 @@ const ReviewStatusCommandResultSchemaInternal = z.union([
     currentBaseOid: z.null(),
     state: z.literal("blocked"),
     nextAction: z.literal("stop"),
-    reason: z.enum(["invalid-input", "status-unavailable"]),
+    reason: z.enum(["invalid-input", "wrong-route", "status-unavailable"]),
     detail: z.string().trim().min(1),
     remedy: SpineRemedySchema,
   }),
@@ -1077,6 +1153,9 @@ export interface ReviewStatusObservation {
   routedObligation: RoutedReviewObligation;
   currentBaseOid: string | null;
   baseContained: boolean;
+  workUnitId?: string;
+  baseMovement?: BaseMovementObservation | null;
+  baseMovementDetail?: string;
 }
 
 export interface ReviewStatusPort {
@@ -1084,7 +1163,40 @@ export interface ReviewStatusPort {
     target: z.infer<typeof ChangeRequestTargetRefSchema>,
     ceilingOverride?: ReviewCeilingOverride,
     coverage?: HostedReviewCoverage,
+    sourceId?: string,
   ): Promise<ReviewStatusObservation>;
+}
+
+function projectReviewBaseMovement(observation: ReviewStatusObservation): {
+  movement: z.infer<typeof ReviewStatusMovementSchema>;
+  baseMovement: BaseMovementObservation | null;
+  baseMovementDetail?: string;
+  baseMovementCause?: "read-failed" | "ambiguous" | "unrelated";
+  carries: boolean;
+} {
+  if (observation.baseMovement === undefined || observation.baseMovement === null) {
+    return {
+      movement: "unknown",
+      baseMovement: null,
+      baseMovementDetail: observation.baseMovementDetail ?? "Base movement evidence is unavailable.",
+      carries: false,
+    };
+  }
+  const baseMovement = BaseMovementObservationSchema.parse(observation.baseMovement);
+  const delta = composeEvidenceDelta({ cause: "base-movement", observation: baseMovement });
+  const applicability = reduceEvidenceApplicability(delta, "review-clearance");
+  if (delta.overlap.kind === "not-applicable") {
+    throw new Error("Base movement must produce an overlap classification.");
+  }
+  return {
+    movement: delta.overlap.kind,
+    baseMovement,
+    ...(observation.baseMovementDetail === undefined
+      ? {}
+      : { baseMovementDetail: observation.baseMovementDetail }),
+    ...(delta.overlap.kind === "unknown" ? { baseMovementCause: delta.overlap.cause } : {}),
+    carries: applicability.verdict === "carries",
+  };
 }
 
 /** Reduce live exact-target evidence to one orchestration action. */
@@ -1093,12 +1205,18 @@ export async function resolveReviewStatus(
   port: ReviewStatusPort,
 ): Promise<ReviewStatusResult> {
   const request = ReviewStatusTargetInputSchema.parse(input);
-  const observation = await port.observe(request.target, request.ceilingOverride, request.coverage);
+  const observation = await port.observe(
+    request.target,
+    request.ceilingOverride,
+    request.coverage,
+    request.sourceId,
+  );
   const actualHeadSha = ObjectIdSchema.parse(observation.actualHeadSha);
   const conjunction = "conjunction" in observation.routedObligation
     ? observation.routedObligation.conjunction
     : undefined;
   const currentMember = conjunction?.members.find((member) => member.state === "outstanding") ?? null;
+  const movement = projectReviewBaseMovement(observation);
   const base = {
     schemaVersion: 1 as const,
     mode: "review-status" as const,
@@ -1108,6 +1226,14 @@ export async function resolveReviewStatus(
     currentBaseOid: observation.currentBaseOid === null
       ? null
       : ObjectIdSchema.parse(observation.currentBaseOid),
+    movement: movement.movement,
+    baseMovement: movement.baseMovement,
+    ...(movement.baseMovementDetail === undefined
+      ? {}
+      : { baseMovementDetail: movement.baseMovementDetail }),
+    ...(movement.baseMovementCause === undefined
+      ? {}
+      : { baseMovementCause: movement.baseMovementCause }),
     ...(conjunction === undefined
       ? {}
       : {
@@ -1133,13 +1259,92 @@ export async function resolveReviewStatus(
           "arc", "review", "change-request", "resolve",
           "--head-ref", request.target.headRef,
           "--head-sha", actualHeadSha,
-          "--json",
         ],
       ),
     };
   }
-  if (!observation.baseContained && base.currentBaseOid !== null) {
-    return { ...base, state: "base-moved", nextAction: "rerun-checkpoint" };
+  const exactMember = conjunction === undefined ? null : selectExactDeliveryMember(request.target, conjunction);
+  const selectedMember = conjunction?.status !== "outstanding" || exactMember?.state !== "discharged"
+    ? null
+    : exactMember;
+  const preTerminalMember = exactMember !== null
+    && exactMember.position < exactMember.memberCount
+    && (exactMember.state === "discharged" || currentMember === exactMember);
+  const memberMovementBound = preTerminalMember
+    && movement.baseMovement?.overlap.status === "available"
+    && movement.baseMovement.coordinates.repository.toLowerCase() === exactMember.target.repository.toLowerCase()
+    && movement.baseMovement.coordinates.changeRequest === exactMember.target.pullRequest
+    && movement.baseMovement.coordinates.base === base.currentBaseOid
+    && movement.baseMovement.coordinates.head === exactMember.target.headSha;
+  if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries) {
+    // Both base-resolution causes are answered ahead of the member-binding guard below. That guard requires an
+    // available overlap, which is exactly what neither cause leaves, so it would otherwise fire first and
+    // return a rerun of the read that produced the condition — the one remedy neither cause can clear. Whether
+    // the pair shares an ancestor, or shares two, is a fact about the pair that no member-binding read changes.
+    const baseResolutionDecides = movement.baseMovementCause === "unrelated"
+      || movement.baseMovementCause === "ambiguous";
+    if (preTerminalMember && !baseResolutionDecides) {
+      if (!memberMovementBound) {
+        return {
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "status-unavailable",
+          detail: "Pre-terminal delivery-member base movement is unavailable for the exact selected request.",
+          remedy: reviewStatusRetryRemedy(request.target),
+        };
+      }
+    } else if (movement.baseMovementCause === "unrelated") {
+      return {
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "base-unrelated",
+        detail: "The observed base and the exact reviewed head share no common ancestor, so no movement "
+          + "between them can be proved.",
+        remedy: spineRemedy(
+          "Base movement can be proved only between revisions with a common ancestor.",
+          "Give the branch and the base one common ancestor, then compose review status again",
+          ["git", "merge", "--allow-unrelated-histories", base.currentBaseOid],
+        ),
+      };
+    } else {
+      const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
+      const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);
+      return {
+        ...base,
+        state: "base-moved",
+        nextAction: "rerun-checkpoint",
+        ...(workUnit === undefined
+          ? {
+              terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+            }
+          : { checkpointAction: { command: "rerun-checkpoint", workUnit } }),
+      };
+    }
+  }
+  if (selectedMember !== null && base.currentBaseOid !== null) {
+    if (base.requiredChecks === "pending") {
+      return { ...base, state: "checks-pending", nextAction: "rerun-checkpoint" };
+    }
+    if (base.requiredChecks === "failed" || base.requiredChecks === "unavailable") {
+      return {
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: base.requiredChecks === "failed" ? "checks-failed" : "status-unavailable",
+        detail: base.requiredChecks === "failed"
+          ? "One or more required checks failed."
+          : "Required-check status is unavailable.",
+        remedy: reviewStatusRetryRemedy(request.target),
+      };
+    }
+    return ReviewStatusMemberDischargedSchema.parse({
+      ...base,
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
+      selectedMember,
+    });
   }
   if (base.routedObligation.state === "applicability-blocked") {
     const applicability = base.routedObligation.applicability;
@@ -1227,7 +1432,7 @@ export async function resolveReviewStatus(
           "Select a capable source or complete coverage, then re-run",
           [
             "arc", "review", "status", "--work-unit", currentMember.vehicle.workUnitId,
-            "--coverage", "incremental", "--json",
+            "--coverage", "incremental",
           ],
         ),
       });
@@ -1317,6 +1522,6 @@ function reviewStatusRetryRemedy(target: z.infer<typeof ChangeRequestTargetRefSc
   return spineRemedy(
     "Review status must be recomposed from an exact current target.",
     "Resolve the reported condition, then re-run",
-    ["arc", "review", "status", "--target", JSON.stringify(target), "--json"],
+    ["arc", "review", "status", "--target", JSON.stringify(target)],
   );
 }

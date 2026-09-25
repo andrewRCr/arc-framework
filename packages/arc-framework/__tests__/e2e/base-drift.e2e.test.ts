@@ -65,7 +65,7 @@ describe("arc base drift", () => {
     const run = await runArcNoTty(["base", "drift", "--json"], repo);
     expect(run.exitCode).toBe(0);
     expect(JSON.parse(run.stdout)).toMatchObject({
-      mode: "authoritative", verdict: "clean", behind: 0, base: "main",
+      mode: "authoritative", verdict: "clean", movement: "disjoint", behind: 0, base: "main",
     });
     expect(await git(repo, ["for-each-ref", "--format=%(refname)", "refs/arc/base-drift/"])).toBe("");
   });
@@ -77,8 +77,11 @@ describe("arc base drift", () => {
     await writeFile(configPath, config.replace("session.remote_sync: enabled", "session.remote_sync: disabled"));
     const run = await runArcNoTty(["base", "drift", "--json"], repo);
     expect(run.exitCode).toBe(0);
-    const result = JSON.parse(run.stdout) as { verdict: string; behind: number; register: unknown };
+    const result = JSON.parse(run.stdout) as {
+      verdict: string; movement?: string; behind: number; register: unknown;
+    };
     expect(result.verdict).toBe("reconcile");
+    expect(result.movement).toBe("disjoint");
     expect(result.behind).toBeGreaterThan(0);
     expect(result.register).not.toBeNull();
     expect(await git(repo, ["for-each-ref", "--format=%(refname)", "refs/arc/base-drift/"])).toBe("");
@@ -89,9 +92,17 @@ describe("arc base drift", () => {
     await git(repo, ["remote", "remove", "origin"]);
     const run = await runArcNoTty(["base", "drift", "--json"], repo);
     expect(run.exitCode).toBe(1);
-    expect(JSON.parse(run.stdout)).toMatchObject({
+    const result = JSON.parse(run.stdout) as Record<string, unknown>;
+    expect(result).toMatchObject({
       verdict: "unavailable", unavailableReason: "no-remote", baseOid: null,
+      detail: expect.stringContaining("no origin remote"),
+      coordinates: { base: "main", baseOid: null, headOid: null },
+      continuation: {
+        kind: "terminal-explanation",
+        terminalExplanation: expect.stringContaining("Configure the origin remote"),
+      },
     });
+    expect(result).not.toHaveProperty("movement");
   });
 
   it("fails closed instead of analyzing a fallback base when config cannot be read", async () => {
@@ -99,13 +110,18 @@ describe("arc base drift", () => {
     await rm(join(repo, ".arc/system/arc-config.yml"));
     const run = await runArcNoTty(["base", "drift", "--json"], repo);
     expect(run.exitCode).toBe(1);
-    expect(JSON.parse(run.stdout)).toMatchObject({
+    const result = JSON.parse(run.stdout) as Record<string, unknown>;
+    expect(result).toMatchObject({
       mode: "authoritative",
       verdict: "unavailable",
       unavailableReason: "config-unavailable",
       base: null,
       baseOid: null,
+      detail: expect.stringContaining("Unable to read arc-config.yml"),
+      coordinates: { base: null, baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
     });
+    expect(result).not.toHaveProperty("movement");
   });
 
   it("human rendering preserves the reconcile policy and exit status", async () => {
@@ -113,7 +129,9 @@ describe("arc base drift", () => {
     const run = await runArcNoTty(["base", "drift"], repo);
     expect(run.exitCode).toBe(0);
     expect(run.stdout).toContain("Base reconciliation");
-    expect(run.stdout).toContain("before integration");
+    expect(run.stdout).toContain("Movement is disjoint.");
+    expect(run.stdout).toContain("typed checkpoint decides whether");
+    expect(run.stdout).toContain("integration proceeds, reconciles, or stops.");
   });
 
   it("rejects invalid base configuration before fetching", async () => {
@@ -123,8 +141,24 @@ describe("arc base drift", () => {
     await writeFile(configPath, config.replace("branch.base: main", "branch.base: --upload-pack=x"));
     const run = await runArcNoTty(["base", "drift", "--json"], repo);
     expect(run.exitCode).toBe(1);
-    expect(JSON.parse(run.stdout)).toMatchObject({
+    const result = JSON.parse(run.stdout) as Record<string, unknown>;
+    expect(result).toMatchObject({
       verdict: "unavailable", unavailableReason: "invalid-base",
+      detail: expect.stringContaining("not a safe Git branch name"),
+      coordinates: { base: "--upload-pack=x", baseOid: null, headOid: null },
+      continuation: { kind: "terminal-explanation" },
     });
+    expect(result).not.toHaveProperty("movement");
+  });
+
+  it("renders unavailable detail and terminal recovery in interactive mode", async () => {
+    const { repo } = await fixture(false);
+    await git(repo, ["remote", "remove", "origin"]);
+
+    const run = await runArcNoTty(["base", "drift"], repo);
+
+    expect(run.exitCode).toBe(1);
+    expect(run.stdout).toContain("no origin remote");
+    expect(run.stdout).toContain("Configure the origin remote");
   });
 });

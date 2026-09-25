@@ -15,6 +15,13 @@ import {
 } from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 
+import {
+  ReviewAttemptOutcomeSchema,
+  ReviewAttemptSchema,
+  type ReviewAttempt,
+} from "./review-policy-attempt.js";
+export { projectReviewPolicyAttempt } from "./review-policy-attempt.js";
+
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const ReviewPolicyTargetShape = {
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
@@ -33,68 +40,6 @@ const ReviewPolicyInvocationSchema = z.discriminatedUnion("mode", [
   FrontlinePolicyInvocationSchema,
   StandardPolicyInvocationSchema,
 ]);
-const ReviewAttemptOutcomeSchema = z.enum([
-  "clean",
-  "findings",
-  "rate-limited",
-  "transient-unavailable",
-  "partial",
-  "ambiguous-delivery",
-  "malformed",
-  "timed-out",
-  "stale-target",
-  "capability-unsupported",
-  "source-unbound",
-  "terminal-failure",
-]);
-const TerminalReviewAttemptSchema = z.strictObject({
-  sourceId: ReviewSourceIdSchema,
-  outcome: z.enum(["clean", "findings"]),
-  reviewOperationId: ReviewIdentifierSchema,
-  chunkSeriesComplete: z.boolean().optional(),
-}).readonly();
-const NonTerminalReviewAttemptSchema = z.strictObject({
-  sourceId: ReviewSourceIdSchema,
-  outcome: ReviewAttemptOutcomeSchema.exclude(["clean", "findings"]),
-  chunkSeriesComplete: z.boolean().optional(),
-}).readonly();
-const ReviewAttemptSchema = z.discriminatedUnion("outcome", [
-  TerminalReviewAttemptSchema,
-  NonTerminalReviewAttemptSchema,
-]).readonly();
-type ReviewAttempt = z.infer<typeof ReviewAttemptSchema>;
-
-/**
- * Project one persisted lane attempt into the policy command's evidence vocabulary.
- *
- * Operational finding settlement retains the original findings producer. The policy sees that
- * original outcome and its immutable producer identity, never settlement as new evidence.
- *
- * @param input - Persisted attempt identity, source, outcome, and optional chunk completion marker.
- * @returns The validated policy attempt with terminal producer identity retained.
- */
-export function projectReviewPolicyAttempt(input: {
-  readonly attemptId: string;
-  readonly sourceId: string;
-  readonly outcome: z.infer<typeof ReviewAttemptOutcomeSchema> | "pending" | "settled-findings";
-  readonly chunkSeriesComplete?: boolean;
-}): ReviewAttempt {
-  if (input.outcome === "pending") {
-    throw new Error("pending lane attempts are not completed policy evidence");
-  }
-  const outcome = input.outcome === "settled-findings" ? "findings" : input.outcome;
-  return ReviewAttemptSchema.parse({
-    sourceId: input.sourceId,
-    outcome,
-    ...(outcome === "clean" || outcome === "findings"
-      ? { reviewOperationId: input.attemptId }
-      : {}),
-    ...(input.chunkSeriesComplete === undefined
-      ? {}
-      : { chunkSeriesComplete: input.chunkSeriesComplete }),
-  });
-}
-
 export const VerifiedTerminalReviewSignalSchema = z.strictObject({
   reviewOperationId: ReviewIdentifierSchema,
   confirmedFindingCount: z.number().int().nonnegative(),
@@ -287,35 +232,10 @@ export const ReviewLaneJudgmentSchema = z.strictObject({
 }).readonly();
 export type ReviewLaneJudgment = z.infer<typeof ReviewLaneJudgmentSchema>;
 
-export const ReviewPolicyRequestSchema = z.strictObject({
-  ...ReviewPolicyRequestBaseShape,
-  sources: z.array(ReviewSourceIdSchema).readonly(),
-  maxPasses: ReviewPassSchema,
-  verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
-}).superRefine((request, context) => {
-  validateTerminalPassProgress(request, context);
-  validateVerifiedTerminalSignal(request, context);
-  if (request.lane === "standard" && request.invocation?.mode === "skip") {
-    context.addIssue({
-      code: "custom",
-      message: "frontline invocation override cannot be applied to the standard lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane === "frontline" && request.invocation?.mode === "force") {
-    context.addIssue({
-      code: "custom",
-      message: "standard source invocation cannot be applied to the frontline lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane !== "standard" && request.terminus !== undefined) {
-    context.addIssue({
-      code: "custom",
-      message: "owner-accepted terminus can be applied only to the standard lane",
-      path: ["terminus"],
-    });
-  }
+function validateConfiguredAttempts(
+  request: z.infer<typeof ReviewPolicyRequestSchema>,
+  context: z.RefinementCtx,
+): number {
   let previousSourceIndex = -1;
   const scope = request.scopeSelection?.mode ?? "whole-target";
   for (const [attemptIndex, attempt] of request.attempts.entries()) {
@@ -348,6 +268,39 @@ export const ReviewPolicyRequestSchema = z.strictObject({
     }
     previousSourceIndex = sourceIndex;
   }
+  return previousSourceIndex;
+}
+
+export const ReviewPolicyRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+  sources: z.array(ReviewSourceIdSchema).readonly(),
+  maxPasses: ReviewPassSchema,
+  verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
+}).superRefine((request, context) => {
+  validateTerminalPassProgress(request, context);
+  validateVerifiedTerminalSignal(request, context);
+  if (request.lane === "standard" && request.invocation?.mode === "skip") {
+    context.addIssue({
+      code: "custom",
+      message: "frontline invocation override cannot be applied to the standard lane",
+      path: ["invocation"],
+    });
+  }
+  if (request.lane === "frontline" && request.invocation?.mode === "force") {
+    context.addIssue({
+      code: "custom",
+      message: "standard source invocation cannot be applied to the frontline lane",
+      path: ["invocation"],
+    });
+  }
+  if (request.lane !== "standard" && request.terminus !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "owner-accepted terminus can be applied only to the standard lane",
+      path: ["terminus"],
+    });
+  }
+  const previousSourceIndex = validateConfiguredAttempts(request, context);
   if (request.lane === "standard" && request.invocation?.mode === "force") {
     const selectedSourceId = request.invocation.sourceId;
     const selectedSourceIndex = request.sources.indexOf(selectedSourceId);

@@ -256,6 +256,7 @@ function reentry(root: string, records: ReturnType<typeof operationOver>) {
   const resultReader = {
     readResult: async (): Promise<ReviewResult> => ({
       kind: "attested-local",
+      vehicle: records.state.vehicle,
       producerId: records.state.operationId,
       repositoryId: records.state.repositoryId,
       target: records.state.target,

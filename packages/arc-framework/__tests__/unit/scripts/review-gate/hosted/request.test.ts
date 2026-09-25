@@ -54,6 +54,7 @@ const DELIVERY_MEMBER = {
   headRef: "delivery/plan-1/member-1",
   head: HEAD,
   candidateHead: HEAD,
+  successorHeads: [],
   isFinalMember: false,
 };
 
@@ -461,6 +462,47 @@ describe("hosted review request", () => {
     expect(result).toMatchObject({
       state: "requested",
       handle: { target: input.target, vehicle: input.vehicle },
+    });
+  });
+
+  it("retains an admitted Owner-selected source in the durable delivery-member handle", async () => {
+    const input = {
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "codex-pr" as const,
+      coverage: "complete" as const,
+      vehicle: {
+        kind: "delivery-member" as const,
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+      invocation: { mode: "force" as const, sourceId: "codex-pr" },
+    };
+    const result = await requestHostedReview(input, {
+      adapters: [{ ...adapter(async () => ({
+        kind: "created",
+        effectiveCoverage: "complete",
+        artifact: {
+          kind: "issue-comment",
+          id: "IC_kwDO456",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-2",
+          createdAt: "2026-07-23T12:00:00.000Z",
+        },
+      })), id: "codex-pr" }],
+      deliveryMemberLookup: {
+        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+        resolveMemberByRef: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+        resolveMemberByVehicle: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+      },
+      ...ADMIT_REQUEST,
+    });
+
+    expect(result).toMatchObject({
+      state: "requested",
+      handle: { provider: "codex-pr", invocation: input.invocation },
+      action: { handle: { invocation: input.invocation } },
     });
   });
 

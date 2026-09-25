@@ -154,6 +154,18 @@ describe("CodeRabbit structured frontline parser", () => {
       reviewedFiles: ["src/index.ts"],
     };
     expect(parse(JSON.stringify(complete))).toEqual({ kind: "partial" });
+    expect(parse(JSON.stringify({ ...complete, findings: 0, outcome: "failed" })))
+      .toEqual({ kind: "partial" });
+    for (const outcome of ["cancelled", "partial", "future_failure"]) {
+      expect(parse(JSON.stringify({ ...complete, findings: 0, outcome })))
+        .toEqual({ kind: "partial" });
+    }
+    for (const outcome of ["completed", "completed_with_warnings"]) {
+      expect(parse(JSON.stringify({ ...complete, findings: 0, outcome })))
+        .toEqual({ kind: "clean" });
+    }
+    expect(parse(JSON.stringify({ ...complete, findings: 0, unreviewedFileCount: 1 })))
+      .toEqual({ kind: "partial" });
     expect(parse(JSON.stringify({ ...complete, status: "review_skipped", findings: 0 })))
       .toEqual({ kind: "malformed" });
     expect(parse([JSON.stringify({ ...complete, findings: 0 }), JSON.stringify({ ...complete, findings: 0 })].join("\n")))
@@ -197,6 +209,36 @@ describe("CodeRabbit structured frontline parser", () => {
     });
     expect(parse("", { exitCode: null, signal: "SIGTERM" }))
       .toEqual({ kind: "failed", reason: "process-signal:SIGTERM" });
+    expect(parse("", { exitCode: 2, stderr: "auth token=private-value denied" }))
+      .toEqual({ kind: "failed", reason: "process-exit:2: auth token=[redacted] denied" });
+    expect(parse(JSON.stringify({
+      type: "error",
+      message: "Review startup failed: token=private-value storage unavailable",
+    }), { exitCode: 1 })).toEqual({
+      kind: "failed",
+      reason: "process-exit:1: Review startup failed: token=[redacted] storage unavailable",
+    });
+  });
+
+  it.each([
+    ["GITHUB_TOKEN=private-value", "GITHUB_TOKEN=[redacted]"],
+    ["AWS_SECRET_ACCESS_KEY=private-value", "AWS_SECRET_ACCESS_KEY=[redacted]"],
+    ["AWS_SECRET_ACCESS_KEY: private-value", "AWS_SECRET_ACCESS_KEY: [redacted]"],
+    ["SECRET_KEY='private value'", "SECRET_KEY='[redacted]'"],
+    ["{\"secret_key\":\"private-value\",\"next\":\"keep\"}", "{\"secret_key\":\"[redacted]\",\"next\":\"keep\"}"],
+    ["PRIVATE_KEY=private-value", "PRIVATE_KEY=[redacted]"],
+    ["SESSION_COOKIE=private-value", "SESSION_COOKIE=[redacted]"],
+    ["credentials: private-value", "credentials: [redacted]"],
+    ["tokens=private-value", "tokens=[redacted]"],
+    ["{\"token\":\"private-value\",\"next\":\"keep\"}", "{\"token\":\"[redacted]\",\"next\":\"keep\"}"],
+    ["BUILD_SECRET='private value'", "BUILD_SECRET='[redacted]'"],
+    ["https://private-user@example.com/path", "https://[redacted]@example.com/path"],
+    ["Authorization: Basic dXNlcjpwYXNz", "Authorization: [redacted]"],
+    ["Authorization: Signature keyId=private signature=secret", "Authorization: [redacted]"],
+    ["Authorization: Basic dXNlcjpwYXNz\nrequest failed", "Authorization: [redacted] request failed"],
+  ])("redacts credential-bearing process output: %s", (stderr, detail) => {
+    expect(parse("", { exitCode: 2, stderr }))
+      .toEqual({ kind: "failed", reason: `process-exit:2: ${detail}` });
   });
 
   it("normalizes a structured provider file-cap refusal as unsupported capability", () => {

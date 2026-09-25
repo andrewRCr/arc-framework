@@ -369,6 +369,25 @@ export async function assertEvidenceBoundHostedReservationPolicyAdmission(
   );
 }
 
+function assertCandidateHostedReservationPosition(
+  input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
+): void {
+  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
+  if (input.coverage === "incremental"
+    && canonicalize(input.correctionScope ?? null)
+      !== canonicalize(input.discharge.correctionScope ?? null)) {
+    throw new Error("Hosted Candidate correction scope no longer matches the fresh discharge position.");
+  }
+  if (input.discharge.discharged || input.discharge.nextSource === null
+    || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
+    throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");
+  }
+  if (input.discharge.requestCoverage !== undefined
+    && input.discharge.requestCoverage !== input.coverage) {
+    throw new Error("Hosted Candidate request coverage no longer matches the fresh discharge position.");
+  }
+}
+
 /** Refuse a Candidate request that no longer has fresh discharge and driver admission. */
 export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly reservation: StandardReviewReservationV1;
@@ -393,20 +412,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
 }): void {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
-  if (input.coverage === "incremental"
-    && canonicalize(input.correctionScope ?? null)
-      !== canonicalize(input.discharge.correctionScope ?? null)) {
-    throw new Error("Hosted Candidate correction scope no longer matches the fresh discharge position.");
-  }
-  if (input.discharge.discharged || input.discharge.nextSource === null
-    || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
-    throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");
-  }
-  if (input.discharge.requestCoverage !== undefined
-    && input.discharge.requestCoverage !== input.coverage) {
-    throw new Error("Hosted Candidate request coverage no longer matches the fresh discharge position.");
-  }
+  assertCandidateHostedReservationPosition(input);
   const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
     attempt.headSha === input.target.headSha
   )) ?? [];
@@ -469,20 +475,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
 ): Promise<void> {
-  assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
-  if (input.coverage === "incremental"
-    && canonicalize(input.correctionScope ?? null)
-      !== canonicalize(input.discharge.correctionScope ?? null)) {
-    throw new Error("Hosted Candidate correction scope no longer matches the fresh discharge position.");
-  }
-  if (input.discharge.discharged || input.discharge.nextSource === null
-    || (input.invocation === undefined && input.discharge.nextSource !== input.provider)) {
-    throw new Error("Hosted Candidate request no longer matches the fresh discharge position.");
-  }
-  if (input.discharge.requestCoverage !== undefined
-    && input.discharge.requestCoverage !== input.coverage) {
-    throw new Error("Hosted Candidate request coverage no longer matches the fresh discharge position.");
-  }
+  assertCandidateHostedReservationPosition(input);
   const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
     attempt.headSha === input.target.headSha
   )) ?? [];

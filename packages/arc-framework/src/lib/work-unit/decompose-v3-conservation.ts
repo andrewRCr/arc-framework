@@ -10,6 +10,7 @@ import {
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
 } from "./decompose-v3-preflight.js";
+import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 import { replaceDependencySlot } from "./decompose-sweep.js";
 
 export interface V3DecomposeLiveWorkUnit {
@@ -23,11 +24,15 @@ export interface V3DecomposeConservationInput {
   currentPreflight: V3DecomposePreflight;
   originDependsOn: string[];
   workUnits: V3DecomposeLiveWorkUnit[];
+  resultBaseLiveSlugs: string[];
+  resultBaseCompletedSlugs: string[];
+  retiringArtifacts?: Array<{ path: string; byteLength: number }>;
 }
 
 export interface V3ValidatedDependencyEdit {
-  kind: "incoming" | "outgoing" | "internal";
+  kind: "incoming" | "outgoing" | "internal" | "external";
   edgeId: string;
+  locus: string;
   destinationId: string | null;
   dependent: string;
   writablePath: string | null;
@@ -46,6 +51,9 @@ export interface V3DecomposeConservationRefusal {
   stage: V3DecomposeConservationStage;
   reason: string;
   locus: string;
+  evidence?: V3DecomposeRefusalEvidence;
+  /** Logical recipient identity reserved for repository advancement conflict classification. */
+  dependencyRecipient?: { dependent: string };
 }
 
 export type V3DecomposeConservationResult =
@@ -65,8 +73,19 @@ function refuse(
   stage: V3DecomposeConservationStage,
   reason: string,
   locus: string,
+  evidence?: V3DecomposeRefusalEvidence,
+  dependencyRecipient?: { dependent: string },
 ): V3DecomposeConservationResult {
-  return { status: "refused", refusal: { stage, reason, locus } };
+  return {
+    status: "refused",
+    refusal: {
+      stage,
+      reason,
+      locus,
+      ...(evidence === undefined ? {} : { evidence }),
+      ...(dependencyRecipient === undefined ? {} : { dependencyRecipient }),
+    },
+  };
 }
 
 function sameTargets(left: readonly string[], right: readonly string[]): boolean {
@@ -77,19 +96,35 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
-function artifactBelongsToWorkUnit(artifact: string, slug: string): boolean {
+function artifactBelongsToExistingWorkUnit(artifact: string, slug: string): boolean {
   return artifact.endsWith(`-${slug}.md`)
     || artifact === `spec-${slug}-prd.md`
     || artifact === `spec-${slug}-rfc.md`;
 }
 
+function artifactBelongsToNewMember(
+  artifact: string,
+  slug: string,
+  profile: V3DecomposeCutMap["machine"]["planningProfile"],
+): boolean {
+  const designArtifacts = profile.kind === "draft"
+    ? [`draft-${slug}.md`]
+    : profile.kind === "single-spec"
+      ? [`spec-${slug}.md`]
+      : [`spec-${slug}-prd.md`, `spec-${slug}-rfc.md`];
+  return designArtifacts.includes(artifact)
+    || artifact === `tasks-${slug}.md`
+    || artifact === `notes-${slug}.md`;
+}
+
 function locatorBelongsToDestination(
+  map: V3DecomposeCutMap,
   destination: V3DecomposeCutMap["authoring"]["destinations"][number],
   locator: V3SourceTargetLocator,
 ): boolean {
   const artifact = locator.artifact;
   if (destination.kind === "new-member") {
-    return artifactBelongsToWorkUnit(artifact, destination.slug);
+    return artifactBelongsToNewMember(artifact, destination.slug, map.machine.planningProfile);
   }
   if (destination.kind === "cohort-coordination") {
     return artifact === `cohort-${destination.cohort.split("/").at(-1)}.md`;
@@ -100,7 +135,7 @@ function locatorBelongsToDestination(
   if (destination.target.kind === "draft-block") {
     return canonicalDigest(destination.target.locator) === canonicalDigest(locator);
   }
-  return artifactBelongsToWorkUnit(artifact, destination.target.slug);
+  return artifactBelongsToExistingWorkUnit(artifact, destination.target.slug);
 }
 
 function destinationIdentity(
@@ -129,9 +164,23 @@ export function validateV3DecomposeConservation(
   }
   const binding = revalidateV3DecomposeCutMapBinding(decoded.value, input.currentPreflight);
   if (binding.status === "stale") {
-    return refuse("machine-binding", binding.reason, binding.locus);
+    return refuse("machine-binding", binding.reason, binding.locus, binding.evidence);
   }
   const extraction = decoded.value.authoring.shape === "extraction";
+
+  if (!extraction && input.retiringArtifacts !== undefined) {
+    const coveredPaths = new Set(decoded.value.machine.sourceUnits.map(({ sourcePath }) => sourcePath));
+    const uncovered = [...input.retiringArtifacts]
+      .sort((left, right) => compareUtf8(left.path, right.path))
+      .find(({ path, byteLength }) =>
+        path !== input.currentPreflight.sourceOriginPath
+        && path.endsWith(".md")
+        && byteLength > 0
+        && !coveredPaths.has(path));
+    if (uncovered !== undefined) {
+      return refuse("live-conservation", "uncovered-retirement-content", uncovered.path);
+    }
+  }
 
   const workUnits = new Map<string, V3DecomposeLiveWorkUnit>();
   for (const [index, record] of input.workUnits.entries()) {
@@ -153,6 +202,7 @@ export function validateV3DecomposeConservation(
       "live-conservation",
       "incoming-edge-set-changed",
       index >= 0 ? `workUnits.${liveIncoming[index]}.dependsOn` : "machine.incomingEdges",
+      { expected: expectedIncoming, actual: liveIncoming },
     );
   }
   const liveOutgoing = sortByCanonicalBytes(input.originDependsOn);
@@ -161,7 +211,12 @@ export function validateV3DecomposeConservation(
   );
   if (new Set(input.originDependsOn).size !== input.originDependsOn.length
     || !sameTargets(liveOutgoing, expectedOutgoing)) {
-    return refuse("live-conservation", "outgoing-edge-set-changed", "originDependsOn");
+    return refuse(
+      "live-conservation",
+      "outgoing-edge-set-changed",
+      "originDependsOn",
+      { expected: expectedOutgoing, actual: liveOutgoing },
+    );
   }
 
   const destinations = new Map(
@@ -194,7 +249,7 @@ export function validateV3DecomposeConservation(
     }
     if (allocation.disposition.kind === "target"
       && destination !== undefined
-      && !locatorBelongsToDestination(destination, allocation.disposition.targetLocator)) {
+      && !locatorBelongsToDestination(decoded.value, destination, allocation.disposition.targetLocator)) {
       return refuse(
         "ownership",
         "incompatible-allocation-locator",
@@ -258,7 +313,7 @@ export function validateV3DecomposeConservation(
       locus: string;
     }
     | {
-      kind: "outgoing" | "internal";
+      kind: "outgoing" | "internal" | "external";
       edgeId: string;
       dependent: string;
       prerequisite: string;
@@ -277,7 +332,15 @@ export function validateV3DecomposeConservation(
       sortByCanonicalBytes(live.dependsOn),
       sortByCanonicalBytes(edge.currentTargets),
     )) {
-      return refuse("dependency-projection", "stale-dependent", live.writablePath);
+      return refuse(
+        "dependency-projection",
+        "stale-dependent",
+        live.writablePath,
+        {
+          expected: sortByCanonicalBytes(edge.currentTargets),
+          actual: sortByCanonicalBytes(live.dependsOn),
+        },
+      );
     }
     const originIndex = live.dependsOn.indexOf(decoded.value.machine.source.origin);
     if (originIndex < 0) {
@@ -331,27 +394,50 @@ export function validateV3DecomposeConservation(
       });
     }
   }
-  const newMembers = new Set(
-    decoded.value.authoring.destinations.flatMap((destination) =>
-      destination.kind === "new-member" ? [destination.slug] : []),
-  );
   for (const [index, edge] of decoded.value.authoring.internalEdges.entries()) {
     const locus = `authoring.internalEdges.${index}`;
-    if (!newMembers.has(edge.from)) {
+    if (!permittedRecipients.has(edge.from)) {
       return refuse("dependency-projection", "unknown-internal-dependent", `${locus}.from`);
     }
-    if (!newMembers.has(edge.to)) {
+    if (!permittedRecipients.has(edge.to)) {
       return refuse("dependency-projection", "unknown-internal-prerequisite", `${locus}.to`);
     }
     if (edge.from === edge.to) {
       return refuse("dependency-projection", "self-dependency", locus);
     }
-    if (!permittedRecipients.has(edge.from)) {
-      return refuse("dependency-projection", "unknown-dependency-recipient", `${locus}.from`);
-    }
     contributions.push({
       kind: "internal",
       edgeId: canonicalDigest({ schemaVersion: 3, kind: "internal", from: edge.from, to: edge.to }),
+      dependent: edge.from,
+      prerequisite: edge.to,
+      locus,
+    });
+  }
+  const destinationSlugs = new Set(decoded.value.authoring.destinations.flatMap((destination) =>
+    destination.kind === "new-member"
+      ? [destination.slug]
+      : destination.kind === "existing-home" && destination.target.kind === "work-unit"
+        ? [destination.target.slug]
+        : []));
+  const resultBaseLiveSlugs = new Set(input.resultBaseLiveSlugs);
+  const resultBaseCompletedSlugs = new Set(input.resultBaseCompletedSlugs);
+  for (const [index, edge] of decoded.value.authoring.externalEdges.entries()) {
+    const locus = `authoring.externalEdges.${index}`;
+    if (destinationSlugs.has(edge.to)) {
+      return refuse("dependency-projection", "redundant-external-edge", `${locus}.to`);
+    }
+    if (!extraction && edge.to === origin) {
+      return refuse("dependency-projection", "retiring-origin-target", `${locus}.to`);
+    }
+    const eligible = resultBaseLiveSlugs.has(edge.to)
+      || resultBaseCompletedSlugs.has(edge.to)
+      || (extraction && edge.to === origin);
+    if (!eligible) {
+      return refuse("dependency-projection", "unknown-external-target", `${locus}.to`);
+    }
+    contributions.push({
+      kind: "external",
+      edgeId: canonicalDigest({ schemaVersion: 3, kind: "external", from: edge.from, to: edge.to }),
       dependent: edge.from,
       prerequisite: edge.to,
       locus,
@@ -368,7 +454,13 @@ export function validateV3DecomposeConservation(
     }
     if (projected.requiresWritablePath
       && (projected.writablePath === null || !isManagedPath(projected.writablePath))) {
-      return refuse("dependency-projection", "unwritable-dependent", contribution.dependent);
+      return refuse(
+        "dependency-projection",
+        "unwritable-dependent",
+        contribution.dependent,
+        undefined,
+        { dependent: contribution.dependent },
+      );
     }
     const beforeTargets = [...projected.targets];
     let afterTargets: string[];
@@ -383,7 +475,7 @@ export function validateV3DecomposeConservation(
         return refuse(
           "dependency-projection",
           "unchanged-dependency-slot",
-          projected.writablePath ?? contribution.dependent,
+          contribution.locus,
         );
       }
       afterTargets = [...beforeTargets, contribution.prerequisite];
@@ -393,7 +485,7 @@ export function validateV3DecomposeConservation(
       return refuse(
         "dependency-projection",
         "unchanged-dependency-slot",
-        projected.writablePath ?? contribution.dependent,
+        contribution.locus,
       );
     }
     projected.targets = afterTargets;
@@ -401,6 +493,7 @@ export function validateV3DecomposeConservation(
     dependencyEdits.push({
       kind: contribution.kind,
       edgeId: contribution.edgeId,
+      locus: contribution.locus,
       destinationId: projected.destinationId,
       dependent: contribution.dependent,
       writablePath: projected.writablePath,

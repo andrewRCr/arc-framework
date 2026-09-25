@@ -30,18 +30,6 @@ export type {
 
 // --- Refusal taxonomy ---
 
-/**
- * Numeric exit code emitted on refusal. Stable surface: test suites,
- * harness gates, and downstream tooling match on these values.
- *
- * Code 15 (`arg-grammar-fallthrough`) is runtime-emitted by `arc release
- * push` when positional `<remote> <branch>` arguments do not match the
- * wrapper's fixed target (`origin <current-branch>`). The detail payload
- * carries the attempted and expected refs so the refusal message can name
- * both. Arg-grammar issues outside this narrow check still fall through to
- * git's parser; the code's name preserves the broader category for future
- * detections.
- */
 /** Stable string identifier for each refusal code. Pairs 1-to-1 with `RefusalCode`. */
 export type RefusalIdentifier =
   | "ambiguous-active-wu"

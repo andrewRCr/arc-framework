@@ -3,37 +3,30 @@ import { describe, expect, it, vi } from "vitest";
 import {
   deriveNativeDeliveryMemberChain,
   deriveNativeDeliveryRegisteredRemainder,
+  preflightSequentialDeliveryLanding,
   prepareNativeDeliveryLanding,
   reconcileLinkedNativeDeliverySuffix,
   reconcileReservedNativeDeliveryMerge,
   reserveNativeDeliveryLanding,
   selectNativeDeliveryLandingArm,
+  sequentialLandingNativeObservationGuard,
   submitReservedNativeDeliveryMerge,
 } from "../../../src/lib/delivery/native-landing.js";
 import {
   attachDeliveryOperationEffectIdentity,
+  beginNativeDeliverySettlement,
   beginNativeDeliverySubmission,
   reserveDeliveryOperation,
 } from "../../../src/lib/delivery/operation.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 import {
   deliveryFourMemberStackPlanFixture,
-  deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
-
-const plan = deliveryThreeMemberStackPlanFixture();
-const heads = plan.members.slice(0, -1).map((member, index) => ({
-  deliverableId: member.deliverableId,
-  changeRequestId: String(41 + index),
-  headSha: String(index + 1).repeat(40),
-}));
-const mergePolicy = (repository: string) => ({
-  repository,
-  stackPosition: "intermediate" as const,
-  method: "merge" as const,
-  allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-  policyFingerprint: `sha256:${"a".repeat(64)}` as const,
-});
+import {
+  heads,
+  mergePolicy,
+  plan,
+} from "../../helpers/native-landing-fixtures.js";
 
 describe("native delivery landing", () => {
   it("derives every selected member base from its exact predecessor", () => {
@@ -160,6 +153,61 @@ describe("native delivery landing", () => {
         { deliverableId: bound.members[2]!.deliverableId, baseRef: "member-2" },
       ],
     });
+  });
+
+  it("keeps sequential landing off a registered stack and available for an unlinked stack", async () => {
+    const chainPlan = deliveryFourMemberStackPlanFixture();
+    const state = deliveryStateFixture(chainPlan);
+    const bound = {
+      ...state,
+      members: state.members.map((member, index) => ({
+        ...member,
+        changeRequest: { providerId: "github" as const, changeRequestId: String(41 + index) },
+      })),
+    };
+    const observe = vi.fn();
+    expect(sequentialLandingNativeObservationGuard({ status: "registered", stackNumber: 621 }))
+      .toMatchObject({
+        status: "refuse",
+        reason: "registered-native-stack",
+        recommendedActionText:
+          "Rerun `arc delivery native land-select`; it will freshly observe the canonical remaining stack.",
+      });
+    expect(sequentialLandingNativeObservationGuard({ status: "unregistered" }))
+      .toEqual({ status: "continue" });
+    expect(sequentialLandingNativeObservationGuard({ status: "unavailable" }))
+      .toMatchObject({ status: "refuse", reason: "native-observation-unavailable" });
+
+    observe.mockResolvedValueOnce({ status: "registered", stackNumber: 621 });
+    await expect(preflightSequentialDeliveryLanding({
+      plan: chainPlan,
+      state: bound,
+      selectedDeliverableId: bound.members[0]!.deliverableId,
+      repository: "owner/repo",
+      observe: { observe },
+    })).resolves.toMatchObject({ status: "refuse", reason: "registered-native-stack" });
+    expect(observe).toHaveBeenCalledOnce();
+
+    observe.mockReset();
+    observe.mockResolvedValueOnce({ status: "unregistered" });
+    await expect(preflightSequentialDeliveryLanding({
+      plan: chainPlan,
+      state: bound,
+      selectedDeliverableId: bound.members[0]!.deliverableId,
+      repository: "owner/repo",
+      observe: { observe },
+    })).resolves.toEqual({ status: "continue" });
+    expect(observe).toHaveBeenCalledOnce();
+
+    observe.mockReset();
+    await expect(preflightSequentialDeliveryLanding({
+      plan: chainPlan,
+      state,
+      selectedDeliverableId: state.members[0]!.deliverableId,
+      repository: "owner/repo",
+      observe: { observe },
+    })).resolves.toEqual({ status: "continue" });
+    expect(observe).not.toHaveBeenCalled();
   });
 
   it("admits the unlinked arm only from authoritative absence and directs registered downgrades", () => {
@@ -536,6 +584,28 @@ describe("native delivery landing", () => {
       reason: "submission-before-persist-unresolved",
     });
     expect(replayHost.submitNativeMerge).not.toHaveBeenCalled();
+
+    // Once the settle has begun the same reservation must not submit again either. The settling phase is
+    // reachable with no identity attached — a provider that merged synchronously never returned one — which
+    // is the only way past the pending arm above, so the refusal has to name the settle rather than the
+    // unresolved submission.
+    const settlingMembers = members.map(({ deliverableId, ref, coordinates }) => {
+      if (ref === null || coordinates === null) throw new Error(`fixture member is unbound: ${deliverableId}`);
+      return { deliverableId, ref, coordinates };
+    });
+    const settling = beginNativeDeliverySettlement(submittingRecord, "operation-1", settlingMembers);
+    if (settling.status === "refused") throw new Error(`fixture settlement failed: ${settling.reason}`);
+    const settlingHost = { submitNativeMerge: vi.fn(), observeNativeMerge: vi.fn() };
+    await expect(submitReservedNativeDeliveryMerge({
+      planId: plan.planId,
+      current: { revision: record.revision + 1, value: settling.state },
+      operationId: "operation-1",
+      request,
+    }, { ...dependencies, host: settlingHost })).resolves.toMatchObject({
+      status: "blocked",
+      reason: "settlement-in-flight",
+    });
+    expect(settlingHost.submitNativeMerge).not.toHaveBeenCalled();
 
     await expect(submitReservedNativeDeliveryMerge({
       planId: plan.planId,
@@ -1009,7 +1079,7 @@ describe("native delivery landing", () => {
           + "observation and the host prefix snapshot.",
       },
       submitAction: {
-        command: "arc delivery native land-submit - --json",
+        command: "arc delivery native land-submit -",
         input: {
           planId: plan.planId,
           operationId: "operation-1",
@@ -1054,6 +1124,8 @@ describe("native delivery landing", () => {
       expectedStateRevision: 1, before: beforeSnapshot, requested: beforeSnapshot, effect,
     });
     if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
+    const submitted = beginNativeDeliverySubmission({ revision: 2, value: reserved.state }, "operation-1");
+    if (submitted.status !== "begun") throw new Error("fixture submission transition failed");
     const newTarget = { head: "d".repeat(40), tree: "e".repeat(40) };
     const landed = {
       ...bound,
@@ -1064,7 +1136,7 @@ describe("native delivery landing", () => {
       }) : member),
       activeOperation: null,
     };
-    let revision = 2;
+    let revision = 3;
     const stateStore = { publish: vi.fn(async (_id, value, expectedRevision) => expectedRevision === revision
       ? { status: "ok" as const, value: { revision: revision += 1, value } }
       : { status: "refused" as const, reason: "version-conflict" as const }) };
@@ -1073,8 +1145,8 @@ describe("native delivery landing", () => {
     const proof = vi.fn().mockResolvedValue({ status: "accepted", proof: "mechanical-reapply" });
     await expect(reconcileLinkedNativeDeliverySuffix({
       plan,
-      before: { revision: 2, value: reserved.state },
-      landed: { revision: 2, value: landed },
+      before: { revision: 3, value: submitted.state },
+      landed: { revision: 3, value: landed },
       repository: "o/r",
       protectedTargetRef: "refs/heads/delivery-target",
     }, {
@@ -1095,206 +1167,7 @@ describe("native delivery landing", () => {
       stateStore,
     })).resolves.toMatchObject({ status: "applied", state: { value: { activeOperation: null } } });
     expect(proof).toHaveBeenCalledOnce();
-    expect(stateStore.publish).toHaveBeenCalledOnce();
-  });
-
-  it("observes and reconciles every member in the rewritten remaining suffix", async () => {
-    const suffixPlan = deliveryFourMemberStackPlanFixture();
-    const initial = deliveryStateFixture(suffixPlan);
-    const bound = {
-      ...initial,
-      members: initial.members.map((member, index) => ({
-        ...member,
-        coordinates: member.coordinates === null ? null : {
-          ...member.coordinates,
-          base: index === 0
-            ? initial.target!.coordinates!.head
-            : initial.members[index - 1]!.coordinates!.head,
-        },
-        changeRequest: { providerId: "github", changeRequestId: String(41 + index) },
-      })),
-    };
-    const first = bound.members[0]!;
-    const beforeSnapshot = { target: bound.target, members: [first] };
-    const reserved = reserveDeliveryOperation({ revision: 1, value: bound }, suffixPlan, {
-      operationId: "operation-1",
-      kind: "land",
-      mode: "native",
-      nativeArm: "linked-single",
-      affectedDeliverableIds: [first.deliverableId],
-      expectedStateRevision: 1,
-      before: beforeSnapshot,
-      requested: beforeSnapshot,
-      effect: {
-        providerId: "github",
-        repository: "o/r",
-        changeRequestId: "41",
-        headSha: first.coordinates!.head,
-        baseRef: "delivery-target",
-        targetRef: "refs/heads/delivery-target",
-        strategy: "merge", mergePolicy: mergePolicy("o/r"),
-      },
-    });
-    if (reserved.status !== "reserved") throw new Error("fixture reservation failed");
-    const newTarget = { head: "d".repeat(40), tree: "e".repeat(40) };
-    const landed = {
-      ...bound,
-      target: { ref: "refs/heads/delivery-target", coordinates: newTarget },
-      members: bound.members.map((member, index) => index === 0 ? ({
-        ...member,
-        coordinates: { base: member.coordinates!.base, head: newTarget.head, tree: newTarget.tree },
-      }) : member),
-      activeOperation: null,
-    };
-    const movedByRef = new Map([
-      ["refs/heads/member-2", { head: "a".repeat(40), tree: "b".repeat(40) }],
-      ["refs/heads/member-3", { head: "c".repeat(40), tree: "f".repeat(40) }],
-    ]);
-    const reconcileInput = {
-      plan: suffixPlan,
-      before: { revision: 2, value: reserved.state },
-      landed: { revision: 2, value: landed },
-      repository: "o/r",
-      protectedTargetRef: "refs/heads/delivery-target",
-    };
-    const observeRequest = async (binding: NonNullable<typeof bound.members[number]["changeRequest"]>) => {
-      const index = Number(binding.changeRequestId) - 41;
-      const moved = movedByRef.get(`refs/heads/member-${index + 1}`);
-      return moved === undefined ? { status: "absent" as const } : {
-        status: "observed" as const,
-        request: {
-          binding,
-          repository: "o/r",
-          headRepository: "o/r",
-          headRef: `member-${index + 1}`,
-          headSha: moved.head,
-          baseRef: index === 1 ? "delivery-target" : `member-${index}`,
-          state: "open" as const,
-          draft: false,
-        },
-      };
-    };
-    const observeRef = async (ref: string) => movedByRef.get(ref) ?? null;
-    const provedHeads = new Set<string>();
-    const absorbedTop = { head: "9".repeat(40), tree: "8".repeat(40) };
-    let topPublished = false;
-    let publishCount = 0;
-    const localHeads = new Map(bound.members.slice(1, -1).map((member) => [
-      member.ref!, member.coordinates!.head,
-    ]));
-
-    const result = await reconcileLinkedNativeDeliverySuffix(reconcileInput, {
-      observeRequest,
-      observeRef,
-      proveContribution: async (endpoints) => {
-        const valid = endpoints.after.member.head === "a".repeat(40)
-          ? endpoints.after.predecessor.head === newTarget.head
-          : endpoints.after.member.head === "c".repeat(40)
-            && endpoints.after.predecessor.head === "a".repeat(40);
-        if (valid) provedHeads.add(endpoints.after.member.head);
-        return valid
-          ? { status: "accepted" as const, proof: "mechanical-reapply" as const }
-          : { status: "refused" as const, reason: "contribution-diverged" as const, paths: ["unexpected"] };
-      },
-      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
-      absorbTop: async (input) => provedHeads.size === 2
-        && input.top.head === bound.members[3]!.coordinates!.head
-        && input.highestMember.head === "c".repeat(40)
-        ? { status: "absorbed" as const, ...absorbedTop }
-        : { status: "refused" as const, reason: "coordinate-invalid" as const },
-      publishTop: async (input) => {
-        if (input.ref !== "refs/heads/member-4"
-          || input.beforeHead !== bound.members[3]!.coordinates!.head
-          || input.requestedHead !== absorbedTop.head) {
-          return { status: "refused" as const, reason: "collision" as const };
-        }
-        topPublished = true;
-        return { status: "published" as const };
-      },
-      rewriteLocalRef: async ({ ref, beforeHead, requestedHead }) => {
-        const current = localHeads.get(ref);
-        if (current === requestedHead) return { status: "adopted" as const };
-        if (current !== beforeHead) return { status: "refused" as const };
-        localHeads.set(ref, requestedHead);
-        return { status: "rewritten" as const };
-      },
-      stateStore: { publish: async (_id, value, expectedRevision) => {
-        publishCount += 1;
-        if (publishCount > 1 || provedHeads.size !== 2 || !topPublished || expectedRevision !== 2) {
-          return { status: "refused" as const, reason: "version-conflict" as const };
-        }
-        return { status: "ok" as const, value: { revision: 3, value } };
-      } },
-    });
-
-    expect(result).toMatchObject({
-      status: "applied",
-      state: {
-        revision: 3,
-        value: {
-          members: [
-            {},
-            { coordinates: { base: newTarget.head, head: "a".repeat(40), tree: "b".repeat(40) } },
-            { coordinates: { base: "a".repeat(40), head: "c".repeat(40), tree: "f".repeat(40) } },
-            { coordinates: { base: "c".repeat(40), ...absorbedTop } },
-          ],
-        },
-      },
-    });
-    expect(publishCount).toBe(1);
-    expect([...localHeads.values()]).toEqual(["a".repeat(40), "c".repeat(40)]);
-
-    const rewriteLocalRef = vi.fn();
-    const absorbTop = vi.fn();
-    const publishTop = vi.fn();
-    const publishState = vi.fn();
-    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
-      observeRequest,
-      observeRef,
-      proveContribution: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
-      observeMemberRefCheckouts: async (refs) => ({
-        status: "observed",
-        checkouts: [{ ref: refs[0]!, path: "/tmp/checked-out-member" }],
-      }),
-      absorbTop,
-      publishTop,
-      rewriteLocalRef,
-      stateStore: { publish: publishState },
-    })).resolves.toEqual({
-      status: "blocked",
-      reason: "member-ref-checked-out",
-      paths: ["/tmp/checked-out-member"],
-      recommendedActionText:
-        "Keep the reservation and release the listed member-ref checkouts before retrying settlement.",
-    });
-    expect(rewriteLocalRef).not.toHaveBeenCalled();
-    expect(absorbTop).not.toHaveBeenCalled();
-    expect(publishTop).not.toHaveBeenCalled();
-    expect(publishState).not.toHaveBeenCalled();
-
-    await expect(reconcileLinkedNativeDeliverySuffix(reconcileInput, {
-      observeRequest,
-      observeRef,
-      proveContribution: async (endpoints) => endpoints.after.member.head === "c".repeat(40)
-        ? {
-            status: "refused",
-            reason: "contribution-conflicted",
-            paths: ["src/conflict.ts"],
-          }
-        : { status: "accepted", proof: "mechanical-reapply" },
-      observeMemberRefCheckouts: async () => ({ status: "observed", checkouts: [] }),
-      absorbTop: async () => { throw new Error("rejected suffix reached top absorption"); },
-      publishTop: async () => { throw new Error("rejected suffix reached top publication"); },
-      rewriteLocalRef: async () => { throw new Error("rejected suffix reached local ref rewrite"); },
-      stateStore: {
-        publish: async () => { throw new Error("rejected suffix reached state publication"); },
-      },
-    })).resolves.toEqual({
-      status: "blocked",
-      reason: "contribution-conflicted",
-      paths: ["src/conflict.ts"],
-      guidance:
-        "Resolve the listed suffix paths, then rerun `arc delivery native land-status` before new-head review.",
-    });
+    // Three: the member record before the rewrite loop, the absorbed top's own record, then the settle.
+    expect(stateStore.publish).toHaveBeenCalledTimes(3);
   });
 });

@@ -14,6 +14,7 @@ import {
   type FrontlineAdmission,
 } from "../core/frontline-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { BoundFrontlineResponseBinding } from "../core/frontline-response-binding.js";
 import {
   FrontlineRunStateSchema,
   type FrontlineRunState,
@@ -40,6 +41,7 @@ const TimestampSchema = z.iso.datetime({ offset: true });
 
 export interface FrontlineRunBindingInput {
   admission: FrontlineAdmission;
+  responseBinding?: BoundFrontlineResponseBinding;
 }
 
 interface FrontlineRunBinding {
@@ -48,6 +50,31 @@ interface FrontlineRunBinding {
   source: FrontlineSourceDescriptor;
   operationId: string;
   sourceBindingId: string;
+  responseBinding?: BoundFrontlineResponseBinding;
+}
+
+/**
+ * Bind the executable source and optional Candidate/member response authority as one identity.
+ *
+ * @param sourceInput - The normalized frontline source selected for the run.
+ * @param responseBinding - Candidate/member authority retained by pre-publication, when present.
+ * @returns The canonical source-binding digest used by operation state and response validation.
+ */
+export function computeFrontlineSourceBindingId(
+  sourceInput: FrontlineSourceDescriptor,
+  responseBinding?: BoundFrontlineResponseBinding,
+): string {
+  const source = FrontlineSourceDescriptorSchema.parse(sourceInput);
+  return canonicalDigest(responseBinding === undefined
+    ? {
+        domain: "arc.review-gate.frontline-source-binding/v1",
+        source,
+      }
+    : {
+        domain: "arc.review-gate.frontline-source-binding/v1",
+        source,
+        responseBinding,
+      });
 }
 
 export type FrontlineRunResolution =
@@ -56,6 +83,7 @@ export type FrontlineRunResolution =
       operationId: string;
       expectedVersion: number;
       invalidatedBy: Array<"policy" | "source-binding">;
+      priorState?: FrontlineRunState;
     }
   | {
       action: "reuse";
@@ -77,11 +105,9 @@ function bindFrontlineRun(input: FrontlineRunBindingInput): FrontlineRunBinding 
   const target = admission.target;
   const source = FrontlineSourceDescriptorSchema.parse(admission.frontlineReview.source);
   const operationId = admission.operationId;
-  const sourceBindingId = canonicalDigest({
-    domain: "arc.review-gate.frontline-source-binding/v1",
-    source,
-  });
-  return { admission, target, source, operationId, sourceBindingId };
+  const sourceBindingId = computeFrontlineSourceBindingId(source, input.responseBinding);
+  return { admission, target, source, operationId, sourceBindingId,
+    ...(input.responseBinding === undefined ? {} : { responseBinding: input.responseBinding }) };
 }
 
 /** Resolve whether an exact frontline run may reuse durable operational state. */
@@ -102,6 +128,7 @@ export async function resolveFrontlineRun(
     || canonicalize(current.state.lineage) !== canonicalize(binding.admission.lineage)
     || current.state.logicalPass !== binding.admission.logicalPass
     || current.state.retryGeneration !== binding.admission.retryGeneration
+    || canonicalize(current.state.responseBinding ?? null) !== canonicalize(binding.responseBinding ?? null)
   ) {
     return { action: "blocked", operationId: binding.operationId, reason: "operation-identity-conflict" };
   }
@@ -139,6 +166,7 @@ function createFrontlineRunState(
     outcome,
     policyVersion: binding.admission.policyVersion,
     sourceBindingId: binding.sourceBindingId,
+    ...(binding.responseBinding === undefined ? {} : { responseBinding: binding.responseBinding }),
   });
 }
 
@@ -197,6 +225,7 @@ export interface FrontlineRunExecutionDependencies {
 
 export interface FrontlineRunExecutionInput extends FrontlineRunBindingInput {
   lockWaitMs: number;
+  retryOfOperationId?: string;
 }
 
 /** Stable corruption failure for a completion claim without its exact durable outcome. */
@@ -206,6 +235,29 @@ export class FrontlineOperationCorruptStateError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "FrontlineOperationCorruptStateError";
+  }
+}
+
+/** A provider effect may have started, so replay needs an explicit new request. */
+export class FrontlineOperationUncertainError extends Error {
+  readonly code = "uncertain-provider-execution" as const;
+
+  constructor(operationId: string) {
+    super(
+      `Frontline operation '${operationId}' has no completed outcome. The provider may have started; `
+      + `inspect it before submitting a new request with retryOfOperationId: '${operationId}'.`,
+    );
+    this.name = "FrontlineOperationUncertainError";
+  }
+}
+
+/** A requested new review does not bind one eligible prior exact operation. */
+export class FrontlineOperationRetryError extends Error {
+  readonly code = "invalid-input" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "FrontlineOperationRetryError";
   }
 }
 
@@ -225,11 +277,39 @@ type FrontlineRunTerminal = {
   outcome: FrontlineExecutionOutcome;
 };
 
+function matchesPriorOutcomeBinding(
+  record: FrontlineOutcomeRecord,
+  state: FrontlineRunState,
+): boolean {
+  return computeFrontlineSourceBindingId(record.outcome.source, record.responseBinding)
+      === state.sourceBindingId
+    && record.outcome.source.sourceId === state.sourceIdentity
+    && canonicalize(record.responseBinding ?? null) === canonicalize(state.responseBinding ?? null);
+}
+
+function matchesRunOutcomeBinding(
+  record: FrontlineOutcomeRecord,
+  input: FrontlineRunExecutionInput,
+  operationId: string,
+  priorState?: FrontlineRunState,
+): boolean {
+  return record.operationId === operationId
+    && record.repositoryId === input.admission.target.repositoryId
+    && record.sourceIdentity === input.admission.frontlineReview.source?.sourceId
+    && canonicalize(record.outcome.target) === canonicalize(input.admission.target)
+    && canonicalize(record.outcome.source) === canonicalize(input.admission.frontlineReview.source)
+    && record.outcome.pass === input.admission.logicalPass
+    && record.outcome.maxPasses === input.admission.maxPasses
+    && canonicalize(record.responseBinding ?? null) === canonicalize(input.responseBinding ?? null)
+    && (priorState === undefined || matchesPriorOutcomeBinding(record, priorState));
+}
+
 async function readBoundOutcome(
   store: FrontlineOutcomeStore,
   input: FrontlineRunExecutionInput,
   operationId: string,
   required: boolean,
+  priorState?: FrontlineRunState,
 ): Promise<BoundPersistedOutcome | null> {
   let persisted: Awaited<ReturnType<FrontlineOutcomeStore["readOutcome"]>>;
   try {
@@ -258,15 +338,7 @@ async function readBoundOutcome(
       `frontline outcome '${operationId}' is malformed`,
     );
   }
-  if (
-    record.operationId !== operationId
-    || record.repositoryId !== input.admission.target.repositoryId
-    || record.sourceIdentity !== input.admission.frontlineReview.source?.sourceId
-    || canonicalize(record.outcome.target) !== canonicalize(input.admission.target)
-    || canonicalize(record.outcome.source) !== canonicalize(input.admission.frontlineReview.source)
-    || record.outcome.pass !== input.admission.logicalPass
-    || record.outcome.maxPasses !== input.admission.maxPasses
-  ) {
+  if (!matchesRunOutcomeBinding(record, input, operationId, priorState)) {
     throw new FrontlineOperationCorruptStateError(
       `frontline outcome '${operationId}' does not match its operation binding`,
     );
@@ -276,6 +348,52 @@ async function readBoundOutcome(
     record,
     outcomeRef: persisted.outcomeRef,
   };
+}
+
+function priorRetryMatches(
+  prior: FrontlineRunState | null,
+  binding: FrontlineRunBinding,
+  priorOperationId: string,
+): prior is FrontlineRunState {
+  return priorOperationId !== binding.operationId
+    && prior?.kind === "frontline-run"
+    && prior.repositoryId === binding.target.repositoryId
+    && prior.targetId === binding.target.targetId
+    && canonicalize(prior.lineage) === canonicalize(binding.admission.lineage)
+    && prior.logicalPass === binding.admission.logicalPass
+    && prior.retryGeneration < binding.admission.retryGeneration;
+}
+
+async function validateExplicitRetry(
+  dependencies: FrontlineRunExecutionDependencies,
+  input: FrontlineRunExecutionInput,
+  binding: FrontlineRunBinding,
+): Promise<void> {
+  if (input.retryOfOperationId === undefined) return;
+  const prior = await dependencies.operationStore.readOperation(input.retryOfOperationId);
+  const priorState = prior.state?.kind === "frontline-run" ? prior.state : null;
+  if (!priorRetryMatches(priorState,
+    binding, input.retryOfOperationId)) {
+    throw new FrontlineOperationRetryError("retry does not bind an earlier exact admitted operation");
+  }
+  if (priorState.outcome === "clean" || priorState.outcome === "findings") {
+    throw new FrontlineOperationRetryError("retry requires an inconclusive prior operation");
+  }
+  if (priorState.outcome !== "pending") return;
+  const priorOutcome = await dependencies.outcomeStore.readOutcome(input.retryOfOperationId);
+  if (priorOutcome.record === null) return;
+  const record = FrontlineOutcomeRecordSchema.parse(priorOutcome.record);
+  if (record.operationId !== input.retryOfOperationId
+    || record.outcome.target.targetId !== priorState.targetId
+    || record.outcome.pass !== priorState.logicalPass
+    || !matchesPriorOutcomeBinding(record, priorState)) {
+    throw new FrontlineOperationCorruptStateError("prior frontline outcome does not match its admission");
+  }
+  await dependencies.operationStore.publishOperation(FrontlineRunStateSchema.parse({
+    ...priorState,
+    updatedAt: dependencies.now(),
+    outcome: record.outcome.outcome,
+  }), prior.version);
 }
 
 function terminalFromRecord(
@@ -322,6 +440,7 @@ async function executeAndPersistFrontlineRun(
     sourceIdentity: binding.source.sourceId,
     executableIdentity: executed.executableIdentity,
     outcome,
+    ...(input.responseBinding === undefined ? {} : { responseBinding: input.responseBinding }),
   });
   const currentOutcome = await dependencies.outcomeStore.readOutcome(operationId);
   const appended = await dependencies.outcomeStore.appendOutcome(record, currentOutcome.version);
@@ -350,6 +469,7 @@ export async function executeFrontlineRun(
   const binding = bindFrontlineRun(input);
   const operationId = binding.operationId;
   return await dependencies.withOperationLock(operationId, input.lockWaitMs, async () => {
+    await validateExplicitRetry(dependencies, input, binding);
     for (let retry = 0; retry < REVIEW_VERSION_RETRY_ATTEMPTS; retry += 1) {
       try {
         const resolution = await resolveFrontlineRun(dependencies.operationStore, input);
@@ -378,16 +498,11 @@ export async function executeFrontlineRun(
           input,
           resolution.operationId,
           resolution.state.outcome !== "pending",
+          resolution.state,
         );
         if (resolution.state.outcome === "pending") {
           if (persisted === null) {
-            return await executeAndPersistFrontlineRun(
-              dependencies,
-              input,
-              resolution.operationId,
-              resolution.version,
-              false,
-            );
+            throw new FrontlineOperationUncertainError(resolution.operationId);
           }
           const recovered = await persistFrontlineRunOutcome(dependencies.operationStore, {
             ...input,

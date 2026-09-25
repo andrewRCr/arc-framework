@@ -69,6 +69,10 @@ describe("one-shot TypeScript package scripts", () => {
     });
     expect(packageManifest.scripts).toMatchObject({
       "benchmark:session-envelope": "npm run build && node --import tsx __tests__/benchmarks/session-envelope-validation.ts",
+      "benchmark:test-cost": "node --import tsx src/scripts/measure-test-cost.ts",
+      "benchmark:test-cost:compare": "node --import tsx src/scripts/compare-test-cost.ts",
+      "benchmark:test-cost:normalize": "node --import tsx src/scripts/normalize-test-cost.ts",
+      "benchmark:test-cost:shards": "node --import tsx src/scripts/measure-e2e-shards.ts",
       "inventory:command-inputs": "node --import tsx src/scripts/render-command-input-inventory.ts",
     });
   });
@@ -110,5 +114,16 @@ describe("one-shot TypeScript package scripts", () => {
       stderr: expect.stringContaining("--output requires a path"),
     });
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
+  }, PROCESS_TIMEOUT_MS);
+
+  it("shows framework renderer usage before validating help as a Markdown path", async () => {
+    const result = await execute(npmExecutable, ["run", "-s", "render:framework", "--", "--help"], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+    });
+
+    expect(result.stdout).toContain("Usage: npm run render:framework -- <package-source.md>");
+    expect(result.stdout).toContain("packages/arc-framework/arc/");
+    expect(result.stderr).toBe("");
   }, PROCESS_TIMEOUT_MS);
 });

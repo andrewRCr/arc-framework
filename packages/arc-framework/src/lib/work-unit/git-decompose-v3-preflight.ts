@@ -18,15 +18,25 @@ export interface GitV3DecomposePreflightDependencies {
   readBlob(commit: string, path: string): Promise<Uint8Array | null>;
 }
 
+/** Stable Git-adapter refusals for rejected committed source conditions. */
+export type GitV3DecomposePreflightMismatch =
+  | "git-preflight:missing-base"
+  | "git-preflight:malformed-ref-list"
+  | "git-preflight:malformed-tree-entry"
+  | "git-preflight:missing-blob"
+  | "git-preflight:invalid-meta-encoding"
+  | "git-preflight:invalid-origin-meta"
+  | "git-preflight:unsupported-artifact";
+
 export type GitV3DecomposePreflightResult =
   | V3DecomposePreflightResult
-  | { status: "rejected"; reason: `git-preflight:${string}`; locus?: string };
+  | { status: "rejected"; reason: GitV3DecomposePreflightMismatch | "unexpected-error"; locus?: string };
 
 class GitV3DecomposePreflightRejection extends Error {
-  readonly reason: `git-preflight:${string}`;
+  readonly reason: GitV3DecomposePreflightMismatch;
   readonly locus: string;
 
-  constructor(reason: `git-preflight:${string}`, locus: string) {
+  constructor(reason: GitV3DecomposePreflightMismatch, locus: string) {
     super(reason);
     this.name = "GitV3DecomposePreflightRejection";
     this.reason = reason;
@@ -44,7 +54,10 @@ function parseTreeEntries(stdout: string): TreeEntry[] {
   return stdout.split("\0").filter(Boolean).map((entry) => {
     const match = /^(\d{6}) ([^ ]+) (.+)$/u.exec(entry);
     if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) {
-      throw new Error("malformed-tree-entry");
+      throw new GitV3DecomposePreflightRejection(
+        "git-preflight:malformed-tree-entry",
+        entry,
+      );
     }
     return { mode: match[1], kind: match[2], path: match[3] };
   });
@@ -63,6 +76,44 @@ function locationOf(path: string): V3DecomposeSourceMeta["location"] | null {
   return null;
 }
 
+/** Policy for invalid artifact objects encountered while reading one source snapshot. */
+export interface GitV3DecomposeTreeSnapshotOptions {
+  unsupportedArtifacts?: "reject" | "omit";
+}
+
+/**
+ * Test whether one tree path belongs to an origin's artifact group in its resolved directory.
+ *
+ * @param path - Repository-relative tree path
+ * @param sourceDirectory - Resolved directory containing the origin meta
+ * @param origin - Work-unit slug whose artifact group is selected
+ * @returns Whether the path is a source artifact, excluding the same-name cohort document
+ */
+export function isGitV3DecomposeSourceArtifactPath(
+  path: string,
+  sourceDirectory: string,
+  origin: string,
+): boolean {
+  const name = posix.basename(path);
+  return posix.dirname(path) === sourceDirectory
+    && name !== `cohort-${origin}.md`
+    && (
+      artifactMatcher(origin).test(name)
+      || v3PlanningDesignNames(origin).pairedSpec.includes(name)
+  );
+}
+
+function decodeGitV3MetaBytes(bytes: Uint8Array, path: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new GitV3DecomposePreflightRejection(
+      "git-preflight:invalid-meta-encoding",
+      path,
+    );
+  }
+}
+
 /**
  * Read one exact decomposition source snapshot from a pinned commit.
  *
@@ -70,6 +121,7 @@ function locationOf(path: string): V3DecomposeSourceMeta["location"] | null {
  * @param ref - Logical local ref bound to the snapshot
  * @param head - Exact commit object to read
  * @param origin - Retiring work-unit slug
+ * @param options - Unsupported artifact handling; omission requires a separate raw-object proof before use
  * @returns Complete metadata, artifact, and dependency facts from the pinned tree
  */
 export async function readGitV3DecomposeTreeSnapshot(
@@ -77,6 +129,7 @@ export async function readGitV3DecomposeTreeSnapshot(
   ref: string,
   head: string,
   origin: string,
+  options: GitV3DecomposeTreeSnapshotOptions = {},
 ): Promise<V3DecomposeTreeSnapshot> {
   const listing = await deps.exec("git", [
     "ls-tree",
@@ -100,11 +153,14 @@ export async function readGitV3DecomposeTreeSnapshot(
     const slug = slugFromMetaPath(entry.path);
     if (slug === null || entry.kind !== "blob") continue;
     const bytes = await deps.readBlob(head, entry.path);
-    if (bytes === null) throw new Error(`missing-blob:${entry.path}`);
+    if (bytes === null) {
+      throw new GitV3DecomposePreflightRejection("git-preflight:missing-blob", entry.path);
+    }
+    const content = decodeGitV3MetaBytes(bytes, entry.path);
     metaRecords.push({
       slug,
       path: entry.path,
-      record: parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(bytes)),
+      record: parseMetaRecord(content),
     });
   }
 
@@ -131,21 +187,21 @@ export async function readGitV3DecomposeTreeSnapshot(
 
   const sourceMeta = origins.length === 1 ? origins[0] : undefined;
   const sourceDir = sourceMeta === undefined ? null : posix.dirname(sourceMeta.path);
-  const matcher = artifactMatcher(origin);
-  const layeredDesignNames = new Set(v3PlanningDesignNames(origin).pairedSpec);
   const sourceArtifacts: V3DecomposeStoredArtifact[] = [];
   if (sourceDir !== null) {
     for (const entry of entries) {
-      const name = posix.basename(entry.path);
-      if (
-        posix.dirname(entry.path) !== sourceDir
-        || (!matcher.test(name) && !layeredDesignNames.has(name))
-      ) continue;
+      if (!isGitV3DecomposeSourceArtifactPath(entry.path, sourceDir, origin)) continue;
       if (entry.kind !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) {
-        throw new Error(`unsupported-artifact:${entry.path}`);
+        if (options.unsupportedArtifacts === "omit") continue;
+        throw new GitV3DecomposePreflightRejection(
+          "git-preflight:unsupported-artifact",
+          entry.path,
+        );
       }
       const bytes = await deps.readBlob(head, entry.path);
-      if (bytes === null) throw new Error(`missing-blob:${entry.path}`);
+      if (bytes === null) {
+        throw new GitV3DecomposePreflightRejection("git-preflight:missing-blob", entry.path);
+      }
       sourceArtifacts.push({
         path: entry.path,
         objectKind: "blob",
@@ -184,13 +240,21 @@ export async function createGitV3DecomposePreflight(
       "refs/heads",
     ], { cwd: deps.cwd });
     const tokens = refs.stdout.split("\0").map((token) => token.trim()).filter(Boolean);
-    if (tokens.length % 2 !== 0) throw new Error("malformed-ref-list");
+    if (tokens.length % 2 !== 0) {
+      throw new GitV3DecomposePreflightRejection(
+        "git-preflight:malformed-ref-list",
+        tokens.at(-1) ?? "refs/heads",
+      );
+    }
     const pairs: Array<{ ref: string; head: string }> = [];
     for (let index = 0; index < tokens.length; index += 2) {
       const ref = tokens[index];
       const head = tokens[index + 1];
       if (ref === undefined || head === undefined || !ref.startsWith("refs/heads/")) {
-        throw new Error("malformed-ref-list");
+        throw new GitV3DecomposePreflightRejection(
+          "git-preflight:malformed-ref-list",
+          ref ?? head ?? `refs.${index}`,
+        );
       }
       pairs.push({ ref, head });
     }
@@ -217,7 +281,8 @@ export async function createGitV3DecomposePreflight(
     }
     return {
       status: "rejected",
-      reason: `git-preflight:${error instanceof Error ? error.message : String(error)}`,
+      reason: "unexpected-error",
+      locus: error instanceof Error ? error.message : String(error),
     };
   }
 }

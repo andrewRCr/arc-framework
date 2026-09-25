@@ -33,10 +33,25 @@ import { canonicalDigest, canonicalize, createKernelRegistry } from "../lib/kern
 import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
+import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { resolveUserIdentity } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
+import {
+  REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID,
+  REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID,
+  REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID,
+  REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID,
+  REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID,
+  REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID,
+  REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID,
+  REVIEW_READINESS_REQUEST_SCHEMA_ID,
+  REVIEW_REDUCE_REQUEST_SCHEMA_ID,
+  REVIEW_RESOLVE_REQUEST_SCHEMA_ID,
+  REVIEW_RESPOND_REQUEST_SCHEMA_ID,
+  REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID,
+} from "../scripts/review-gate/request-command-schemas.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
   FrontlineResolveEnvelopeSchema,
@@ -69,6 +84,7 @@ import {
 } from "../scripts/review-gate/core/planning-grooming-command-schema.js";
 import {
   REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
+  FrontlineRunCommandRequestSchema,
   FrontlineRunRequestSchema,
   type FrontlineRunCommandRequest,
   type FrontlineRunRequest,
@@ -266,6 +282,7 @@ import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
 import { resolveActiveHostedReviewErrand } from "../scripts/review-gate/hosted/errand-authority.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
+  FrontlineRunCommandError,
   runFrontlineReviewCommand,
 } from "../scripts/review-gate/runtime/frontline-run-command.js";
 import { createLocalPrepareDependencies } from "../scripts/review-gate/runtime/local-prepare-composition.js";
@@ -322,12 +339,23 @@ import {
   ChecksAwaitCommandResultSchema,
   ChecksAwaitInputSchema,
   awaitRequiredChecks,
+  composeChecksAwaitFailureLogs,
   type ChecksAwaitResult,
 } from "../scripts/review-gate/checks-await.js";
 import { createGhRequiredChecksPort } from "../scripts/review-gate/hosts/github/checks-await.js";
 import {
+  retrieveFailedCheckLogs,
+  type FailedCheckLogsInput,
+  type FailedCheckLogsResult,
+} from "../scripts/review-gate/failed-check-logs.js";
+import { createGhFailedCheckLogsPort } from
+  "../scripts/review-gate/hosts/github/failed-check-logs.js";
+import { createLocalFailedCheckLogStore } from
+  "../scripts/review-gate/hosts/local/failed-check-logs.js";
+import {
   createReviewStatusPort,
   readRoutedObligation,
+  ReviewStatusWrongRouteError,
   resolveReviewStatusForWorkUnit,
 } from "../scripts/review-gate/status-composition.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
@@ -374,27 +402,30 @@ function reviewDiscoverableCommandInputSchema() {
 /** Request-source operand schema shared by the review handlers' own validation. */
 export const ReviewCommandInputSchema = reviewCommandInputSchema();
 
-/** Canonical paths of the review commands sharing the JSON request-source operand. */
-const REVIEW_JSON_COMMAND_PATHS = [
-  "review readiness",
+/**
+ * Canonical paths of the review commands sharing the JSON request-source operand without schema
+ * discovery. Empty while every review request root is registered; a new verb lands here until its
+ * request schema is registered and its path moves to the discoverable list below.
+ */
+const REVIEW_JSON_COMMAND_PATHS = [] as const;
+
+/** Schema-discoverable request boundaries; every review request root is registered. */
+export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
+  "review changeset resolve",
+  "review planning-grooming resolve",
+  "review frontline run",
   "review resolve",
-  "review frontline resolve",
-  "review hosted request",
   "review hosted await",
+  "review reduce",
+  "review respond",
+  "review hosted request",
+  "review readiness",
+  "review frontline resolve",
   "review hosted settle",
   "review local prepare",
   "review local attest",
   "review local resume",
-  "review respond",
-  "review reduce",
   "review terminus accept",
-] as const;
-
-/** Interim schema-discoverable request boundaries; the full family remains owned by P1 design. */
-export const REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS = [
-  "review chunking resolve",
-  "review planning-grooming resolve",
-  "review frontline run",
 ] as const;
 
 /** Syntax-owned exact-change input for the planning-lane classifier. */
@@ -458,13 +489,6 @@ export const ReviewStatusCliInputSchema = z.strictObject({
       message: "exactly one of --target or --work-unit is required",
     });
   }
-  if (input.source !== undefined && input.workUnit === undefined) {
-    context.addIssue({
-      code: "custom",
-      path: ["source"],
-      message: "--source requires --work-unit",
-    });
-  }
 });
 
 /** Syntax-owned input for the pre-publication review procedure. */
@@ -476,7 +500,6 @@ export const ReviewPrePublicationInputSchema = z.strictObject({
   lanes: z.string().trim().min(1, "A JSON lane-judgment file path, or - for stdin, is required.")
     .optional(),
   resume: z.string().regex(/^[A-Za-z0-9_-]+$/u).optional(),
-  json: z.literal(true),
 }).superRefine((input, context) => {
   if (input.changeSet === "-" && input.lanes === "-") {
     context.addIssue({ code: "custom", message: "Only one of --change-set and --lanes may read stdin." });
@@ -496,7 +519,6 @@ const reviewPrePublicationInputRegistration: CommandInputRegistration = {
     "option.change-set": "changeSet",
     "option.lanes": "lanes",
     "option.resume": "resume",
-    "option.json": "json",
   },
 };
 
@@ -547,7 +569,6 @@ export interface ReviewChangeRequestResolveOptions {
   headRef: string;
   headSha: string;
   requireRemote?: boolean;
-  json?: boolean;
 }
 
 export interface ReviewChangeRequestResolveHandlerDependencies {
@@ -641,7 +662,6 @@ export async function handleReviewChangeRequestResolve(
 }
 
 export interface ReviewMergeMethodResolveOptions {
-  json?: boolean;
   stackPosition?: string;
 }
 
@@ -732,7 +752,6 @@ export interface ReviewChecksAwaitOptions {
   headSha: string;
   timeoutMs: string;
   pollIntervalMs: string;
-  json?: boolean;
 }
 
 export interface ReviewStatusOptions {
@@ -741,7 +760,6 @@ export interface ReviewStatusOptions {
   ceilingOverride?: string;
   coverage?: HostedReviewCoverage;
   source?: string;
-  json?: boolean;
 }
 
 export interface ReviewStatusHandlerDependencies {
@@ -750,6 +768,72 @@ export interface ReviewStatusHandlerDependencies {
   resolveWorkUnit(cwd: string, input: ReviewStatusWorkUnitInput): Promise<ReviewStatusResult>;
   write(text: string): void;
   setExitCode(code: number): void;
+}
+
+type ParsedReviewStatusInput = z.infer<typeof ReviewStatusTargetInputSchema>
+  | z.infer<typeof ReviewStatusWorkUnitInputSchema>;
+
+function emitReviewStatusProjectFailure(
+  dependencies: ReviewStatusHandlerDependencies,
+  input: ParsedReviewStatusInput,
+): void {
+  const detail = "Review status must run inside an ARC project.";
+  dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+    schemaVersion: 1,
+    mode: "review-status",
+    target: "target" in input ? input.target : null,
+    requiredChecks: "unavailable",
+    routedObligation: { state: "blocked", detail },
+    currentBaseOid: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: "status-unavailable",
+    detail,
+    remedy: spineRemedy(
+      "Review status requires repository-local ARC state.",
+      "Change to the target ARC project, then re-run",
+      "target" in input
+        ? ["arc", "review", "status", "--target", JSON.stringify(input.target)]
+        : ["arc", "review", "status", "--work-unit", input.workUnitId],
+    ),
+  }))}\n`);
+  dependencies.setExitCode(1);
+}
+
+function emitReviewStatusResolutionFailure(
+  dependencies: ReviewStatusHandlerDependencies,
+  input: ParsedReviewStatusInput,
+  error: unknown,
+): void {
+  const wrongRoute = error instanceof ReviewStatusWrongRouteError;
+  const detail = error instanceof Error ? error.message : String(error);
+  dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
+    schemaVersion: 1,
+    mode: "review-status",
+    target: "target" in input ? input.target : null,
+    requiredChecks: "unavailable",
+    routedObligation: { state: "blocked", detail },
+    currentBaseOid: null,
+    state: "blocked",
+    nextAction: "stop",
+    reason: wrongRoute ? "wrong-route" : "status-unavailable",
+    detail,
+    remedy: wrongRoute
+      ? spineRemedy(
+        "The --work-unit route requires a current delivery status action.",
+        "For singleton review, use --target with the JSON targetRef from "
+          + "arc review change-request resolve; inspect its syntax with",
+        ["arc", "review", "status", "--help"],
+      )
+      : spineRemedy(
+        "Review status could not read its repository or host evidence.",
+        "Resolve the operational failure, then re-run",
+        "target" in input
+          ? ["arc", "review", "status", "--target", JSON.stringify(input.target)]
+          : ["arc", "review", "status", "--work-unit", input.workUnitId],
+      ),
+  }))}\n`);
+  dependencies.setExitCode(wrongRoute ? 64 : 1);
 }
 
 /** Resolve review, check, and base state for one opaque exact-target reference. */
@@ -795,6 +879,7 @@ export async function handleReviewStatus(
         target: decoded,
         ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
         ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+        ...(options.source === undefined ? {} : { sourceId: options.source }),
       })
     : ReviewStatusWorkUnitInputSchema.safeParse({
         workUnitId: options.workUnit,
@@ -827,27 +912,7 @@ export async function handleReviewStatus(
   }
   const cwd = dependencies.resolveRoot(process.cwd());
   if (cwd === null) {
-    const detail = "Review status must run inside an ARC project.";
-    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
-      schemaVersion: 1,
-      mode: "review-status",
-      target: "target" in parsed.data ? parsed.data.target : null,
-      requiredChecks: "unavailable",
-      routedObligation: { state: "blocked", detail },
-      currentBaseOid: null,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "status-unavailable",
-      detail,
-      remedy: spineRemedy(
-        "Review status requires repository-local ARC state.",
-        "Change to the target ARC project, then re-run",
-        "target" in parsed.data
-          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
-          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
-      ),
-    }))}\n`);
-    dependencies.setExitCode(1);
+    emitReviewStatusProjectFailure(dependencies, parsed.data);
     return;
   }
   try {
@@ -857,27 +922,7 @@ export async function handleReviewStatus(
         : dependencies.resolveWorkUnit(cwd, parsed.data)),
     ))}\n`);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    dependencies.write(`${JSON.stringify(ReviewStatusCommandResultSchema.parse({
-      schemaVersion: 1,
-      mode: "review-status",
-      target: "target" in parsed.data ? parsed.data.target : null,
-      requiredChecks: "unavailable",
-      routedObligation: { state: "blocked", detail },
-      currentBaseOid: null,
-      state: "blocked",
-      nextAction: "stop",
-      reason: "status-unavailable",
-      detail,
-      remedy: spineRemedy(
-        "Review status could not read its repository or host evidence.",
-        "Resolve the operational failure, then re-run",
-        "target" in parsed.data
-          ? ["arc", "review", "status", "--target", JSON.stringify(parsed.data.target), "--json"]
-          : ["arc", "review", "status", "--work-unit", parsed.data.workUnitId, "--json"],
-      ),
-    }))}\n`);
-    dependencies.setExitCode(1);
+    emitReviewStatusResolutionFailure(dependencies, parsed.data, error);
   }
 }
 
@@ -966,6 +1011,22 @@ export async function stageDeliveryReviewTerminusBoundary(input: {
   });
 }
 
+function completedReviewTerminusContext(
+  frame: Awaited<ReturnType<typeof runDerivedLocusStateProbe>>,
+  workUnitId: string,
+) {
+  const row = frame.entering.kind === "selected" ? frame.entering.row : null;
+  return row?.kind === "work-unit"
+    && row.lifecycleLocation === "completed"
+    && row.subject.kind === "work-unit"
+    && row.subject.key === workUnitId
+    && row.context !== null
+    && frame.active?.checkoutPath === row.checkout.path
+    && frame.active.subject.key === workUnitId
+    ? row.context
+    : null;
+}
+
 async function acceptDeliveryReviewTerminus(
   request: DeliveryReviewTerminusAcceptanceInput,
   root: string,
@@ -987,16 +1048,7 @@ async function acceptDeliveryReviewTerminus(
         baseBranch: settings["branch.base"],
         exec,
       });
-      const row = frame.entering.kind === "selected" ? frame.entering.row : null;
-      const completed = row?.kind === "work-unit"
-        && row.lifecycleLocation === "completed"
-        && row.subject.kind === "work-unit"
-        && row.subject.key === workUnitId
-        && row.context !== null
-        && frame.active?.checkoutPath === row.checkout.path
-        && frame.active.subject.key === workUnitId
-        ? row.context
-        : null;
+      const completed = completedReviewTerminusContext(frame, workUnitId);
       if (completed === null) return direct;
       if (completed.owner === null) {
         return { status: "refused" as const, reason: "The completed Work Unit has no Owner." };
@@ -1071,6 +1123,7 @@ export async function handleReviewTerminusAccept(
 
 export interface ReviewChecksAwaitHandlerDependencies {
   awaitChecks(input: z.infer<typeof ChecksAwaitInputSchema>): Promise<ChecksAwaitResult>;
+  retrieveFailureLogs(input: FailedCheckLogsInput): Promise<FailedCheckLogsResult>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
@@ -1081,10 +1134,17 @@ export async function handleReviewChecksAwait(
   overrides: Partial<ReviewChecksAwaitHandlerDependencies> = {},
 ): Promise<void> {
   const port = createGhRequiredChecksPort(hostedGhRunner);
+  const failedCheckLogsPort = createGhFailedCheckLogsPort(hostedGhRunner);
+  const failedCheckLogStore = createLocalFailedCheckLogStore();
   const dependencies: ReviewChecksAwaitHandlerDependencies = {
     awaitChecks: (input) => awaitRequiredChecks(input, {
       port,
       clock: { now: () => Date.now(), sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)) },
+    }),
+    retrieveFailureLogs: (input) => retrieveFailedCheckLogs(input, {
+      port: failedCheckLogsPort,
+      store: failedCheckLogStore,
+      signal: AbortSignal.timeout(60_000),
     }),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
@@ -1119,9 +1179,21 @@ export async function handleReviewChecksAwait(
     return;
   }
   try {
-    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(
-      await dependencies.awaitChecks(parsed.data),
-    ))}\n`);
+    const observation = await dependencies.awaitChecks(parsed.data);
+    let result = observation;
+    if (observation.state === "failed"
+      || ((observation.state === "pending" || observation.state === "unavailable")
+        && observation.diagnosticFailures.length > 0)) {
+      result = composeChecksAwaitFailureLogs(
+        observation,
+        await dependencies.retrieveFailureLogs({
+          repository: parsed.data.repository,
+          pullRequest: parsed.data.pullRequest,
+          headSha: parsed.data.headSha,
+        }),
+      );
+    }
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(result))}\n`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
@@ -1142,7 +1214,6 @@ export async function handleReviewChecksAwait(
           "--repository", parsed.data.repository,
           "--pull-request", String(parsed.data.pullRequest),
           "--head-sha", parsed.data.headSha,
-          "--json",
         ],
       ),
     }))}\n`);
@@ -1191,7 +1262,7 @@ export const reviewCommandInputPolicyDeclarations = [
     ],
   },
   {
-    commandPath: "review chunking resolve", aliases: [], sites: [declareInteractionSite(
+    commandPath: "review changeset resolve", aliases: [], sites: [declareInteractionSite(
       { file: "lib/change-facts.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
       {
         acquisition: "subprocess", schemaOwnership: "none", cancellation: "not-applicable",
@@ -1482,7 +1553,14 @@ function readinessBoundTo(
   root: string,
 ): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
-  return (request) => evaluateReviewReadiness(request, { deliveryMemberLookup });
+  // Pinned to the resolved root for the same reason the lookup is: the ancestry
+  // answer must come from the repository this composition root bound, never from
+  // whatever directory the process happens to be running in.
+  const rootExec: GitExec = (command, args, options) => gitExec(command, args, { ...options, cwd: root });
+  return (request) => evaluateReviewReadiness(request, {
+    deliveryMemberLookup,
+    readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
+  });
 }
 
 function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
@@ -2368,15 +2446,52 @@ function defaultFrontlineRunDependencies(context: InteractionContext): ReviewFro
     deriveRequest: async (request, root) => {
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const repositoryId = await resolveRepositoryIdentity(publisher);
-      return {
+      const target = await deriveLocalReviewTargetFromCoordinates({
+        exec,
+        cwd: root,
+        repositoryId,
+        coordinates: request.target,
+      });
+      if (request.responseBinding === undefined) {
+        return FrontlineRunCommandRequestSchema.parse({ ...request, target });
+      }
+      const composition = createPrePublicationCompositionDependencies({ cwd: root, exec });
+      const [candidate, delivery, candidateTarget] = await Promise.all([
+        composition.readCandidate(request.responseBinding.candidate.workUnit),
+        composition.readDeliveryReviewTargets(request.responseBinding.candidate.workUnit),
+        composition.deriveImmutableTarget(request.responseBinding.candidate.head),
+      ]);
+      const matchingMember = delivery.status === "composed"
+        ? delivery.targets.filter((member) => (
+            canonicalize(member.target) === canonicalize(target)
+            && sameDeliveryReviewMemberVehicle(member.vehicle, request.responseBinding?.deliveryMember)
+          ))
+        : [];
+      if (candidate.status !== "current"
+        || candidate.candidateId !== request.responseBinding.candidate.candidateId
+        || candidate.headSha !== request.responseBinding.candidate.head
+        || candidateTarget.status !== "resolved"
+        || candidateTarget.target.kind !== "change-set"
+        || candidateTarget.target.headSha !== candidate.headSha
+        || matchingMember.length !== 1) {
+        throw new FrontlineRunCommandError(
+          "Frontline response binding does not match the current Candidate and private delivery plan.",
+        );
+      }
+      const member = matchingMember[0];
+      if (member === undefined) throw new FrontlineRunCommandError("Frontline response binding is ambiguous.");
+      return FrontlineRunCommandRequestSchema.parse({
         ...request,
-        target: await deriveLocalReviewTargetFromCoordinates({
-          exec,
-          cwd: root,
-          repositoryId,
-          coordinates: request.target,
-        }),
-      };
+        target,
+        responseBinding: {
+          candidate: {
+            workUnit: request.responseBinding.candidate.workUnit,
+            candidateId: candidate.candidateId,
+            target: candidateTarget.target,
+          },
+          deliveryMember: member.vehicle,
+        },
+      });
     },
     run: (request, root) => runFrontlineReviewCommand(
       request,
@@ -2420,7 +2535,19 @@ export async function handleReviewFrontlineRun(
 export type ReviewPublicRequestSchemaId =
   | typeof REVIEW_CHUNKING_RESOLVE_REQUEST_SCHEMA_ID
   | typeof REVIEW_PLANNING_GROOMING_RESOLVE_REQUEST_SCHEMA_ID
-  | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID;
+  | typeof REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID
+  | typeof REVIEW_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID
+  | typeof REVIEW_REDUCE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_RESPOND_REQUEST_SCHEMA_ID
+  | typeof REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID
+  | typeof REVIEW_READINESS_REQUEST_SCHEMA_ID
+  | typeof REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID
+  | typeof REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID
+  | typeof REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID
+  | typeof REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID;
 
 /** Emit one public request root together with only the registry documents its refs require. */
 export function handleReviewRequestSchema(
@@ -2473,6 +2600,7 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
       return "clean-worktree" as const;
     case "non-commit-head":
       return "commit-head" as const;
+    case "ambiguous-merge-base":
     case "invalid-base":
     case "no-merge-base":
     case "unresolved-base":
@@ -2494,6 +2622,7 @@ function reviewCommandError(
     : phase === "request" && (error instanceof ZodError || error instanceof SyntaxError)
       ? "invalid-input"
       : stableCode === "invalid-input" || stableCode === "corrupt-state"
+        || stableCode === "uncertain-provider-execution"
         ? stableCode
         : stableCode !== null && DURABLE_CORRUPTION_CODES.has(stableCode)
           ? "corrupt-state"
@@ -3189,7 +3318,6 @@ export interface ReviewPrePublicationOptions {
   changeSet?: string;
   lanes?: string;
   resume?: string;
-  json?: boolean;
 }
 
 /** The caller's parsed judgment inputs, each absent unless its option named a source. */
@@ -3425,7 +3553,6 @@ export async function handleReviewPrePublication(
     ...(options.changeSet === undefined ? {} : { changeSet: options.changeSet }),
     ...(options.lanes === undefined ? {} : { lanes: options.lanes }),
     ...(options.resume === undefined ? {} : { resume: options.resume }),
-    json: options.json,
   });
   if (!input.success) {
     emitFailure(input.error, "request");
@@ -3578,22 +3705,26 @@ export async function handleReviewPrePublication(
       const replayLanes = envelope.locus === "candidate-fix-pending"
         ? consumeOwnerAcceptedTerminus(judgment.lanes)
         : judgment.lanes;
-      const frontlineCeilingOverrideApplied = envelope.policy?.state === "ready"
+      const frontlineReadyPolicy = envelope.policy?.state === "ready"
         && envelope.policy.nextAction === "run-frontline"
-        && envelope.policy.payload.ceilingOverrideApplied;
+        ? envelope.policy
+        : null;
+      const frontlineCeilingOverrideApplied = frontlineReadyPolicy?.payload.ceilingOverrideApplied ?? false;
+      const resumeCommand = buildPrePublicationResumeCommand({
+        workUnit: envelope.workUnit,
+        judgment,
+        replaySelfReview,
+        replayLanes,
+        currentFrontlineHeadSha,
+        frontlineCeilingOverrideApplied,
+      });
+      const nextAction = frontlineReadyPolicy !== null
+        && envelope.nextAction.kind === "continue-pre-publication-review"
+        ? { ...envelope.nextAction, resumeCommand }
+        : { ...envelope.nextAction, command: resumeCommand };
       envelope = PrePublicationReviewEnvelopeSchema.parse({
         ...envelope,
-        nextAction: {
-          ...envelope.nextAction,
-          command: buildPrePublicationResumeCommand({
-            workUnit: envelope.workUnit,
-            judgment,
-            replaySelfReview,
-            replayLanes,
-            currentFrontlineHeadSha,
-            frontlineCeilingOverrideApplied,
-          }),
-        },
+        nextAction,
       });
     }
     // The settled locus is where the durable publication boundary is written. Recording it here —

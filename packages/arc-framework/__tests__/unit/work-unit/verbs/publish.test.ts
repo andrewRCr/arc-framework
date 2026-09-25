@@ -263,7 +263,7 @@ describe("authorizeSubmission", () => {
         locus: "candidate-review-pending",
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: "arc review pre-publication foo --json",
+          command: "arc review pre-publication foo",
           interactionText: "Continue the open standard-review obligation.",
         },
         policy: null,
@@ -423,7 +423,7 @@ describe("runPublish — the set-phase-only move", () => {
     expect(result).toMatchObject({
       status: "rejected",
       reason: "Cannot publish `foo`: Submission boundary was written for different reviewable content.",
-      remedy: { argv: ["arc", "review", "pre-publication", "foo", "--json"] },
+      remedy: { argv: ["arc", "review", "pre-publication", "foo"] },
     });
     expect(calls).not.toContain("reconcile:prepare");
     expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);

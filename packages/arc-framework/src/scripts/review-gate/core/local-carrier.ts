@@ -48,6 +48,7 @@ export const LocalChangeSetCarrierInputSchema = z.strictObject({
   logicalPass: z.number().int().positive(),
   generation: z.number().int().nonnegative(),
   requestMechanism: ReviewIdentifierSchema,
+  errandClaimId: ReviewIdentifierSchema.optional(),
 });
 export type LocalChangeSetCarrierInput = z.infer<typeof LocalChangeSetCarrierInputSchema>;
 
@@ -97,7 +98,12 @@ export function createLocalChangeSetCarrier(
     repositoryId: target.repositoryId,
     targetId: target.targetId,
     requirementId: parsed.requirementId,
-    carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
+    carrier: {
+      kind: "local-change-set",
+      adapterId: "local",
+      changeRequestId: null,
+      ...(parsed.errandClaimId === undefined ? {} : { errandClaimId: parsed.errandClaimId }),
+    },
     authorIdentity: parsed.authorIdentity,
     evaluatorIdentity: parsed.evaluatorIdentity,
     lineageId: laneSubjectLineageId(parsed.lineage),

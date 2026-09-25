@@ -11,9 +11,14 @@ import {
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
 } from "./decompose-v3-preflight.js";
+import {
+  v3DecomposeByteEvidence,
+  type V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 import type { V3RepositoryPlanTree } from "./decompose-v3-repository-plan.js";
 import {
   decodeV3DecomposeCutMap,
+  type V3DecomposeCutMap,
   v3SourceArtifactDigest,
   v3SourceId,
 } from "./decompose-v3-schema.js";
@@ -28,7 +33,11 @@ export interface V3ExtractionSourceThinningInput {
 /** One source path's authenticated preimage and byte-preserving result. */
 export interface V3ExtractionSourceThinningFilePlan {
   path: string;
-  before: { mode: "100644" | "100755"; contentDigest: CanonicalDigest };
+  before: {
+    mode: "100644" | "100755";
+    contentDigest: CanonicalDigest;
+    byteLength: number;
+  };
   after:
     | { kind: "absent" }
     | { kind: "file"; mode: "100644" | "100755"; bytes: Uint8Array };
@@ -38,10 +47,24 @@ export interface V3ExtractionSourceThinningFilePlan {
 /** Closed pure planning result. */
 export type V3ExtractionSourceThinningResult =
   | { status: "planned"; files: V3ExtractionSourceThinningFilePlan[] }
-  | { status: "refused"; reason: string; locus?: string };
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
-function refuse(reason: string, locus?: string): V3ExtractionSourceThinningResult {
-  return { status: "refused", reason, ...(locus === undefined ? {} : { locus }) };
+function refuse(
+  reason: string,
+  locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
+): V3ExtractionSourceThinningResult {
+  return {
+    status: "refused",
+    reason,
+    ...(locus === undefined ? {} : { locus }),
+    ...(evidence === undefined ? {} : { evidence }),
+  };
 }
 
 function compareUtf8(left: string, right: string): number {
@@ -58,6 +81,24 @@ function concatenate(chunks: readonly Uint8Array[]): Uint8Array {
   return result;
 }
 
+function validateV3ExtractionThinningAuthority(
+  input: V3ExtractionSourceThinningInput,
+): { status: "validated"; map: V3DecomposeCutMap } | V3ExtractionSourceThinningResult {
+  const decoded = decodeV3DecomposeCutMap(input.completedMap);
+  if (decoded.status === "rejected") return refuse(`map:${decoded.issue.code}`, decoded.issue.path);
+  const map = decoded.value;
+  if (map.authoring.shape !== "extraction") return refuse("map:authoring-shape", "authoring.shape");
+  const binding = revalidateV3DecomposeCutMapBinding(map, input.currentPreflight);
+  if (binding.status === "stale") {
+    return refuse(`source-binding:${binding.reason}`, binding.locus, binding.evidence);
+  }
+  const inventoryDigest = v3SourceArtifactDigest(input.currentPreflight.sourceArtifactInventory);
+  if (inventoryDigest === null || inventoryDigest !== input.currentPreflight.sourceArtifactDigest) {
+    return refuse("source-inventory", "sourceArtifactInventory");
+  }
+  return { status: "validated", map };
+}
+
 /**
  * Plan exact source thinning without filesystem or Git mutation.
  *
@@ -67,16 +108,9 @@ function concatenate(chunks: readonly Uint8Array[]): Uint8Array {
 export function planV3ExtractionSourceThinning(
   input: V3ExtractionSourceThinningInput,
 ): V3ExtractionSourceThinningResult {
-  const decoded = decodeV3DecomposeCutMap(input.completedMap);
-  if (decoded.status === "rejected") return refuse("map", decoded.issue.path);
-  const map = decoded.value;
-  if (map.authoring.shape !== "extraction") return refuse("map-shape", "authoring.shape");
-  const binding = revalidateV3DecomposeCutMapBinding(map, input.currentPreflight);
-  if (binding.status === "stale") return refuse(`source-binding:${binding.reason}`, binding.locus);
-  const inventoryDigest = v3SourceArtifactDigest(input.currentPreflight.sourceArtifactInventory);
-  if (inventoryDigest === null || inventoryDigest !== input.currentPreflight.sourceArtifactDigest) {
-    return refuse("source-inventory", "sourceArtifactInventory");
-  }
+  const validation = validateV3ExtractionThinningAuthority(input);
+  if (validation.status !== "validated") return validation;
+  const { map } = validation;
 
   const sourceUnits = new Map(map.machine.sourceUnits.map((unit) => [unit.sourceId, unit]));
   const allocations = new Map(map.authoring.sourceAllocations.map((allocation) => [
@@ -97,10 +131,25 @@ export function planV3ExtractionSourceThinning(
     if (expected === undefined) return refuse("source-inventory", path);
     const observed = input.sourceTree[path];
     if (observed === undefined || observed.kind === "absent") return refuse("source-missing", path);
-    if (observed.objectKind !== "blob") return refuse("source-object", path);
+    if (observed.objectKind !== "blob") {
+      return refuse("source-object", path, {
+        expected: expected.objectKind,
+        actual: observed.objectKind,
+      });
+    }
     if ((observed.mode !== "100644" && observed.mode !== "100755")
-      || observed.mode !== expected.mode) return refuse("source-mode", path);
-    if (digestBytes(observed.bytes) !== expected.contentDigest) return refuse("source-bytes", path);
+      || observed.mode !== expected.mode) {
+      return refuse("source-mode", path, {
+        expected: expected.mode,
+        actual: observed.mode,
+      });
+    }
+    if (digestBytes(observed.bytes) !== expected.contentDigest) {
+      return refuse("source-bytes", path, {
+        expected: { contentDigest: expected.contentDigest },
+        actual: v3DecomposeByteEvidence(observed.bytes),
+      });
+    }
 
     const scan = scanV3DecomposeContent(posix.basename(path), observed.bytes);
     if (scan.status === "rejected") return refuse("source-scan", path);
@@ -120,7 +169,16 @@ export function planV3ExtractionSourceThinning(
         return refuse("source-allocation", path);
       }
       if (sourceUnit.sourcePath !== path || digestBytes(unit.bytes) !== sourceUnit.contentDigest) {
-        return refuse("source-unit", path);
+        return refuse("source-unit", path, {
+          expected: {
+            sourcePath: sourceUnit.sourcePath,
+            contentDigest: sourceUnit.contentDigest,
+          },
+          actual: {
+            sourcePath: path,
+            ...v3DecomposeByteEvidence(unit.bytes),
+          },
+        });
       }
       consumed.add(sourceId);
       if (allocation.disposition.kind === "retained-origin") {
@@ -133,7 +191,11 @@ export function planV3ExtractionSourceThinning(
     if (previousEnd !== observed.bytes.length) return refuse("source-range", path);
     files.push({
       path,
-      before: { mode: observed.mode, contentDigest: expected.contentDigest },
+      before: {
+        mode: observed.mode,
+        contentDigest: expected.contentDigest,
+        byteLength: observed.bytes.byteLength,
+      },
       after: retainedUnits === 0
         ? { kind: "absent" }
         : { kind: "file", mode: observed.mode, bytes: concatenate(retained) },

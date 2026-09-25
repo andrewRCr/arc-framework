@@ -97,8 +97,15 @@ import { createGitV3DecomposePreflight } from "../lib/work-unit/git-decompose-v3
 import {
   executeGitV3DecomposeCommand,
   executeGitV3ExtractionCommand,
+  GitV3DecomposeCommandRefusalSchema,
+  GitV3ExtractionCommandRefusalSchema,
 } from "../lib/work-unit/git-decompose-v3-operation.js";
 import { V3ExtractionFinishResultSchema } from "../lib/work-unit/decompose-v3-finish.js";
+import {
+  V3DecomposeCoreRefusalSchema,
+  v3DecomposeRemedy,
+  type V3DecomposeInvocation,
+} from "../lib/work-unit/decompose-v3-refusal.js";
 import { finishGitV3Extraction } from "../lib/work-unit/git-decompose-v3-finish.js";
 import { advanceGitDecomposeTransitionBase } from
   "../lib/work-unit/git-decompose-transition-base-advancement.js";
@@ -119,6 +126,11 @@ import {
 import { createInRepoTerminalTransitionRecordWriter } from "../lib/work-unit/terminal-transition-record-writer.js";
 import { isGitTransitionOriginOccupied } from "../lib/work-unit/git-transition-record-enumeration.js";
 import {
+  DECOMPOSE_MODE_KEYS,
+  decomposeOptionSelected,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
+import {
   resolveTransitionRecordPath,
   writeTransitionRecord,
 } from "../lib/work-unit/transition-record-store.js";
@@ -134,9 +146,11 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
-import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import { AttestResultSchema, runAttest, type AttestContext } from "../lib/work-unit/verbs/attest.js";
+import { CandidateVerificationEvidenceRefSchema } from
+  "../lib/work-unit/candidate-attestation.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
@@ -161,6 +175,8 @@ import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
   projectCorrectiveDeliveryStatusBoundary,
+  recoverAttestedOwnerTerminusBoundary,
+  type IntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
@@ -190,6 +206,12 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
+
+export {
+  DECOMPOSE_MACHINE_READABLE_KEYS,
+  DECOMPOSE_MODE_KEYS,
+  isDecomposeMachineReadableInvocation,
+} from "../lib/work-unit/decompose-command-routing.js";
 
 // ---------------------------------------------------------------------------
 // Shared dispatch shape — target resolution + candidate surfacing
@@ -441,6 +463,20 @@ function refuseWithRemedy(reason: string, remedy: SpineRemedy, json = false): vo
   refuse(`${reason}\n${remedy.text}`);
 }
 
+function emitV3DecomposeRefusal(
+  input: unknown,
+  mode: "preflight" | "execute" | "extract" | "finish" | "advance-base",
+): void {
+  const refusal = mode === "execute"
+    ? GitV3DecomposeCommandRefusalSchema.parse(input)
+    : mode === "extract"
+      ? GitV3ExtractionCommandRefusalSchema.parse(input)
+      : V3DecomposeCoreRefusalSchema.parse(input);
+  process.stdout.write(`${canonicalize(refusal)}\n`);
+  process.stderr.write(`${refusal.reason}\n${refusal.remedy.text}\n`);
+  process.exitCode = 1;
+}
+
 /** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
 function summarizePaths(paths: readonly string[], limit = 5): string {
   const shown = paths.slice(0, limit).map((path) => `\`${path}\``).join(", ");
@@ -516,35 +552,6 @@ export const DemoteCommandInputSchema = z.object({ slug: SlugSchema.optional() }
 const OptionalLifecycleTargetSchema = z.object({ slug: SlugSchema.optional() }).strict();
 
 /** Decomposition modes consumed by schema exclusivity and machine-readable routing. */
-export const DECOMPOSE_MODE_KEYS = [
-  "preflight",
-  "execute",
-  "extract",
-  "finish",
-  "advanceBase",
-] as const;
-
-/** Mode keys plus non-mode operands that still require machine-readable diagnostics. */
-export const DECOMPOSE_MACHINE_READABLE_KEYS = [
-  ...DECOMPOSE_MODE_KEYS,
-  "apply",
-] as const;
-
-type DecomposeRoutingOptions = Partial<Record<
-  typeof DECOMPOSE_MACHINE_READABLE_KEYS[number],
-  string | boolean
->>;
-
-function decomposeOptionSelected(options: DecomposeRoutingOptions, key: keyof DecomposeRoutingOptions): boolean {
-  const value = options[key];
-  return typeof value === "boolean" ? value : value !== undefined;
-}
-
-/** Whether a decomposition invocation must keep output and parse failures on machine-readable streams. */
-export function isDecomposeMachineReadableInvocation(options: DecomposeRoutingOptions): boolean {
-  return DECOMPOSE_MACHINE_READABLE_KEYS.some((key) => decomposeOptionSelected(options, key));
-}
-
 export const DecomposeCommandInputSchema = z.object({
   origin: SlugSchema,
   preflight: z.literal(true).optional(),
@@ -569,6 +576,41 @@ export const DecomposeCommandInputSchema = z.object({
     });
   }
 });
+
+function v3DecomposeInvocation(
+  input: z.infer<typeof DecomposeCommandInputSchema>,
+): V3DecomposeInvocation {
+  if (input.preflight === true) return { mode: "preflight", origin: input.origin };
+  if (input.execute !== undefined) {
+    return { mode: "execute", origin: input.origin, cutMapPath: input.execute };
+  }
+  if (input.extract !== undefined) {
+    return { mode: "extract", origin: input.origin, cutMapPath: input.extract };
+  }
+  if (input.finish !== undefined) {
+    return input.apply === undefined
+      ? { mode: "finish-preview", origin: input.origin, cutMapPath: input.finish }
+      : {
+          mode: "finish-apply",
+          origin: input.origin,
+          cutMapPath: input.finish,
+          applyAuthority: input.apply,
+        };
+  }
+  if (input.advanceBase !== undefined) {
+    return { mode: "advance-base", origin: input.origin, cutMapPath: input.advanceBase };
+  }
+  throw new Error("Validated decomposition input has no selected mode.");
+}
+
+function v3DecomposeEmissionMode(
+  invocation: V3DecomposeInvocation,
+): "preflight" | "execute" | "extract" | "finish" | "advance-base" {
+  return invocation.mode === "finish-preview" || invocation.mode === "finish-apply"
+    ? "finish"
+    : invocation.mode;
+}
+
 export const ParkCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
   reason: z.string().trim().min(1).optional(),
@@ -643,6 +685,8 @@ export const AttestCommandInputSchema = z.object({
   name: SlugSchema,
   json: z.boolean().optional(),
   newRoot: z.boolean().optional(),
+  scope: z.enum(["focused", "full"]).default("full"),
+  verificationEvidenceRef: CandidateVerificationEvidenceRefSchema.optional(),
   expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
 }).strict().superRefine((value, refinement) => {
@@ -782,6 +826,8 @@ export const lifecycleCommandInputRegistrations = [
       "operand.name": "name",
       "option.json": "json",
       "option.new-root": "newRoot",
+      "option.scope": "scope",
+      "option.verification-evidence-ref": "verificationEvidenceRef",
       "option.expected-candidate": "expectedCandidate",
       "option.expected-subject": "expectedSubject",
     },
@@ -985,6 +1031,8 @@ export async function handleDecompose(
     process.exitCode = 1;
     return;
   }
+  const invocation = v3DecomposeInvocation(parsed.data);
+  const emissionMode = v3DecomposeEmissionMode(invocation);
   try {
     const { settings, warnings } = await readConfigSettings(cwd);
     for (const warning of warnings) process.stderr.write(`${warning}\n`);
@@ -997,10 +1045,18 @@ export async function handleDecompose(
       }, settings["branch.base"], parsed.data.origin);
       if (result.status === "rejected") {
         const locus = "locus" in result ? result.locus : undefined;
-        process.stderr.write(
-          `${result.reason}${locus === undefined ? "" : `: ${locus}`}\n`,
-        );
-        process.exitCode = 1;
+        const evidence = "evidence" in result ? result.evidence : undefined;
+        emitV3DecomposeRefusal({
+          status: "refused",
+          reason: result.reason,
+          ...(locus === undefined ? {} : { locus }),
+          ...(evidence === undefined ? {} : { evidence }),
+          remedy: v3DecomposeRemedy({
+            invocation,
+            reason: result.reason,
+            ...(locus === undefined ? {} : { locus }),
+          }),
+        }, emissionMode);
         return;
       }
       process.stdout.write(`${canonicalize(result.preflight.starterMap)}\n`);
@@ -1023,20 +1079,19 @@ export async function handleDecompose(
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
     if (parsed.data.finish !== undefined) {
+      const applyAuthority = (parsed.data.apply ?? null) as `sha256:${string}` | null;
       const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
         cwd,
         baseBranch: settings["branch.base"],
         origin: parsed.data.origin,
         cutMapPath: parsed.data.finish,
-        applyAuthority: (parsed.data.apply ?? null) as `sha256:${string}` | null,
+        applyAuthority,
       }));
-      process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status === "refused") {
-        process.stderr.write(
-          `${result.reason}${result.locus === undefined ? "" : `: ${result.locus}`}\n`,
-        );
-        process.exitCode = 1;
+        emitV3DecomposeRefusal(result, emissionMode);
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
     if (parsed.data.execute !== undefined) {
@@ -1049,11 +1104,11 @@ export async function handleDecompose(
         origin: parsed.data.origin,
         cutMapPath: parsed.data.execute,
       });
-      process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status !== "staged") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
+        emitV3DecomposeRefusal(result, "execute");
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
     if (parsed.data.extract !== undefined) {
@@ -1066,11 +1121,11 @@ export async function handleDecompose(
         origin: parsed.data.origin,
         cutMapPath: parsed.data.extract,
       });
-      process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status !== "staged") {
-        process.stderr.write(`${result.reason}\n${result.remedy}\n`);
-        process.exitCode = 1;
+        emitV3DecomposeRefusal(result, "extract");
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
     if (parsed.data.advanceBase !== undefined) {
@@ -1089,16 +1144,33 @@ export async function handleDecompose(
             completedMap: decoded.value,
           })
         : { status: "refused" as const, reason: "map:invalid" };
-      process.stdout.write(`${canonicalize(result)}\n`);
       if (result.status === "refused") {
-        process.stderr.write(`${result.reason}\n`);
-        process.exitCode = 1;
+        emitV3DecomposeRefusal({
+          ...result,
+          remedy: v3DecomposeRemedy({
+            invocation,
+            reason: result.reason,
+            ...(result.locus === undefined ? {} : { locus: result.locus }),
+          }),
+        }, "advance-base");
+        return;
       }
+      process.stdout.write(`${canonicalize(result)}\n`);
       return;
     }
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
+    const detail = error instanceof Error ? error.message : String(error);
+    const locus = detail.trim() === "" ? undefined : detail;
+    emitV3DecomposeRefusal({
+      status: "refused",
+      reason: "unexpected-error",
+      ...(locus === undefined ? {} : { locus }),
+      remedy: v3DecomposeRemedy({
+        invocation,
+        reason: "unexpected-error",
+        ...(locus === undefined ? {} : { locus }),
+      }),
+    }, emissionMode);
   }
 }
 
@@ -1910,7 +1982,7 @@ export async function handlePublish(
       spineRemedy(
         "Submission requires a settled pre-publication boundary.",
         "Resolve the pre-publication lanes",
-        ["arc", "review", "pre-publication", target, "--json"],
+        ["arc", "review", "pre-publication", target],
       ),
       input.json === true,
     );
@@ -2597,11 +2669,31 @@ export async function handleFinalizeStage(
 export interface AttestOptions {
   json?: boolean;
   newRoot?: boolean;
+  scope?: "focused" | "full";
+  verificationEvidenceRef?: string;
   expectedCandidate?: string;
   expectedSubject?: string;
 }
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
+function convergenceResumeAfterAttest(
+  existingBoundary: IntegrationBoundaryLocus | null,
+  publication: Parameters<AttestContext["publish"]>[0],
+  boundaryMatches: boolean,
+): IntegrationBoundaryLocus | null {
+  if (existingBoundary === null || !boundaryMatches
+    || existingBoundary.locus !== "candidate-convergence-verification-pending") return null;
+  return projectCandidateReviewResumeBoundary({
+    workUnit: publication.name,
+    candidateId: publication.candidateId,
+    candidateSubjectDigest: publication.candidateSubjectDigest,
+    reservation: existingBoundary.reservation,
+    terminus: existingBoundary.terminus,
+    deliveryReviewTermini: existingBoundary.deliveryReviewTermini,
+    postAttestContinuation: existingBoundary.nextAction.postAttestContinuation,
+  });
+}
+
 export async function handleAttest(
   name: string | undefined,
   opts: AttestOptions,
@@ -2614,6 +2706,8 @@ export async function handleAttest(
       name: name?.trim(),
       json: opts.json,
       newRoot: opts.newRoot,
+      scope: opts.scope,
+      verificationEvidenceRef: opts.verificationEvidenceRef,
       expectedCandidate: opts.expectedCandidate,
       expectedSubject: opts.expectedSubject,
     },
@@ -2776,6 +2870,31 @@ export async function handleAttest(
     return;
   }
 
+  // Read here rather than inside attestation's own target dependency: every refusal attestation returns names
+  // a Candidate and the subject digest it was measured against, and a subject that was never collected has
+  // neither. What blocks it is the shape of the branch's history — the same kind of condition as the checks
+  // above, and like them it clears by hand and leaves the same command to re-run.
+  const subject = await collectGitCandidateSubject({
+    cwd: base.cwd,
+    name: input.name,
+    baseBranch: settings["branch.base"],
+    exec: base.io.exec,
+  });
+  if (subject.status !== "collected") {
+    refuseWithRemedy(
+      `\`arc attest\` cannot derive \`${input.name}\`'s subject from a single base `
+        + `(${subject.reason}): ${subject.detail}`,
+      spineRemedy(
+        "A Candidate attests what the branch contributes over one base, which a history leaving two equally "
+          + "good ancestors does not name.",
+        "Merge the configured base into the branch, then re-attest",
+        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+      ),
+      input.json === true,
+    );
+    return;
+  }
+
   let result: Awaited<ReturnType<typeof runAttest>>;
   try {
     result = await runAttest({
@@ -2783,12 +2902,7 @@ export async function handleAttest(
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
       readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
-      currentTarget: (slug) => collectGitCandidateTarget({
-        cwd: base.cwd,
-        name: slug,
-        baseBranch: settings["branch.base"],
-        exec: base.io.exec,
-      }),
+      currentTarget: () => Promise.resolve(subject.target),
       effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
         cwd: base.cwd,
         name: slug,
@@ -2842,20 +2956,15 @@ export async function handleAttest(
         const boundaryMatches = existingBoundary !== null
           && existingBoundary.candidateId === publication.candidateId
           && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
-        const convergenceResume = existingBoundary !== null
-          && boundaryMatches
-          && existingBoundary.locus === "candidate-convergence-verification-pending"
-          ? projectCandidateReviewResumeBoundary({
-              workUnit: publication.name,
-              candidateId: publication.candidateId,
-              candidateSubjectDigest: publication.candidateSubjectDigest,
-              reservation: existingBoundary.reservation,
-              terminus: existingBoundary.terminus,
-              deliveryReviewTermini: existingBoundary.deliveryReviewTermini,
-              postAttestContinuation: existingBoundary.nextAction.postAttestContinuation,
-            })
-          : null;
-        const locus = deliveryLocus ?? convergenceResume
+        const convergenceResume = convergenceResumeAfterAttest(existingBoundary, publication, boundaryMatches);
+        const ownerTerminusContinuation = recoverAttestedOwnerTerminusBoundary({
+          stored: existingBoundary,
+          workUnit: publication.name,
+          candidateId: publication.candidateId,
+          candidateSubjectDigest: publication.candidateSubjectDigest,
+          repairCurrent: publication.repairCurrent,
+        });
+        const locus = deliveryLocus ?? ownerTerminusContinuation ?? convergenceResume
           ?? (publication.repairCurrent && boundaryMatches
             ? existingBoundary
             : projectCandidateReviewBoundary({
@@ -2868,8 +2977,9 @@ export async function handleAttest(
         if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
           orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
         }
+        const nextAction = boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
         if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
-          orientation["Next Action"] = formatValue(publication.nextAction, "narrative");
+          orientation["Next Action"] = formatValue(nextAction, "narrative");
         }
         if (lastCompleted !== null && (!publication.repairCurrent || priorMeta.lastCompleted === null)) {
           orientation["Last Completed"] = formatValue(lastCompleted, "narrative");
@@ -2895,6 +3005,8 @@ export async function handleAttest(
       name: input.name,
       lifecycle: meta.state,
       newRoot: input.newRoot === true,
+      scope: input.scope,
+      verificationEvidenceRef: input.verificationEvidenceRef,
       ...(input.expectedCandidate === undefined || input.expectedSubject === undefined
         ? {}
         : {
@@ -2937,13 +3049,39 @@ export async function handleAttest(
   } else if (result.status === "blocked") {
     p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
   } else if (result.status === "refused") {
-    p.log.error(result.recommendedActionText);
+    if ("expected" in result) {
+      p.log.error([
+        result.recommendedActionText,
+        `Reason: ${result.reason}`,
+        `Expected Candidate: ${result.expected.candidateId}`,
+        `Observed Candidate: ${result.observed.candidateId ?? "[none]"}`,
+        `Expected Subject: ${result.expected.subjectDigest}`,
+        `Observed Subject: ${result.observed.subjectDigest}`,
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    } else {
+      p.log.error([
+        result.recommendedActionText,
+        `Candidate: ${result.candidateId ?? "[none]"}`,
+        `Subject: ${result.subjectDigest}`,
+        `Scope: ${result.requestedScope} requested; ${result.requiredScope} required`,
+        `Fresh evidence: ${result.verificationEvidenceProvided ? "supplied" : "missing"}`,
+        ...(result.nextAction.verificationEvidenceRequired
+          ? []
+          : [`Operation: ${result.nextAction.operation}`]),
+        `Next: ${result.nextAction.attestArgv.join(" ")}`,
+      ].join("\n"));
+    }
   } else {
     const lines = [
       `Work unit: ${result.locus.workUnit}`,
       `Candidate: ${result.locus.candidateId}`,
       `Locus:     ${result.locus.locus}`,
     ];
+    if ("operation" in result && result.operation === "convergence") {
+      lines.push(`Scope:     ${result.scope}`);
+      lines.push(`Evidence:  ${result.verificationEvidenceRef}`);
+    }
     p.note(lines.join("\n"), result.status === "unchanged" ? "Candidate unchanged" : "Candidate attested");
     p.outro("Done.");
   }

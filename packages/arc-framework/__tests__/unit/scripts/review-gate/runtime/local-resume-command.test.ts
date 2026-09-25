@@ -217,6 +217,7 @@ function localResult(
   }
   return {
     kind: "attested-local",
+    vehicle: records.operation.vehicle,
     producerId: records.operation.operationId,
     repositoryId: records.operation.repositoryId,
     target: records.operation.target,

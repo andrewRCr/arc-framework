@@ -52,8 +52,10 @@ export {
 
 export {
   resolveExecutionNextOffer,
+  resolveExecutionStartupOffer,
   type ExecutionNextOffer,
   type ExecutionOfferResolution,
+  type ExecutionStartupOfferResolution,
 } from "./execution-offer.js";
 
 export {

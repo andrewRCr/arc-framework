@@ -52,14 +52,21 @@ export async function readLocalReviewLiveContext(input: {
       meta,
     };
   }
-  const errands = projectTransientInFlightRead(
+  const transient = projectTransientInFlightRead(
     await readTransientInFlightIndexes({ exec: input.exec, identity: activeIdentity }),
-  ).indexes.slugByBranch;
+  );
+  if (!transient.complete) throw new Error(transient.degraded ?? "Transient identity is incomplete.");
+  const claims = transient.indexes.records.filter((record) => record.branch === branch);
+  if (claims.length > 1) throw new Error("Multiple transient identities claim the local review branch.");
+  const errand = claims[0];
+  const activeErrand = errand !== undefined && (errand.state === "open" || errand.state === "awaiting-merge")
+    ? errand
+    : null;
   return {
     context: {
       activeIdentity,
       workUnit: null,
-      errand: errands.has(branch) ? { identity: errands.get(branch) ?? "" } : null,
+      errand: activeErrand === null ? null : { identity: activeErrand.slug, claimId: activeErrand.claimId },
     },
     meta: null,
   };

@@ -62,6 +62,7 @@ export const ReviewCarrierSchema = z.discriminatedUnion("kind", [
     kind: z.literal("local-change-set"),
     adapterId: ReviewIdentifierSchema,
     changeRequestId: z.null(),
+    errandClaimId: ReviewIdentifierSchema.optional(),
   }),
 ]);
 export type ReviewCarrier = z.infer<typeof ReviewCarrierSchema>;

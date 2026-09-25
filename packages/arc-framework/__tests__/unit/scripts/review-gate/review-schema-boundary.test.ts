@@ -85,7 +85,7 @@ describe("review schema ownership boundary", () => {
 
   it("pins every handwritten validator importer to the schema-v1 compatibility boundary", () => {
     const importers = sourceFiles(join(sourceRoot, "scripts/review-gate"))
-      .filter((path) => /from\s+["'][^"']*validation\.js["']/u.test(readFileSync(path, "utf8")))
+      .filter((path) => /from\s+["'](?:[^"']*\/)?validation\.js["']/u.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path))
       .sort();
 

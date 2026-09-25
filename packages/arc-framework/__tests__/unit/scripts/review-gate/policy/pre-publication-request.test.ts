@@ -14,6 +14,8 @@ import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import { ApprovedDispositionRecordSchema } from
   "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
 import {
   approveDispositionState,
   createDispositionSet,
@@ -39,6 +41,16 @@ import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
 import { bindReviewSourceReference } from
   "../../../../../src/scripts/review-gate/core/review-source-reference.js";
+import {
+  ReviewOperationStateSchema,
+  type ReviewOperationState,
+} from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import type { ReviewOperationStateStore } from
+  "../../../../../src/scripts/review-gate/core/ports.js";
+import {
+  readLaneProgressAcrossLineage,
+  recordLaneAttempt,
+} from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createStandardReviewReservation } from
   "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -77,6 +89,7 @@ const currentCandidate: CandidateRead = {
   subjectDigest: `sha256:${"d".repeat(64)}`,
   implementationChanged: false,
   convergenceVerification: "satisfied",
+  convergenceScope: null,
   lineageHeadShas: [HEAD],
 };
 
@@ -378,7 +391,154 @@ function dependencies(
   };
 }
 
+function memoryOperationStore(): ReviewOperationStateStore {
+  const records = new Map<string, { version: number; state: ReviewOperationState }>();
+  return {
+    readOperation: async (operationId) => records.get(operationId) ?? { version: 0, state: null },
+    publishOperation: async (state, expectedVersion) => {
+      const current = records.get(state.operationId);
+      if ((current?.version ?? 0) !== expectedVersion) throw new Error("version-conflict");
+      records.set(state.operationId, {
+        version: expectedVersion + 1,
+        state: ReviewOperationStateSchema.parse(state),
+      });
+      return { version: expectedVersion + 1 };
+    },
+  };
+}
+
 describe("composePrePublicationReviewRequest", () => {
+  it("re-enters after a frontline timeout retry with one composable source attempt", async () => {
+    if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
+    const store = memoryOperationStore();
+    const sourceId = "coderabbit-cli";
+    const source = { sourceId, kind: "command" as const, executable: "coderabbit", argv: ["review"] };
+    const routingResolution = resolveReviewRouting({
+      schemaVersion: 1,
+      changeSetState: "unknown",
+      contentKind: "code-bearing",
+      reviewRisk: "routine",
+      changeDeterminacy: "ordinary",
+      ownership: "self",
+      surfaceAuthority: "ordinary",
+      assurance: resolvedAssurance.assurance,
+      activity: { selfReview: true, frontlineReview: true },
+    });
+    const admit = (retryGeneration: number) => createFrontlineAdmission({
+      lineage: { kind: "candidate", candidateId: CANDIDATE_ID },
+      target: immutableTarget.target,
+      routing: { facts: routingResolution.facts, decision: routingResolution.decision },
+      frontlineReview: {
+        schemaVersion: 1,
+        semanticsVersion: "frontline-review/v1",
+        action: "attempt",
+        reasons: ["routine-code"],
+        source,
+        maxPasses: 2,
+        promptText: "Review the aggregate candidate.",
+      },
+      logicalPass: 1,
+      retryGeneration,
+      maxPasses: 2,
+    });
+    const firstAdmission = admit(0);
+    const retryAdmission = admit(1);
+    const cleanResult: ReviewResult = {
+      kind: "frontline",
+      producerId: retryAdmission.operationId,
+      repositoryId: immutableTarget.target.repositoryId,
+      target: immutableTarget.target,
+      sourceIdentity: sourceId,
+      originalOutcome: "clean",
+      findings: [],
+      resultDigest: digest(retryAdmission.operationId),
+      admission: {
+        lineage: retryAdmission.lineage,
+        logicalPass: 1,
+        retryGeneration: 1,
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        scopeMode: "whole-target",
+        policyVersion: retryAdmission.policyVersion,
+      },
+      outcomeRef: `frontline/${retryAdmission.operationId}`,
+      sourceBindingId: digest(sourceId),
+      executableIdentity: null,
+      outcome: {
+        schemaVersion: 1,
+        semanticsVersion: "frontline-review/v1",
+        source,
+        target: immutableTarget.target,
+        pass: 1,
+        maxPasses: 2,
+        outcome: "clean",
+        findings: [],
+        reason: null,
+      },
+    };
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: immutableTarget.target.repositoryId,
+      changeRequestId: null,
+      headSha: immutableTarget.target.headSha,
+      lineage: firstAdmission.lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: firstAdmission.operationId,
+      sourceId,
+      outcome: "timed-out",
+      consumedPass: false,
+      chunkSeriesComplete: false,
+      frontline: { admission: firstAdmission, effectiveCoverage: null },
+      now: "2026-08-15T12:00:00Z",
+    });
+    await recordLaneAttempt(store, {
+      lane: "frontline",
+      repositoryId: immutableTarget.target.repositoryId,
+      changeRequestId: null,
+      headSha: immutableTarget.target.headSha,
+      lineage: retryAdmission.lineage,
+      logicalPass: 1,
+      retryGeneration: 1,
+      attemptId: retryAdmission.operationId,
+      sourceId,
+      outcome: "clean",
+      consumedPass: true,
+      chunkSeriesComplete: true,
+      frontline: { admission: retryAdmission, effectiveCoverage: "complete" },
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        ...evidenceDependencies([cleanResult]),
+        readAssurance: async () => ({
+          ...resolvedAssurance,
+          activity: { selfReview: true, frontlineReview: true },
+        }),
+        readLanePolicy: async (lane) => lane === "frontline"
+          ? { sources: [sourceId], maxPasses: 2 }
+          : { sources: ["codex-pr"], maxPasses: 2 },
+        readLaneProgress: async (lane, headSha, lineageHeadShas, lineage) =>
+          readLaneProgressAcrossLineage(store, {
+            lane,
+            repositoryId: immutableTarget.target.repositoryId,
+            headSha,
+            lineageHeadShas,
+            ...(lineage === undefined ? {} : { lineage }),
+          }),
+      }),
+    );
+
+    expect(composition.status, composition.status === "refused" ? composition.reason : undefined).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.frontline).toMatchObject({
+      completedPasses: 1,
+      attempts: [{ sourceId, outcome: "clean" }],
+    });
+  });
+
   it("recomposes the reviewed head while an approved Candidate fix awaits settlement", () => {
     const subject = createCandidateSubjectSnapshot([]);
     const attestation = createCandidateAttestation({
@@ -537,24 +697,24 @@ describe("composePrePublicationReviewRequest", () => {
     expect(rebound.request.standard.sources).toEqual(["coderabbit-pr", "codex-pr"]);
   });
 
-  it("reapplies an Owner terminus only to the exact Candidate subject that accepted it", async () => {
+  it("reapplies an Owner terminus only to the exact stored Candidate subject", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
 
-    const current = applyCarriedOwnerAcceptedTerminus(composition, {
+    const carried = applyCarriedOwnerAcceptedTerminus(composition, {
       candidateId: CANDIDATE_ID,
       candidateSubjectDigest: currentCandidate.status === "current" ? currentCandidate.subjectDigest : null,
       terminus: OWNER_TERMINUS,
     });
-    const changed = applyCarriedOwnerAcceptedTerminus(composition, {
+    const findingsAdvanced = applyCarriedOwnerAcceptedTerminus(composition, {
       candidateId: CANDIDATE_ID,
       candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
       terminus: OWNER_TERMINUS,
     });
 
-    expect(current.status).toBe("composed");
-    if (current.status !== "composed" || changed.status !== "composed") return;
-    expect(current.request.standard.terminus).toEqual(OWNER_TERMINUS);
-    expect(changed.request.standard).not.toHaveProperty("terminus");
+    expect(carried.status).toBe("composed");
+    if (carried.status !== "composed" || findingsAdvanced.status !== "composed") return;
+    expect(carried.request.standard.terminus).toEqual(OWNER_TERMINUS);
+    expect(findingsAdvanced.request.standard).not.toHaveProperty("terminus");
   });
 
   it("composes both lanes against one target with CLI-owned sources and ceilings", async () => {
@@ -589,7 +749,7 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.frontline.target).not.toHaveProperty("targetId");
   });
 
-  it("selects the first outstanding delivery member without deriving an aggregate target", async () => {
+  it("selects the first outstanding delivery member while retaining the root Candidate", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -652,12 +812,64 @@ describe("composePrePublicationReviewRequest", () => {
       headSha: second.target.headSha,
     });
     expect(composition.request.standard.target).toEqual(composition.request.frontline.target);
-    expect(deriveImmutableTarget).not.toHaveBeenCalled();
-    expect(readLaneProgress).toHaveBeenCalledWith("frontline", first.target.headSha, [first.target.headSha]);
-    expect(readLaneProgress).toHaveBeenCalledWith("frontline", second.target.headSha, [second.target.headSha]);
+    expect(composition.request.responseBinding).toEqual({
+      candidate: { workUnit: WORK_UNIT_ID, candidateId: CANDIDATE_ID, head: HEAD },
+      deliveryMember: second.vehicle,
+    });
+    expect(deriveImmutableTarget).toHaveBeenCalledOnce();
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", first.target.headSha, [first.target.headSha], {
+      kind: "delivery-member", planId: first.vehicle.planId,
+      deliverableId: first.vehicle.deliverableId, workUnitId: first.vehicle.workUnitId,
+    });
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", second.target.headSha, [second.target.headSha], {
+      kind: "delivery-member", planId: second.vehicle.planId,
+      deliverableId: second.vehicle.deliverableId, workUnitId: second.vehicle.workUnitId,
+    });
   });
 
-  it("retains the terminal member after every delivery-member Frontline result settles", async () => {
+  it("resumes a pending private-member fix whose reviewed head differs from the Candidate head", async () => {
+    const member = deliveryMemberTarget({
+      deliverableCharacter: "1",
+      baseCharacter: "2",
+      headCharacter: "3",
+    });
+    const readDeliveryReviewTargets = vi.fn();
+    const deriveImmutableTarget = vi.fn();
+    const readLaneProgress = vi.fn(async (lane: ReviewLane): Promise<LaneProgressProjection> => ({
+      status: "recorded",
+      completedPasses: lane === "frontline" ? 1 : 2,
+      completePasses: lane === "frontline" ? 1 : 2,
+      attempts: [],
+    }));
+    const composition = await composePrePublicationReviewRequest(
+      { workUnit: "example" },
+      dependencies({
+        readCandidate: async () => ({ ...currentCandidate, pendingReviewTarget: member.target }),
+        readDeliveryReviewTargets,
+        deriveImmutableTarget,
+        readLaneProgress,
+      }),
+    );
+
+    expect(composition.status).toBe("composed");
+    if (composition.status !== "composed") return;
+    expect(composition.request.target).toEqual(member.target);
+    expect(composition.request.frontline.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.standard.target.headSha).toBe(member.target.headSha);
+    expect(composition.request.frontline.completedPasses).toBe(1);
+    expect(composition.request.standard.completedPasses).toBe(2);
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", member.target.headSha, [member.target.headSha], {
+      kind: "candidate", candidateId: CANDIDATE_ID,
+    });
+    expect(readLaneProgress).toHaveBeenCalledWith("standard", member.target.headSha, [member.target.headSha], {
+      kind: "candidate", candidateId: CANDIDATE_ID,
+    });
+    expect(composition.request.responseBinding).toBeUndefined();
+    expect(readDeliveryReviewTargets).not.toHaveBeenCalled();
+    expect(deriveImmutableTarget).not.toHaveBeenCalled();
+  });
+
+  it("retains the terminal member after every delivery-member frontline result settles", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -724,7 +936,7 @@ describe("composePrePublicationReviewRequest", () => {
     });
   });
 
-  it("applies a Frontline ceiling override only to its bound outstanding delivery member", async () => {
+  it("applies a frontline ceiling override only to its bound outstanding delivery member", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -955,6 +1167,17 @@ describe("composePrePublicationReviewRequest", () => {
     // The caller's facts reached the reducer — an atomic code change set softens to `recommended`.
     expect(composition.request.standard.standardReview.obligation).toBe("recommended");
     // Its claims about the repository's own two facts did not: the fixture holds the inverse of both.
+    expect(composition.request.routingFacts).toEqual({
+      schemaVersion: 1,
+      changeSetState: "known",
+      contentKind: "code-bearing",
+      reviewRisk: "routine",
+      changeDeterminacy: "atomic",
+      ownership: "self",
+      surfaceAuthority: "ordinary",
+      assurance: resolvedAssurance.assurance,
+      activity: resolvedAssurance.activity,
+    });
     expect(composition.request.frontline.frontlineActive).toBe(false);
     expect(composition.request.selfReview).toBe("pending");
     expect(composition.advisories).toHaveLength(0);
@@ -1170,7 +1393,9 @@ describe("composePrePublicationReviewRequest", () => {
       }),
     );
 
-    expect(readLaneProgress).toHaveBeenCalledWith("frontline", HEAD, [HEAD]);
+    expect(readLaneProgress).toHaveBeenCalledWith("frontline", HEAD, [HEAD], {
+      kind: "candidate", candidateId: CANDIDATE_ID,
+    });
     expect(readLaneProgress).toHaveBeenCalledWith("standard", HEAD, [HEAD], {
       kind: "candidate",
       candidateId: CANDIDATE_ID,

@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { indexOfSoftWrappedProse, softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+
 const workflow = readFileSync(
   new URL("../../../arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md", import.meta.url),
   "utf8",
@@ -27,6 +29,21 @@ describe("decompose workflow contract", () => {
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
   });
 
+  it("defines one all-mode refusal envelope and preserves its actionable fields", () => {
+    expect(workflow.match(/Every selected mode emits one typed refusal envelope\s+on stdout\./gu)).toHaveLength(1);
+    expect(workflow).toMatch(
+      /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+    );
+    expect(workflow).toMatch(
+      new RegExp(
+        "Successful\\s+preflight writes the starter map alone; refusal follows the common envelope "
+          + "and never emits a\\s+partial starter map\\.",
+        "u",
+      ),
+    );
+    expect(workflow).not.toContain("Diagnostics use stderr; a refusal emits no partial map.");
+  });
+
   it("separates semantic distribution, advancement, and destructive finish interlocks", () => {
     const authoring = workflow.indexOf("## 4. Author every reported destination");
     const release = workflow.indexOf("## 6. Release through the reported protection arm");
@@ -44,7 +61,8 @@ describe("decompose workflow contract", () => {
     expect(interlocks[1]!.index).toBeLessThan(workflow.indexOf("`push-interlock`"));
     expect(interlocks[2]!.index).toBeGreaterThan(finishPreview);
     expect(interlocks[2]!.index).toBeLessThan(finishApply);
-    expect(workflow.slice(interlocks[2]!.index, finishApply)).toContain("explicit 'apply' direction");
+    expect(workflow.slice(interlocks[2]!.index, finishApply))
+      .toMatch(softWrappedProse("explicit 'apply' direction"));
     expect(workflow).toMatch(/This is destructive mutation confirmation, not a\s+second semantic/u);
   });
 
@@ -56,10 +74,64 @@ describe("decompose workflow contract", () => {
     expect(review).toContain("report.extraction.retainedOrigin");
     expect(review).toContain("report.extraction.reasonedDrops");
     expect(review).toContain("report.extraction.anchor");
-    expect(review).toContain("surviving origin as the natural continuation");
+    expect(review).toMatch(softWrappedProse("surviving origin as the natural continuation"));
     expect(review).toContain("never re-derive");
     expect(review.match(/`workflow-interlock`/gu)).toHaveLength(1);
-    expect(review).toContain("sole semantic distribution approval");
+    expect(review).toMatch(softWrappedProse("sole semantic distribution approval"));
+  });
+
+  it("carries companion allocation and provisional authoring through both workflow copies", () => {
+    for (const candidate of [workflow, projectWorkflow]) {
+      const mapStart = candidate.indexOf("## 2. Complete the operator-owned map");
+      const dispatchStart = candidate.indexOf("## 3. Dispatch the complete result");
+      const authorStart = candidate.indexOf("## 4. Author every reported destination");
+      const reviewStart = candidate.indexOf("## 5. Review the distributed result");
+      const map = candidate.slice(mapStart, dispatchStart);
+      const authoring = candidate.slice(authorStart, reviewStart);
+      const normalizedMap = map.replace(/\s+/gu, " ");
+      const normalizedAuthoring = authoring.replace(/\s+/gu, " ");
+
+      expect(normalizedMap).toContain("inventoried companion units");
+      expect(normalizedMap).toContain("task-list phases and notes sections");
+      expect(normalizedMap).toContain("same target or reasoned-drop dispositions as design units");
+      expect(normalizedMap).toContain("started-Planning companion allocation to `retained-origin`");
+      expect(normalizedMap).toContain("Active origins report no companion units");
+      expect(normalizedAuthoring).toContain("`provisional-task` and `provisional-notes`");
+      expect(normalizedAuthoring).toContain("whole retitled copies of the origin companions");
+      expect(normalizedAuthoring).toContain("prune them to their assigned content");
+      expect(normalizedAuthoring).toContain(
+        "manually transfer allocated content from every other companion",
+      );
+      expect(candidate).toMatch(
+        /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+      );
+    }
+  });
+
+  it("routes external-edge authoring without losing cumulative workflow guidance", () => {
+    for (const candidate of [workflow, projectWorkflow]) {
+      const refusalStart = candidate.indexOf("Use only CLI-reported paths, packets, statuses, and remedies");
+      const preconditionsStart = candidate.indexOf("## Preconditions");
+      const mapStart = candidate.indexOf("## 2. Complete the operator-owned map");
+      const dispatchStart = candidate.indexOf("## 3. Dispatch the complete result");
+      const refusal = candidate.slice(refusalStart, preconditionsStart).replace(/\s+/gu, " ");
+      const map = candidate.slice(mapStart, dispatchStart).replace(/\s+/gu, " ");
+
+      expect(refusalStart).toBeGreaterThan(-1);
+      expect(refusal).toContain("surface its status, reason, optional locus and evidence, remedy");
+      expect(refusal).toContain("Stop until the reported correction is complete");
+      expect(map).toContain("`externalEdges`");
+      expect(map).toContain("new member or live existing-home work unit");
+      expect(map).toContain("work unit outside the cut");
+      expect(map).toContain("`internalEdges`");
+      expect(map).toContain("`outgoingDispositions`");
+      expect(candidate).toContain("`provisional-task` and `provisional-notes`");
+      expect(candidate).toContain("manually transfer allocated content");
+      expect(candidate).toMatch(
+        /status, reason, optional locus and evidence, remedy, and any optional report\s+unchanged/u,
+      );
+      expect(candidate).not.toMatch(/\bnpx\s+arc\b/u);
+    }
   });
 
   it("re-stages and verifies the approved authored bytes before either release arm", () => {
@@ -72,7 +144,7 @@ describe("decompose workflow contract", () => {
     expect(staging).toBeLessThan(partial);
     expect(staging).toBeLessThan(full);
     expect(workflow).toContain("git diff --quiet -- <reported-release-paths>");
-    expect(workflow).toContain("including paths the command found already applied");
+    expect(workflow).toMatch(softWrappedProse("including paths the command found already applied"));
     expect(workflow).toContain("git diff --cached --name-only --no-renames");
     expect(workflow).not.toMatch(/git add -- (?:\.arc|\.|--all|-A)\b/u);
   });
@@ -99,7 +171,7 @@ describe("decompose workflow contract", () => {
       "arc teardown --branch <reported-candidate-branch>",
       "arc teardown <origin>",
     ]);
-    expect(workflow).toContain("profile and topology packets");
+    expect(workflow).toMatch(softWrappedProse("profile and topology packets"));
     expect(workflow).toContain("Retirement dispatch");
     expect(workflow).toContain("Extraction dispatch");
     for (const retired of ["--discard", "--finalize", "--continuation", "--handoff"]) {
@@ -134,13 +206,13 @@ describe("decompose workflow contract", () => {
       "PR status",
       "`integration-interlock`",
       "merge according to project policy",
-    ].map((control) => full.indexOf(control));
+    ].map((control) => indexOfSoftWrappedProse(full, control));
 
     expect(fullControls).not.toContain(-1);
     expect(fullControls).toEqual([...fullControls].sort((left, right) => left - right));
     expect(full).toContain("Retirement only");
-    expect(full).toContain("Extraction never invokes this operation");
-    expect(full).toContain("An `advanced` result fires the interlock below");
+    expect(full).toMatch(softWrappedProse("Extraction never invokes this operation"));
+    expect(full).toMatch(softWrappedProse("An `advanced` result fires the interlock below"));
     expect(full.match(/`workflowCommit`/gu)).toHaveLength(2);
     expect(full.match(/`commit-interlock`/gu)).toHaveLength(2);
   });
@@ -155,21 +227,20 @@ describe("decompose workflow contract", () => {
   });
 
   it("preserves extraction's no-record and ordinary-lifecycle boundary", () => {
-    expect(workflow).toContain("Extraction writes no transition record, recovery record, or receipt");
-    expect(workflow).toContain("It stores no launch advice, publication");
-    expect(workflow).toContain("packet, or selected successor");
-    expect(workflow).toContain("startable only through their landed base metas");
-    expect(workflow).toContain("Never tear down the surviving extraction origin");
+    expect(workflow).toMatch(softWrappedProse("Extraction writes no transition record, recovery record, or receipt"));
+    expect(workflow).toMatch(softWrappedProse("It stores no launch advice, publication packet, or selected successor"));
+    expect(workflow).toMatch(softWrappedProse("startable only through their landed base metas"));
+    expect(workflow).toMatch(softWrappedProse("Never tear down the surviving extraction origin"));
   });
 
   it("makes finished source reconciliation durable before candidate cleanup", () => {
     const finishApply = workflow.indexOf(
       "arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>",
     );
-    const finished = workflow.indexOf("A `finished` outcome leaves the exact source thinning staged");
+    const finished = indexOfSoftWrappedProse(workflow, "A `finished` outcome leaves the exact source thinning staged");
     const stage = workflow.indexOf("git add -- <finish-source-paths> <changed-owner-reconciliation-paths>");
-    const exactSet = workflow.indexOf("complete staged path set exactly equals their union");
-    const commit = workflow.indexOf(
+    const exactSet = indexOfSoftWrappedProse(workflow, "complete staged path set exactly equals their union");
+    const commit = indexOfSoftWrappedProse(workflow,
       "`commit-interlock` release — commit the exact staged finish and owner reconciliation",
     );
     const cleanup = workflow.indexOf("arc teardown --branch <reported-candidate-branch>");
@@ -178,7 +249,8 @@ describe("decompose workflow contract", () => {
     expect(workflow.slice(finished, stage)).toContain("surviving `tasks-{origin}.md`");
     expect(workflow.slice(finished, stage)).toContain("`**Next Task:**`");
     expect(workflow.slice(finished, stage)).toContain("`**Next Action:**`");
-    expect(workflow.slice(finished, stage)).toContain("both an `Active` origin and a started `Planning` origin");
+    expect(workflow.slice(finished, stage))
+      .toMatch(softWrappedProse("both an `Active` origin and a started `Planning` origin"));
     expect(exactSet).toBeGreaterThan(finished);
     expect(stage).toBeGreaterThan(exactSet);
     expect(commit).toBeGreaterThan(stage);
@@ -189,16 +261,16 @@ describe("decompose workflow contract", () => {
   });
 
   it("keeps already-finished as a durable no-mutation, no-commit outcome", () => {
-    const alreadyFinished = workflow.indexOf(
+    const alreadyFinished = indexOfSoftWrappedProse(workflow,
       "An `already-finished` outcome takes no mutation or commit arm",
     );
     const cleanup = workflow.indexOf("arc teardown --branch <reported-candidate-branch>");
     const arm = workflow.slice(alreadyFinished, cleanup);
 
     expect(alreadyFinished).toBeGreaterThan(-1);
-    expect(arm).toContain("already reside in `HEAD`");
-    expect(arm).toContain("no indexed or\nworking-tree diff");
-    expect(arm).toContain("never mint an empty or\nceremonial source-finish commit");
+    expect(arm).toMatch(softWrappedProse("already reside in `HEAD`"));
+    expect(arm).toMatch(softWrappedProse("no indexed or working-tree diff"));
+    expect(arm).toMatch(softWrappedProse("never mint an empty or ceremonial source-finish commit"));
     expect(arm).not.toContain("`commit-interlock`");
   });
 

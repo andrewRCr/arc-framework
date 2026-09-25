@@ -19,6 +19,7 @@ import {
   type CandidateManagedRecordV1,
 } from "./candidate-attestation.js";
 import type { VersionedCandidateRecord } from "./candidate-record-store.js";
+import { SpineRemedySchema } from "../../scripts/integration/spine-refusal.js";
 
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -116,6 +117,10 @@ export const CandidateApplicabilityResolutionResultSchema = z.union([
       "execution-failed",
       "invalid-service-result",
     ]),
+    /** The failure's own words, where the execution produced a cause rather than only stopping. */
+    detail: z.string().trim().min(1).max(4_096).optional(),
+    /** The act that clears the reported cause, where a rerun of this resolution is not it. */
+    remedy: SpineRemedySchema.optional(),
   }),
 ]);
 export type CandidateApplicabilityResolutionResult = z.infer<

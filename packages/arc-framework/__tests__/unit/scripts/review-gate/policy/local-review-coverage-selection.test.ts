@@ -59,6 +59,7 @@ function completeLocalResult(resultLineage: LaneSubjectLineage = lineage): Revie
   if (requirement === null) throw new Error("expected standard review requirement");
   return {
     kind: "attested-local",
+    vehicle: { kind: "work-unit", identity: "example" },
     producerId: "local-predecessor",
     repositoryId: predecessorTarget.repositoryId,
     target: predecessorTarget,

@@ -1,21 +1,14 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
 
-import {
-  DeliveryReviewMemberVehicleSchema,
-  sameDeliveryReviewMemberVehicle,
-  type DeliveryReviewMemberVehicle,
-} from "../../../lib/delivery/review-vehicle.js";
+import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/canonical/canonical-json.js";
-import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
+import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
-import type {
-  DeliveryDischargeTargetBinding,
-  DeliveryDischargeTargetLookup,
-} from "../core/delivery-member-lookup.js";
+import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
   "../hosts/local/disposition-record-store.js";
@@ -30,15 +23,10 @@ import {
 } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
-import type { ReviewContributionApplicabilityResult } from
-  "./review-contribution-applicability.js";
-import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
-import { projectHostedFinding, type HostedAwaitEnvelope } from "../hosted/await.js";
-import { HostedProviderIdSchema, type HostedReviewCoverage } from "../hosted/request.js";
-import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
+import { projectHostedFinding } from "../hosted/await.js";
+import type { HostedReviewCoverage } from "../hosted/request.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
-import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   projectEarlierReviewApplicability,
@@ -56,428 +44,41 @@ import {
 } from "./incremental-coverage-basis.js";
 import {
   ReviewCoverageSelectionActionSchema,
-  type ReviewCoverageSelectionAction,
-  type ReviewCoverageSelectionChoice,
 } from "./review-coverage-selection.js";
 
-type ProjectedLaneAttempt = Extract<LaneProgressProjection, { status: "recorded" }>["attempts"][number];
-type EarlierApplicableAttempt = Extract<
-  EarlierHostedAttemptApplicabilityRead,
-  { status: "complete" }
->["attempts"][number];
-
-/** Minimal immutable producer identity eligible to seed one exact correction scope. */
-export interface IncrementalCorrectionScopeCandidate {
-  readonly attemptId: string;
-  readonly logicalPass: number;
-  readonly sourceId: string;
-  readonly outcome: string;
-  readonly producerTarget?: ReviewResult["target"];
-}
-
-/** Resolve one immutable predecessor against the current Candidate applicability projection. */
-export function incrementalApplicabilityFromEarlierRead(input: {
-  readonly producerId: string;
-  readonly producerTarget: NonNullable<EarlierApplicableAttempt["producerTarget"]>;
-  readonly earlier: EarlierHostedAttemptApplicabilityRead;
-}): IncrementalPredecessorApplicability {
-  if (input.earlier.status !== "complete") return "unavailable";
-  const exact = input.earlier.attempts.filter((attempt) => (
-    attempt.attemptId === input.producerId
-    && attempt.producerTarget !== undefined
-    && canonicalize(attempt.producerTarget) === canonicalize(input.producerTarget)
-  ));
-  if (exact.length !== 1) return "unavailable";
-  const applicability = exact[0]?.applicability;
-  return applicability === "retain-prior-attempt" || applicability === "request-review"
-    ? "applicable"
-    : "unavailable";
-}
-
-/** Confirm one predecessor against the current target's fresh applicability projection. */
-export async function confirmIncrementalPredecessorApplicability(input: {
-  readonly predecessor: ReviewResult;
-  readonly current: ReviewResult;
-  readonly readEarlierAttemptApplicability?: (
-    sourceId: string,
-  ) => Promise<EarlierHostedAttemptApplicabilityRead>;
-}): Promise<IncrementalPredecessorApplicability> {
-  const { predecessor, current } = input;
-  const scope = current.admission.correctionScope;
-  if (scope === undefined
-    || scope.headSha !== current.target.headSha) return "unavailable";
-  if (!laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)) {
-    return "unavailable";
-  }
-  if (predecessor.target.headSha === current.target.headSha
-    || (predecessor.admission.lineage.kind === "head-bound"
-      && current.admission.lineage.kind === "head-bound")) return "applicable";
-  const sourceId = predecessor.kind === "hosted"
-    ? predecessor.sourceIdentity
-    : predecessor.kind === "attested-local"
-      ? predecessor.deliveryAdmission?.sourceId
-      : undefined;
-  if (sourceId === undefined || input.readEarlierAttemptApplicability === undefined) return "unavailable";
-  return incrementalApplicabilityFromEarlierRead({
-    producerId: predecessor.producerId,
-    producerTarget: predecessor.target,
-    earlier: await input.readEarlierAttemptApplicability(sourceId),
-  });
-}
-
-function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
-  return attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
-}
-
-function terminalPolicyOutcome(outcome: string): "clean" | "settled-findings" {
-  if (outcome === "clean" || outcome === "settled-findings") return outcome;
-  throw new Error("Terminal discharge evidence has no policy-bearing outcome.");
-}
-
-function currentCorrectionScopeCandidate(
-  attempt: ProjectedLaneAttempt,
-): IncrementalCorrectionScopeCandidate | null {
-  const producerTarget = attempt.local?.target ?? attempt.hosted?.reviewTarget;
-  if (producerTarget === undefined
-    || (attempt.outcome !== "clean" && attempt.outcome !== "settled-findings")) return null;
-  return {
-    attemptId: attempt.attemptId,
-    logicalPass: attempt.logicalPass,
-    sourceId: attempt.sourceId,
-    outcome: attempt.outcome,
-    producerTarget,
-  };
-}
-
-function attemptMatchesTarget(
-  attempt: ProjectedLaneAttempt,
-  stateHead: string,
-  target: NonNullable<Parameters<typeof projectHostedReservationDischarge>[0]["target"]>,
-): boolean {
-  const hosted = attempt.hosted;
-  if (hosted !== undefined) {
-    return hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
-      && hosted.target.pullRequest === target.pullRequest
-      && hosted.target.headSha === stateHead
-      && sameDeliveryReviewMemberVehicle(target.vehicle, hosted.vehicle);
-  }
-  const local = attempt.local;
-  if (local === undefined || local.target.headSha !== stateHead) return false;
-  if (target.vehicle === undefined) return local.vehicle.kind === "work-unit";
-  const admission = local.deliveryAdmission;
-  return admission !== undefined
-    && local.vehicle.kind === "delivery-member"
-    && local.target.kind === "delivery-member"
-    && sameDeliveryReviewMemberVehicle(target.vehicle, admission.vehicle)
-    && admission.target.repository.toLowerCase() === target.repository.toLowerCase()
-    && admission.target.pullRequest === target.pullRequest
-    && admission.target.headSha === stateHead;
-}
-
-/** Safe source progress retained for the next request's standard-review driver admission. */
-export interface HostedReservationRequestAttempt {
-  readonly sourceId: string;
-  readonly outcome: "rate-limited" | "transient-unavailable";
-}
-
-interface PendingFindingRoute {
-  readonly sourceId: string;
-  readonly responsePlan?: HostedFindingsResponsePlan;
-  readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
-}
-
-function projectPendingFindings(
-  attempts: readonly PendingFindingRoute[],
-  timing: "current" | "retained",
-): HostedReservationDischarge | null {
-  if (attempts.length === 0) return null;
-  const exact = attempts.length === 1 ? attempts[0] : undefined;
-  if (exact?.responsePlan !== undefined && exact.localResumeAction === undefined) {
-    return {
-      discharged: false,
-      detail: `Hosted source \`${exact.sourceId}\` has ${timing} findings awaiting disposition.`,
-      nextSource: null,
-      responsePlan: exact.responsePlan,
-    };
-  }
-  if (exact?.localResumeAction !== undefined && exact.responsePlan === undefined) {
-    return {
-      discharged: false,
-      detail: `Standard source \`${exact.sourceId}\` has ${timing === "retained" ? "retained " : ""}`
-        + "local findings awaiting disposition.",
-      nextSource: null,
-      localResumeAction: exact.localResumeAction,
-    };
-  }
-  return {
-    discharged: false,
-    detail: `The reserved standard-review sources have ${timing} findings without one exact response route.`,
-    nextSource: null,
-  };
-}
-
-function retainedSafeUnavailableAttempt(
-  sourceId: string,
-  attempts: readonly { readonly outcome: string }[],
-): HostedReservationRequestAttempt | null {
-  if (attempts.length === 0 || attempts.some(({ outcome }) => (
-    outcome !== "rate-limited" && outcome !== "transient-unavailable"
-  ))) return null;
-  const outcome = attempts.at(-1)?.outcome;
-  return outcome === "rate-limited" || outcome === "transient-unavailable"
-    ? { sourceId, outcome }
-    : null;
-}
-
-/** Whether the reserved hosted review has produced a verdict, with the evidence for that reading. */
-export interface HostedReservationDischarge {
-  discharged: boolean;
-  detail: string;
-  nextSource: string | null;
-  applicability?: ReviewContributionApplicabilityResult;
-  equivalentApplicabilities?: readonly ReviewContributionApplicabilityResult[];
-  applicabilityAuthority?: "decision-required" | "blocked";
-  responsePlan?: HostedFindingsResponsePlan;
-  awaitAction?: HostedAwaitEnvelope;
-  localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
-  requestAttempts?: readonly HostedReservationRequestAttempt[];
-  requestCoverage?: HostedReviewCoverage;
-  correctionScope?: IncrementalReviewScope;
-  coverageSelectionAction?: ReviewCoverageSelectionAction;
-}
-
-function coverageSelectionChoices(
-  sourceIds: readonly string[],
-  correctionScope?: IncrementalReviewScope,
-): ReviewCoverageSelectionChoice[] {
-  return sourceIds.flatMap((sourceId) => {
-    const complete: ReviewCoverageSelectionChoice = { sourceId, coverage: "complete" };
-    if (sourceId === "delegated-agent") {
-      return correctionScope === undefined
-        ? [complete]
-        : [{ sourceId, coverage: "incremental" }, complete];
-    }
-    const provider = HostedProviderIdSchema.safeParse(sourceId);
-    return provider.success && hostedProviderAdmitsCoverage(
-      provider.data,
-      "incremental",
-      correctionScope,
-    )
-      ? [{ sourceId, coverage: "incremental" }, complete]
-      : [complete];
-  });
-}
-
-function oneRequestedCoverage(
-  values: readonly (HostedReviewCoverage | undefined)[],
-): HostedReviewCoverage | null | "conflict" {
-  const coverages = new Set(values.filter(
-    (value): value is HostedReviewCoverage => value !== undefined,
-  ));
-  if (coverages.size > 1) return "conflict";
-  return coverages.values().next().value ?? null;
-}
-
-function requestedCoverageOf(
-  attempts: readonly ProjectedLaneAttempt[],
-): HostedReviewCoverage | null | "conflict" {
-  return oneRequestedCoverage(attempts.map((attempt) => (
-    attempt.local?.requestedCoverage ?? attempt.hosted?.requestedCoverage
-  )));
-}
-
-function applicabilityEquivalenceKey(
-  projection: ReviewContributionApplicabilityResult,
-): string | null {
-  if (projection.state !== "decision-required") return null;
-  const selector = projection.selector;
-  const currentVehicle = selector.currentVehicle;
-  return canonicalize({
-    member: currentVehicle === undefined
-      ? { repository: selector.repository, pullRequest: selector.pullRequest }
-      : {
-          planId: currentVehicle.planId,
-          deliverableId: currentVehicle.deliverableId,
-          workUnitId: currentVehicle.workUnitId,
-        },
-    sourceId: selector.sourceId,
-    currentHead: selector.currentHead,
-    residual: {
-      verdict: projection.verdict,
-      paths: projection.paths,
-      before: {
-        predecessorTree: projection.projection.before.predecessor.tree,
-        memberTree: projection.projection.before.member.tree,
-      },
-      after: {
-        predecessorTree: projection.projection.after.predecessor.tree,
-        memberTree: projection.projection.after.member.tree,
-      },
-    },
-  });
-}
-
-/** Decide the work-unit obligation from its ordered member discharges. */
-export function allHostedReservationTargetsDischarged(
-  discharges: readonly { readonly discharged: boolean }[],
-): boolean {
-  return discharges.every(({ discharged }) => discharged);
-}
-
-/** One exact hosted target and its contribution span base. */
-export interface HostedReservationTarget {
-  readonly repository: string;
-  readonly pullRequest: number;
-  readonly headSha: string;
-  readonly baseRevision: string;
-  readonly position?: number;
-  readonly memberCount?: number;
-  readonly chunkKey?: string;
-  readonly title?: string;
-  readonly vehicle?: DeliveryReviewMemberVehicle;
-}
-
-/** Contained target derivation for singleton and delivery review obligations. */
-export type HostedReservationTargetResolution =
-  | {
-    readonly status: "resolved";
-    readonly kind: "singleton" | "delivery";
-    readonly targets: readonly HostedReservationTarget[];
-  }
-  | { readonly status: "unavailable"; readonly targets: readonly [] };
-
-/** Derive the current hosted-review targets without persisting a target list. */
-export async function resolveHostedReservationTargets(input: {
-  readonly workUnitId: string;
-  readonly reservation: StandardReviewReservationV1 | null;
-  readonly singleton: HostedReservationTarget;
-  readonly delivery: DeliveryDischargeTargetLookup;
-  readonly host: Pick<DeliveryHostPort, "readRequest">;
-  /** Proven current request head for the state-bound terminal member only. */
-  readonly terminalAdvance?: {
-    readonly stateHead: string;
-    readonly currentHead: string;
-  };
-  /** Historical terminal target retained while an exact prepared native operation lands only earlier members. */
-  readonly preparedTerminal?: {
-    readonly deliverableId: string;
-    readonly stateHead: string;
-  };
-}): Promise<HostedReservationTargetResolution> {
-  try {
-    const marker = input.reservation?.target;
-    if (marker !== undefined
-      && marker.repository.toLowerCase() !== input.singleton.repository.toLowerCase()) {
-      return { status: "unavailable", targets: [] };
-    }
-    if (marker?.kind === "pinned-head") {
-      return { status: "resolved", kind: "singleton", targets: [input.singleton] };
-    }
-    if (marker?.kind === "delivery" && marker.workUnitId !== input.workUnitId) {
-      return { status: "unavailable", targets: [] };
-    }
-    const resolved = await input.delivery.resolveDischargeTargets(input.workUnitId);
-    if (resolved.status === "unbound" && marker === undefined) {
-      return { status: "resolved", kind: "singleton", targets: [input.singleton] };
-    }
-    if (resolved.status !== "resolved" || resolved.targets.length === 0) {
-      return { status: "unavailable", targets: [] };
-    }
-    const observedTargets: Array<{
-      readonly binding: DeliveryDischargeTargetBinding;
-      readonly index: number;
-      readonly pullRequest: number;
-      readonly request: DeliveryHostChangeRequest;
-      readonly targetHead: string;
-    }> = [];
-    const requestIds = new Set<string>();
-    for (const [index, binding] of resolved.targets.entries()) {
-      if (marker?.kind === "delivery"
-        && (binding.planId !== marker.planId || binding.workUnitId !== marker.workUnitId)) {
-        return { status: "unavailable", targets: [] };
-      }
-      if (!/^[1-9][0-9]*$/u.test(binding.changeRequestId)) {
-        return { status: "unavailable", targets: [] };
-      }
-      const pullRequest = Number(binding.changeRequestId);
-      if (!Number.isSafeInteger(pullRequest)) return { status: "unavailable", targets: [] };
-      const requestKey = `${binding.providerId}:${binding.changeRequestId}`;
-      if (requestIds.has(requestKey)) return { status: "unavailable", targets: [] };
-      requestIds.add(requestKey);
-      const observed = await input.host.readRequest(input.singleton.repository, {
-        providerId: binding.providerId,
-        changeRequestId: binding.changeRequestId,
-      });
-      if (observed.status !== "observed") return { status: "unavailable", targets: [] };
-      const request = observed.request;
-      const expectedHeadRef = binding.ref?.replace(/^refs\/heads\//u, "") ?? null;
-      const representedTerminalAdvance = input.terminalAdvance !== undefined
-        && binding.position === binding.memberCount
-        && index === resolved.targets.length - 1
-        && binding.head === input.terminalAdvance.stateHead
-        && request.headSha === input.terminalAdvance.currentHead;
-      const representedPreparedTerminal = input.preparedTerminal !== undefined
-        && binding.position === binding.memberCount
-        && index === resolved.targets.length - 1
-        && binding.deliverableId === input.preparedTerminal.deliverableId
-        && binding.head === input.preparedTerminal.stateHead
-        && request.state === "open";
-      if (request.binding.providerId !== binding.providerId
-        || request.binding.changeRequestId !== binding.changeRequestId
-        || request.repository.toLowerCase() !== input.singleton.repository.toLowerCase()
-        || request.headRepository.toLowerCase() !== input.singleton.repository.toLowerCase()
-        || request.state === "closed"
-        || (expectedHeadRef !== null && request.headRef !== expectedHeadRef)
-        || (request.state === "open" && request.headSha !== binding.head
-          && !representedTerminalAdvance && !representedPreparedTerminal)) {
-        return { status: "unavailable", targets: [] };
-      }
-      const targetHead = representedPreparedTerminal ? binding.head : request.headSha;
-      observedTargets.push({ binding, index, pullRequest, request, targetHead });
-    }
-    const retainedAuthoredMergedChain = observedTargets
-      .filter(({ request }) => request.state === "merged")
-      .every(({ binding, index, request }) => {
-        const priorBinding = resolved.targets[index - 1];
-        return request.headSha === binding.head
-          && (priorBinding === undefined || binding.base === priorBinding.head);
-      });
-    const targets: HostedReservationTarget[] = [];
-    let landedBaseRevision = input.singleton.baseRevision;
-    for (const { binding, pullRequest, request, targetHead } of observedTargets) {
-      const retainsAuthoredCoordinates = request.state === "merged" && retainedAuthoredMergedChain;
-      targets.push({
-        repository: input.singleton.repository,
-        pullRequest,
-        headSha: targetHead,
-        baseRevision: request.state === "open" || retainsAuthoredCoordinates
-          ? binding.base
-          : landedBaseRevision,
-        position: binding.position,
-        memberCount: binding.memberCount,
-        chunkKey: binding.chunkKey,
-        title: binding.title,
-        vehicle: DeliveryReviewMemberVehicleSchema.parse({
-          kind: "delivery-member",
-          planId: binding.planId,
-          deliverableId: binding.deliverableId,
-          workUnitId: binding.workUnitId,
-          head: targetHead,
-        }),
-      });
-      landedBaseRevision = targetHead;
-    }
-    return { status: "resolved", kind: "delivery", targets };
-  } catch {
-    return { status: "unavailable", targets: [] };
-  }
-}
+import {
+  ProjectedLaneAttempt,
+  EarlierApplicableAttempt,
+  IncrementalCorrectionScopeCandidate,
+  incrementalApplicabilityFromEarlierRead,
+  confirmIncrementalPredecessorApplicability,
+  isCompleteStandardVerdict,
+  terminalPolicyOutcome,
+  currentCorrectionScopeCandidate,
+  attemptMatchesTarget,
+  HostedReservationRequestAttempt,
+  PendingFindingRoute,
+  projectPendingFindings,
+  projectSelectedOwnerDischarge,
+  selectedOwnerCleanAttempt,
+  retainedSafeUnavailableAttempt,
+  HostedReservationDischarge,
+  coverageSelectionChoices,
+  oneRequestedCoverage,
+  requestedCoverageOf,
+  applicabilityEquivalenceKey,
+  allHostedReservationTargetsDischarged,
+  resolveHostedReservationTargets,
+} from "./hosted-reservation-support.js";
+export * from "./hosted-reservation-support.js";
 
 /**
  * Decide whether a carried hosted-review reservation has been discharged.
  *
  * Discharge is a complete `clean` attempt by the first ordered source that
- * was not safely unavailable on the standard lane anywhere in the Candidate span. It is read rather than written because a discharge
+ * was not safely unavailable on the standard lane anywhere in the Candidate span, or by a complete
+ * exact-member attempt whose admitted request retained an explicit Owner source selection.
+ * It is read rather than written because a discharge
  * write needs a caller who remembers to make it, and a reservation nobody cleared is the realized
  * failure this replaces. The span rather than the approved head alone: a review that ran before a
  * later fix landed still discharged the obligation, and gating on the head would replace the
@@ -600,6 +201,7 @@ export async function projectHostedReservationDischarge(input: {
       awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
     };
   }
+  const selectedClean = selectedOwnerCleanAttempt(currentAttempts, reservation);
   const latestCurrentTerminalPass = currentAttempts.reduce<number | null>((latest, attempt) => (
     reservation.sources.includes(attempt.sourceId)
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
@@ -608,7 +210,7 @@ export async function projectHostedReservationDischarge(input: {
       : latest
   ), null);
   let latestCurrentCorrectionCandidate: IncrementalCorrectionScopeCandidate | null = null;
-  if (latestCurrentTerminalPass !== null) {
+  if (latestCurrentTerminalPass !== null && selectedClean === undefined) {
     const admittedLocalTerminal = [...currentAttemptHistory].reverse().find((attempt) => (
       attempt.logicalPass === latestCurrentTerminalPass
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
@@ -782,6 +384,9 @@ export async function projectHostedReservationDischarge(input: {
     }
     return projectPendingFindings(routes, "retained");
   };
+  if (selectedClean !== undefined) {
+    return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
+  }
   const currentTerminalLogicalPass = reservation.sources.flatMap((sourceId) => (
     currentAttempts.filter((attempt) => attempt.sourceId === sourceId
       && attempt.outcome === "clean"

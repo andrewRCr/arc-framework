@@ -25,7 +25,7 @@ export type {
 export interface LocalReviewLiveContext {
   activeIdentity: string | null;
   workUnit: { identity: string; owner: string } | null;
-  errand: { identity: string } | null;
+  errand: { identity: string; claimId: string } | null;
 }
 
 export interface LocalReviewRuntimeBinding {
@@ -176,6 +176,7 @@ export async function resolveLocalReviewAuthority(
     vehicle = {
       kind: "errand",
       identity: ReviewIdentifierSchema.parse(context.errand?.identity),
+      claimId: ReviewIdentifierSchema.parse(context.errand?.claimId),
     };
     authorIdentity = activeIdentity;
   }

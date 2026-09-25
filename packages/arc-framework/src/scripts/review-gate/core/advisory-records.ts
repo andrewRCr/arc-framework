@@ -19,6 +19,7 @@ import {
 import { HostedTargetSchema } from "../hosted/request.js";
 import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
 import { ApprovedDispositionSetSchema } from "./disposition-records.js";
+import { BoundFrontlineResponseBindingSchema } from "./frontline-response-binding.js";
 import {
   FixAuthorizationConsumptionSchema,
   FixAuthorizationSchema,
@@ -119,29 +120,11 @@ const ApprovedDispositionRecordObjectSchema = z.strictObject({
   approvedDispositionLineage: z.array(ApprovedDispositionLineageNodeSchema).min(1),
 });
 
-export const ApprovedDispositionRecordSchema = ApprovedDispositionRecordObjectSchema.superRefine((record, context) => {
-  const bindingCount = [record.candidate, record.errand, record.deliveryMember]
-    .filter((binding) => binding !== null).length;
-  if (bindingCount > 1) {
-    context.addIssue({
-      code: "custom",
-      message: "a disposition record cannot bind more than one response owner",
-      path: ["deliveryMember"],
-    });
-  }
-  const lineage = record.approvedDispositionLineage;
-  const ids = lineage.map(({ approvedDisposition }) =>
-    approvedDisposition.dispositionSet.dispositionSetId);
-  if (new Set(ids).size !== ids.length) {
-    context.addIssue({
-      code: "custom",
-      message: "approved disposition lineage identities must be unique",
-      path: ["approvedDispositionLineage"],
-    });
-  }
-  const sourceContext = ({ approvedDisposition }: ApprovedDispositionLineageNode) => {
-    const set = approvedDisposition.dispositionSet;
-    return {
+type ApprovedDispositionRecordInput = z.infer<typeof ApprovedDispositionRecordObjectSchema>;
+
+function dispositionSourceContext({ approvedDisposition }: ApprovedDispositionLineageNode): unknown {
+  const set = approvedDisposition.dispositionSet;
+  return {
       targetId: set.targetId,
       producerId: set.producerId,
       resultDigest: set.resultDigest,
@@ -156,11 +139,159 @@ export const ApprovedDispositionRecordSchema = ApprovedDispositionRecordObjectSc
         reportedSeverity: finding.reportedSeverity,
         reportedNit: finding.reportedNit,
       })),
-    };
   };
+}
+
+function fixResponseMatchesAuthorization(
+  response: ErrandReviewFixResponse | DeliveryMemberReviewFixResponse,
+  node: ApprovedDispositionLineageNode,
+): boolean {
+  const authorization = node.fixAuthorization;
+  if (authorization === null) return false;
+  return response.oldTarget.targetId === node.approvedDisposition.dispositionSet.targetId
+    && response.oldTarget.targetId === authorization.oldTargetId
+    && response.oldTarget.headSha === authorization.oldHeadSha
+    && response.fixConsumption.fixAuthorizationId === authorization.fixAuthorizationId
+    && response.fixConsumption.dispositionSetId === authorization.dispositionSetId
+    && response.fixConsumption.oldTargetId === response.oldTarget.targetId
+    && response.fixConsumption.newTargetId === response.newTarget.targetId
+    && response.fixConsumption.oldHeadSha === response.oldTarget.headSha
+    && response.fixConsumption.newHeadSha === response.newTarget.headSha;
+}
+
+function deliveryHostedTargetMatches(response: DeliveryMemberReviewFixResponse): boolean {
+  if (response.hostedTarget === null || response.hostedFixTarget === null) return true;
+  return response.hostedTarget.headSha === response.oldTarget.headSha
+    && response.hostedFixTarget.headSha === response.newTarget.headSha
+    && isDeepStrictEqual({
+      ...response.hostedFixTarget,
+      headSha: response.hostedTarget.headSha,
+    }, response.hostedTarget);
+}
+
+function candidateOwnsPrivateMember(record: ApprovedDispositionRecordInput): boolean {
+  return record.candidate !== null
+    && record.errand === null
+    && record.deliveryMember !== null
+    && record.source.kind === "frontline"
+    && record.candidate.workUnit === record.deliveryMember.workUnitId;
+}
+
+function validateErrandFixResponse(
+  record: ApprovedDispositionRecordInput,
+  node: ApprovedDispositionLineageNode,
+  index: number,
+  context: z.RefinementCtx,
+): void {
+  const response = node.errandFixResponse;
+  if (response !== null) {
+    if (record.errand === null || record.candidate !== null || record.deliveryMember !== null
+      || node.fixAuthorization === null) {
+      context.addIssue({
+        code: "custom",
+        message: "an Errand fix response requires one bound Errand and its fix authorization",
+        path: ["approvedDispositionLineage", index, "errandFixResponse"],
+      });
+    } else {
+      if (!fixResponseMatchesAuthorization(response, node)) {
+        context.addIssue({
+          code: "custom",
+          message: "Errand fix response must bind the exact authorization and target transition",
+          path: ["approvedDispositionLineage", index, "errandFixResponse"],
+        });
+      }
+      if ((record.source.kind === "hosted") !== (response.hostedTarget !== null)
+        || (response.hostedTarget !== null && response.hostedTarget.headSha !== response.oldTarget.headSha)) {
+        context.addIssue({
+          code: "custom",
+          message: "hosted Errand fixes must retain their exact originating change request",
+          path: ["approvedDispositionLineage", index, "errandFixResponse", "hostedTarget"],
+        });
+      }
+    }
+  }
+
+
+}
+
+function validateDeliveryMemberFixResponse(
+  record: ApprovedDispositionRecordInput,
+  node: ApprovedDispositionLineageNode,
+  index: number,
+  context: z.RefinementCtx,
+): void {
+  const deliveryResponse = node.deliveryMemberFixResponse;
+  if (deliveryResponse === null) return;
+  if (record.deliveryMember === null || record.candidate !== null || record.errand !== null
+    || node.fixAuthorization === null || record.source.kind === "frontline") {
+    context.addIssue({
+      code: "custom",
+      message: "a delivery-member fix response requires its exact member binding and fix authorization",
+      path: ["approvedDispositionLineage", index, "deliveryMemberFixResponse"],
+    });
+    return;
+  }
+  const hosted = record.source.kind === "hosted";
+  if (hosted !== (deliveryResponse.hostedTarget !== null)
+    || hosted !== (deliveryResponse.hostedFixTarget !== null)) {
+    context.addIssue({
+      code: "custom",
+      message: "delivery-member fix response host coordinates must match its source kind",
+      path: ["approvedDispositionLineage", index, "deliveryMemberFixResponse", "hostedTarget"],
+    });
+    return;
+  }
+  if (deliveryResponse.oldTarget.kind !== "delivery-member"
+    || deliveryResponse.newTarget.kind !== "delivery-member"
+    || deliveryResponse.oldTarget.headSha !== record.deliveryMember.head
+    || !fixResponseMatchesAuthorization(deliveryResponse, node)
+    || !deliveryHostedTargetMatches(deliveryResponse)) {
+    context.addIssue({
+      code: "custom",
+      message: "delivery-member fix response must bind the exact authorization, member, and hosted transition",
+      path: ["approvedDispositionLineage", index, "deliveryMemberFixResponse"],
+    });
+  }
+
+}
+
+export const ApprovedDispositionRecordSchema = ApprovedDispositionRecordObjectSchema.superRefine((record, context) => {
+  const bindingCount = [record.candidate, record.errand, record.deliveryMember]
+    .filter((binding) => binding !== null).length;
+  const candidateOwnedPrivateMember = bindingCount === 2 && candidateOwnsPrivateMember(record);
+  if (bindingCount > 1 && !candidateOwnedPrivateMember) {
+    context.addIssue({
+      code: "custom",
+      message: "a disposition record cannot bind more than one response owner or reviewed private member",
+      path: ["deliveryMember"],
+    });
+  }
+  const lineage = record.approvedDispositionLineage;
+  const ids = lineage.map(({ approvedDisposition }) =>
+    approvedDisposition.dispositionSet.dispositionSetId);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({
+      code: "custom",
+      message: "approved disposition lineage identities must be unique",
+      path: ["approvedDispositionLineage"],
+    });
+  }
+  const currentNode = lineage.find(({ approvedDisposition }) =>
+    approvedDisposition.dispositionSet.dispositionSetId === record.currentDispositionSetId);
+  if (candidateOwnedPrivateMember
+    && record.deliveryMember !== null
+    && currentNode?.fixAuthorization !== null
+    && currentNode?.fixAuthorization !== undefined
+    && record.deliveryMember.head !== currentNode.fixAuthorization.oldHeadSha) {
+    context.addIssue({
+      code: "custom",
+      message: "a Candidate-owned private member must bind the exact fix authorization head",
+      path: ["deliveryMember", "head"],
+    });
+  }
   const firstNode = lineage[0];
   if (firstNode === undefined) return;
-  const firstContext = sourceContext(firstNode);
+  const firstContext = dispositionSourceContext(firstNode);
   lineage.forEach((node, index) => {
     const previousId = index === 0 ? null : ids[index - 1] ?? null;
     const nextId = index === lineage.length - 1 ? null : ids[index + 1] ?? null;
@@ -172,7 +303,7 @@ export const ApprovedDispositionRecordSchema = ApprovedDispositionRecordObjectSc
         path: ["approvedDispositionLineage", index],
       });
     }
-    if (!isDeepStrictEqual(sourceContext(node), firstContext)) {
+    if (!isDeepStrictEqual(dispositionSourceContext(node), firstContext)) {
       context.addIssue({
         code: "custom",
         message: "approved disposition successors must retain source and target context",
@@ -180,89 +311,9 @@ export const ApprovedDispositionRecordSchema = ApprovedDispositionRecordObjectSc
       });
     }
 
-    const response = node.errandFixResponse;
-    if (response !== null) {
-      if (record.errand === null || record.candidate !== null || record.deliveryMember !== null
-        || node.fixAuthorization === null) {
-        context.addIssue({
-          code: "custom",
-          message: "an Errand fix response requires one bound Errand and its fix authorization",
-          path: ["approvedDispositionLineage", index, "errandFixResponse"],
-        });
-      } else {
-        if (response.oldTarget.targetId !== node.approvedDisposition.dispositionSet.targetId
-          || response.oldTarget.targetId !== node.fixAuthorization.oldTargetId
-          || response.oldTarget.headSha !== node.fixAuthorization.oldHeadSha
-          || response.fixConsumption.fixAuthorizationId !== node.fixAuthorization.fixAuthorizationId
-          || response.fixConsumption.dispositionSetId !== node.fixAuthorization.dispositionSetId
-          || response.fixConsumption.oldTargetId !== response.oldTarget.targetId
-          || response.fixConsumption.newTargetId !== response.newTarget.targetId
-          || response.fixConsumption.oldHeadSha !== response.oldTarget.headSha
-          || response.fixConsumption.newHeadSha !== response.newTarget.headSha) {
-          context.addIssue({
-            code: "custom",
-            message: "Errand fix response must bind the exact authorization and target transition",
-            path: ["approvedDispositionLineage", index, "errandFixResponse"],
-          });
-        }
-        if ((record.source.kind === "hosted") !== (response.hostedTarget !== null)
-          || (response.hostedTarget !== null && response.hostedTarget.headSha !== response.oldTarget.headSha)) {
-          context.addIssue({
-            code: "custom",
-            message: "hosted Errand fixes must retain their exact originating change request",
-            path: ["approvedDispositionLineage", index, "errandFixResponse", "hostedTarget"],
-          });
-        }
-      }
-    }
+    validateErrandFixResponse(record, node, index, context);
 
-    const deliveryResponse = node.deliveryMemberFixResponse;
-    if (deliveryResponse === null) return;
-    if (record.deliveryMember === null || record.candidate !== null || record.errand !== null
-      || node.fixAuthorization === null || record.source.kind === "frontline") {
-      context.addIssue({
-        code: "custom",
-        message: "a delivery-member fix response requires its exact member binding and fix authorization",
-        path: ["approvedDispositionLineage", index, "deliveryMemberFixResponse"],
-      });
-      return;
-    }
-    const hosted = record.source.kind === "hosted";
-    if (hosted !== (deliveryResponse.hostedTarget !== null)
-      || hosted !== (deliveryResponse.hostedFixTarget !== null)) {
-      context.addIssue({
-        code: "custom",
-        message: "delivery-member fix response host coordinates must match its source kind",
-        path: ["approvedDispositionLineage", index, "deliveryMemberFixResponse", "hostedTarget"],
-      });
-      return;
-    }
-    if (deliveryResponse.oldTarget.kind !== "delivery-member"
-      || deliveryResponse.newTarget.kind !== "delivery-member"
-      || deliveryResponse.oldTarget.targetId !== node.approvedDisposition.dispositionSet.targetId
-      || deliveryResponse.oldTarget.targetId !== node.fixAuthorization.oldTargetId
-      || deliveryResponse.oldTarget.headSha !== node.fixAuthorization.oldHeadSha
-      || deliveryResponse.oldTarget.headSha !== record.deliveryMember.head
-      || deliveryResponse.fixConsumption.fixAuthorizationId !== node.fixAuthorization.fixAuthorizationId
-      || deliveryResponse.fixConsumption.dispositionSetId !== node.fixAuthorization.dispositionSetId
-      || deliveryResponse.fixConsumption.oldTargetId !== deliveryResponse.oldTarget.targetId
-      || deliveryResponse.fixConsumption.newTargetId !== deliveryResponse.newTarget.targetId
-      || deliveryResponse.fixConsumption.oldHeadSha !== deliveryResponse.oldTarget.headSha
-      || deliveryResponse.fixConsumption.newHeadSha !== deliveryResponse.newTarget.headSha
-      || (deliveryResponse.hostedTarget !== null
-        && deliveryResponse.hostedFixTarget !== null
-        && (deliveryResponse.hostedTarget.headSha !== deliveryResponse.oldTarget.headSha
-          || deliveryResponse.hostedFixTarget.headSha !== deliveryResponse.newTarget.headSha
-          || !isDeepStrictEqual({
-            ...deliveryResponse.hostedFixTarget,
-            headSha: deliveryResponse.hostedTarget.headSha,
-          }, deliveryResponse.hostedTarget)))) {
-      context.addIssue({
-        code: "custom",
-        message: "delivery-member fix response must bind the exact authorization, member, and hosted transition",
-        path: ["approvedDispositionLineage", index, "deliveryMemberFixResponse"],
-      });
-    }
+    validateDeliveryMemberFixResponse(record, node, index, context);
   });
   if (record.currentDispositionSetId !== ids.at(-1)) {
     context.addIssue({
@@ -318,6 +369,7 @@ const FrontlineOutcomeRecordInputSchema = z.strictObject({
   sourceIdentity: ReviewIdentifierSchema,
   executableIdentity: FrontlineExecutableIdentitySchema.nullable(),
   outcome: FrontlineExecutionOutcomeSchema,
+  responseBinding: BoundFrontlineResponseBindingSchema.optional(),
 });
 
 const FrontlineOutcomeRecordObjectSchema = z.strictObject({

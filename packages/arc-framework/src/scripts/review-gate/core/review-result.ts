@@ -2,6 +2,7 @@
 
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import type { FrontlineExecutableIdentity } from "./advisory-records.js";
+import type { BoundFrontlineResponseBinding } from "./frontline-response-binding.js";
 import type { NormalizedReviewFinding } from "./finding-records.js";
 import type {
   ReviewRequestV2,
@@ -9,6 +10,7 @@ import type {
   ReviewTarget,
 } from "./gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "./lane-admission.js";
+import type { LocalReviewState } from "./operation-state-schema.js";
 import type { DeliveryLocalReviewAdmission } from
   "../policy/delivery-local-review-admission.js";
 import type { FrontlineExecutionOutcome } from "../policy/frontline-outcome.js";
@@ -43,6 +45,7 @@ interface ReviewResultBase {
 /** Complete immutable local receipt and its admitted execution context. */
 export interface LocalReviewResult extends ReviewResultBase {
   kind: "attested-local";
+  vehicle: LocalReviewState["vehicle"];
   receiptRef: string;
   localSourceRef: string;
   requirement: ReviewRequirementV2;
@@ -57,6 +60,7 @@ export interface FrontlineReviewResult extends ReviewResultBase {
   sourceBindingId: string;
   executableIdentity: FrontlineExecutableIdentity | null;
   outcome: FrontlineExecutionOutcome;
+  responseBinding?: BoundFrontlineResponseBinding;
 }
 
 /** Complete immutable hosted result and its admitted request/settlement context. */

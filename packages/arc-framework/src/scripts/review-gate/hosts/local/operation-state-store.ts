@@ -88,6 +88,60 @@ function settlementReceiptProjection(
   )));
 }
 
+function validInitialHostedDisposition(next: HostedLaneAttempt, nextCurrent: string): boolean {
+  const initialNode = next.dispositionSetLineage[0];
+  return next.dispositionSetLineage.length === 1
+    && initialNode?.dispositionSetId === nextCurrent
+    && initialNode.predecessorDispositionSetId === null
+    && initialNode.successorDispositionSetId === null
+    && next.settlementEvidence.every((evidence) => (
+      evidence.dispositionSetId === nextCurrent
+      && evidence.carriedFromDispositionSetId === null
+      && evidence.channelAction === "record-only"
+    ));
+}
+
+function validHostedDispositionSuccessor(
+  previous: HostedLaneAttempt,
+  next: HostedLaneAttempt,
+  previousCurrent: string,
+  nextCurrent: string,
+): boolean {
+  const previousTail = previous.dispositionSetLineage.at(-1);
+  const nextPredecessor = next.dispositionSetLineage.at(-2);
+  const nextSuccessor = next.dispositionSetLineage.at(-1);
+  return previousTail !== undefined
+    && nextPredecessor !== undefined
+    && nextSuccessor !== undefined
+    && next.dispositionSetLineage.length === previous.dispositionSetLineage.length + 1
+    && canonicalize(next.dispositionSetLineage.slice(0, -2))
+      === canonicalize(previous.dispositionSetLineage.slice(0, -1))
+    && canonicalize(nextPredecessor) === canonicalize({
+      ...previousTail,
+      successorDispositionSetId: nextCurrent,
+    })
+    && nextSuccessor.dispositionSetId === nextCurrent
+    && nextSuccessor.predecessorDispositionSetId === previousCurrent
+    && nextSuccessor.successorDispositionSetId === null;
+}
+
+function validCarriedSettlementEvidence(
+  evidence: HostedLaneAttempt["settlementEvidence"][number],
+  previous: HostedLaneAttempt,
+  previousCurrent: string,
+  nextCurrent: string,
+): boolean {
+  const predecessorEvidence = previous.settlementEvidence.find((candidate) => (
+    candidate.dispositionSetId === previousCurrent
+    && candidate.findingId === evidence.findingId
+  ));
+  return evidence.dispositionSetId === nextCurrent
+    && evidence.carriedFromDispositionSetId === previousCurrent
+    && predecessorEvidence !== undefined
+    && canonicalize(settlementReceiptProjection(evidence))
+      === canonicalize(settlementReceiptProjection(predecessorEvidence));
+}
+
 function assertHostedDispositionTransition(
   previous: HostedLaneAttempt,
   next: HostedLaneAttempt,
@@ -96,16 +150,7 @@ function assertHostedDispositionTransition(
   const nextCurrent = next.dispositionSetId;
   if (previousCurrent === null) {
     if (nextCurrent === null) return;
-    const initialNode = next.dispositionSetLineage[0];
-    if (next.dispositionSetLineage.length !== 1
-      || initialNode?.dispositionSetId !== nextCurrent
-      || initialNode.predecessorDispositionSetId !== null
-      || initialNode.successorDispositionSetId !== null
-      || next.settlementEvidence.some((evidence) => (
-        evidence.dispositionSetId !== nextCurrent
-        || evidence.carriedFromDispositionSetId !== null
-        || evidence.channelAction !== "record-only"
-      ))) {
+    if (!validInitialHostedDisposition(next, nextCurrent)) {
       refuseHostedTransition();
     }
     return;
@@ -123,35 +168,13 @@ function assertHostedDispositionTransition(
     }
     return;
   }
+  if (nextCurrent === null) refuseHostedTransition();
 
-  const previousTail = previous.dispositionSetLineage.at(-1);
-  const nextPredecessor = next.dispositionSetLineage.at(-2);
-  const nextSuccessor = next.dispositionSetLineage.at(-1);
-  if (previousTail === undefined
-    || nextPredecessor === undefined
-    || nextSuccessor === undefined
-    || next.dispositionSetLineage.length !== previous.dispositionSetLineage.length + 1
-    || canonicalize(next.dispositionSetLineage.slice(0, -2))
-      !== canonicalize(previous.dispositionSetLineage.slice(0, -1))
-    || canonicalize(nextPredecessor) !== canonicalize({
-      ...previousTail,
-      successorDispositionSetId: nextCurrent,
-    })
-    || nextSuccessor.dispositionSetId !== nextCurrent
-    || nextSuccessor.predecessorDispositionSetId !== previousCurrent
-    || nextSuccessor.successorDispositionSetId !== null) {
+  if (!validHostedDispositionSuccessor(previous, next, previousCurrent, nextCurrent)) {
     refuseHostedTransition();
   }
   for (const evidence of appendedEvidence) {
-    const predecessorEvidence = previous.settlementEvidence.find((candidate) => (
-      candidate.dispositionSetId === previousCurrent
-      && candidate.findingId === evidence.findingId
-    ));
-    if (evidence.dispositionSetId !== nextCurrent
-      || evidence.carriedFromDispositionSetId !== previousCurrent
-      || predecessorEvidence === undefined
-      || canonicalize(settlementReceiptProjection(evidence))
-        !== canonicalize(settlementReceiptProjection(predecessorEvidence))) {
+    if (!validCarriedSettlementEvidence(evidence, previous, previousCurrent, nextCurrent)) {
       refuseHostedTransition();
     }
   }
@@ -195,6 +218,55 @@ function assertFreshHostedAdmission(attempt: LaneAttempt): void {
   }
 }
 
+function assertExistingHostedAttemptTransition(previous: LaneAttempt, next: LaneAttempt[]): void {
+  const previousHosted = previous.hosted;
+  if (previousHosted === undefined) return;
+  const candidates = next.filter((attempt) => (
+    attempt.hosted?.admission.admissionId === previousHosted.admission.admissionId
+  ));
+  const candidate = candidates[0];
+  if (candidates.length !== 1 || candidate?.hosted === undefined
+    || canonicalize(immutableHostedAttemptProjection(previous))
+      !== canonicalize(immutableHostedAttemptProjection(candidate))) {
+    throw new LocalOperationStateStoreError("immutable-hosted-transition");
+  }
+  assertHostedAttemptFieldsUnchanged(previous, candidate);
+  assertHostedDispositionTransition(previousHosted, candidate.hosted);
+}
+
+function assertHostedAttemptFieldsUnchanged(previous: LaneAttempt, candidate: LaneAttempt): void {
+  const previousHosted = previous.hosted;
+  const hosted = candidate.hosted;
+  if (previousHosted === undefined || hosted === undefined) refuseHostedTransition();
+  if (hostedAcknowledgmentInvalid(previousHosted, candidate)) {
+    refuseHostedTransition();
+  }
+  if (previousHosted.handle !== undefined
+    && canonicalize(previousHosted.handle) !== canonicalize(hosted.handle ?? null)) {
+    throw new LocalOperationStateStoreError("immutable-hosted-transition");
+  }
+  if (previousHosted.effectiveCoverage !== null
+    && previousHosted.effectiveCoverage !== hosted.effectiveCoverage) {
+    throw new LocalOperationStateStoreError("immutable-hosted-transition");
+  }
+  if (previousHosted.requestFailureReason !== null
+    && previousHosted.requestFailureReason !== hosted.requestFailureReason) {
+    throw new LocalOperationStateStoreError("immutable-hosted-transition");
+  }
+  if (previousHosted.sealedResult !== undefined
+    && canonicalize(previousHosted.sealedResult) !== canonicalize(hosted.sealedResult ?? null)) {
+    throw new LocalOperationStateStoreError("immutable-hosted-transition");
+  }
+}
+
+function hostedAcknowledgmentInvalid(previous: HostedLaneAttempt, candidate: LaneAttempt): boolean {
+  return previous.handle === undefined
+    && candidate.hosted?.handle !== undefined
+    && (candidate.outcome !== "pending"
+      || candidate.terminalProducer
+      || candidate.hosted.sealedResult !== undefined);
+}
+
 function assertHostedTransitions(
   current: ReviewOperationState | null,
   next: ReviewOperationState,
@@ -216,42 +288,7 @@ function assertHostedTransitions(
     }
   }
   for (const previous of currentHosted) {
-    const previousHosted = previous.hosted;
-    if (previousHosted === undefined) continue;
-    const candidates = next.attempts.filter((attempt) => (
-      attempt.hosted?.admission.admissionId === previousHosted.admission.admissionId
-    ));
-    const candidate = candidates[0];
-    if (candidates.length !== 1 || candidate?.hosted === undefined
-      || canonicalize(immutableHostedAttemptProjection(previous))
-        !== canonicalize(immutableHostedAttemptProjection(candidate))) {
-      throw new LocalOperationStateStoreError("immutable-hosted-transition");
-    }
-    const hosted = candidate.hosted;
-    if (previousHosted.handle === undefined
-      && hosted.handle !== undefined
-      && (candidate.outcome !== "pending"
-        || candidate.terminalProducer
-        || hosted.sealedResult !== undefined)) {
-      refuseHostedTransition();
-    }
-    if (previousHosted.handle !== undefined
-      && canonicalize(previousHosted.handle) !== canonicalize(hosted.handle ?? null)) {
-      throw new LocalOperationStateStoreError("immutable-hosted-transition");
-    }
-    if (previousHosted.effectiveCoverage !== null
-      && previousHosted.effectiveCoverage !== hosted.effectiveCoverage) {
-      throw new LocalOperationStateStoreError("immutable-hosted-transition");
-    }
-    if (previousHosted.requestFailureReason !== null
-      && previousHosted.requestFailureReason !== hosted.requestFailureReason) {
-      throw new LocalOperationStateStoreError("immutable-hosted-transition");
-    }
-    if (previousHosted.sealedResult !== undefined
-      && canonicalize(previousHosted.sealedResult) !== canonicalize(hosted.sealedResult ?? null)) {
-      throw new LocalOperationStateStoreError("immutable-hosted-transition");
-    }
-    assertHostedDispositionTransition(previousHosted, hosted);
+    assertExistingHostedAttemptTransition(previous, next.attempts);
   }
 }
 
@@ -270,28 +307,32 @@ function assertResponsePerformanceTransitions(
   if (performedAttempts.length === 0) return;
   if (next.kind !== "lane-progress") refuseResponsePerformanceTransition();
   for (const previous of performedAttempts) {
-    const candidates = next.attempts.filter(({ attemptId }) => attemptId === previous.attemptId);
-    const candidate = candidates[0];
-    const previousPerformance = previous.responsePerformance;
-    const nextPerformance = candidate?.responsePerformance;
-    if (candidates.length !== 1
-      || candidate === undefined
-      || previousPerformance === undefined
-      || nextPerformance === undefined) {
+    assertResponsePerformanceAttemptTransition(previous, next.attempts);
+  }
+}
+
+function assertResponsePerformanceAttemptTransition(previous: LaneAttempt, next: LaneAttempt[]): void {
+  const candidates = next.filter(({ attemptId }) => attemptId === previous.attemptId);
+  const candidate = candidates[0];
+  const previousPerformance = previous.responsePerformance;
+  const nextPerformance = candidate?.responsePerformance;
+  if (candidates.length !== 1
+    || candidate === undefined
+    || previousPerformance === undefined
+    || nextPerformance === undefined) {
+    refuseResponsePerformanceTransition();
+  }
+  const previousHistory = previous.responsePerformanceHistory ?? [];
+  const nextHistory = candidate.responsePerformanceHistory ?? [];
+  if (nextPerformance.dispositionSetId === previousPerformance.dispositionSetId) {
+    if (canonicalize(nextPerformance) !== canonicalize(previousPerformance)
+      || canonicalize(nextHistory) !== canonicalize(previousHistory)) {
       refuseResponsePerformanceTransition();
     }
-    const previousHistory = previous.responsePerformanceHistory ?? [];
-    const nextHistory = candidate.responsePerformanceHistory ?? [];
-    if (nextPerformance.dispositionSetId === previousPerformance.dispositionSetId) {
-      if (canonicalize(nextPerformance) !== canonicalize(previousPerformance)
-        || canonicalize(nextHistory) !== canonicalize(previousHistory)) {
-        refuseResponsePerformanceTransition();
-      }
-      continue;
-    }
-    if (canonicalize(nextHistory) !== canonicalize([...previousHistory, previousPerformance])) {
-      refuseResponsePerformanceTransition();
-    }
+    return;
+  }
+  if (canonicalize(nextHistory) !== canonicalize([...previousHistory, previousPerformance])) {
+    refuseResponsePerformanceTransition();
   }
 }
 

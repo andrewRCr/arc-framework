@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
-  createKernelRegistry,
   createRegistry,
   type KernelSchemaMeta,
 } from "../../../src/lib/kernel/index.js";
@@ -16,11 +15,8 @@ import {
   serializeKernelSchemaBundle,
   writeKernelSchemaArtifact,
 } from "../../../src/lib/kernel/schema/generate.js";
-import {
-  registerReviewDomainSchemas,
-} from "../../../src/scripts/review-gate/core/register-review-schemas.js";
-import { registerDeliveryDomainSchemas } from "../../../src/lib/delivery/schema.js";
-import { registerDeliveryAuthoringSchemas } from "../../../src/lib/delivery/design-inventory.js";
+import { createProductionSchemaRegistry } from "../../../src/production-schema-registry.js";
+import { PRODUCTION_SCHEMA_IDS } from "../../helpers/schema-artifact.js";
 
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
@@ -42,115 +38,11 @@ describe("kernel schema artifact generation", () => {
   });
 
   it("projects the composed production families with stable references and bytes", () => {
-    const first = registerDeliveryAuthoringSchemas(
-      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
-    );
-    const second = registerDeliveryAuthoringSchemas(
-      registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
-    );
+    const first = createProductionSchemaRegistry();
+    const second = createProductionSchemaRegistry();
     const firstBundle = projectKernelSchemas(first);
 
-    expect(Object.keys(firstBundle.schemas)).toEqual([
-      "approved-disposition-record",
-      "approved-disposition-set",
-      "canonical-change",
-      "canonical-change-set",
-      "change-path-fact",
-      "change-path-set",
-      "delivery-deliverable-id-preimage",
-      "delivery-design-inventory-input",
-      "delivery-plan",
-      "delivery-plan-authoring-input",
-      "delivery-plan-member",
-      "delivery-plan-seam",
-      "delivery-state",
-      "disposition-approval",
-      "disposition-report-item",
-      "disposition-set",
-      "disposition-set-preimage",
-      "disposition-set-state",
-      "finding-classification",
-      "finding-disposition",
-      "fix-authorization",
-      "fix-authorization-consumption",
-      "fix-authorization-preimage",
-      "frontline-execution-outcome",
-      "frontline-outcome-digest-preimage",
-      "frontline-outcome-record",
-      "frontline-run-state",
-      "lane-progress-state",
-      "local-review-policy-binding",
-      "local-review-policy-binding-digest-preimage",
-      "local-review-source",
-      "local-review-source-digest-preimage",
-      "local-review-state",
-      "merge-lock-command-error-envelope",
-      "merge-lock-hold-envelope",
-      "merge-lock-release-envelope",
-      "merge-lock-resolve-envelope",
-      "normalized-review-finding",
-      "priority",
-      "project-routing-promotion",
-      "proposed-disposition-set",
-      "remote-evidence",
-      "remote-failure-reason",
-      "review-applicability",
-      "review-applicability-id-preimage",
-      "review-assurance-input",
-      "review-change-request-resolve-result",
-      "review-checks-await-result",
-      "review-chunking-resolve-envelope",
-      "review-chunking-resolve-request",
-      "review-command-error-envelope",
-      "review-frontline-resolve-envelope",
-      "review-frontline-run-envelope",
-      "review-frontline-run-request",
-      "review-guidance-digest-preimage",
-      "review-hosted-await-envelope",
-      "review-hosted-request-envelope",
-      "review-hosted-settle-envelope",
-      "review-lifecycle-tail-proof",
-      "review-local-attest-envelope",
-      "review-local-prepare-envelope",
-      "review-local-resume-envelope",
-      "review-merge-method-resolve-result",
-      "review-method-activity",
-      "review-operation-state",
-      "review-planning-grooming-resolve-envelope",
-      "review-planning-grooming-resolve-request",
-      "review-policy-version-preimage",
-      "review-pre-publication-envelope",
-      "review-readiness-envelope",
-      "review-receipt",
-      "review-receipt-ledger",
-      "review-reduce-envelope",
-      "review-reduction-projection",
-      "review-request",
-      "review-request-id-preimage",
-      "review-requirement",
-      "review-requirement-id-preimage",
-      "review-resolve-envelope",
-      "review-respond-envelope",
-      "review-response-input",
-      "review-response-plan",
-      "review-routing-decision",
-      "review-routing-facts",
-      "review-rubric-overlay-resolution",
-      "review-severity",
-      "review-status-result",
-      "review-suspension-state",
-      "review-target",
-      "review-target-id-preimage",
-      "severity-gating-policy",
-      "slug",
-      "standard-review-contract",
-      "standard-review-obligation-projection",
-      "standard-review-rubric-digest-preimage",
-      "work-class",
-      "work-unit-review-assurance",
-      "work-unit-state",
-      "__shared",
-    ]);
+    expect(Object.keys(firstBundle.schemas)).toEqual(PRODUCTION_SCHEMA_IDS);
     for (const [id, schema] of Object.entries(firstBundle.schemas)) {
       expect(schema.$id).toBe(`${id}.schema.json`);
     }

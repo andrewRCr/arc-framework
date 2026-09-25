@@ -151,15 +151,6 @@
 
 - _Captured during:_ post-merge `arc-cleared` activation after `review-gate-right-sizing` teardown (2026-07-25).
 
-### `[ ]` **Model Candidate re-root as a resumable recovery frame**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-07); captured during
-  `delivery-native-stack-composition` dogfooding.
-- _Concern:_ an immediate Errand can improve the typed diagnostic for a proved Candidate re-root, but recovery
-  still needs an authoritative frame for continuing after a sanctioned target/base movement.
-- _Fold-in:_ define the monotonic transition evidence, seed comparison, and invalidation rules that let recovery
-  resume without trusting branch-shape inference.
-
 ### `[ ]` **Model intentional unmerged-index state as a resumable recovery frame**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-09-07);
@@ -168,6 +159,80 @@
   safe resumption needs durable evidence for the exact merge/index operation and its allowed continuation.
 - _Fold-in:_ define the narrow resumable frame and fail closed for unrelated or ambiguous unmerged entries; do not
   weaken ordinary dirty-path or conflict detection.
+
+### `[ ]` **Preserve Owner-directed continuation after a failed recovery audit**
+
+- _Routed from:_ live `test-suite-right-sizing` recovery friction, 2026-09-12.
+- _Concern:_ a forcing gate that treats every audit stop as a prohibition on all further action would let ARC
+  override an explicit project or work-unit Owner decision, including a bounded repair or fresh-session re-entry.
+  The audit's failed verdict must remain true, but it is not authority over the Owner's next action.
+- _Fold-in:_ define an explicit, auditable Owner-acknowledgement path issued after the structured stop is disclosed,
+  for a named continuation under higher-priority harness constraints. Keep a stopped audit, an authorized
+  continuation, and a ready/recovered context distinct; never clear the pending marker or claim a ready audit
+  merely because the Owner chose to proceed.
+
+### `[ ]` **Stop coercing a failed worktreeIdentity probe to primary**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ two layers both impersonate primary on failure. `resolveWorktreeIdentity` itself returns
+  `{ kind: "primary" }` when git-dir reads fail, with the comment "the safe default is surface nothing rather
+  than a misleading worktree line" (`worktree-identity.ts`). `runSessionInitStatus` then coerces a thrown
+  identity probe the same way (`111d3a434f`, 2026-05-25). "Surface nothing" meant "don't invent a linked path";
+  the effect is fail-open: roster, sweep, and other primary-gated surfaces still run. This errand had to require
+  a successful primary probe before inbox/reminder/compaction/nudge. Frontline on the fix head then found the
+  schema still treats the coerced `{ kind: "primary" }` as a resolved primary, so those slots would be required
+  on the envelope even when runtime omitted them.
+
+- _Approach:_ decide whether unresolved identity should stay unresolved (omit primary-only surfaces) instead
+  of impersonating primary. If the coerce stays, document why fail-open-to-primary is the intended degrade,
+  and make the envelope presence contract match — do not require inbox/errandSweep from a fallback identity.
+
+- _Files:_ `packages/arc-framework/src/lib/git/worktree-identity.ts`,
+  `packages/arc-framework/src/commands/status/run.ts`,
+  `packages/arc-framework/src/commands/status/schema.ts`.
+
+- _Captured during:_ `localize-session-init-attention` frontline review, 2026-09-17.
+
+### `[ ]` **Re-assert post-compaction recovery on Claude Code until it is discharged**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: recovery-hardening`
+
+- _Observation:_ this WU's stated purpose — recovery is sound machinery wrapped in advisory-only enforcement that
+  Claude routinely rationalizes past — now has a measured instance. Across one Claude Code session the PreCompact
+  and SessionStart hooks fired on 6 of 6 compactions with no mechanical failure, and the recovery audit ran after
+  only 4. Both misses share one signature: the compaction landed mid-task with the next action already determined
+  (subagent results arriving; a typecheck-fix loop in progress), and the pending work carried straight through the
+  injection. The four that complied all landed at turn boundaries with nothing already queued.
+
+- _Observation:_ one miss caused a rules violation with an exact chain. `DEV-RULES.PROJECT` loaded at 20:51:32Z as
+  the prior recovery's load set; the 22:19:05Z compaction dropped it and its recovery was skipped; a
+  backward-compatibility migration reader that `DEV-RULES.PROJECT` § Engineering Standards explicitly forbids was
+  authored at 22:24:02Z, five minutes later; a hosted review finding then pushed toward extending it rather than
+  questioning it; the rule was reloaded only when the Owner challenged it, and the reader was reverted. Advisory
+  enforcement did not fail loudly — it failed silently and stayed failed for two hours.
+
+- _Observation:_ the mechanism is a channel asymmetry, and it is deliberate. Codex wires four channels — PreCompact,
+  SessionStart, PostToolUse, UserPromptSubmit — so a pending marker is re-asserted at every tool boundary and every
+  prompt until explicitly cleared; skipping recovery there is not sustainable. Claude Code wires only PreCompact and
+  SessionStart, and `pre-compact-seed.mjs` suppresses marker writing for `claude-code` on the reasoning that it
+  would write markers nothing consumes. The injection is therefore one-shot: when it loses to task momentum nothing
+  re-asserts it and no residue is left behind. This is why the same repository appears to recover reliably under one
+  harness and unreliably under another when both hooks are firing identically.
+
+- _Approach:_ give Claude Code the forcing function Codex already has, rather than a second enforcement model. Both
+  consumer scripts are already harness-agnostic and emit the `additionalContext` shape Claude Code accepts, so the
+  work is wiring the two re-assertion channels, lifting the harness suppression once consumers exist, adding the
+  cleanup arm, and generalizing the `codex-` naming on the marker module and in `session-recover.md`'s
+  marker-channel prose. Preserve exactly-once claim semantics and fail-closed audit behavior.
+
+- _Boundary:_ distinct from the existing entry closing the Codex no-tool gap, which hardens delivery inside Codex's
+  primitives; this one is the absence of that channel entirely under a second harness. Does not introduce a
+  liveness gate, durable locus record, or trust bypass.
+
+- _Captured during:_ the `noop-json-flag-retirement` errand, PR #652, 2026-09-18.
 
 ## Problem / Motivation
 

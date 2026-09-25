@@ -129,9 +129,11 @@ dependency edges; complete only these authoring decisions:
 - **dependency dispositions** — one replacement, target set, or reasoned drop for every reported edge;
 - **internal dependency edges** — authored from the cut's delivery order.
 
-When the concern stays cohesive but the sizing read finds material distinct deliverables or independently reviewable
-surfaces, return **"stays one WU + delivery-plan candidate"**. This is a first-class planning outcome, not an advisory
-nested under "stays one WU". It is never a gate and authorizes no publication, binding, or external mutation.
+When the concern stays cohesive but the sizing read finds material distinct deliverables that are each independently
+landable on main, return **"stays one WU + delivery-plan candidate"**. Independently reviewable surfaces that are not
+independently landable remain one delivery member and use ordinary review chunking. The delivery outcome is a
+first-class planning result, not an advisory nested under "stays one WU". It is never a gate and authorizes no
+publication, binding, or external mutation.
 
 `direct-member` is the placement for exactly one newly minted member. Every decomposition with more than one new
 member must select `cohort`, `subcohort`, or `at-cap`, regardless of content ownership. Existing or atomic homes

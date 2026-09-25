@@ -106,6 +106,7 @@ function result(input: {
     return {
       ...common,
       kind: "attested-local",
+      vehicle: { kind: "delivery-member", identity: digest(input.id) },
       receiptRef: `refs/arc/review/receipts/${input.id}`,
       localSourceRef: `refs/arc/review/local/${input.id}`,
       request: {} as never,

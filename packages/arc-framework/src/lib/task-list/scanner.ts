@@ -49,6 +49,7 @@ const SUBTASK_RE =
 const TASK_HEADING_PREFIX_RE = /^#{1,6}\s+`?\[[ x~]\]/u;
 const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
+const PARENT_BOUNDARY_HEADING_RE = /^#{1,3}\s+/u;
 const DELIVERY_PLAN_HEADING_RE = /^##\s+Delivery Plan\s*$/u;
 const PHASE_HEADING_RE = /^##\s+\*\*Phase\s+(?<id>[^:]+):\*\*\s+(?<title>.+?)\s*$/u;
 const TASK_BODY_RE = /^(?<id>\S+)\s+(?<title>.+?)\s*$/u;
@@ -68,7 +69,7 @@ interface OpenFence {
  */
 export function scanTaskListStructure(content: string): TaskListStructureResult {
   const events: TaskListStructureEvent[] = [];
-  let hasCurrentParent = false;
+  let currentParent: Extract<TaskListStructureEvent, { type: "parent" }> | null = null;
   let openFence: OpenFence | null = null;
   let inDeliveryPlan = false;
 
@@ -103,7 +104,7 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
 
     if (DELIVERY_PLAN_HEADING_RE.test(line)) {
       events.push({ type: "section", line: lineNumber });
-      hasCurrentParent = false;
+      currentParent = null;
       inDeliveryPlan = true;
       continue;
     }
@@ -116,7 +117,7 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
         id: phase.groups.id.trim(),
         title: phase.groups.title.trim(),
       });
-      hasCurrentParent = false;
+      currentParent = null;
       continue;
     }
 
@@ -124,7 +125,7 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
       const parsed = parseParentTask(line, lineNumber);
       if (parsed.status === "malformed") return parsed;
       events.push(parsed.event);
-      hasCurrentParent = true;
+      currentParent = parsed.event;
       continue;
     }
 
@@ -141,21 +142,35 @@ export function scanTaskListStructure(content: string): TaskListStructureResult 
             ? "task checkbox marker appeared at root level"
             : "subtask marker does not match task-list bullet grammar");
         }
+        if (currentParent !== null) {
+          return malformed(
+            lineNumber,
+            `anonymous checkbox at line ${lineNumber} appears inside parent task ${currentParent.item.id} at line ${currentParent.line}`,
+          );
+        }
         events.push({ type: "content", line: lineNumber, text: line });
         continue;
       }
-      if (!hasCurrentParent) {
+      if (currentParent === null) {
         return malformed(lineNumber, "subtask marker appeared before any parent task");
       }
       const parsed = parseSubtask(line, lineNumber);
       if (parsed.status === "malformed") return parsed;
+      if (currentParent.marker === "x" && parsed.event.marker === " ") {
+        return malformed(
+          lineNumber,
+          `open subtask ${parsed.event.item.id} at line ${lineNumber} appears beneath completed parent ${currentParent.item.id} at line ${currentParent.line}`,
+        );
+      }
       events.push(parsed.event);
       continue;
     }
 
-    if (SECTION_HEADING_RE.test(line)) {
-      events.push({ type: "section", line: lineNumber });
-      hasCurrentParent = false;
+    if (PARENT_BOUNDARY_HEADING_RE.test(line)) {
+      events.push(SECTION_HEADING_RE.test(line)
+        ? { type: "section", line: lineNumber }
+        : { type: "content", line: lineNumber, text: line });
+      currentParent = null;
       continue;
     }
 

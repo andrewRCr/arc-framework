@@ -12,6 +12,39 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Name the holder at every `[invariant]` firing site, or state the owner's standing once and reach it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: owner-authority-boundary (planned)`
+
+- _Observation:_ An `[invariant]` marker states a constraint but never says whose decision it withholds.
+  `DEV-RULES.ARC` § Rule Authority already carries the holder model — every invariant has a holder, the holder
+  making the reserved decision is the rule working rather than a waiver, and § Whose call resolves the holder from
+  role and governed surface — but that model sits in one place while the markers fire across the whole corpus. At
+  a firing site the constraint reads without its addressee, and the missing half is recoverable only by whoever
+  already holds § Rule Authority in context. The gap is reachability and addressing, not an absent model.
+
+- _Live instance:_ an agent told the Owner that review routing was "not mine or yours to settle by preference",
+  restating an agent-scoped restriction as one binding the principal — over a review policy the Owner authored,
+  including its owner-acceptance terminus. Nothing in the marker at the point of use would have caught that; the
+  correction came from the Owner.
+
+- _Why it matters twice:_ the correctness argument is that an unaddressed invariant reads as universal. The
+  product argument is independent and larger — an agent using ARC to imply the owner has less authority than they
+  do inverts what the methodology is for, and would be a serious defect in an adopter's hands whether or not the
+  underlying call was right.
+
+- _Open fork:_ per-firing-site addressee marking is precise but multiplies markup across every marker in the
+  corpus; a single universal rule — the owner or adopter is never bound by an agent-scoped invariant and their
+  direction governs, with CODEOWNERS-type delegation named as the exception — is one statement but still has to be
+  reachable from where a marker fires. Settle which shape before writing either.
+
+- _Prior art:_ `judgment-authority-model` (completed) shipped the § Rule Authority reading this sharpens; treat its
+  spec and notes as the baseline rather than re-deriving the territory.
+
+- _Captured during:_ `concurrent-integration-characterization` verification close, 2026-09-15.
+
 ### `[ ]` **Rebalance the Errand concept across AGENT-BRIEF.ARC / DEV-RULES.ARC (progressive disclosure)**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).

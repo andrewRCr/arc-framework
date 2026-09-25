@@ -1,10 +1,14 @@
 # Self-hosted Linux CI operations
 
-This runbook operates the repository's disposable Linux GitHub Actions capacity. The normal target is two
-user-owned x86-64 VPS hosts running four persistent runner services, two per host. GitHub-hosted execution remains
-the recovery path.
+This runbook operates the repository's disposable Linux GitHub Actions capacity. Two runner classes are
+registered: a local arm64 host under `arc-ci-mini`, which is the normal target, and two user-owned x86-64 VPS hosts
+running four persistent runner services under `arc-ci-linux`, retained as fallback. GitHub-hosted execution remains
+the recovery path. Routing selects one class at a time through the repository variable `ARC_CI_LINUX_RUNNER`.
 
 ## Operating contract
+
+The contract below governs the VPS class. The local host's differences are in § Local arm64 runner; the isolation,
+credential, and disposability rules apply to both.
 
 - Use the approved current Ubuntu LTS on x86-64 while it remains supported by the GitHub Actions runner; the
   acquired baseline is Ubuntu 26.04 LTS. Re-check the runner support page before acquiring or rebuilding a host;
@@ -153,6 +157,50 @@ After the audit passes:
    Confirm both units are enabled and active. Reboot once before cutover, then confirm that host's two runners return
    online and idle without operator action.
 
+## Local arm64 runner
+
+A dedicated local host carries the arm64 half of the fleet as a Lima guest labelled `arc-ci-mini`. It is not a
+development machine and holds no checkout, credential, or personal data. The guest reaches nothing on its host: no
+host mounts, no forwarded agent, and no published port beyond the hypervisor's own loopback control channel.
+
+**Recipe and helpers** live in `scripts/local-ci/`. Rebuild the guest from them rather than repairing it:
+
+- `arc-ci.yaml` — the instance definition. Eight vCPU, 8 GiB, 60 GiB, a pinned image verified by digest, and system
+  provisioning that installs the tool set, creates the `arc-runner` account with mode `0750` application
+  directories, and configures persistent size-bounded journald matching the VPS hosts.
+- `start.sh` — starts the instance and installs the login agent when it is absent.
+- `status.sh` — prints the instance, the guest's load and memory, and each runner service.
+- `rebuild.sh` — destroys the instance and recreates it from the recipe. Requires `--yes` and refuses while a job
+  is in progress.
+
+The login agent ships as a template carrying a home-directory placeholder, substituted by `start.sh` at install
+time, so no account path enters a tracked file.
+
+**Registration** follows § Runner registration with three differences:
+
+1. Use the arm64 `actions/runner` download and verify its SHA-256 before extracting into either directory.
+2. Assign `--labels arc-ci-mini`. Keep the default `self-hosted`, `Linux`, and `ARM64` labels, and never assign
+   `arc-ci-linux` — a host must not be reachable through the other class's label.
+3. Because the label is distinct, the precondition is not that the routing variable is absent but that it does not
+   already read `arc-ci-mini`. The existing route stays live while these services register.
+
+**Run two services.** Two is the measured configuration, not a starting point. The host's performance cores are the
+binding constraint well before memory is: a third service degrades per-job time enough to breach wall-clock
+assumptions in the end-to-end suite, for a throughput gain in the single digits.
+
+**Unattended restart.** The host logs in automatically to its CI account and the login agent starts the instance,
+so a restart needs no operator action — including the restarts that macOS updates perform. Expect the runners
+online roughly three minutes afterwards; most of that is runner reconnection rather than boot. Service state inside
+the guest goes active well before GitHub will schedule work, so read the repository's runner list, not `systemctl`,
+when judging readiness.
+
+**Maintenance windows.** To take the local host out of rotation without deregistering it, flip routing to the
+fallback class and confirm the next run's Linux jobs report VPS runner names:
+
+```sh
+gh variable set ARC_CI_LINUX_RUNNER --body arc-ci-linux
+```
+
 ## Cutover and health checks
 
 Do not select the self-hosted route until all checks below pass:
@@ -187,9 +235,9 @@ empty-value fallback):
 gh variable set ARC_CI_LINUX_RUNNER --body ubuntu-latest
 ```
 
-Cancel every queued workflow attempt targeting `arc-ci-linux` and every in-progress attempt already executing on a
-self-hosted runner. Confirm the Actions job list contains no queued or running job with the `arc-ci-linux` label
-before rerunning; changing the variable does not migrate work that was already assigned.
+Cancel every queued workflow attempt targeting `arc-ci-linux` or `arc-ci-mini`, and every in-progress attempt already
+executing on a self-hosted runner. Confirm the Actions job list contains no queued or running job carrying either
+self-hosted label before rerunning; changing the variable does not migrate work that was already assigned.
 
 Confirm the new run's Linux jobs report GitHub-hosted runner names before treating fallback as complete. Fallback
 precedes runner maintenance, rebuild, incident response, decommissioning, and any public-repository transition.

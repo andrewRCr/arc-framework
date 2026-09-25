@@ -16,8 +16,9 @@ mutation, validation, and rollback. Retirement alone owns the durable transition
 Extraction is the supported source-preserving arm for a started `Planning` or `Active` source. It is entered through
 its own command mode, and the core retirement transform remains unchanged.
 
-Use only CLI-reported paths, packets, statuses, and remedies. On refusal, surface the returned status and remedy
-unchanged, stop, and re-enter only at the reported action. Never construct identifiers, Git topology, recovery
+Use only CLI-reported paths, packets, statuses, and remedies. Every selected mode emits one typed refusal envelope
+on stdout. On refusal, surface its status, reason, optional locus and evidence, remedy, and any optional report
+unchanged. Stop until the reported correction is complete. Never construct identifiers, Git topology, recovery
 commands, or extraction report fields.
 
 ## Preconditions
@@ -38,8 +39,8 @@ Run machine mode before interactive prose:
 arc decompose <origin> --preflight > <scratch-starter-map>
 ```
 
-The read-only result pins the source, planning profile, exact source units, and dependency edges. Diagnostics use
-stderr; a refusal emits no partial map.
+The read-only result pins the source, planning profile, exact source units, and dependency edges. Successful
+preflight writes the starter map alone; refusal follows the common envelope and never emits a partial starter map.
 
 On refusal, stop. Do not fetch, substitute working-tree bytes, select another source, or hand-author missing
 machine fields.
@@ -49,10 +50,15 @@ machine fields.
 Edit only the starter map's authoring slots:
 
 - name each new member or exact existing destination;
-- allocate every source unit once, retaining extraction scope at the origin or dropping scope with a reason;
+- allocate every source unit once; for retirement, inventoried companion units — including task-list phases and notes
+  sections — use the same target or reasoned-drop dispositions as design units;
+- for extraction, set every started-Planning companion allocation to `retained-origin`; Active origins report no
+  companion units;
 - disposition every incoming and outgoing dependency edge once;
-- select the already-settled authoring shape and placement; and
-- for extraction, encode retained or transferred ownership only through the existing source-allocation slots.
+- use `internalEdges` for dependencies between declared destinations and `outgoingDispositions` to redistribute an
+  existing origin prerequisite;
+- add an `externalEdges` entry only from a new member or live existing-home work unit to a work unit outside the cut;
+- select the already-settled authoring shape and placement.
 
 Preserve every machine-owned field. Do not calculate paths or identifiers, create unreported destinations, or
 derive machine facts from prose.
@@ -77,7 +83,7 @@ On success, retain the complete staged result, including its plan packet, profil
 arm, release paths, and candidate branch and worktree when applicable. Retirement owns transition-record creation;
 extraction stages an additive result without mutating the surviving source or writing a transition record.
 
-On refusal, stop and surface its typed status and remedy. Retry only after the reported state is resolved. A failed
+On refusal, apply the common refusal rule above. Retry only after the reported state is resolved. A failed
 full-protection attempt leaves only an ARC-owned candidate that ordinary cleanup may remove; it creates no special
 discard or recovery protocol.
 
@@ -86,6 +92,10 @@ discard or recovery protocol.
 Follow the successful result packets in their reported order:
 
 - complete every new member's reported design family and authoring requirements;
+- treat reported `provisional-task` and `provisional-notes` entries as whole retitled copies of the origin companions,
+  then prune them to their assigned content;
+- manually transfer allocated content from every other companion from its reported source to its admissible reported
+  destination;
 - complete required cohort or parent coordination;
 - apply every reported existing-home semantic edit; and
 - preserve the reported profile, topology, dependency effects, and task-pointer maturity.
@@ -169,9 +179,9 @@ current configured base and stages an append-only merge from the same completed 
 arc decompose <origin> --advance-base <completed-map>
 ```
 
-An `unchanged` result continues without a commit. An `advanced` result fires the interlock below. On refusal, surface
-the reason and stop; do not rebuild the candidate, map, or merge manually. Extraction never invokes this operation;
-its typed refusal is final for that candidate.
+An `unchanged` result continues without a commit. An `advanced` result fires the interlock below. On refusal, apply
+the common refusal rule above; do not rebuild the candidate, map, or merge manually.
+Extraction never invokes this operation; its typed refusal is final for that candidate.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after an `advanced` result. Surface its candidate branch, previous and current base,
@@ -236,7 +246,7 @@ On approval, apply the exact preview:
 arc decompose <origin> --finish <completed-map> --apply <preview.applyAuthority>
 ```
 
-Route only the CLI-reported finish outcome or remedy. An `already-finished` outcome completes this leg without
+Apply the common refusal rule above to a refused finish. An `already-finished` outcome completes this leg without
 new mutation; it does not authorize a new commit by itself. Never tear down the surviving extraction origin.
 
 A `finished` outcome leaves the exact source thinning staged. Before cleanup, the surviving origin's owner must

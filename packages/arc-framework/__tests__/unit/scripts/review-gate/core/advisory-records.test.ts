@@ -187,6 +187,71 @@ describe("advisory review records", () => {
         branch: "chore/repair-review-state",
       },
     }).success).toBe(false);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: "a".repeat(40),
+      },
+    }).success).toBe(source.kind === "frontline");
+  });
+
+  it("binds a Candidate-owned private member to the fix authorization head", () => {
+    const { dispositionSetId: _unused, ...fields } = approvedDisposition.dispositionSet;
+    expect(_unused).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    const finding = fields.findings[0];
+    if (finding?.sourceVerification !== "verified") throw new Error("expected a verified finding");
+    const fixDisposition = approveDispositionState({
+      proposed: proposeDispositionSet(createDispositionSet({
+        ...fields,
+        findings: [{
+          ...finding,
+          disposition: "fix" as const,
+          recommendation: "Apply the correction.",
+        }],
+      })),
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-07-23T15:00:00Z",
+    });
+    const fixAuthorization = createFixAuthorization({
+      dispositionState: fixDisposition,
+      oldTarget: target,
+    });
+    const record = {
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: target.repositoryId,
+      operationId: "operation-1",
+      candidate: { workUnit: "example", candidateId: `sha256:${"c".repeat(64)}` },
+      errand: null,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: target.headSha,
+      },
+      source: { kind: "frontline", outcomeRef: "outcome:1" },
+      currentDispositionSetId: fixDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition: fixDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({ headSha: target.headSha }),
+        fixAuthorization,
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
+    } as const;
+
+    expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
+    expect(ApprovedDispositionRecordSchema.safeParse({
+      ...record,
+      deliveryMember: { ...record.deliveryMember, head: "e".repeat(40) },
+    }).success).toBe(false);
   });
 
   it("accepts one immutable approved-set lineage with an explicit current pointer", () => {

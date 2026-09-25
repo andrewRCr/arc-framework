@@ -35,6 +35,8 @@ import { LaneSubjectLineageSchema, type LaneSubjectLineage } from
 import { createFixAuthorization } from
   "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
+import type { LocalReviewAuthority } from
+  "../../../../../src/scripts/review-gate/core/local-review-authority.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import {
   computeConditionalPassAuthorizationId,
@@ -47,9 +49,14 @@ import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/r
 import { projectHostedFinding } from "../../../../../src/scripts/review-gate/hosted/await.js";
 import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { laneContinuationOperationId } from "../../../../../src/scripts/review-gate/lane-progress.js";
-import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
+import { CandidateBoundMemberFixAuthoringSchema } from
+  "../../../../../src/scripts/review-gate/core/review-command-envelope.js";
+import { normalizeFrontlineOutcome } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { computeFrontlineSourceBindingId } from
+  "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import {
   respondToReviewCommand,
   type RespondCommandDependencies,
@@ -62,7 +69,7 @@ const objectId = (character: string): string => character.repeat(40);
 const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
 const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
 const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
-const errandVehicle = { kind: "errand", identity: "repair-review-state" } as const;
+const errandVehicle = { kind: "errand", identity: "repair-review-state", claimId: "claim-1" } as const;
 
 function activeErrandBinding(claimId = "claim-1") {
   return ErrandReviewBindingSchema.parse({
@@ -73,7 +80,7 @@ function activeErrandBinding(claimId = "claim-1") {
 }
 
 function fixture(
-  vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
+  vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle,
   sourceLabel?: string,
   lineage: LaneSubjectLineage = {
     kind: "candidate",
@@ -288,6 +295,7 @@ function approved(input: {
 function localResult(records: ReturnType<typeof fixture>): ReviewResult {
   return {
     kind: "attested-local",
+    vehicle: records.operation.vehicle,
     producerId: records.operation.operationId,
     repositoryId: records.operation.repositoryId,
     target: records.target,
@@ -379,6 +387,15 @@ function dependencies(records: ReturnType<typeof fixture>) {
     }),
     resolveActiveErrand: async () => null,
     resolveDeliveryMemberFixTarget: async () => null,
+    resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) =>
+      CandidateBoundMemberFixAuthoringSchema.parse({
+        kind: "candidate",
+        workUnit,
+        head: expectedHead,
+        ref: "refs/heads/feat/example",
+        checkoutPath: "/repo",
+        deliverySuffixReconstruction: "after-candidate-advance",
+      }),
     now: () => "2026-07-23T21:00:00Z",
     readCandidateLineage: async () => {
       const record = candidateRecord();
@@ -483,7 +500,9 @@ function effectiveCurrent(
     recognizedTarget: target,
     recognition: { kind: "durable" as const },
     implementationChanged,
-    convergenceVerification: implementationChanged ? "pending" as const : "satisfied" as const,
+    ...(implementationChanged
+      ? { convergenceVerification: "pending" as const, convergenceScope: "full" as const }
+      : { convergenceVerification: "satisfied" as const, convergenceScope: null }),
   };
 }
 
@@ -680,7 +699,7 @@ function policyRequest(
 
 function hostedResponseFixture(
   origin: "review-thread" | "review-body",
-  vehicle: LocalReviewState["vehicle"] = workUnitVehicle,
+  vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle,
   reportedNit = false,
 ) {
   const records = fixture(vehicle);
@@ -889,7 +908,7 @@ describe("review response command", () => {
       payload: {
         deliveryMember: records.vehicle,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository: "owner/repo", remote: "origin" },
         },
       },
@@ -2032,7 +2051,7 @@ describe("review response command", () => {
       payload: {
         deliveryMember: attempt.hosted.vehicle,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository: "owner/repo", remote: "origin" },
         },
       },
@@ -2761,7 +2780,7 @@ describe("review response command", () => {
       retryGeneration: 0,
       outcome: "findings",
       policyVersion: digest("frontline-policy"),
-      sourceBindingId: digest("frontline-source-binding"),
+      sourceBindingId: computeFrontlineSourceBindingId(source),
     };
     deps.resultReader.readResult = async () => frontlineResult({ operation, record, outcomeRef: durableRef });
     deps.readCandidateLineage = async () => null;
@@ -2890,6 +2909,7 @@ describe("review response command", () => {
     const deps = dependencies(records);
     const resolveLocalActors = vi.fn(deps.resolveLocalActors);
     deps.resolveLocalActors = resolveLocalActors;
+    if (vehicle.kind === "errand") deps.resolveActiveErrand = async () => activeErrandBinding();
 
     await expect(respondToReviewCommand(localRequest(records), deps)).resolves.toMatchObject({
       state: "ready-to-fix",
@@ -2916,6 +2936,7 @@ describe("review response command", () => {
       dispositionRecordRef: "git-common:review-gate/evidence/disposition.json",
     }));
     deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
     deps.dispositionStore.appendDispositionRecord = appendDispositionRecord;
 
     await expect(respondToReviewCommand(localRequest(records, disposition), deps))
@@ -3076,7 +3097,7 @@ describe("verified-fix Candidate settlement", () => {
     });
   });
 
-  it("leaves the advanced lineage awaiting one converged full attestation", async () => {
+  it("leaves the advanced lineage awaiting one converged focused attestation", async () => {
     const records = fixture();
     const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
     const { deps, appends } = lineageDependencies(records, current);
@@ -3089,6 +3110,7 @@ describe("verified-fix Candidate settlement", () => {
       status: "current",
       implementationChanged: true,
       convergenceVerification: "pending",
+      convergenceScope: "focused",
     });
   });
 
@@ -3257,6 +3279,39 @@ describe("verified-fix Candidate settlement", () => {
     )).rejects.toThrow("requires a changed exact target");
   });
 
+  it.each(["proposal", "approval"] as const)(
+    "refuses a local Errand %s after its live claim changes",
+    async (stage) => {
+      const records = fixture(errandVehicle);
+      const deps = dependencies(records);
+      deps.readCandidateLineage = async () => null;
+      deps.resolveActiveErrand = async () => activeErrandBinding("claim-2");
+      const request = stage === "proposal"
+        ? {
+            schemaVersion: 1,
+            source: { kind: "attested-local", receiptRef: records.receiptRef },
+            proposal: {
+              proposedVerification: "focused",
+              severityGatingPolicy: { minorGating: "record-only" },
+              findings: [{
+                findingId: records.finding.findingId,
+                sourceVerification: "verified",
+                verifiedSeverity: "major",
+                verificationRefs: ["source:src/index.ts:7"],
+                disposition: "fix",
+                rationale: "The selected source supports this disposition.",
+                recommendation: "Apply the fix.",
+                openQuestions: [],
+              }],
+            },
+          }
+        : localRequest(records);
+
+      await expect(respondToReviewCommand(request, deps))
+        .rejects.toThrow("local review Errand claim does not match the active Errand");
+    },
+  );
+
   it("persists a verified fix for the exact active Errand without Candidate lineage", async () => {
     const records = fixture(errandVehicle);
     const { deps, moveTo } = movingCheckout(records);
@@ -3384,7 +3439,7 @@ describe("verified-fix Candidate settlement", () => {
     moveTo(settledHead(records.target.repositoryId, objectId("e"), objectId("f")));
 
     await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
-      .rejects.toThrow("exact approved active Errand response record");
+      .rejects.toThrow("local review Errand claim does not match the active Errand");
   });
 
   it("refuses a verified fix the index does not carry, rather than advancing a lineage without it", async () => {

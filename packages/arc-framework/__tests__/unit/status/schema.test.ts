@@ -690,6 +690,7 @@ describe("deep advisory routing views", () => {
       SessionInitBaseDistanceValueViewSchema,
       {
         verdict: "clean",
+        movement: "disjoint",
         state: "clean",
         ahead: 0,
         behind: 0,
@@ -733,5 +734,41 @@ describe("deep advisory routing views", () => {
     ],
   ] as const)("preserves legitimate unowned fields through thin schema %#", (schema, value) => {
     expect(schema.parse(value)).toEqual(value);
+  });
+
+  it("requires movement only on healthy base-distance readings", () => {
+    const healthy = {
+      verdict: "clean",
+      movement: "disjoint",
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      baseOid: "a".repeat(40),
+      remoteEvidence: "exact",
+      recommendedAction: "skip",
+      recommendedPromptText: "",
+    };
+    expect(SessionInitBaseDistanceValueViewSchema.safeParse(healthy).success).toBe(true);
+    const { movement: _movement, ...missingMovement } = healthy;
+    void _movement;
+    expect(SessionInitBaseDistanceValueViewSchema.safeParse(missingMovement).success).toBe(false);
+    expect(SessionInitBaseDistanceValueViewSchema.safeParse({
+      ...healthy,
+      verdict: "skipped",
+      state: "skipped",
+      baseOid: null,
+      remoteEvidence: "not-applicable",
+    }).success).toBe(false);
+    expect(SessionInitBaseDistanceValueViewSchema.safeParse({
+      ...healthy,
+      verdict: "unavailable",
+      state: "remote-unavailable",
+      baseOid: null,
+      headOid: null,
+      movement: undefined,
+      unavailableReason: "remote-evidence-unreachable",
+      remoteEvidence: "unreachable",
+      failureReason: "network",
+    }).success).toBe(true);
   });
 });

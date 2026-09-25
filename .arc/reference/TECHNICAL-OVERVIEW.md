@@ -176,6 +176,11 @@ _CI & configuration:_
   lifecycle-ready exact-head interlock. `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is
   enabled—planning/backlog grooming PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo:
   no formal Code Owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
+- **Linux runner fleet**: the repository variable `ARC_CI_LINUX_RUNNER` selects one class at a time. `arc-ci-mini`
+  is an arm64 Lima guest on a dedicated local host running two runner services, defined by the recipe and helpers
+  in `scripts/local-ci/`; `arc-ci-linux` is a pair of x86-64 VPS hosts running four services and stays registered
+  as fallback. An unset variable routes to GitHub-hosted runners. Operations for both live in
+  `.github/self-hosted-ci.md`.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 
@@ -184,12 +189,14 @@ _CI & configuration:_
 ### CLI Package Testing
 
 - **Framework**: Vitest
-- **Execution**: `npm test` (full suite), `npm run test:unit` (unit only)
-- **Structure**: Three tiers by isolation level:
-    - **Unit** (`__tests__/unit/`) — Pure function and module tests, no side effects
+- **Execution**: `npm test` (routine unit + integration lane), `npm run test:full` (all projects),
+  `npm run test:unit` (unit projects only)
+- **Structure**: Four Vitest projects across three isolation tiers:
+    - **Unit** and **unit-mocks** (`__tests__/unit/`) — Pure function and module tests, with mock-heavy files
+      isolated in their own project
     - **Integration** (`__tests__/integration/`) — Module interaction, may use temp filesystem
     - **E2E** (`__tests__/e2e/`) — Full CLI invocation against real (temporary) git repos
-- **Command**: `npm test` (unit + integration, then E2E)
+- **Command**: `npm test` (unit + unit-mocks + integration); `npm run test:full` also includes E2E
 
 See `strategy-testing-methodology.md` for TDD decision tree, tier boundaries, mocking rules, and vertical-slice
 workflow.

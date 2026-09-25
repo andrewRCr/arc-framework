@@ -4,12 +4,14 @@ import {
   acknowledgeDeliveryReviewFixVerification,
   advanceDeliveryReviewFixResponse,
   carryDeliveryReviewFixPublicBoundary,
+  deriveDeliveryReviewFixLifecycleRevalidation,
   planDeliveryReviewFixRoute,
   publishSelectedDeliveryReviewFix,
   recordDeliveryReviewFixCandidateVerification,
   type DeliveryReviewFixPublicationDependencies,
 } from "../../../src/lib/delivery/review-fix.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { compareDeliveryLifecycleContribution } from "../../../src/lib/delivery/lifecycle-contribution.js";
 import type { DeliveryNativeStackObservation } from "../../../src/lib/delivery/native-stack.js";
 import type { DeliveryRevisionedRecord } from "../../../src/lib/delivery/ports.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
@@ -75,6 +77,52 @@ function fixture() {
 }
 
 describe("delivery review-fix routing", () => {
+  it("keeps a selected correction's ROADMAP at its chain base after a sibling regenerates main", () => {
+    const { state: initial } = fixture();
+    const state = { ...initial, target: { ...initial.target!, ref: "refs/heads/main" } };
+    const selected = state.members[1]!;
+    const path = ".arc/backlog/ROADMAP.md";
+    const lifecycle = deriveDeliveryReviewFixLifecycleRevalidation({
+      state,
+      selectedDeliverableId: selected.deliverableId,
+      candidateRef: "refs/arc/delivery-candidates/selected",
+      lifecyclePaths: [path, ".arc/active/meta-delivery-plan-record.md"],
+    });
+    expect(lifecycle).toEqual({
+      protectedBaseRef: "refs/heads/main",
+      chainBaseRef: selected.coordinates!.base,
+      candidateRef: "refs/arc/delivery-candidates/selected",
+      paths: [".arc/active/meta-delivery-plan-record.md", path],
+      regenerablePaths: [path],
+    });
+    if (lifecycle === null) throw new Error("selected member must have lifecycle coordinates");
+    const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
+    const protectedBase = new Map([
+      [path, blob("sibling-render")],
+      [".arc/active/meta-delivery-plan-record.md", blob("unchanged-meta")],
+    ]);
+    const chainBase = new Map([
+      [path, blob("chain-render")],
+      [".arc/active/meta-delivery-plan-record.md", blob("unchanged-meta")],
+    ]);
+    const candidate = new Map(chainBase);
+    expect(compareDeliveryLifecycleContribution({
+      paths: lifecycle.paths,
+      protectedBase,
+      chainBase,
+      candidate,
+      regenerablePaths: lifecycle.regenerablePaths,
+    })).toEqual({ status: "match", mismatchedPaths: [] });
+    candidate.set(path, blob("competing-render"));
+    expect(compareDeliveryLifecycleContribution({
+      paths: lifecycle.paths,
+      protectedBase,
+      chainBase,
+      candidate,
+      regenerablePaths: lifecycle.regenerablePaths,
+    })).toEqual({ status: "mismatch", mismatchedPaths: [path] });
+  });
+
   it("records and exactly replays one verified hosted delivery-member fix response", () => {
     const { plan } = fixture();
     const selectedDeliverableId = plan.members[0]!.deliverableId;
@@ -486,6 +534,7 @@ describe("delivery review-fix routing", () => {
     expect(projectCandidateCurrentness({ record: result.record, current: currentTarget })).toMatchObject({
       status: "current",
       convergenceVerification: "satisfied",
+      convergenceScope: null,
     });
 
     expect(recordDeliveryReviewFixCandidateVerification({

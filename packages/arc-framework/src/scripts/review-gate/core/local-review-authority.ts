@@ -3,7 +3,7 @@
 export interface LocalReviewAuthority {
   vehicle:
     | { kind: "work-unit"; identity: string }
-    | { kind: "errand"; identity: string }
+    | { kind: "errand"; identity: string; claimId: string }
     | { kind: "delivery-member"; identity: string };
   authorIdentity: string;
   evaluatorIdentity: string;

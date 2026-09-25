@@ -541,4 +541,97 @@ describe("frontline run command", () => {
       signal: expect.any(AbortSignal),
     }));
   });
+
+  it("requires an explicit retry after timeout and projects it as one source attempt", async () => {
+    const reviewTarget = target("c");
+    const { stores, resolution: firstResolution } = await admittedRun(reviewTarget);
+    const execute = vi.fn(async (input: { pass: number; maxPasses: number }) => {
+      const timedOut = execute.mock.calls.length === 1;
+      return {
+        outcome: normalizeFrontlineOutcome({
+          providerResult: timedOut ? { kind: "timed-out" } : { kind: "clean" },
+          source,
+          target: reviewTarget,
+          pass: input.pass,
+          maxPasses: input.maxPasses,
+        }),
+        executableIdentity: timedOut
+          ? null
+          : {
+              digest: canonicalDigest({ executable: "reviewer" }),
+              qualifiedVersion: "reviewer/1.0.0",
+            },
+      };
+    });
+    const dependencies = {
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => ({
+        target: reviewTarget,
+        reviewRoot: "/tmp/review",
+        release: vi.fn(),
+      }),
+      execute,
+      ...stores,
+      now: () => "2026-08-15T12:00:00Z",
+    };
+
+    const timedOut = await runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: reviewTarget,
+      resolution: firstResolution,
+    }, dependencies);
+    const retryAdmission = admissionFor(reviewTarget, 2, 1);
+    await recordLaneAttempt(stores.operationStore, {
+      lane: "frontline",
+      repositoryId: reviewTarget.repositoryId,
+      changeRequestId: null,
+      headSha: reviewTarget.headSha,
+      lineage: retryAdmission.lineage,
+      logicalPass: retryAdmission.logicalPass,
+      retryGeneration: retryAdmission.retryGeneration,
+      attemptId: retryAdmission.operationId,
+      sourceId: source.sourceId,
+      outcome: "pending",
+      consumedPass: false,
+      frontline: { admission: retryAdmission, effectiveCoverage: null },
+      now: "2026-08-15T12:01:00Z",
+    });
+    const retry = await runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: reviewTarget,
+      resolution: readyResolution(retryAdmission),
+      retryOfOperationId: timedOut.payload.operationId,
+    }, dependencies);
+
+    expect(timedOut).toMatchObject({ state: "timed-out", nextAction: "operator-repair" });
+    expect(timedOut.diagnostics).toEqual([{
+      code: "frontline-explicit-retry",
+      message: expect.stringContaining(timedOut.payload.operationId),
+    }]);
+    expect(retry).toMatchObject({ state: "clean", nextAction: "none" });
+    expect(retry.payload.operationId).not.toBe(timedOut.payload.operationId);
+    await expect(stores.operationStore.readOperation(laneProgressOperationId({
+      lane: "frontline",
+      repositoryId: reviewTarget.repositoryId,
+      headSha: reviewTarget.headSha,
+      lineage: retryAdmission.lineage,
+    }))).resolves.toMatchObject({
+      state: {
+        kind: "lane-progress",
+        completedPasses: 1,
+        attempts: [
+          { attemptId: timedOut.payload.operationId, outcome: "timed-out" },
+          { attemptId: retry.payload.operationId, sourceId: source.sourceId, outcome: "clean" },
+        ],
+      },
+    });
+    await expect(stores.operationStore.readOperation(timedOut.payload.operationId))
+      .resolves.toMatchObject({ state: { kind: "frontline-run", outcome: "timed-out" } });
+    await expect(stores.operationStore.readOperation(retry.payload.operationId))
+      .resolves.toMatchObject({ state: { kind: "frontline-run", outcome: "clean" } });
+    await expect(stores.outcomeStore.readOutcome(timedOut.payload.operationId))
+      .resolves.toMatchObject({ record: { outcome: { outcome: "timed-out" } } });
+    await expect(stores.outcomeStore.readOutcome(retry.payload.operationId))
+      .resolves.toMatchObject({ record: { outcome: { outcome: "clean" } } });
+  });
 });

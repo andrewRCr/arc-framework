@@ -1,6 +1,12 @@
 /** Pure three-tree retirement-delta planning for v3 decomposition. */
 
 import { isManagedPath } from "../canonical/managed-path.js";
+import {
+  v3DecomposeAbsentEvidence,
+  v3DecomposeByteEvidence,
+  type V3DecomposeEvidenceValue,
+  type V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 
 export type V3RetirementTreeState =
   | { kind: "absent" }
@@ -60,6 +66,7 @@ export type V3RetirementDeltaRefusalCode =
 export interface V3RetirementDeltaRefusal {
   code: V3RetirementDeltaRefusalCode;
   path?: string;
+  evidence?: V3DecomposeRefusalEvidence;
 }
 
 export type V3RetirementDeltaResult =
@@ -108,20 +115,44 @@ function regularFile(state: V3RetirementTreeState): boolean {
     && (state.mode === "100644" || state.mode === "100755");
 }
 
+function treeStateEvidence(state: V3RetirementTreeState): V3DecomposeEvidenceValue {
+  if (state.kind === "absent") return v3DecomposeAbsentEvidence();
+  return {
+    kind: "object",
+    objectKind: state.objectKind,
+    mode: state.mode,
+    ...v3DecomposeByteEvidence(state.bytes),
+  };
+}
+
+function comparisonEvidence(
+  expected: V3RetirementTreeState,
+  actual: V3RetirementTreeState,
+): V3DecomposeRefusalEvidence {
+  return {
+    expected: treeStateEvidence(expected),
+    actual: treeStateEvidence(actual),
+  };
+}
+
 function transitionShapeRefusal(
   base: V3RetirementTreeState,
   source: V3RetirementTreeState,
   path: string,
 ): V3RetirementDeltaRefusal | null {
   if (source.kind === "object" && source.objectKind !== "blob") {
-    return { code: "unexpected-object-kind", path };
+    return { code: "unexpected-object-kind", path, evidence: comparisonEvidence(base, source) };
   }
   if (source.kind === "object" && source.mode !== "100644" && source.mode !== "100755") {
-    return { code: "unexpected-mode", path };
+    return { code: "unexpected-mode", path, evidence: comparisonEvidence(base, source) };
   }
   if (base.kind === "object" && source.kind === "object") {
-    if (base.objectKind !== source.objectKind) return { code: "unexpected-object-kind", path };
-    if (base.mode !== source.mode) return { code: "unexpected-mode", path };
+    if (base.objectKind !== source.objectKind) {
+      return { code: "unexpected-object-kind", path, evidence: comparisonEvidence(base, source) };
+    }
+    if (base.mode !== source.mode) {
+      return { code: "unexpected-mode", path, evidence: comparisonEvidence(base, source) };
+    }
   }
   return null;
 }
@@ -188,7 +219,14 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
     return { status: "refused", refusal: { code: "predecessor-missing", path: predecessorPath } };
   }
   if (!statesEqual(predecessorFacts.base, predecessorFacts.result)) {
-    return { status: "refused", refusal: { code: "predecessor-changed", path: predecessorPath } };
+    return {
+      status: "refused",
+      refusal: {
+        code: "predecessor-changed",
+        path: predecessorPath,
+        evidence: comparisonEvidence(predecessorFacts.base, predecessorFacts.result),
+      },
+    };
   }
   const predecessorArtifactPaths = [
     ...new Set(input.predecessorArtifactPaths ?? [predecessorPath]),
@@ -203,13 +241,27 @@ export function planV3RetirementDelta(input: V3RetirementDeltaInput): V3Retireme
       return { status: "refused", refusal: { code: "predecessor-missing", path } };
     }
     if (!statesEqual(facts.base, facts.result)) {
-      return { status: "refused", refusal: { code: "predecessor-changed", path } };
+      return {
+        status: "refused",
+        refusal: {
+          code: "predecessor-changed",
+          path,
+          evidence: comparisonEvidence(facts.base, facts.result),
+        },
+      };
     }
     if (input.sourceKind === "backlog-stub") {
       const refusal = transitionShapeRefusal(facts.base, facts.source, path);
       if (refusal !== null) return { status: "refused", refusal };
       if (!statesEqual(facts.base, facts.source)) {
-        return { status: "refused", refusal: { code: "backlog-predecessor-changed", path } };
+        return {
+          status: "refused",
+          refusal: {
+            code: "backlog-predecessor-changed",
+            path,
+            evidence: comparisonEvidence(facts.base, facts.source),
+          },
+        };
       }
     }
     predecessorRetirements.push({ path, before: facts.result, after: ABSENT });

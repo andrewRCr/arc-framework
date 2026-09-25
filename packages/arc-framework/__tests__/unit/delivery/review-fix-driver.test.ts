@@ -542,7 +542,7 @@ describe("delivery review-fix driver", () => {
       paths: ["shared.txt"],
       conflictPreparation,
       resumeAction: {
-        argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+        argv: ["arc", "delivery", "review-fix", "continue", "-"],
         input: { repository: "owner/repo", remote: "origin" },
       },
       effectLog: [{

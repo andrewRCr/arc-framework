@@ -36,7 +36,10 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
   (delete, reset, overwrite, force) requires real-CLI e2e coverage in a temp git repo, never a mock-only
   proof** · `[invariant]`.
 - **Fixtures and naming** — reusable multi-file fixtures live in `__tests__/fixtures/`; prefer inline data for
-  simple cases; test files mirror the source path (`src/lib/x.ts` → `__tests__/unit/lib/x.test.ts`).
+  simple cases; test files mirror the source path (`src/lib/x.ts` → `__tests__/unit/lib/x.test.ts`). A test
+  file that would exceed the per-file 1500-line cap on `__tests__/**` splits into suffixed siblings on the
+  mirrored stem (`native-landing.test.ts` → `native-landing-suffix.test.ts`), divided at a behavioral seam
+  rather than by line count; a module offering no such seam is evidence the source wants decomposition.
 - **Project fail-first reconstruction** — apply `.default`'s reconstruct-and-revert procedure by changing only the
   narrow behavior under test and preserving every export and signature the test needs.
 

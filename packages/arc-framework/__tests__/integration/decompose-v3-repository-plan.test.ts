@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -7,13 +7,18 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { canonicalize, digestBytes } from "../../src/lib/canonical/canonical-json.js";
+import {
+  canonicalize,
+  digestBytes,
+  sortByCanonicalBytes,
+} from "../../src/lib/canonical/canonical-json.js";
 import { createRawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
 import {
   executeGitV3DecomposeCommand,
   executeGitV3DecomposeOperation,
+  executeGitV3ExtractionCommand,
   executeGitV3ExtractionOperation,
 } from "../../src/lib/work-unit/git-decompose-v3-operation.js";
 import { finishGitV3Extraction } from "../../src/lib/work-unit/git-decompose-v3-finish.js";
@@ -28,6 +33,10 @@ import {
   composeGitV3ExtractionRepositoryPlan,
   composeGitV3RepositoryPlan,
 } from "../../src/lib/work-unit/git-decompose-v3-repository-plan.js";
+import {
+  v3IncomingEdgeId,
+  v3PreflightId,
+} from "../../src/lib/work-unit/decompose-v3-schema.js";
 import { runCli } from "../helpers/run-cli.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
@@ -118,7 +127,17 @@ async function genericPlanningLaneRepository() {
   return { repo, baseHead, planningHead };
 }
 
-async function startedRepository() {
+async function startedRepository(options: {
+  companionCoverage?: boolean;
+  completedTarget?: boolean;
+  existingRecipient?: boolean;
+  lateLiveTarget?: boolean;
+  liveTarget?: boolean;
+  resultBaseRecipientDependsOn?: string[];
+  sourceRecipientDependsOn?: string[];
+  sourceRider?: boolean;
+  uncoveredCompanion?: boolean;
+} = {}) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-repository-plan-"));
   roots.push(repo);
   await git(repo, ["init", "-b", "main"]);
@@ -158,6 +177,37 @@ Medium.
     currentWorkflow: "draft-design",
     nextAction: "Begin draft-design",
   });
+  const taskList = `# Task List: origin
+
+Planning context.
+
+## Phase One
+
+### Task 1
+
+First phase content.
+
+## Phase Two
+
+### Task 2
+
+Second phase content.
+`;
+  const notes = `# Notes: origin
+
+## Evidence
+
+Preserve the motivating evidence.
+`;
+  const assurance = `# Assurance: origin
+
+## Guarantees
+
+Preserve the nonstandard guarantee.
+`;
+  const sharedPath = options.companionCoverage === true
+    ? ".arc/reference/shared.md"
+    : ".arc/reference/shared.txt";
   await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap before\n");
   await write(
     repo,
@@ -166,16 +216,94 @@ Medium.
   );
   await write(repo, ".arc/backlog/planned/origin/draft-origin.md", draft);
   await write(repo, ".arc/backlog/planned/origin/meta-origin.md", plannedMeta);
-  await write(repo, ".arc/reference/shared.txt", "shared\n");
+  if (options.completedTarget === true) {
+    await write(
+      repo,
+      ".arc/completed/2026-q3/49_foundation/meta-foundation.md",
+      renderMetaFile("foundation", {
+        state: "Shipped",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        origin: "internal",
+        completed: "2026-09-01",
+      }),
+    );
+  }
+  if (options.liveTarget === true) {
+    await write(
+      repo,
+      ".arc/backlog/planned/foundation/meta-foundation.md",
+      renderMetaFile("foundation", {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        origin: "internal",
+        design: ["draft-foundation.md"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }),
+    );
+  }
+  if (options.existingRecipient === true) {
+    await write(
+      repo,
+      ".arc/backlog/planned/consumer/meta-consumer.md",
+      renderMetaFile("consumer", {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        dependsOn: options.sourceRecipientDependsOn ?? [],
+        origin: "internal",
+        design: ["draft-consumer.md"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }),
+    );
+  }
+  if (options.companionCoverage === true) {
+    await write(repo, ".arc/backlog/planned/origin/assurance-origin.md", assurance);
+    await write(repo, ".arc/backlog/planned/origin/notes-origin.md", notes);
+    await write(repo, ".arc/backlog/planned/origin/tasks-origin.md", taskList);
+    await write(repo, ".arc/backlog/planned/origin/README.md", "# Unrelated sibling\n");
+    await write(
+      repo,
+      sharedPath,
+      "# Shared\n\n## Companion Slot\n\nExisting companion content.\n\n"
+        + "## Task Slot\n\nExisting task content.\n",
+    );
+  } else {
+    await write(repo, sharedPath, "shared\n");
+  }
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "base"]);
-  const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+  let baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
 
   await git(repo, ["switch", "-c", "plan/origin"]);
   await mkdir(join(repo, ".arc/active"), { recursive: true });
   await git(repo, ["mv", ".arc/backlog/planned/origin/draft-origin.md", ".arc/active/draft-origin.md"]);
   await git(repo, ["mv", ".arc/backlog/planned/origin/meta-origin.md", ".arc/active/meta-origin.md"]);
-  await rm(join(repo, ".arc/backlog/planned/origin"), { recursive: true, force: true });
+  if (options.companionCoverage === true) {
+    await git(repo, [
+      "mv",
+      ".arc/backlog/planned/origin/assurance-origin.md",
+      ".arc/active/assurance-origin.md",
+    ]);
+    await git(repo, [
+      "mv",
+      ".arc/backlog/planned/origin/notes-origin.md",
+      ".arc/active/notes-origin.md",
+    ]);
+    await git(repo, [
+      "mv",
+      ".arc/backlog/planned/origin/tasks-origin.md",
+      ".arc/active/tasks-origin.md",
+    ]);
+  } else {
+    await rm(join(repo, ".arc/backlog/planned/origin"), { recursive: true, force: true });
+  }
   await write(repo, ".arc/active/meta-origin.md", renderMetaFile("origin", {
     state: "Planning",
     owner: "andrew",
@@ -187,10 +315,55 @@ Medium.
     currentWorkflow: "draft-design",
     nextAction: "Begin draft-design",
   }));
+  if (options.uncoveredCompanion === true) {
+    await write(repo, ".arc/active/notes-origin.md", "# Notes: origin\n\nUnallocated companion content.\n");
+  }
+  if (options.sourceRider === true) {
+    await write(repo, ".arc/reference/supporting-origin.md", "# Source-private rider\n");
+  }
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "-m", "start"]);
   const sourceHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
   await git(repo, ["switch", "main"]);
+  if (options.resultBaseRecipientDependsOn !== undefined) {
+    await write(
+      repo,
+      ".arc/backlog/planned/consumer/meta-consumer.md",
+      renderMetaFile("consumer", {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        dependsOn: options.resultBaseRecipientDependsOn,
+        origin: "internal",
+        design: ["draft-consumer.md"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }),
+    );
+    await git(repo, ["add", ".arc/backlog/planned/consumer/meta-consumer.md"]);
+    await git(repo, ["commit", "-m", "diverge dependency recipient"]);
+    baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+  }
+  if (options.lateLiveTarget === true) {
+    await write(
+      repo,
+      ".arc/backlog/planned/foundation/meta-foundation.md",
+      renderMetaFile("foundation", {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        origin: "internal",
+        design: ["draft-foundation.md"],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }),
+    );
+    await git(repo, ["add", ".arc/backlog/planned/foundation/meta-foundation.md"]);
+    await git(repo, ["commit", "-m", "create late external target"]);
+    baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
+  }
 
   const remote = await mkdtemp(join(tmpdir(), "arc-v3-repository-plan-remote-"));
   roots.push(remote);
@@ -216,7 +389,7 @@ Medium.
         {
           kind: "existing-home" as const,
           destinationId: "existing",
-          target: { kind: "document" as const, path: ".arc/reference/shared.txt" },
+          target: { kind: "document" as const, path: sharedPath },
         },
         {
           kind: "new-member" as const,
@@ -226,15 +399,82 @@ Medium.
         },
       ],
       internalEdges: [],
-      sourceAllocations: machine.sourceUnits.map((unit) => ({
-        sourceId: unit.sourceId,
-        ownership: "destination-owned" as const,
-        disposition: {
-          kind: "target" as const,
-          destinationId: "member",
-          targetLocator: { ...unit.sourceLocator, artifact: "draft-member.md" },
-        },
-      })),
+      externalEdges: [] as Array<{ from: string; to: string }>,
+      sourceAllocations: machine.sourceUnits.map((unit) => {
+        const artifact = unit.sourceLocator.artifact;
+        if (options.companionCoverage !== true || artifact === "draft-origin.md") {
+          return {
+            sourceId: unit.sourceId,
+            ownership: "destination-owned" as const,
+            disposition: {
+              kind: "target" as const,
+              destinationId: "member",
+              targetLocator: { ...unit.sourceLocator, artifact: "draft-member.md" },
+            },
+          };
+        }
+        if (artifact === "tasks-origin.md") {
+          if (unit.sourceLocator.kind === "section"
+            && unit.sourceLocator.headingSource === "Phase One") {
+            return {
+              sourceId: unit.sourceId,
+              ownership: "destination-owned" as const,
+              disposition: {
+                kind: "target" as const,
+                destinationId: "existing",
+                targetLocator: {
+                  artifact: "shared.md",
+                  kind: "section" as const,
+                  level: 2 as const,
+                  headingSource: "Task Slot",
+                  ancestry: [],
+                  occurrence: 0,
+                },
+              },
+            };
+          }
+          return {
+            sourceId: unit.sourceId,
+            ownership: "destination-owned" as const,
+            disposition: {
+              kind: "target" as const,
+              destinationId: "member",
+              targetLocator: { ...unit.sourceLocator, artifact: "tasks-member.md" },
+            },
+          };
+        }
+        if (artifact === "notes-origin.md") {
+          return {
+            sourceId: unit.sourceId,
+            ownership: "destination-owned" as const,
+            disposition: unit.sourceLocator.kind === "preamble"
+              ? { kind: "drop" as const, reason: "member scaffold supplies the notes preamble" }
+              : {
+                  kind: "target" as const,
+                  destinationId: "member",
+                  targetLocator: { ...unit.sourceLocator, artifact: "notes-member.md" },
+                },
+          };
+        }
+        return {
+          sourceId: unit.sourceId,
+          ownership: "destination-owned" as const,
+          disposition: unit.sourceLocator.kind === "preamble"
+            ? { kind: "drop" as const, reason: "title is represented by the destination" }
+            : {
+                kind: "target" as const,
+                destinationId: "existing",
+                targetLocator: {
+                  artifact: "shared.md",
+                  kind: "section" as const,
+                  level: 2 as const,
+                  headingSource: "Companion Slot",
+                  ancestry: [],
+                  occurrence: 0,
+                },
+              },
+        };
+      }),
       incomingDispositions: [],
       outgoingDispositions: [],
     },
@@ -246,6 +486,9 @@ async function activeExtractionRepository(
   profile: "draft" | "single-spec" | "paired-spec",
   provisionalTask: boolean,
   incoming = false,
+  extraCompanions = false,
+  sourceMaturity: "active" | "started-planning" = "active",
+  externalTarget = false,
 ) {
   const repo = await mkdtemp(join(tmpdir(), "arc-v3-extraction-plan-"));
   roots.push(repo);
@@ -271,9 +514,24 @@ async function activeExtractionRepository(
     await git(repo, ["add", "."]);
     await git(repo, ["commit", "-m", "add dependent"]);
   }
+  if (externalTarget) {
+    await write(repo, ".arc/backlog/planned/foundation/meta-foundation.md", renderMetaFile("foundation", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      origin: "internal",
+      design: ["draft-foundation.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "add external target"]);
+  }
   const baseHead = (await git(repo, ["rev-parse", "HEAD"])).trim();
 
-  await git(repo, ["switch", "-c", "feat/origin"]);
+  const sourceBranch = sourceMaturity === "started-planning" ? "plan/origin" : "feat/origin";
+  await git(repo, ["switch", "-c", sourceBranch]);
   const design = profile === "draft"
     ? ["draft-origin.md"]
     : profile === "single-spec"
@@ -287,15 +545,21 @@ async function activeExtractionRepository(
     await write(repo, `.arc/active/${artifact}`, designBodies[index]!);
   }
   await write(repo, ".arc/active/tasks-origin.md", designBodies[0]!);
+  if (extraCompanions) {
+    await write(repo, ".arc/active/assurance-origin.md", "# Assurance\n\nPreserve exactly.\n");
+    await write(repo, ".arc/active/draft-origin.md", "# Retired draft\n\nPreserve exactly.\n");
+    await write(repo, ".arc/active/notes-origin.md", "# Notes\n\nPreserve exactly.\n");
+  }
   await write(repo, ".arc/active/meta-origin.md", renderMetaFile("origin", {
-    state: "Active",
+    state: sourceMaturity === "started-planning" ? "Planning" : "Active",
     owner: "andrew",
-    branch: "feat/origin",
+    branch: sourceBranch,
     workClass: "Heavy",
     priority: "P1",
     origin: "internal",
     design,
     ...(profile === "draft" ? {} : { taskList: "tasks-origin.md" }),
+    ...(sourceMaturity === "started-planning" ? { currentWorkflow: "generate-tasks" } : {}),
     nextAction: "Continue implementation",
   }));
   await git(repo, ["add", "."]);
@@ -313,6 +577,9 @@ async function activeExtractionRepository(
   if (preflight.status !== "ready") throw new Error(JSON.stringify(preflight));
   const machine = preflight.preflight.starterMap.machine;
   if (machine.sourceUnits.length < 3) throw new Error("extraction fixture needs three source units");
+  const designSourceIds = machine.sourceUnits.filter((unit) =>
+    machine.planningProfile.sourceDesign.includes(unit.sourcePath.split("/").at(-1)!))
+    .map(({ sourceId }) => sourceId);
   const completedMap = {
     schemaVersion: 3 as const,
     machine,
@@ -326,10 +593,20 @@ async function activeExtractionRepository(
         workClass: "Heavy" as const,
       }],
       internalEdges: [],
+      externalEdges: [] as Array<{ from: string; to: string }>,
       sourceAllocations: machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned" as const,
-        disposition: provisionalTask && index === 0
+        disposition: sourceMaturity === "started-planning"
+          && !designSourceIds.includes(unit.sourceId)
+          ? { kind: "retained-origin" as const }
+          : sourceMaturity === "started-planning"
+            && designSourceIds.indexOf(unit.sourceId) === 0
+            ? { kind: "retained-origin" as const }
+            : sourceMaturity === "started-planning"
+              && designSourceIds.indexOf(unit.sourceId) === designSourceIds.length - 1
+              ? { kind: "drop" as const, reason: "obsolete framing" }
+              : provisionalTask && index === 0
           ? {
               kind: "target" as const,
               destinationId: "member",
@@ -363,6 +640,7 @@ async function activeExtractionRepository(
     baseHead,
     sourceHead,
     sourceTree,
+    sourceBranch,
   };
 }
 
@@ -399,6 +677,96 @@ async function landedExtractionRepository() {
   return { ...fixture, landedHead };
 }
 
+async function landedStartedPlanningCompanionExtractionRepository(
+  profile: "single-spec" | "paired-spec" = "single-spec",
+) {
+  const fixture = await activeExtractionRepository(
+    profile,
+    false,
+    false,
+    true,
+    "started-planning",
+  );
+  const staged = await executeGitV3ExtractionOperation({
+    ...fixture.dependencies,
+    spawningIdentity: "andrew",
+  }, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap: fixture.completedMap,
+  });
+  if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+    throw new Error(JSON.stringify(staged));
+  }
+  const candidatePath = staged.operation.occupation.path;
+  roots.push(candidatePath);
+  await git(candidatePath, ["commit", "-m", "land started planning extraction"]);
+  const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+  await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+  await git(fixture.repo, ["switch", fixture.sourceBranch]);
+  const cutMapPath = join(fixture.repo, "started-planning-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+  return { ...fixture, staged, candidatePath, cutMapPath };
+}
+
+type StartedPlanningCompanionFixture = Awaited<
+  ReturnType<typeof landedStartedPlanningCompanionExtractionRepository>
+>;
+
+async function landedCohortExtractionRepository() {
+  const fixture = await activeExtractionRepository("single-spec", false);
+  const completedMap = {
+    ...fixture.completedMap,
+    authoring: {
+      ...fixture.completedMap.authoring,
+      placement: { kind: "cohort" as const, cohort: "group" },
+    },
+  };
+  const staged = await executeGitV3ExtractionOperation({
+    ...fixture.dependencies,
+    spawningIdentity: "andrew",
+  }, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap,
+  });
+  if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+    throw new Error(JSON.stringify(staged));
+  }
+  const candidatePath = staged.operation.occupation.path;
+  roots.push(candidatePath);
+  const cohortPath = ".arc/backlog/planned/group/cohort-group.md";
+  const memberPath = ".arc/backlog/planned/group/member/spec-member.md";
+  await write(
+    candidatePath,
+    cohortPath,
+    (await readFile(join(candidatePath, cohortPath), "utf8")).replace(
+      "**Purpose:** —",
+      "**Purpose:** Coordinate the extracted member with its surviving origin.",
+    ),
+  );
+  const authoredMember = `${await readFile(join(candidatePath, memberPath), "utf8")}`
+    + "\n## Owner-authored plan\n\nReady for task generation.\n";
+  await write(candidatePath, memberPath, authoredMember);
+  await git(candidatePath, ["add", cohortPath, memberPath]);
+  await git(candidatePath, ["commit", "-m", "author grouped extraction"]);
+  const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+  await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+  await git(fixture.repo, ["switch", "feat/origin"]);
+  const cutMapPath = join(fixture.repo, "grouped-cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+  return {
+    ...fixture,
+    completedMap,
+    staged,
+    candidatePath,
+    cohortPath,
+    memberPath,
+    authoredMember,
+    cutMapPath,
+  };
+}
+
 async function previewFinish(fixture: Awaited<ReturnType<typeof stageExtractionRepository>>) {
   return await finishGitV3Extraction(fixture.dependencies, {
     cwd: fixture.repo,
@@ -426,6 +794,29 @@ async function committedTransitionCandidate() {
   await git(candidatePath, ["commit", "-m", "commit decomposition transition"]);
   const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
   return { ...started, candidatePath, candidateHead };
+}
+
+async function reAdvancedTransitionCandidate() {
+  const fixture = await committedTransitionCandidate();
+  await write(fixture.repo, ".arc/reference/base-growth.txt", "first descendant\n");
+  await git(fixture.repo, ["add", ".arc/reference/base-growth.txt"]);
+  await git(fixture.repo, ["commit", "-m", "first base advance"]);
+  const firstBaseHead = (await git(fixture.repo, ["rev-parse", "main"])).trim();
+  const firstAdvance = await advanceGitDecomposeTransitionBase(fixture.dependencies, {
+    protection: "full",
+    baseBranch: "main",
+    completedMap: fixture.completedMap,
+  });
+  if (firstAdvance.status !== "advanced") throw new Error(JSON.stringify(firstAdvance));
+  await git(fixture.candidatePath, ["commit", "-m", "absorb first base advance"]);
+  const candidateHead = (await git(fixture.candidatePath, ["rev-parse", "HEAD"])).trim();
+
+  await write(fixture.repo, ".arc/reference/base-growth-2.txt", "second descendant\n");
+  await git(fixture.repo, ["add", ".arc/reference/base-growth-2.txt"]);
+  await git(fixture.repo, ["commit", "-m", "second base advance"]);
+  const currentBaseHead = (await git(fixture.repo, ["rev-parse", "main"])).trim();
+
+  return { ...fixture, firstBaseHead, candidateHead, currentBaseHead };
 }
 
 async function backlogStubRepository(options: { preserveParent?: boolean } = {}) {
@@ -499,6 +890,7 @@ Prove the direct-base retirement.
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: machine.sourceUnits.map((unit, index) => {
         const destinationId = index % 2 === 0 ? "alpha" : "beta";
         return {
@@ -530,6 +922,103 @@ Prove the direct-base retirement.
   };
 }
 
+async function copiedRealNotesRepository() {
+  const origin = "decompose-transform-integrity";
+  const member = "integrity-core";
+  const archive = "../../../../.arc/completed/2026-q3/39_decompose-transform-integrity";
+  const source = {
+    spec: await readFile(new URL(`${archive}/spec-${origin}.md`, import.meta.url), "utf8"),
+    tasks: await readFile(new URL(`${archive}/tasks-${origin}.md`, import.meta.url), "utf8"),
+    notes: await readFile(new URL(`${archive}/notes-${origin}.md`, import.meta.url), "utf8"),
+  };
+  const repo = await mkdtemp(join(tmpdir(), "arc-v3-real-notes-"));
+  roots.push(repo);
+  await git(repo, ["init", "-b", "main"]);
+  await git(repo, ["config", "user.name", "ARC Test"]);
+  await git(repo, ["config", "user.email", "arc@example.test"]);
+  const sourceDirectory = `.arc/backlog/planned/${origin}`;
+  await write(repo, ".arc/backlog/ROADMAP.md", "# Roadmap before\n");
+  await write(repo, ".arc/system/arc-config.yml", "branch.base: main\npm.mode: arc-in-git\n");
+  await write(repo, ".arc/reference/shared.txt", "shared\n");
+  await write(repo, `${sourceDirectory}/spec-${origin}.md`, source.spec);
+  await write(repo, `${sourceDirectory}/tasks-${origin}.md`, source.tasks);
+  await write(repo, `${sourceDirectory}/notes-${origin}.md`, source.notes);
+  await write(repo, `${sourceDirectory}/meta-${origin}.md`, renderMetaFile(origin, {
+    state: "Planning",
+    owner: "andrew",
+    workClass: "Heavy",
+    priority: "P1",
+    origin: "internal",
+    design: [`spec-${origin}.md`],
+    taskList: `tasks-${origin}.md`,
+    currentWorkflow: "generate-tasks",
+    nextAction: "Begin generate-tasks",
+  }));
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "-m", "copy real origin"]);
+
+  const dependencies = await repositoryDependencies(repo);
+  const preflight = await createGitV3DecomposePreflight({
+    cwd: repo,
+    exec: dependencies.exec,
+    readBlob: async (ref, path) => await readBlob(repo, ref, path),
+  }, "main", origin);
+  if (preflight.status !== "ready") throw new Error(JSON.stringify(preflight));
+  const machine = preflight.preflight.starterMap.machine;
+  const completedMap = {
+    schemaVersion: 3 as const,
+    machine,
+    authoring: {
+      shape: "heterogeneous" as const,
+      placement: { kind: "direct-member" as const },
+      destinations: [
+        {
+          kind: "existing-home" as const,
+          destinationId: "existing",
+          target: { kind: "document" as const, path: ".arc/reference/shared.txt" },
+        },
+        {
+          kind: "new-member" as const,
+          destinationId: "member",
+          slug: member,
+          workClass: "Heavy" as const,
+        },
+      ],
+      internalEdges: [],
+      externalEdges: [],
+      sourceAllocations: machine.sourceUnits.map((unit) => ({
+        sourceId: unit.sourceId,
+        ownership: "destination-owned" as const,
+        disposition: unit.sourcePath.endsWith(`/tasks-${origin}.md`)
+          ? { kind: "drop" as const, reason: "the completed delivery record is historical" }
+          : {
+              kind: "target" as const,
+              destinationId: "member",
+              targetLocator: {
+                ...unit.sourceLocator,
+                artifact: unit.sourceLocator.artifact.replace(origin, member),
+              },
+            },
+      })),
+      incomingDispositions: [],
+      outgoingDispositions: [],
+    },
+  };
+  const cutMapPath = join(repo, "cut-map.json");
+  await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+  return {
+    repo,
+    origin,
+    member,
+    source,
+    sourceDirectory,
+    dependencies,
+    preflight: preflight.preflight,
+    completedMap,
+    cutMapPath,
+  };
+}
+
 async function claimFiles(repo: string): Promise<string[]> {
   try {
     return await readdir(join(repo, ".git", "arc", "transient-claims"));
@@ -544,6 +1033,154 @@ afterEach(async () => {
 });
 
 describe("Git v3 repository plan", () => {
+  it("retains a completed external edge in meta but omits it from ROADMAP blockers", async () => {
+    const fixture = await startedRepository({ completedTarget: true });
+    fixture.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+
+    const result = await composeGitV3RepositoryPlan(
+      fixture.dependencies,
+      "main",
+      fixture.completedMap,
+    );
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    if (result.status !== "composed") return;
+    const member = result.plan.mutations.find(
+      ({ path }) => path === ".arc/backlog/planned/member/meta-member.md",
+    );
+    const roadmap = result.plan.mutations.find(({ path }) => path === ".arc/backlog/ROADMAP.md");
+    if (member?.after.kind !== "file" || roadmap?.after.kind !== "file") {
+      throw new Error("member and ROADMAP mutations must contain staged files");
+    }
+    const memberDigest = member.after.contentDigest;
+    const roadmapDigest = roadmap.after.contentDigest;
+    const memberBlob = result.blobs.find(({ contentDigest }) => contentDigest === memberDigest);
+    const roadmapBlob = result.blobs.find(({ contentDigest }) => contentDigest === roadmapDigest);
+    expect(new TextDecoder().decode(memberBlob?.bytes)).toContain("**Depends On:** `foundation`");
+    expect(new TextDecoder().decode(roadmapBlob?.bytes)).not.toContain("foundation");
+  });
+
+  it("admits an external target created on the result base after the source fork", async () => {
+    const fixture = await startedRepository({ lateLiveTarget: true });
+    fixture.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+    const targetPath = ".arc/backlog/planned/foundation/meta-foundation.md";
+
+    expect(await readBlob(fixture.repo, fixture.sourceHead, targetPath)).toBeNull();
+    expect(await readBlob(fixture.repo, fixture.baseHead, targetPath)).not.toBeNull();
+    const result = await composeGitV3RepositoryPlan(
+      fixture.dependencies,
+      "main",
+      fixture.completedMap,
+    );
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+  });
+
+  it("rebases an existing-home external edge onto divergent pinned dependencies", async () => {
+    const fixture = await startedRepository({
+      existingRecipient: true,
+      liveTarget: true,
+      resultBaseRecipientDependsOn: ["base-only"],
+      sourceRecipientDependsOn: ["source-only"],
+    });
+    const completedMap: unknown = {
+      ...fixture.completedMap,
+      authoring: {
+        ...fixture.completedMap.authoring,
+        destinations: fixture.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const machineBefore = canonicalize(fixture.completedMap.machine);
+
+    const staged = await executeGitV3DecomposeOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    const consumerPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    const consumer = await readFile(join(candidatePath, consumerPath), "utf8");
+    const roadmap = await readFile(
+      join(candidatePath, ".arc/backlog/ROADMAP.md"),
+      "utf8",
+    );
+    expect(consumer).toContain("**Depends On:** `base-only`, `foundation`");
+    expect(consumer).not.toContain("source-only");
+    expect(roadmap).toContain("foundation");
+    expect(JSON.parse(await readFile(
+      join(candidatePath, resolveTransitionRecordRelativePath("origin")),
+      "utf8",
+    ))).toEqual({
+      schemaVersion: 1,
+      origin: "origin",
+      kind: "decompose",
+      successors: ["member"],
+      edges: [],
+    });
+    expect(canonicalize(fixture.completedMap.machine)).toBe(machineBefore);
+    expect(new TextDecoder().decode(await readBlob(fixture.repo, fixture.sourceHead, consumerPath) ?? undefined))
+      .toContain("**Depends On:** `source-only`");
+  });
+
+  it("refuses an existing-home external edge already satisfied on the pinned result base", async () => {
+    const fixture = await startedRepository({
+      completedTarget: true,
+      existingRecipient: true,
+      resultBaseRecipientDependsOn: ["base-only", "foundation"],
+      sourceRecipientDependsOn: ["source-only"],
+    });
+    const completedMap: unknown = {
+      ...fixture.completedMap,
+      authoring: {
+        ...fixture.completedMap.authoring,
+        destinations: fixture.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const consumerPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    const before = await readBlob(fixture.repo, fixture.baseHead, consumerPath);
+
+    const result = await composeGitV3RepositoryPlan(fixture.dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "dependency",
+        reason: "unchanged-dependency-slot",
+        locus: "authoring.externalEdges.0",
+        dependencyRecipient: {
+          dependent: "consumer",
+          path: consumerPath,
+          targets: ["base-only", "foundation"],
+        },
+      },
+    });
+    await expect(readBlob(fixture.repo, fixture.baseHead, consumerPath)).resolves.toEqual(before);
+    expect(await git(fixture.repo, ["status", "--porcelain=v1"])).toBe("");
+  });
+
   it.each([
     ["draft", false],
     ["draft", true],
@@ -616,6 +1253,483 @@ describe("Git v3 repository plan", () => {
     });
   });
 
+  it("rebuilds Active finish authority with inventory-only companions", async () => {
+    const fixture = await activeExtractionRepository("single-spec", false, false, true);
+    const companionPaths = [
+      ".arc/active/assurance-origin.md",
+      ".arc/active/draft-origin.md",
+      ".arc/active/notes-origin.md",
+      ".arc/active/tasks-origin.md",
+    ];
+    expect(fixture.preflight.sourceArtifactInventory.map(({ path }) => path))
+      .toEqual([...companionPaths, ".arc/active/meta-origin.md", ".arc/active/spec-origin.md"].sort());
+    expect(new Set(fixture.preflight.starterMap.machine.sourceUnits.map(({ sourcePath }) => sourcePath)))
+      .toEqual(new Set([".arc/active/spec-origin.md"]));
+    const companionBytes = new Map(await Promise.all(companionPaths.map(async (path) => [
+      path,
+      await readBlob(fixture.repo, "feat/origin", path),
+    ] as const)));
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: fixture.completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    roots.push(staged.operation.occupation.path);
+    await git(staged.operation.occupation.path, ["commit", "-m", "land companion extraction"]);
+    const candidateHead = (await git(
+      staged.operation.occupation.path,
+      ["rev-parse", "HEAD"],
+    )).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+    const cutMapPath = join(fixture.repo, "companion-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+
+    const preview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    });
+
+    expect(preview.status, JSON.stringify(preview)).toBe("previewed");
+    if (preview.status !== "previewed") return;
+    expect(preview.preview.sources.map(({ path }) => path)).toEqual([".arc/active/spec-origin.md"]);
+    for (const [path, bytes] of companionBytes) {
+      expect(bytes).not.toBeNull();
+      await expect(readFile(join(fixture.repo, path))).resolves.toEqual(Buffer.from(bytes ?? []));
+    }
+  });
+
+  it("finishes a partially thinned started-Planning extraction with byte-identical companions", async () => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository("paired-spec");
+    const companionPaths = [
+      ".arc/active/assurance-origin.md",
+      ".arc/active/draft-origin.md",
+      ".arc/active/notes-origin.md",
+      ".arc/active/tasks-origin.md",
+    ];
+    expect(fixture.completedMap.machine.source.kind).toBe("started-planning");
+    for (const path of companionPaths) {
+      const units = fixture.completedMap.machine.sourceUnits.filter(({ sourcePath }) => sourcePath === path);
+      expect(units.length).toBeGreaterThan(0);
+      expect(units.map(({ sourceId }) => fixture.completedMap.authoring.sourceAllocations.find(
+        (allocation) => allocation.sourceId === sourceId,
+      )?.disposition)).toEqual(units.map(() => ({ kind: "retained-origin" })));
+    }
+    const companionBefore = new Map(await Promise.all(companionPaths.map(async (path) => {
+      const inventory = fixture.preflight.sourceArtifactInventory.find((artifact) => artifact.path === path);
+      if (inventory === undefined) throw new Error(`missing companion inventory ${path}`);
+      const bytes = await readBlob(fixture.repo, fixture.sourceHead, path);
+      if (bytes === null) throw new Error(`missing companion bytes ${path}`);
+      return [path, { bytes, mode: inventory.mode }] as const;
+    })));
+
+    const firstPreview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    if (firstPreview.status !== "previewed") throw new Error(JSON.stringify(firstPreview));
+    expect(firstPreview.preview.sources).toHaveLength(2);
+    expect(firstPreview.preview.sources.every(({ path }) => !companionPaths.includes(path))).toBe(true);
+
+    const alreadyThinned = firstPreview.preview.sources[0]!;
+    if (alreadyThinned.after.kind === "absent") {
+      await rm(join(fixture.repo, alreadyThinned.path));
+    } else {
+      await writeFile(
+        join(fixture.repo, alreadyThinned.path),
+        Buffer.from(alreadyThinned.after.contentBase64, "base64"),
+      );
+      await chmod(join(fixture.repo, alreadyThinned.path), alreadyThinned.after.mode === "100755" ? 0o755 : 0o644);
+    }
+    await git(fixture.repo, ["add", "-A", "--", alreadyThinned.path]);
+
+    const partialPreview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    if (partialPreview.status !== "previewed") throw new Error(JSON.stringify(partialPreview));
+    expect(partialPreview.preview.sources).toEqual(firstPreview.preview.sources.slice(1));
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: partialPreview.preview.applyAuthority,
+    })).resolves.toEqual({ status: "finished" });
+    const stagedPaths = (await git(fixture.repo, ["diff", "--cached", "--name-only"]))
+      .trim().split("\n").filter(Boolean);
+    expect(stagedPaths).toEqual(firstPreview.preview.sources.map(({ path }) => path).sort());
+    for (const [path, before] of companionBefore) {
+      await expect(readFile(join(fixture.repo, path))).resolves.toEqual(Buffer.from(before.bytes));
+      expect((await git(fixture.repo, ["ls-files", "-s", "--", path])).split(" ")[0]).toBe(before.mode);
+    }
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toEqual({ status: "already-finished" });
+  });
+
+  it("carries a surviving-origin prerequisite through extraction finish without companion drift", async () => {
+    const fixture = await activeExtractionRepository(
+      "single-spec",
+      false,
+      false,
+      true,
+      "started-planning",
+    );
+    fixture.completedMap.authoring.externalEdges = [{ from: "member", to: "origin" }];
+    const machineBefore = canonicalize(fixture.completedMap.machine);
+    const companionPaths = [
+      ".arc/active/assurance-origin.md",
+      ".arc/active/draft-origin.md",
+      ".arc/active/notes-origin.md",
+      ".arc/active/tasks-origin.md",
+    ];
+    const companionBefore = new Map(await Promise.all(companionPaths.map(async (path) => {
+      const bytes = await readBlob(fixture.repo, fixture.sourceHead, path);
+      if (bytes === null) throw new Error(`missing companion bytes ${path}`);
+      return [path, bytes] as const;
+    })));
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: fixture.completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    const memberMeta = await readFile(
+      join(candidatePath, ".arc/backlog/planned/member/meta-member.md"),
+      "utf8",
+    );
+    const roadmap = await readFile(join(candidatePath, ".arc/backlog/ROADMAP.md"), "utf8");
+    expect(memberMeta).toContain("**Depends On:** `origin`");
+    expect(roadmap).toContain("origin");
+    await expect(pathExists(join(candidatePath, resolveTransitionRecordRelativePath("origin"))))
+      .resolves.toBe(false);
+    await git(candidatePath, ["commit", "-m", "land origin prerequisite extraction"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    const cutMapPath = join(fixture.repo, "origin-prerequisite-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(fixture.completedMap)}\n`);
+    await git(fixture.repo, ["switch", fixture.sourceBranch]);
+
+    const preview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    });
+    expect(preview.status, JSON.stringify(preview)).toBe("previewed");
+    if (preview.status !== "previewed") return;
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: preview.preview.applyAuthority,
+    })).resolves.toEqual({ status: "finished" });
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    })).resolves.toEqual({ status: "already-finished" });
+    for (const [path, bytes] of companionBefore) {
+      await expect(readFile(join(fixture.repo, path))).resolves.toEqual(Buffer.from(bytes));
+    }
+    expect(canonicalize(fixture.completedMap.machine)).toBe(machineBefore);
+  });
+
+  it("uses the composed dependency mutation when an incoming dependent also has an external edge", async () => {
+    const fixture = await activeExtractionRepository("single-spec", false, true, false, "active", true);
+    const completedMap = {
+      ...fixture.completedMap,
+      authoring: {
+        ...fixture.completedMap.authoring,
+        destinations: [
+          {
+            kind: "existing-home" as const,
+            destinationId: "dependent",
+            target: { kind: "work-unit" as const, slug: "dependent" },
+          },
+          ...fixture.completedMap.authoring.destinations,
+        ],
+        externalEdges: [{ from: "dependent", to: "foundation" }],
+      },
+    };
+    const machineBefore = canonicalize(completedMap.machine);
+    const staged = await executeGitV3ExtractionOperation({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
+      throw new Error(JSON.stringify(staged));
+    }
+    const candidatePath = staged.operation.occupation.path;
+    roots.push(candidatePath);
+    const dependentPath = ".arc/backlog/planned/dependent/meta-dependent.md";
+    const dependentMutation = staged.plan.mutations.find(({ path }) => path === dependentPath);
+    expect(dependentMutation).toMatchObject({
+      kind: "composed",
+      contributors: expect.arrayContaining([
+        expect.objectContaining({ kind: "dependency", dependent: "dependent" }),
+      ]),
+    });
+    const dependentBeforeFinish = await readFile(join(candidatePath, dependentPath), "utf8");
+    expect(dependentBeforeFinish).toContain("**Depends On:** `origin`, `foundation`");
+    expect(await readFile(join(candidatePath, ".arc/backlog/ROADMAP.md"), "utf8"))
+      .toContain("foundation");
+    await expect(pathExists(join(candidatePath, resolveTransitionRecordRelativePath("origin"))))
+      .resolves.toBe(false);
+    await git(candidatePath, ["commit", "-m", "land overlapping dependency extraction"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
+    const cutMapPath = join(fixture.repo, "overlapping-dependency-cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    await git(fixture.repo, ["switch", fixture.sourceBranch]);
+
+    const preview = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    });
+    expect(preview.status, JSON.stringify(preview)).toBe("previewed");
+    if (preview.status !== "previewed") return;
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: preview.preview.applyAuthority,
+    })).resolves.toEqual({ status: "finished" });
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+      applyAuthority: null,
+    })).resolves.toEqual({ status: "already-finished" });
+    await expect(readBlob(fixture.repo, "main", dependentPath))
+      .resolves.toEqual(new Uint8Array(Buffer.from(dependentBeforeFinish)));
+    expect(canonicalize(completedMap.machine)).toBe(machineBefore);
+  });
+
+  it("ignores committed changes outside the origin artifact group", async () => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository();
+    const unrelatedPath = ".arc/active/notes-other.md";
+    await write(fixture.repo, unrelatedPath, "# Other notes\n\nUnrelated change.\n");
+    await git(fixture.repo, ["add", unrelatedPath]);
+    await git(fixture.repo, ["commit", "-m", "change unrelated work unit"]);
+
+    const result = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    expect(result.status, JSON.stringify(result)).toBe("previewed");
+    if (result.status !== "previewed") return;
+    expect(result.preview.sources.every(({ path }) => path !== unrelatedPath)).toBe(true);
+  });
+
+  it.each([
+    ["addition", "fallback", ".arc/active/context-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await write(fixture.repo, ".arc/active/context-origin.md", "# Context\n\nAdded later.\n");
+    }],
+    ["removal", "fallback", ".arc/active/notes-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await rm(join(fixture.repo, ".arc/active/notes-origin.md"));
+    }],
+    ["movement", "fallback", ".arc/active/journal-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await git(fixture.repo, [
+        "mv",
+        ".arc/active/notes-origin.md",
+        ".arc/active/journal-origin.md",
+      ]);
+    }],
+    ["structural rename", "fallback", ".arc/active/tasks-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      const path = ".arc/active/tasks-origin.md";
+      const before = await readFile(join(fixture.repo, path), "utf8");
+      await write(fixture.repo, path, before.replace("## Scope 0", "## Renamed scope"));
+    }],
+    ["byte edit", "refreshed", ".arc/active/notes-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await write(fixture.repo, ".arc/active/notes-origin.md", "# Notes\n\nChanged after extraction landing.\n");
+    }],
+    ["mode change", "refreshed", ".arc/active/notes-origin.md", async (
+      fixture: StartedPlanningCompanionFixture,
+    ) => {
+      await chmod(join(fixture.repo, ".arc/active/notes-origin.md"), 0o755);
+    }],
+  ] as const)("requires reauthoring for companion %s through the %s authority path", async (
+    _mutation,
+    _authorityPath,
+    expectedLocus,
+    mutate,
+  ) => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository();
+    await mutate(fixture);
+    await git(fixture.repo, ["add", "-A"]);
+    await git(fixture.repo, ["commit", "-m", "change retained companion"]);
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "source:source-units",
+      locus: expectedLocus,
+    });
+  });
+
+  it("requires reauthoring when a companion becomes a symlink before authority selection", async () => {
+    const fixture = await landedStartedPlanningCompanionExtractionRepository();
+    const companionPath = ".arc/active/notes-origin.md";
+    await rm(join(fixture.repo, companionPath));
+    await symlink("draft-origin.md", join(fixture.repo, companionPath));
+    await git(fixture.repo, ["add", "-A"]);
+    await git(fixture.repo, ["commit", "-m", "change retained companion object kind"]);
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "source:source-units",
+      locus: companionPath,
+      evidence: {
+        expected: { kind: "object", objectKind: "blob", mode: "100644" },
+        actual: { kind: "object", objectKind: "symlink", mode: "120000" },
+      },
+    });
+  });
+
+  it.each([
+    ["preview", null],
+    [
+      "apply",
+      `sha256:${"a".repeat(64)}`,
+    ],
+  ] as const)("reports an unavailable ancestry probe during finish %s", async (
+    _mode,
+    applyAuthority,
+  ) => {
+    const fixture = await landedExtractionRepository();
+    const dependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
+        if (args[1][0] === "merge-base" && args[1][1] === "--is-ancestor") {
+          throw Object.assign(new Error("ancestry probe unavailable"), {
+            exitCode: 128,
+            stderr: "ancestry probe unavailable",
+          });
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await finishGitV3Extraction(dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "base-ancestry-unavailable",
+      locus: expect.stringContaining("ancestry probe unavailable"),
+      remedy: {
+        argv: [
+          "arc",
+          "decompose",
+          "origin",
+          "--finish",
+          fixture.cutMapPath,
+          ...(applyAuthority === null ? [] : ["--apply", applyAuthority]),
+        ],
+      },
+    });
+    expect(result).not.toHaveProperty("evidence");
+  });
+
+  it("keeps a negative finish ancestry probe distinct from a probe failure", async () => {
+    const fixture = await landedExtractionRepository();
+    const dependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
+        if (args[1][0] === "merge-base" && args[1][1] === "--is-ancestor") {
+          throw Object.assign(new Error("not an ancestor"), { exitCode: 1 });
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await finishGitV3Extraction(dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "base-not-descendant",
+      locus: "refs/heads/main",
+    });
+    expect(result).not.toHaveProperty("evidence");
+  });
+
   it("applies exact source thinning to the index and worktree", async () => {
     const fixture = await landedExtractionRepository();
     const preview = await previewFinish(fixture);
@@ -645,57 +1759,13 @@ describe("Git v3 repository plan", () => {
   });
 
   it("accepts finalized cohort and member authoring while preserving extraction claims", async () => {
-    const fixture = await activeExtractionRepository("single-spec", false);
-    const completedMap = {
-      ...fixture.completedMap,
-      authoring: {
-        ...fixture.completedMap.authoring,
-        placement: { kind: "cohort" as const, cohort: "group" },
-      },
-    };
-    const staged = await executeGitV3ExtractionOperation({
-      ...fixture.dependencies,
-      spawningIdentity: "andrew",
-    }, {
-      protection: "full",
-      baseBranch: "main",
-      completedMap,
-    });
-    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") {
-      throw new Error(JSON.stringify(staged));
-    }
-    const candidatePath = staged.operation.occupation.path;
-    roots.push(candidatePath);
-    const cohortPath = ".arc/backlog/planned/group/cohort-group.md";
-    const memberPath = ".arc/backlog/planned/group/member/spec-member.md";
-    await write(
-      candidatePath,
-      cohortPath,
-      (await readFile(join(candidatePath, cohortPath), "utf8")).replace(
-        "**Purpose:** —",
-        "**Purpose:** Coordinate the extracted member with its surviving origin.",
-      ),
-    );
-    const authoredMember = `${await readFile(join(candidatePath, memberPath), "utf8")}`
-      + "\n## Owner-authored plan\n\nReady for task generation.\n";
-    await write(
-      candidatePath,
-      memberPath,
-      authoredMember,
-    );
-    await git(candidatePath, ["add", cohortPath, memberPath]);
-    await git(candidatePath, ["commit", "-m", "author grouped extraction"]);
-    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
-    await git(fixture.repo, ["merge", "--ff-only", candidateHead]);
-    await git(fixture.repo, ["switch", "feat/origin"]);
-    const cutMapPath = join(fixture.repo, "grouped-cut-map.json");
-    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const fixture = await landedCohortExtractionRepository();
 
     const preview = await finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
       baseBranch: "main",
       origin: "origin",
-      cutMapPath,
+      cutMapPath: fixture.cutMapPath,
       applyAuthority: null,
     });
     expect(preview).toMatchObject({
@@ -704,29 +1774,109 @@ describe("Git v3 repository plan", () => {
     });
     if (preview.status !== "previewed") return;
     expect(preview.preview.liveBase.destinations).toContainEqual({
-      path: memberPath,
+      path: fixture.memberPath,
       mode: "100644",
-      contentDigest: digestBytes(new TextEncoder().encode(authoredMember)),
+      contentDigest: digestBytes(new TextEncoder().encode(fixture.authoredMember)),
     });
   });
 
-  it("refuses a mismatched preview authority without source mutation", async () => {
-    const fixture = await landedExtractionRepository();
-    const sourcePath = ".arc/active/spec-origin.md";
-    const before = await readFile(join(fixture.repo, sourcePath), "utf8");
+  it("reports authored and landed cohort identities for a topology mismatch", async () => {
+    const fixture = await landedCohortExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    const before = await readFile(join(fixture.repo, fixture.cohortPath), "utf8");
+    await write(
+      fixture.repo,
+      fixture.cohortPath,
+      before.replace("# Cohort: `group`", "# Cohort: `other`"),
+    );
+    await git(fixture.repo, ["add", fixture.cohortPath]);
+    await git(fixture.repo, ["commit", "-m", "change landed cohort identity"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
 
     await expect(finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
-      applyAuthority: `sha256:${"0".repeat(64)}`,
-    })).resolves.toEqual({ status: "refused", reason: "apply-authority", locus: "apply" });
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "topology-claim",
+      locus: fixture.cohortPath,
+      evidence: { expected: "group", actual: "other" },
+    });
+  });
+
+  it("keeps a malformed-only topology claim evidence-free", async () => {
+    const fixture = await landedCohortExtractionRepository();
+    await git(fixture.repo, ["switch", "main"]);
+    const before = await readFile(join(fixture.repo, fixture.cohortPath), "utf8");
+    await write(
+      fixture.repo,
+      fixture.cohortPath,
+      before.replace(
+        "**Purpose:** Coordinate the extracted member with its surviving origin.",
+        "**Purpose:** —",
+      ),
+    );
+    await git(fixture.repo, ["add", fixture.cohortPath]);
+    await git(fixture.repo, ["commit", "-m", "remove landed cohort purpose"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    const result = await finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    });
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "topology-claim",
+      locus: fixture.cohortPath,
+    });
+    expect(result).not.toHaveProperty("evidence");
+  });
+
+  it("refuses a mismatched preview authority without source mutation", async () => {
+    const fixture = await landedExtractionRepository();
+    const sourcePath = ".arc/active/spec-origin.md";
+    const before = await readFile(join(fixture.repo, sourcePath), "utf8");
+    const preview = await previewFinish(fixture);
+    if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
+    const suppliedAuthority = `sha256:${"0".repeat(64)}` as const;
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: suppliedAuthority,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "apply-authority",
+      locus: "apply",
+      evidence: {
+        expected: preview.preview.applyAuthority,
+        actual: suppliedAuthority,
+      },
+      remedy: {
+        argv: [
+          "arc",
+          "decompose",
+          "origin",
+          "--finish",
+          fixture.cutMapPath,
+          "--apply",
+          suppliedAuthority,
+        ],
+      },
+    });
     await expect(readFile(join(fixture.repo, sourcePath), "utf8")).resolves.toBe(before);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
   });
 
-  it("invalidates preview authority after a committed reasoned-drop byte refresh", async () => {
+  it("requires reauthoring after a committed reasoned-drop byte refresh", async () => {
     const fixture = await landedExtractionRepository();
     const preview = await previewFinish(fixture);
     if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
@@ -753,7 +1903,16 @@ describe("Git v3 repository plan", () => {
     await writeFile(sourcePath, changed);
     await git(fixture.repo, ["add", droppedUnit.sourcePath]);
     await git(fixture.repo, ["commit", "-m", "refresh reasoned-drop source bytes"]);
-    const committedSource = await readFile(sourcePath, "utf8");
+    const refreshedPreview = await previewFinish(fixture);
+    expect(refreshedPreview).toMatchObject({
+      status: "refused",
+      reason: "source:source-units",
+      locus: droppedUnit.sourcePath,
+      evidence: {
+        expected: { before: { contentDigest: digestBytes(sourceBytes) } },
+        actual: { contentDigest: digestBytes(changed), byteLength: changed.byteLength },
+      },
+    });
 
     await expect(finishGitV3Extraction(fixture.dependencies, {
       cwd: fixture.repo,
@@ -761,15 +1920,18 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: preview.preview.applyAuthority,
-    })).resolves.toEqual({ status: "refused", reason: "apply-authority", locus: "apply" });
-    await expect(readFile(sourcePath, "utf8")).resolves.toBe(committedSource);
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "source:source-units",
+      locus: droppedUnit.sourcePath,
+      remedy: {
+        argv: ["arc", "decompose", "origin", "--preflight"],
+      },
+    });
+    await expect(readFile(sourcePath)).resolves.toEqual(changed);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", droppedUnit.sourcePath]))
       .toBe("");
 
-    const refreshedPreview = await previewFinish(fixture);
-    expect(refreshedPreview).toMatchObject({ status: "previewed" });
-    if (refreshedPreview.status !== "previewed") return;
-    expect(refreshedPreview.preview.applyAuthority).not.toBe(preview.preview.applyAuthority);
   });
 
   it("authenticates an authored preserved incoming dependency against the live base", async () => {
@@ -822,13 +1984,21 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath,
       applyAuthority: null,
-    })).resolves.toMatchObject({ status: "refused", reason: "dependency-claim" });
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "dependency-claim",
+      locus: ".arc/backlog/planned/dependent/meta-dependent.md",
+      evidence: { expected: ["origin"], actual: [] },
+    });
   });
 
   it("refuses a stale live ROADMAP after the additive result lands", async () => {
     const fixture = await landedExtractionRepository();
     await git(fixture.repo, ["switch", "main"]);
-    await write(fixture.repo, ".arc/backlog/ROADMAP.md", "# Stale roadmap\n");
+    const roadmapPath = ".arc/backlog/ROADMAP.md";
+    const expectedRoadmap = new Uint8Array(await readFile(join(fixture.repo, roadmapPath)));
+    const staleRoadmap = new TextEncoder().encode("# Stale roadmap\n");
+    await writeFile(join(fixture.repo, roadmapPath), staleRoadmap);
     await git(fixture.repo, ["add", ".arc/backlog/ROADMAP.md"]);
     await git(fixture.repo, ["commit", "-m", "make roadmap stale"]);
     await git(fixture.repo, ["switch", "feat/origin"]);
@@ -836,7 +2006,19 @@ describe("Git v3 repository plan", () => {
     await expect(previewFinish(fixture)).resolves.toMatchObject({
       status: "refused",
       reason: "roadmap-current-render",
-      locus: ".arc/backlog/ROADMAP.md",
+      locus: roadmapPath,
+      evidence: {
+        expected: {
+          objectKind: "blob",
+          contentDigest: digestBytes(expectedRoadmap),
+          byteLength: expectedRoadmap.byteLength,
+        },
+        actual: {
+          objectKind: "blob",
+          contentDigest: digestBytes(staleRoadmap),
+          byteLength: staleRoadmap.byteLength,
+        },
+      },
     });
   });
 
@@ -866,6 +2048,29 @@ describe("Git v3 repository plan", () => {
     await git(fixture.repo, ["switch", "feat/origin"]);
 
     await expect(previewFinish(fixture)).resolves.toMatchObject({ status: "refused", reason });
+  });
+
+  it("reports the first changed extraction-owned metadata field", async () => {
+    const fixture = await landedExtractionRepository();
+    const metaPath = fixture.staged.plan.mutations.find((mutation) =>
+      mutation.path.endsWith("meta-member.md"))?.path;
+    if (metaPath === undefined) throw new Error("extraction fixture needs a member meta");
+    await git(fixture.repo, ["switch", "main"]);
+    const before = await readFile(join(fixture.repo, metaPath), "utf8");
+    await write(fixture.repo, metaPath, before.replace("`andrew`", "`casey`"));
+    await git(fixture.repo, ["add", metaPath]);
+    await git(fixture.repo, ["commit", "-m", "change landed member owner"]);
+    await git(fixture.repo, ["switch", "feat/origin"]);
+
+    await expect(previewFinish(fixture)).resolves.toMatchObject({
+      status: "refused",
+      reason: "destination-meta",
+      locus: metaPath,
+      evidence: {
+        expected: { field: "owner", value: "andrew" },
+        actual: { field: "owner", value: "casey" },
+      },
+    });
   });
 
   it.each([
@@ -904,6 +2109,69 @@ describe("Git v3 repository plan", () => {
     });
   });
 
+  it("reports the recorded and invoked finish origins", async () => {
+    const fixture = await landedExtractionRepository();
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "other",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "map:origin",
+      locus: "machine.source.origin",
+      evidence: { expected: "origin", actual: "other" },
+    });
+  });
+
+  it("reports the recorded and configured finish base refs", async () => {
+    const fixture = await landedExtractionRepository();
+
+    await expect(finishGitV3Extraction(fixture.dependencies, {
+      cwd: fixture.repo,
+      baseBranch: "develop",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "base-ref-mismatch",
+      locus: "machine.resultBase.ref",
+      evidence: { expected: "refs/heads/main", actual: "refs/heads/develop" },
+    });
+  });
+
+  it("reports disagreeing source ref and HEAD reads", async () => {
+    const fixture = await landedExtractionRepository();
+    const movedHead = "f".repeat(40);
+    const movedDependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<GitExec>) => {
+        if (args[0] === "git"
+          && args[1][0] === "rev-parse"
+          && args[1][2] === "refs/heads/feat/origin^{commit}") {
+          return { stdout: `${movedHead}\n` };
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    await expect(finishGitV3Extraction(movedDependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: null,
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "source-ref-moved",
+      locus: "refs/heads/feat/origin",
+      evidence: { expected: fixture.sourceHead, actual: movedHead },
+    });
+  });
+
   it("refuses refreshed transferred bytes that are absent from the landed destination", async () => {
     const fixture = await landedExtractionRepository();
     const allocation = fixture.completedMap.authoring.sourceAllocations.find(({ disposition }) =>
@@ -933,6 +2201,11 @@ describe("Git v3 repository plan", () => {
     await expect(previewFinish(fixture)).resolves.toMatchObject({
       status: "refused",
       reason: "source:source-units",
+      locus: sourceUnit.sourcePath,
+      evidence: {
+        expected: { before: { contentDigest: digestBytes(sourceBytes) } },
+        actual: { contentDigest: digestBytes(changed), byteLength: changed.byteLength },
+      },
     });
   });
 
@@ -966,7 +2239,12 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: null,
-    })).resolves.toMatchObject({ status: "refused", reason: "base-raced" });
+    })).resolves.toMatchObject({
+      status: "refused",
+      reason: "base-raced",
+      locus: "refs/heads/main",
+      evidence: { expected: fixture.landedHead, actual: raceHead },
+    });
   });
 
   it("refuses without source mutation when the base moves after verified source capture", async () => {
@@ -1005,19 +2283,72 @@ describe("Git v3 repository plan", () => {
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: preview.preview.applyAuthority,
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       status: "refused",
       reason: "base-raced",
       locus: "refs/heads/main",
+      evidence: { expected: fixture.landedHead, actual: raceHead },
     });
     expect(baseReads).toBe(3);
     await expect(readFile(join(fixture.repo, sourcePath), "utf8")).resolves.toBe(sourceBefore);
     expect(await git(fixture.repo, ["status", "--porcelain=v1", "--", sourcePath])).toBe("");
   });
 
+  it("reports source ref and HEAD observations when source moves before apply", async () => {
+    const fixture = await landedExtractionRepository();
+    const preview = await previewFinish(fixture);
+    if (preview.status !== "previewed") throw new Error(JSON.stringify(preview));
+    let sourceReads = 0;
+    let raceHead: string | null = null;
+    const racedDependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<GitExec>) => {
+        if (args[0] === "git"
+          && args[1][0] === "rev-parse"
+          && args[1][2] === "refs/heads/feat/origin^{commit}") {
+          sourceReads += 1;
+          if (sourceReads === 3) {
+            await write(fixture.repo, "source-race-before-apply.txt", "race\n");
+            await git(fixture.repo, ["add", "source-race-before-apply.txt"]);
+            await git(fixture.repo, ["commit", "-m", "race source before finish apply"]);
+            raceHead = (await git(fixture.repo, ["rev-parse", "HEAD"])).trim();
+          }
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await finishGitV3Extraction(racedDependencies, {
+      cwd: fixture.repo,
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath: fixture.cutMapPath,
+      applyAuthority: preview.preview.applyAuthority,
+    });
+    if (raceHead === null) throw new Error("source-race fixture did not move HEAD");
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "source-raced",
+      locus: "refs/heads/feat/origin",
+      evidence: {
+        expected: {
+          ref: fixture.sourceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+        actual: {
+          ref: raceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+      },
+    });
+  });
+
   it("refuses when the surviving source moves during destination proof", async () => {
     const fixture = await landedExtractionRepository();
     let sourceReads = 0;
+    let raceHead: string | null = null;
     const racedDependencies = {
       ...fixture.dependencies,
       exec: async (...args: Parameters<GitExec>) => {
@@ -1029,19 +2360,38 @@ describe("Git v3 repository plan", () => {
             await write(fixture.repo, "source-race.txt", "race\n");
             await git(fixture.repo, ["add", "source-race.txt"]);
             await git(fixture.repo, ["commit", "-m", "race source"]);
+            raceHead = (await git(fixture.repo, ["rev-parse", "HEAD"])).trim();
           }
         }
         return await fixture.dependencies.exec(...args);
       },
     };
 
-    await expect(finishGitV3Extraction(racedDependencies, {
+    const result = await finishGitV3Extraction(racedDependencies, {
       cwd: fixture.repo,
       baseBranch: "main",
       origin: "origin",
       cutMapPath: fixture.cutMapPath,
       applyAuthority: null,
-    })).resolves.toMatchObject({ status: "refused", reason: "source-raced" });
+    });
+    if (raceHead === null) throw new Error("source-race fixture did not move HEAD");
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "source-raced",
+      locus: "refs/heads/feat/origin",
+      evidence: {
+        expected: {
+          ref: fixture.sourceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+        actual: {
+          ref: raceHead,
+          branch: "feat/origin",
+          head: fixture.sourceHead,
+        },
+      },
+    });
   });
 
   it("forwards byte input through the repository raw Git boundary", async () => {
@@ -1123,6 +2473,306 @@ describe("Git v3 repository plan", () => {
     expect(await git(repo, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads"]))
       .toBe(refsBefore);
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
+  });
+
+  it("reads each repository-plan tree once and hydrates only its enumerated objects", async () => {
+    const { baseHead, sourceHead, completedMap, dependencies } = await startedRepository();
+    const fullTreeReads: string[] = [];
+    const enumeratedObjects = new Set<string>();
+    const hydratedObjects: string[] = [];
+    const measured = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        const result = await dependencies.exec(...args);
+        const gitArgs = args[1];
+        if (gitArgs[0] === "ls-tree"
+          && gitArgs.some((arg) => arg.includes("%(objectname)%x09"))) {
+          const oid = gitArgs.at(-1);
+          if (oid !== undefined) fullTreeReads.push(oid);
+          for (const entry of result.stdout.split("\0").filter(Boolean)) {
+            const match = /^\d{6} [^ ]+ ([0-9a-f]{40,64})\t/u.exec(entry);
+            if (match?.[1] !== undefined) enumeratedObjects.add(match[1]);
+          }
+        }
+        return result;
+      },
+      readObject: async (oid: string) => {
+        hydratedObjects.push(oid);
+        return await dependencies.readObject(oid);
+      },
+    };
+
+    const result = await composeGitV3RepositoryPlan(measured, "main", completedMap);
+
+    expect(result.status, JSON.stringify(result)).toBe("composed");
+    expect(fullTreeReads).toHaveLength(3);
+    expect(fullTreeReads.filter((oid) => oid === sourceHead)).toHaveLength(1);
+    expect(fullTreeReads.filter((oid) => oid === baseHead)).toHaveLength(2);
+    expect(hydratedObjects.length).toBeGreaterThan(0);
+    expect(hydratedObjects.every((oid) => enumeratedObjects.has(oid))).toBe(true);
+  });
+
+  it("keeps a source-private rider outside relocated companion authority", async () => {
+    const { completedMap, dependencies } = await startedRepository({
+      companionCoverage: true,
+      sourceRider: true,
+    });
+
+    const result = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "retirement",
+        reason: "source-private-added",
+        locus: ".arc/reference/supporting-origin.md",
+      },
+    });
+  });
+
+  it("executes and re-advances relocated companions from pinned Git trees", async () => {
+    const {
+      repo,
+      baseHead,
+      sourceHead,
+      completedMap,
+      dependencies,
+    } = await startedRepository({ companionCoverage: true });
+    const mapBefore = canonicalize(completedMap);
+    const predecessorDirectory = ".arc/backlog/planned/origin";
+    const assurancePredecessor = `${predecessorDirectory}/assurance-origin.md`;
+    const unrelatedSibling = `${predecessorDirectory}/README.md`;
+    const memberDirectory = ".arc/backlog/planned/member";
+    const memberTasks = `${memberDirectory}/tasks-member.md`;
+    const memberNotes = `${memberDirectory}/notes-member.md`;
+
+    expect(await git(repo, ["show", `${baseHead}:${assurancePredecessor}`]))
+      .toContain("Preserve the nonstandard guarantee.");
+    expect(await git(repo, ["show", `${sourceHead}:.arc/active/assurance-origin.md`]))
+      .toContain("Preserve the nonstandard guarantee.");
+    await expect(readBlob(repo, sourceHead, assurancePredecessor)).resolves.toBeNull();
+    const taskPhases = completedMap.machine.sourceUnits.flatMap((unit) =>
+      unit.sourcePath.endsWith("/tasks-origin.md") && unit.sourceLocator.kind === "section"
+        ? [{
+            headingSource: unit.sourceLocator.headingSource,
+            disposition: completedMap.authoring.sourceAllocations.find(
+              ({ sourceId }) => sourceId === unit.sourceId,
+            )?.disposition,
+          }]
+        : []);
+    expect(taskPhases.map(({ headingSource }) => headingSource).sort()).toEqual([
+      "Phase One",
+      "Phase Two",
+    ]);
+    expect(taskPhases.map(({ disposition }) => disposition)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "target", destinationId: "existing" }),
+      expect.objectContaining({ kind: "target", destinationId: "member" }),
+    ]));
+
+    const composed = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(composed.status, JSON.stringify(composed)).toBe("composed");
+    if (composed.status !== "composed") return;
+    const composedPlan = canonicalize(composed.plan);
+    const predecessorRetirements = composed.plan.mutations.filter((mutation) =>
+      mutation.kind === "exclusive" && mutation.path.startsWith(`${predecessorDirectory}/`));
+    expect(predecessorRetirements.map(({ path }) => path)).toEqual([
+      assurancePredecessor,
+      `${predecessorDirectory}/draft-origin.md`,
+      `${predecessorDirectory}/meta-origin.md`,
+      `${predecessorDirectory}/notes-origin.md`,
+      `${predecessorDirectory}/tasks-origin.md`,
+    ]);
+    expect(predecessorRetirements).toContainEqual(expect.objectContaining({
+      path: assurancePredecessor,
+      role: "retiring-source",
+      before: expect.objectContaining({ kind: "file" }),
+      after: { kind: "absent" },
+    }));
+    expect(predecessorRetirements).toContainEqual(expect.objectContaining({
+      path: `${predecessorDirectory}/meta-origin.md`,
+      role: "predecessor-retirement",
+    }));
+    expect(composed.plan.mutations).toContainEqual(expect.objectContaining({
+      kind: "exclusive",
+      path: ".arc/active/assurance-origin.md",
+      role: "retiring-source",
+    }));
+    expect(composed.plan.allowedPaths).not.toContain(unrelatedSibling);
+    expect(composed.plan.mutations.some(({ path }) => path === unrelatedSibling)).toBe(false);
+
+    const staged = await executeGitV3DecomposeOperation({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    expect(canonicalize(staged.plan)).toBe(composedPlan);
+    const stagedPlan = canonicalize(staged.plan);
+    const stagedReport = canonicalize(staged.operation.report);
+    expect(staged.operation.report.destinations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: memberTasks,
+        authoring: {
+          artifactRole: "tasks",
+          contributorKind: "provisional-task",
+          disposition: "whole-file",
+        },
+      }),
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: {
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          disposition: "whole-file",
+        },
+      }),
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: expect.objectContaining({ contributorKind: "allocation" }),
+      }),
+      expect.objectContaining({
+        path: ".arc/reference/shared.md",
+        authoring: expect.objectContaining({ contributorKind: "allocation" }),
+      }),
+    ]));
+    const candidatePath = staged.operation.occupation.path;
+    await expect(readFile(join(candidatePath, memberTasks), "utf8"))
+      .resolves.toContain("# Task List: member");
+    await expect(readFile(join(candidatePath, memberNotes), "utf8"))
+      .resolves.toContain("# Notes: member");
+    await expect(readFile(join(candidatePath, ".arc/reference/shared.md"), "utf8"))
+      .resolves.toContain("Existing companion content.");
+    await expect(pathExists(join(candidatePath, assurancePredecessor))).resolves.toBe(false);
+    await expect(pathExists(join(candidatePath, unrelatedSibling))).resolves.toBe(true);
+
+    await git(candidatePath, ["commit", "-m", "commit companion decomposition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    const currentBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
+
+    const advanced = await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(advanced).toEqual({
+      status: "advanced",
+      candidateBranch: "chore/decompose-origin",
+      candidateHead,
+      previousBaseHead: baseHead,
+      currentBaseHead,
+    });
+    expect(canonicalize(completedMap)).toBe(mapBefore);
+    expect(canonicalize(staged.plan)).toBe(stagedPlan);
+    expect(canonicalize(staged.operation.report)).toBe(stagedReport);
+    expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
+    await expect(readFile(join(candidatePath, ".arc/reference/base-growth.txt"), "utf8"))
+      .resolves.toBe("descendant base\n");
+    await expect(readFile(join(candidatePath, memberTasks), "utf8"))
+      .resolves.toContain("Second phase content.");
+    await expect(readFile(join(candidatePath, memberNotes), "utf8"))
+      .resolves.toContain("Preserve the motivating evidence.");
+    await expect(pathExists(join(candidatePath, assurancePredecessor))).resolves.toBe(false);
+    await expect(pathExists(join(candidatePath, unrelatedSibling))).resolves.toBe(true);
+    expect((await git(repo, ["rev-parse", "plan/origin"])).trim()).toBe(sourceHead);
+  });
+
+  it("retires a copied real notes origin without post-transition repair", async () => {
+    const fixture = await copiedRealNotesRepository();
+    const inventoryPaths = fixture.preflight.sourceArtifactInventory.map(({ path }) => path);
+    const contentPaths = inventoryPaths.filter((path) => !path.endsWith(`/meta-${fixture.origin}.md`));
+    const targetedPaths = new Set<string>();
+    const droppedPaths = new Set<string>();
+    for (const unit of fixture.completedMap.machine.sourceUnits) {
+      const allocation = fixture.completedMap.authoring.sourceAllocations.find(
+        ({ sourceId }) => sourceId === unit.sourceId,
+      );
+      if (allocation?.disposition.kind === "target") targetedPaths.add(unit.sourcePath);
+      if (allocation?.disposition.kind === "drop") droppedPaths.add(unit.sourcePath);
+    }
+    expect([...new Set([...targetedPaths, ...droppedPaths])].sort()).toEqual(contentPaths.sort());
+    expect([...targetedPaths].sort()).toEqual([
+      `${fixture.sourceDirectory}/notes-${fixture.origin}.md`,
+      `${fixture.sourceDirectory}/spec-${fixture.origin}.md`,
+    ]);
+    expect([...droppedPaths]).toEqual([`${fixture.sourceDirectory}/tasks-${fixture.origin}.md`]);
+    expect(fixture.source.notes.length).toBeGreaterThan(40_000);
+    expect(fixture.source.notes).toContain("## Evidence and Conservation Grounding");
+    const scannedTasks = scanV3DecomposeContent(
+      `tasks-${fixture.origin}.md`,
+      new TextEncoder().encode(fixture.source.tasks),
+    );
+    expect(scannedTasks.status).toBe("scanned");
+    if (scannedTasks.status !== "scanned") return;
+    expect(Buffer.concat(scannedTasks.units.map(({ bytes }) => Buffer.from(bytes))).toString())
+      .toBe(fixture.source.tasks);
+    const taskUnits = fixture.completedMap.machine.sourceUnits.filter((unit) =>
+      unit.sourcePath.endsWith(`/tasks-${fixture.origin}.md`));
+    expect(taskUnits).toHaveLength(scannedTasks.units.length);
+    expect(taskUnits.map((unit) => fixture.completedMap.authoring.sourceAllocations.find(
+      ({ sourceId }) => sourceId === unit.sourceId,
+    )?.disposition)).toEqual(taskUnits.map(() => ({
+      kind: "drop",
+      reason: "the completed delivery record is historical",
+    })));
+
+    const staged = await executeGitV3DecomposeCommand({
+      ...fixture.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "partial",
+      baseBranch: "main",
+      origin: fixture.origin,
+      cutMapPath: fixture.cutMapPath,
+    });
+
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged") return;
+    expect(staged.operation.report.status).toBe("reported");
+    const memberDirectory = `.arc/backlog/planned/${fixture.member}`;
+    const memberSpec = `${memberDirectory}/spec-${fixture.member}.md`;
+    const memberNotes = `${memberDirectory}/notes-${fixture.member}.md`;
+    const memberTasks = `${memberDirectory}/tasks-${fixture.member}.md`;
+    expect(staged.operation.report.destinations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: {
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          disposition: "whole-file",
+        },
+      }),
+      expect.objectContaining({
+        path: memberNotes,
+        authoring: expect.objectContaining({ contributorKind: "allocation" }),
+      }),
+    ]));
+    expect(staged.operation.report.destinations.some(({ path }) => path === memberTasks)).toBe(false);
+    const retitled = (content: string): string => {
+      const lines = content.split("\n");
+      if (lines[0]?.includes(fixture.origin) === true) {
+        lines[0] = lines[0].replace(fixture.origin, fixture.member);
+      }
+      return lines.join("\n");
+    };
+    await expect(readFile(join(fixture.repo, memberSpec), "utf8"))
+      .resolves.toBe(retitled(fixture.source.spec));
+    await expect(readFile(join(fixture.repo, memberNotes), "utf8"))
+      .resolves.toBe(retitled(fixture.source.notes));
+    await expect(pathExists(join(fixture.repo, memberTasks))).resolves.toBe(false);
+    await expect(readFile(join(fixture.repo, memberDirectory, `meta-${fixture.member}.md`), "utf8"))
+      .resolves.toContain("- **Task List:** [none]");
+    for (const sourcePath of inventoryPaths) {
+      await expect(pathExists(join(fixture.repo, sourcePath))).resolves.toBe(false);
+    }
   });
 
   it("stages the same lean transition through exact full and partial repository loci", async () => {
@@ -1208,6 +2858,598 @@ describe("Git v3 repository plan", () => {
     expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
   });
 
+  it("recomposes once during advancement without completed-target path reads", async () => {
+    const started = await startedRepository({ completedTarget: true });
+    started.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    await git(staged.operation.occupation.path, ["commit", "-m", "commit external transition"]);
+    await write(started.repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(started.repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(started.repo, ["commit", "-m", "advance base"]);
+    const observedArgs: string[][] = [];
+    const measuredBase = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        observedArgs.push([...args[1]]);
+        return await started.dependencies.exec(...args);
+      },
+    };
+    let recompositions = 0;
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...measuredBase,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(measuredBase, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+
+    expect(result.status).toBe("advanced");
+    expect(recompositions).toBe(1);
+    expect(observedArgs.some((args) => args.some((arg) =>
+      arg.includes(".arc/completed") || arg.includes("foundation")))).toBe(false);
+  });
+
+  it("advances an external edge when its live target completes on the base", async () => {
+    const started = await startedRepository({ liveTarget: true });
+    started.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit external transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    const completedDirectory = ".arc/completed/2026-q3/49_foundation";
+    await mkdir(join(started.repo, completedDirectory), { recursive: true });
+    await git(started.repo, [
+      "mv",
+      ".arc/backlog/planned/foundation/meta-foundation.md",
+      `${completedDirectory}/meta-foundation.md`,
+    ]);
+    await write(started.repo, `${completedDirectory}/meta-foundation.md`, renderMetaFile("foundation", {
+      state: "Shipped",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      origin: "internal",
+      completed: "2026-09-08",
+    }));
+    await git(started.repo, ["add", "-A"]);
+    await git(started.repo, ["commit", "-m", "complete external target"]);
+    const currentBaseHead = (await git(started.repo, ["rev-parse", "HEAD"])).trim();
+    let recompositions = 0;
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...started.dependencies,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(started.dependencies, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+
+    expect(result).toMatchObject({
+      status: "advanced",
+      candidateHead,
+      previousBaseHead: started.baseHead,
+      currentBaseHead,
+    });
+    expect(recompositions).toBe(1);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
+    await git(candidatePath, ["commit", "-m", "absorb target completion"]);
+    const advancedHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    expect((await git(candidatePath, ["rev-list", "--parents", "-n", "1", advancedHead])).trim())
+      .toBe(`${advancedHead} ${candidateHead} ${currentBaseHead}`);
+    const memberMeta = await readFile(
+      join(candidatePath, ".arc/backlog/planned/member/meta-member.md"),
+      "utf8",
+    );
+    expect(memberMeta.match(/foundation/gu)).toHaveLength(1);
+    expect((await git(candidatePath, [
+      "ls-tree",
+      "-r",
+      "--name-only",
+      "HEAD",
+      ".arc/system/.internal/transitions",
+    ])).trim()).toBe(resolveTransitionRecordRelativePath("origin"));
+  });
+
+  it("refuses advancement when an external target leaves every eligible set", async () => {
+    const started = await startedRepository({ liveTarget: true });
+    started.completedMap.authoring.externalEdges = [{ from: "member", to: "foundation" }];
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit external transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    await rm(join(started.repo, ".arc/backlog/planned/foundation"), { recursive: true });
+    await git(started.repo, ["add", "-A"]);
+    await git(started.repo, ["commit", "-m", "remove external target"]);
+
+    const result = await advanceGitDecomposeTransitionBase(started.dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: started.completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "advancement-plan-refused:conservation:dependency-projection:unknown-external-target",
+      locus: "authoring.externalEdges.0.to",
+    });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("refuses dependency-recipient drift before candidate history authentication", async () => {
+    const started = await startedRepository({ completedTarget: true, existingRecipient: true });
+    const completedMap: unknown = {
+      ...started.completedMap,
+      authoring: {
+        ...started.completedMap.authoring,
+        destinations: started.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit external transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    const recipientPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    await write(started.repo, recipientPath, renderMetaFile("consumer", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: ["base-only"],
+      origin: "internal",
+      design: ["draft-consumer.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(started.repo, ["add", recipientPath]);
+    await git(started.repo, ["commit", "-m", "change dependency recipient"]);
+    let recompositions = 0;
+    let historyAuthentications = 0;
+    const guarded = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        if (args[1][0] === "diff-tree") historyAuthentications += 1;
+        return await started.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...guarded,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(guarded, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "dependency-recipient-drift",
+      locus: recipientPath,
+      evidence: { expected: [], actual: ["base-only"] },
+    });
+    expect(recompositions).toBe(1);
+    expect(historyAuthentications).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("preserves dependency-recipient drift when the authored edge becomes pre-satisfied", async () => {
+    const started = await startedRepository({ completedTarget: true, existingRecipient: true });
+    const completedMap: unknown = {
+      ...started.completedMap,
+      authoring: {
+        ...started.completedMap.authoring,
+        destinations: started.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit external transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    const recipientPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    await write(started.repo, recipientPath, renderMetaFile("consumer", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: ["foundation"],
+      origin: "internal",
+      design: ["draft-consumer.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(started.repo, ["add", recipientPath]);
+    await git(started.repo, ["commit", "-m", "satisfy authored edge independently"]);
+    let recompositions = 0;
+    let historyAuthentications = 0;
+    const guarded = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        if (args[1][0] === "diff-tree") historyAuthentications += 1;
+        return await started.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...guarded,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(guarded, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "dependency-recipient-drift",
+      locus: recipientPath,
+      evidence: { expected: [], actual: ["foundation"] },
+    });
+    expect(recompositions).toBe(1);
+    expect(historyAuthentications).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("preserves dependency-recipient drift for an incoming-plus-external recipient", async () => {
+    const started = await startedRepository({
+      completedTarget: true,
+      existingRecipient: true,
+      sourceRecipientDependsOn: ["origin"],
+    });
+    const completedMap: unknown = {
+      ...started.completedMap,
+      authoring: {
+        ...started.completedMap.authoring,
+        destinations: started.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+        incomingDispositions: started.completedMap.machine.incomingEdges.map((edge) => ({
+          edgeId: edge.edgeId,
+          disposition: { kind: "replace", replacementTargets: ["member"] },
+        })),
+      },
+    };
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit overlapping dependency transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    const recipientPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    await write(started.repo, recipientPath, renderMetaFile("consumer", {
+      state: "Planning",
+      owner: "andrew",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: ["origin", "foundation"],
+      origin: "internal",
+      design: ["draft-consumer.md"],
+      currentWorkflow: "draft-design",
+      nextAction: "Begin draft-design",
+    }));
+    await git(started.repo, ["add", recipientPath]);
+    await git(started.repo, ["commit", "-m", "satisfy overlapping authored edge independently"]);
+    let recompositions = 0;
+    let historyAuthentications = 0;
+    const guarded = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        if (args[1][0] === "diff-tree") historyAuthentications += 1;
+        return await started.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...guarded,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(guarded, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "dependency-recipient-drift",
+      locus: recipientPath,
+      evidence: { expected: ["origin"], actual: ["origin", "foundation"] },
+    });
+    expect(recompositions).toBe(1);
+    expect(historyAuthentications).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it.each([
+    ["nonempty", ["base-only"]],
+    ["empty", []],
+  ] as const)("preserves %s dependency-recipient drift across a live-path relocation", async (
+    _prestate,
+    initialTargets,
+  ) => {
+    const started = await startedRepository({
+      completedTarget: true,
+      existingRecipient: true,
+      sourceRecipientDependsOn: [...initialTargets],
+    });
+    const completedMap: unknown = {
+      ...started.completedMap,
+      authoring: {
+        ...started.completedMap.authoring,
+        destinations: started.completedMap.authoring.destinations.map((destination) =>
+          destination.destinationId === "existing"
+            ? {
+                kind: "existing-home",
+                destinationId: "existing",
+                target: { kind: "work-unit", slug: "consumer" },
+              }
+            : destination),
+        externalEdges: [{ from: "consumer", to: "foundation" }],
+      },
+    };
+    const staged = await executeGitV3DecomposeOperation({
+      ...started.dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    expect(staged.status, JSON.stringify(staged)).toBe("staged");
+    if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit external transition"]);
+    const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+    const previousRecipientPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+    const currentRecipientPath = ".arc/active/meta-consumer.md";
+    await mkdir(join(started.repo, ".arc/active"), { recursive: true });
+    await git(started.repo, ["mv", previousRecipientPath, currentRecipientPath]);
+    await write(started.repo, currentRecipientPath, renderMetaFile("consumer", {
+      state: "Active",
+      owner: "andrew",
+      branch: "feat/consumer",
+      workClass: "Light",
+      priority: "P2",
+      dependsOn: [...initialTargets],
+      origin: "internal",
+      design: ["draft-consumer.md"],
+      currentWorkflow: "process-task-loop",
+      nextAction: "Continue implementation",
+    }));
+    await git(started.repo, ["add", "-A"]);
+    await git(started.repo, ["commit", "-m", "start dependency recipient"]);
+    let recompositions = 0;
+    let historyAuthentications = 0;
+    const guarded = {
+      ...started.dependencies,
+      exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+        if (args[1][0] === "diff-tree") historyAuthentications += 1;
+        return await started.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...guarded,
+      composePlan: async (baseRef, map) => {
+        recompositions += 1;
+        return await composeGitV3RepositoryPlan(guarded, baseRef, map);
+      },
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "dependency-recipient-drift",
+      locus: currentRecipientPath,
+      evidence: {
+        expected: { path: previousRecipientPath, targets: [...initialTargets] },
+        actual: { path: currentRecipientPath, targets: [...initialTargets] },
+      },
+    });
+    expect(recompositions).toBe(1);
+    expect(historyAuthentications).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it.each(["removed", "archived"] as const)(
+    "preserves dependency-recipient drift when the live recipient is %s",
+    async (transition) => {
+      const initialTargets = ["base-only"];
+      const started = await startedRepository({
+        completedTarget: true,
+        existingRecipient: true,
+        sourceRecipientDependsOn: initialTargets,
+      });
+      const completedMap: unknown = {
+        ...started.completedMap,
+        authoring: {
+          ...started.completedMap.authoring,
+          destinations: started.completedMap.authoring.destinations.map((destination) =>
+            destination.destinationId === "existing"
+              ? {
+                  kind: "existing-home",
+                  destinationId: "existing",
+                  target: { kind: "work-unit", slug: "consumer" },
+                }
+              : destination),
+          externalEdges: [{ from: "consumer", to: "foundation" }],
+        },
+      };
+      const staged = await executeGitV3DecomposeOperation({
+        ...started.dependencies,
+        spawningIdentity: "andrew",
+      }, {
+        protection: "full",
+        baseBranch: "main",
+        completedMap,
+      });
+      expect(staged.status, JSON.stringify(staged)).toBe("staged");
+      if (staged.status !== "staged" || staged.operation.occupation.protection !== "full") return;
+      const candidatePath = staged.operation.occupation.path;
+      await git(candidatePath, ["commit", "-m", "commit external transition"]);
+      const candidateHead = (await git(candidatePath, ["rev-parse", "HEAD"])).trim();
+      const recipientPath = ".arc/backlog/planned/consumer/meta-consumer.md";
+      if (transition === "removed") {
+        await rm(join(started.repo, recipientPath));
+      } else {
+        const archivedPath = ".arc/completed/2026-q3/50_consumer/meta-consumer.md";
+        await mkdir(join(started.repo, archivedPath, ".."), { recursive: true });
+        await git(started.repo, ["mv", recipientPath, archivedPath]);
+        await write(started.repo, archivedPath, renderMetaFile("consumer", {
+          state: "Shipped",
+          owner: "andrew",
+          workClass: "Light",
+          priority: "P2",
+          dependsOn: initialTargets,
+          origin: "internal",
+          completed: "2026-09-08",
+        }));
+      }
+      await git(started.repo, ["add", "-A"]);
+      await git(started.repo, ["commit", "-m", `${transition} dependency recipient`]);
+      let recompositions = 0;
+      let historyAuthentications = 0;
+      const guarded = {
+        ...started.dependencies,
+        exec: async (...args: Parameters<typeof started.dependencies.exec>) => {
+          if (args[1][0] === "diff-tree") historyAuthentications += 1;
+          return await started.dependencies.exec(...args);
+        },
+      };
+
+      const result = await advanceGitDecomposeTransitionBase({
+        ...guarded,
+        composePlan: async (baseRef, map) => {
+          recompositions += 1;
+          return await composeGitV3RepositoryPlan(guarded, baseRef, map);
+        },
+      }, {
+        protection: "full",
+        baseBranch: "main",
+        completedMap,
+      });
+
+      expect(result).toEqual({
+        status: "refused",
+        reason: "dependency-recipient-drift",
+        locus: recipientPath,
+        evidence: {
+          expected: { path: recipientPath, targets: initialTargets },
+          actual: { kind: "absent" },
+        },
+      });
+      expect(recompositions).toBe(1);
+      expect(historyAuthentications).toBe(0);
+      expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+      expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+      await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+    },
+  );
+
   it("re-advances through a validated first-parent base-merge chain", async () => {
     const { repo, completedMap, dependencies } = await startedRepository();
     const staged = await executeGitV3DecomposeOperation({
@@ -1255,20 +3497,288 @@ describe("Git v3 repository plan", () => {
     expect((await git(candidatePath, ["rev-parse", "MERGE_HEAD"])).trim()).toBe(currentBaseHead);
   });
 
-  it("refuses a committed candidate whose lean transition result was altered", async () => {
-    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
-    const recordPath = resolveTransitionRecordRelativePath("origin");
-    await writeFile(join(candidatePath, recordPath), "{}\n");
-    await git(candidatePath, ["add", recordPath]);
+  it.each([
+    ["authenticated base", "authored", "current"],
+    ["recorded advancement chain", "authored", "first"],
+    ["remaining live base", "first", "current"],
+  ] as const)("reports an unavailable ancestry probe for the %s", async (
+    _site,
+    ancestorKey,
+    descendantKey,
+  ) => {
+    const fixture = await reAdvancedTransitionCandidate();
+    const authoredBaseHead = fixture.completedMap.machine.resultBase.head;
+    const heads = {
+      authored: authoredBaseHead,
+      first: fixture.firstBaseHead,
+      current: fixture.currentBaseHead,
+    };
+    const failedAncestor = heads[ancestorKey];
+    const failedDescendant = heads[descendantKey];
+    const dependencies = {
+      ...fixture.dependencies,
+      exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
+        if (
+          args[1][0] === "merge-base"
+          && args[1][1] === "--is-ancestor"
+          && args[1][2] === failedAncestor
+          && args[1][3] === failedDescendant
+        ) {
+          throw Object.assign(new Error("ancestry probe unavailable"), {
+            exitCode: 128,
+            stderr: "ancestry probe unavailable",
+          });
+        }
+        return await fixture.dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap: fixture.completedMap,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      reason: "base-ancestry-unavailable",
+      locus: expect.stringContaining("ancestry probe unavailable"),
+    });
+    expect(result).not.toHaveProperty("evidence");
+    expect((await git(fixture.candidatePath, ["rev-parse", "HEAD"])).trim())
+      .toBe(fixture.candidateHead);
+    expect(await git(fixture.candidatePath, ["status", "--porcelain=v1"])).toBe("");
+  });
+
+  it("preserves a composing plan refusal through base advancement", async () => {
+    const { completedMap, dependencies } = await committedTransitionCandidate();
+    const evidence = { expected: ["member"], actual: ["other-member"] };
+
+    const result = await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      composePlan: async () => ({
+        status: "refused",
+        refusal: {
+          stage: "dependency",
+          reason: "dependency-target-mismatch",
+          locus: "member",
+          evidence,
+        },
+      }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+
+    expect(result).toEqual({
+      status: "refused",
+      reason: "advancement-plan-refused:dependency:dependency-target-mismatch",
+      locus: "member",
+      evidence,
+    });
+  });
+
+  it("reports the planned and committed path sets for a candidate mismatch", async () => {
+    const { baseHead, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    const expected = (await git(candidatePath, [
+      "diff-tree",
+      "--no-commit-id",
+      "--name-only",
+      "--no-renames",
+      "-r",
+      baseHead,
+      candidateHead,
+    ])).trim().split("\n");
+    await write(candidatePath, "zz-extra.txt", "unplanned\n");
+    await git(candidatePath, ["add", "zz-extra.txt"]);
     await git(candidatePath, ["commit", "--amend", "--no-edit"]);
+    const actual = [...expected, "zz-extra.txt"];
 
     expect(await advanceGitDecomposeTransitionBase(dependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({
+    })).toEqual({
       status: "refused",
-      reason: `candidate-transform-mismatch:transition-record:${recordPath}`,
+      reason: "candidate-transform-mismatch:changed-paths",
+      locus: "zz-extra.txt",
+      evidence: { expected, actual },
+    });
+  });
+
+  it("reports the planned and committed path states for a candidate mismatch", async () => {
+    const { candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    const path = ".arc/backlog/planned/member/draft-member.md";
+    const expectedBytes = await readBlob(candidatePath, candidateHead, path);
+    if (expectedBytes === null) throw new Error(`missing expected candidate path: ${path}`);
+    const expected = {
+      kind: "file" as const,
+      mode: "100644" as const,
+      contentDigest: digestBytes(expectedBytes),
+    };
+    await write(candidatePath, path, "# Changed candidate draft\n");
+    await git(candidatePath, ["add", path]);
+    await git(candidatePath, ["commit", "--amend", "--no-edit"]);
+    const actualBytes = await readBlob(candidatePath, "HEAD", path);
+    if (actualBytes === null) throw new Error(`missing changed candidate path: ${path}`);
+    const actual = {
+      kind: "file" as const,
+      mode: "100644" as const,
+      contentDigest: digestBytes(actualBytes),
+    };
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-transform-mismatch:path-state",
+      locus: path,
+      evidence: { expected, actual },
+    });
+  });
+
+  it.each([
+    ["candidate", "chore/decompose-origin"],
+    ["base", "main"],
+  ] as const)("refuses a missing %s binding before merge mutation", async (_binding, missingRef) => {
+    const { repo, baseHead, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    let mergeAttempts = 0;
+    const guardedDependencies = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        if (args[1][0] === "merge") mergeAttempts += 1;
+        if (args[1][0] === "rev-parse" && args[1][2] === `${missingRef}^{commit}`) {
+          throw new Error(`missing ${missingRef}`);
+        }
+        return await dependencies.exec(...args);
+      },
+    };
+
+    expect(await advanceGitDecomposeTransitionBase(guardedDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({ status: "refused", reason: "binding-unavailable" });
+    expect(mergeAttempts).toBe(0);
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect((await git(repo, ["rev-parse", "main"])).trim()).toBe(baseHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+  });
+
+  it("refuses a committed candidate whose lean transition result was altered", async () => {
+    const { candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    const recordPath = resolveTransitionRecordRelativePath("origin");
+    const expectedBytes = await readBlob(candidatePath, candidateHead, recordPath);
+    if (expectedBytes === null) throw new Error("missing expected transition record");
+    await writeFile(join(candidatePath, recordPath), "{}\n");
+    await git(candidatePath, ["add", recordPath]);
+    await git(candidatePath, ["commit", "--amend", "--no-edit"]);
+    const actualBytes = await readBlob(candidatePath, "HEAD", recordPath);
+    if (actualBytes === null) throw new Error("missing altered transition record");
+
+    expect(await advanceGitDecomposeTransitionBase(dependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-transform-mismatch:transition-record",
+      locus: recordPath,
+      evidence: {
+        expected: {
+          kind: "file",
+          mode: "100644",
+          contentDigest: digestBytes(expectedBytes),
+        },
+        actual: {
+          kind: "file",
+          mode: "100644",
+          contentDigest: digestBytes(actualBytes),
+        },
+      },
+    });
+  });
+
+  it("reports the expected and observed candidate registration count", async () => {
+    const { completedMap, dependencies } = await committedTransitionCandidate();
+
+    expect(await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      scanWorktrees: async () => ({ ok: true, worktrees: [] }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-registration-mismatch",
+      locus: "chore/decompose-origin",
+      evidence: {
+        expected: { candidateBranch: "chore/decompose-origin", registrationCount: 1 },
+        actual: { candidateBranch: "chore/decompose-origin", registrationCount: 0 },
+      },
+    });
+  });
+
+  it("reports the expected and observed candidate worktree marker", async () => {
+    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
+
+    expect(await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      readMarker: async () => ({
+        kind: "present",
+        marker: {
+          spawnedByArc: true,
+          spawningIdentity: "andrew",
+          createdAt: "2026-09-08T00:00:00.000Z",
+          createdFor: { kind: "branch", ref: "chore/decompose-other" },
+        },
+      }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-marker-mismatch",
+      locus: candidatePath,
+      evidence: {
+        expected: {
+          kind: "present",
+          spawnedByArc: true,
+          createdFor: { kind: "branch", ref: "chore/decompose-origin" },
+        },
+        actual: {
+          kind: "present",
+          spawnedByArc: true,
+          createdFor: { kind: "branch", ref: "chore/decompose-other" },
+        },
+      },
+    });
+  });
+
+  it("keeps a malformed candidate worktree marker locus-only", async () => {
+    const { candidatePath, completedMap, dependencies } = await committedTransitionCandidate();
+    const markerPath = join(candidatePath, ".arc/system/.internal/worktree-marker.json");
+
+    expect(await advanceGitDecomposeTransitionBase({
+      ...dependencies,
+      readMarker: async () => ({ kind: "malformed", message: "invalid marker", path: markerPath }),
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    })).toEqual({
+      status: "refused",
+      reason: "candidate-marker-mismatch",
+      locus: markerPath,
     });
   });
 
@@ -1288,36 +3798,67 @@ describe("Git v3 repository plan", () => {
   it("refuses a configured base that regressed behind the authored base", async () => {
     const { repo, completedMap, dependencies } = await committedTransitionCandidate();
     await git(repo, ["reset", "--hard", `${completedMap.machine.resultBase.head}^`]);
+    const regressedBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
 
     expect(await advanceGitDecomposeTransitionBase(dependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({ status: "refused", reason: "base-not-descendant" });
+    })).toEqual({
+      status: "refused",
+      reason: "base-not-descendant",
+      locus: "main",
+      evidence: {
+        expected: completedMap.machine.resultBase.head,
+        actual: regressedBaseHead,
+      },
+    });
   });
 
   it("refuses a descendant base that acquired a new incoming dependency", async () => {
     const { repo, completedMap, dependencies } = await committedTransitionCandidate();
-    await write(repo, ".arc/backlog/planned/dependent/meta-dependent.md", renderMetaFile("dependent", {
-      state: "Planning",
-      owner: "andrew",
-      workClass: "Light",
-      priority: "P2",
-      dependsOn: ["origin"],
-      origin: "internal",
-      design: ["draft-dependent.md"],
-      currentWorkflow: "draft-design",
-      nextAction: "Begin draft-design",
-    }));
-    await git(repo, ["add", ".arc/backlog/planned/dependent/meta-dependent.md"]);
+    const addedDependents = ["z-dependent", "a-dependent"];
+    for (const dependent of addedDependents) {
+      await write(repo, `.arc/backlog/planned/${dependent}/meta-${dependent}.md`, renderMetaFile(dependent, {
+        state: "Planning",
+        owner: "andrew",
+        workClass: "Light",
+        priority: "P2",
+        dependsOn: ["origin"],
+        origin: "internal",
+        design: [`draft-${dependent}.md`],
+        currentWorkflow: "draft-design",
+        nextAction: "Begin draft-design",
+      }));
+    }
+    await git(repo, ["add", ".arc/backlog/planned"]);
     await git(repo, ["commit", "-m", "add incoming dependency"]);
+    const expected = sortByCanonicalBytes(completedMap.machine.incomingEdges);
+    const actual = sortByCanonicalBytes([
+      ...expected,
+      ...addedDependents.map((dependent) => ({
+        edgeId: v3IncomingEdgeId({ dependent, currentTargets: ["origin"] }),
+        dependent,
+        currentTargets: ["origin"],
+      })),
+    ]);
+    const locus = actual.find((edge, index) => {
+      const expectedEdge = expected[index];
+      return expectedEdge === undefined || canonicalize(edge) !== canonicalize(expectedEdge);
+    })?.dependent;
+    if (locus === undefined) throw new Error("missing incoming-dependency mismatch locus");
 
     const result = await advanceGitDecomposeTransitionBase(dependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
     });
-    expect(result).toMatchObject({ status: "refused", reason: "base-acquired-incoming-dependency" });
+    expect(result).toEqual({
+      status: "refused",
+      reason: "base-acquired-incoming-dependency",
+      locus,
+      evidence: { expected, actual },
+    });
   });
 
   it("restores the pinned candidate after a conflicting base merge", async () => {
@@ -1343,24 +3884,113 @@ describe("Git v3 repository plan", () => {
     await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
     await git(repo, ["add", ".arc/reference/base-growth.txt"]);
     await git(repo, ["commit", "-m", "advance base"]);
+    const expectedBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
     let raced = false;
+    let racedBaseHead: string | null = null;
     const racingDependencies = {
       ...dependencies,
       exec: async (...args: Parameters<typeof dependencies.exec>) => {
         if (!raced && args[1][0] === "ls-files" && args[2]?.cwd === candidatePath) {
           raced = true;
           await git(repo, ["commit", "--allow-empty", "-m", "race base after merge"]);
+          racedBaseHead = (await git(repo, ["rev-parse", "main"])).trim();
         }
         return await dependencies.exec(...args);
       },
     };
 
-    expect(await advanceGitDecomposeTransitionBase(racingDependencies, {
+    const result = await advanceGitDecomposeTransitionBase(racingDependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({ status: "refused", reason: "post-merge-validation-refused:binding-raced" });
-    expect(raced).toBe(true);
+    });
+    if (racedBaseHead === null) throw new Error("base binding did not race");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "post-merge-validation-refused:binding-raced",
+      locus: "main",
+      evidence: {
+        expected: { candidateHead, baseHead: expectedBaseHead },
+        actual: { candidateHead, baseHead: racedBaseHead },
+      },
+    });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("reports a missing advancement-plan blob at its mutation path", async () => {
+    const { repo, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    let missingPath: string | null = null;
+    const missingBlobDependencies = {
+      ...dependencies,
+      composePlan: async (baseRef: string, map: unknown) => {
+        const composed = await composeGitV3RepositoryPlan(dependencies, baseRef, map);
+        if (composed.status !== "composed") return composed;
+        const mutation = composed.plan.mutations.find(({ before, after }) =>
+          after.kind === "file" && canonicalize(before) !== canonicalize(after));
+        if (mutation?.after.kind !== "file") throw new Error("missing file mutation");
+        missingPath = mutation.path;
+        const missingDigest = mutation.after.contentDigest;
+        return {
+          ...composed,
+          blobs: composed.blobs.filter(({ contentDigest }) =>
+            contentDigest !== missingDigest),
+        };
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase(missingBlobDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    if (missingPath === null) throw new Error("missing blob path was not selected");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "post-merge-validation-refused:blob-unavailable",
+      locus: missingPath,
+    });
+    expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
+    await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
+  });
+
+  it("reports an advancement-plan write failure at its mutation path", async () => {
+    const { repo, candidatePath, candidateHead, completedMap, dependencies } =
+      await committedTransitionCandidate();
+    await write(repo, ".arc/reference/base-growth.txt", "descendant base\n");
+    await git(repo, ["add", ".arc/reference/base-growth.txt"]);
+    await git(repo, ["commit", "-m", "advance base"]);
+    let failedPath: string | null = null;
+    const failingDependencies = {
+      ...dependencies,
+      exec: async (...args: Parameters<typeof dependencies.exec>) => {
+        const command = args[1][0];
+        if (args[2]?.cwd === candidatePath && (command === "add" || command === "update-index")) {
+          failedPath = args[1].at(-1) ?? null;
+          throw new Error(`write exploded at ${failedPath ?? "unknown"}`);
+        }
+        return await dependencies.exec(...args);
+      },
+    };
+
+    const result = await advanceGitDecomposeTransitionBase(failingDependencies, {
+      protection: "full",
+      baseBranch: "main",
+      completedMap,
+    });
+    if (failedPath === null) throw new Error("advancement-plan write did not fail");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "post-merge-validation-refused:write-failed",
+      locus: failedPath,
+    });
+    expect(canonicalize(result)).not.toContain("write exploded");
     expect((await git(candidatePath, ["rev-parse", "HEAD"])).trim()).toBe(candidateHead);
     expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
     await expect(git(candidatePath, ["rev-parse", "MERGE_HEAD"])).rejects.toThrow();
@@ -1398,12 +4028,27 @@ describe("Git v3 repository plan", () => {
       },
     };
 
-    expect(await advanceGitDecomposeTransitionBase(racingDependencies, {
+    const result = await advanceGitDecomposeTransitionBase(racingDependencies, {
       protection: "full",
       baseBranch: "main",
       completedMap,
-    })).toMatchObject({ status: "refused", reason: "binding-raced" });
-    expect(racedHead).not.toBeNull();
+    });
+    if (racedHead === null) throw new Error("candidate binding did not race");
+    expect(result).toEqual({
+      status: "refused",
+      reason: "binding-raced",
+      locus: "chore/decompose-origin",
+      evidence: {
+        expected: {
+          candidateHead,
+          baseHead: completedMap.machine.resultBase.head,
+        },
+        actual: {
+          candidateHead: racedHead,
+          baseHead: completedMap.machine.resultBase.head,
+        },
+      },
+    });
   });
 
   it("refuses a root commit masquerading as the initial transition", async () => {
@@ -1460,6 +4105,72 @@ describe("Git v3 repository plan", () => {
     expect(canonicalize(staged)).not.toContain("receiptId");
   });
 
+  it("threads a discovered retirement companion through execute", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository({
+      uncoveredCompanion: true,
+    });
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result.status, JSON.stringify(result)).toBe("staged");
+    if (result.status !== "staged") return;
+    expect(result.plan.mutations).toContainEqual({
+      kind: "exclusive",
+      path: ".arc/active/notes-origin.md",
+      role: "retiring-source",
+      before: { kind: "absent" },
+      after: { kind: "absent" },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"]))
+      .toContain("chore/decompose-origin");
+  });
+
+  it("threads completed-map origin evidence through execute without repository mutation", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    completedMap.machine.source.origin = "other";
+    const { preflightId, ...facts } = completedMap.machine;
+    void preflightId;
+    completedMap.machine.preflightId = v3PreflightId(facts);
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const statusBefore = await git(repo, ["status", "--porcelain=v1"]);
+
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "repository-plan",
+      reason: "completed-map",
+      locus: "machine.source.origin",
+      evidence: {
+        expected: "origin",
+        actual: "other",
+      },
+      recovery: { kind: "none" },
+    });
+    expect(await claimFiles(repo)).toEqual([]);
+    expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
+    expect(await git(repo, ["status", "--porcelain=v1"])).toBe(statusBefore);
+  });
+
   it("refuses an unpublished source before claiming or materializing a candidate", async () => {
     const { repo, completedMap, dependencies } = await startedRepository();
     const cutMapPath = join(repo, "cut-map.json");
@@ -1481,7 +4192,14 @@ describe("Git v3 repository plan", () => {
       stage: "repository-plan",
       reason: "source-unpublished",
       locus: "plan/origin",
+      evidence: {
+        expected: completedMap.machine.source.head,
+        actual: completedMap.machine.resultBase.head,
+      },
       recovery: { kind: "none" },
+      remedy: {
+        argv: ["git", "push", "origin", "refs/heads/plan/origin:refs/heads/plan/origin"],
+      },
     });
     expect(await claimFiles(repo)).toEqual([]);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"])).toBe("");
@@ -1508,7 +4226,14 @@ describe("Git v3 repository plan", () => {
       stage: "repository-plan",
       reason: "source-unpublished",
       locus: "plan/origin",
+      evidence: {
+        expected: completedMap.machine.source.head,
+        actual: { kind: "absent" },
+      },
       recovery: { kind: "none" },
+      remedy: {
+        argv: ["git", "push", "origin", "refs/heads/plan/origin:refs/heads/plan/origin"],
+      },
     });
     expect(await claimFiles(repo)).toEqual([]);
   });
@@ -1531,6 +4256,70 @@ describe("Git v3 repository plan", () => {
         stage: "git",
         reason: "repository-plan-failed",
         locus: "synthetic Git read failure",
+      },
+    });
+  });
+
+  it("reports the recorded and observed source ref tips", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    await git(repo, ["branch", "-f", "plan/origin", "main"]);
+    const actual = (await git(repo, ["rev-parse", "refs/heads/plan/origin"])).trim();
+
+    const result = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "git",
+        reason: "source-ref-moved",
+        locus: "refs/heads/plan/origin",
+        evidence: {
+          expected: completedMap.machine.source.head,
+          actual,
+        },
+      },
+    });
+  });
+
+  it("reports the recorded and observed result-base ref tips", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    await git(repo, ["commit", "--allow-empty", "-m", "move base"]);
+    const actual = (await git(repo, ["rev-parse", "refs/heads/main"])).trim();
+
+    const result = await composeGitV3RepositoryPlan(dependencies, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "git",
+        reason: "result-ref-moved",
+        locus: "refs/heads/main",
+        evidence: {
+          expected: completedMap.machine.resultBase.head,
+          actual,
+        },
+      },
+    });
+  });
+
+  it("keeps a failed one-sided ref read locus-only", async () => {
+    const { completedMap, dependencies } = await startedRepository();
+    const result = await composeGitV3RepositoryPlan({
+      ...dependencies,
+      exec: async (command, args, options) => {
+        if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/heads/plan/origin")) {
+          throw new Error("synthetic source-ref read failure");
+        }
+        return await dependencies.exec(command, args, options);
+      },
+    }, "main", completedMap);
+
+    expect(result).toEqual({
+      status: "refused",
+      refusal: {
+        stage: "git",
+        reason: "source-ref-moved",
+        locus: "refs/heads/plan/origin",
       },
     });
   });
@@ -1579,7 +4368,7 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "repository-plan",
       reason: "git-preflight:missing-base",
-      remedy: "Re-preflight: arc decompose origin --preflight",
+      remedy: { argv: ["arc", "decompose", "origin", "--preflight"] },
     });
     expect(await claimFiles(repo)).toEqual([]);
   });
@@ -1642,12 +4431,56 @@ describe("Git v3 repository plan", () => {
       },
     });
     expect(result).toMatchObject({
-      remedy: expect.stringContaining(`Then retry: arc decompose origin --execute ${cutMapPath}`),
+      remedy: { argv: ["arc", "teardown", "--branch", "chore/decompose-origin"] },
     });
-    expect(result.status === "refused" ? result.remedy : "").not.toContain("discard");
+    expect(result.status === "refused" ? result.remedy.text : "").toContain(cutMapPath);
+    expect(result.status === "refused" ? result.remedy.text : "").not.toContain("discard");
     expect(await claimFiles(repo)).toEqual([]);
     expect(await git(repo, ["branch", "--list", "chore/decompose-origin"]))
       .toContain("chore/decompose-origin");
+  });
+
+  it("reports the earlier and refreshed repository plan identities", async () => {
+    const { repo, completedMap, dependencies } = await startedRepository();
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    const roadmapOid = (await git(repo, ["rev-parse", "main:.arc/backlog/ROADMAP.md"])).trim();
+    let drift = false;
+    const result = await executeGitV3DecomposeCommand({
+      ...dependencies,
+      exec: async (command, args, options) => {
+        const value = await dependencies.exec(command, args, options);
+        if (args[0] === "worktree" && args[1] === "add") drift = true;
+        return value;
+      },
+      readObject: async (oid) => {
+        const bytes = await dependencies.readObject(oid);
+        return drift && oid === roadmapOid
+          ? new Uint8Array([...bytes, ...new TextEncoder().encode("refreshed")])
+          : bytes;
+      },
+      spawningIdentity: "andrew",
+    }, {
+      protection: "full",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(drift).toBe(true);
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "post-occupation-revalidation",
+      reason: "repository-plan-drift",
+      locus: "planId",
+      evidence: {
+        expected: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+        actual: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
+      recovery: { kind: "full-candidate" },
+    });
+    if (result.status !== "refused" || result.evidence === undefined) return;
+    expect(result.evidence.expected).not.toBe(result.evidence.actual);
   });
 
   it("refuses an untracked partial destination without staging or replacing it", async () => {
@@ -1690,6 +4523,11 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "occupation",
       reason: "base-moved",
+      locus: "main",
+      evidence: {
+        expected: completedMap.machine.resultBase.head,
+        actual: { kind: "absent" },
+      },
       recovery: { kind: "none" },
     });
     expect(await git(repo, ["diff", "--cached", "--name-only"])).toBe("");
@@ -1725,6 +4563,19 @@ describe("Git v3 repository plan", () => {
       status: "refused",
       stage: "post-occupation-revalidation",
       reason: "partial-projection-drift",
+      locus: "main",
+      evidence: {
+        expected: {
+          baseHead: completedMap.machine.resultBase.head,
+          indexClean: true,
+          worktreeClean: true,
+        },
+        actual: {
+          baseHead: completedMap.machine.resultBase.head,
+          indexClean: false,
+          worktreeClean: true,
+        },
+      },
       recovery: { kind: "none" },
     });
     expect(await git(repo, ["diff", "--cached", "--name-only"]))
@@ -1769,6 +4620,47 @@ describe("Git v3 repository plan", () => {
     if (result.recovery.status !== "restored") return;
     expect(result.recovery.restoredPaths).toContain(failedPath);
     expect(await git(repo, ["status", "--porcelain=v1"])).toBe("");
+  });
+
+  it("preserves a report and typed restoration through the extraction command boundary", async () => {
+    const { repo, completedMap, dependencies } = await activeExtractionRepository("single-spec", false);
+    const remote = await mkdtemp(join(tmpdir(), "arc-v3-extraction-command-remote-"));
+    roots.push(remote);
+    await git(remote, ["init", "--bare"]);
+    await git(repo, ["remote", "add", "origin", remote]);
+    await git(repo, ["push", "origin", "main", "feat/origin"]);
+    const cutMapPath = join(repo, "cut-map.json");
+    await writeFile(cutMapPath, `${canonicalize(completedMap)}\n`);
+    let stageCount = 0;
+    const result = await executeGitV3ExtractionCommand({
+      ...dependencies,
+      exec: async (command, args, options) => {
+        if (command === "git" && args[0] === "add" && args[1] === "-A") {
+          stageCount += 1;
+          if (stageCount === 2) throw new Error("synthetic stage failure after write");
+        }
+        return await dependencies.exec(command, args, options);
+      },
+      spawningIdentity: "andrew",
+    }, {
+      protection: "partial",
+      baseBranch: "main",
+      origin: "origin",
+      cutMapPath,
+    });
+
+    expect(result).toMatchObject({
+      status: "refused",
+      stage: "materialization",
+      reason: "apply-failed",
+      report: {
+        status: "refused",
+        extraction: { anchor: { kind: "surviving-origin", origin: "origin" } },
+      },
+      recovery: { kind: "partial-restoration", status: "restored" },
+      remedy: { argv: ["arc", "decompose", "origin", "--extract", cutMapPath] },
+    });
+    expect(await git(repo, ["status", "--porcelain=v1"])).toBe("?? cut-map.json\n");
   });
 
   it("retires and prunes one configured-ref backlog stub on the partial base", async () => {

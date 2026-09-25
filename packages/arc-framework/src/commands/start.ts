@@ -209,13 +209,18 @@ export function buildStartSessionNotesSeed(params: StartSessionNotesSeedParams):
 ## Completed Work
 
 - ${action}
-- Branch \`${params.branch}\` is checked out here.
-- \`${metaFile}\` is the active project pointer.
+- Branch checked out here:
+
+    \`${params.branch}\`
+
+- Active project pointer:
+
+    \`${metaFile}\`
 
 ## Remaining Work Before Returning to Task List
 
-- Resume planning from \`Current Workflow\` in \`${metaFile}\`; \`Next Action\` is seeded to
-  \`${BEGIN_CURRENT_WORKFLOW_SENTINEL}\`.
+- Resume planning from \`Current Workflow\` in the project pointer named by \`Working On\`.
+- \`Next Action\` is seeded to \`${BEGIN_CURRENT_WORKFLOW_SENTINEL}\`.
 
 ## Additional Context
 

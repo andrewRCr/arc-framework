@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { parseMetaRecord, toMetaRecord } from "../../../lib/active/meta-reader.js";
+import { workUnitPathTreatmentContext } from "../../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   compareGitNormalizedDeliveryTrees,
@@ -18,13 +19,14 @@ import { CurrentDeliveryLifecycleContributionPathSource } from "../../../lib/del
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
+import { analyzeRevisionOverlap, getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
 import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
 import {
+  CandidateConvergenceProjectionSchema,
   candidateReviewResponses,
   reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
@@ -93,13 +95,17 @@ export function projectPrePublicationCandidateRead(input: {
 }): CandidateRead {
   const baseline = reduceCandidateDurableBaseline(input.record);
   if (input.effective.state === "current") {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: input.effective.convergenceVerification,
+      convergenceScope: input.effective.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: input.effective.candidateId,
       headSha: input.effective.recognizedTarget.revision,
       subjectDigest: input.effective.recognizedTarget.subject.subjectDigest,
       implementationChanged: input.effective.implementationChanged,
-      convergenceVerification: input.effective.convergenceVerification,
+      ...convergence,
       lineageHeadShas: [...new Set([
         input.record.attestation.baseRevision,
         ...candidateReviewResponses(input.record)
@@ -113,13 +119,17 @@ export function projectPrePublicationCandidateRead(input: {
     || input.effective.state === "decision-required";
   if (authorizedPendingFix && input.pending.status === "selected"
     && input.pending.candidateId === baseline.candidateId) {
+    const convergence = CandidateConvergenceProjectionSchema.parse({
+      convergenceVerification: baseline.convergenceVerification,
+      convergenceScope: baseline.convergenceScope,
+    });
     return {
       status: "current",
       candidateId: baseline.candidateId,
       headSha: input.pending.reviewedHead,
       subjectDigest: baseline.target.subject.subjectDigest,
       implementationChanged: baseline.implementationChanged,
-      convergenceVerification: baseline.verificationCompleted ? "satisfied" : "pending",
+      ...convergence,
       pendingReviewTarget: input.pending.reviewedTarget,
       lineageHeadShas: [...new Set([
         input.record.attestation.baseRevision,
@@ -200,6 +210,12 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
     eligibility: {
       observeRef: (ref) => observeDeliveryEligibilityRef(input.exec, ref),
       readAncestry: (ancestor, descendant) => readAncestry(input.exec, ancestor, descendant),
+      readOverlap: (coordinates) => analyzeRevisionOverlap({
+        exec: input.exec,
+        leftRevision: coordinates.leftRevision,
+        rightRevision: coordinates.rightRevision,
+        treatmentContext: workUnitPathTreatmentContext(coordinates.workUnitId),
+      }),
       revalidateLifecycleContribution: (candidate) => revalidateDeliveryLifecycleContribution({
         exec: input.exec,
         ...candidate,
@@ -208,9 +224,11 @@ export function createPreBindingDeliveryReviewTargetDependencies(input: {
         const compared = await compareGitNormalizedDeliveryTrees({
           exec: input.exec,
           protectedBaseTree: candidate.protectedBase.tree,
+          chainBaseTree: candidate.chainBase.tree,
           topTree: candidate.top.tree,
           finalCandidateTree: candidate.finalCandidate.tree,
           lifecyclePaths: candidate.lifecyclePaths,
+          regenerablePaths: candidate.regenerablePaths,
         });
         if (compared.status === "unavailable") {
           return { status: "refused" as const, reason: "unavailable" as const };

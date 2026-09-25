@@ -4,6 +4,7 @@ import {
   chmod,
   mkdir,
   readFile,
+  rm,
   writeFile,
 } from "node:fs/promises";
 
@@ -253,6 +254,56 @@ async function approvedRejection(
 }
 
 describe("built review protocol", () => {
+  it("distinguishes the singleton status route from an unreadable boundary", async () => {
+    const root = await fixture();
+    const boundaryDir = join(root, ".arc", "system", ".internal", "candidates");
+    const boundaryPath = join(boundaryDir, "review-protocol.boundary.json");
+    expect(JSON.parse(await readFile(boundaryPath, "utf8"))).toMatchObject({
+      locus: "candidate-review-pending",
+    });
+
+    const result = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
+
+    expect(result.exitCode).toBe(64);
+    const refusal = JSON.parse(result.stdout) as { remedy: { text: string } };
+    expect(refusal).toMatchObject({
+      mode: "review-status",
+      state: "blocked",
+      nextAction: "stop",
+      reason: "wrong-route",
+      detail: expect.stringContaining("Use --target"),
+      remedy: {
+        argv: ["arc", "review", "status", "--help"],
+        text: expect.stringContaining("use --target"),
+      },
+    });
+    expect(refusal.remedy.text).not.toContain("Resolve the operational failure");
+
+    await writeFile(boundaryPath, "not JSON", "utf8");
+    const unreadable = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
+    expect(unreadable.exitCode).toBe(1);
+    expect(JSON.parse(unreadable.stdout)).toMatchObject({
+      state: "blocked",
+      reason: "status-unavailable",
+      remedy: {
+        argv: ["arc", "review", "status", "--work-unit", "review-protocol"],
+        text: expect.stringContaining("Resolve the operational failure"),
+      },
+    });
+
+    await rm(boundaryPath);
+    const missing = await runArc(["review", "status", "--work-unit", "review-protocol"], root);
+    expect(missing.exitCode).toBe(1);
+    expect(JSON.parse(missing.stdout)).toMatchObject({
+      state: "blocked",
+      reason: "status-unavailable",
+      remedy: {
+        argv: ["arc", "review", "status", "--work-unit", "review-protocol"],
+        text: expect.stringContaining("Resolve the operational failure"),
+      },
+    });
+  });
+
   it("returns a typed refusal when exact-target status runs outside an ARC project", async () => {
     const root = await createTempRepo("arc-review-status-outside-");
     roots.push(root);
@@ -267,7 +318,6 @@ describe("built review protocol", () => {
       "status",
       "--target",
       JSON.stringify(target),
-      "--json",
     ], root);
 
     expect(result.exitCode).toBe(1);
@@ -277,7 +327,7 @@ describe("built review protocol", () => {
       state: "blocked",
       nextAction: "stop",
       reason: "status-unavailable",
-      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target), "--json"] },
+      remedy: { argv: ["arc", "review", "status", "--target", JSON.stringify(target)] },
     });
   });
 

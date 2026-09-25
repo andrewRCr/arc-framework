@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const paths = {
   delivery: [
@@ -76,16 +78,16 @@ describe("hosted review fan-out workflow", () => {
     const section = reviewSection(
       packaged,
       "### Settle exact member review authority",
-      "Only the settled native arm advances",
+      "Only a native arm admitted",
     );
     expectTypedProgression(section);
-    expect(section).toMatch(/typed settled variant\s+without a conjunction is also authoritative/iu);
-    expect(packaged.indexOf("arc delivery native land-prepare - --json"))
+    expect(section).toMatch(/typed settled variant\s+without a\s+conjunction is also authoritative/iu);
+    expect(packaged.indexOf("arc delivery native land-prepare -"))
       .toBeGreaterThan(packaged.indexOf("arc review status"));
-    expect(packaged.indexOf("arc delivery land prepare - --json"))
+    expect(packaged.indexOf("arc delivery land prepare -"))
       .toBeGreaterThan(packaged.indexOf("arc review status"));
-    expect(packaged.indexOf("arc delivery land apply - --json"))
-      .toBeGreaterThan(packaged.indexOf("arc delivery land prepare - --json"));
+    expect(packaged.indexOf("arc delivery land apply -"))
+      .toBeGreaterThan(packaged.indexOf("arc delivery land prepare -"));
   });
 
   it("keeps package/project parity and typed progression in the integration workflow", async () => {
@@ -123,7 +125,7 @@ describe("hosted review fan-out workflow", () => {
       "`review-hosted-request` means",
     );
     const recordedTerminus = terminusSection.indexOf("`recorded / commit-boundary`");
-    const correctionResume = terminusSection.indexOf("arc delivery review-fix continue - --json");
+    const correctionResume = terminusSection.indexOf("arc delivery review-fix continue -");
     const exactReplay = terminusSection.indexOf("`exact-replay / continue`");
     expect(recordedTerminus).toBeGreaterThanOrEqual(0);
     expect(correctionResume).toBeGreaterThan(recordedTerminus);
@@ -134,8 +136,8 @@ describe("hosted review fan-out workflow", () => {
     expect(section).toMatch(
       /review-hosted-request[\s\S]*review-local-prepare[\s\S]*terminusAction[\s\S]*optional Owner alternative[\s\S]*absent explicit acceptance[\s\S]*review action unchanged/iu,
     );
-    expect(section).toContain(
-      "When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first.",
+    expect(section).toMatch(
+      softWrappedProse("When `resolve-review-applicability` carries `terminusAction`, surface that exact Owner alternative first."),
     );
     expect(section).toMatch(
       /Owner alternative first[\s\S]*Absent[\s\S]*explicit acceptance[\s\S]*selectionAction/iu,
@@ -146,7 +148,7 @@ describe("hosted review fan-out workflow", () => {
     expect(deliveryResume).toBeGreaterThanOrEqual(0);
     expect(singletonResume).toBeGreaterThan(deliveryResume);
     const publicDeliveryResume = section.slice(deliveryResume, singletonResume);
-    expect(section).toContain("selects the first outstanding retained member");
+    expect(section).toMatch(softWrappedProse("selects the first outstanding retained member"));
     expect(publicDeliveryResume).toContain("integrationBoundary.nextAction.command");
     expect(publicDeliveryResume).not.toContain("arc review pre-publication");
   });

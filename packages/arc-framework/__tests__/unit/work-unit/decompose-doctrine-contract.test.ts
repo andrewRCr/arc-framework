@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
 const SHARED_BOUNDARY = "Extraction is the supported source-preserving arm for a started `Planning` or `Active` "
@@ -16,15 +18,11 @@ const relativePaths = [
   "reference/strategies/arc/strategy-work-organization.md",
 ] as const;
 
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/gu, " ").trim();
-}
-
 describe("decomposition doctrine contract", () => {
   it("states one retirement and extraction boundary on every shipped surface", () => {
     for (const relativePath of relativePaths) {
       const packaged = readFileSync(join(PACKAGE_ROOT, "arc", relativePath), "utf8");
-      expect(normalizeWhitespace(packaged), relativePath).toContain(SHARED_BOUNDARY);
+      expect(packaged, relativePath).toMatch(softWrappedProse(SHARED_BOUNDARY));
     }
   });
 
@@ -37,18 +35,18 @@ describe("decomposition doctrine contract", () => {
   });
 
   it("keeps extraction record-free and lifecycle-derived", () => {
-    const workflow = normalizeWhitespace(readFileSync(
+    const workflow = readFileSync(
       join(PACKAGE_ROOT, "arc", relativePaths[1]),
       "utf8",
-    ));
-    const strategy = normalizeWhitespace(readFileSync(
+    );
+    const strategy = readFileSync(
       join(PACKAGE_ROOT, "arc", relativePaths[2]),
       "utf8",
-    ));
+    );
 
-    expect(workflow).toContain("Extraction writes no transition record, recovery record, or receipt.");
-    expect(workflow).toContain("It stores no launch advice, publication packet, or selected successor.");
-    expect(strategy).toContain("The surviving origin is the natural continuation");
-    expect(strategy).toContain("New leaves become startable only through their landed base metas");
+    expect(workflow).toMatch(softWrappedProse("Extraction writes no transition record, recovery record, or receipt."));
+    expect(workflow).toMatch(softWrappedProse("It stores no launch advice, publication packet, or selected successor."));
+    expect(strategy).toMatch(softWrappedProse("The surviving origin is the natural continuation"));
+    expect(strategy).toMatch(softWrappedProse("New leaves become startable only through their landed base metas"));
   });
 });

@@ -151,7 +151,10 @@ describe("CodeRabbit frontline execution", () => {
       outcome: {
         outcome: "failed",
         findings: [],
-        reason: { class: "unexpected-adapter-failure" },
+        reason: {
+          class: "unexpected-adapter-failure",
+          detail: expect.stringContaining("executable resolution exception"),
+        },
       },
       executableIdentity: null,
     });
@@ -424,5 +427,36 @@ describe("CodeRabbit frontline execution", () => {
         reason: { class: "unexpected-adapter-failure" },
       },
     });
+  });
+
+  it("retains a bounded, redacted process diagnostic on an uncertain provider failure", async () => {
+    const error = Object.assign(new Error(`storage token=private-value ${"x".repeat(600)}`), {
+      code: "ENOSPC",
+    });
+    const result = await executeCodeRabbitFrontline({
+      source: { sourceId: "coderabbit-cli", ...CODERABBIT_FRONTLINE_REGISTRATION.descriptor },
+      target,
+      pass: 1,
+      maxPasses: 2,
+      reviewRoot: "/tmp/exact-head",
+      remainingMs: 60_000,
+      signal: new AbortController().signal,
+    }, {
+      run: vi.fn().mockRejectedValue(error),
+      resolveExecutable: vi.fn().mockResolvedValue(executableIdentity),
+    });
+
+    expect(result.outcome).toMatchObject({
+      outcome: "failed",
+      reason: {
+        class: "unexpected-adapter-failure",
+        detail: expect.stringContaining("ENOSPC"),
+      },
+    });
+    if (result.outcome.outcome !== "failed") throw new Error("expected a failed outcome");
+    expect(result.outcome.reason.detail).toContain("token=[redacted]");
+    expect(result.outcome.reason.detail).not.toContain("private-value");
+    expect(result.outcome.reason.detail?.length).toBeLessThanOrEqual(400);
+    expect(result.executableIdentity).toMatchObject({ digest: executableIdentity.digest });
   });
 });

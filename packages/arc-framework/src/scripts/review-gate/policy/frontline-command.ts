@@ -122,23 +122,12 @@ export async function resolveFrontlineCommand(
   }), () => resolveFrontlineCommandWithinLock(parsed, lineage, dependencies));
 }
 
-async function resolveFrontlineCommandWithinLock(
+async function resumePendingFrontlineAdmission(
+  pendingAdmission: FrontlineAdmission,
   parsed: FrontlineCommandRequest,
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
 ): Promise<FrontlineCommandResult> {
-  let owner = await readLaneProgressOwner(dependencies.operationStore, {
-    lane: "frontline",
-    repositoryId: parsed.target.repositoryId,
-    headSha: parsed.target.headSha,
-    lineage,
-  });
-  const pending = owner?.attempts.filter((attempt) => (
-    attempt.outcome === "pending" && attempt.frontline !== undefined
-  )) ?? [];
-  if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
-  const pendingAdmission = pending[0]?.frontline?.admission;
-  if (pendingAdmission !== undefined) {
     const conditionalPassAuthorizationId = parsed.policyJudgment?.ceilingOverride
       ?.conditionalPassAuthorizationId;
     if (conditionalPassAuthorizationId !== undefined) {
@@ -156,93 +145,30 @@ async function resolveFrontlineCommandWithinLock(
         dispositionSetId,
       ));
     }
-    return FrontlineResolveEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-frontline-resolve",
-      diagnostics: [],
-      state: "ready",
-      nextAction: "run-frontline",
-      payload: {
-        routing: pendingAdmission.routing,
-        frontlineReview: pendingAdmission.frontlineReview,
-        pass: pendingAdmission.logicalPass,
-        maxPasses: pendingAdmission.maxPasses,
-        admission: pendingAdmission,
-      },
-    });
-  }
-  const routing = resolveReviewRouting(parsed.changeSet);
-  const configuredMaxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
-  const conditionalCeiling = parsed.policyJudgment?.ceilingOverride;
-  const maxPasses = conditionalCeiling?.conditionalPassAuthorizationId === undefined
-    ? configuredMaxPasses
-    : ReviewPassSchema.parse(Math.max(configuredMaxPasses, conditionalCeiling.nextPass));
-  const semantic = await resolveFrontlineReview({
-    methodActive: routing.facts.activity.frontlineReview,
-    routerAction: routing.decision.frontlineAction,
-    routerReasons: routing.decision.reasons,
-    invocation: parsed.invocation,
-    preferences: dependencies.preferences,
-    registry: dependencies.registry,
-    maxPasses,
-  });
-  const payload = {
-    routing: { facts: routing.facts, decision: routing.decision },
-    frontlineReview: semantic.frontlineReview,
-  };
-  const diagnostics = [
-    ...routing.diagnostics.map((path) => ({
-      code: "routing-input-rejected",
-      message: `Rejected or missing routing input: ${path}`,
-    })),
-    ...semantic.diagnostics.map((diagnostic) => ({
-      code: diagnostic.code,
-      message: diagnostic.sourceId === undefined
-        ? `${diagnostic.tier} frontline source preference could not be applied`
-        : `${diagnostic.tier} frontline source '${diagnostic.sourceId}' could not be applied`,
-    })),
-  ];
-  const base = {
+  return FrontlineResolveEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-frontline-resolve",
-    diagnostics,
-  };
-  if (semantic.frontlineReview.action === "skip") {
-    return FrontlineResolveEnvelopeSchema.parse({
-      ...base,
-      state: "skipped",
-      nextAction: "none",
-      payload,
-    });
-  }
-  if (semantic.frontlineReview.action === "offer") {
-    return FrontlineResolveEnvelopeSchema.parse({
-      ...base,
-      state: "offered",
-      nextAction: semantic.frontlineReview.source === null ? "bind-source" : "obtain-authorization",
-      payload,
-    });
-  }
-  const logicalPass = ReviewPassSchema.parse((owner?.completedPasses ?? 0) + 1);
-  if (logicalPass > maxPasses) {
-    throw new Error("frontline pass allowance is exhausted");
-  }
-  const admittedSource = semantic.frontlineReview.source;
-  if (admittedSource === null) throw new Error("frontline ready resolution lacks an executable source");
-  const retryGeneration = (owner?.attempts
-    .filter((attempt) => attempt.logicalPass === logicalPass)
-    .reduce((maximum, attempt) => Math.max(maximum, attempt.retryGeneration), -1) ?? -1) + 1;
-  const admission = createFrontlineAdmission({
-    lineage,
-    target: parsed.target,
-    routing: payload.routing,
-    frontlineReview: semantic.frontlineReview,
-    logicalPass,
-    retryGeneration,
-    maxPasses,
+    diagnostics: [],
+    state: "ready",
+    nextAction: "run-frontline",
+    payload: {
+      routing: pendingAdmission.routing,
+      frontlineReview: pendingAdmission.frontlineReview,
+      pass: pendingAdmission.logicalPass,
+      maxPasses: pendingAdmission.maxPasses,
+      admission: pendingAdmission,
+    },
   });
-  try {
-    const conditionalPassAuthorizationId = conditionalCeiling?.conditionalPassAuthorizationId;
+}
+
+async function consumeFrontlineAdmissionAuthorization(
+  parsed: FrontlineCommandRequest,
+  lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies,
+  logicalPass: ReviewPass,
+  admission: FrontlineAdmission,
+): Promise<void> {
+    const conditionalPassAuthorizationId = parsed.policyJudgment?.ceilingOverride?.conditionalPassAuthorizationId;
     if (conditionalPassAuthorizationId !== undefined) {
       await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
         authorizationId: conditionalPassAuthorizationId,
@@ -258,6 +184,38 @@ async function resolveFrontlineCommandWithinLock(
         dispositionSetId,
       ));
     }
+}
+
+async function admitNewFrontlineOperation(
+  parsed: FrontlineCommandRequest,
+  lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies,
+  initialOwner: Awaited<ReturnType<typeof readLaneProgressOwner>>,
+  maxPasses: ReviewPass,
+  semantic: Awaited<ReturnType<typeof resolveFrontlineReview>>,
+  payload: Pick<FrontlineCommandResult["payload"], "routing" | "frontlineReview">,
+  base: Pick<FrontlineCommandResult, "schemaVersion" | "mode" | "diagnostics">,
+): Promise<FrontlineCommandResult> {
+  const logicalPass = ReviewPassSchema.parse((initialOwner?.completedPasses ?? 0) + 1);
+  if (logicalPass > maxPasses) {
+    throw new Error("frontline pass allowance is exhausted");
+  }
+  const admittedSource = semantic.frontlineReview.source;
+  if (admittedSource === null) throw new Error("frontline ready resolution lacks an executable source");
+  const retryGeneration = (initialOwner?.attempts
+    .filter((attempt) => attempt.logicalPass === logicalPass)
+    .reduce((maximum, attempt) => Math.max(maximum, attempt.retryGeneration), -1) ?? -1) + 1;
+  const admission = createFrontlineAdmission({
+    lineage,
+    target: parsed.target,
+    routing: payload.routing,
+    frontlineReview: semantic.frontlineReview,
+    logicalPass,
+    retryGeneration,
+    maxPasses,
+  });
+  try {
+    await consumeFrontlineAdmissionAuthorization(parsed, lineage, dependencies, logicalPass, admission);
     await recordLaneAttempt(dependencies.operationStore, {
       lane: "frontline",
       repositoryId: parsed.target.repositoryId,
@@ -274,7 +232,7 @@ async function resolveFrontlineCommandWithinLock(
       now: dependencies.now(),
     });
   } catch (error) {
-    owner = await readLaneProgressOwner(dependencies.operationStore, {
+    const owner = await readLaneProgressOwner(dependencies.operationStore, {
       lane: "frontline",
       repositoryId: parsed.target.repositoryId,
       headSha: parsed.target.headSha,
@@ -311,4 +269,78 @@ async function resolveFrontlineCommandWithinLock(
       admission,
     },
   });
+}
+
+async function resolveFrontlineCommandWithinLock(
+  parsed: FrontlineCommandRequest,
+  lineage: LaneSubjectLineage,
+  dependencies: FrontlineCommandDependencies,
+): Promise<FrontlineCommandResult> {
+  const owner = await readLaneProgressOwner(dependencies.operationStore, {
+    lane: "frontline",
+    repositoryId: parsed.target.repositoryId,
+    headSha: parsed.target.headSha,
+    lineage,
+  });
+  const pending = owner?.attempts.filter((attempt) => (
+    attempt.outcome === "pending" && attempt.frontline !== undefined
+  )) ?? [];
+  if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
+  const pendingAdmission = pending[0]?.frontline?.admission;
+  if (pendingAdmission !== undefined) {
+    return resumePendingFrontlineAdmission(pendingAdmission, parsed, lineage, dependencies);
+  }
+  const routing = resolveReviewRouting(parsed.changeSet);
+  const configuredMaxPasses = ReviewPassSchema.parse(await dependencies.readMaxPasses());
+  const conditionalCeiling = parsed.policyJudgment?.ceilingOverride;
+  const maxPasses = conditionalCeiling?.conditionalPassAuthorizationId === undefined
+    ? configuredMaxPasses
+    : ReviewPassSchema.parse(Math.max(configuredMaxPasses, conditionalCeiling.nextPass));
+  const semantic = await resolveFrontlineReview({
+    methodActive: routing.facts.activity.frontlineReview,
+    routerAction: routing.decision.frontlineAction,
+    routerReasons: routing.decision.reasons,
+    invocation: parsed.invocation,
+    preferences: dependencies.preferences,
+    registry: dependencies.registry,
+    maxPasses,
+  });
+  const payload = {
+    routing: { facts: routing.facts, decision: routing.decision },
+    frontlineReview: semantic.frontlineReview,
+  };
+  const diagnostics = [
+    ...routing.diagnostics.map((path) => ({
+      code: "routing-input-rejected",
+      message: `Rejected or missing routing input: ${path}`,
+    })),
+    ...semantic.diagnostics.map((diagnostic) => ({
+      code: diagnostic.code,
+      message: diagnostic.sourceId === undefined
+        ? `${diagnostic.tier} frontline source preference could not be applied`
+        : `${diagnostic.tier} frontline source '${diagnostic.sourceId}' could not be applied`,
+    })),
+  ];
+  const base = {
+    schemaVersion: 1,
+    mode: "review-frontline-resolve",
+    diagnostics,
+  } as const;
+  if (semantic.frontlineReview.action === "skip") {
+    return FrontlineResolveEnvelopeSchema.parse({
+      ...base,
+      state: "skipped",
+      nextAction: "none",
+      payload,
+    });
+  }
+  if (semantic.frontlineReview.action === "offer") {
+    return FrontlineResolveEnvelopeSchema.parse({
+      ...base,
+      state: "offered",
+      nextAction: semantic.frontlineReview.source === null ? "bind-source" : "obtain-authorization",
+      payload,
+    });
+  }
+  return admitNewFrontlineOperation(parsed, lineage, dependencies, owner, maxPasses, semantic, payload, base);
 }

@@ -181,6 +181,7 @@ function localResult(records: ReturnType<typeof localFixture>): ReviewResult {
   }
   return {
     kind: "attested-local",
+    vehicle: records.operation.vehicle,
     producerId: records.operation.operationId,
     repositoryId: records.operation.repositoryId,
     target: records.target,
@@ -801,7 +802,11 @@ describe("review reduction command: frontline", () => {
       operationId: unavailable.state.operationId,
     }, frontlineDependencies(unavailable).dependencies)).resolves.toMatchObject({
       state: "retryable",
-      payload: { retryCommand: "frontline-run" },
+      nextAction: "operator-repair",
+      payload: {
+        retryCommand: "frontline-run",
+        retryOfOperationId: unavailable.state.operationId,
+      },
     });
   });
 

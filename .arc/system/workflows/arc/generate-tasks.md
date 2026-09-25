@@ -5,6 +5,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - resolve-plan-segmentation
     - assess-boundary-fit
     - assess-design-proportionality
     - test-first
@@ -42,7 +43,7 @@ already advanced `Current Workflow` here.
 
 Make **one scale-axis read** — the implementation surface and the codebase-grounding breadth a correct task plan
 needs — then run [`resolve-planning-depth`][arc-methods-rpd], [`classify-work-unit`][arc-methods-cwu], and
-**Resolve plan segmentation** below from that read. One read drives all three, yielding this run's **level**
+[`resolve-plan-segmentation`][arc-methods-rps] from that read. One read drives all three, yielding this run's **level**
 (`low` / `medium` / `high`), confirming, ratcheting, or correcting **`Class`**, and producing an ordered sequence of
 segments with modes. Segmentation also reads the spec's lifecycle statements. The methods own how the read maps to
 a level and the mid-stage re-entry valve.
@@ -59,22 +60,8 @@ overlay (it reaches novelty only indirectly, through scale).
 **Signature:** `resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes;
 ordering doctrine`
 
-When authoring the phase structure and its exit criteria, divide the plan into an ordered sequence of contiguous
-segments. Each segment spans one or more phases and closes on one stated kind of progress. Attach the mode to the
-segment, not the work unit; mixed-mode plans are ordinary, while a single-mode plan is the simplest case. The read is
-universal — a light work unit still yields one segment with an evident mode.
-
-Choose each segment's mode from the dominant residual risk after planning closes:
-
-| Residual risk lies in                                           | Mode              | The segment closes on                              |
-| --------------------------------------------------------------- | ----------------- | -------------------------------------------------- |
-| **Composition** — do the parts assemble into intended behavior? | **`slice`**       | a thin end-to-end capability that can be exercised |
-| **Substrate contract** — is the shared thing underneath right?  | **`layer`**       | a complete, settled layer                          |
-| **Mechanics at scale** — does this transformation work N times? | **`replication`** | the enumerated surface exhausted, batch-verified   |
-
-`pilot-then-replicate` is a composition, not a fourth mode: use a thin `slice` segment to prove one instance, then a
-`replication` segment to exhaust the enumerated surface. Order segments to retire the dominant residual risk earliest;
-place the first `slice` as early as its required substrate allows.
+Run [`resolve-plan-segmentation`][arc-methods-rps] from the scale-axis read above, together with the spec's
+lifecycle statements, when authoring the phase structure and its exit criteria.
 
 ## Generate in the resolved level
 
@@ -178,6 +165,10 @@ Identify the depth-appropriate phase count that organizes the work into logical,
 For each phase, draft parent-task skeletons — titles only, with anchors citing which of the spec's **enumerable
 units** each parent satisfies — the form's traceable elements: numbered Requirements (PRD), structured Proposed
 Design elements (RFC), settled Decisions (`outline`), or the single falsifiable signal (`brief`).
+
+On an RFC-form spec, author that citation into the title itself: a trailing `— Dn` inside the bold, ahead of any
+role suffix. It keeps the parents realizing a given design element greppable when that element is later amended.
+Recommended, not required — see [task-list-formatting strategy][task-list-formatting] § Parent Tasks.
 
 **Principles:**
 
@@ -472,7 +463,8 @@ pre-save checklist and bundles the commit.
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task bodies read as a coherent forward artifact — no audit / correction / "pending" / amendment
       provenance (grounding-audit corrections folded into the design, per [DEV-RULES.ARC][dev-rules-arc] § Write
-      for the reader)
+      for the reader). A post-completion `_Amended in:_` bullet is the one exception — it records a correction
+      made after the task closed and is preserved verbatim, per [strategy-task-list-formatting][task-list-formatting]
 - [ ] Task instructions targeting shipped or published files are written in the shipped-content
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
       that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
@@ -533,6 +525,10 @@ form-owned design elements and revision digests. Do not infer author-judgment el
 mechanics into this workflow. Create the transient map with
 `arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`,
 fill only the author slots, and run `arc delivery compose --json`.
+
+Set the authoring projection to `stack-to-main` and every member's `mainlineLandability` to
+`independently-landable`. If a proposed subdivision is review-only rather than independently landable on main,
+keep it within one delivery member and route its review scale through ordinary review chunking.
 
 Composition publishes the canonical plan record first, then delegates the exact sentinel-owned projection bytes
 to the delivery renderer and removes transient authoring state. Review the rendered identity, coverage, seam, and
@@ -596,6 +592,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [arc-methods-rpd]: ../../methods/resolve-planning-depth.md
 [arc-methods-adp]: ../../methods/assess-design-proportionality.md
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
+[arc-methods-rps]: ../../methods/resolve-plan-segmentation.md
 [arc-methods-abf]: ../../methods/assess-boundary-fit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

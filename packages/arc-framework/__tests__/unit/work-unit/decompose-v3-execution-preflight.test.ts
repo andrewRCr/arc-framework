@@ -117,6 +117,10 @@ describe("v3 decomposition execution preflight", () => {
       status: "stale",
       reason: "source-head",
       locus: "machine.source.head",
+      evidence: {
+        expected: map.machine.source.head,
+        actual: changed.starterMap.machine.source.head,
+      },
     });
     expect(result).not.toHaveProperty("completedMap");
     expect(result).not.toHaveProperty("preflight");
@@ -140,6 +144,10 @@ describe("v3 decomposition execution preflight", () => {
       status: "stale",
       reason: "planning-profile",
       locus: "machine.planningProfile",
+      evidence: {
+        expected: map.machine.planningProfile,
+        actual: changed.starterMap.machine.planningProfile,
+      },
     });
   });
 
@@ -162,6 +170,31 @@ describe("v3 decomposition execution preflight", () => {
       status: "stale",
       reason: "source-units",
       locus: "machine.sourceUnits.0",
+      evidence: {
+        expected: map.machine.sourceUnits[0],
+        actual: { kind: "absent" },
+      },
+    });
+  });
+
+  it("reports the authenticated and completed-map origins", async () => {
+    const map = structuredClone(v3DecompositionEvidenceFixture().preparation.facts.completedMap);
+    map.machine.source.origin = "other";
+    refreshPreflightId(map.machine);
+
+    const result = await revalidateV3DecomposeExecutionPreflight({
+      readCutMap: async () => new TextEncoder().encode(`${canonicalize(map)}\n`),
+      resolvePreflight: vi.fn(),
+    }, "origin", "map.json");
+
+    expect(result).toEqual({
+      status: "stale",
+      reason: "completed-map",
+      locus: "machine.source.origin",
+      evidence: {
+        expected: "origin",
+        actual: "other",
+      },
     });
   });
 
@@ -173,6 +206,10 @@ describe("v3 decomposition execution preflight", () => {
         status: "rejected",
         reason: "planning-profile",
         locus: ".arc/active/meta-origin.md#Design",
+        evidence: {
+          expected: { kind: "draft", sourceDesign: ["draft-origin.md"] },
+          actual: { kind: "single-spec", sourceDesign: ["spec-origin.md"] },
+        },
       }),
     }, "origin", "map.json");
 
@@ -180,6 +217,10 @@ describe("v3 decomposition execution preflight", () => {
       status: "stale",
       reason: "planning-profile",
       locus: ".arc/active/meta-origin.md#Design",
+      evidence: {
+        expected: { kind: "draft", sourceDesign: ["draft-origin.md"] },
+        actual: { kind: "single-spec", sourceDesign: ["spec-origin.md"] },
+      },
     });
     expect(result).not.toHaveProperty("completedMap");
   });

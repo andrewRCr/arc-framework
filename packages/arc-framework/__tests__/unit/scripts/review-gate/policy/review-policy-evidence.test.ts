@@ -263,6 +263,7 @@ function chunkedLocalAggregateResult(): ReviewResult {
   }));
   return {
     kind: "attested-local",
+    vehicle: { kind: "delivery-member", identity: deliveryAdmission.vehicle.deliverableId },
     producerId: "local/aggregate-1",
     repositoryId: target.repositoryId,
     target,

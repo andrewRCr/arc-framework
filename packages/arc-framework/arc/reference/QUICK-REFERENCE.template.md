@@ -259,8 +259,8 @@ arc attest <name> --json [--new-root]
 # --last-completed / --action override the task-list and boundary reads the verb makes on its own
 arc publish [slug] [--last-completed <work>] [--action <next action>] [--json]
 # Integration procedures — checkpoint composes the readiness verdict, merge executes it (integrate-work-unit.md)
-arc integrate checkpoint <name> [--json]
-arc integrate merge <name> --checkpoint <handle> [--json]
+arc integrate checkpoint <name>
+arc integrate merge <name> --checkpoint <handle>
 # Withdraw from review: Integrating → Active (reopen-work-unit.md)
 arc reopen [slug] [--keep-pr]
 
@@ -282,6 +282,7 @@ arc base sync [--json]
 arc plan check
 
 # Errand lifecycle — no meta; `open` exactly resumes an existing eligible identity
+arc errand next [--json]
 arc errand open <slug> [--intent <text>] [--from-inbox <entry>] [--inbox-title-file <path|->] [--json]
 arc errand link <slug> (--from-inbox <entry> | --inbox-title-file <path|->) [--json]
 arc errand materialize <slug> [--claim-id <claim-id> --expected-head <oid>] [--json]

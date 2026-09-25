@@ -31,6 +31,8 @@ export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
 /** Local tiers whose subprocess load must be admitted through the shared slot. */
 export type LocalHeavyTestTier =
   | "full"
+  | "unit"
+  | "lane"
   | "integration"
   | "arc-contracts"
   | "e2e"
@@ -42,6 +44,12 @@ export interface LocalTestAdmissionInput {
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly tier: LocalHeavyTestTier;
+}
+
+/** Result of an admitted action, with queue latency present only when contention was observed. */
+export interface LocalTestAdmissionResult<T> {
+  readonly result: T;
+  readonly waitMs?: number;
 }
 
 /** Non-authoritative operator diagnostics; never a source of ARC or Git state. */
@@ -152,15 +160,15 @@ const LEASE_RENEW_INTERVAL_MS = 10_000;
  * @param input - Current checkout, environment, and logical test tier.
  * @param action - In-process heavy test runner.
  * @param overrides - Injectable process, Git, filesystem, and clock seams.
- * @returns The action's result.
+ * @returns The action result and, only after observed contention, its admission wait.
  */
 export async function withLocalHeavyTestAdmission<T>(
   input: LocalTestAdmissionInput,
   action: () => Promise<T>,
   overrides: Partial<LocalTestAdmissionDependencies> = {},
-): Promise<T> {
+): Promise<LocalTestAdmissionResult<T>> {
   if (isTruthyEnvironmentFlag(input.env["CI"]) || input.env[LOCAL_TEST_CONCURRENCY_OVERRIDE] === "1") {
-    return await action();
+    return { result: await action() };
   }
 
   const dependencies = { ...DEFAULT_DEPENDENCIES, ...overrides };
@@ -208,6 +216,9 @@ export async function withLocalHeavyTestAdmission<T>(
     processInstance: dependencies.processInstance,
     processScope,
   });
+  const admissionWaitMs = waitState.observed
+    ? dependencies.now() - admissionStartedAt
+    : undefined;
 
   if (waitState.observed) {
     dependencies.writeLine(`Local heavy-test slot acquired after waiting; starting ${tierLabel(input.tier)} tests.`);
@@ -273,8 +284,9 @@ export async function withLocalHeavyTestAdmission<T>(
       });
   }, LEASE_RENEW_INTERVAL_MS);
 
+  let result: T;
   try {
-    return await action();
+    result = await action();
   } finally {
     heartbeatActive = false;
     cancelHeartbeat();
@@ -284,6 +296,10 @@ export async function withLocalHeavyTestAdmission<T>(
       unregisterExitCleanup();
     }
   }
+  return {
+    result,
+    ...(admissionWaitMs === undefined ? {} : { waitMs: admissionWaitMs }),
+  };
 }
 
 function renderInitialWait(contention: AdvisoryLockContention): string {
@@ -326,6 +342,8 @@ function parseHolderMetadata(value: unknown): LocalTestHolderMetadata | null {
 
 export function isLocalHeavyTestTier(value: unknown): value is LocalHeavyTestTier {
   return value === "full"
+    || value === "unit"
+    || value === "lane"
     || value === "integration"
     || value === "arc-contracts"
     || value === "e2e"

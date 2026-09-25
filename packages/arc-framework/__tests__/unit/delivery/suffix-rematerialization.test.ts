@@ -36,11 +36,18 @@ function fixture() {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: target.ref, ...target.coordinates! },
+    chainBase: target.coordinates!,
+    predecessorRelation: {
+      kind: "advanced",
+      observedTip: target.coordinates!.head,
+      chainBase: target.coordinates!.head,
+    },
     top: { ref: "refs/heads/feat/control", head: "d".repeat(40), tree: "e".repeat(40) },
     members: [{ deliverableId: second.deliverableId, ref: "refs/heads/candidate/second", head: "a".repeat(40), tree: "b".repeat(40) }, {
       deliverableId: third.deliverableId, ref: "refs/heads/candidate/third", head: "c".repeat(40), tree: "d".repeat(40),
     }],
     lifecyclePaths: [".arc/active/meta-delivery-plan-record.md"],
+    regenerablePaths: [],
   };
   return { plan, state, facts, snapshot, first, second, third };
 }
@@ -377,6 +384,36 @@ describe("delivery suffix rematerialization", () => {
     expect(proveCarried).toHaveBeenCalledOnce();
   });
 
+  it("compares a disjoint suffix against the persisted chain base", async () => {
+    const { plan, state, facts, snapshot, second } = fixture();
+    const observedTip = { head: "9".repeat(40), tree: "8".repeat(40) };
+    const disjointSnapshot: DeliveryEligibilitySnapshot = {
+      ...snapshot,
+      protectedBase: { ref: snapshot.protectedBase.ref, ...observedTip },
+      predecessorRelation: {
+        kind: "diverged",
+        observedTip: observedTip.head,
+        chainBase: snapshot.chainBase.head,
+        mergeBase: snapshot.chainBase.head,
+        mergeBaseCount: 1,
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+      },
+    };
+
+    const result = await prepareDeliverySuffixRematerialization({
+      plan,
+      state,
+      facts,
+      eligibleSnapshot: disjointSnapshot,
+      selectedDeliverableIds: [second.deliverableId],
+      resolveCoordinate,
+      proveCarried: async () => ({ status: "accepted", proof: "mechanical-reapply" }),
+    });
+    expect(result.status).toBe("prepared");
+    if (result.status !== "prepared") return;
+    expect(result.rewrites[0]?.requested.members[0]?.coordinates?.base).toBe(snapshot.chainBase.head);
+  });
+
   it("recloses and re-proves each rewrite against the preceding persisted result", async () => {
     const plan = deliveryFourMemberStackPlanFixture();
     const initial = deliveryStateFixture(plan);
@@ -390,6 +427,12 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
+      chainBase: target.coordinates!,
+      predecessorRelation: {
+        kind: "advanced",
+        observedTip: target.coordinates!.head,
+        chainBase: target.coordinates!.head,
+      },
       top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
@@ -398,8 +441,10 @@ describe("delivery suffix rematerialization", () => {
         tree: String(index + 4).repeat(40),
       })),
       lifecyclePaths: [],
+      regenerablePaths: [],
     };
     const seenRevisions: number[] = [];
+    const seenSnapshots: DeliveryEligibilitySnapshot[] = [];
     const proveCarried = vi.fn(async () => ({ status: "accepted" as const, proof: "mechanical-reapply" as const }));
     const result = await executeFreshDeliverySuffixRematerialization({
       selectedDeliverableIds: [initial.members[1]!.deliverableId],
@@ -414,8 +459,9 @@ describe("delivery suffix rematerialization", () => {
       reobserveCandidate: async () => true,
       resolveCoordinate,
       proveCarried,
-      apply: async ({ current: input, rewrite }) => {
+      apply: async ({ current: input, rewrite, snapshot: admittedSnapshot }) => {
         seenRevisions.push(input.revision);
+        seenSnapshots.push(admittedSnapshot);
         current = {
           revision: input.revision + 1,
           value: {
@@ -437,6 +483,7 @@ describe("delivery suffix rematerialization", () => {
       },
     });
     expect(seenRevisions).toEqual([7, 8]);
+    expect(seenSnapshots).toEqual([snapshot, snapshot]);
     expect(proveCarried).toHaveBeenCalledTimes(6);
   });
 
@@ -495,6 +542,12 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
+      chainBase: target.coordinates!,
+      predecessorRelation: {
+        kind: "advanced",
+        observedTip: target.coordinates!.head,
+        chainBase: target.coordinates!.head,
+      },
       top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
@@ -503,6 +556,7 @@ describe("delivery suffix rematerialization", () => {
         tree: String(index + 4).repeat(40),
       })),
       lifecyclePaths: [],
+      regenerablePaths: [],
     };
     const supersessions: unknown[] = [];
 
@@ -779,6 +833,12 @@ describe("delivery suffix rematerialization", () => {
       planRevision: plan.planRevision,
       planDigest: plan.planDigest,
       protectedBase: { ref: target.ref, ...target.coordinates! },
+      chainBase: target.coordinates!,
+      predecessorRelation: {
+        kind: "advanced",
+        observedTip: target.coordinates!.head,
+        chainBase: target.coordinates!.head,
+      },
       top: { ref: "refs/heads/control", head: "d".repeat(40), tree: "e".repeat(40) },
       members: suffix.map((member, index) => ({
         deliverableId: member.deliverableId,
@@ -787,6 +847,7 @@ describe("delivery suffix rematerialization", () => {
         tree: String(index + 4).repeat(40),
       })),
       lifecyclePaths: [],
+      regenerablePaths: [],
     };
     const originalBaseByMemberHead = new Map(initial.members.slice(2).map((member) => [
       member.coordinates!.head,

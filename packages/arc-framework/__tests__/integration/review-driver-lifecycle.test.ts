@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
@@ -20,15 +22,22 @@ describe("lifecycle review driver", () => {
     ]);
     expect(project).toBe(packaged);
     for (const command of [
-      "arc review chunking resolve -",
       "arc review resolve -",
       "arc review hosted request -",
       "arc review hosted await -",
       "arc review hosted settle -",
     ]) expect(packaged).toContain(command);
+    if (path === integrateWorkflow) {
+      expect(packaged).toContain("arc review changeset resolve -");
+    } else {
+      expect(packaged).not.toContain("arc review changeset resolve -");
+      expect(packaged).toContain("Errand atomicity fixes each role's");
+    }
     expect(packaged).toContain("review applicability");
-    expect(packaged).toContain("targeted verification");
-    expect(packaged).toContain("agent-selected supplemental review");
+    expect(packaged).toContain("assess-evidence-applicability");
+    expect(packaged).toContain("judgmentRequired: true");
+    expect(packaged).toContain("supplemental | fresh");
+    expect(packaged).not.toContain("agent-selected supplemental review");
     expect(packaged).toContain("`settlement: reply-and-resolve`");
     expect(packaged).toContain("`settlement: not-applicable`");
     expect(packaged).toContain("originating `target`");
@@ -49,15 +58,18 @@ describe("lifecycle review driver", () => {
       readFile(resolve(packageArc, prepareWorkflow), "utf8"),
     ]);
     expect(workflow).toContain("arc review change-request resolve --head-ref");
-    expect(workflow).toContain("arc review status --target '{targetRef}' --json");
-    expect(workflow.indexOf("arc review status --target '{targetRef}' --json"))
+    expect(workflow).toContain("arc review status --target '{targetRef}'");
+    expect(workflow.indexOf("arc review status --target '{targetRef}'"))
       .toBeLessThan(workflow.indexOf("arc review hosted request -"));
-    expect(workflow).toContain("checkpoint now owns Candidate applicability, ordinary publication settlement");
+    expect(workflow).toMatch(softWrappedProse("checkpoint now owns Candidate applicability, ordinary publication settlement"));
     expect(workflow).toMatch(/delivery\s+rebind, review status, and final readiness/u);
     expect(workflow).toContain("arc merge lock resolve -");
-    expect(workflow).toContain("arc integrate checkpoint {name} --json");
-    expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle} --json");
+    expect(workflow).toContain("arc integrate checkpoint {name}");
+    expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     expect(workflow).toContain("Approve (or redirect)?");
+    expect(workflow).toMatch(
+      /not\s*(?:>\s*)?an instruction to invoke merge this turn while those checks are pending/iu,
+    );
     expect(preparation).toMatch(/runtime-owned bindings/i);
     expect(workflow).toContain("no-action record-only");
     expect(workflow).not.toContain("`Coverage`");
@@ -71,7 +83,7 @@ describe("lifecycle review driver", () => {
 
     expect(workflow).toContain("integrationBoundary.nextAction.command");
     expect(workflow).toContain("`resolve-delivery-status`");
-    expect(workflow).toContain("selects the first outstanding retained member");
+    expect(workflow).toMatch(softWrappedProse("selects the first outstanding retained member"));
   });
 
   it("keeps attention suppression with the owner of each judgment", async () => {
@@ -88,16 +100,15 @@ describe("lifecycle review driver", () => {
       "delivery-bound / continue-review",
     ]) {
       expect(workUnit).toContain(pair);
-      expect(errand).toContain(pair);
+      expect(errand).not.toContain(pair);
     }
-    expect(workUnit).toContain("selected `assess-boundary-fit` outcome and its evidence basis");
+    expect(workUnit).toMatch(softWrappedProse("selected `assess-boundary-fit` outcome and its evidence basis"));
     expect(workUnit).toContain("semantically unchanged");
     expect(workUnit).toContain("material deltas");
     expect(workUnit).toContain("render `recommendedActionText` verbatim");
     expect(workUnit).toContain("never also offer chunked review");
-    expect(errand).toContain("An Errand has no owning work unit");
-    expect(errand).toContain("without adding delivery judgment");
-    expect(errand).toContain("follow the closed attention dispatch in Step 2");
+    expect(errand).toMatch(/chunk selection is not an\s+Errand review action/u);
+    expect(errand).toMatch(softWrappedProse("Bind the opened target's `scopeSelection` directly to whole-target"));
   });
 
   it("carries a content-gated local-review attestation instead of a composed record", async () => {
@@ -109,14 +120,14 @@ describe("lifecycle review driver", () => {
     expect(project).toBe(packaged);
     expect(packaged).toContain("**Local review:** {carrier identity}");
     expect(packaged).toContain("**Local review — content-gated.**");
-    expect(packaged).toContain("Omit the field entirely when no local review ran");
+    expect(packaged).toMatch(softWrappedProse("Omit the field entirely when no local review ran"));
     expect(packaged).not.toContain("## Review");
     expect(packaged).not.toContain("**Hosted PR:**");
     expect(packaged).not.toContain("**Triage:**");
     expect(packaged).not.toContain("**Coverage:**");
     expect(packaged).toContain("## Delivery-Member Variant");
-    expect(packaged).toContain("Do not add a `Delivery` field");
-    expect(packaged).toContain("Design is content-gated for delivery members");
-    expect(packaged).toContain("{work-unit-slug} [{position}/{total}]: {member title}");
+    expect(packaged).toMatch(softWrappedProse("Do not add a `Delivery` field"));
+    expect(packaged).toMatch(softWrappedProse("Design is content-gated for delivery members"));
+    expect(packaged).toContain("{type}({work-unit-slug}): [{position}/{total}] {member title}");
   });
 });

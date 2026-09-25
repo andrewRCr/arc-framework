@@ -13,11 +13,12 @@ import { z } from "zod";
 import {
   resolveTaskListPath,
   runActiveSessionInitStatusInternal,
-  type ActiveSessionInitInternalResult,
-} from "../commands/active.js";
+} from "../commands/active/status.js";
+import type { ActiveSessionInitInternalResult } from "../commands/active/types.js";
 import { runView } from "../commands/view.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
-import { gitConfigGet, resolveIdentity } from "../lib/git/index.js";
+import { gitConfigGet } from "../lib/git/exec.js";
+import { resolveIdentity } from "../lib/git/identity.js";
 import { resolveWorkUnitSessionNotesPath } from "../lib/handoff/session-notes-path.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";

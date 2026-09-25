@@ -31,6 +31,10 @@ import {
 
 const GitHubObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
+const HostedSourceInvocationSchema = z.strictObject({
+  mode: z.literal("force"),
+  sourceId: ReviewSourceIdSchema,
+}).readonly();
 
 export const HostedProviderIdSchema = z.enum(["coderabbit-pr", "codex-pr"]);
 export type HostedProviderId = z.infer<typeof HostedProviderIdSchema>;
@@ -99,6 +103,41 @@ const HostedAdmissionPreimageSchema = z.strictObject({
   actorIdentity: ReviewIdentifierSchema,
 });
 
+function hostedDeliveryVehicleMatches(
+  admission: z.infer<typeof HostedAdmissionPreimageSchema>,
+  vehicle: Extract<HostedProgressVehicle, { kind: "delivery-member" }>,
+): boolean {
+  return admission.lineage.kind === "delivery-member"
+    && admission.lineage.planId === vehicle.planId
+    && admission.lineage.workUnitId === vehicle.workUnitId
+    && admission.lineage.deliverableId === vehicle.deliverableId
+    && vehicle.head === admission.reviewTarget.headSha;
+}
+
+function validateHostedAdmissionTarget(
+  admission: z.infer<typeof HostedAdmissionPreimageSchema>,
+): void {
+    const target = validateReviewTarget(admission.reviewTarget);
+    validateReviewRequirement(target, admission.requirement);
+    if (target.repositoryId !== admission.repositoryId || target.headSha !== admission.target.headSha) {
+      throw new Error("hosted admission target does not match its lane owner or change request");
+    }
+    const acceptable = admission.requirement.acceptableSources.some((source) => (
+      source.sourceKind === "hosted" && source.qualifier === admission.sourceId
+    ));
+    if (!acceptable) throw new Error("hosted admission source is not accepted by its requirement");
+    const deliveryVehicle = admission.vehicle?.kind === "delivery-member" ? admission.vehicle : undefined;
+    if ((target.kind === "delivery-member") !== (deliveryVehicle !== undefined)) {
+      throw new Error("hosted delivery admission requires one exact delivery vehicle");
+    }
+    if (deliveryVehicle !== undefined && !hostedDeliveryVehicleMatches(admission, deliveryVehicle)) {
+      throw new Error("hosted delivery admission does not match its member lineage");
+    }
+    if (admission.vehicle?.kind === "errand" && admission.lineage.kind !== "head-bound") {
+      throw new Error("hosted Errand admission requires one head-bound lineage");
+    }
+}
+
 export const HostedAdmissionSchema = HostedAdmissionPreimageSchema.extend({
   admissionId: ReviewIdentifierSchema,
 }).superRefine((admission, context) => {
@@ -125,30 +164,7 @@ export const HostedAdmissionSchema = HostedAdmissionPreimageSchema.extend({
     });
   }
   try {
-    const target = validateReviewTarget(admission.reviewTarget);
-    validateReviewRequirement(target, admission.requirement);
-    if (target.repositoryId !== admission.repositoryId || target.headSha !== admission.target.headSha) {
-      throw new Error("hosted admission target does not match its lane owner or change request");
-    }
-    const acceptable = admission.requirement.acceptableSources.some((source) => (
-      source.sourceKind === "hosted" && source.qualifier === admission.sourceId
-    ));
-    if (!acceptable) throw new Error("hosted admission source is not accepted by its requirement");
-    const deliveryVehicle = admission.vehicle?.kind === "delivery-member" ? admission.vehicle : undefined;
-    if ((target.kind === "delivery-member") !== (deliveryVehicle !== undefined)) {
-      throw new Error("hosted delivery admission requires one exact delivery vehicle");
-    }
-    if (deliveryVehicle !== undefined
-      && (admission.lineage.kind !== "delivery-member"
-        || admission.lineage.planId !== deliveryVehicle.planId
-        || admission.lineage.workUnitId !== deliveryVehicle.workUnitId
-        || admission.lineage.deliverableId !== deliveryVehicle.deliverableId
-        || deliveryVehicle.head !== target.headSha)) {
-      throw new Error("hosted delivery admission does not match its member lineage");
-    }
-    if (admission.vehicle?.kind === "errand" && admission.lineage.kind !== "head-bound") {
-      throw new Error("hosted Errand admission requires one head-bound lineage");
-    }
+    validateHostedAdmissionTarget(admission);
   } catch (error) {
     context.addIssue({
       code: "custom",
@@ -194,6 +210,7 @@ export const HostedRequestHandleSchema = z.strictObject({
   artifact: HostedArtifactSchema,
   vehicle: HostedProgressVehicleSchema.optional(),
   admission: HostedAdmissionSchema,
+  invocation: HostedSourceInvocationSchema.optional(),
 }).superRefine((handle, context) => {
   if (handle.requestedCoverage === "complete" && handle.effectiveCoverage !== "complete") {
     context.addIssue({
@@ -202,10 +219,18 @@ export const HostedRequestHandleSchema = z.strictObject({
       path: ["effectiveCoverage"],
     });
   }
+  if (handle.invocation !== undefined && handle.vehicle?.kind !== "delivery-member") {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation"],
+      message: "a hosted source invocation requires one exact delivery-member vehicle",
+    });
+  }
   if (handle.provider !== handle.admission.sourceId
     || handle.requestedCoverage !== handle.admission.requestedCoverage
     || canonicalize(handle.target) !== canonicalize(handle.admission.target)
-    || canonicalize(handle.vehicle ?? null) !== canonicalize(handle.admission.vehicle ?? null)) {
+    || canonicalize(handle.vehicle ?? null) !== canonicalize(handle.admission.vehicle ?? null)
+    || (handle.invocation !== undefined && handle.invocation.sourceId !== handle.provider)) {
     context.addIssue({
       code: "custom",
       message: "hosted request handle does not match its admitted request",
@@ -266,10 +291,7 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
   coverage: HostedReviewCoverageSchema,
   correctionScope: IncrementalReviewScopeSchema.optional(),
   vehicle: HostedRequestVehicleSchema.optional(),
-  invocation: z.strictObject({
-    mode: z.literal("force"),
-    sourceId: ReviewSourceIdSchema,
-  }).readonly().optional(),
+  invocation: HostedSourceInvocationSchema.optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
 }).superRefine((request, context) => {
   if (request.coverage === "incremental" && request.correctionScope === undefined) {
@@ -477,84 +499,20 @@ export function projectHostedRequestAdmissionResolution(
   });
 }
 
-/** Request one hosted review through caller-supplied durable admission boundaries. */
-export async function requestHostedReview(
-  input: unknown,
-  dependencies: {
-    adapters: readonly HostedReviewAdapter[];
-    errandBinding?: HostedErrandProgressBinding;
-    deliveryMemberLookup?: DeliveryMemberLookup;
-    admitRequest?: (
-      request: HostedRequestEnvelope,
-      progressVehicle: HostedProgressVehicle | undefined,
-    ) => Promise<HostedRequestAdmissionResolution>;
-    acknowledgeRequest?: (
-      admission: HostedAdmission,
-      handle: HostedRequestHandle,
-    ) => Promise<void>;
-    concludeRequest?: (
-      admission: HostedAdmission,
-      result: Extract<HostedRequestResult, { state:
-        | "rate-limited"
-        | "transient-unavailable"
-        | "ambiguous-delivery"
-        | "terminal-failure" }>,
-    ) => Promise<void>;
+async function projectHostedDispatchOutcome(
+  request: z.infer<typeof HostedRequestEnvelopeSchema>,
+  dependencies: Parameters<typeof requestHostedReview>[1],
+  adapter: HostedReviewAdapter,
+  admission: HostedAdmission,
+  progressVehicle: HostedProgressVehicle | undefined,
+  outcome: HostedRequestOutcome,
+  resultBase: {
+    schemaVersion: 1;
+    mode: "review-hosted-request";
+    requestedCoverage: HostedReviewCoverage;
+    attemptedProviders: HostedRequestEnvelope["provider"][];
   },
 ): Promise<HostedRequestResult> {
-  const request = HostedRequestEnvelopeSchema.parse(input);
-  let progressVehicle: HostedProgressVehicle | undefined;
-  if (request.vehicle?.kind === "errand") {
-    progressVehicle = resolveErrandBinding(request.vehicle, dependencies.errandBinding);
-  } else if (request.vehicle?.kind === "delivery-member") {
-    await validateDeliveryMemberBinding(
-      request.vehicle,
-      request.target.headSha,
-      dependencies.deliveryMemberLookup,
-    );
-    progressVehicle = request.vehicle;
-  }
-  const attemptedProviders = [request.provider];
-  const resultBase = {
-    schemaVersion: 1 as const,
-    mode: "review-hosted-request" as const,
-    requestedCoverage: request.coverage,
-    attemptedProviders,
-  };
-  const adapter = dependencies.adapters.find((candidate) => candidate.id === request.provider);
-  if (adapter === undefined) {
-    return {
-      ...resultBase,
-      state: "source-unavailable",
-      nextAction: "stop",
-      provider: request.provider,
-    };
-  }
-
-  if (dependencies.admitRequest === undefined) {
-    throw new Error("Hosted review dispatch requires capacity-checked durable request admission.");
-  }
-  const admissionResolution = await dependencies.admitRequest(request, progressVehicle);
-  const replay = projectHostedRequestAdmissionResolution(request, admissionResolution);
-  if (replay !== null) return replay;
-  if (admissionResolution.state !== "admitted") {
-    throw new Error("Hosted request admission did not authorize dispatch.");
-  }
-  const admission = HostedAdmissionSchema.parse(admissionResolution.admission);
-  if (admission.sourceId !== request.provider
-    || admission.requestedCoverage !== request.coverage
-    || canonicalize(admission.correctionScope ?? null) !== canonicalize(request.correctionScope ?? null)
-    || canonicalize(admission.target) !== canonicalize(request.target)
-    || canonicalize(admission.vehicle ?? null) !== canonicalize(progressVehicle ?? null)) {
-    throw new Error("Hosted review dispatch does not match its durable admission.");
-  }
-
-  let outcome: HostedRequestOutcome;
-  try {
-    outcome = await adapter.request(request.target, request.coverage);
-  } catch {
-    outcome = { kind: "ambiguous-delivery" };
-  }
   if (outcome.kind === "created") {
     const handle = HostedRequestHandleSchema.parse({
       schemaVersion: 1,
@@ -565,6 +523,7 @@ export async function requestHostedReview(
       artifact: outcome.artifact,
       ...(progressVehicle === undefined ? {} : { vehicle: progressVehicle }),
       admission,
+      ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
     });
     if (dependencies.acknowledgeRequest === undefined) {
       throw new Error("Hosted review acknowledgment requires durable admission binding.");
@@ -616,4 +575,95 @@ export async function requestHostedReview(
   }
   await dependencies.concludeRequest(admission, result);
   return result;
+}
+
+async function resolveHostedProgressVehicle(
+  request: HostedRequestEnvelope,
+  dependencies: Parameters<typeof requestHostedReview>[1],
+): Promise<HostedProgressVehicle | undefined> {
+  let progressVehicle: HostedProgressVehicle | undefined;
+  if (request.vehicle?.kind === "errand") {
+    progressVehicle = resolveErrandBinding(request.vehicle, dependencies.errandBinding);
+  } else if (request.vehicle?.kind === "delivery-member") {
+    await validateDeliveryMemberBinding(
+      request.vehicle,
+      request.target.headSha,
+      dependencies.deliveryMemberLookup,
+    );
+    progressVehicle = request.vehicle;
+  }
+  return progressVehicle;
+}
+
+/** Request one hosted review through caller-supplied durable admission boundaries. */
+export async function requestHostedReview(
+  input: unknown,
+  dependencies: {
+    adapters: readonly HostedReviewAdapter[];
+    errandBinding?: HostedErrandProgressBinding;
+    deliveryMemberLookup?: DeliveryMemberLookup;
+    admitRequest?: (
+      request: HostedRequestEnvelope,
+      progressVehicle: HostedProgressVehicle | undefined,
+    ) => Promise<HostedRequestAdmissionResolution>;
+    acknowledgeRequest?: (
+      admission: HostedAdmission,
+      handle: HostedRequestHandle,
+    ) => Promise<void>;
+    concludeRequest?: (
+      admission: HostedAdmission,
+      result: Extract<HostedRequestResult, { state:
+        | "rate-limited"
+        | "transient-unavailable"
+        | "ambiguous-delivery"
+        | "terminal-failure" }>,
+    ) => Promise<void>;
+  },
+): Promise<HostedRequestResult> {
+  const request = HostedRequestEnvelopeSchema.parse(input);
+  const progressVehicle = await resolveHostedProgressVehicle(request, dependencies);
+  const attemptedProviders = [request.provider];
+  const resultBase = {
+    schemaVersion: 1 as const,
+    mode: "review-hosted-request" as const,
+    requestedCoverage: request.coverage,
+    attemptedProviders,
+  };
+  const adapter = dependencies.adapters.find((candidate) => candidate.id === request.provider);
+  if (adapter === undefined) {
+    return {
+      ...resultBase,
+      state: "source-unavailable",
+      nextAction: "stop",
+      provider: request.provider,
+    };
+  }
+
+  if (dependencies.admitRequest === undefined) {
+    throw new Error("Hosted review dispatch requires capacity-checked durable request admission.");
+  }
+  const admissionResolution = await dependencies.admitRequest(request, progressVehicle);
+  const replay = projectHostedRequestAdmissionResolution(request, admissionResolution);
+  if (replay !== null) return replay;
+  if (admissionResolution.state !== "admitted") {
+    throw new Error("Hosted request admission did not authorize dispatch.");
+  }
+  const admission = HostedAdmissionSchema.parse(admissionResolution.admission);
+  if (admission.sourceId !== request.provider
+    || admission.requestedCoverage !== request.coverage
+    || canonicalize(admission.correctionScope ?? null) !== canonicalize(request.correctionScope ?? null)
+    || canonicalize(admission.target) !== canonicalize(request.target)
+    || canonicalize(admission.vehicle ?? null) !== canonicalize(progressVehicle ?? null)) {
+    throw new Error("Hosted review dispatch does not match its durable admission.");
+  }
+
+  let outcome: HostedRequestOutcome;
+  try {
+    outcome = await adapter.request(request.target, request.coverage);
+  } catch {
+    outcome = { kind: "ambiguous-delivery" };
+  }
+  return projectHostedDispatchOutcome(
+    request, dependencies, adapter, admission, progressVehicle, outcome, resultBase,
+  );
 }

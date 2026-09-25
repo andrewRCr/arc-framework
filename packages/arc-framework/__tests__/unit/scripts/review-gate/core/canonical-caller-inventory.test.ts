@@ -48,11 +48,11 @@ describe("review-gate canonical serializer inventory", () => {
         .test(source(path)))
       .map(name);
     expect(kernelImports).toEqual([
-      "core/applicability.ts",
       "core/dispositions.ts",
       "core/gate-contract-v2-schema.ts",
       "core/gate-contract-v2.ts",
       "core/identity.ts",
+      "core/lane-attempt-validation.ts",
       "core/local-operation.ts",
       "core/local-prepare.ts",
       "core/operation-state-schema.ts",
@@ -64,7 +64,11 @@ describe("review-gate canonical serializer inventory", () => {
       "hosts/local/receipt-store.ts",
       "hosts/local/review-result-reader.ts",
       "hosts/local/source-store.ts",
+      "lane-progress-conditional.ts",
+      "lane-progress-hosted-request.ts",
+      "lane-progress-hosted-settlement.ts",
       "lane-progress.ts",
+      "policy/candidate-review-fix-continuation.ts",
       "policy/frontline-operation.ts",
       "policy/hosted-reservation-admission.ts",
       "policy/incremental-coverage-basis.ts",

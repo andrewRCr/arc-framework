@@ -24,12 +24,20 @@ function image(content: string, mode: "100644" | "100755" = "100644") {
 function plans(): V3ExtractionSourceThinningFilePlan[] {
   return [{
     path: ".arc/active/rfc-origin.md",
-    before: { mode: "100644", contentDigest: digestBytes(encoder.encode("remove\n")) },
+    before: {
+      mode: "100644",
+      contentDigest: digestBytes(encoder.encode("remove\n")),
+      byteLength: encoder.encode("remove\n").byteLength,
+    },
     after: { kind: "absent" },
     removedLocators: [{ artifact: "rfc-origin.md", kind: "preamble" }],
   }, {
     path: ".arc/active/spec-origin.md",
-    before: { mode: "100755", contentDigest: digestBytes(encoder.encode("before\n")) },
+    before: {
+      mode: "100755",
+      contentDigest: digestBytes(encoder.encode("before\n")),
+      byteLength: encoder.encode("before\n").byteLength,
+    },
     after: { kind: "file", mode: "100755", bytes: encoder.encode("after\n") },
     removedLocators: [{ artifact: "spec-origin.md", kind: "preamble" }],
   }];
@@ -39,7 +47,7 @@ function retainedPlan(): V3ExtractionSourceThinningFilePlan {
   const bytes = encoder.encode("retained\n");
   return {
     path: ".arc/active/meta-origin.md",
-    before: { mode: "100644", contentDigest: digestBytes(bytes) },
+    before: { mode: "100644", contentDigest: digestBytes(bytes), byteLength: bytes.byteLength },
     after: { kind: "file", mode: "100644", bytes },
     removedLocators: [],
   };
@@ -49,6 +57,7 @@ function memoryIO(overrides: {
   failPath?: string;
   failMutated?: boolean;
   finalCaptureFault?: "throw" | "wrong-state";
+  preimageRace?: string;
   restorationResidue?: string;
   initial?: Record<string, {
     index: V3PartialPathPreimage["index"];
@@ -91,6 +100,9 @@ function memoryIO(overrides: {
     applied,
     capture,
     verify: async (preimages) => {
+      if (!restoreAttempted && overrides.preimageRace !== undefined) {
+        return { status: "mismatch", path: overrides.preimageRace };
+      }
       if (restoreAttempted && overrides.restorationResidue !== undefined) {
         return { status: "mismatch", path: overrides.restorationResidue };
       }
@@ -319,6 +331,84 @@ describe("executeV3ExtractionSourceFinish", () => {
       status: "refused",
       reason: "source-worktree-preimage",
       locus: ".arc/active/spec-origin.md",
+      evidence: {
+        expected: {
+          before: {
+            kind: "object",
+            objectKind: "blob",
+            mode: "100755",
+            contentDigest: digestBytes(encoder.encode("before\n")),
+            byteLength: encoder.encode("before\n").byteLength,
+          },
+          after: {
+            kind: "object",
+            objectKind: "blob",
+            mode: "100755",
+            contentDigest: digestBytes(encoder.encode("after\n")),
+            byteLength: encoder.encode("after\n").byteLength,
+          },
+        },
+        actual: {
+          kind: "object",
+          objectKind: "blob",
+          mode: "100755",
+          contentDigest: digestBytes(encoder.encode("changed\n")),
+          byteLength: encoder.encode("changed\n").byteLength,
+        },
+      },
+    });
+    expect(io.applied).toEqual([]);
+  });
+
+  it("reports the planned transition and observed index state for an index mismatch", async () => {
+    const observed = encoder.encode("changed\n");
+    const io = memoryIO({
+      initial: {
+        ".arc/active/rfc-origin.md": {
+          index: image("changed\n"),
+          worktree: image("remove\n"),
+        },
+        ".arc/active/spec-origin.md": {
+          index: image("before\n", "100755"),
+          worktree: image("before\n", "100755"),
+        },
+      },
+    });
+
+    await expect(executeV3ExtractionSourceFinish(plans(), false, io)).resolves.toEqual({
+      status: "refused",
+      reason: "source-index-preimage",
+      locus: ".arc/active/rfc-origin.md",
+      evidence: {
+        expected: {
+          before: {
+            kind: "object",
+            objectKind: "blob",
+            mode: "100644",
+            contentDigest: digestBytes(encoder.encode("remove\n")),
+            byteLength: encoder.encode("remove\n").byteLength,
+          },
+          after: { kind: "absent" },
+        },
+        actual: {
+          kind: "object",
+          objectKind: "blob",
+          mode: "100644",
+          contentDigest: digestBytes(observed),
+          byteLength: observed.byteLength,
+        },
+      },
+    });
+  });
+
+  it("reports only the exact path when a captured preimage races", async () => {
+    const path = ".arc/active/spec-origin.md";
+    const io = memoryIO({ preimageRace: path });
+
+    await expect(executeV3ExtractionSourceFinish(plans(), true, io)).resolves.toEqual({
+      status: "refused",
+      reason: "source-preimage-raced",
+      locus: path,
     });
     expect(io.applied).toEqual([]);
   });

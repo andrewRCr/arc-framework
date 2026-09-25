@@ -94,9 +94,6 @@ Precise meanings — assume the technical sense.
 - **Review increment:** One bounded unit of execution; closes with a structured approval gate that precedes any
   commit invocation, wrapped or raw. Applies
   universally — task list work, off-task / incidental, workflow stages.
-  **Deferred review** = a batch suspending per-leaf stops within scope — user-scoped ("proceed to 3.4")
-  or agent-proposed at a coupled parent (proposes, user approves; never self-invoked); commit-interlock
-  auto-fire also suspends when `on-task-approval`.
 
 ## Key Documents
 

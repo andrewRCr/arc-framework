@@ -92,6 +92,156 @@ const LOCAL_STANDARD_SOURCE = {
   qualifier: "standard-review/v1",
 } as const;
 
+async function resolveLocalPolicyTarget(
+  input: { cwd: string; exec: GitExec },
+  repositoryId: string,
+  target: ReviewTarget,
+  baseRef: string,
+) {
+      const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        cwd: input.cwd,
+      })).stdout.trim();
+      if (branch === "" || branch === "HEAD") {
+        throw new Error("Local review requires an attached originating branch.");
+      }
+      const changeRequest = await resolveChangeRequest({
+        headRef: branch,
+        headSha: target.headSha,
+        baseRef: baseRef,
+      }, createGhChangeRequestResolutionPort(input.exec, input.cwd));
+      if (changeRequest.targetRef !== null && (changeRequest.state === "blocked"
+        || changeRequest.state === "ambiguous")) {
+        throw new Error("Local review could not resolve exact change-request authority.");
+      }
+      const policyTarget = changeRequest.targetRef === null
+        ? {
+            repository: `local/${repositoryId}`,
+            pullRequest: null,
+            headSha: target.headSha,
+          }
+        : {
+            repository: changeRequest.targetRef.repository,
+            pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
+            headSha: target.headSha,
+          };
+  return policyTarget;
+}
+
+function createLocalPolicyRequest(
+  request: Parameters<LocalPrepareDependencies["validatePolicyAdmission"]>[0],
+  policyTarget: { repository: string; pullRequest: number | null; headSha: string },
+) {
+  const { standardReview, completedPasses, attempts, judgment } = request;
+      const policyRequest = {
+        schemaVersion: 1,
+        target: policyTarget,
+        lane: "standard",
+        frontlineActive: false,
+        standardReview,
+        completedPasses,
+        attempts,
+        ...(judgment?.scopeMode === undefined
+          ? {}
+          : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
+        invocation: judgment?.invocation ?? {
+          mode: "force",
+          sourceId: "delegated-agent",
+        },
+        ...(judgment?.ceilingOverride === undefined
+          ? {}
+          : {
+              ceilingOverride: {
+                ...judgment.ceilingOverride,
+                target: policyTarget,
+                lane: "standard" as const,
+              },
+            }),
+        ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
+      };
+  return policyRequest;
+}
+
+async function validateLocalPolicyAdmission(
+  request: Parameters<LocalPrepareDependencies["validatePolicyAdmission"]>[0],
+  context: {
+    input: { cwd: string; exec: GitExec };
+    resultReader: ReturnType<typeof createRepositoryReviewResultReader>;
+    dispositionStore: LocalApprovedDispositionRecordStore;
+    operationStore: LocalReviewOperationStateStore;
+  },
+): ReturnType<LocalPrepareDependencies["validatePolicyAdmission"]> {
+  const {
+    repositoryId, target, lineage, standardReview,
+    terminalResponsePerformed, predecessorOperationId, coverageAdmission,
+  } = request;
+
+      const settings = (await readConfigSettings(context.input.cwd)).settings;
+      const policy = await resolveConfiguredLanePolicy({
+        lane: "standard",
+        settings,
+        preferences: createLocalFrontlineSourcePreferenceReader({
+          cwd: context.input.cwd,
+          exec: context.input.exec,
+          readFile: (path) => readFile(path, "utf8"),
+        }),
+      });
+      const policyTarget = await resolveLocalPolicyTarget(
+        context.input, repositoryId, target, settings["branch.base"],
+      );
+      const policyRequest = createLocalPolicyRequest(request, policyTarget);
+      const policyDependencies = {
+        sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
+        maxPasses: policy.maxPasses,
+        resultReader: context.resultReader,
+        dispositionStore: context.dispositionStore,
+        readResponsePerformance: (predecessor: ReviewResult) => readLaneResponsePerformance(
+          context.operationStore,
+          predecessor,
+        ),
+        confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) => Promise.resolve(
+          predecessor.repositoryId === current.repositoryId
+            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+            ? "applicable" as const
+            : "unavailable" as const,
+        ),
+        confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
+      };
+      const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
+        terminalResponsePerformed,
+      }, policyDependencies);
+      const coverage = await resolveLocalReviewCoverageSelection({
+        policy: unresolved,
+        target,
+        sourceId: "delegated-agent",
+        lineage,
+        standardReview,
+        ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
+        ...(coverageAdmission === undefined ? {} : { coverageAdmission }),
+      }, {
+        resultReader: context.resultReader,
+        dispositionStore: context.dispositionStore,
+        readResponsePerformance: (predecessor) => readLaneResponsePerformance(
+          context.operationStore,
+          predecessor,
+        ),
+        confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
+          predecessor.repositoryId === current.repositoryId
+            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+            ? "applicable" as const
+            : "unavailable" as const,
+        ),
+      });
+      if (coverage.state === "coverage-required") return coverage;
+      const resolution = await assertEvidenceBoundReviewExecutionAdmission(policyRequest, {
+        terminalResponsePerformed,
+        ...(coverage.coverageSelected ? { coverageSelected: true } : {}),
+      }, {
+        sourceId: "delegated-agent",
+        nextAction: "local-prepare",
+      }, policyDependencies);
+      return { state: "ready", pass: resolution.payload.pass };
+}
+
 /** Bind local prepare to the current repository, managed methods, and Git-common stores. */
 export function createLocalPrepareDependencies(input: {
   exec: GitExec;
@@ -248,132 +398,9 @@ export function createLocalPrepareDependencies(input: {
         runtimeKind: authority.attestationRuntimeKind,
       });
     },
-    validatePolicyAdmission: async ({
-      repositoryId,
-      target,
-      lineage,
-      standardReview,
-      completedPasses,
-      attempts,
-      terminalResponsePerformed,
-      predecessorOperationId,
-      coverageAdmission,
-      judgment,
-    }) => {
-      const settings = (await readConfigSettings(input.cwd)).settings;
-      const policy = await resolveConfiguredLanePolicy({
-        lane: "standard",
-        settings,
-        preferences: createLocalFrontlineSourcePreferenceReader({
-          cwd: input.cwd,
-          exec: input.exec,
-          readFile: (path) => readFile(path, "utf8"),
-        }),
-      });
-      const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-        cwd: input.cwd,
-      })).stdout.trim();
-      if (branch === "" || branch === "HEAD") {
-        throw new Error("Local review requires an attached originating branch.");
-      }
-      const changeRequest = await resolveChangeRequest({
-        headRef: branch,
-        headSha: target.headSha,
-        baseRef: settings["branch.base"],
-      }, createGhChangeRequestResolutionPort(input.exec, input.cwd));
-      if (changeRequest.targetRef !== null && (changeRequest.state === "blocked"
-        || changeRequest.state === "ambiguous")) {
-        throw new Error("Local review could not resolve exact change-request authority.");
-      }
-      const policyTarget = changeRequest.targetRef === null
-        ? {
-            repository: `local/${repositoryId}`,
-            pullRequest: null,
-            headSha: target.headSha,
-          }
-        : {
-            repository: changeRequest.targetRef.repository,
-            pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
-            headSha: target.headSha,
-          };
-      const policyRequest = {
-        schemaVersion: 1,
-        target: policyTarget,
-        lane: "standard",
-        frontlineActive: false,
-        standardReview,
-        completedPasses,
-        attempts,
-        ...(judgment?.scopeMode === undefined
-          ? {}
-          : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
-        invocation: judgment?.invocation ?? {
-          mode: "force",
-          sourceId: "delegated-agent",
-        },
-        ...(judgment?.ceilingOverride === undefined
-          ? {}
-          : {
-              ceilingOverride: {
-                ...judgment.ceilingOverride,
-                target: policyTarget,
-                lane: "standard" as const,
-              },
-            }),
-        ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
-      };
-      const policyDependencies = {
-        sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
-        maxPasses: policy.maxPasses,
-        resultReader,
-        dispositionStore,
-        readResponsePerformance: (predecessor: ReviewResult) => readLaneResponsePerformance(
-          operationStore,
-          predecessor,
-        ),
-        confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) => Promise.resolve(
-          predecessor.repositoryId === current.repositoryId
-            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
-            ? "applicable" as const
-            : "unavailable" as const,
-        ),
-        confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
-      };
-      const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
-        terminalResponsePerformed,
-      }, policyDependencies);
-      const coverage = await resolveLocalReviewCoverageSelection({
-        policy: unresolved,
-        target,
-        sourceId: "delegated-agent",
-        lineage,
-        standardReview,
-        ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
-        ...(coverageAdmission === undefined ? {} : { coverageAdmission }),
-      }, {
-        resultReader,
-        dispositionStore,
-        readResponsePerformance: (predecessor) => readLaneResponsePerformance(
-          operationStore,
-          predecessor,
-        ),
-        confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
-          predecessor.repositoryId === current.repositoryId
-            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
-            ? "applicable" as const
-            : "unavailable" as const,
-        ),
-      });
-      if (coverage.state === "coverage-required") return coverage;
-      const resolution = await assertEvidenceBoundReviewExecutionAdmission(policyRequest, {
-        terminalResponsePerformed,
-        ...(coverage.coverageSelected ? { coverageSelected: true } : {}),
-      }, {
-        sourceId: "delegated-agent",
-        nextAction: "local-prepare",
-      }, policyDependencies);
-      return { state: "ready", pass: resolution.payload.pass };
-    },
+    validatePolicyAdmission: (request) => validateLocalPolicyAdmission(request, {
+      input, resultReader, dispositionStore, operationStore,
+    }),
     validateDeliveryAdmission: async (admission) => {
       const before = await readSubmissionBoundaryVersioned(input.cwd, admission.vehicle.workUnitId);
       const reservation = before.boundary?.reservation;

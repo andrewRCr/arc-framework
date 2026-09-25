@@ -53,7 +53,7 @@ import {
   resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
   resolveSubmissionBoundaryPath,
@@ -572,7 +572,7 @@ async function installCandidate(
   expectedVersion: string | null,
   supersedes?: string,
 ): Promise<CandidateManagedRecordV1> {
-  const target = await collectGitCandidateTarget({
+  const target = await collectCandidateSubjectTarget({
     cwd: harness.root,
     name: harness.plan.workUnitId,
     baseBranch: "main",
@@ -785,6 +785,8 @@ async function createHarness(
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
+    chainBase: { head: baseHead, tree: baseTree },
+    predecessorRelation: { kind: "advanced", observedTip: baseHead, chainBase: baseHead },
     top: { ref: "refs/heads/prior-top", head: priorSecond, tree: priorSecondTree },
     members: [
       {
@@ -801,6 +803,7 @@ async function createHarness(
       },
     ],
     lifecyclePaths: [],
+    regenerablePaths: [],
   });
   if (materialization.status !== "derived") throw new Error("expected delivery materialization");
   const bindingOrder: string[] = [];
@@ -908,11 +911,11 @@ async function statusThroughHandler(
     target: JSON.stringify(target),
     ...(ceilingOverride === undefined ? {} : { ceilingOverride: JSON.stringify(ceilingOverride) }),
     ...(coverage === undefined ? {} : { coverage }),
-    json: true,
+    ...(sourceId === undefined ? {} : { source: sourceId }),
   }, undefined, {
     resolveRoot: () => harness.root,
     resolve: (root, input) => resolveReviewStatus(input, {
-      observe: async (statusTarget, admittedOverride, admittedCoverage) => ({
+      observe: async (statusTarget, admittedOverride, admittedCoverage, admittedSourceId) => ({
         actualHeadSha: statusTarget.headSha,
         requiredChecks: "green",
         routedObligation: await readRoutedObligation(
@@ -922,12 +925,12 @@ async function statusThroughHandler(
           42,
           new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
           harness.baseHead,
-          admittedOverride === undefined && admittedCoverage === undefined && sourceId === undefined
+          admittedOverride === undefined && admittedCoverage === undefined && admittedSourceId === undefined
             ? undefined
             : {
                 ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
                 ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
-                ...(sourceId === undefined ? {} : { sourceId }),
+                ...(admittedSourceId === undefined ? {} : { sourceId: admittedSourceId }),
               },
           deliveryHost(harness),
         ),
@@ -948,7 +951,7 @@ async function workUnitStatusThroughHandler(
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
-  await handleReviewStatus({ workUnit: harness.plan.workUnitId, json: true }, undefined, {
+  await handleReviewStatus({ workUnit: harness.plan.workUnitId }, undefined, {
     resolveRoot: () => harness.root,
     resolveWorkUnit: async () => {
       const status = await statusThroughHandler(harness, target);
@@ -991,7 +994,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
   const plan = deliveryStackPlanWithMemberTitlesFixture(
     Array.from({ length: 8 }, (_, index) => `Member ${String(index + 1)}`),
   );
-  await git(root, ["checkout", "-b", "feat/eight-member"]);
+  await git(root, ["checkout", "-b", "feat/delivery-plan-record"]);
   const heads: string[] = [];
   const trees: string[] = [];
   for (const [index, planned] of plan.members.entries()) {
@@ -1016,16 +1019,19 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
     planRevision: plan.planRevision,
     planDigest: plan.planDigest,
     protectedBase: { ref: "refs/heads/main", head: baseHead, tree: baseTree },
-    top: { ref: "refs/heads/feat/eight-member", head: heads.at(-1)!, tree: trees.at(-1)! },
+    chainBase: { head: baseHead, tree: baseTree },
+    predecessorRelation: { kind: "advanced", observedTip: baseHead, chainBase: baseHead },
+    top: { ref: "refs/heads/feat/delivery-plan-record", head: heads.at(-1)!, tree: trees.at(-1)! },
     members: plan.members.map((planned, index) => ({
       deliverableId: planned.deliverableId,
       ref: index === plan.members.length - 1
-        ? "refs/heads/feat/eight-member"
+        ? "refs/heads/feat/delivery-plan-record"
         : `refs/heads/delivery/${plan.workUnitId}/${planned.chunkKey}`,
       head: heads[index]!,
       tree: trees[index]!,
     })),
     lifecyclePaths: [],
+    regenerablePaths: [],
   });
   if (materialization.status !== "derived") throw new Error("expected eight-member materialization");
   const refs = {
@@ -1085,7 +1091,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
   if (published.status !== "published") throw new Error("expected eight-member request publication");
   const topHead = heads.at(-1);
   if (topHead === undefined) throw new Error("missing eight-member terminal head");
-  const target = await collectGitCandidateTarget({
+  const target = await collectCandidateSubjectTarget({
     cwd: root,
     name: plan.workUnitId,
     baseBranch: "main",
@@ -1132,7 +1138,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
   });
   await writeSubmissionBoundary(root, projectPublicationBoundary({
     workUnit: plan.workUnitId,
-    branch: "feat/eight-member",
+    branch: "feat/delivery-plan-record",
     candidateId: candidate.attestation.candidateId,
     candidateSubjectDigest: candidate.subject.subjectDigest,
     reservation,
@@ -1749,7 +1755,7 @@ describe("hosted review fan-out lifecycle", () => {
     if (sourceCandidate.record === null || sourceCandidate.version === null) {
       throw new Error("source Candidate must exist");
     }
-    const renewedTarget = await collectGitCandidateTarget({
+    const renewedTarget = await collectCandidateSubjectTarget({
       cwd: harness.root,
       name: harness.plan.workUnitId,
       baseBranch: "main",
@@ -2005,8 +2011,19 @@ describe("hosted review fan-out lifecycle", () => {
 
     for (const [index, planned] of harness.plan.members.entries()) {
       const head = harness.heads[index];
-      if (head === undefined) throw new Error("missing eight-member review coordinate");
-      const status = await statusThroughHandler(harness, statusTarget);
+      const tree = harness.trees[index];
+      const baseSha = index === 0 ? harness.baseHead : harness.heads[index - 1];
+      const baseTree = index === 0 ? harness.baseTree : harness.trees[index - 1];
+      if (head === undefined || tree === undefined || baseSha === undefined || baseTree === undefined) {
+        throw new Error("missing eight-member review coordinate");
+      }
+      const status = await statusThroughHandler(harness, {
+        repository,
+        headRef: index === harness.plan.members.length - 1
+          ? "feat/delivery-plan-record"
+          : `delivery/${harness.plan.workUnitId}/${planned.chunkKey}`,
+        headSha: head,
+      });
       expect(status).toMatchObject({
         state: "review-required",
         nextAction: "review-hosted-request",
@@ -2201,7 +2218,7 @@ describe("hosted review fan-out lifecycle", () => {
     await mkdir(join(harness.root, ".arc", "active"), { recursive: true });
     await writeFile(join(harness.root, taskPath), "# Closed task\n", "utf8");
     await git(harness.root, ["add", taskPath]);
-    const staged = await collectGitCandidateTarget({
+    const staged = await collectCandidateSubjectTarget({
       cwd: harness.root,
       name: harness.plan.workUnitId,
       baseBranch: "main",
@@ -2280,7 +2297,7 @@ describe("hosted review fan-out lifecycle", () => {
     if (beforeReroot.record === null || beforeReroot.version === null) {
       throw new Error("Candidate must exist before re-rooting");
     }
-    const verifiedTarget = await collectGitCandidateTarget({
+    const verifiedTarget = await collectCandidateSubjectTarget({
       cwd: harness.root,
       name: harness.plan.workUnitId,
       baseBranch: "main",
@@ -2563,7 +2580,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
 
     await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
-      nextAction: "review-local-prepare",
+      nextAction: "continue-reconcile",
       routedObligation: {
         conjunction: {
           members: [{ state: "discharged" }, { state: "outstanding" }],
@@ -2967,7 +2984,7 @@ describe("hosted review fan-out lifecycle", () => {
     expect(completedOperation.state).toMatchObject({ logicalPass: 1, retryGeneration: 1 });
 
     await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
-      nextAction: "review-local-prepare",
+      nextAction: "continue-reconcile",
       routedObligation: {
         conjunction: {
           members: [
@@ -3041,8 +3058,8 @@ describe("hosted review fan-out lifecycle", () => {
     expect(replay.exitCodes).toEqual([]);
     expect(replay.output).toEqual(terminal.output);
     await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
-      state: "review-required",
-      nextAction: "review-hosted-request",
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
       deliveryCursor: { completedMemberCount: 1 },
     });
     await expect(access(providerCalled)).resolves.toBeUndefined();
@@ -3594,7 +3611,7 @@ describe("hosted review fan-out lifecycle", () => {
       payload: {
         deliveryMember: first,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository, remote: "origin" },
         },
         hostedSettlementPlan: {
@@ -3928,15 +3945,15 @@ describe("hosted review fan-out lifecycle", () => {
         }),
       ]),
     });
-    const secondStatus = await statusThroughHandler(
+    const firstDischargedStatus = await statusThroughHandler(
       harness,
       correctionStatusTarget,
       undefined,
       undefined,
       "coderabbit-pr",
     );
-    expect(secondStatus).toMatchObject({
-      nextAction: "review-hosted-request",
+    expect(firstDischargedStatus).toMatchObject({
+      nextAction: "continue-reconcile",
       routedObligation: {
         conjunction: {
           status: "outstanding",
@@ -3947,6 +3964,14 @@ describe("hosted review fan-out lifecycle", () => {
         },
       },
     });
+    const secondStatus = await statusThroughHandler(
+      harness,
+      { repository, headRef: "prior-top", headSha: harness.priorSecond },
+      undefined,
+      undefined,
+      "coderabbit-pr",
+    );
+    expect(secondStatus).toMatchObject({ nextAction: "review-hosted-request" });
     if (secondStatus.nextAction !== "review-hosted-request") throw new Error("expected second member request");
     const secondRequested = await requestThroughHandler(secondStatus.action, {
       kind: "created",
@@ -4179,6 +4204,36 @@ describe("hosted review fan-out lifecycle", () => {
         conjunction: {
           members: [{ state: "discharged" }, { state: "outstanding" }],
         },
+      },
+    });
+  });
+
+  it("preserves an explicit hosted source as whole-target review for an oversized member", async () => {
+    const harness = await createHarness(["coderabbit-pr", "codex-pr", "delegated-agent"]);
+    await writeFile(
+      join(harness.root, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nchangeset.advisory_threshold_lines: 1\n"
+        + "changeset.advisory_threshold_files: 0\n",
+      "utf8",
+    );
+    const statusTarget = {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    };
+    await expect(statusThroughHandler(
+      harness,
+      statusTarget,
+      undefined,
+      undefined,
+      "codex-pr",
+    )).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        provider: "codex-pr",
+        target: { headSha: harness.oldFirst },
+        invocation: { mode: "force", sourceId: "codex-pr" },
       },
     });
   });

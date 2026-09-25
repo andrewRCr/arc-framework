@@ -42,9 +42,11 @@ export const FrontlineFailedRetryReasonSchema = z.strictObject({
     "signal-termination",
     "unexpected-adapter-failure",
   ]),
+  detail: z.string().trim().min(1).max(400).optional(),
 });
 export const FrontlineFailedRepairReasonSchema = z.strictObject({
   class: z.enum(["invalid-output", "authorization-rejected"]),
+  detail: z.string().trim().min(1).max(400).optional(),
 });
 export const FrontlineFailedReasonSchema = z.union([
   FrontlineFailedRetryReasonSchema,
@@ -251,7 +253,10 @@ export function normalizeFrontlineOutcome(input: {
       });
     case "failed":
       return FrontlineExecutionOutcomeSchema.parse({
-        ...base, outcome: "failed", findings: [], reason: { class: "unexpected-adapter-failure" },
+        ...base,
+        outcome: "failed",
+        findings: [],
+        reason: { class: "unexpected-adapter-failure", detail: providerResult.reason.slice(0, 400) },
       });
     case "pass-cap-exhausted":
       return FrontlineExecutionOutcomeSchema.parse({

@@ -513,6 +513,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed instead of hiding an open subtask beneath a completed parent", () => {
+    const result = resolveTaskListCursor(taskList([
+      "### `[x]` **1.1 Completed parent**",
+      "",
+      "    - `[ ]` **1.1.a Hidden open child**",
+      "",
+      "### `[ ]` **1.2 Later visible task**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 3,
+        message: "open subtask 1.1.a at line 3 appears beneath completed parent 1.1 at line 1",
+      },
+    });
+  });
+
   it("returns malformed for empty indented checkbox bullets", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",

@@ -7,6 +7,15 @@ import { runLocalVitestTier } from "../../src/lib/local-vitest-runner.js";
 describe("runLocalVitestTier", () => {
   it.each([
     ["full", []],
+    ["unit", ["--project", "unit", "--project", "unit-mocks"]],
+    ["lane", [
+      "--project",
+      "unit",
+      "--project",
+      "unit-mocks",
+      "--project",
+      "integration",
+    ]],
     ["integration", ["--project", "integration"]],
     ["arc-contracts", [
       "--project",
@@ -52,5 +61,21 @@ describe("runLocalVitestTier", () => {
     });
 
     expect(exit).not.toHaveBeenCalled();
+  });
+
+  it("normalizes forwarded excludes for Vitest's programmatic API", async () => {
+    const exit = vi.fn(async () => {});
+    const excludes = ["**/anchor-one.test.ts", "**/anchor-two.test.ts"];
+
+    await runLocalVitestTier("e2e", [], {
+      parseCli: () => ({ filter: [], options: { exclude: excludes } }),
+      start: async (_mode, _filters, options) => {
+        expect(options.cliExclude).toEqual(excludes);
+        expect(options.exclude).toBeUndefined();
+        return { shouldKeepServer: () => false, exit };
+      },
+    });
+
+    expect(exit).toHaveBeenCalledOnce();
   });
 });

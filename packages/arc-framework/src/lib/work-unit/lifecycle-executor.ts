@@ -81,6 +81,8 @@ export interface TransitionInputs {
   graduationTransaction?: ValidatedGraduationTransaction;
   /** Destination directory for a `relocate` artifacts leg (source derived from the meta path). */
   toDir?: string;
+  /** Canonical meta path created by a `scaffold` leg, staged before ROADMAP renders. */
+  scaffoldMetaPath?: string;
   /** The branch op for a declared `reconcile-branch` leg — its `mutation` must match the edge. */
   branchOp?: ReconcileBranchOp;
   /** The worktree op for a declared `reconcile-work-unit-worktree` leg — its `mutation` must match the edge. */
@@ -642,10 +644,10 @@ export async function executeTransition(
       ? await applyCurrentWorkflowField(ctx, record, metaPath, inputs)
       : null;
 
-    // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
-    //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
-    //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
-    //     content and a commit ships the pre-rewrite state.
+    // 8.5 Stage the meta the content legs rewrote or the scaffold leg created.
+    //     `relocate-artifacts` stages its `git mv`, but content writes and new
+    //     scaffolds go through the fs seam unstaged. ROADMAP must see the final
+    //     indexed meta before it renders.
     failedWrite = "stageMeta";
     const wroteMeta =
       legsFired.includes("setPhase") ||
@@ -654,15 +656,20 @@ export async function executeTransition(
       currentWorkflowWritten !== null ||
       softFieldsWritten.length > 0;
     const stageMeta = ctx.stageMeta;
-    if (inputs.graduationTransaction === undefined && wroteMeta && metaPath !== null && stageMeta !== undefined) {
+    const stagePath = record.encodingUpdates.artifacts === "scaffold"
+      ? inputs.scaffoldMetaPath
+      : wroteMeta && metaPath !== null
+        ? effectiveMetaPath(record, metaPath, inputs)
+        : undefined;
+    if (inputs.graduationTransaction === undefined && stagePath !== undefined && stageMeta !== undefined) {
       try {
-        await stageMeta(effectiveMetaPath(record, metaPath, inputs));
+        await stageMeta(stagePath);
       } catch (error) {
         const sourceWorkflow = sourceWorkflowFor(record);
         if (currentWorkflowWritten !== null && sourceWorkflow !== undefined) {
           try {
             await (ctx.writeCurrentWorkflowRecoveryMarker ?? ctx.writeCurrentWorkflowField)(
-              effectiveMetaPath(record, metaPath, inputs),
+              stagePath,
               sourceWorkflow,
             );
           } catch {
@@ -896,6 +903,9 @@ function validateInputs(
   }
   if ((e.artifacts === "scaffold" || e.artifacts === "remove") && ctx.scaffoldOrRemove === undefined) {
     return `the \`${e.artifacts}\` artifact disposition has no runner wired.`;
+  }
+  if (e.artifacts === "scaffold" && (inputs.scaffoldMetaPath === undefined || ctx.stageMeta === undefined)) {
+    return "the `scaffold` artifact disposition requires a meta path and staging seam.";
   }
   if (!atomicStart && e.reconcileBranch !== undefined) {
     if (inputs.branchOp === undefined) return "this transition reconciles a branch but no `branchOp` was supplied.";

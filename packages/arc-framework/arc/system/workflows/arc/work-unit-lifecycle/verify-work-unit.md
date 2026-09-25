@@ -8,6 +8,7 @@ arc:
     - review-triage
     - commit-footer
     - quality-gate-commands
+    - review-chunking
 ---
 
 # Workflow: Verify Completion
@@ -37,9 +38,18 @@ the base branch. Classify findings per [`review-triage`][review-triage], present
 obtain approval for the complete disposition set, and commit approved fixes per [`commit-footer`][commit-footer]
 before continuing. Do not invoke the producer-backed response command or fabricate producer evidence.
 
-Run the full quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
+When the task list carries a Delivery Plan, inspect every member-close scale-attention result before terminal Tier 3.
+Each completed member must record the resolver's exact target, state, and disposition, plus metrics when the resolver
+supplies them. A `disabled / none` result is complete without metrics because its typed envelope carries none. A
+`consider-chunks / select-review-scope` result is resolved only by a selected bounded-review route or an explicit
+capable whole-target choice under the [`review-chunking` method][review-chunking]. Missing evidence, an unresolved
+attention result, or an unbound member re-cut stops and returns to the delivery-member boundary in
+[`process-task-loop.md`][process-task-loop]. Member-close evidence covers its completed span only; it never replaces
+the exact post-materialization recheck.
+
+Run the complete quality gate suite as defined by the project's [Quality Gates Strategy][quality-gates], using the
 [quality-gate-commands method][arc-methods-qg] for the commands themselves. Even when incremental checks have been
-clean throughout implementation, the full-suite run serves as attestation that everything passes as a whole.
+clean throughout implementation, completing every project-designated gate supplies the final local attestation.
 
 ## Step 2 — Validate Success Criteria at Work-Unit Scope
 
@@ -72,8 +82,27 @@ validate-criteria:
 
 Without a Delivery Plan, open the upstream design/spec artifact and compare every flat criterion against actual
 outcomes in the complete diff and tree. With a Delivery Plan, the method dispositions member groups from their
-recorded reports and walks only the seam group and union coherence against the complete tree. Consume the resulting
-report, then mark each criterion in the task list's Success Criteria section (see
+recorded reports and walks only the seam group and union coherence against the complete tree.
+
+**Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After the
+primary walk for either criteria shape, load its adversarial companion.
+
+> [!IMPORTANT]
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally at
+> `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
+>
+> ```yaml
+> adversarial-review:
+>   rubric:          # selected work-unit Success Criteria slice
+>   artifacts:       # upstream design + task list with markings withheld + complete diff and reachable tree
+>   orientation:
+>     - AGENT-BRIEF.ARC
+>     - AGENT-BRIEF.PROJECT
+>   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+>   prior-findings:  # pass two onward; omitted on pass one
+> ```
+
+Consume the resulting report, then mark each criterion in the task list's Success Criteria section (see
 [task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format) using the three-state
 model:
 
@@ -86,6 +115,10 @@ model:
 If the combined report contains any `[ ]` criterion, stop. Leave the terminal work-unit verification task
 incomplete and do not enter Step 3 until the gap is fixed, deliberately superseded (including an approved
 deferral), or otherwise resolved; then rerun the criteria walk against the current work-unit subject.
+
+Enter [`amend-design`][amend-design] over the gap at that stop; its [entry gate][amend-design-gate] decides what
+the gap changes, and the corrective work takes a revision parent of its own rather than being patched in here. The
+rerun above is what closes it.
 
 **Criterion text is immutable.** Never rewrite a criterion to match what was built. The
 original text preserves intent; annotations capture reality.
@@ -140,10 +173,15 @@ verification-task exception). Cover both:
 
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [arc-methods-qg]: ../../../methods/quality-gate-commands.md
+[adversarial-review]: ../../../methods/adversarial-review.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [clean]: ../supplemental/clean-work-unit.md
 [self-review]: ../../../methods/self-review.md
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
+[review-chunking]: ../../../methods/review-chunking.md
 [prepare-work-unit]: prepare-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
+[amend-design]: ../supplemental/amend-design.md
+[amend-design-gate]: ../supplemental/amend-design.md#entry-gate
+[process-task-loop]: ../process-task-loop.md

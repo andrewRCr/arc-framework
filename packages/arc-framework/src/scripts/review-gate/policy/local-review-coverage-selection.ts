@@ -36,6 +36,54 @@ export type LocalReviewCoverageSelectionResolution =
       readonly action: LocalReviewCoverageSelectionAction;
     };
 
+async function resolveOfferedCorrectionScope(
+  input: Parameters<typeof resolveLocalReviewCoverageSelection>[0],
+  dependencies: Parameters<typeof resolveLocalReviewCoverageSelection>[1],
+  predecessorOperationId: string,
+  completedPasses: number,
+) {
+  const predecessor = await dependencies.resultReader.readResult(predecessorOperationId).catch(() => null);
+  if (predecessor === null || predecessor.kind === "frontline"
+    || predecessor.repositoryId !== input.target.repositoryId
+    || predecessor.admission.logicalPass !== completedPasses
+    || !laneSubjectOwnerMatches(predecessor.admission.lineage, input.lineage)
+    || canonicalize({
+      obligation: predecessor.requirement.obligation,
+      reasons: [...predecessor.requirement.reasons].sort(),
+      rubricVersion: predecessor.requirement.rubricVersion,
+      rubricDigest: predecessor.requirement.rubricDigest,
+      retrigger: predecessor.requirement.retrigger,
+      count: predecessor.requirement.count,
+    }) !== canonicalize({
+      ...input.standardReview,
+      reasons: [...input.standardReview.reasons].sort(),
+    })) return null;
+  return resolveIncrementalCorrectionScope({
+    predecessor,
+    currentHeadSha: input.target.headSha,
+  }, {
+    resultReader: dependencies.resultReader,
+    readResponseEvidence: (candidate) => readIncrementalPredecessorResponseEvidence(
+      candidate,
+      dependencies.dispositionStore,
+      dependencies.readResponsePerformance,
+    ),
+    confirmApplicability: dependencies.confirmIncrementalApplicability
+      ?? ((earlier, current) => Promise.resolve(
+        laneSubjectOwnerMatches(earlier.admission.lineage, current.admission.lineage)
+          ? "applicable"
+          : "unavailable",
+      )),
+    confirmCurrentApplicability: (candidate, currentHeadSha) => Promise.resolve(
+      currentHeadSha === input.target.headSha
+        && candidate.repositoryId === input.target.repositoryId
+        && laneSubjectOwnerMatches(candidate.admission.lineage, input.lineage)
+        ? "applicable"
+        : "unavailable",
+    ),
+  });
+}
+
 /**
  * Resolve an optional local coverage selection against current immutable predecessor evidence.
  *
@@ -84,52 +132,9 @@ export async function resolveLocalReviewCoverageSelection(input: {
     }
     return { state: "ready", coverageSelected: false };
   }
-  let correctionScope = null;
-  {
-    const predecessor = await dependencies.resultReader.readResult(predecessorOperationId)
-      .catch(() => null);
-    if (predecessor !== null
-      && predecessor.kind !== "frontline"
-      && predecessor.repositoryId === input.target.repositoryId
-      && predecessor.admission.logicalPass === completedPasses
-      && laneSubjectOwnerMatches(predecessor.admission.lineage, input.lineage)
-      && canonicalize({
-        obligation: predecessor.requirement.obligation,
-        reasons: [...predecessor.requirement.reasons].sort(),
-        rubricVersion: predecessor.requirement.rubricVersion,
-        rubricDigest: predecessor.requirement.rubricDigest,
-        retrigger: predecessor.requirement.retrigger,
-        count: predecessor.requirement.count,
-      }) === canonicalize({
-        ...input.standardReview,
-        reasons: [...input.standardReview.reasons].sort(),
-      })) {
-      correctionScope = await resolveIncrementalCorrectionScope({
-        predecessor,
-        currentHeadSha: input.target.headSha,
-      }, {
-        resultReader: dependencies.resultReader,
-        readResponseEvidence: (candidate) => readIncrementalPredecessorResponseEvidence(
-          candidate,
-          dependencies.dispositionStore,
-          dependencies.readResponsePerformance,
-        ),
-        confirmApplicability: dependencies.confirmIncrementalApplicability
-          ?? ((earlier, current) => Promise.resolve(
-            laneSubjectOwnerMatches(earlier.admission.lineage, current.admission.lineage)
-              ? "applicable"
-              : "unavailable",
-          )),
-        confirmCurrentApplicability: (candidate, currentHeadSha) => Promise.resolve(
-          currentHeadSha === input.target.headSha
-            && candidate.repositoryId === input.target.repositoryId
-            && laneSubjectOwnerMatches(candidate.admission.lineage, input.lineage)
-            ? "applicable"
-            : "unavailable",
-        ),
-      });
-    }
-  }
+  const correctionScope = await resolveOfferedCorrectionScope(
+    input, dependencies, predecessorOperationId, completedPasses,
+  );
   const choices: LocalReviewCoverageAdmission[] = [
     ...(correctionScope === null
       ? []

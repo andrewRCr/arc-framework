@@ -28,6 +28,7 @@ import {
 import {
   createLocalReviewAdmission,
   resolveLocalReviewAdmission,
+  type LocalReviewAdmissionInput,
   type LocalReviewAdmissionResolution,
 } from "../core/local-operation.js";
 import {
@@ -257,7 +258,7 @@ export class LocalPrepareCommandError extends Error {
   }
 }
 
-async function replayPendingLocalAdmission(input: {
+type PendingLocalReplayInput = {
   request: LocalPrepareRequest;
   dependencies: LocalPrepareDependencies;
   repositoryId: string;
@@ -266,7 +267,22 @@ async function replayPendingLocalAdmission(input: {
   scopeMode: ReviewScopeMode;
   coverageAdmission: LocalReviewCoverageAdmission;
   cleanupTtlMs: number;
-}): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
+};
+
+function completedReplayAttemptMatches(
+  attempt: NonNullable<Awaited<ReturnType<typeof readLaneProgressOwner>>>["attempts"][number],
+  input: PendingLocalReplayInput,
+): boolean {
+  return attempt.terminalProducer
+    && attempt.local !== undefined
+    && attempt.local.scopeMode === input.scopeMode
+    && attempt.headSha === input.target.headSha
+    && (input.request.deliveryAdmission !== undefined || attempt.outcome !== "settled-findings")
+    && (input.request.deliveryAdmission === undefined
+      || attempt.logicalPass === input.request.deliveryAdmission.pass);
+}
+
+async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
   const owner = await readLaneProgressOwner(input.dependencies.operationStore, {
     lane: "standard",
     repositoryId: input.repositoryId,
@@ -288,34 +304,45 @@ async function replayPendingLocalAdmission(input: {
     throw new LocalPrepareCommandError("local pending admission has different review coverage");
   }
   const completed = owner?.attempts
-    .filter((attempt) => attempt.terminalProducer
-      && attempt.local !== undefined
-      && attempt.local.scopeMode === input.scopeMode
-      && attempt.headSha === input.target.headSha
-      && (input.request.deliveryAdmission !== undefined
-        || attempt.outcome !== "settled-findings")
-      && (input.request.deliveryAdmission === undefined
-        || attempt.logicalPass === input.request.deliveryAdmission.pass))
+    .filter((attempt) => completedReplayAttemptMatches(attempt, input))
     .sort((left, right) => right.logicalPass - left.logicalPass) ?? [];
-  const attempt = pending[0] ?? completed[0];
-  if (attempt === undefined) return null;
+  return pending[0] ?? completed[0] ?? null;
+}
+
+type LocalReplayAttempt = NonNullable<Awaited<ReturnType<typeof selectLocalReplayAttempt>>>;
+
+function replayIdentityMatches(
+  state: LocalReviewState,
+  attempt: LocalReplayAttempt,
+  binding: NonNullable<LocalReplayAttempt["local"]>,
+  input: PendingLocalReplayInput,
+): boolean {
+  return state.operationId === attempt.attemptId
+    && state.operationId === binding.operationId
+    && state.requestId === binding.requestId
+    && state.scopeMode === binding.scopeMode
+    && state.scopeMode === input.scopeMode
+    && state.logicalPass === attempt.logicalPass
+    && state.retryGeneration === attempt.retryGeneration;
+}
+
+function replayContextMatches(state: LocalReviewState, input: PendingLocalReplayInput): boolean {
+  return canonicalize(state.coverageAdmission) === canonicalize(input.coverageAdmission)
+    && canonicalize(state.lineage) === canonicalize(input.lineage);
+}
+
+async function replayPendingLocalAdmission(input: PendingLocalReplayInput): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {
+  const attempt = await selectLocalReplayAttempt(input);
+  if (attempt === null) return null;
   const binding = attempt.local;
   if (binding === undefined) {
     throw new LocalPrepareCommandError("local pending admission is incomplete");
   }
   const persisted = await input.dependencies.operationStore.readOperation(binding.operationId);
   const state = persisted.state;
-  if (state === null
-    || state.kind !== "local-review"
-    || state.operationId !== attempt.attemptId
-    || state.operationId !== binding.operationId
-    || state.requestId !== binding.requestId
-    || state.scopeMode !== binding.scopeMode
-    || state.scopeMode !== input.scopeMode
-    || state.logicalPass !== attempt.logicalPass
-    || state.retryGeneration !== attempt.retryGeneration
-    || canonicalize(state.coverageAdmission) !== canonicalize(input.coverageAdmission)
-    || canonicalize(state.lineage) !== canonicalize(input.lineage)) {
+  if (state === null || state.kind !== "local-review"
+    || !replayIdentityMatches(state, attempt, binding, input)
+    || !replayContextMatches(state, input)) {
     throw new LocalPrepareCommandError("local pending admission does not match its operation");
   }
   const conditionalPassAuthorizationId = input.request.policyJudgment?.ceilingOverride
@@ -360,6 +387,26 @@ async function replayPendingLocalAdmission(input: {
       },
     });
   }
+  return replayReadyLocalAdmission(input, state, persisted.version);
+}
+
+function replayAuthorityMatches(
+  resolved: LocalReviewAuthorityResolution,
+  state: LocalReviewState,
+): boolean {
+  const authority = resolved.authority;
+  return canonicalize(authority.vehicle) === canonicalize(state.vehicle)
+    && authority.authorIdentity === state.request.authorIdentity
+    && authority.evaluatorIdentity === state.request.evaluatorIdentity
+    && authority.attestationRuntimeKind === state.attestationRuntimeKind
+    && authority.attestationMechanism === state.attestation.mechanism;
+}
+
+async function replayReadyLocalAdmission(
+  input: PendingLocalReplayInput,
+  state: LocalReviewState,
+  persistedVersion: number,
+): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
   const source = await input.dependencies.sourceStore.readSource(state.sourceRef);
   if (source === null
     || source.sourceDigest !== state.sourceDigest
@@ -388,15 +435,11 @@ async function replayPendingLocalAdmission(input: {
         memberHead,
         state.deliveryAdmission,
       );
-  if (canonicalize(authority.authority.vehicle) !== canonicalize(state.vehicle)
-    || authority.authority.authorIdentity !== state.request.authorIdentity
-    || authority.authority.evaluatorIdentity !== state.request.evaluatorIdentity
-    || authority.authority.attestationRuntimeKind !== state.attestationRuntimeKind
-    || authority.authority.attestationMechanism !== state.attestation.mechanism) {
+  if (!replayAuthorityMatches(authority, state)) {
     throw new LocalPrepareCommandError("local pending admission authority mismatch");
   }
   let replayState = state;
-  let replayVersion = persisted.version;
+  let replayVersion = persistedVersion;
   const refreshLiveness = cleanupExpired(state, input.dependencies.now());
   if (refreshLiveness || authority.authority.runtimeIdentity !== state.attestation.runtimeIdentity) {
     replayState = LocalReviewStateSchema.parse({
@@ -411,7 +454,7 @@ async function replayPendingLocalAdmission(input: {
     });
     replayVersion = (await input.dependencies.operationStore.publishOperation(
       replayState,
-      persisted.version,
+      persistedVersion,
     )).version;
   }
   const materialized = await input.dependencies.materialize(source);
@@ -446,12 +489,404 @@ async function replayPendingLocalAdmission(input: {
   });
 }
 
-/** Derive, admit, optionally renew liveness, and prove one local review operation. */
-export async function prepareLocalReview(
-  requestInput: unknown,
+interface LocalAdmissionSettlementInput {
+  request: LocalPrepareRequest;
+  dependencies: LocalPrepareDependencies;
+  repositoryId: string;
+  target: ReviewTarget;
+  lineage: LaneSubjectLineage;
+  scopeMode: ReviewScopeMode;
+  coverageAdmission: LocalReviewCoverageAdmission;
+  cleanupTtlMs: number;
+  admittedProjection: StandardReviewObligationProjection | undefined;
+  projection: StandardReviewObligationProjection;
+  requirement: NonNullable<ReturnType<typeof createReviewRequirement>>;
+  policy: Extract<LocalReviewPolicyBindingResolution, { status: "resolved" }>;
+  authority: LocalReviewAuthority;
+  assurance: Extract<AssuranceComposition, { status: "resolved" }>;
+}
+
+type LocalLaneOwner = NonNullable<Awaited<ReturnType<typeof readLaneProgressOwnerVersioned>>["state"]>;
+type LocalLaneAttempt = LocalLaneOwner["attempts"][number];
+
+function retryingLocalFailureFor(
+  attempts: LocalLaneAttempt[],
+  input: LocalAdmissionSettlementInput,
+): LocalLaneAttempt | undefined {
+  const last = attempts.at(-1);
+  return last?.outcome === "terminal-failure"
+    && last.local !== undefined
+    && last.sourceId === input.dependencies.laneSourceId
+    && last.local.scopeMode === input.scopeMode
+    && canonicalize(localAttemptCoverageAdmission(last.local)) === canonicalize(input.coverageAdmission)
+    ? last
+    : undefined;
+}
+
+async function resolveSettlementPolicyAdmission(
+  input: LocalAdmissionSettlementInput,
+  owner: LocalLaneOwner | null,
+  currentAttempts: LocalLaneAttempt[],
+  retryingLocalFailure: LocalLaneAttempt | undefined,
+) {
+  const { request, dependencies, repositoryId, target, lineage, projection } = input;
+  if (request.deliveryAdmission !== undefined) {
+    return { state: "ready" as const, pass: request.deliveryAdmission.pass };
+  }
+  const policyAttempts = currentAttempts.filter((attempt) => (
+    retryingLocalFailure === undefined
+    || attempt.outcome !== "terminal-failure"
+    || attempt.local === undefined
+    || attempt.sourceId !== dependencies.laneSourceId
+    || attempt.logicalPass !== retryingLocalFailure.logicalPass
+  )).map(projectReviewPolicyAttempt);
+  const predecessorOperationId = [...(owner?.attempts ?? [])].reverse().find((attempt) => (
+    attempt.terminalProducer
+    && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
+    && attempt.headSha !== target.headSha
+  ))?.attemptId;
+  return dependencies.validatePolicyAdmission({
+    repositoryId,
+    target,
+    lineage,
+    standardReview: projection,
+    completedPasses: owner?.completedPasses ?? 0,
+    attempts: policyAttempts,
+    terminalResponsePerformed: currentAttempts.at(-1)?.outcome === "settled-findings",
+    ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
+    ...(request.coverageAdmission === undefined ? {} : { coverageAdmission: request.coverageAdmission }),
+    ...(request.policyJudgment === undefined ? {} : { judgment: request.policyJudgment }),
+  });
+}
+
+function nextLocalRetryGeneration(
+  owner: LocalLaneOwner | null,
+  logicalPass: number,
+  input: LocalAdmissionSettlementInput,
+): number {
+  const prior = owner?.attempts
+    .filter((attempt) => attempt.logicalPass === logicalPass
+      && attempt.sourceId === input.dependencies.laneSourceId
+      && attempt.local?.scopeMode === input.scopeMode
+      && canonicalize(localAttemptCoverageAdmission(attempt.local)) === canonicalize(input.coverageAdmission))
+    .map(({ retryGeneration }) => retryGeneration) ?? [];
+  return prior.length === 0 ? 0 : Math.max(...prior) + 1;
+}
+
+interface ExistingLocalVerification {
+  value?: { source: LocalReviewSource; reviewRoot: string };
+  renewal?: { source: LocalReviewSource; refreshLiveness: boolean };
+  completed?: true;
+}
+
+async function verifyExistingLocalAdmission(
+  state: LocalReviewState,
+  input: LocalAdmissionSettlementInput,
+  existingVerification: ExistingLocalVerification,
+): Promise<void> {
+  const { dependencies, authority } = input;
+          const source = await dependencies.sourceStore.readSource(state.sourceRef);
+          if (source === null
+            || source.sourceDigest !== state.sourceDigest
+            || source.targetId !== state.targetId) {
+            throw new LocalPrepareCommandError("local review source reference mismatch");
+          }
+          const ledger = await dependencies.readReceipts(state.targetId);
+          const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+          if (receipts.length > 1) {
+            throw new LocalPrepareCommandError(
+              "local review operation has multiple terminal receipts",
+            );
+          }
+          if (receipts.length === 1) {
+            existingVerification.completed = true;
+            return;
+          }
+          const refreshLiveness = cleanupExpired(state, dependencies.now());
+          if (refreshLiveness
+            || state.attestation.runtimeIdentity !== authority.runtimeIdentity) {
+            existingVerification.renewal = { source, refreshLiveness };
+            return;
+          }
+          const materialized = await dependencies.materialize(source);
+          existingVerification.value = { source, reviewRoot: materialized.reviewRoot };
+}
+
+type LocalAdmitted =
+  | { state: "prepared"; resolution: LocalReviewAdmissionResolution; preparation: LocalReviewPreparation }
+  | { state: "completed"; operationId: string; persistedVersion: number };
+
+async function admitLocalPreparation(
+  input: LocalAdmissionSettlementInput,
+  admissionInput: LocalReviewAdmissionInput,
+): Promise<LocalAdmitted | null> {
+  const { dependencies, target, coverageAdmission, cleanupTtlMs, authority, assurance } = input;
+  let admitted: LocalAdmitted | null = null;
+    for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
+      const existingVerification: ExistingLocalVerification = {};
+      const resolution = await resolveLocalReviewAdmission(admissionInput, {
+        store: dependencies.operationStore,
+        verifyExisting: (state) => verifyExistingLocalAdmission(state, input, existingVerification),
+      });
+      if (resolution.state === "existing") {
+        if (existingVerification.completed === true) {
+          admitted = {
+            state: "completed",
+            operationId: resolution.operationId,
+            persistedVersion: resolution.persistedVersion,
+          };
+          break;
+        }
+        const renewal = existingVerification.renewal;
+        if (renewal !== undefined) {
+          const renewedState = LocalReviewStateSchema.parse({
+            ...resolution.persistedState,
+            ...(renewal.refreshLiveness
+              ? {
+                  updatedAt: dependencies.now(),
+                  cleanupTtlMs,
+                }
+              : {}),
+            attestation: {
+              ...resolution.persistedState.attestation,
+              runtimeIdentity: authority.runtimeIdentity,
+            },
+          });
+          const published = await dependencies.operationStore.publishOperation(
+            renewedState,
+            resolution.persistedVersion,
+          );
+          const materialized = await dependencies.materialize(renewal.source);
+          admitted = {
+            state: "prepared",
+            resolution,
+            preparation: {
+              persistedVersion: published.version,
+              state: renewedState,
+              sourceRef: renewedState.sourceRef,
+              sourceDigest: renewal.source.sourceDigest,
+              reviewRoot: materialized.reviewRoot,
+            },
+          };
+          break;
+        }
+        const verified = existingVerification.value;
+        if (verified === undefined) throw new Error("existing local review was not verified");
+        admitted = {
+          state: "prepared",
+          resolution,
+          preparation: {
+            persistedVersion: resolution.persistedVersion,
+            state: resolution.persistedState,
+            sourceRef: resolution.persistedState.sourceRef,
+            sourceDigest: verified.source.sourceDigest,
+            reviewRoot: verified.reviewRoot,
+          },
+        };
+        break;
+      }
+      const source = LocalReviewSourceSchema.parse(
+        await dependencies.describeSource(resolution.operationId, target, coverageAdmission),
+      );
+      try {
+        const preparation = await publishLocalReviewPreparation(
+          createLocalReviewAdmission(admissionInput),
+          source,
+          {
+            sourceStore: dependencies.sourceStore,
+            operationStore: dependencies.operationStore,
+            materialize: (candidate) => dependencies.materialize(candidate),
+            now: () => dependencies.now(),
+            cleanupTtlMs,
+            guidance: assurance.guidance,
+          },
+        );
+        admitted = { state: "prepared", resolution, preparation };
+        break;
+      } catch (error) {
+        if (!isReviewVersionConflict(error)) throw error;
+      }
+    }
+  return admitted;
+}
+
+async function recordPreparedLocalAdmission(
+  input: LocalAdmissionSettlementInput,
+  admitted: LocalAdmitted | null,
+  ownerVersion: number,
+): Promise<void> {
+  const { request, dependencies, repositoryId, target, lineage } = input;
+    if (admitted?.state === "prepared") {
+      let pendingOwnerVersion = ownerVersion;
+      const conditionalPassAuthorizationId = request.policyJudgment?.ceilingOverride
+        ?.conditionalPassAuthorizationId;
+      if (conditionalPassAuthorizationId !== undefined) {
+        await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
+          authorizationId: conditionalPassAuthorizationId,
+          repositoryId,
+          lane: "standard",
+          lineage,
+          producedHeadSha: target.headSha,
+          nextPass: admitted.preparation.state.logicalPass,
+          admissionId: admitted.preparation.state.operationId,
+          now: dependencies.now(),
+        }, (producerId, dispositionSetId) => dependencies.confirmDispositionSetCurrent(
+          producerId,
+          dispositionSetId,
+        ));
+        pendingOwnerVersion = (await readLaneProgressOwnerVersioned(
+          dependencies.operationStore,
+          {
+            lane: "standard",
+            repositoryId,
+            headSha: target.headSha,
+            lineage,
+          },
+        )).version;
+      }
+      await recordLocalPendingAttempt(dependencies.operationStore, {
+        state: admitted.preparation.state,
+        ownerVersion: pendingOwnerVersion,
+        now: dependencies.now(),
+      });
+    }
+}
+
+async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
+  const {
+    request, dependencies, repositoryId, target, lineage, scopeMode, coverageAdmission,
+    cleanupTtlMs, admittedProjection, projection, requirement, policy, authority,
+  } = input;
+    const concurrentReplay = await replayPendingLocalAdmission({
+      request,
+      dependencies,
+      repositoryId,
+      target,
+      lineage,
+      scopeMode,
+      coverageAdmission,
+      cleanupTtlMs,
+    });
+    if (concurrentReplay !== null) {
+      return { state: "replayed" as const, envelope: concurrentReplay };
+    }
+    const { version: ownerVersion, state: owner } = await readLaneProgressOwnerVersioned(
+      dependencies.operationStore,
+      {
+        lane: "standard",
+        repositoryId,
+        headSha: target.headSha,
+        lineage,
+      },
+    );
+    if (request.deliveryAdmission !== undefined) {
+      const currentProjection = await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
+      if ((admittedProjection !== undefined && currentProjection === undefined)
+        || (currentProjection !== undefined
+          && canonicalize(currentProjection) !== canonicalize(projection))) {
+        throw new LocalPrepareCommandError("local delivery review policy changed before preparation");
+      }
+    }
+    const currentAttempts = owner?.attempts.filter((attempt): attempt is typeof attempt & {
+      outcome: Exclude<typeof attempt.outcome, "pending">;
+    } => attempt.headSha === target.headSha && attempt.outcome !== "pending") ?? [];
+    const retryingLocalFailure = retryingLocalFailureFor(currentAttempts, input);
+    const policyAdmission = await resolveSettlementPolicyAdmission(
+      input, owner, currentAttempts, retryingLocalFailure,
+    );
+    if (policyAdmission.state === "coverage-required") {
+      return { state: "coverage-required" as const, action: policyAdmission.action };
+    }
+    const logicalPass = policyAdmission.pass;
+    if (retryingLocalFailure !== undefined
+      && logicalPass !== retryingLocalFailure.logicalPass) {
+      throw new LocalPrepareCommandError("local review retry changed its admitted logical pass");
+    }
+    const retryGeneration = nextLocalRetryGeneration(owner, logicalPass, input);
+    const admissionInput = {
+      target,
+      requirement,
+      authority,
+      laneSourceId: dependencies.laneSourceId,
+      scopeMode,
+      policyBindingDigest: policy.binding.bindingDigest,
+      requestMechanism: policy.binding.requestMechanism,
+      coverageAdmission,
+      lineage,
+      logicalPass,
+      retryGeneration,
+      ...(request.deliveryAdmission === undefined
+        ? {}
+        : { deliveryAdmission: request.deliveryAdmission }),
+    };
+    const admitted = await admitLocalPreparation(input, admissionInput);
+    await recordPreparedLocalAdmission(input, admitted, ownerVersion);
+    return admitted;
+}
+
+function presentLocalPreparationResult(input: {
+  settled: Awaited<ReturnType<typeof settleLocalPreparation>> | null;
+  allDiagnostics: readonly string[];
+  target: ReviewTarget;
+  guidance: LocalReviewGuidance;
+}): z.infer<typeof LocalPrepareEnvelopeSchema> {
+  const { settled } = input;
+  if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
+  if (settled.state === "replayed") return settled.envelope;
+  if (settled.state === "coverage-required") {
+    return LocalPrepareEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-prepare",
+      diagnostics: diagnostics(input.allDiagnostics),
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      payload: { coverageSelectionAction: settled.action },
+    });
+  }
+  if (settled.state === "completed") {
+    return LocalPrepareEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-prepare",
+      diagnostics: diagnostics(input.allDiagnostics),
+      state: "review-complete",
+      nextAction: "reduce",
+      payload: {
+        operationId: settled.operationId,
+        persistedVersion: settled.persistedVersion,
+        target: input.target,
+      },
+    });
+  }
+  const { resolution, preparation } = settled;
+  const sourcePayload = createLocalReviewSourcePayload(resolution, preparation);
+  return LocalPrepareEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-local-prepare",
+    diagnostics: diagnostics(input.allDiagnostics),
+    state: "ready",
+    nextAction: "launch-review",
+    payload: {
+      operationId: resolution.operationId,
+      persistedVersion: preparation.persistedVersion,
+      target: input.target,
+      request: resolution.carrier.request,
+      reviewerPayload: {
+        schemaVersion: 1,
+        ...sourcePayload,
+        guidance: input.guidance.projection,
+        guidanceDigest: input.guidance.guidanceDigest,
+        reviewerInstructions: preparation.state.reviewerInstructions,
+      },
+      sourceRef: preparation.sourceRef,
+      sourceDigest: preparation.sourceDigest,
+    },
+  });
+}
+
+async function resolveLocalPreparationContext(
+  request: LocalPrepareRequest,
   dependencies: LocalPrepareDependencies,
-): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
-  const request = LocalPrepareRequestSchema.parse(requestInput);
+) {
   const repositoryId = await dependencies.resolveRepositoryId();
   // Authority resolves first: derivation needs the member coordinates it records,
   // and a named member's target is those coordinates rather than the checkout's.
@@ -483,6 +918,17 @@ export async function prepareLocalReview(
     && coverageAdmission.correctionScope.headSha !== target.headSha) {
     throw new LocalPrepareCommandError("local review correction scope does not match its target");
   }
+  return { repositoryId, authority, target, cleanupTtlMs, lineage, scopeMode, coverageAdmission };
+}
+
+/** Derive, admit, optionally renew liveness, and prove one local review operation. */
+export async function prepareLocalReview(
+  requestInput: unknown,
+  dependencies: LocalPrepareDependencies,
+): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
+  const request = LocalPrepareRequestSchema.parse(requestInput);
+  const { repositoryId, authority, target, cleanupTtlMs, lineage, scopeMode, coverageAdmission } =
+    await resolveLocalPreparationContext(request, dependencies);
   const laneLock = { lane: "standard" as const, repositoryId, headSha: target.headSha, lineage };
   const withAdmissionLocks = <T>(action: () => Promise<T>): Promise<T> =>
     dependencies.withLaneOperationLock(
@@ -574,325 +1020,21 @@ export async function prepareLocalReview(
       throw new LocalPrepareCommandError("local review target does not match its delivery admission");
     }
   }
-  const settled = await retryLaneOwnerConflicts(() => withAdmissionLocks(async () => {
-    const concurrentReplay = await replayPendingLocalAdmission({
-      request,
-      dependencies,
-      repositoryId,
-      target,
-      lineage,
-      scopeMode,
-      coverageAdmission,
-      cleanupTtlMs,
-    });
-    if (concurrentReplay !== null) {
-      return { state: "replayed" as const, envelope: concurrentReplay };
-    }
-    const { version: ownerVersion, state: owner } = await readLaneProgressOwnerVersioned(
-      dependencies.operationStore,
-      {
-        lane: "standard",
-        repositoryId,
-        headSha: target.headSha,
-        lineage,
-      },
-    );
-    if (request.deliveryAdmission !== undefined) {
-      const currentProjection = await dependencies.validateDeliveryAdmission(request.deliveryAdmission);
-      if ((admittedProjection !== undefined && currentProjection === undefined)
-        || (currentProjection !== undefined
-          && canonicalize(currentProjection) !== canonicalize(projection))) {
-        throw new LocalPrepareCommandError("local delivery review policy changed before preparation");
-      }
-    }
-    const currentAttempts = owner?.attempts.filter((attempt): attempt is typeof attempt & {
-      outcome: Exclude<typeof attempt.outcome, "pending">;
-    } => attempt.headSha === target.headSha && attempt.outcome !== "pending") ?? [];
-    const activeAttempts = currentAttempts;
-    const retryableLocalFailure = activeAttempts.at(-1);
-    const retryingLocalFailure = retryableLocalFailure?.outcome === "terminal-failure"
-      && retryableLocalFailure.local !== undefined
-      && retryableLocalFailure.sourceId === dependencies.laneSourceId
-      && retryableLocalFailure.local.scopeMode === scopeMode
-      && canonicalize(localAttemptCoverageAdmission(retryableLocalFailure.local))
-        === canonicalize(coverageAdmission)
-      ? retryableLocalFailure
-      : undefined;
-    const policyAttempts = activeAttempts.filter((attempt) => (
-      retryingLocalFailure === undefined
-      || attempt.outcome !== "terminal-failure"
-      || attempt.local === undefined
-      || attempt.sourceId !== dependencies.laneSourceId
-      || attempt.logicalPass !== retryingLocalFailure.logicalPass
-    )).map(projectReviewPolicyAttempt);
-    const predecessorOperationId = [...(owner?.attempts ?? [])].reverse().find((attempt) => (
-      attempt.terminalProducer
-      && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
-      && attempt.headSha !== target.headSha
-    ))?.attemptId;
-    const policyAdmission = request.deliveryAdmission === undefined
-      ? await dependencies.validatePolicyAdmission({
-          repositoryId,
-          target,
-          lineage,
-          standardReview: projection,
-          completedPasses: owner?.completedPasses ?? 0,
-          attempts: policyAttempts,
-          terminalResponsePerformed: currentAttempts.at(-1)?.outcome === "settled-findings",
-          ...(predecessorOperationId === undefined ? {} : { predecessorOperationId }),
-          ...(request.coverageAdmission === undefined
-            ? {}
-            : { coverageAdmission: request.coverageAdmission }),
-          ...(request.policyJudgment === undefined ? {} : { judgment: request.policyJudgment }),
-        })
-      : { state: "ready" as const, pass: request.deliveryAdmission.pass };
-    if (policyAdmission.state === "coverage-required") {
-      return { state: "coverage-required" as const, action: policyAdmission.action };
-    }
-    const logicalPass = policyAdmission.pass;
-    if (retryingLocalFailure !== undefined
-      && logicalPass !== retryingLocalFailure.logicalPass) {
-      throw new LocalPrepareCommandError("local review retry changed its admitted logical pass");
-    }
-    const priorRetryGenerations = owner?.attempts
-      .filter((attempt) => attempt.logicalPass === logicalPass
-        && attempt.sourceId === dependencies.laneSourceId
-        && attempt.local?.scopeMode === scopeMode
-        && canonicalize(localAttemptCoverageAdmission(attempt.local)) === canonicalize(coverageAdmission))
-      .map(({ retryGeneration }) => retryGeneration) ?? [];
-    const retryGeneration = priorRetryGenerations.length === 0
-      ? 0
-      : Math.max(...priorRetryGenerations) + 1;
-    const admissionInput = {
-      target,
-      requirement,
-      authority,
-      laneSourceId: dependencies.laneSourceId,
-      scopeMode,
-      policyBindingDigest: policy.binding.bindingDigest,
-      requestMechanism: policy.binding.requestMechanism,
-      coverageAdmission,
-      lineage,
-      logicalPass,
-      retryGeneration,
-      ...(request.deliveryAdmission === undefined
-        ? {}
-        : { deliveryAdmission: request.deliveryAdmission }),
-    };
-    let admitted:
-      | {
-          state: "prepared";
-          resolution: LocalReviewAdmissionResolution;
-          preparation: LocalReviewPreparation;
-        }
-      | {
-          state: "completed";
-          operationId: string;
-          persistedVersion: number;
-        }
-      | null = null;
-    for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
-      const existingVerification: {
-        value?: { source: LocalReviewSource; reviewRoot: string };
-        renewal?: {
-          source: LocalReviewSource;
-          refreshLiveness: boolean;
-        };
-        completed?: true;
-      } = {};
-      const resolution = await resolveLocalReviewAdmission(admissionInput, {
-        store: dependencies.operationStore,
-        verifyExisting: async (state) => {
-          const source = await dependencies.sourceStore.readSource(state.sourceRef);
-          if (source === null
-            || source.sourceDigest !== state.sourceDigest
-            || source.targetId !== state.targetId) {
-            throw new LocalPrepareCommandError("local review source reference mismatch");
-          }
-          const ledger = await dependencies.readReceipts(state.targetId);
-          const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
-          if (receipts.length > 1) {
-            throw new LocalPrepareCommandError(
-              "local review operation has multiple terminal receipts",
-            );
-          }
-          if (receipts.length === 1) {
-            existingVerification.completed = true;
-            return;
-          }
-          const refreshLiveness = cleanupExpired(state, dependencies.now());
-          if (refreshLiveness
-            || state.attestation.runtimeIdentity !== authority.runtimeIdentity) {
-            existingVerification.renewal = { source, refreshLiveness };
-            return;
-          }
-          const materialized = await dependencies.materialize(source);
-          existingVerification.value = { source, reviewRoot: materialized.reviewRoot };
-        },
-      });
-      if (resolution.state === "existing") {
-        if (existingVerification.completed === true) {
-          admitted = {
-            state: "completed",
-            operationId: resolution.operationId,
-            persistedVersion: resolution.persistedVersion,
-          };
-          break;
-        }
-        const renewal = existingVerification.renewal;
-        if (renewal !== undefined) {
-          const renewedState = LocalReviewStateSchema.parse({
-            ...resolution.persistedState,
-            ...(renewal.refreshLiveness
-              ? {
-                  updatedAt: dependencies.now(),
-                  cleanupTtlMs,
-                }
-              : {}),
-            attestation: {
-              ...resolution.persistedState.attestation,
-              runtimeIdentity: authority.runtimeIdentity,
-            },
-          });
-          const published = await dependencies.operationStore.publishOperation(
-            renewedState,
-            resolution.persistedVersion,
-          );
-          const materialized = await dependencies.materialize(renewal.source);
-          admitted = {
-            state: "prepared",
-            resolution,
-            preparation: {
-              persistedVersion: published.version,
-              state: renewedState,
-              sourceRef: renewedState.sourceRef,
-              sourceDigest: renewal.source.sourceDigest,
-              reviewRoot: materialized.reviewRoot,
-            },
-          };
-          break;
-        }
-        const verified = existingVerification.value;
-        if (verified === undefined) throw new Error("existing local review was not verified");
-        admitted = {
-          state: "prepared",
-          resolution,
-          preparation: {
-            persistedVersion: resolution.persistedVersion,
-            state: resolution.persistedState,
-            sourceRef: resolution.persistedState.sourceRef,
-            sourceDigest: verified.source.sourceDigest,
-            reviewRoot: verified.reviewRoot,
-          },
-        };
-        break;
-      }
-      const source = LocalReviewSourceSchema.parse(
-        await dependencies.describeSource(resolution.operationId, target, coverageAdmission),
-      );
-      try {
-        const preparation = await publishLocalReviewPreparation(
-          createLocalReviewAdmission(admissionInput),
-          source,
-          {
-            sourceStore: dependencies.sourceStore,
-            operationStore: dependencies.operationStore,
-            materialize: (candidate) => dependencies.materialize(candidate),
-            now: () => dependencies.now(),
-            cleanupTtlMs,
-            guidance: assurance.guidance,
-          },
-        );
-        admitted = { state: "prepared", resolution, preparation };
-        break;
-      } catch (error) {
-        if (!isReviewVersionConflict(error)) throw error;
-      }
-    }
-    if (admitted?.state === "prepared") {
-      let pendingOwnerVersion = ownerVersion;
-      const conditionalPassAuthorizationId = request.policyJudgment?.ceilingOverride
-        ?.conditionalPassAuthorizationId;
-      if (conditionalPassAuthorizationId !== undefined) {
-        await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
-          authorizationId: conditionalPassAuthorizationId,
-          repositoryId,
-          lane: "standard",
-          lineage,
-          producedHeadSha: target.headSha,
-          nextPass: admitted.preparation.state.logicalPass,
-          admissionId: admitted.preparation.state.operationId,
-          now: dependencies.now(),
-        }, (producerId, dispositionSetId) => dependencies.confirmDispositionSetCurrent(
-          producerId,
-          dispositionSetId,
-        ));
-        pendingOwnerVersion = (await readLaneProgressOwnerVersioned(
-          dependencies.operationStore,
-          {
-            lane: "standard",
-            repositoryId,
-            headSha: target.headSha,
-            lineage,
-          },
-        )).version;
-      }
-      await recordLocalPendingAttempt(dependencies.operationStore, {
-        state: admitted.preparation.state,
-        ownerVersion: pendingOwnerVersion,
-        now: dependencies.now(),
-      });
-    }
-    return admitted;
-  }));
-  if (settled === null) throw new Error("local review preparation exceeded version-conflict retry attempts");
-  if (settled.state === "replayed") return settled.envelope;
-  if (settled.state === "coverage-required") {
-    return LocalPrepareEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-local-prepare",
-      diagnostics: diagnostics(allDiagnostics),
-      state: "coverage-required",
-      nextAction: "select-coverage",
-      payload: { coverageSelectionAction: settled.action },
-    });
-  }
-  if (settled.state === "completed") {
-    return LocalPrepareEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-local-prepare",
-      diagnostics: diagnostics(allDiagnostics),
-      state: "review-complete",
-      nextAction: "reduce",
-      payload: {
-        operationId: settled.operationId,
-        persistedVersion: settled.persistedVersion,
-        target,
-      },
-    });
-  }
-  const { resolution, preparation } = settled;
-  const sourcePayload = createLocalReviewSourcePayload(resolution, preparation);
-  return LocalPrepareEnvelopeSchema.parse({
-    schemaVersion: 1,
-    mode: "review-local-prepare",
-    diagnostics: diagnostics(allDiagnostics),
-    state: "ready",
-    nextAction: "launch-review",
-    payload: {
-      operationId: resolution.operationId,
-      persistedVersion: preparation.persistedVersion,
-      target,
-      request: resolution.carrier.request,
-      reviewerPayload: {
-        schemaVersion: 1,
-        ...sourcePayload,
-        guidance: assurance.guidance.projection,
-        guidanceDigest: assurance.guidance.guidanceDigest,
-        reviewerInstructions: preparation.state.reviewerInstructions,
-      },
-      sourceRef: preparation.sourceRef,
-      sourceDigest: preparation.sourceDigest,
-    },
-  });
+  const settled = await retryLaneOwnerConflicts(() => withAdmissionLocks(() => settleLocalPreparation({
+    request,
+    dependencies,
+    repositoryId,
+    target,
+    lineage,
+    scopeMode,
+    coverageAdmission,
+    cleanupTtlMs,
+    admittedProjection,
+    projection,
+    requirement,
+    policy,
+    authority,
+    assurance,
+  })));
+  return presentLocalPreparationResult({ settled, allDiagnostics, target, guidance: assurance.guidance });
 }

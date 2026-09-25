@@ -21,6 +21,7 @@ const member = {
   headRef: "delivery/plan-1/member-1",
   head: HEAD,
   candidateHead: HEAD,
+  successorHeads: [],
   isFinalMember: false,
 };
 

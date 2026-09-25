@@ -178,17 +178,41 @@ function compatibleStandardPolicy(left: ReviewResult, right: ReviewResult): bool
   return canonicalize(project(left)) === canonicalize(project(right));
 }
 
-/**
- * Resolve one result to a complete coverage root through immutable producer references.
- *
- * @param current - Fresh terminal producer whose effective coverage is being evaluated.
- * @param dependencies - Complete producer reader, response evidence, and current applicability proof.
- * @returns Adequate complete coverage or one typed reason the chain cannot close the lane/member.
- */
-export async function resolveIncrementalCoverageBasis(
+function validatePredecessor(
+  predecessor: ReviewResult,
+  result: ReviewResult,
+  expectedHeadSha: string,
+): Extract<IncrementalCoverageBasisResult, { readonly status: "inadequate" }> | null {
+    if (predecessor.target.headSha !== expectedHeadSha) {
+      return inadequate("predecessor-target-mismatch", { producerId: predecessor.producerId });
+    }
+    if (resultLane(predecessor) !== resultLane(result)) {
+      return inadequate("incompatible-lane", { producerId: predecessor.producerId });
+    }
+    if (predecessor.repositoryId !== result.repositoryId) {
+      return inadequate("incompatible-repository", { producerId: predecessor.producerId });
+    }
+    if (!sameLineage(predecessor, result)) {
+      return inadequate("incompatible-lineage", { producerId: predecessor.producerId });
+    }
+    if (!compatibleStandardPolicy(predecessor, result)) {
+      return inadequate("incompatible-policy", { producerId: predecessor.producerId });
+    }
+  return null;
+}
+
+type ResolvedCoverageBasis = {
+      readonly status: "adequate";
+      readonly basisProducerId: string;
+      readonly basisHeadSha: string;
+      readonly producerIds: readonly string[];
+      readonly requiredFindings: readonly IncrementalReviewFindingInstruction[];
+    } | Extract<IncrementalCoverageBasisResult, { readonly status: "inadequate" }>;
+
+async function resolveCoverageChain(
   current: ReviewResult,
   dependencies: IncrementalCoverageBasisDependencies,
-): Promise<IncrementalCoverageBasisResult> {
+): Promise<ResolvedCoverageBasis> {
   const reads = new Map<string, Promise<ReviewResult | null>>();
   const read = (producerId: string): Promise<ReviewResult | null> => {
     const existing = reads.get(producerId);
@@ -197,14 +221,6 @@ export async function resolveIncrementalCoverageBasis(
     reads.set(producerId, pending);
     return pending;
   };
-
-  type ResolvedCoverageBasis = {
-      readonly status: "adequate";
-      readonly basisProducerId: string;
-      readonly basisHeadSha: string;
-      readonly producerIds: readonly string[];
-      readonly requiredFindings: readonly IncrementalReviewFindingInstruction[];
-    } | Extract<IncrementalCoverageBasisResult, { readonly status: "inadequate" }>;
 
   const visit = async (
     result: ReviewResult,
@@ -231,21 +247,8 @@ export async function resolveIncrementalCoverageBasis(
     if (predecessor === null) {
       return inadequate("predecessor-unavailable", { producerId: scope.predecessorProducerId });
     }
-    if (predecessor.target.headSha !== scope.predecessorHeadSha) {
-      return inadequate("predecessor-target-mismatch", { producerId: predecessor.producerId });
-    }
-    if (resultLane(predecessor) !== resultLane(result)) {
-      return inadequate("incompatible-lane", { producerId: predecessor.producerId });
-    }
-    if (predecessor.repositoryId !== result.repositoryId) {
-      return inadequate("incompatible-repository", { producerId: predecessor.producerId });
-    }
-    if (!sameLineage(predecessor, result)) {
-      return inadequate("incompatible-lineage", { producerId: predecessor.producerId });
-    }
-    if (!compatibleStandardPolicy(predecessor, result)) {
-      return inadequate("incompatible-policy", { producerId: predecessor.producerId });
-    }
+    const predecessorFailure = validatePredecessor(predecessor, result, scope.predecessorHeadSha);
+    if (predecessorFailure !== null) return predecessorFailure;
     const applicability = await dependencies.confirmApplicability(predecessor, current)
       .catch(() => "unavailable" as const);
     if (applicability !== "applicable") {
@@ -303,7 +306,21 @@ export async function resolveIncrementalCoverageBasis(
     };
   };
 
-  const resolved = await visit(current, new Set([current.producerId]));
+  return visit(current, new Set([current.producerId]));
+}
+
+/**
+ * Resolve one result to a complete coverage root through immutable producer references.
+ *
+ * @param current - Fresh terminal producer whose effective coverage is being evaluated.
+ * @param dependencies - Complete producer reader, response evidence, and current applicability proof.
+ * @returns Adequate complete coverage or one typed reason the chain cannot close the lane/member.
+ */
+export async function resolveIncrementalCoverageBasis(
+  current: ReviewResult,
+  dependencies: IncrementalCoverageBasisDependencies,
+): Promise<IncrementalCoverageBasisResult> {
+  const resolved = await resolveCoverageChain(current, dependencies);
   if (resolved.status === "inadequate") return resolved;
   return {
     status: "adequate",
