@@ -1,8 +1,8 @@
 # Metadata: decompose-conservation-coverage
 
-| **State**     | **Owner** | **Branch**                             | **Class** | **Priority** |
-| ------------- | --------- | -------------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/decompose-conservation-coverage` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `decompose-transform-integrity/decompose-core-hardening`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:df6a0b4715a51326283b81af51e390aff2d2a2e8470eb91e081eedf612673a1f`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 4.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/712>
+- **Completed:** 2026-09-24
 
 ---
 
