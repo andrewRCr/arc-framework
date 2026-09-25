@@ -103,6 +103,29 @@ function isDispositionSuccessorAdvance(
     === canonicalize(expectedHistorical);
 }
 
+function isPolicyProjectionAdvance(
+  existing: ApprovedDispositionRecord,
+  next: ApprovedDispositionRecord,
+): boolean {
+  if (existing.currentDispositionSetId !== next.currentDispositionSetId
+    || existing.approvedDispositionLineage.length !== next.approvedDispositionLineage.length) return false;
+  const oldCurrent = currentApprovedDispositionNode(existing);
+  const newCurrent = currentApprovedDispositionNode(next);
+  if (oldCurrent.policyProjectionPending !== true
+    || newCurrent.policyProjectionPending === true
+    || oldCurrent.errandFixResponse !== null
+    || oldCurrent.deliveryMemberFixResponse !== null) return false;
+  const withoutProjection = (record: ApprovedDispositionRecord): unknown => ({
+    ...record,
+    approvedDispositionLineage: record.approvedDispositionLineage.map((node) => (
+      node.approvedDisposition.dispositionSet.dispositionSetId === record.currentDispositionSetId
+        ? { ...node, responsePolicyRequest: null, policyProjectionPending: null }
+        : node
+    )),
+  });
+  return canonicalize(withoutProjection(existing)) === canonicalize(withoutProjection(next));
+}
+
 /**
  * Confirm that an approved disposition set remains current for its producing operation.
  *
@@ -168,11 +191,13 @@ implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
         const fixResponseAdvance = isFixResponseAdvance(existing, record);
         const deliveryMemberBindingAdvance = isExactDeliveryMemberBindingAdvance(existing, record);
         const successorAdvance = isDispositionSuccessorAdvance(existing, record);
+        const policyProjectionAdvance = isPolicyProjectionAdvance(existing, record);
         if (canonicalize(existing) !== canonicalize(record)
-          && !fixResponseAdvance && !deliveryMemberBindingAdvance && !successorAdvance) {
+          && !fixResponseAdvance && !deliveryMemberBindingAdvance
+          && !successorAdvance && !policyProjectionAdvance) {
           throw new LocalReviewRecordStoreError("local-disposition-conflict");
         }
-        if (fixResponseAdvance || deliveryMemberBindingAdvance || successorAdvance) {
+        if (fixResponseAdvance || deliveryMemberBindingAdvance || successorAdvance || policyProjectionAdvance) {
           return {
             kind: "write",
             content: `${JSON.stringify(record)}\n`,

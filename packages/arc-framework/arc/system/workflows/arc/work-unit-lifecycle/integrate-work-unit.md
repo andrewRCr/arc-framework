@@ -289,7 +289,7 @@ resumes the retained attempt and never requests another hosted review. Preserve 
 any returned hosted settlement plan through the phase-ordered settlement path below, then re-enter through
 `arc review status`.
 Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
-ceiling override into the named hosted, local, or Frontline admission; never reconstruct the authorization ID.
+ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -377,7 +377,9 @@ prior count.
   next-pass admission.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
-  every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
+  every stop state remains a stop. After the required phases complete, follow the approved response continuation
+  and, after a fix, the verified-fix response continuation through the owning status or resolve action. Do not feed
+  the same findings to the driver again.
 - `rate-limited | transient-unavailable / try-next-source` — a delivery member re-enters status; an ordinary
   singleton feeds that safe outcome to the same driver call. The outcome does not consume the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay

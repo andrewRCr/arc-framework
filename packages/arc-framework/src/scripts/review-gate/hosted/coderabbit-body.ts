@@ -22,6 +22,10 @@ function severity(body: string): "critical" | "major" | "minor" | null {
   }
 }
 
+function severityOnMetadataLine(body: string, start: number): ReturnType<typeof severity> {
+  return severity(body.slice(start).split(/\r?\n/u, 1)[0] ?? "");
+}
+
 type UnorderedThreadFinding = Omit<Extract<HostedFinding, { origin: "review-thread" }>, "sourceOrdinal">;
 
 export function finding(
@@ -474,7 +478,6 @@ function parseSupplementalSection(
       const originalItem = originalGroupBody.slice(itemStart, marker.index);
       const loci = [...semanticItem.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+)`:\s*_/gmu)];
       const locusMatch = loci.at(-1);
-      const parsedSeverity = severity(semanticItem);
       const findingContext = {
         category: section.category,
         group: group.path,
@@ -486,6 +489,7 @@ function parseSupplementalSection(
       if (locusMatch?.[1] === undefined) {
         return malformedWithContext("provider-body-finding-locus-unrecognized", findingContext);
       }
+      const parsedSeverity = severityOnMetadataLine(semanticItem, locusMatch.index);
       if (parsedSeverity === null) {
         return malformedWithContext("provider-body-finding-severity-unrecognized", findingContext);
       }

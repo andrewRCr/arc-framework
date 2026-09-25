@@ -4,7 +4,7 @@ import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import type { StandardReviewObligationProjection } from "../../../../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 
-import { createReviewRequirement, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createReviewReceipt, createReviewRequirement, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewReceiptV2 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { ReviewOperationState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
@@ -1043,7 +1043,7 @@ describe("local review member preparation", () => {
         });
         context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2 });
 
-        await expect(prepareLocalReview({
+        const authorizedRequest = {
           ...request,
           policyJudgment: {
             ceilingOverride: {
@@ -1052,7 +1052,8 @@ describe("local review member preparation", () => {
               conditionalPassAuthorizationId: captured.authorizationId,
             },
           },
-        }, context.dependencies)).resolves.toMatchObject({
+        };
+        await expect(prepareLocalReview(authorizedRequest, context.dependencies)).resolves.toMatchObject({
           state: "ready",
           nextAction: "launch-review",
           payload: { request: { logicalPass: 2 } },
@@ -1071,6 +1072,41 @@ describe("local review member preparation", () => {
               })],
             }),
           })]),
+        });
+        const second = context.published();
+        const secondOwner = context.laneProgress();
+        if (second?.kind !== "local-review" || secondOwner?.kind !== "lane-progress") {
+          throw new Error("authorized local attempt was not prepared");
+        }
+        const secondBinding = secondOwner.attempts.find(({ attemptId }) => attemptId === second.operationId)?.local;
+        if (secondBinding === undefined) throw new Error("authorized local binding is unavailable");
+        const receipt = createReviewReceipt({
+          target: second.target,
+          requirement: second.requirement,
+          request: second.request,
+          applicabilityId: null,
+          reviewRunId: "authorized-pass-2-run",
+          evaluatorIdentity: second.request.evaluatorIdentity,
+          attestingRuntimeIdentity: second.attestation.runtimeIdentity,
+          attestationMechanism: second.attestation.mechanism,
+          providerEventIdentity: null,
+          result: "clean",
+          findings: [],
+        });
+        await recordLaneAttempt(context.dependencies.operationStore, {
+          lane: "standard", repositoryId: second.repositoryId, changeRequestId: null,
+          headSha: second.target.headSha, lineage: second.lineage,
+          logicalPass: 2, retryGeneration: second.retryGeneration,
+          attemptId: second.operationId, sourceId: second.laneSourceId,
+          outcome: "clean", consumedPass: true, chunkSeriesComplete: true,
+          advancePendingAttempt: true,
+          local: { ...secondBinding, effectiveCoverage: secondBinding.requestedCoverage },
+          now: "2026-08-06T18:02:00Z",
+        });
+        context.dependencies.readReceipts = async () => ({ ledgerVersion: 1, receipts: [receipt] });
+        await expect(prepareLocalReview(authorizedRequest, context.dependencies)).resolves.toMatchObject({
+          state: "review-complete", nextAction: "reduce",
+          payload: { operationId: second.operationId },
         });
       });
 

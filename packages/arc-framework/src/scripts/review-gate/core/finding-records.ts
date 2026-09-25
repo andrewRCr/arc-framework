@@ -16,7 +16,7 @@ export const ReviewFindingIdentitySchema = z.string().trim().min(1).max(512)
   });
 /** Bounded source location carried with a normalized review finding. */
 export const ReviewFindingLocusSchema = z.string().trim().min(1).max(2048);
-const MarkdownPunctuation = new Set(Array.from("\\`*_{}[]()#+.!|-"));
+const MarkdownPunctuation = new Set(Array.from("\\`*_{}[]()#+.!|-~"));
 export const ReviewFindingSourceOrdinalSchema = z.int().positive();
 export const ReviewFindingSourceLabelSchema = z.string()
   .refine((value) => value.trim().length > 0, { message: "source label must contain visible text" })

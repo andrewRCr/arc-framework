@@ -116,7 +116,10 @@ import {
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
-import { createHostedTerminalAttemptFixture } from "../fixtures/hosted-review.js";
+import {
+  createHostedTerminalAttemptFixture,
+  publishHostedTerminalProgressFixture,
+} from "../fixtures/hosted-review.js";
 import { HostedFindingSchema } from "../../src/scripts/review-gate/hosted/await.js";
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runHandlerAt, type HandlerRunResult } from "../helpers/handler.js";
@@ -138,7 +141,9 @@ function deliveryHostedTerminal(input: {
   requirement: Parameters<typeof createHostedAdmission>[0]["requirement"];
   vehicle: Parameters<typeof createHostedAdmission>[0]["vehicle"];
   outcome: "clean" | "findings";
+  logicalPass?: number;
   findings?: readonly unknown[];
+  findingActions?: Parameters<typeof createHostedTerminalAttemptFixture>[0]["findingActions"];
   dispositionSetId?: string;
   settledFindingIds?: readonly string[];
   actorIdentity?: string;
@@ -153,7 +158,7 @@ function deliveryHostedTerminal(input: {
       deliverableId: input.vehicle.deliverableId,
       workUnitId: input.vehicle.workUnitId,
     },
-    logicalPass: 1,
+    logicalPass: input.logicalPass ?? 1,
     sourceId: "codex-pr",
     target: input.target,
     requestedCoverage: "complete",
@@ -166,6 +171,7 @@ function deliveryHostedTerminal(input: {
     admission,
     outcome: input.outcome,
     findings: input.findings?.map((finding) => HostedFindingSchema.parse(finding)),
+    findingActions: input.findingActions,
     dispositionSetId: input.dispositionSetId,
     settledFindingIds: input.settledFindingIds,
   });
@@ -1381,6 +1387,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       outcome: "findings",
       findings: [{
                 findingId: "finding-response-loss",
+                sourceOrdinal: 1,
                 origin: "review-thread",
                 commentId: "comment-response-loss",
                 threadId: "thread-response-loss",
@@ -1390,36 +1397,31 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
                 url: "https://example.test/thread-response-loss",
               }],
       dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: "finding-response-loss",
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
       settledFindingIds: [],
     });
-        await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
       operationId: "lane-progress/response-loss",
-      updatedAt: "2026-08-31T12:00:00Z",
-      kind: "lane-progress",
-      lane: "standard",
       repositoryId: "repo-1",
       lineage: hostedTerminal1.hosted.admission.lineage,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: hostedTerminal1.attemptId,
-        logicalPass: 1,
-        retryGeneration: 0,
-        changeRequestId: `pull/${hostedTerminal1.hosted.target.pullRequest}`,
-        headSha: hostedTerminal1.hosted.target.headSha,
-        terminalProducer: true,
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: hostedTerminal1.hosted,
-      }],
-    }, 0);
+      logicalPass: 1,
+      changeRequestId: `pull/${hostedTerminal1.hosted.target.pullRequest}`,
+      headSha: hostedTerminal1.hosted.target.headSha,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: hostedTerminal1,
+      now: "2026-08-31T12:00:00Z",
+    });
     const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
     const pendingResponseRecord = approvedDispositionRecord({
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
-        operationId: "operation-response-loss",
+        operationId: hostedTerminal1.attemptId,
         candidate: null,
         errand: null,
         deliveryMember: {
@@ -3312,6 +3314,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     if (requirement === null) throw new Error("hosted review requirement must derive");
     const finding = {
       findingId: "finding-published",
+      sourceOrdinal: 1,
       origin: "review-thread" as const,
       commentId: "comment-published",
       threadId: "thread-published",
@@ -3336,36 +3339,31 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       outcome: "findings",
       findings: [finding],
       dispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
       settledFindingIds: [],
     });
-        await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
       operationId: "lane-progress/published",
-      updatedAt: "2026-08-31T12:00:00Z",
-      kind: "lane-progress",
-      lane: "standard",
       repositoryId: "repo-1",
       lineage: hostedTerminal3.hosted.admission.lineage,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: hostedTerminal3.attemptId,
-        logicalPass: 1,
-        retryGeneration: 0,
-        changeRequestId: `pull/${hostedTerminal3.hosted.target.pullRequest}`,
-        headSha: hostedTerminal3.hosted.target.headSha,
-        terminalProducer: true,
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: hostedTerminal3.hosted,
-      }],
-    }, 0);
+      logicalPass: 1,
+      changeRequestId: `pull/${hostedTerminal3.hosted.target.pullRequest}`,
+      headSha: hostedTerminal3.hosted.target.headSha,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: hostedTerminal3,
+      now: "2026-08-31T12:00:00Z",
+    });
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(
       approvedDispositionRecord({
         schemaVersion: 1,
         semanticsVersion: "review-advisory/v1",
         repositoryId: "repo-1",
-        operationId: "operation-published-member-fix",
+        operationId: hostedTerminal3.attemptId,
         candidate: null,
         errand: null,
         deliveryMember: {
@@ -3838,7 +3836,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       headSha: oldTarget.headSha,
       headTree: oldTarget.headTree,
     });
-    const replayRubricDigest = canonicalDigest({ rubric: "standard" });
+    const replayRubricDigest = `sha256:${"f".repeat(64)}`;
     const replayRequirement = createReviewRequirement({
       target: replayOldTarget,
       projection: {
@@ -3853,14 +3851,32 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       initialAdmission: "checkpoint",
     });
     if (replayRequirement === null) throw new Error("response replay requirement must derive");
+    const replaySourceTerminal = deliveryHostedTerminal({
+      repositoryId: replayOldTarget.repositoryId,
+      target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
+      reviewTarget: replayOldTarget,
+      requirement: replayRequirement,
+      vehicle: DeliveryReviewMemberVehicleSchema.parse({
+        kind: "delivery-member",
+        planId: fixture.plan.planId,
+        deliverableId: selectedDeliverableId,
+        workUnitId: fixture.plan.workUnitId,
+        head: reviewedHead,
+      }),
+      actorIdentity: "host-actor-1",
+      outcome: "findings",
+      findings: [finding],
+    });
+    const replayResultId = replaySourceTerminal.hosted.sealedResult?.hostedResultId;
+    if (replayResultId === undefined) throw new Error("replay hosted result must be sealed");
     const replayApprovedDisposition = approveDispositionState({
       proposed: proposeDispositionSet(createDispositionSet({
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: replayOldTarget.targetId,
-        producerId: "codex-pr/replay",
-        resultDigest: canonicalDigest({ result: "codex-pr/replay" }),
-        proposedVerification: "full",
+        producerId: replaySourceTerminal.attemptId,
+        resultDigest: replayResultId,
+        proposedVerification: "focused",
         policyVersion: replayRequirement.policyVersion,
         rubricVersion: replayRequirement.rubricVersion,
         rubricDigest: replayRequirement.rubricDigest,
@@ -3899,9 +3915,19 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       outcome: "findings",
       findings: [finding],
       dispositionSetId: replayApprovedDisposition.dispositionSet.dispositionSetId,
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "fix",
+        channelAction: "reply-and-resolve",
+      }],
       settledFindingIds: [],
     });
-        const replayOperationId = "lane-progress/response-replay";
+    const replayOperationId = laneProgressOperationId({
+      lane: "standard",
+      repositoryId,
+      headSha: hostedTerminal4.hosted.target.headSha,
+      lineage: hostedTerminal4.hosted.admission.lineage,
+    });
     const replayAttemptId = hostedTerminal4.attemptId;
     const replaySource = {
       kind: "hosted" as const,
@@ -3957,28 +3983,18 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     if (replayResponse.status === "refused") throw new Error(replayResponse.reason);
     await new LocalApprovedDispositionRecordStore(publisher).appendDispositionRecord(replayResponse.record);
-    await new LocalReviewOperationStateStore(publisher).publishOperation({
-      schemaVersion: 1,
-      semanticsVersion: "review-operation/v1",
+    await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
       operationId: replayOperationId,
-      updatedAt: "2026-08-31T12:12:00Z",
-      kind: "lane-progress",
-      lane: "standard",
       repositoryId,
-        lineage: hostedTerminal4.hosted.admission.lineage,
-      completedPasses: 1,
-      attempts: [{
-        attemptId: hostedTerminal4.attemptId,
-        logicalPass: 1,
-        retryGeneration: 0,
-        changeRequestId: `pull/${hostedTerminal4.hosted.target.pullRequest}`,
-        headSha: hostedTerminal4.hosted.target.headSha,
-        terminalProducer: true,
-        sourceId: "codex-pr",
-        outcome: "findings",
-        hosted: hostedTerminal4.hosted,
-      }],
-    }, 0);
+      lineage: hostedTerminal4.hosted.admission.lineage,
+      logicalPass: 1,
+      changeRequestId: `pull/${hostedTerminal4.hosted.target.pullRequest}`,
+      headSha: hostedTerminal4.hosted.target.headSha,
+      sourceId: "codex-pr",
+      outcome: "findings",
+      terminal: hostedTerminal4,
+      now: "2026-08-31T12:12:00Z",
+    });
 
     const responseApplicability = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-"],
@@ -4029,7 +4045,10 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     expect(JSON.parse(replayedResponse.stdout), replayedResponse.stdout).toMatchObject({
       status: "hosted-settlement-required",
       nextAction: "review-hosted-settle",
-      responsePlan: { source: replaySource, findings: [{ findingId: finding.findingId }] },
+      responsePlan: {
+        source: { kind: "hosted", attemptRef: replaySource.attemptRef },
+        findings: [{ findingId: finding.findingId }],
+      },
       response: {
         state: "delivery-member-current",
         payload: {
@@ -4104,9 +4123,11 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     });
     if (retainedRequirement === null) throw new Error("retained review requirement must derive");
     const retainedAttemptIds = ["retained-first", "retained-second"];
+    const retainedProducerIds: string[] = [];
     for (const [index, retainedAttemptId] of retainedAttemptIds.entries()) {
       const hostedTerminal5 = deliveryHostedTerminal({
         repositoryId: retainedTarget.repositoryId,
+        logicalPass: index + 1,
         target: { repository: "owner/repo", pullRequest: 401, headSha: reviewedHead },
         reviewTarget: retainedTarget,
         requirement: retainedRequirement,
@@ -4117,34 +4138,27 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
                     workUnitId: fixture.plan.workUnitId,
                     head: reviewedHead,
                   }),
-        actorIdentity: "host-actor-1",
+        actorIdentity: `host-actor-retained-${index + 1}`,
         outcome: "clean",
         findings: [],
         settledFindingIds: [],
       });
-            await new LocalReviewOperationStateStore(publisher).publishOperation({
-        schemaVersion: 1,
-        semanticsVersion: "review-operation/v1",
+      retainedProducerIds.push(hostedTerminal5.attemptId);
+      await publishHostedTerminalProgressFixture(new LocalReviewOperationStateStore(publisher), {
         operationId: `lane-progress/${retainedAttemptId}`,
-        updatedAt: `2026-08-31T12:${15 + index}:00Z`,
-        kind: "lane-progress",
-        lane: "standard",
         repositoryId,
         lineage: hostedTerminal5.hosted.admission.lineage,
-        completedPasses: 1,
-        attempts: [{
-          attemptId: hostedTerminal5.attemptId,
-        logicalPass: 1,
-        retryGeneration: 0,
+        logicalPass: index + 1,
         changeRequestId: `pull/${hostedTerminal5.hosted.target.pullRequest}`,
         headSha: hostedTerminal5.hosted.target.headSha,
-        terminalProducer: true,
-          sourceId: "codex-pr",
-          outcome: "clean",
-          hosted: hostedTerminal5.hosted,
-        }],
-      }, 0);
+        sourceId: "codex-pr",
+        outcome: "clean",
+        terminal: hostedTerminal5,
+        now: `2026-08-31T12:${15 + index}:00Z`,
+      });
     }
+    expect(new Set([replayAttemptId, ...retainedProducerIds]).size)
+      .toBe(retainedAttemptIds.length + 1);
 
     const resumedWithRetainedAttempts = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-"],
@@ -4172,8 +4186,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         selectionAction: {
           kind: "review-applicability-selection-batch",
           projections: [
-            { selector: { priorAttemptId: "operation-retained-first" } },
-            { selector: { priorAttemptId: "operation-retained-second" } },
+            ...retainedProducerIds.map((priorAttemptId) => ({ selector: { priorAttemptId } })),
           ],
         },
       },
@@ -4209,7 +4222,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ({ selector }) => selector.priorAttemptId,
     )).toEqual([
       replayAttemptId,
-      ...retainedAttemptIds.map((attemptId) => `operation-${attemptId}`),
+      ...retainedProducerIds,
     ]);
 
     const continuedAfterBatch = await runArcWithStdin(
@@ -4290,6 +4303,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const persistedLocal = await new LocalReviewOperationStateStore(publisher)
       .readOperation(localPreparation.payload.operationId);
     expect(persistedLocal.state).toMatchObject({ deliveryAdmission: localAdmission });
+    const localOperation = persistedLocal.state;
+    if (localOperation?.kind !== "local-review") throw new Error("local review operation is unavailable");
 
     // Observe the same admission once a correction is staged on the top branch, then restore the tree so the
     // rest of this chain runs against the state it expects.
@@ -4312,22 +4327,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })}\n`,
       { env: fixture.env },
     );
-    // The exit code is read after the hold. It is part of the result being held, so asserting it first would
-    // kill a run that reached the awaited result before the hold could say it was spent.
-    expectPinnedObservation(JSON.parse(stagedPrepare.stdout), {
-      behavior: "A correction staged in the operator's index is not part of the member's reviewed contribution, "
-        + "so preparing that member's local review should still admit it rather than fail on an admission the "
-        + "driver minted moments earlier.",
-      observed: {
-        mode: "review-local-prepare",
-        error: {
-          code: "unexpected-failure",
-          message: "Local delivery-member review no longer has exact driver admission.",
-        },
-      },
-      target: { state: "ready" },
+    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(0);
+    expect(JSON.parse(stagedPrepare.stdout)).toMatchObject({
+      state: "ready",
+      nextAction: "launch-review",
+      payload: { operationId: localPreparation.payload.operationId },
     });
-    expect(stagedPrepare.exitCode, `${stagedPrepare.stderr}\n${stagedPrepare.stdout}`).toBe(1);
     await git(fixture.repository, ["rm", "--cached", "-f", "top-correction.txt"]);
     await unlink(join(fixture.repository, "top-correction.txt"));
     const afterUnstage = await runArcWithStdin(
@@ -4377,8 +4382,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           targetId: localPreparation.payload.target.targetId,
           headSha: localPreparation.payload.target.headSha,
           headTree: localPreparation.payload.target.headTree,
-          rubricVersion: localPreparation.payload.reviewerPayload.guidance.rubricVersion,
-          rubricDigest: localPreparation.payload.reviewerPayload.guidance.rubricDigest,
+          rubricVersion: localOperation.requirement.rubricVersion,
+          rubricDigest: localOperation.requirement.rubricDigest,
           sourceDigest: localPreparation.payload.reviewerPayload.sourceDigest,
           guidanceDigest: localPreparation.payload.reviewerPayload.guidanceDigest,
           evaluatorIdentity: localPreparation.payload.request.evaluatorIdentity,

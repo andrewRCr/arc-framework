@@ -477,6 +477,50 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("validates clean and material prior-head producers at their original target", async () => {
+    const original = cleanHostedResult();
+    const { targetId: _targetId, ...currentInput } = original.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({
+      ...currentInput, headSha: objectId("e"), headTree: objectId("f"),
+    });
+    for (const material of [false, true]) {
+      const result = material ? findingsHostedResult(["major"]) : original;
+      const record = material ? approvedRecord(result, [{
+        sourceVerification: "verified", verifiedSeverity: "major", disposition: "reject",
+      }]) : null;
+      const request = {
+        ...(material ? findingsRequest(result) : cleanRequest(result)),
+        target: { ...policyTarget, headSha: currentTarget.headSha },
+      };
+      const evidence = {
+        ...dependencies(result, record, currentTarget),
+        sources: ["codex-pr"], maxPasses: 1,
+      };
+      await expect(resolveEvidenceBoundReviewPolicy(request, evidence))
+        .rejects.toThrow("producer target does not match");
+      await expect(resolveEvidenceBoundReviewPolicy(request, {
+        ...evidence, historicalProducerId: result.producerId,
+      })).resolves.toMatchObject({
+        payload: {
+          verifiedTerminalSignal: {
+            reviewOperationId: result.producerId,
+            confirmedFindingCount: material ? 1 : 0,
+            coverageAdequate: true,
+          },
+        },
+      });
+      const foreignTarget = createReviewTarget({
+        ...currentInput, repositoryId: "foreign-repo", headSha: currentTarget.headSha,
+        headTree: currentTarget.headTree,
+      });
+      await expect(resolveEvidenceBoundReviewPolicy(request, {
+        ...dependencies(result, record, foreignTarget),
+        sources: ["codex-pr"], maxPasses: 1, historicalProducerId: result.producerId,
+      })).rejects.toThrow("producer target does not match");
+    }
+  });
+
   it("starts a fresh logical pass only after a material response is durably performed", async () => {
     const result = findingsHostedResult(["major"]);
     const record = approvedRecord(result, [{

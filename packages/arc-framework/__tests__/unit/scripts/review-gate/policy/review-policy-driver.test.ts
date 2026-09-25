@@ -223,7 +223,7 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
-  it("keeps the Frontline carrier whole-target-only", () => {
+  it("keeps the frontline carrier whole-target-only", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,
       target,
@@ -1026,6 +1026,36 @@ describe("resolveReviewPolicy", () => {
         reason: "invocation-skip",
       },
     });
+  });
+
+  it.each([
+    { frontlineActive: false, sources: ["coderabbit-cli"], invocation: undefined },
+    { frontlineActive: true, sources: ["coderabbit-cli"], invocation: { mode: "skip" as const } },
+  ])("retains an admitted frontline findings response across activation changes %j", ({
+    frontlineActive, sources, invocation,
+  }) => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources,
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [{
+        sourceId: "coderabbit-cli",
+        outcome: "findings",
+        reviewOperationId: "frontline/attempt-1",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "frontline/attempt-1",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major",
+        coverageAdequate: true,
+      },
+      frontlineActive,
+      ...(invocation === undefined ? {} : { invocation }),
+    })).toMatchObject({ state: "findings", nextAction: "respond" });
   });
 
   it("rejects a frontline invocation override on the standard lane", () => {

@@ -55,7 +55,7 @@ command, or infer authority from host state.
 When the response captures a conditional next pass, its envelope returns `conditionalPassAuthorizationId` and the
 same identity inside `payload.policyRequest.ceilingOverride`. Retain that policy request unchanged through response
 performance and target rerouting. At the named next-pass admission, carry the exact ceiling override as
-`policyJudgment.ceilingOverride` for local or Frontline work, or as `ceilingOverride` for a hosted request. Never
+`policyJudgment.ceilingOverride` for local or frontline work, or as `ceilingOverride` for a hosted request. Never
 reconstruct the identity or treat it as authority for another admission; the lane owner consumes it before dispatch.
 
 When the governing approver retracts that unconsumed authority, or the performed fix exceeds the approved scope,

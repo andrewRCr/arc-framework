@@ -452,7 +452,7 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
     - `[x]` **5.5.R.a Retain exact scope through every supported producer and earlier carry**
 
         - Persisted ordinary local scope through operation identity, state, lane admission, and immutable result
-          evidence; confined Frontline to whole-target capability; and carried prior scope plus aggregate completion
+          evidence; confined frontline to whole-target capability; and carried prior scope plus aggregate completion
           through earlier-applicability policy reconstruction without adding chunk transport.
 
     - `[x]` **5.5.R.b Compose prospective conditional consent through production respond**
@@ -462,7 +462,7 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
 
     - `[x]` **5.5.R.c Prevent stale conditional authority across successor publication**
 
-        - Serialized successor publication and local, Frontline, and hosted pass admission through the canonical lane
+        - Serialized successor publication and local, frontline, and hosted pass admission through the canonical lane
           operation lock; consumption now confirms the exact disposition set is still current, preventing crash or
           race replay from spending predecessor authority.
 
@@ -704,7 +704,7 @@ Member verifiers consume their group's evidence; only terminal verification chan
 
 - `[x]` Hosted CodeRabbit correction coverage retains ARC's exact internal scope and requires authenticated native
   predecessor-to-current generation evidence; labels, missing or overlapping history, and mismatched baselines fail
-  closed without weakening local exact transport, Frontline completeness, or explicit hosted complete upgrades.
+  closed without weakening local exact transport, frontline completeness, or explicit hosted complete upgrades.
 
 - `[x]` The captured material multi-pass member remains outstanding until fresh adequate no-material evidence or exact
   Owner acceptance; its one-pass-clean sibling is not re-reviewed. Ordered progression, convergence, Owner acceptance,

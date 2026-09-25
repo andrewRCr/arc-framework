@@ -455,6 +455,52 @@ interface ResolvedResponseSource {
   };
 }
 
+function approvedPolicyVehicleMatches(
+  request: ReviewPolicyCommandRequest,
+  source: ResolvedResponseSource,
+): boolean {
+  if (source.result.kind === "hosted") {
+    return request.target.pullRequest === source.result.hostedTarget.pullRequest
+      && request.target.repository.toLowerCase()
+        === source.result.hostedTarget.repository.toLowerCase();
+  }
+  if (source.result.kind === "attested-local" && source.result.deliveryAdmission !== undefined) {
+    return request.target.pullRequest === source.result.deliveryAdmission.target.pullRequest
+      && request.target.repository.toLowerCase()
+        === source.result.deliveryAdmission.target.repository.toLowerCase();
+  }
+  return request.target.pullRequest === null;
+}
+
+function approvedPolicyTargetMatches(
+  request: ReviewPolicyCommandRequest,
+  source: ResolvedResponseSource,
+): boolean {
+  const expectedLane = source.result.kind === "frontline" ? "frontline" : "standard";
+  return request.lane === expectedLane
+    && request.target.headSha === source.target.headSha
+    && approvedPolicyVehicleMatches(request, source)
+    && (request.scopeSelection?.mode ?? "whole-target") === source.result.admission.scopeMode
+    && (request.scopeSelection === undefined
+      || canonicalize(request.scopeSelection.target) === canonicalize(request.target));
+}
+
+function validateApprovedResponsePolicyBinding(
+  request: ReviewPolicyCommandRequest,
+  source: ResolvedResponseSource,
+): void {
+  const terminal = request.attempts.at(-1);
+  if (!approvedPolicyTargetMatches(request, source)
+    || request.completedPasses !== source.result.admission.logicalPass
+    || terminal?.outcome !== "findings"
+    || terminal.reviewOperationId !== source.operationId) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "approved response policy request must name the exact findings producer, lane, pass, scope, and target; correct the request and retry the same approval",
+    );
+  }
+}
+
 interface PerformedResponseContinuation {
   policyRequest: ReviewPolicyCommandRequest;
   conditionalPassAuthorizationId?: string;
@@ -1593,6 +1639,12 @@ async function persistVerifiedReviewFix(
     if (canonicalize(approvedNode.approvedDisposition) !== canonicalize(dispositions)) {
       throw new RespondCommandError("invalid-input", "a verified fix requires its exact approved response record");
     }
+    if (approvedNode.policyProjectionPending === true) {
+      throw new RespondCommandError(
+        "invalid-input",
+        "approved response policy projection is pending; replay the approved response before submitting its verified fix",
+      );
+    }
     const policyRequest = approvedNode.responsePolicyRequest;
     const conditionalPassAuthorizationId = policyRequest.ceilingOverride
       ?.conditionalPassAuthorizationId;
@@ -1865,6 +1917,31 @@ async function resolveCandidateMemberAuthoring(
   return { kind: "ready", authoring: candidateMemberAuthoring };
 }
 
+async function appendAndResolveApprovedPolicy(
+  record: ApprovedDispositionRecord,
+  policyRequestToResolve: ReviewPolicyCommandRequest,
+  recordedPolicyRequest: ReviewPolicyCommandRequest,
+  target: ReviewTarget,
+  dependencies: Pick<RespondCommandDependencies, "dispositionStore" | "resolvePolicy">,
+) {
+  let appended = await dependencies.dispositionStore.appendDispositionRecord(record);
+  const policy = await dependencies.resolvePolicy(policyRequestToResolve, target);
+  if (currentApprovedDispositionNode(record).policyProjectionPending === true) {
+    const resolved = ApprovedDispositionRecordSchema.parse({
+      ...record,
+      approvedDispositionLineage: record.approvedDispositionLineage.map((node) => {
+        if (node.approvedDisposition.dispositionSet.dispositionSetId
+          !== record.currentDispositionSetId) return node;
+        const settled = { ...node, responsePolicyRequest: recordedPolicyRequest };
+        delete settled.policyProjectionPending;
+        return settled;
+      }),
+    });
+    appended = await dependencies.dispositionStore.appendDispositionRecord(resolved);
+  }
+  return { appended, policy };
+}
+
 async function settleNewApprovedResponse(
   request: z.infer<typeof RespondApprovedRequestSchema>,
   source: ResolvedResponseSource,
@@ -1873,6 +1950,7 @@ async function settleNewApprovedResponse(
   unchangedCandidateLineage: CandidateLineageBinding | null,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
+  validateApprovedResponsePolicyBinding(request.policyRequest, source);
   const supersession = request.supersedes;
   const conditionalAuthorization = request.conditionalNextPassAuthorization;
   const plan = projectApprovedResponse(source, dispositions);
@@ -1928,6 +2006,7 @@ async function settleNewApprovedResponse(
   const initialNode = {
     approvedDisposition: dispositions,
     responsePolicyRequest,
+    policyProjectionPending: true as const,
     fixAuthorization: plan.fixAuthorization,
     errandFixResponse: null,
     deliveryMemberFixResponse: null,
@@ -1941,6 +2020,16 @@ async function settleNewApprovedResponse(
       && canonicalize(currentApprovedDispositionNode(existing).approvedDisposition)
         !== canonicalize(dispositions)) {
       throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
+    }
+    if (existing !== null) {
+      const current = currentApprovedDispositionNode(existing);
+      if (current.policyProjectionPending !== true
+        && canonicalize(current.responsePolicyRequest) !== canonicalize(responsePolicyRequest)) {
+        throw new RespondCommandError(
+          "invalid-input",
+          "approved response already resolved a different policy request; replay its exact policy request",
+        );
+      }
     }
     record = ApprovedDispositionRecordSchema.parse({
       schemaVersion: 1,
@@ -1975,6 +2064,13 @@ async function settleNewApprovedResponse(
     validateApprovedDispositionRecordForResult(existing, source.result);
     const successorDispositionSetId = dispositions.dispositionSet.dispositionSetId;
     const existingCurrent = currentApprovedDispositionNode(existing);
+    if (existingCurrent.policyProjectionPending === true
+      && existing.currentDispositionSetId !== dispositions.dispositionSet.dispositionSetId) {
+      throw new RespondCommandError(
+        "invalid-input",
+        "approved predecessor policy projection is pending; replay its approved response before superseding it",
+      );
+    }
     if (existing.currentDispositionSetId === successorDispositionSetId) {
       if (existingCurrent.predecessorDispositionSetId !== supersession.predecessorDispositionSetId
         || canonicalize(existingCurrent.approvedDisposition) !== canonicalize(dispositions)) {
@@ -1985,6 +2081,13 @@ async function settleNewApprovedResponse(
           detail: "disposition successor replay conflicts with current state",
           currentDispositionSetId: existing.currentDispositionSetId,
         });
+      }
+      if (existingCurrent.policyProjectionPending !== true
+        && canonicalize(existingCurrent.responsePolicyRequest) !== canonicalize(responsePolicyRequest)) {
+        throw new RespondCommandError(
+          "invalid-input",
+          "approved successor already resolved a different policy request; replay its exact policy request",
+        );
       }
       record = existing;
       supersessionReplay = true;
@@ -2072,8 +2175,9 @@ async function settleNewApprovedResponse(
       detail: hostedPreflight.detail,
     });
   }
-  const appended = await dependencies.dispositionStore.appendDispositionRecord(record);
-  const policy = await dependencies.resolvePolicy(request.policyRequest, source.target);
+  const { appended, policy } = await appendAndResolveApprovedPolicy(
+    record, request.policyRequest, responsePolicyRequest, source.target, dependencies,
+  );
   if (conditionalSupersessionInput !== undefined) {
     await dependencies.invalidateConditionalNextPass(conditionalSupersessionInput);
   }

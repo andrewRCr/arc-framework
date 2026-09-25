@@ -385,7 +385,7 @@ resumes the retained attempt and never requests another hosted review. Preserve 
 any returned hosted settlement plan through the existing phase-ordered settlement path below, passing its
 `payload.hostedSettlementPlan.actorIdentity` unchanged, then re-enter through `arc review status`.
 Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
-ceiling override into the named hosted, local, or Frontline admission; never reconstruct the authorization ID.
+ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
 After a member fix, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
 `payload.hostedFixTarget` unchanged as the after-fix settlement's `fixTarget`; never reconstruct it from the checkout.
 

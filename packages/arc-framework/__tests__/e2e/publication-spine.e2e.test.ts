@@ -611,7 +611,11 @@ describe("attest → pre-publication → publish", () => {
       },
     });
 
-    const ready = await runReturnedCommand(repository, attestedResult.locus.nextAction.command);
+    // A plain same-head re-entry reads the saved nondefault self-review, routing, lane, and
+    // ceiling judgments from the durable continuation; it has no caller-supplied resume token.
+    const ready = await runArc(["review", "pre-publication", "example"], repository, {
+      env: OFFLINE_ENV,
+    });
     expect(ready.exitCode, JSON.stringify(ready)).toBe(0);
     expect(JSON.parse(ready.stdout)).toMatchObject({
       locus: "candidate-publish-ready",

@@ -3687,20 +3687,54 @@ export async function handleReviewPrePublication(
       ? parsedPendingBoundary.data
       : null;
     const pending = pendingBoundary?.postAttestContinuation;
-    if (orderingRecovery === undefined
-      && pendingBoundary !== null
-      && pending !== undefined
-      && currentRootHead !== pending.reviewedHead) {
-      emitOrderingConflict(pendingBoundary, boundarySnapshot.version, currentRootHead);
-      return;
+    const callerJudgment = judgment;
+    const plainReentry = input.data.resume === undefined
+      && input.data.selfReview === undefined
+      && input.data.changeSet === undefined
+      && input.data.lanes === undefined;
+    const savedReplay = plainReentry && pending !== undefined
+      && currentRootHead === pending.reviewedHead
+      ? decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name))
+      : null;
+    if (savedReplay !== null) {
+      judgment = {
+        selfReview: savedReplay.selfReview,
+        changeSet: savedReplay.changeSet,
+        lanes: savedReplay.lanes,
+        frontlineCeilingHeadSha: savedReplay.frontlineCeilingHeadSha,
+      };
     }
-    const composition = await dependencies.compose(root, input.data, judgment);
+    let composition = await dependencies.compose(root, input.data, judgment);
+    if (savedReplay !== null && composition.status === "composed"
+      && pendingBoundary !== null
+      && (composition.request.candidateId !== pendingBoundary.candidateId
+        || composition.request.candidate.subjectDigest !== pendingBoundary.candidateSubjectDigest)) {
+      judgment = callerJudgment;
+      composition = await dependencies.compose(root, input.data, judgment);
+    }
     if (composition.status === "refused") {
+      if (orderingRecovery === undefined
+        && pendingBoundary !== null
+        && pending !== undefined
+        && currentRootHead !== pending.reviewedHead
+        && composition.code !== "candidate-unexplained-delta") {
+        emitOrderingConflict(pendingBoundary, boundarySnapshot.version, currentRootHead);
+        return;
+      }
       emitFailure(new Error(orderingRecovery !== undefined
         ? "The current Candidate must be established at the root Git head before attestation-ordering recovery."
         : composition.reason), "execution", orderingRecovery !== undefined
         ? "attestation-ordering-conflict"
         : composition.code);
+      return;
+    }
+    if (orderingRecovery === undefined
+      && pendingBoundary !== null
+      && pending !== undefined
+      && currentRootHead !== pending.reviewedHead
+      && composition.request.candidateId === pendingBoundary.candidateId
+      && composition.request.candidate.subjectDigest === pendingBoundary.candidateSubjectDigest) {
+      emitOrderingConflict(pendingBoundary, boundarySnapshot.version, currentRootHead);
       return;
     }
     const candidateRootHead = composition.request.responseBinding?.candidate.head

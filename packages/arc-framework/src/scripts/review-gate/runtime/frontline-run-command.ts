@@ -200,6 +200,7 @@ export async function runFrontlineReviewCommand(
   }, {
     admission,
     ...(request.responseBinding === undefined ? {} : { responseBinding: request.responseBinding }),
+    retryOfOperationId: request.retryOfOperationId,
     lockWaitMs: Math.min(
       MAX_TIMER_DELAY_MS,
       (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,

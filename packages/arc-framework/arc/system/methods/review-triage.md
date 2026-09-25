@@ -101,10 +101,11 @@ separate evaluator. Its governing caller obtains complete-set approval directly 
 command.
 
 After approval, `review-response` performs the selected author leaf. Preserve every approved fate in the
-audience-visible record supplied by the caller. When a fix produces a commit, its body records
+audience-visible record supplied by the caller. For a producer-backed fix commit, its body records
 `Review disposition set: <identity>` and summarizes each included finding as
 `<identity>: <verified severity or not-supported> / <disposition> — <rationale>`; the approved set remains the
-authority when a channel has a richer durable record.
+authority when a channel has a richer durable record. For author self-review, use the canonical `(code review)`
+context footer from `self-review`; its report-local labels do not create a producer disposition-set identity.
 
 ---
 

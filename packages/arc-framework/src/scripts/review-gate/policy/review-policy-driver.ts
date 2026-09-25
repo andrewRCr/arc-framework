@@ -605,6 +605,10 @@ function sourceDiagnostic(
 export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const request = ReviewPolicyRequestSchema.parse(input);
   const scope = request.scopeSelection?.mode ?? "whole-target";
+  const lastAttempt = lastEligibleAttempt(request);
+  // An admitted findings result keeps its response obligation even if a later invocation
+  // changes frontline activation or asks to skip a fresh run.
+  const unresolvedFindings = lastAttempt?.outcome === "findings";
   if (request.scopeSelection !== undefined
     && !sameTarget(request.scopeSelection.target, request.target)) {
     return resolveEnvelope({
@@ -621,7 +625,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       message: "The selected review scope does not belong to the current target.",
     }]);
   }
-  if (request.lane === "frontline" && request.invocation?.mode === "skip") {
+  if (request.lane === "frontline" && !unresolvedFindings && request.invocation?.mode === "skip") {
     return resolveEnvelope({
       state: "skipped",
       nextAction: "none",
@@ -635,6 +639,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     });
   }
   if (request.lane === "frontline"
+    && !unresolvedFindings
     && (!request.frontlineActive || request.sources.length === 0)) {
     return resolveEnvelope({
       state: "skipped",
@@ -679,7 +684,6 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }]);
   }
   const ceilingOverrideApplied = request.ceilingOverride !== undefined;
-  const lastAttempt = lastEligibleAttempt(request);
   if (lastAttempt?.outcome === "partial" && scope === "chunked") {
     return resolveEnvelope({
       state: "chunk-pending",

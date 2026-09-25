@@ -1374,7 +1374,7 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
     surgery or caller-invented identities.
 25. CodeRabbit incremental correction coverage requires ARC's retained exact scope plus an authenticated provider-native
     predecessor-to-current range bound to the admitted request generation. A label, missing or ambiguous range,
-    intervening generation, or mismatched baseline cannot establish coverage; local exact transport, Frontline
+    intervening generation, or mismatched baseline cannot establish coverage; local exact transport, frontline
     completeness, and explicit hosted complete upgrades retain their existing semantics.
 
 ## Open Questions

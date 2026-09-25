@@ -6,7 +6,7 @@ import type { CandidateConvergenceProjection } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 import type { LanePolicyConfig } from "./lane-policy-config.js";
-import type { LaneProgressProjection } from "../lane-progress.js";
+import type { LanePolicyAttempt, LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
@@ -179,6 +179,13 @@ export interface PrePublicationCompositionDependencies {
     current: ReviewResult,
     policyTarget: ReviewPolicyTarget,
   ): Promise<IncrementalPredecessorApplicability>;
+  confirmPriorProducerApplicability(
+    workUnit: string,
+    predecessor: ReviewResult,
+    currentTarget: ReviewTarget,
+    currentLineage: LaneSubjectLineage,
+    policyTarget: ReviewPolicyTarget,
+  ): Promise<IncrementalPredecessorApplicability>;
 }
 
 export interface PrePublicationCompositionInput {
@@ -304,6 +311,52 @@ function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
     reason: "The recorded lane progress does not compose against the current review target: "
       + detail,
   };
+}
+
+async function applicableHistoricalAttempt(input: {
+  lane: ReviewLane;
+  progress: LaneProgressProjection;
+  exactTarget: ReviewTarget | null;
+  lineage?: LaneSubjectLineage;
+  workUnit: string;
+  policyTarget: ReviewPolicyTarget;
+  dependencies: PrePublicationCompositionDependencies;
+}): Promise<(LanePolicyAttempt & { headSha: string }) | undefined> {
+  const { progress, exactTarget, lineage } = input;
+  if (input.lane !== "standard" || progress.status !== "recorded"
+    || progress.attempts.length > 0 || progress.historicalAttempt === undefined
+    || exactTarget === null || lineage === undefined
+    || progress.historicalAttempt.headSha === exactTarget.headSha) return undefined;
+  const prior = await input.dependencies.resultReader.readResult(progress.historicalAttempt.attemptId);
+  if (prior.target.headSha !== progress.historicalAttempt.headSha
+    || prior.admission.logicalPass !== progress.historicalAttempt.logicalPass) {
+    throw new Error("historical review producer does not match its original admission");
+  }
+  const applicability = await input.dependencies.confirmPriorProducerApplicability(
+    input.workUnit, prior, exactTarget, lineage, input.policyTarget,
+  );
+  return applicability === "applicable" ? progress.historicalAttempt : undefined;
+}
+
+function policyAttempts(
+  progress: LaneProgressProjection,
+  historicalAttempt?: LanePolicyAttempt & { headSha: string },
+) {
+  if (progress.status === "unrecorded") return [];
+  return (historicalAttempt === undefined ? progress.attempts : [historicalAttempt])
+    .map(projectReviewPolicyAttempt);
+}
+
+function readComposedLaneProgress(
+  dependencies: PrePublicationCompositionDependencies,
+  lane: ReviewLane,
+  headSha: string,
+  lineageHeadShas: readonly string[],
+  lineage?: LaneSubjectLineage,
+): Promise<LaneProgressProjection> {
+  return lineage === undefined
+    ? dependencies.readLaneProgress(lane, headSha, lineageHeadShas)
+    : dependencies.readLaneProgress(lane, headSha, lineageHeadShas, lineage);
 }
 
 /**
@@ -463,13 +516,16 @@ export async function composePrePublicationReviewRequest(
   ) => {
     const [policy, progress] = [
       lane === "frontline" ? frontlinePolicy : standardPolicy,
-      await (lineage === undefined
-        ? dependencies.readLaneProgress(lane, policyTarget.headSha, lineageHeadShas)
-        : dependencies.readLaneProgress(lane, policyTarget.headSha, lineageHeadShas, lineage)),
+      await readComposedLaneProgress(
+        dependencies, lane, policyTarget.headSha, lineageHeadShas, lineage,
+      ),
     ];
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
     const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
+    const historicalAttempt = await applicableHistoricalAttempt({
+      lane, progress, exactTarget, lineage, workUnit: input.workUnit, policyTarget, dependencies,
+    });
     return bindReviewPolicyEvidence({
       schemaVersion: 1,
       target: policyTarget,
@@ -477,9 +533,7 @@ export async function composePrePublicationReviewRequest(
       frontlineActive: assurance.activity.frontlineReview,
       standardReview,
       completedPasses,
-      attempts: progress.status === "recorded"
-        ? progress.attempts.map(projectReviewPolicyAttempt)
-        : [],
+      attempts: policyAttempts(progress, historicalAttempt),
       ...(judgment?.scopeMode === undefined
         ? {}
         : { scopeSelection: { mode: judgment.scopeMode, target: policyTarget } }),
@@ -503,6 +557,8 @@ export async function composePrePublicationReviewRequest(
     }, {
       sources: policy.sources,
       maxPasses: policy.maxPasses,
+      ...(historicalAttempt === undefined
+        ? {} : { historicalProducerId: historicalAttempt.attemptId }),
       resultReader: dependencies.resultReader,
       dispositionStore: dependencies.dispositionStore,
       readResponsePerformance: (predecessor) => dependencies.readResponsePerformance(predecessor),

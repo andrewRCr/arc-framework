@@ -111,6 +111,23 @@ describe("disposition report", () => {
     expect(report.match(/^---$/gmu)).toHaveLength(1);
   });
 
+  it("escapes provider strikethrough in labels and references without changing source identity", () => {
+    const { dispositionSet, producerFindings } = fixture();
+    const finding = producerFindings[0];
+    if (finding === undefined) throw new Error("expected producer finding fixture");
+    finding.sourceLabel = "~~provider label~~";
+    finding.evidenceUrlOrId = "review:~~native-reference~~";
+
+    const report = renderDispositionReport({ dispositionSet, producerFindings });
+
+    expect(report).toContain(
+      "**Source:** \\~\\~provider label\\~\\~ · source #1 · review:\\~\\~native\\-reference\\~\\~",
+    );
+    expect(report).not.toContain("~~provider label~~");
+    expect(report).not.toContain("~~native-reference~~");
+    expect(dispositionSet.findings.map(({ findingId }) => findingId)).toEqual(["finding-a", "finding-z"]);
+  });
+
   it("renders multiline producer loci as inert finding text", () => {
     const { dispositionSet: originalSet, producerFindings } = fixture();
     const finding = producerFindings[0];

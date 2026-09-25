@@ -87,12 +87,24 @@ export type DeliveryMemberReviewFixResponse = z.infer<typeof DeliveryMemberRevie
 export const ApprovedDispositionLineageNodeSchema = z.strictObject({
   approvedDisposition: ApprovedDispositionSetSchema,
   responsePolicyRequest: ReviewPolicyCommandRequestSchema,
+  // Approval is durable before policy projection. An interrupted projection may be
+  // retried with a corrected, source-bound request until this marker is cleared.
+  policyProjectionPending: z.literal(true).optional(),
   fixAuthorization: FixAuthorizationSchema.nullable(),
   errandFixResponse: ErrandReviewFixResponseSchema.nullable(),
   deliveryMemberFixResponse: DeliveryMemberReviewFixResponseSchema.nullable(),
   predecessorDispositionSetId: ReviewCanonicalDigestSchema.nullable(),
   successorDispositionSetId: ReviewCanonicalDigestSchema.nullable(),
 }).superRefine((node, context) => {
+  if (node.policyProjectionPending === true
+    && (node.errandFixResponse !== null || node.deliveryMemberFixResponse !== null
+      || node.successorDispositionSetId !== null)) {
+    context.addIssue({
+      code: "custom",
+      message: "pending policy projection cannot carry response performance or a successor",
+      path: ["policyProjectionPending"],
+    });
+  }
   if (node.fixAuthorization !== null
     && (node.fixAuthorization.dispositionSetId
       !== node.approvedDisposition.dispositionSet.dispositionSetId

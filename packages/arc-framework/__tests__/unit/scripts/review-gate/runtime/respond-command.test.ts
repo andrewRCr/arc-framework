@@ -86,6 +86,7 @@ function fixture(
     kind: "candidate",
     candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777",
   },
+  scopeMode: "whole-target" | "chunked" = "whole-target",
 ) {
   const target = createReviewTarget({
     schemaVersion: 2,
@@ -128,6 +129,7 @@ function fixture(
     lineage,
     logicalPass: 1,
     retryGeneration: 0,
+    scopeMode,
     coverageAdmission: { requestedCoverage: "complete" },
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
@@ -217,7 +219,7 @@ function fixture(
 }
 
 function deliveryLocalFixture() {
-  const records = fixture(memberVehicle);
+  const records = fixture(memberVehicle, undefined, undefined, "chunked");
   const vehicle = DeliveryReviewMemberVehicleSchema.parse({
     kind: "delivery-member",
     planId: "123e4567-e89b-42d3-a456-426614174000",
@@ -360,11 +362,25 @@ function dependencies(records: ReturnType<typeof fixture>) {
           && record.approvedDispositionLineage.length === disposition.approvedDispositionLineage.length + 1
           && record.approvedDispositionLineage.at(-2)?.successorDispositionSetId === record.currentDispositionSetId
           && currentNext.predecessorDispositionSetId === disposition.currentDispositionSetId;
+        const policyProjectionAdvance = disposition !== null
+          && disposition.currentDispositionSetId === record.currentDispositionSetId
+          && currentExisting?.policyProjectionPending === true
+          && currentNext.policyProjectionPending !== true
+          && canonicalize(disposition.approvedDispositionLineage.map((node) => ({
+            ...node,
+            responsePolicyRequest: null,
+            policyProjectionPending: null,
+          }))) === canonicalize(record.approvedDispositionLineage.map((node) => ({
+            ...node,
+            responsePolicyRequest: null,
+            policyProjectionPending: null,
+          })));
         if (disposition !== null
           && canonicalize(disposition) !== canonicalize(record)
           && !errandAdvance
           && !deliveryAdvance
-          && !successorAdvance) {
+          && !successorAdvance
+          && !policyProjectionAdvance) {
           throw new Error("conflict");
         }
         disposition = record;
@@ -646,7 +662,22 @@ function localRequest(
   return {
     schemaVersion: 1,
     source: { kind: "attested-local", receiptRef: records.receiptRef },
-    policyRequest: policyRequest(records),
+    policyRequest: {
+      ...policyRequest(records, {
+        pullRequest: records.operation.deliveryAdmission?.target.pullRequest,
+      }),
+      ...(records.operation.deliveryAdmission === undefined
+        ? {}
+        : {
+            scopeSelection: records.operation.deliveryAdmission.scopeSelection,
+            attempts: [{
+              sourceId: "delegated-agent",
+              outcome: "findings" as const,
+              reviewOperationId: records.operation.operationId,
+              chunkSeriesComplete: true,
+            }],
+          }),
+    },
     dispositions: approved({
       targetId: records.target.targetId,
       producerId: result.producerId,
@@ -2502,6 +2533,63 @@ describe("review response command", () => {
 
     await expect(respondToReviewCommand(request, dependencies(records)))
       .rejects.toThrow("policyRequest");
+  });
+
+  it("refuses absent or foreign terminal policy producers before publishing approval", async () => {
+    const records = fixture();
+    const request = localRequest(records);
+    for (const attempts of [[], [{
+      sourceId: "delegated-agent",
+      outcome: "findings" as const,
+      reviewOperationId: "foreign-producer",
+    }]]) {
+      const deps = dependencies(records);
+      await expect(respondToReviewCommand({
+        ...request,
+        policyRequest: { ...request.policyRequest, attempts },
+      }, deps)).rejects.toThrow("exact findings producer");
+      await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId))
+        .resolves.toBeNull();
+    }
+  });
+
+  it("repairs a pending approved policy projection before fix performance", async () => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const request = localRequest(records);
+    const originalResolvePolicy = deps.resolvePolicy;
+    deps.resolvePolicy = async (policy, target) => {
+      if (policy.standardReview.reasons.includes("project:review:stale-policy-context")) {
+        throw new Error("policy context unavailable");
+      }
+      return originalResolvePolicy(policy, target);
+    };
+    const invalidPolicy = {
+      ...request.policyRequest,
+      standardReview: {
+        ...request.policyRequest.standardReview,
+        reasons: ["project:review:stale-policy-context"],
+      },
+    };
+    await expect(respondToReviewCommand({ ...request, policyRequest: invalidPolicy }, deps))
+      .rejects.toThrow("policy context unavailable");
+    const pending = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    expect(pending === null ? null : currentApprovedDispositionNode(pending).policyProjectionPending)
+      .toBe(true);
+
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+    });
+    const resolved = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    if (resolved === null) throw new Error("approved response disappeared");
+    expect(currentApprovedDispositionNode(resolved).policyProjectionPending).toBeUndefined();
+    expect(currentApprovedDispositionNode(resolved).responsePolicyRequest)
+      .toEqual(request.policyRequest);
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
+    });
   });
 
   it("persists conditional next-pass consent after approval and dispatches nothing when capture fails", async () => {

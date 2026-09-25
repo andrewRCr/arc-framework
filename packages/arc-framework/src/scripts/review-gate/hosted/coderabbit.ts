@@ -97,6 +97,7 @@ function nativeIncrementalCoverageEvidence(
   requestArtifactId: string,
   requestedAt: string,
   requestBoundary: string | null,
+  commandArtifactVisible: boolean,
 ): HostedCoverageEvidence {
   const unestablished = (
     reason: Extract<HostedCoverageEvidence, { status: "unestablished" }>["reason"],
@@ -108,6 +109,7 @@ function nativeIncrementalCoverageEvidence(
     status: "unestablished",
     reason,
   });
+  if (!commandArtifactVisible) return unestablished("provider-incremental-range-ambiguous");
   if (scope === null) return unestablished("provider-incremental-range-missing");
   const ranges = comments.flatMap((comment) => {
     if (comment.updatedAt < requestedAt || !precedesBoundary(comment.updatedAt, requestBoundary)) return [];
@@ -278,8 +280,7 @@ function orderedTerminalReviews(reviews: HostedGitHubReview[]): HostedGitHubRevi
 }
 
 type RequestGenerationBoundary =
-  | { readonly status: "bound"; readonly timestamp: string | null }
-  | { readonly status: "unmatched" }
+  | { readonly status: "bound"; readonly timestamp: string | null; readonly commandArtifactVisible: boolean }
   | { readonly status: "overlap" };
 
 function nextRequestBoundary(
@@ -291,20 +292,18 @@ function nextRequestBoundary(
     const body = comment.body.trim();
     return body === COMMANDS.complete || body === COMMANDS.incremental;
   });
-  const exactArtifact = commandComments.filter(({ id }) => id === request.id);
+  const exactArtifact = comments.filter(({ id }) => id === request.id);
   if (exactArtifact.length > 1) return { status: "overlap" };
-  if (commandComments.length === 0) return { status: "bound", timestamp: null };
-  if (exactArtifact[0] === undefined) {
-    if (commandComments.some((comment) => comment.createdAt <= request.createdAt)) {
-      return { status: "unmatched" };
-    }
-    const next = [...commandComments].sort((left, right) => left.createdAt.localeCompare(right.createdAt)
-      || left.id.localeCompare(right.id))[0];
-    return { status: "bound", timestamp: next?.createdAt ?? null };
+  if (exactArtifact[0] !== undefined
+    && (exactArtifact[0].createdAt !== request.createdAt
+      || exactArtifact[0].url !== request.url
+      || exactArtifact[0].body.trim() !== COMMANDS[coverage])) return { status: "overlap" };
+  if (commandComments.length === 0) {
+    return { status: "bound", timestamp: null, commandArtifactVisible: false };
   }
-  if (exactArtifact[0].createdAt !== request.createdAt
-    || exactArtifact[0].url !== request.url
-    || exactArtifact[0].body.trim() !== COMMANDS[coverage]) return { status: "unmatched" };
+  if (exactArtifact[0] === undefined) {
+    return { status: "overlap" };
+  }
   if (commandComments.some((comment) => (
     comment.id !== request.id && comment.createdAt === request.createdAt
   ))) return { status: "overlap" };
@@ -315,7 +314,7 @@ function nextRequestBoundary(
     .filter((comment) => comment.id !== request.id && comment.createdAt > request.createdAt)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt)
       || left.id.localeCompare(right.id))[0];
-  return { status: "bound", timestamp: next?.createdAt ?? null };
+  return { status: "bound", timestamp: next?.createdAt ?? null, commandArtifactVisible: true };
 }
 
 function precedesBoundary(timestamp: string, boundary: string | null): boolean {
@@ -467,12 +466,11 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       }
 
       const generationBoundary = coverage === null || requestArtifact === null
-        ? { status: "bound" as const, timestamp: null }
+        ? { status: "bound" as const, timestamp: null, commandArtifactVisible: false }
         : nextRequestBoundary(comments, requestArtifact, coverage);
       if (generationBoundary.status === "overlap") {
         return { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
       }
-      if (generationBoundary.status === "unmatched") return { kind: "pending" };
       const requestBoundary = generationBoundary.timestamp;
       const providerReviews = reviews.filter((review) =>
         review.actorIdentity === BOT_USER_ID
@@ -495,6 +493,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
             requestArtifact.id,
             requestedAt,
             requestBoundary,
+            generationBoundary.commandArtifactVisible,
           )
         : null;
       if (review === undefined) {
@@ -528,6 +527,13 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
             : { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
         }
         return { kind: "pending" };
+      }
+      if (coverage !== null && review.state === "commented") {
+        const completedReply = providerComments.some((comment) =>
+          commandReplyCompleted(comment, requestedAt, coverage)
+          && comment.updatedAt >= review.submittedAt
+          && precedesBoundary(comment.updatedAt, requestBoundary));
+        if (!completedReply) return { kind: "pending" };
       }
       const terminalFindings: UnorderedFinding[] = [];
       for (const terminalReview of orderedReviews) {

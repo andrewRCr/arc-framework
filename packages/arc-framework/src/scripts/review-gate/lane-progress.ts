@@ -932,7 +932,18 @@ export type LaneProgressProjection =
     completedPasses: number;
     completePasses: number;
     attempts: readonly LanePolicyAttempt[];
+    historicalAttempt?: LanePolicyAttempt & { headSha: string };
   };
+
+function selectHistoricalOwnerAttempt(attempts: readonly LaneAttempt[], lane: LaneProgressState["lane"],
+  headSha: string, currentAttemptCount: number): LaneAttempt | undefined {
+  if (lane !== "standard" || currentAttemptCount > 0) return undefined;
+  return [...attempts]
+    .filter((attempt) => attempt.headSha !== headSha && attempt.terminalProducer
+      && (attempt.outcome === "clean" || attempt.outcome === "findings"
+        || attempt.outcome === "settled-findings"))
+    .sort((left, right) => right.logicalPass - left.logicalPass)[0];
+}
 
 /** Read one complete lineage owner without applying an exact-head projection. */
 export async function readLaneProgressOwnerVersioned(
@@ -1065,13 +1076,18 @@ export async function readLaneProgressAcrossLineage(
     }),
   })));
   if (owner !== null) {
+    const currentAttempts = owner.attempts.filter((attempt) => attempt.headSha === input.headSha);
+    const historicalAttempt = selectHistoricalOwnerAttempt(
+      owner.attempts, input.lane, input.headSha, currentAttempts.length,
+    );
     return {
       status: "recorded",
       completedPasses: owner.completedPasses,
       completePasses: countCompleteLogicalPasses(owner.attempts),
+      ...(historicalAttempt === undefined ? {} : { historicalAttempt }),
       attempts: owner.lane === "frontline"
-        ? projectFrontlineAttempts(owner.attempts.filter((attempt) => attempt.headSha === input.headSha))
-        : owner.attempts.filter((attempt) => attempt.headSha === input.headSha),
+        ? projectFrontlineAttempts(currentAttempts)
+        : currentAttempts,
     };
   }
   const current = records.find(({ headSha }) => headSha === input.headSha)?.progress;
@@ -1089,5 +1105,15 @@ export async function readLaneProgressAcrossLineage(
     completedPasses,
     completePasses,
     attempts: current?.status === "recorded" ? current.attempts : [],
+    ...(input.lane !== "standard" || (current?.status === "recorded" && current.attempts.length > 0)
+      ? {}
+      : {
+          historicalAttempt: records.flatMap(({ headSha, progress }) => progress.status === "recorded"
+            && headSha !== input.headSha
+            ? progress.attempts.filter((attempt) => attempt.outcome === "clean"
+              || attempt.outcome === "findings" || attempt.outcome === "settled-findings")
+              .map((attempt) => ({ ...attempt, headSha }))
+            : []).sort((left, right) => right.logicalPass - left.logicalPass)[0],
+        }),
   };
 }

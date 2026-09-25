@@ -69,7 +69,7 @@ ARC retains one exact correction scope; delegated local review transports it dir
 existing hosted admission and may establish coverage only through its authenticated app-owned predecessor-to-current
 range within the admitted request generation. Labels, missing or ambiguous ranges, intervening requests, and baseline
 mismatches fail closed. This adds no provider-selection, configuration, or storage axis and preserves complete fallback,
-Frontline completeness, and Codex's explicit complete upgrade. The fifth assertion now publishes before committing,
+frontline completeness, and Codex's explicit complete upgrade. The fifth assertion now publishes before committing,
 then proves exactly one commit and a clean index without changing review accounting.
 
 Focused fail-first evidence reconstructed and rejected each prior behavior: fresh/seal-in-one hosted terminal writes,
@@ -133,7 +133,7 @@ criteria:
     evidence: >-
       `IncrementalReviewScopeSchema` and local materialization carry exact predecessor, basis, current endpoints, and
       producer-qualified finding instructions. Hosted admission retains the same internal scope, refuses labels without
-      proof, and preserves truthful requested/effective coverage; Codex complete upgrades and Frontline completeness
+      proof, and preserves truthful requested/effective coverage; Codex complete upgrades and frontline completeness
       remain distinct. Typed selection returns capable incremental and complete choices without launching either.
     state: "[x]"
   - locus: "Success Criteria > Member 6 — `incremental-review-convergence` > 3"
@@ -592,7 +592,7 @@ span:
   reachability: >-
     Repository tree at b5c7a80adc46e6cce0a7e7992d66ce0105fb49c0, including the upstream spec and its forward
     amendments, every Member 5 implementation and correction commit, Git-common evidence and lane state, all local,
-    Frontline, hosted, Candidate, Errand, delivery, status, and checkpoint consumers, both installed methodology
+    frontline, hosted, Candidate, Errand, delivery, status, and checkpoint consumers, both installed methodology
     copies, focused unit and real-store command scenarios, and the complete Tier 2 result.
   boundary-order-deviation: null
 criteria:
@@ -601,7 +601,7 @@ criteria:
     evidence: >-
       `LocalReviewResultReader` resolves each lane's native immutable producer, while `bindReviewPolicyEvidence`
       checks exact target, source, pass, scope, policy, rubric, result content, and current complete disposition set.
-      Exact terminal-scope persistence closes the ordinary local path as well as Frontline and hosted paths. Source,
+      Exact terminal-scope persistence closes the ordinary local path as well as frontline and hosted paths. Source,
       store, command, and real-store tests refuse missing, ambiguous, stale, wrong-pass/source/scope, incomplete,
       foreign, and caller-authored evidence.
     state: "[x]"

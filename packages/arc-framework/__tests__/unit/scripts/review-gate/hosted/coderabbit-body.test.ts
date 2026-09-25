@@ -54,3 +54,46 @@ describe("CodeRabbit callout labels", () => {
     ]);
   });
 });
+
+describe("CodeRabbit grouped supplemental severity", () => {
+  function groupedReview(metadata: string): HostedGitHubReview {
+    return {
+      id: "PRR_GROUPED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
+      actorIdentity: "136622811",
+      state: "approved",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-07-23T12:05:00.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7\`: ${metadata}
+
+The prose refers to _🟠 Major_ priority, but does not supply provider metadata.
+
+<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
+
+</blockquote></details>
+</blockquote></details>`,
+    };
+  }
+
+  it("rejects a grade supplied only by explanatory prose", () => {
+    expect(parseCodeRabbitReviewBody(groupedReview("_📐 Maintainability & Code Quality_"))).toMatchObject({
+      kind: "malformed",
+      reason: expect.stringContaining("provider-body-finding-severity-unrecognized"),
+    });
+  });
+
+  it("retains the grade from the matched metadata line", () => {
+    const parsed = parseCodeRabbitReviewBody(groupedReview(
+      "_📐 Maintainability & Code Quality_ | _🔵 Trivial_",
+    ));
+    expect(parsed).toMatchObject({
+      kind: "parsed",
+      findings: [{ severity: "minor", nit: true, locus: "src/a.ts:7" }],
+    });
+  });
+});

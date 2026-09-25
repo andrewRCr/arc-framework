@@ -26,6 +26,7 @@ interface ResponsePolicyRequestFixtureInput {
   readonly reviewOperationId?: string;
   readonly completedPasses?: number;
   readonly standardReview?: StandardReviewObligationProjection;
+  readonly scopeSelection?: ReviewPolicyCommandRequest["scopeSelection"];
 }
 
 /** Build a valid policy continuation for record-focused tests. */
@@ -50,10 +51,12 @@ export function responsePolicyRequestFixture(
       count: 1,
     },
     completedPasses: input.completedPasses ?? 1,
+    ...(input.scopeSelection === undefined ? {} : { scopeSelection: input.scopeSelection }),
     attempts: [{
       sourceId: input.sourceId ?? "delegated-agent",
       outcome: "findings",
       reviewOperationId: input.reviewOperationId ?? "operation-1",
+      ...(input.scopeSelection?.mode === "chunked" ? { chunkSeriesComplete: true } : {}),
     }],
   });
 }
@@ -77,7 +80,8 @@ export async function responsePolicyRequest(
         operationId: state.operationId,
         logicalPass: state.logicalPass,
         requirement: state.requirement,
-        pullRequest: null,
+        pullRequest: state.deliveryAdmission?.target.pullRequest ?? null,
+        scopeSelection: state.deliveryAdmission?.scopeSelection,
       }
     : state.kind === "lane-progress"
       ? (() => {
@@ -91,6 +95,7 @@ export async function responsePolicyRequest(
             logicalPass: attempt.logicalPass,
             requirement: attempt.hosted.requirement,
             pullRequest: attempt.hosted.target.pullRequest,
+            scopeSelection: undefined,
           };
         })()
       : null;
@@ -102,6 +107,7 @@ export async function responsePolicyRequest(
     sourceId: producer.sourceId,
     reviewOperationId: producer.operationId,
     completedPasses: producer.logicalPass,
+    scopeSelection: producer.scopeSelection,
     standardReview: {
       obligation: producer.requirement.obligation,
       reasons: producer.requirement.reasons,

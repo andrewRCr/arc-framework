@@ -3871,6 +3871,9 @@ async function executeDeliveryCommand(
             headSha: operation.state.target.headSha,
             lineage: operation.state.lineage,
             attemptId: operation.state.operationId,
+            dispositionSetId: current.approvedDisposition.dispositionSet.dispositionSetId,
+            ...(current.predecessorDispositionSetId === null
+              ? {} : { predecessorDispositionSetId: current.predecessorDispositionSetId }),
           },
         };
       };
@@ -3883,6 +3886,8 @@ async function executeDeliveryCommand(
         readonly headSha: string;
         readonly lineage: LaneSubjectLineage;
         readonly attemptId: string;
+        readonly dispositionSetId: string;
+        readonly predecessorDispositionSetId?: string;
       } | null = null;
       let verification = parsed.verification;
       const selectedIndex = stateRead.value.value.members.findIndex(
@@ -4098,6 +4103,7 @@ async function executeDeliveryCommand(
         await settleLaneAttempt(new LocalReviewOperationStateStore(publisher), {
           lane: "standard",
           ...localResponseSettlement,
+          producedHeadSha: selectedMember.coordinates.head,
           now: verifiedAt,
         });
       }

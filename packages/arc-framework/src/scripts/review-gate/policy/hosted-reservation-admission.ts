@@ -114,11 +114,10 @@ export function projectHostedReservationPolicyProgress(input: {
     for (const [attemptIndex, attempt] of state.attempts.entries()) {
       const hosted = attempt.hosted;
       const local = attempt.local;
-      const hostedIdentityMatches = attempt.changeRequestId === `pull/${String(input.target.pullRequest)}`
-        && hosted !== undefined
+      const hostedIdentityMatches = hosted !== undefined
+        && attempt.changeRequestId === `pull/${String(hosted.target.pullRequest)}`
         && hosted.vehicle !== undefined
         && hosted.target.repository.toLowerCase() === input.target.repository.toLowerCase()
-        && hosted.target.pullRequest === input.target.pullRequest
         && hosted.target.headSha === attempt.headSha
         && hosted.reviewTarget.repositoryId === input.repositoryId
         && hosted.reviewTarget.headSha === attempt.headSha
@@ -128,7 +127,6 @@ export function projectHostedReservationPolicyProgress(input: {
         && local.vehicle.kind === "delivery-member"
         && sameDeliveryReviewMemberIdentity(input.vehicle, local.deliveryAdmission.vehicle)
         && local.deliveryAdmission.target.repository.toLowerCase() === input.target.repository.toLowerCase()
-        && local.deliveryAdmission.target.pullRequest === input.target.pullRequest
         && local.target.kind === "delivery-member"
         && local.target.repositoryId === input.repositoryId
         && local.target.headSha === attempt.headSha;
@@ -162,7 +160,9 @@ export function projectHostedReservationPolicyProgress(input: {
       }
       if (attempt.headSha === input.target.headSha
         && attempt.outcome !== "pending"
-        && (hostedIdentityMatches || (localMatches && local.effectiveCoverage !== null))) {
+        && ((hostedIdentityMatches && hosted.target.pullRequest === input.target.pullRequest)
+        || (localMatches && local.deliveryAdmission?.target.pullRequest === input.target.pullRequest
+          && local.effectiveCoverage !== null))) {
         currentTimeline.push({
           updatedAt: state.updatedAt,
           operationId: state.operationId,

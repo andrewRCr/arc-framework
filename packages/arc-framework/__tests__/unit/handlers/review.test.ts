@@ -38,6 +38,7 @@ import { resolveProcessInteractionContext } from
 import {
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewResumeBoundary,
+  type PostAttestContinuation,
 } from
   "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -2488,8 +2489,7 @@ describe("handleReviewPrePublication", () => {
     const replayToken = continuation.nextAction.command.split(" ")[5];
     expect(JSON.parse(Buffer.from(replayToken ?? "", "base64url").toString("utf8"))).toEqual(judgment);
 
-    const replayDependencies = boundary({
-      compose: vi.fn(async (_root, _input, replayed) => ({
+    const replayCompose = vi.fn(async (_root, _input, replayed) => ({
         status: "composed",
         request: {
           ...request,
@@ -2501,13 +2501,32 @@ describe("handleReviewPrePublication", () => {
             : "pending" as const,
         },
         advisories: [],
-      })),
-    });
+      }));
+    const replayDependencies = boundary({ compose: replayCompose });
     await handleReviewPrePublication("example", { resume: replayToken }, replayDependencies);
 
     expect(JSON.parse(String(replayDependencies.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
     });
+
+    const pending = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      reservation: null,
+      postAttestContinuation: continuation as PostAttestContinuation,
+    });
+    const plainDependencies = boundary({
+      readBoundary: async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` }),
+      compose: replayCompose,
+    });
+    await handleReviewPrePublication("example", {}, plainDependencies);
+    expect(JSON.parse(String(plainDependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+    expect(replayCompose).toHaveBeenLastCalledWith(
+      "/repo", expect.anything(), judgment,
+    );
   });
 
   it("refuses a same-subject head change with an explicit version-bound recovery action", async () => {
@@ -2652,7 +2671,7 @@ describe("handleReviewPrePublication", () => {
     await handleReviewPrePublication("example", {}, gitOnly);
     const gitOnlyRefusal = JSON.parse(String(gitOnly.write.mock.calls[0]?.[0]));
     expect(gitOnlyRefusal.error.code).toBe("attestation-ordering-conflict");
-    expect(composeBeforeRepair).not.toHaveBeenCalled();
+    expect(composeBeforeRepair).toHaveBeenCalledOnce();
     const gitOnlyRecoveryToken = gitOnlyRefusal.remedy.argv[5];
     const unestablishedCandidate = boundary({
       readRootGitHead: async () => rootCurrentHead,

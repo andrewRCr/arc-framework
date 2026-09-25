@@ -373,10 +373,12 @@ remote base all name the same exact head. Any tracked change continues through t
      current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
      never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
      Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
-     ceiling override into the named hosted, local, or Frontline admission; never reconstruct the authorization ID.
+     ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
      On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
      only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
-     mutation; every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
+     mutation; every stop state remains a stop. After the required phases complete, follow the approved response
+     continuation and, after a fix, the verified-fix response continuation through the owning status or resolve
+     action. Do not feed the same findings to the driver again.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay

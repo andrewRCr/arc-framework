@@ -43,6 +43,8 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly readResponsePerformance?: (
     predecessor: ReviewResult,
   ) => Promise<LaneResponsePerformance | null>;
+  /** Producer ID already proven applicable to the current Candidate by the owning composition. */
+  readonly historicalProducerId?: string;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -90,6 +92,28 @@ function resultMatchesPolicy(
     });
 }
 
+function producerTargetMatches(
+  result: ReviewResult,
+  request: ReviewPolicyCommandRequest,
+  currentTarget: ReviewResult["target"],
+  operationId: string,
+  historicalProducerId?: string,
+): boolean {
+  const historical = historicalProducerId === operationId
+    && result.target.headSha !== request.target.headSha;
+  return currentTarget.headSha === request.target.headSha
+    && result.repositoryId === currentTarget.repositoryId
+    && result.target.kind === currentTarget.kind
+    && (historical || canonicalize(result.target) === canonicalize(currentTarget));
+}
+
+function hostedTargetMatches(result: ReviewResult, request: ReviewPolicyCommandRequest): boolean {
+  return result.kind !== "hosted"
+    || (result.hostedTarget.repository.toLowerCase() === request.target.repository.toLowerCase()
+      && result.hostedTarget.pullRequest === request.target.pullRequest
+      && result.hostedTarget.headSha === result.target.headSha);
+}
+
 function validateTerminalResult(
   result: ReviewResult,
   request: ReviewPolicyCommandRequest,
@@ -97,19 +121,17 @@ function validateTerminalResult(
   sourceId: string,
   operationId: string,
   maxPasses: number,
+  historicalProducerId?: string,
 ): void {
   const currentTarget = validateReviewTarget(currentTargetInput);
+  validateReviewTarget(result.target);
   if (result.producerId !== operationId) {
     throw new Error("review producer identity does not match the terminal attempt");
   }
-  if (canonicalize(result.target) !== canonicalize(currentTarget)
-    || result.target.headSha !== request.target.headSha) {
+  if (!producerTargetMatches(result, request, currentTarget, operationId, historicalProducerId)) {
     throw new Error("review producer target does not match the current exact target");
   }
-  if (result.kind === "hosted"
-    && (result.hostedTarget.repository.toLowerCase() !== request.target.repository.toLowerCase()
-      || result.hostedTarget.pullRequest !== request.target.pullRequest
-      || result.hostedTarget.headSha !== request.target.headSha)) {
+  if (!hostedTargetMatches(result, request)) {
     throw new Error("hosted review producer target does not match the policy target");
   }
   if (!resultMatchesLaneAndSource(result, request, sourceId)) {
@@ -271,6 +293,7 @@ export async function bindReviewPolicyEvidence(
     lastAttempt.sourceId,
     lastAttempt.reviewOperationId,
     dependencies.maxPasses,
+    dependencies.historicalProducerId,
   );
   const verifiedTerminalSignal = await deriveVerifiedTerminalSignal(
     result,

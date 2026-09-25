@@ -634,4 +634,60 @@ describe("frontline run command", () => {
     await expect(stores.outcomeStore.readOutcome(retry.payload.operationId))
       .resolves.toMatchObject({ record: { outcome: { outcome: "clean" } } });
   });
+
+  it("refuses a public retry with the wrong predecessor before provider execution", async () => {
+    const reviewTarget = target("c");
+    const { stores, resolution } = await admittedRun(reviewTarget);
+    const execute = vi.fn(async (input: { pass: number; maxPasses: number }) => ({
+      outcome: normalizeFrontlineOutcome({
+        providerResult: { kind: "timed-out" },
+        source,
+        target: reviewTarget,
+        pass: input.pass,
+        maxPasses: input.maxPasses,
+      }),
+      executableIdentity: null,
+    }));
+    const dependencies = {
+      confirmSource: async () => source,
+      prepareExecutionTarget: async () => ({
+        target: reviewTarget,
+        reviewRoot: "/tmp/review",
+        release: vi.fn(),
+      }),
+      execute,
+      ...stores,
+      now: () => "2026-08-15T12:00:00Z",
+    };
+    const first = await runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: reviewTarget,
+      resolution,
+    }, dependencies);
+    const retryAdmission = admissionFor(reviewTarget, 2, 1);
+    await recordLaneAttempt(stores.operationStore, {
+      lane: "frontline",
+      repositoryId: reviewTarget.repositoryId,
+      changeRequestId: null,
+      headSha: reviewTarget.headSha,
+      lineage: retryAdmission.lineage,
+      logicalPass: retryAdmission.logicalPass,
+      retryGeneration: retryAdmission.retryGeneration,
+      attemptId: retryAdmission.operationId,
+      sourceId: source.sourceId,
+      outcome: "pending",
+      consumedPass: false,
+      frontline: { admission: retryAdmission, effectiveCoverage: null },
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    await expect(runFrontlineReviewCommand({
+      schemaVersion: 1,
+      target: reviewTarget,
+      resolution: readyResolution(retryAdmission),
+      retryOfOperationId: "wrong-predecessor",
+    }, dependencies)).rejects.toThrow("retry");
+    expect(first.state).toBe("timed-out");
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
 });

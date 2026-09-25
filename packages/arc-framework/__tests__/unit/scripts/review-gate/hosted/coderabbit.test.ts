@@ -276,7 +276,7 @@ describe("CodeRabbit hosted adapter", () => {
         body: "Review complete.",
       })]),
       readThreads: () => Promise.resolve([findingThread("_🟠 Major_ broken boundary")]),
-      readIssueComments: () => Promise.resolve([summaryComment()]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), summaryComment()]),
     }));
 
     await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
@@ -388,30 +388,38 @@ describe("CodeRabbit hosted adapter", () => {
     },
   );
 
-  it("does not discard an ungraded new reply to an older review thread", async () => {
+  it("seals a COMMENTED-only finding and rejects an ungraded reply to an older thread", async () => {
     const oldRoot = {
       ...findingThread("_🟠 Major_ prior concern").comments[0]!,
       id: "old-root",
       reviewId: "PRR_PRIOR",
       headSha: "b".repeat(40),
     };
+    const newReply = {
+      ...oldRoot,
+      id: "new-ungraded-reply",
+      reviewId: "PRR_1",
+      replyToReviewId: "PRR_PRIOR",
+      headSha: HEAD,
+      body: "_🟠 Major_ This new concern has severity metadata.",
+    };
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({ state: "commented", body: "" })]),
       readThreads: () => Promise.resolve([{
         id: "PRRT_PRIOR",
         isResolved: false,
-        comments: [oldRoot, {
-          ...oldRoot,
-          id: "new-ungraded-reply",
-          reviewId: "PRR_1",
-          replyToReviewId: "PRR_PRIOR",
-          headSha: HEAD,
-          body: "This new concern has no severity marker.",
-        }],
+        comments: [oldRoot, newReply],
       }]),
-      readIssueComments: () => Promise.resolve([requestComment()]),
+      readIssueComments: () => Promise.resolve([requestComment(), commandReply({
+        body: `<!-- CodeRabbit review command invocation: invocation-id -->
+<summary>✅ Action performed</summary>
+
+Full review finished.`,
+      })]),
     }));
 
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({ kind: "findings" });
+    newReply.body = "This new concern has no severity marker.";
     await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
       kind: "terminal-failure",
       reason: expect.stringContaining("provider-thread-finding-severity-unrecognized"),
@@ -469,6 +477,12 @@ describe("CodeRabbit hosted adapter", () => {
 
   it.each([
     {
+      name: "missing admitted command artifact",
+      comments: [summaryComment()],
+      reason: "provider-incremental-range-ambiguous",
+      commandVisible: false,
+    },
+    {
       name: "mismatched baseline",
       comments: [summaryComment(HEAD, {
         body: `<!-- recent_review_start -->
@@ -507,10 +521,12 @@ Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
       })],
       reason: "provider-incremental-range-ambiguous",
     },
-  ])("retains a terminal result without crediting $name", async ({ comments, reason }) => {
+  ])("retains a terminal result without crediting $name", async ({ comments, reason, commandVisible }) => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review()]),
-      readIssueComments: () => Promise.resolve(comments),
+      readIssueComments: () => Promise.resolve([
+        ...(commandVisible === false ? [] : [requestComment("incremental")]), ...comments,
+      ]),
     }));
 
     await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
@@ -684,32 +700,16 @@ Review finished.`,
   });
 
   it.each([
-    {
-      name: "missing request comment",
-      comments: [refusalReply()],
-    },
-    {
-      name: "different request artifact",
-      comments: [requestComment("complete", { id: "IC_OTHER" }), refusalReply()],
-    },
+    { name: "missing request comment", comments: [refusalReply()] },
     {
       name: "different request URL",
       comments: [requestComment("complete", {
         url: "https://github.com/owner/repo/pull/42#issuecomment-other",
       }), refusalReply()],
     },
-    {
-      name: "different request command",
-      comments: [requestComment("incremental"), refusalReply()],
-    },
-    {
-      name: "untrusted provider actor",
-      comments: [requestComment(), refusalReply({ actorIdentity: "999" })],
-    },
-    {
-      name: "untrusted provider reply",
-      comments: [requestComment(), refusalReply({ appId: "999" })],
-    },
+    { name: "different request command", comments: [requestComment("incremental"), refusalReply()] },
+    { name: "untrusted provider actor", comments: [requestComment(), refusalReply({ actorIdentity: "999" })] },
+    { name: "untrusted provider reply", comments: [requestComment(), refusalReply({ appId: "999" })] },
     {
       name: "reply before the request",
       comments: [requestComment(), refusalReply({
@@ -730,18 +730,19 @@ Review finished.`,
         refusalReply(),
       ],
     },
-    {
-      name: "generic provider comment",
-      comments: [requestComment(), refusalReply({
-        body: "A review was not scheduled.",
-      })],
-    },
-  ])("keeps $name pending instead of inferring a refusal", async ({ comments }) => {
+    { name: "generic provider comment", comments: [
+      requestComment(), refusalReply({ body: "A review was not scheduled." }),
+    ] },
+  ])("does not infer a refusal from $name", async ({ comments, name }) => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve(comments),
     }));
 
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual(
+      name.startsWith("different request")
+        ? { kind: "terminal-failure", reason: "provider-request-generation-overlap" }
+        : { kind: "pending" },
+    );
   });
 
   it("does not let an incremental completion discharge a complete request", async () => {
@@ -795,7 +796,9 @@ Full review finished.`,
 
   it("records unestablished coverage for a mismatched reviewed head", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment("c".repeat(40)), commandReply()]),
+      readIssueComments: () => Promise.resolve([
+        requestComment("incremental"), summaryComment("c".repeat(40)), commandReply(),
+      ]),
       readCommitStatuses: () => Promise.resolve([completionStatus()]),
     }));
     await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
@@ -845,10 +848,14 @@ The later approval is a completion marker, not a replacement result.
       body: "",
       submittedAt: "2026-07-23T12:05:00.000Z",
     });
+    const reviews = [supplemental];
     const adapter = new CodeRabbitHostedAdapter(port({
-      readReviews: () => Promise.resolve([approval, supplemental]),
+      readReviews: () => Promise.resolve(reviews),
+      readIssueComments: () => Promise.resolve([requestComment("incremental")]),
     }));
 
+    await expect(adapter.observe(requestHandle())).resolves.toEqual({ kind: "pending" });
+    reviews.push(approval);
     await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
       kind: "findings",
       reviewUrl: approval.url,
@@ -891,7 +898,7 @@ The later approval is a completion marker, not a replacement result.
     });
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([laterSupplemental, wrongHead, currentApproval]),
-      readIssueComments: () => Promise.resolve([{
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), {
         id: "IC_NEXT_REQUEST",
         url: "https://github.com/owner/repo/pull/42#issuecomment-next",
         actorIdentity: "5678",
@@ -921,7 +928,7 @@ The later approval is a completion marker, not a replacement result.
         body: "@coderabbitai full review",
         createdAt: "2026-07-23T12:04:00.000Z",
         updatedAt: "2026-07-23T12:04:00.000Z",
-      }]),
+      }, summaryComment()]),
     }));
 
     await expect(adapter.observe(requestHandle("incremental"))).resolves.toEqual({

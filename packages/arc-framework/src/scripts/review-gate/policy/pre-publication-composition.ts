@@ -19,6 +19,8 @@ import { CurrentDeliveryLifecycleContributionPathSource } from "../../../lib/del
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import type { RawGitExec } from "../../../lib/change-facts.js";
+import { resolveSoleMergeBase } from "../../../lib/git/base-overlap.js";
 import { analyzeRevisionOverlap, getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
@@ -31,12 +33,15 @@ import {
   reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
+import type { CandidateEffectiveTargetProjection } from
+  "../../../lib/work-unit/candidate-effective-target.js";
 import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
 import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
-import type { CandidateEffectiveTargetProjection } from
-  "../../../lib/work-unit/candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
+import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
+import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { ReviewResult } from "../core/review-result.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
@@ -53,6 +58,7 @@ import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-s
 import {
   composeDeliveryMemberTarget,
   deriveLocalReviewTargetFromCoordinates,
+  LocalTargetDerivationError,
 } from "../hosts/local/repository-target.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import {
@@ -62,6 +68,7 @@ import {
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import { confirmNonDeliveryIncrementalApplicability } from "./local-review-coverage-selection.js";
+import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 import {
   composePreBindingDeliveryReviewTargets,
   type PreBindingDeliveryReviewTargetDependencies,
@@ -81,6 +88,114 @@ import {
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+interface NoPullRequestCandidateApplicabilityInput {
+  predecessor: ReviewResult;
+  currentTarget: ReviewTarget;
+  currentLineage: Parameters<PrePublicationCompositionDependencies["confirmPriorProducerApplicability"]>[3];
+  candidateId: string;
+  prior: CandidateEffectiveTargetProjection;
+  current: CandidateEffectiveTargetProjection;
+  observedCurrentTarget: ReviewTarget;
+}
+
+function sameLocalCandidateOwner(input: Pick<NoPullRequestCandidateApplicabilityInput,
+  "predecessor" | "currentTarget" | "currentLineage" | "candidateId">): boolean {
+  return input.predecessor.kind === "attested-local"
+    && input.predecessor.target.kind === "change-set"
+    && input.currentTarget.kind === "change-set"
+    && input.currentLineage.kind === "candidate"
+    && input.predecessor.repositoryId === input.currentTarget.repositoryId
+    && laneSubjectOwnerMatches(input.predecessor.admission.lineage, input.currentLineage)
+    && input.candidateId === input.currentLineage.candidateId;
+}
+
+/** Retain a local prior-head producer only when both exact heads carry one recognized Candidate subject. */
+export function noPullRequestCandidatePriorApplicability(
+  input: NoPullRequestCandidateApplicabilityInput,
+): IncrementalPredecessorApplicability {
+  if (!sameLocalCandidateOwner(input)
+    || input.observedCurrentTarget.targetId !== input.currentTarget.targetId
+    || input.prior.state !== "current"
+    || input.current.state !== "current"
+    || input.prior.candidateId !== input.candidateId
+    || input.current.candidateId !== input.candidateId
+    || input.prior.recognizedTarget.revision !== input.predecessor.target.headSha
+    || input.current.recognizedTarget.revision !== input.currentTarget.headSha) {
+    return "unavailable";
+  }
+  return input.prior.recognizedTarget.subject.subjectDigest
+    === input.current.recognizedTarget.subject.subjectDigest
+    ? "applicable" : "review-required";
+}
+
+/** Read both pinned Candidate subjects and refuse reuse unless their live review target is unchanged. */
+export async function confirmNoPullRequestCandidatePriorProducer(input: {
+  cwd: string;
+  workUnit: string;
+  baseBranch: string;
+  candidate: CandidateManagedRecordV1;
+  predecessor: ReviewResult;
+  currentTarget: ReviewTarget;
+  currentLineage: Parameters<PrePublicationCompositionDependencies["confirmPriorProducerApplicability"]>[3];
+  exec: GitExec;
+  rawExec: RawGitExec;
+  observeTarget: () => Promise<ReviewTarget>;
+}): Promise<IncrementalPredecessorApplicability> {
+  if (input.predecessor.kind !== "attested-local"
+    || input.predecessor.target.kind !== "change-set"
+    || input.currentTarget.kind !== "change-set"
+    || input.currentLineage.kind !== "candidate"
+    || input.candidate.attestation.candidateId !== input.currentLineage.candidateId
+    || !laneSubjectOwnerMatches(input.predecessor.admission.lineage, input.currentLineage)) {
+    return "unavailable";
+  }
+  try {
+    const readAt = (revision: string, currentBase: string) =>
+      projectGitCandidateEffectiveTarget({
+        cwd: input.cwd,
+        name: SlugSchema.parse(input.workUnit),
+        baseBranch: input.baseBranch,
+        record: input.candidate,
+        exec: input.exec,
+        rawExec: input.rawExec,
+        target: { revision, currentBase },
+      });
+    const [prior, current] = await Promise.all([
+      readAt(input.predecessor.target.headSha, input.predecessor.target.diffBaseSha),
+      readAt(input.currentTarget.headSha, input.currentTarget.diffBaseSha),
+    ]);
+    const observedCurrentTarget = await input.observeTarget();
+    return noPullRequestCandidatePriorApplicability({
+      predecessor: input.predecessor,
+      currentTarget: input.currentTarget,
+      currentLineage: input.currentLineage,
+      candidateId: input.candidate.attestation.candidateId,
+      prior,
+      current,
+      observedCurrentTarget,
+    });
+  } catch {
+    return "unavailable";
+  }
+}
+
+/** Require the same sole best ancestor that canonical local review targets require. */
+export async function resolvePrePublicationDiffBase(input: {
+  exec: GitExec;
+  cwd: string;
+  baseRef: string;
+  headSha: string;
+}): Promise<string> {
+  const base = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, { cwd: input.cwd }),
+    leftRevision: `refs/heads/${input.baseRef}`,
+    rightRevision: input.headSha,
+  });
+  if (base.status === "ambiguous") throw new LocalTargetDerivationError("ambiguous-merge-base");
+  if (base.status !== "resolved") throw new LocalTargetDerivationError("no-merge-base");
+  return base.mergeBase;
 }
 
 /**
@@ -321,44 +436,62 @@ export function createPrePublicationCompositionDependencies(input: {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
     return repositoryIdPromise;
   };
+  const observeTarget = async (): Promise<ReviewTarget> => {
+    const baseRef = (await settings())["branch.base"].trim();
+    const headSha = (await input.exec(
+      "git", ["rev-parse", "HEAD"], { cwd: input.cwd },
+    )).stdout.trim();
+    const diffBaseSha = await resolvePrePublicationDiffBase({
+      exec: input.exec, cwd: input.cwd, baseRef, headSha,
+    });
+    return deriveLocalReviewTargetFromCoordinates({
+      exec: input.exec,
+      cwd: input.cwd,
+      repositoryId: await repositoryId(),
+      coordinates: { kind: "change-set", baseRef, diffBaseSha, headSha },
+    });
+  };
+  const confirmPriorProducerApplicability:
+    PrePublicationCompositionDependencies["confirmPriorProducerApplicability"] = async (
+      workUnit, predecessor, currentTarget, currentLineage, policyTarget,
+    ) => {
+      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit));
+      if (policyTarget.pullRequest === null) {
+        if (candidate === null) return "unavailable";
+        return confirmNoPullRequestCandidatePriorProducer({
+          cwd: input.cwd,
+          workUnit,
+          baseBranch: (await settings())["branch.base"],
+          candidate,
+          predecessor,
+          currentTarget,
+          currentLineage,
+          exec: input.exec,
+          rawExec: rawGit,
+          observeTarget,
+        });
+      }
+      return confirmNonDeliveryIncrementalApplicability({
+        predecessor,
+        currentTarget,
+        currentLineage,
+        repository: policyTarget.repository,
+        pullRequest: policyTarget.pullRequest,
+        candidate,
+        exec: rawGit,
+        observeTarget,
+      });
+    };
 
   return {
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
-    confirmIncrementalApplicability: async (workUnit, predecessor, current, policyTarget) => {
-      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit));
-      return confirmNonDeliveryIncrementalApplicability({
-        predecessor,
-        currentTarget: current.target,
-        currentLineage: current.admission.lineage,
-        repository: policyTarget.repository,
-        pullRequest: policyTarget.pullRequest,
-        candidate,
-        exec: rawGit,
-        observeTarget: async () => {
-          const baseRef = (await settings())["branch.base"].trim();
-          const headSha = (await input.exec(
-            "git", ["rev-parse", "HEAD"], { cwd: input.cwd },
-          )).stdout.trim();
-          const diffBaseSha = (await input.exec(
-            "git", ["merge-base", `refs/heads/${baseRef}`, headSha],
-            { cwd: input.cwd },
-          )).stdout.trim();
-          return deriveLocalReviewTargetFromCoordinates({
-            exec: input.exec,
-            cwd: input.cwd,
-            repositoryId: await repositoryId(),
-            coordinates: {
-              kind: "change-set",
-              baseRef,
-              diffBaseSha,
-              headSha,
-            },
-          });
-        },
-      });
-    },
+    confirmIncrementalApplicability: (workUnit, predecessor, current, policyTarget) =>
+      confirmPriorProducerApplicability(
+        workUnit, predecessor, current.target, current.admission.lineage, policyTarget,
+      ),
+    confirmPriorProducerApplicability,
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
       const record = await readCandidateRecord(input.cwd, name);
@@ -491,11 +624,9 @@ export function createPrePublicationCompositionDependencies(input: {
         const baseRef = (await settings())["branch.base"].trim();
         // Publication may intentionally keep operational projections staged. Pin the immutable
         // review target to the Candidate commit instead of requiring a clean checkout around it.
-        const diffBaseSha = (await input.exec(
-          "git",
-          ["merge-base", `refs/heads/${baseRef}`, headSha],
-          { cwd: input.cwd },
-        )).stdout.trim();
+        const diffBaseSha = await resolvePrePublicationDiffBase({
+          exec: input.exec, cwd: input.cwd, baseRef, headSha,
+        });
         return {
           status: "resolved",
           target: await deriveLocalReviewTargetFromCoordinates({

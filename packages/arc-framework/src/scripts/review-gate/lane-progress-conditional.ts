@@ -525,21 +525,18 @@ function namedContinuationMatches(
     && authorization.nextPass === input.nextPass;
 }
 
-function terminalContinuationAlreadyRecorded(
+function terminalContinuationAttemptIds(
   snapshot: CompleteOperationSnapshot,
   input: Parameters<typeof consumeConditionalNextPassAuthorization>[1],
-): boolean {
-  return snapshot.records.some(({ state }) => (
-    state.kind === "lane-progress"
+): string[] {
+  return snapshot.records.flatMap(({ state }) => state.kind === "lane-progress"
     && state.repositoryId === input.repositoryId
     && state.lane === input.lane
     && conditionalContinuationLineageMatches(state.lineage, input.lineage)
-    && state.attempts.some((attempt) => (
-      attempt.headSha === input.producedHeadSha
-      && attempt.logicalPass === input.nextPass
-      && attempt.terminalProducer
-    ))
-  ));
+    ? state.attempts.filter((attempt) => attempt.headSha === input.producedHeadSha
+      && attempt.logicalPass === input.nextPass && attempt.terminalProducer)
+      .map((attempt) => attempt.attemptId)
+    : []);
 }
 
 /**
@@ -597,14 +594,18 @@ export async function consumeConditionalNextPassAuthorization(
     if (authorization.producedHeadSha !== input.producedHeadSha) {
       throw new Error("conditional pass authorization does not match the produced head");
     }
-    if (terminalContinuationAlreadyRecorded(snapshot, input)) {
-      throw new Error("conditional pass authorization named pass is already complete");
-    }
+    const terminalAttemptIds = terminalContinuationAttemptIds(snapshot, input);
     if (authorization.status === "consumed") {
       if (authorization.admissionId !== input.admissionId) {
         throw new Error("conditional pass authorization was already consumed by another admission");
       }
+      if (terminalAttemptIds.some((attemptId) => attemptId !== input.admissionId)) {
+        throw new Error("conditional pass authorization named pass is already complete");
+      }
       return match.progress;
+    }
+    if (terminalAttemptIds.length > 0) {
+      throw new Error("conditional pass authorization named pass is already complete");
     }
     const attemptIndex = match.progress.attempts.findIndex((candidate) =>
       candidate.attemptId === match.attempt.attemptId);

@@ -357,6 +357,33 @@ describe("local review record stores", () => {
     })).rejects.toMatchObject({ code: "corrupt-state", reason: "local-disposition-conflict" });
   });
 
+  it("resolves one pending approval policy projection without reopening it", async () => {
+    const { initial } = errandDispositionRecords();
+    const current = currentApprovedDispositionNode(initial);
+    const pending = ApprovedDispositionRecordSchema.parse({
+      ...initial,
+      approvedDispositionLineage: [{ ...current, policyProjectionPending: true }],
+    });
+    const resolved = ApprovedDispositionRecordSchema.parse({
+      ...initial,
+      approvedDispositionLineage: [{
+        ...current,
+        responsePolicyRequest: { ...current.responsePolicyRequest, frontlineActive: true },
+      }],
+    });
+    const store = new LocalApprovedDispositionRecordStore(
+      mutablePublisher(`${JSON.stringify(pending)}\n`),
+    );
+
+    await expect(store.appendDispositionRecord(resolved)).resolves.toBeDefined();
+    await expect(store.appendDispositionRecord(resolved)).resolves.toBeDefined();
+    await expect(store.readDispositionRecord(initial.operationId)).resolves.toEqual(resolved);
+    await expect(store.appendDispositionRecord(initial)).rejects.toMatchObject({
+      code: "corrupt-state",
+      reason: "local-disposition-conflict",
+    });
+  });
+
   it("accepts only the monotonic verified-response advance for a delivery-member disposition", async () => {
     const { initial, advanced } = deliveryDispositionRecords();
     const store = new LocalApprovedDispositionRecordStore(

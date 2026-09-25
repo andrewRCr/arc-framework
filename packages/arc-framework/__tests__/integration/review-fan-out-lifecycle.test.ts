@@ -1557,7 +1557,159 @@ async function awaitThroughProductionHandler(
   return { output: JSON.parse(output.join("")) as unknown, exitCodes };
 }
 
+async function settleThroughProductionHandler(
+  harness: FanOutHarness,
+  fakeBin: string,
+  request: unknown,
+) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  const previousCwd = process.cwd();
+  const previousPath = process.env.PATH;
+  process.chdir(harness.root);
+  process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
+  try {
+    await handleReviewHostedSettle("-", {
+      readText: async () => JSON.stringify(request),
+      write: (text) => output.push(text),
+      setExitCode: (code) => exitCodes.push(code),
+    });
+  } finally {
+    process.chdir(previousCwd);
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+  }
+  return { output: JSON.parse(output.join("")) as unknown, exitCodes };
+}
+
 describe("hosted review fan-out lifecycle", () => {
+  it("uses default hosted settlement wiring for approved success and stale authority refusal", async () => {
+    const harness = await createHarness();
+    const status = await statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    });
+    if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted request");
+    const requested = await requestThroughHandler(status.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-production-settlement",
+        url: "https://example.test/review-production-settlement",
+        createdAt: "2026-08-24T04:00:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec, "1");
+    if (requested.nextAction !== "await") throw new Error("expected hosted review handle");
+    const finding = {
+      findingId: "finding-production-settlement",
+      origin: "review-thread" as const,
+      commentId: "111",
+      threadId: "THREAD_1",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "first.txt:1",
+      url: "https://example.test/finding-production-settlement",
+      sourceOrdinal: 1,
+    };
+    const awaited = await awaitThroughHandler(requested.handle, {
+      kind: "findings",
+      reviewUrl: "https://example.test/review-production-settlement",
+      findings: [finding],
+    });
+    const progress = await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: awaited,
+      now: "2026-08-24T04:01:00.000Z",
+    });
+    if (progress === null) throw new Error("expected findings progress");
+    const attemptId = hostedLaneAttemptId(requested.handle);
+    const dispositionSetId = await bindApprovedHostedFinding(harness, {
+      operationId: progress.operationId,
+      handle: requested.handle,
+      progress,
+      finding,
+      disposition: "defer",
+      channelAction: "reply-and-resolve",
+      now: "2026-08-24T04:02:00.000Z",
+    });
+    const fakeBin = join(harness.root, "settlement-bin");
+    const replyPath = join(harness.root, "settlement-reply");
+    const resolvedPath = join(harness.root, "settlement-resolved");
+    await mkdir(fakeBin, { recursive: true });
+    await writeFile(join(fakeBin, "gh"), [
+      "#!/usr/bin/env node",
+      "import { existsSync, writeFileSync } from 'node:fs';",
+      `const replyPath = ${JSON.stringify(replyPath)};`,
+      `const resolvedPath = ${JSON.stringify(resolvedPath)};`,
+      `const head = ${JSON.stringify(harness.oldFirst)};`,
+      "const args = process.argv.slice(2);",
+      "const route = args[1];",
+      "const output = (value) => process.stdout.write(JSON.stringify(value) + '\\n');",
+      "if (args[0] !== 'api') process.exit(1);",
+      "if (route === 'user') output({ id: 1 });",
+      "else if (route === 'repos/owner/repository/pulls/41') output({ head: { sha: head } });",
+      "else if (route === 'repos/owner/repository/pulls/41/comments?per_page=100')",
+      "  output([existsSync(replyPath) ? [{ id: 222, in_reply_to_id: 111, user: { id: 1 }, body: 'Tracked for follow-up.' }] : []]);",
+      "else if (route === 'repos/owner/repository/pulls/41/comments/111/replies') {",
+      "  writeFileSync(replyPath, 'reply'); output({ id: 222 });",
+      "} else if (route === 'graphql' && args.some((arg) => arg.includes('resolveReviewThread'))) {",
+      "  writeFileSync(resolvedPath, 'resolved'); output({ data: { resolveReviewThread: { thread: { id: 'THREAD_1', isResolved: true } } } });",
+      "} else if (route === 'graphql') output({ data: { repository: { pullRequest: { reviewThreads: {",
+      "  nodes: [{ id: 'THREAD_1', isResolved: existsSync(resolvedPath), comments: {",
+      "    nodes: [{ databaseId: 111, body: 'Finding', url: 'https://example.test/finding-production-settlement',",
+      "      path: 'first.txt', line: 1, commit: { oid: head }, pullRequestReview: { id: 'REVIEW_1' },",
+      "      replyTo: null, author: { databaseId: 2 } }],",
+      "    pageInfo: { hasNextPage: false, endCursor: null } } }],",
+      "  pageInfo: { hasNextPage: false, endCursor: null } } } } } });",
+      "else process.exit(1);",
+      "",
+    ].join("\n"), "utf8");
+    await chmod(join(fakeBin, "gh"), 0o755);
+    const request = {
+      schemaVersion: 1,
+      response: {
+        attemptRef: bindReviewSourceReference({
+          kind: "hosted",
+          operationId: progress.operationId,
+          durableRef: attemptId,
+        }),
+        dispositionSetId,
+        findingId: finding.findingId,
+      },
+      target: requested.handle.target,
+      fixTarget: null,
+      actorIdentity: "1",
+      finding: { commentId: finding.commentId, threadId: finding.threadId },
+      disposition: "defer",
+      reply: "Tracked for follow-up.",
+    };
+    const refused = await settleThroughProductionHandler(harness, fakeBin, {
+      ...request,
+      actorIdentity: "2",
+    });
+    expect(refused.exitCodes).toEqual([1]);
+    expect(refused.output).toMatchObject({ mode: "review-hosted-settle" });
+    await expect(access(replyPath)).rejects.toThrow();
+    const before = await harness.store.readOperation(progress.operationId);
+    expect(before.state?.kind === "lane-progress"
+      ? before.state.attempts.find(({ attemptId: id }) => id === attemptId)?.outcome
+      : null).toBe("findings");
+
+    const settled = await settleThroughProductionHandler(harness, fakeBin, request);
+    expect(settled.exitCodes, JSON.stringify(settled.output)).toEqual([]);
+    expect(settled.output).toMatchObject({ state: "settled", nextAction: "complete", replyId: "222" });
+    await expect(readFile(replyPath, "utf8")).resolves.toBe("reply");
+    await expect(readFile(resolvedPath, "utf8")).resolves.toBe("resolved");
+    const after = await harness.store.readOperation(progress.operationId);
+    expect(after.state?.kind === "lane-progress"
+      ? after.state.attempts.find(({ attemptId: id }) => id === attemptId)
+      : null).toMatchObject({
+      outcome: "settled-findings",
+      hosted: { settledFindingIds: [finding.findingId] },
+    });
+  });
   it("lets an exact-head Owner terminus preempt moved-target applicability without provider spend", async () => {
     const harness = await createHarness();
     await writeFile(

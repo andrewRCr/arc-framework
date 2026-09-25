@@ -74,11 +74,11 @@ const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
   workUnitId: "example",
   head: "f".repeat(40),
 });
-const delegatedAdmission = (vehicle: typeof deliveryVehicle) => ({
+const delegatedAdmission = (vehicle: typeof deliveryVehicle, pullRequest = 42) => ({
   schemaVersion: 1 as const,
   sourceId: "delegated-agent" as const,
   statusTarget: { repository: "owner/repo", headRef: "feature", headSha: vehicle.head },
-  target: { repository: "owner/repo", pullRequest: 42, headSha: vehicle.head },
+  target: { repository: "owner/repo", pullRequest, headSha: vehicle.head },
   vehicle,
   pass: 1,
   requestedCoverage: "complete" as const,
@@ -104,6 +104,7 @@ function hostedProgressAttempt(input: {
   requestedCoverage?: "complete" | "incremental";
   effectiveCoverage?: "complete" | "incremental" | null;
   logicalPass?: number;
+  pullRequest?: number;
 }) {
   const reviewTarget = createReviewTarget({
     schemaVersion: 2,
@@ -134,7 +135,7 @@ function hostedProgressAttempt(input: {
     url: "https://example.test/finding-1",
   };
   const requestedCoverage = input.requestedCoverage ?? "complete";
-  const target = { repository: "owner/repo", pullRequest: 42, headSha: input.vehicle.head };
+  const target = { repository: "owner/repo", pullRequest: input.pullRequest ?? 42, headSha: input.vehicle.head };
   const admission = createHostedAdmission({
     schemaVersion: 1,
     repositoryId: "repo-1",
@@ -169,7 +170,7 @@ function hostedProgressAttempt(input: {
     attemptId: input.attemptId,
     logicalPass: input.logicalPass ?? 1,
     retryGeneration: 0,
-    changeRequestId: "pull/42",
+    changeRequestId: `pull/${target.pullRequest}`,
     headSha: input.vehicle.head,
     terminalProducer: input.outcome !== "rate-limited",
     sourceId: input.sourceId,
@@ -289,6 +290,35 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
 }
 
 describe("hosted reservation admission", () => {
+  it("retains a member pass after its pull request is replaced", () => {
+    const snapshot = memberProgressSnapshot();
+    if (snapshot.status !== "complete") throw new Error("expected complete snapshot");
+    const prior = snapshot.records[0];
+    if (prior?.state.kind !== "lane-progress") throw new Error("expected prior member progress");
+    const replaced: ReviewOperationStateSnapshot = {
+      status: "complete",
+      records: [{
+        ...prior,
+        state: {
+          ...prior.state,
+          attempts: [hostedProgressAttempt({
+            attemptId: "attempt-prior",
+            sourceId: "coderabbit-pr",
+            outcome: "clean",
+            vehicle: { ...deliveryVehicle, head: "d".repeat(40) },
+            pullRequest: 41,
+          })],
+        },
+      }],
+    };
+    expect(projectHostedReservationPolicyProgress({
+      snapshot: replaced,
+      repositoryId: "repo-1",
+      target: { repository: "owner/repo", pullRequest: 42, headSha: deliveryVehicle.head },
+      vehicle: deliveryVehicle,
+    })).toMatchObject({ completedPasses: 1, completePasses: 1, attempts: [] });
+  });
+
   it("counts exact member passes across heads without borrowing coincident progress", () => {
     expect(projectHostedReservationPolicyProgress({
       snapshot: memberProgressSnapshot(),
@@ -464,7 +494,7 @@ describe("hosted reservation admission", () => {
     });
   });
 
-  it("retains delegated-agent coverage while counting its moved-head pass", () => {
+  it("retains delegated-agent coverage across a replacement PR and moved head", () => {
     const priorHead = "d".repeat(40);
     const localTarget = createReviewTarget({
       schemaVersion: 2,
@@ -516,7 +546,7 @@ describe("hosted reservation admission", () => {
               deliveryAdmission: delegatedAdmission(DeliveryReviewMemberVehicleSchema.parse({
                 ...deliveryVehicle,
                 head: priorHead,
-              })),
+              }), 41),
             },
           }],
         },

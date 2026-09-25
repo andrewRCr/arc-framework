@@ -65,7 +65,10 @@ import {
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { bindReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
 import { createHostedAdmission } from "../../src/scripts/review-gate/hosted/request.js";
-import { createHostedTerminalAttemptFixture } from "../fixtures/hosted-review.js";
+import {
+  createHostedTerminalAttemptFixture,
+  publishHostedTerminalProgressFixture,
+} from "../fixtures/hosted-review.js";
 import { responsePolicyRequest, responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import { parseReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
 import { currentApprovedDispositionNode } from "../../src/scripts/review-gate/core/advisory-records.js";
@@ -79,6 +82,8 @@ import {
   deriveLocalReviewTarget,
 } from "../../src/scripts/review-gate/hosts/local/repository-target.js";
 import {
+  bindHostedAttemptDisposition,
+  laneProgressOperationId,
   recordLaneAttempt,
   settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
@@ -291,8 +296,6 @@ function hostedTerminal(input: {
   requirement: Parameters<typeof createHostedAdmission>[0]["requirement"];
   outcome: "clean" | "findings";
   findings?: Parameters<typeof createHostedTerminalAttemptFixture>[0]["findings"];
-  dispositionSetId?: string;
-  settledFindingIds?: readonly string[];
 }) {
   const admission = createHostedAdmission({
     schemaVersion: 1,
@@ -315,8 +318,6 @@ function hostedTerminal(input: {
     admission,
     outcome: input.outcome,
     findings: input.findings,
-    dispositionSetId: input.dispositionSetId,
-    settledFindingIds: input.settledFindingIds,
   });
 }
 
@@ -584,8 +585,22 @@ function prepareRequest() {
 
 /** Run one local review to a findings receipt and return the response source it reduces to. */
 async function reviewToFindings(root: string): Promise<{ kind: "attested-local"; receiptRef: string }> {
-  const prepared = (await invoke(root, ["review", "local", "prepare", "-"], prepareRequest()))
-    .payload as unknown as PreparePayload;
+  let preparation = await invoke(root, ["review", "local", "prepare", "-"], prepareRequest());
+  if (preparation.state === "coverage-required") {
+    const action = preparation.payload.coverageSelectionAction as {
+      choices: readonly { requestedCoverage: "incremental" | "complete" }[];
+    };
+    const complete = action.choices.find(({ requestedCoverage }) => requestedCoverage === "complete");
+    if (complete === undefined) throw new Error("local review coverage offer has no complete choice");
+    preparation = await invoke(root, ["review", "local", "prepare", "-"], {
+      ...prepareRequest(),
+      coverageAdmission: complete,
+    });
+  }
+  if (preparation.payload.target === undefined) {
+    throw new Error(`local review preparation did not return a target: ${JSON.stringify(preparation)}`);
+  }
+  const prepared = preparation.payload as unknown as PreparePayload;
   await invoke(root, ["review", "local", "attest", "-"], {
     schemaVersion: 1,
     operationId: prepared.operationId,
@@ -2669,6 +2684,7 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
       url: "https://example.test/review-1",
       body: "Review finding.",
     };
+    const dispositionSetId = canonicalDigest({ disposition: 1 });
     const settledTerminal = hostedTerminal({
       repositoryId,
       hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
@@ -2676,20 +2692,36 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
       requirement,
       outcome: "findings",
       findings: [finding],
-      dispositionSetId: canonicalDigest({ disposition: 1 }),
-      settledFindingIds: [finding.findingId],
     });
-    await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
+    const operationStore = new LocalReviewOperationStateStore(publisher);
+    const operationId = laneProgressOperationId({
       lane: "standard",
       repositoryId,
+      headSha: approvedHead,
+      lineage: settledTerminal.hosted.admission.lineage,
+    });
+    await publishHostedTerminalProgressFixture(operationStore, {
+      operationId,
+      repositoryId,
+      lineage: settledTerminal.hosted.admission.lineage,
+      logicalPass: 1,
       changeRequestId: "pull/42",
       headSha: approvedHead,
-      attemptId: settledTerminal.attemptId,
       sourceId: "codex-pr",
-      outcome: "settled-findings",
-      consumedPass: true,
-      hosted: settledTerminal.hosted,
+      outcome: "findings",
+      terminal: settledTerminal,
       now: "2026-08-16T12:00:00Z",
+    });
+    await bindHostedAttemptDisposition(operationStore, {
+      operationId,
+      attemptId: settledTerminal.attemptId,
+      dispositionSetId,
+      findingDispositions: [{
+        findingId: finding.findingId,
+        disposition: "defer",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-16T12:01:00Z",
     });
 
     await expect(readRoutedObligation(root, gitExec, {
