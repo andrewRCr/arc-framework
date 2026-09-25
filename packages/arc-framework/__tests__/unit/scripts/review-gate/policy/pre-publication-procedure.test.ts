@@ -51,7 +51,7 @@ const postAttestContinuation = {
   reviewedHead: target.headSha,
   nextAction: {
     kind: "continue-pre-publication-review" as const,
-    command: "arc review pre-publication example --resume opaque-review-judgment --json",
+    command: "arc review pre-publication example --resume opaque-review-judgment",
     interactionText: "Resume pre-publication review over the converged Candidate.",
   },
   projectionDisposition: "keep-staged-until-publication" as const,

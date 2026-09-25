@@ -11,7 +11,7 @@
 - **Design:** `spec-review-signal-convergence.md`
 - **Task List:** `tasks-review-signal-convergence.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:2aefaeef1ae8faaa5685bcb2e895ff505c3e4b9fcab01800a49bf13bed9ccb8b`
+- **Candidate:** `sha256:f6a6d2fff8f057dec8f41e4977aa141742025c893c06eab3dfd4eb1554768e27`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification

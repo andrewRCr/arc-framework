@@ -3350,13 +3350,12 @@ function decodePrePublicationReplay(token: string): PrePublicationReplayInput {
 
 function replayTokenFromAction(command: string, workUnit: string): string {
   const argv = command.split(" ");
-  if (argv.length !== 7
+  if (argv.length !== 6
     || argv[0] !== "arc"
     || argv[1] !== "review"
     || argv[2] !== "pre-publication"
     || argv[3] !== workUnit
-    || argv[4] !== "--resume"
-    || argv[6] !== "--json") {
+    || argv[4] !== "--resume") {
     throw new Error("The pending post-attest continuation has no exact opaque replay command.");
   }
   return z.string().regex(/^[A-Za-z0-9_-]+$/u).parse(argv[5]);
@@ -3407,7 +3406,7 @@ function buildPrePublicationResumeCommand(input: {
       ? {}
       : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
   }), "utf8").toString("base64url");
-  return `arc review pre-publication ${input.workUnit} --resume ${resume} --json`;
+  return `arc review pre-publication ${input.workUnit} --resume ${resume}`;
 }
 
 function defaultPrePublicationDependencies(
@@ -3669,7 +3668,7 @@ export async function handleReviewPrePublication(
         remedy: spineRemedy(
           "Pre-publication review cannot cross an unacknowledged post-attestation head change.",
           "Explicitly recover at the current head",
-          ["arc", "review", "pre-publication", input.data.name, "--resume", recoveryResume, "--json"],
+          ["arc", "review", "pre-publication", input.data.name, "--resume", recoveryResume],
         ),
       });
       dependencies.write(`${JSON.stringify(refusal)}\n`);

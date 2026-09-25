@@ -2476,7 +2476,7 @@ describe("handleReviewPrePublication", () => {
       projectionDisposition: "keep-staged-until-publication",
       nextAction: {
         command: expect.stringMatching(
-          /^arc review pre-publication example --resume [A-Za-z0-9_-]+ --json$/u,
+          /^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u,
         ),
       },
     });
@@ -2523,7 +2523,7 @@ describe("handleReviewPrePublication", () => {
         reviewedHead,
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: `arc review pre-publication example --resume ${replayToken} --json`,
+          command: `arc review pre-publication example --resume ${replayToken}`,
           interactionText: "Resume pre-publication review over the converged Candidate.",
         },
         projectionDisposition: "keep-staged-until-publication",
@@ -2592,7 +2592,7 @@ describe("handleReviewPrePublication", () => {
         reviewedHead,
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: `arc review pre-publication example --resume ${replayToken} --json`,
+          command: `arc review pre-publication example --resume ${replayToken}`,
           interactionText: "Resume pre-publication review over the converged Candidate.",
         },
         projectionDisposition: "keep-staged-until-publication",

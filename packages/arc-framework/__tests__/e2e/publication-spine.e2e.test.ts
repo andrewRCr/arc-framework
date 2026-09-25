@@ -237,7 +237,7 @@ async function approveFix(
     schemaVersion: 1,
     source,
     proposal: {
-      proposedVerification: "targeted",
+      proposedVerification: "focused",
       severityGatingPolicy: { minorGating: "record-only" },
       findings: [{
         findingId: "finding-1",
@@ -358,7 +358,6 @@ async function reachAtCapConvergence(root: string): Promise<{
     "--self-review", "settled",
     "--change-set", judgments.changeSetPath,
     "--lanes", judgments.lanesPath,
-    "--json",
   ], root, { env: OFFLINE_ENV });
   expect(reviewed.exitCode, JSON.stringify(reviewed)).toBe(0);
   const envelope = JSON.parse(reviewed.stdout) as {
@@ -382,7 +381,7 @@ async function reachAtCapConvergence(root: string): Promise<{
         projectionDisposition: "keep-staged-until-publication",
         nextAction: {
           command: expect.stringMatching(
-            /^arc review pre-publication example --resume [A-Za-z0-9_-]+ --json$/u,
+            /^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u,
           ),
         },
       },
@@ -589,7 +588,10 @@ describe("attest → pre-publication → publish", () => {
     const accountingAtCap = await reviewAccounting(repository);
     expect(accountingAtCap).toEqual({ completedPasses: 2, evaluatorInvocations: 2 });
 
-    const attested = await runArc(["attest", "example", "--json"], repository);
+    const attested = await runArc([
+      "attest", "example", "--scope", "focused",
+      "--verification-evidence-ref", "verification://focused-pre-publication-convergence", "--json",
+    ], repository);
     expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
     const attestedResult = JSON.parse(attested.stdout) as {
       locus: { nextAction: { command: string } };
@@ -657,7 +659,10 @@ describe("attest → pre-publication → publish", () => {
     repository = await createAtCapPublicationRepo();
     const pending = await reachAtCapConvergence(repository);
     const accountingAtCap = await reviewAccounting(repository);
-    const attested = await runArc(["attest", "example", "--json"], repository);
+    const attested = await runArc([
+      "attest", "example", "--scope", "focused",
+      "--verification-evidence-ref", "verification://focused-pre-publication-convergence", "--json",
+    ], repository);
     expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
     const continuation = (JSON.parse(attested.stdout) as {
       locus: { nextAction: { command: string } };
@@ -673,7 +678,7 @@ describe("attest → pre-publication → publish", () => {
     expect(refusal).toMatchObject({
       error: { code: "attestation-ordering-conflict" },
       remedy: {
-        argv: ["arc", "review", "pre-publication", "example", "--resume", expect.any(String), "--json"],
+        argv: ["arc", "review", "pre-publication", "example", "--resume", expect.any(String)],
       },
     });
     expect(refusal.remedy.argv.join(" ")).not.toBe(continuation);
@@ -733,7 +738,10 @@ describe("attest → pre-publication → publish", () => {
     repository = await createAtCapPublicationRepo();
     const pending = await reachAtCapConvergence(repository);
     const accountingAtCap = await reviewAccounting(repository);
-    const attested = await runArc(["attest", "example", "--json"], repository);
+    const attested = await runArc([
+      "attest", "example", "--scope", "focused",
+      "--verification-evidence-ref", "verification://focused-pre-publication-convergence", "--json",
+    ], repository);
     expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
     const continuation = (JSON.parse(attested.stdout) as {
       locus: { nextAction: { command: string } };
@@ -997,7 +1005,7 @@ describe("attest → pre-publication → publish", () => {
           nextAction: {
             kind: "continue-pre-publication-review",
             command: expect.stringMatching(
-              /^arc review pre-publication example --resume [A-Za-z0-9_-]+ --json$/u,
+              /^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u,
             ),
           },
         },
@@ -1053,38 +1061,16 @@ describe("attest → pre-publication → publish", () => {
         reservation: { sources: ["coderabbit-pr", "codex-pr"] },
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: "arc review pre-publication example",
+          command: postAttestContinuation.nextAction.command,
         },
       },
     });
 
-    // Follow the advertised continuation exactly. Active self-review first returns its own opaque
-    // replay command; following that command must still recover the carried reservation and reach
-    // publish readiness without a test-only judgment override.
-    const continued = await runArc(
-      ["review", "pre-publication", "example"],
-      repository,
-      { env: OFFLINE_ENV },
-    );
+    // Follow the repaired durable continuation exactly, preserving its settled self-review
+    // judgment and the carried reservation without a test-only override.
+    const continued = await runReturnedCommand(repository, recoveredResult.locus.nextAction.command);
     expect(continued.exitCode, JSON.stringify(continued)).toBe(0);
-    const continuedEnvelope = JSON.parse(continued.stdout) as {
-      locus: string;
-      nextAction: { kind: string; command: string };
-    };
-    expect(continuedEnvelope).toMatchObject({
-      locus: "candidate-review-pending",
-      nextAction: {
-        kind: "run-self-review",
-        command: expect.stringMatching(
-          /^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u,
-        ),
-      },
-    });
-    const replayArgv = continuedEnvelope.nextAction.command.split(" ");
-    expect(replayArgv.shift()).toBe("arc");
-    const rereviewed = await runArc(replayArgv, repository, { env: OFFLINE_ENV });
-    expect(rereviewed.exitCode, JSON.stringify(rereviewed)).toBe(0);
-    expect(JSON.parse(rereviewed.stdout)).toMatchObject({
+    expect(JSON.parse(continued.stdout)).toMatchObject({
       locus: "candidate-publish-ready",
       candidateId: reviewedEnvelope.candidateId,
       candidateSubjectDigest: current.subject.subjectDigest,
@@ -1151,6 +1137,30 @@ describe("attest → pre-publication → publish", () => {
         targetId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
       },
     });
+  });
+
+  it("executes the advertised self-review resume command through the CLI", async () => {
+    repository = await createAttestableRepo();
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+
+    const offered = await runArc(["review", "pre-publication", "example"], repository, { env: OFFLINE_ENV });
+    expect(offered.exitCode, JSON.stringify(offered)).toBe(0);
+    const envelope = JSON.parse(offered.stdout) as {
+      locus: string;
+      nextAction: { kind: string; command: string };
+    };
+    expect(envelope).toMatchObject({
+      locus: "candidate-review-pending",
+      nextAction: {
+        kind: "run-self-review",
+        command: expect.stringMatching(/^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u),
+      },
+    });
+
+    const resumed = await runReturnedCommand(repository, envelope.nextAction.command);
+    expect(resumed.exitCode, JSON.stringify(resumed)).toBe(0);
+    expect(JSON.parse(resumed.stdout)).toMatchObject({ locus: "candidate-publish-ready" });
   });
 
   it("refuses submission while a pre-publication obligation is still open", async () => {

@@ -1080,7 +1080,7 @@ function checkpointPostAttestContinuation(workUnit: string, reviewedHead: string
     reviewedHead,
     nextAction: {
       kind: "continue-pre-publication-review",
-      command: `arc review pre-publication ${workUnit} --json`,
+      command: `arc review pre-publication ${workUnit}`,
       interactionText: "Resume pre-publication review after Candidate convergence verification.",
     },
     projectionDisposition: "keep-staged-until-publication",

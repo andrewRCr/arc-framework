@@ -350,7 +350,7 @@ function action(
 ): RoutinePrePublicationNextAction {
   const command = kind === "publish-candidate"
     ? `arc publish ${workUnit} --json`
-    : `arc review pre-publication ${workUnit} --json`;
+    : `arc review pre-publication ${workUnit}`;
   return z.union([
     RunSelfReviewActionSchema,
     ContinuePrePublicationActionSchema,

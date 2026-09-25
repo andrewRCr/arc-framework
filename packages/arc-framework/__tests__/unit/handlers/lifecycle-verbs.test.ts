@@ -1687,7 +1687,7 @@ describe("handleAttest", () => {
       reviewedHead,
       nextAction: {
         kind: "continue-pre-publication-review" as const,
-        command: `arc review pre-publication foo --resume ${resume} --json`,
+        command: `arc review pre-publication foo --resume ${resume}`,
         interactionText: "Resume pre-publication review over the converged Candidate.",
       },
       projectionDisposition: "keep-staged-until-publication" as const,
