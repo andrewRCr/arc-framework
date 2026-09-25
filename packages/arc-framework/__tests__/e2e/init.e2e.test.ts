@@ -184,7 +184,8 @@ describe("init", () => {
       "assess-evidence-applicability", "adversarial-review",
       "classify-work-unit", "commit-footer", "commit-format", "frontline-review", "standard-review",
       "implementation-audit", "review-chunking", "self-review", "design-audit",
-      "issue-triage", "quality-gate-commands", "resolve-planning-depth", "review-response", "review-triage",
+      "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
+      "review-response", "review-triage",
       "session-state", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
     const extensionNames = [

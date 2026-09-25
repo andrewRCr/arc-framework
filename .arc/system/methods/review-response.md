@@ -57,6 +57,11 @@ for source fidelity. Keep every finding in the set. A blocking recurrence reques
 finding does not. Carrier-native requested changes and required conversations remain independent blockers outside
 this planner, so ARC's record-only result cannot weaken host authority.
 
+A `fix` whose correction would change the design record or its derivation enters [`amend-design`][amend-design]
+before the set is approved. Its [entry gate][amend-design-gate] returns either that the ordinary fix path carries
+the correction and writes no record, or an amendment whose record row is proposed inside this disposition set, so
+the approved set already binds the amended target.
+
 ### Execute only the selected author leaf
 
 Follow the planner state; do not infer or combine transitions:
@@ -93,3 +98,5 @@ capability or satisfy a carrier-native review requirement.
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
+[amend-design-gate]: ../workflows/arc/supplemental/amend-design.md#entry-gate

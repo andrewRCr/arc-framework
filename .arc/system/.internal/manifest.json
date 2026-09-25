@@ -442,6 +442,11 @@
       "layer": "core",
       "pristine_hash": "9bb2f54ff4e75465ac983577108bb180d59439b54c81c1b3776bb66b46174f4c"
     },
+    "system/methods/resolve-plan-segmentation.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "820dd043d254ba64dee2c88439953a2408b45b5d38c579359b5443e580cf28f1"
+    },
     "system/methods/resolve-planning-depth.md": {
       "classification": "Configurable",
       "layer": "core",
@@ -521,6 +526,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "0305278f95d48eb3e24e7604ec31413b2774dd7093b2edee452afec015199176"
+    },
+    "system/.internal/skills/arc-amend-design/SKILL.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "2e1d549846e8ceae76c15dfcfbc1d967c5193642071aefe8ace22eb5a7f4c5ec"
     },
     "system/.internal/skills/arc-commit/SKILL.md": {
       "classification": "Framework",
@@ -656,6 +666,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "0f2b1db991fa89780d0bd89facaf15959d043099382be065dbef50ab3dea4312"
+    },
+    "system/workflows/arc/supplemental/amend-design.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "ce1004c857c22d8e30e8ef4d704e426a13c993fe50804d84c03db43f9379415e"
     },
     "system/workflows/arc/supplemental/verify-arc-integrity.md": {
       "classification": "Framework",

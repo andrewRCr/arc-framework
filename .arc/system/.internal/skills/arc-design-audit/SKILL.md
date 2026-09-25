@@ -21,7 +21,9 @@ decides when an audit is worth its cost; never invoke this proactively.
   rubric is that route's destination for re-validating the reopened decision.
 - **Mid-impl escalation (rare).** Implementation evidence suggests the _design_ — not the task — is wrong.
   Task-level drift and re-grounding belong to the `arc-task-audit` door; reach here only when a confirmed finding
-  implicates the design itself.
+  implicates the design itself. Specificity picks the door, never confidence: a finding you can already point at
+  skips this rubric and enters [`amend-design`][amend-design] directly, and a finding this audit verifies routes
+  onward to that same gate.
 
 This door is **not** a pre-task ritual: pausing to re-ground a task-as-written before implementation is
 `arc-task-audit`'s role, not this one.
@@ -42,3 +44,4 @@ before the design is relied on.
 
 [design-audit-method]: ../../../methods/design-audit.md
 [proportionality-method]: ../../../methods/assess-design-proportionality.md
+[amend-design]: ../../../workflows/arc/supplemental/amend-design.md
