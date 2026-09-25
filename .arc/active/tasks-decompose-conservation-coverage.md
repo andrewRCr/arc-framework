@@ -4,57 +4,11 @@
 
 ---
 
-<!-- arc:delivery-plan:start -->
-## Delivery Plan
+## Review and landing
 
-- **Plan Revision:** `2`
-- **Plan Digest:** `sha256:f1783f47c828efd38ec783b4e334d24a13319b60c744d8ac715f0f2d67eb9af7`
-- **Projection:** `stack-to-main`
-- **Landability:** All members are `independently-landable`.
-
-### Members
-
-| #   | Member                                | Chunk key                       |
-| --- | ------------------------------------- | ------------------------------- |
-| 1   | Refusal contract and retirement floor | `refusal-contract-and-floor`    |
-| 2   | Complete companion conservation       | `companion-conservation`        |
-| 3   | External dependency authoring         | `external-dependency-authoring` |
-
-#### Member coverage
-
-| #   | Tasks                                    | Design elements              |
-| --- | ---------------------------------------- | ---------------------------- |
-| 1   | `1.1`, `1.2`, `1.3`, `1.4`, `1.5`, `1.6` | `rfc:D1`, `rfc:D2`           |
-| 2   | `2.1`, `2.2`, `2.3`, `2.4`, `2.5`, `2.6` | `rfc:D2`                     |
-| 3   | `3.1`, `3.2`, `3.3`, `3.4`, `3.5`, `3.6` | `rfc:D1`, `rfc:D2`, `rfc:D3` |
-
-### Named seams
-
-| #   | Seam                                         | Members | Owner | Design elements              |
-| --- | -------------------------------------------- | ------- | ----- | ---------------------------- |
-| 1   | Machine-envelope identity                    | 2, 3    | 3     | `rfc:D2`, `rfc:D3`           |
-| 2   | Package and project workflow synchronization | 1, 2, 3 | 3     | `rfc:D1`, `rfc:D2`, `rfc:D3` |
-| 3   | Refusal-code totality                        | 1, 2, 3 | 3     | `rfc:D1`, `rfc:D2`, `rfc:D3` |
-| 4   | Extraction byte preservation                 | 1, 2, 3 | 3     | `rfc:D1`, `rfc:D2`, `rfc:D3` |
-| 5   | Exact transform delta                        | 1, 2, 3 | 3     | `rfc:D2`, `rfc:D3`           |
-
-#### Acceptance
-
-- **1. Machine-envelope identity:** Companion inventory and external-edge authoring preserve the closed machine field
-  set and preflight identity contract while intended source-unit values change deterministically.
-
-- **2. Package and project workflow synchronization:** Each member closes with matching package and project workflow
-  guidance, and the final pair carries the cumulative refusal, companion, and external-edge contract.
-
-- **3. Refusal-code totality:** Every code introduced by companion or external-edge work lands with a specific remedy
-  and remains covered by the all-mode typed envelope.
-
-- **4. Extraction byte preservation:** Finish evidence, retained companion handling, and dependency proof compose while
-  every supported extraction leaves companion bytes unchanged.
-
-- **5. Exact transform delta:** The retirement floor, complete companion mutations, and dependency deltas compose
-  without admitting an unplanned repository change.
-<!-- arc:delivery-plan:end -->
+Per the storage program's landing decision (2026-09-24), this work unit lands from one branch in one pull request
+with chunked review. The three former delivery members below are review chunks; the unpublished stack plan was set
+aside.
 
 ## **Phase 1:** Typed refusals and the retirement safety floor
 
