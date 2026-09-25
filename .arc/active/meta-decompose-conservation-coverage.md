@@ -31,12 +31,20 @@ The v3 decomposition flow now conserves every retiring work-unit companion, keep
 supported extraction, and lets completed cut maps author validated dependencies on live or completed work units
 outside the cut. All six modes report strict typed refusals with executable remedies and bounded comparison evidence.
 
-- **Added:** Complete artifact-family discovery, task-phase and notes authoring paths, and canonical external
-  dependency edges through repository composition, finish, and base advancement.
-- **Changed:** Supported extraction authenticates companions as retained at the origin, while dependency recipients
-  are revalidated against pinned repository state before mutation.
-- **Fixed:** Uncovered retiring content now refuses before planning or mutation, and every stable decompose refusal
-  selects a specific corrective command without exposing runtime detail as a machine reason.
+### Added
+
+- Complete artifact-family discovery, task-phase and notes authoring paths, and canonical external dependency edges
+  through repository composition, finish, and base advancement.
+
+### Changed
+
+- Supported extraction authenticates companions as retained at the origin, while dependency recipients are
+  revalidated against pinned repository state before mutation.
+
+### Fixed
+
+- Uncovered retiring content now refuses before planning or mutation, and every stable decompose refusal selects a
+  specific corrective command without exposing runtime detail as a machine reason.
 
 ## Completion Notes
 
