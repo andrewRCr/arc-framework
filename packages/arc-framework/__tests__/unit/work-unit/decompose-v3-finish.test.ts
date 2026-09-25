@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   V3ExtractionFinishResultSchema,
 } from "../../../src/lib/work-unit/decompose-v3-finish.js";
+import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 describe("V3ExtractionFinishResultSchema", () => {
   const preview = {
@@ -21,6 +22,7 @@ describe("V3ExtractionFinishResultSchema", () => {
       before: {
         mode: "100644",
         contentDigest: `sha256:${"d".repeat(64)}`,
+        byteLength: 128,
       },
       after: {
         kind: "file",
@@ -30,22 +32,49 @@ describe("V3ExtractionFinishResultSchema", () => {
       removedLocators: [{ artifact: "spec-origin.md", kind: "preamble" }],
     }],
   };
+  const refusal = {
+    status: "refused" as const,
+    reason: "destination-missing",
+    locus: "member",
+    evidence: { expected: "planned", actual: { kind: "absent" } },
+    remedy: spineRemedy(
+      "Every planned destination must exist on the live base.",
+      "Retry finish after restoring the destination",
+      ["arc", "decompose", "origin", "--finish", "map.json"],
+    ),
+  };
 
   it.each([
     { status: "previewed", preview },
     { status: "finished" },
     { status: "already-finished" },
-    { status: "refused", reason: "destination-missing", locus: "member" },
+    refusal,
   ])("accepts one canonical finish outcome: %o", (result) => {
     expect(V3ExtractionFinishResultSchema.safeParse(result).success).toBe(true);
   });
 
   it.each([
     { status: "refused" },
+    { status: "refused", reason: "destination-missing", locus: "member" },
+    { ...refusal, extra: true },
+    { ...refusal, evidence: { expected: "planned" } },
     { status: "unknown" },
     { status: "previewed" },
     { status: "previewed", reason: "unexpected" },
     { status: "previewed", preview: { ...preview, applyAuthority: "invalid" } },
+    {
+      status: "previewed",
+      preview: {
+        ...preview,
+        sources: [{
+          ...preview.sources[0],
+          before: {
+            mode: preview.sources[0]?.before.mode,
+            contentDigest: preview.sources[0]?.before.contentDigest,
+          },
+        }],
+      },
+    },
   ])("refuses an incomplete or open-ended outcome: %o", (result) => {
     expect(V3ExtractionFinishResultSchema.safeParse(result).success).toBe(false);
   });

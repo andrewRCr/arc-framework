@@ -9,30 +9,36 @@ import {
   sortByCanonicalBytes,
   type CanonicalDigest,
 } from "../canonical/canonical-json.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
 import { validateManagedPath } from "../canonical/managed-path.js";
+import { normalizeGitRejection } from "../git/process-error.js";
 import { resolveArcPath } from "../layout/index.js";
 import type {
   V3ExtractionFinishPreview,
   V3ExtractionFinishEvidence,
-  V3ExtractionFinishResult,
 } from "./decompose-v3-finish.js";
-import { executeV3ExtractionSourceFinish } from "./decompose-v3-finish-operation.js";
 import {
-  resolveV3DecomposeContentLocator,
-  scanV3DecomposeContent,
-} from "./decompose-content.js";
+  V3ExtractionFinishResultSchema,
+  type V3ExtractionFinishResult,
+} from "./decompose-v3-finish.js";
+import {
+  v3DecomposeAbsentEvidence,
+  v3DecomposeByteEvidence,
+  v3DecomposeRemedy,
+  type V3DecomposeEvidenceValue,
+  type V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
+import { executeV3ExtractionSourceFinish } from "./decompose-v3-finish-operation.js";
 import {
   createV3DecomposePreflight,
   revalidateV3DecomposeCutMapBinding,
   type V3DecomposePreflight,
+  type V3DecomposeTreeSnapshot,
 } from "./decompose-v3-preflight.js";
 import { refreshV3ExtractionCutMap } from "./decompose-v3-refresh.js";
 import {
   composeV3ExtractionRepositoryPlan,
   type V3RepositoryPlanResult,
 } from "./decompose-v3-repository-plan.js";
-import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import type {
   GitV3RepositoryPlanDependencies,
 } from "./git-decompose-v3-repository-plan.js";
@@ -41,6 +47,7 @@ import {
   renderGitV3RepositoryTreeRoadmap,
 } from "./git-decompose-v3-repository-plan.js";
 import {
+  isGitV3DecomposeSourceArtifactPath,
   readGitV3DecomposeTreeSnapshot,
 } from "./git-decompose-v3-preflight.js";
 import {
@@ -53,8 +60,21 @@ import {
   type V3ExtractionSourceThinningFilePlan,
 } from "./decompose-v3-thinning.js";
 import { createGitV3ExtractionSourceFinishIO } from "./git-decompose-v3-operation-io.js";
-import { replaceDependencySlot } from "./decompose-sweep.js";
-import { v3CohortDocumentPath } from "./decompose-v3-topology.js";
+import {
+  validateV3ExtractionDestinationStates,
+  type GitV3ExtractionDestinationProofResult,
+  type V3ExtractionFinishPreparation,
+} from "./git-decompose-v3-destination-validation.js";
+
+export { validateV3ExtractionDestinationStates } from "./git-decompose-v3-destination-validation.js";
+export type {
+  GitV3ExtractionDestinationProofResult,
+  V3ExtractionDestinationProof,
+  V3ExtractionDestinationValidationAuthority,
+  V3ExtractionDestinationValidationResult,
+  V3ExtractionDestinationState,
+  V3ExtractionFinishPreparation,
+} from "./git-decompose-v3-destination-validation.js";
 
 /** Inputs shared by finish preview and explicit application. */
 export interface GitV3ExtractionFinishInput {
@@ -65,44 +85,16 @@ export interface GitV3ExtractionFinishInput {
   applyAuthority: CanonicalDigest | null;
 }
 
-/** One exact destination state proven on the configured integration base. */
-export interface V3ExtractionDestinationState {
-  path: string;
-  mode: "100644" | "100755";
-  contentDigest: CanonicalDigest;
-}
-
-/** Immutable base proof consumed by later source-thinning planning. */
-export interface V3ExtractionDestinationProof {
-  baseRef: string;
-  baseHead: string;
-  destinations: V3ExtractionDestinationState[];
-}
-
-/** Exact source and destination facts retained for thinning planning. */
-export interface V3ExtractionFinishPreparation {
-  completedMap: V3DecomposeCutMap;
-  currentPreflight: V3DecomposePreflight;
-  sourceTree: V3RepositoryPlanTree;
-  proof: V3ExtractionDestinationProof;
-}
-
-/** Git-backed proof result returned before any source mutation. */
-export type GitV3ExtractionDestinationProofResult =
-  | { status: "proven"; preparation: V3ExtractionFinishPreparation }
-  | { status: "refused"; reason: string; locus?: string };
-
-/** Pure destination-state validation result. */
-export type V3ExtractionDestinationValidationResult =
-  | { status: "proven"; destinations: V3ExtractionDestinationState[] }
-  | { status: "refused"; reason: string; locus?: string };
-
-/** Semantic authority needed to validate owner-authored extraction destinations. */
-export interface V3ExtractionDestinationValidationAuthority {
-  completedMap: V3DecomposeCutMap;
-  blobs: ReadonlyArray<{ contentDigest: CanonicalDigest; bytes: Uint8Array }>;
-  expectedRoadmap: Uint8Array;
-}
+type V3ExtractionFinishOperationResult =
+  | { status: "previewed"; preview: V3ExtractionFinishPreview }
+  | { status: "finished" }
+  | { status: "already-finished" }
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 function composeFinishPreview(
   preparation: V3ExtractionFinishPreparation,
@@ -137,194 +129,18 @@ function composeFinishPreview(
   };
 }
 
-/**
- * Compare an extraction plan's destination mutations with one pinned base tree.
- *
- * @param plan - Exact additive plan reconstructed from its original base.
- * @param tree - Current configured-base tree pinned at one commit.
- * @returns Proven destination facts or one deterministic mismatch.
- */
-export function validateV3ExtractionDestinationStates(
-  plan: ValidatedDecomposePlan,
-  tree: V3RepositoryPlanTree,
-  authority?: V3ExtractionDestinationValidationAuthority,
-): V3ExtractionDestinationValidationResult {
-  const blobBytes = new Map(authority?.blobs.map(({ contentDigest, bytes }) => [contentDigest, bytes]) ?? []);
-  const destinations: V3ExtractionDestinationState[] = [];
-  let roadmapPath: string | null = null;
-  for (const mutation of plan.mutations) {
-    if (mutation.kind === "exclusive" && mutation.role === "roadmap") {
-      roadmapPath = mutation.path;
-      continue;
-    }
-    if (mutation.after.kind !== "file") {
-      return { status: "refused", reason: "destination-plan-state", locus: mutation.path };
-    }
-    const observed = tree[mutation.path];
-    if (observed === undefined || observed.kind === "absent") {
-      return { status: "refused", reason: "destination-missing", locus: mutation.path };
-    }
-    if (observed.objectKind !== "blob") {
-      return { status: "refused", reason: "destination-object-kind", locus: mutation.path };
-    }
-    if (observed.mode !== mutation.after.mode) {
-      return { status: "refused", reason: "destination-mode", locus: mutation.path };
-    }
-    if (authority === undefined && digestBytes(observed.bytes) !== mutation.after.contentDigest) {
-      return { status: "refused", reason: "destination-bytes", locus: mutation.path };
-    }
-    if (mutation.kind === "composed") {
-      let semanticallyOwned = false;
-      const projections = mutation.contributors.flatMap((contributor) =>
-        contributor.kind === "content" ? contributor.sourceProjection : []);
-      if (projections.length > 0) {
-        semanticallyOwned = true;
-        const artifact = posix.basename(mutation.path);
-        const scan = scanV3DecomposeContent(artifact, observed.bytes);
-        if (scan.status === "rejected") {
-          return { status: "refused", reason: "destination-scan", locus: mutation.path };
-        }
-        for (const projection of projections) {
-          const resolution = resolveV3DecomposeContentLocator(
-            scan.units,
-            projection.targetLocator,
-            artifact,
-          );
-          if (resolution.status === "rejected") {
-            return { status: "refused", reason: "destination-locator", locus: mutation.path };
-          }
-        }
-      }
-      const expectedBytes = blobBytes.get(mutation.after.contentDigest);
-      const metaContributor = mutation.contributors.find((contributor) =>
-        contributor.kind === "content"
-        && contributor.destinationKind === "new-member"
-        && contributor.artifactRole === "meta");
-      const dependencyContributor = mutation.contributors.find(({ kind }) => kind === "dependency");
-      if ((metaContributor !== undefined || dependencyContributor !== undefined)
-        && expectedBytes !== undefined) {
-        semanticallyOwned = true;
-        try {
-          const decoder = new TextDecoder("utf-8", { fatal: true });
-          const expectedMeta = parseMetaRecord(decoder.decode(expectedBytes));
-          const observedMeta = parseMetaRecord(decoder.decode(observed.bytes));
-          const fixed = metaContributor === undefined
-            ? ["dependsOn"] as const
-            : ["state", "owner", "branch", "workClass", "priority", "cohort", "dependsOn", "origin", "design"] as const;
-          if (fixed.some((field) => canonicalDigest(expectedMeta[field]) !== canonicalDigest(observedMeta[field]))) {
-            return { status: "refused", reason: "destination-meta", locus: mutation.path };
-          }
-        } catch {
-          return { status: "refused", reason: "destination-meta", locus: mutation.path };
-        }
-      }
-      if (authority !== undefined && !semanticallyOwned
-        && mutation.contributors.every(({ kind }) => kind !== "topology")
-        && digestBytes(observed.bytes) !== mutation.after.contentDigest) {
-        return { status: "refused", reason: "destination-bytes", locus: mutation.path };
-      }
-    }
-    destinations.push({
-      path: mutation.path,
-      mode: mutation.after.mode,
-      contentDigest: digestBytes(observed.bytes),
-    });
-  }
-  if (authority !== undefined) {
-    const map = authority.completedMap;
-    for (const [index, edge] of map.machine.incomingEdges.entries()) {
-      const authored = map.authoring.incomingDispositions[index];
-      const expected = authored?.disposition.kind === "replace"
-        ? replaceDependencySlot(edge.currentTargets, map.machine.source.origin, authored.disposition.replacementTargets)
-        : replaceDependencySlot(edge.currentTargets, map.machine.source.origin, []);
-      const matches = Object.entries(tree).filter(([path, state]) =>
-        posix.basename(path) === `meta-${edge.dependent}.md`
-        && state.kind === "object"
-        && state.objectKind === "blob");
-      const match = matches[0];
-      if (authored === undefined || matches.length !== 1 || match === undefined || match[1].kind === "absent") {
-        return { status: "refused", reason: "dependency-claim", locus: edge.dependent };
-      }
-      try {
-        const actual = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(match[1].bytes)).dependsOn;
-        if (canonicalDigest(sortByCanonicalBytes(actual)) !== canonicalDigest(sortByCanonicalBytes(expected))) {
-          return { status: "refused", reason: "dependency-claim", locus: match[0] };
-        }
-      } catch {
-        return { status: "refused", reason: "dependency-claim", locus: match[0] };
-      }
-    }
-    const placement = map.authoring.placement;
-    const cohortClaims = placement.kind === "direct-member"
-      ? []
-      : placement.kind === "subcohort"
-        ? [placement.cohort.split("/")[0] ?? "", placement.cohort]
-        : [placement.kind === "at-cap" ? placement.parent : placement.cohort];
-    for (const cohort of cohortClaims) {
-      const path = v3CohortDocumentPath(cohort);
-      const state = tree[path];
-      if (state === undefined || state.kind === "absent" || state.objectKind !== "blob") {
-        return { status: "refused", reason: "topology-claim", locus: path };
-      }
-      let text: string;
-      try {
-        text = new TextDecoder("utf-8", { fatal: true }).decode(state.bytes);
-      } catch {
-        return { status: "refused", reason: "topology-claim", locus: path };
-      }
-      const segments = cohort.split("/");
-      const leaf = segments.at(-1);
-      const parent = segments.length === 2 ? segments[0] : null;
-      const purpose = /^\*\*Purpose:\*\*\s*(.+)$/mu.exec(text)?.[1]?.trim();
-      const parentLines = [...text.matchAll(/^\*\*Parent:\*\*\s*(.+)$/gmu)].map((match) => match[1]);
-      if (leaf === undefined || !text.startsWith(`# Cohort: \`${leaf}\`\n`)
-        || (parent === null ? parentLines.length !== 0 : parentLines.length !== 1 || parentLines[0] !== parent)
-        || purpose === undefined || purpose === "—") {
-        return { status: "refused", reason: "topology-claim", locus: path };
-      }
-    }
-    if (placement.kind === "at-cap") {
-      const path = v3CohortDocumentPath(placement.parent);
-      const state = tree[path];
-      const members = map.authoring.destinations.flatMap((destination) =>
-        destination.kind === "new-member" ? [destination.slug] : []).sort();
-      const block = [
-        `<!-- arc:decompose-fanout:${map.machine.source.origin}:start -->`,
-        `### \`${map.machine.source.origin}\` decomposition fan-out`,
-        "",
-        ...members.map((slug) => `- \`${slug}\``),
-        `<!-- arc:decompose-fanout:${map.machine.source.origin}:end -->`,
-      ].join("\n");
-      if (state === undefined || state.kind === "absent" || state.objectKind !== "blob"
-        || !new TextDecoder().decode(state.bytes).includes(block)) {
-        return { status: "refused", reason: "topology-claim", locus: path };
-      }
-    }
-    if (roadmapPath === null) {
-      return { status: "refused", reason: "roadmap-missing", locus: ROADMAP_PATH };
-    }
-    const roadmap = tree[roadmapPath];
-    if (roadmap === undefined || roadmap.kind === "absent") {
-      return { status: "refused", reason: "roadmap-missing", locus: roadmapPath };
-    }
-    if (roadmap.objectKind !== "blob"
-      || !Buffer.from(roadmap.bytes).equals(Buffer.from(authority.expectedRoadmap))) {
-      return { status: "refused", reason: "roadmap-current-render", locus: roadmapPath };
-    }
-  }
-  if (destinations.length === 0) {
-    return { status: "refused", reason: "destination-plan-empty" };
-  }
-  return { status: "proven", destinations };
-}
-
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
-function refused(reason: string, locus?: string): GitV3ExtractionDestinationProofResult {
+function refused(
+  reason: string,
+  locus?: string,
+  evidence?: V3DecomposeRefusalEvidence,
+): Extract<GitV3ExtractionDestinationProofResult, { status: "refused" }> {
   return {
     status: "refused",
     reason,
     ...(locus === undefined ? {} : { locus }),
+    ...(evidence === undefined ? {} : { evidence }),
   };
 }
 
@@ -409,12 +225,514 @@ function roadmapBytes(tree: V3RepositoryPlanTree): Uint8Array | null {
     : null;
 }
 
+type V3ExtractionSourceGroupClassification =
+  | { status: "admitted" }
+  | { status: "reauthor"; locus: string; evidence?: V3DecomposeRefusalEvidence };
+
+interface V3ExtractionSourceGroupArtifact {
+  path: string;
+  objectKind: string;
+  mode: string;
+  bytes: Uint8Array;
+}
+
+function sourceGroupArtifacts(
+  tree: V3RepositoryPlanTree,
+  sourceOriginPath: string,
+  origin: string,
+): V3ExtractionSourceGroupArtifact[] {
+  const sourceDirectory = posix.dirname(sourceOriginPath);
+  return Object.entries(tree).flatMap(([path, state]) => (
+    state.kind === "object"
+      && isGitV3DecomposeSourceArtifactPath(path, sourceDirectory, origin)
+      ? [{
+          path,
+          objectKind: state.objectKind,
+          mode: state.mode,
+          bytes: state.bytes,
+        }]
+      : []
+  )).sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
+}
+
+function sourceArtifactEvidence(
+  artifact: V3ExtractionSourceGroupArtifact | undefined,
+): V3DecomposeEvidenceValue {
+  return artifact === undefined
+    ? v3DecomposeAbsentEvidence()
+    : {
+        kind: "object",
+        objectKind: artifact.objectKind,
+        mode: artifact.mode,
+        ...v3DecomposeByteEvidence(artifact.bytes),
+      };
+}
+
+function plannedAfterEvidence(
+  file: V3ExtractionSourceThinningFilePlan,
+): V3DecomposeEvidenceValue {
+  return file.after.kind === "absent"
+    ? v3DecomposeAbsentEvidence()
+    : {
+        kind: "object",
+        objectKind: "blob",
+        mode: file.after.mode,
+        ...v3DecomposeByteEvidence(file.after.bytes),
+      };
+}
+
+function artifactsEqual(
+  left: V3ExtractionSourceGroupArtifact | undefined,
+  right: V3ExtractionSourceGroupArtifact,
+): boolean {
+  return left !== undefined
+    && right.objectKind === "blob"
+    && left.objectKind === right.objectKind
+    && left.mode === right.mode
+    && Buffer.from(left.bytes).equals(Buffer.from(right.bytes));
+}
+
+function artifactMatchesAfter(
+  artifact: V3ExtractionSourceGroupArtifact | undefined,
+  file: V3ExtractionSourceThinningFilePlan,
+): boolean {
+  if (file.after.kind === "absent") return artifact === undefined;
+  return artifact !== undefined
+    && artifact.objectKind === "blob"
+    && artifact.mode === file.after.mode
+    && Buffer.from(artifact.bytes).equals(Buffer.from(file.after.bytes));
+}
+
+function companionPlanIsNoop(
+  original: V3ExtractionSourceGroupArtifact,
+  file: V3ExtractionSourceThinningFilePlan | undefined,
+): boolean {
+  return file === undefined || (
+    file.before.mode === original.mode
+    && file.before.contentDigest === digestBytes(original.bytes)
+    && file.before.byteLength === original.bytes.byteLength
+    && file.after.kind === "file"
+    && file.after.mode === original.mode
+    && Buffer.from(file.after.bytes).equals(Buffer.from(original.bytes))
+    && file.removedLocators.length === 0
+  );
+}
+
+function classifyV3ExtractionSourceGroup(
+  map: V3DecomposeCutMap,
+  sourceOriginPath: string,
+  originalArtifacts: readonly V3ExtractionSourceGroupArtifact[],
+  currentArtifacts: readonly V3ExtractionSourceGroupArtifact[],
+  originalFiles: readonly V3ExtractionSourceThinningFilePlan[],
+): V3ExtractionSourceGroupClassification {
+  const original = new Map(originalArtifacts
+    .filter(({ path }) => path !== sourceOriginPath)
+    .map((artifact) => [artifact.path, artifact]));
+  const current = new Map(currentArtifacts
+    .filter(({ path }) => path !== sourceOriginPath)
+    .map((artifact) => [artifact.path, artifact]));
+  const files = new Map(originalFiles.map((file) => [file.path, file]));
+  const paths = sortByCanonicalBytes([...new Set([...original.keys(), ...current.keys()])]);
+
+  for (const path of paths) {
+    const before = original.get(path);
+    const observed = current.get(path);
+    const file = files.get(path);
+    if (before === undefined) {
+      return {
+        status: "reauthor",
+        locus: path,
+        evidence: {
+          expected: v3DecomposeAbsentEvidence(),
+          actual: sourceArtifactEvidence(observed),
+        },
+      };
+    }
+    const companion = !map.machine.planningProfile.sourceDesign.includes(posix.basename(path));
+    const admitted = companion
+      ? companionPlanIsNoop(before, file) && artifactsEqual(observed, before)
+      : file !== undefined
+        && (artifactsEqual(observed, before) || artifactMatchesAfter(observed, file));
+    if (!admitted) {
+      return {
+        status: "reauthor",
+        locus: path,
+        evidence: {
+          expected: companion
+            ? sourceArtifactEvidence(before)
+            : {
+                before: sourceArtifactEvidence(before),
+                after: file === undefined ? v3DecomposeAbsentEvidence() : plannedAfterEvidence(file),
+              },
+          actual: sourceArtifactEvidence(observed),
+        },
+      };
+    }
+  }
+  return { status: "admitted" };
+}
+
 function planRefusal(result: Extract<V3RepositoryPlanResult, { status: "refused" }>):
-GitV3ExtractionDestinationProofResult {
+Extract<GitV3ExtractionDestinationProofResult, { status: "refused" }> {
   return refused(
     `destination-plan:${result.refusal.stage}:${result.refusal.reason}`,
     result.refusal.locus,
+    result.refusal.evidence,
   );
+}
+
+type DestinationProofRefusal = Extract<GitV3ExtractionDestinationProofResult, { status: "refused" }>;
+
+interface ExtractionMapInput {
+  map: V3DecomposeCutMap;
+  baseRef: string;
+}
+
+type ExtractionMapInputResult =
+  | { status: "ready"; value: ExtractionMapInput }
+  | DestinationProofRefusal;
+
+async function readExtractionMapInput(
+  input: GitV3ExtractionFinishInput,
+): Promise<ExtractionMapInputResult> {
+  let rawMap: unknown;
+  try {
+    rawMap = JSON.parse(await readFile(resolvePath(input.cwd, input.cutMapPath), "utf8"));
+  } catch {
+    return refused("map:invalid", input.cutMapPath);
+  }
+  const decoded = decodeV3DecomposeCutMap(rawMap);
+  if (decoded.status === "rejected") {
+    return refused(`map:${decoded.issue.code}`, decoded.issue.path);
+  }
+  const map = decoded.value;
+  if (map.authoring.shape !== "extraction") {
+    return refused("map:authoring-shape", "authoring.shape");
+  }
+  if (map.machine.source.origin !== input.origin) {
+    return refused("map:origin", "machine.source.origin", {
+      expected: map.machine.source.origin,
+      actual: input.origin,
+    });
+  }
+  const baseRef = `refs/heads/${input.baseBranch}`;
+  if (map.machine.resultBase.ref !== baseRef) {
+    return refused("base-ref-mismatch", "machine.resultBase.ref", {
+      expected: map.machine.resultBase.ref,
+      actual: baseRef,
+    });
+  }
+  return { status: "ready", value: { map, baseRef } };
+}
+
+interface ExtractionProofRefs {
+  head: string;
+  baseHead: string;
+}
+
+type ExtractionProofRefsResult =
+  | { status: "ready"; value: ExtractionProofRefs }
+  | DestinationProofRefusal;
+
+async function validateExtractionProofRefs(
+  dependencies: GitV3RepositoryPlanDependencies,
+  map: V3DecomposeCutMap,
+  baseRef: string,
+): Promise<ExtractionProofRefsResult> {
+  const [branch, head, sourceRef, baseHead] = await Promise.all([
+    currentBranch(dependencies),
+    exactRef(dependencies, "HEAD"),
+    exactRef(dependencies, map.machine.source.ref),
+    exactRef(dependencies, baseRef),
+  ]);
+  if (branch === null) return refused("source-detached", "HEAD");
+  if (branch !== map.machine.source.logicalBranch) {
+    return refused("source-branch", "machine.source.logicalBranch");
+  }
+  if (head === null) return refused("source-head", "HEAD");
+  if (sourceRef !== head) {
+    return refused(
+      "source-ref-moved",
+      map.machine.source.ref,
+      sourceRef === null ? undefined : { expected: head, actual: sourceRef },
+    );
+  }
+  if (baseHead === null) return refused("base-missing", baseRef);
+  const ancestryArgs = ["merge-base", "--is-ancestor", map.machine.resultBase.head, baseHead];
+  try {
+    await dependencies.exec("git", ancestryArgs, { cwd: dependencies.cwd });
+  } catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args: ancestryArgs });
+    return failure.kind === "nonzero-exit" && failure.exitCode === 1
+      ? refused("base-not-descendant", baseRef)
+      : refused("base-ancestry-unavailable", failure.message);
+  }
+  return { status: "ready", value: { head, baseHead } };
+}
+
+interface ExtractionSourceState {
+  sourceSnapshot: V3DecomposeTreeSnapshot;
+  originalSourceSnapshot: V3DecomposeTreeSnapshot;
+  originalBaseSnapshot: V3DecomposeTreeSnapshot;
+  currentSourceRepositoryTree: V3RepositoryPlanTree;
+  originalSourceRepositoryTree: V3RepositoryPlanTree;
+}
+
+type ExtractionSourceStateResult =
+  | { status: "ready"; value: ExtractionSourceState }
+  | DestinationProofRefusal;
+
+async function readExtractionSourceState(
+  dependencies: GitV3RepositoryPlanDependencies,
+  map: V3DecomposeCutMap,
+  input: GitV3ExtractionFinishInput,
+  head: string,
+): Promise<ExtractionSourceStateResult> {
+  const [
+    sourceSnapshot,
+    originalSourceSnapshot,
+    originalBaseSnapshot,
+    currentSourceRepositoryTree,
+    originalSourceRepositoryTree,
+  ] = await Promise.all([
+    readGitV3DecomposeTreeSnapshot(
+      dependencies,
+      map.machine.source.ref,
+      head,
+      input.origin,
+      { unsupportedArtifacts: "omit" },
+    ),
+    readGitV3DecomposeTreeSnapshot(
+      dependencies,
+      map.machine.source.ref,
+      map.machine.source.head,
+      input.origin,
+    ),
+    readGitV3DecomposeTreeSnapshot(
+      dependencies,
+      map.machine.resultBase.ref,
+      map.machine.resultBase.head,
+      input.origin,
+    ),
+    readGitV3RepositoryTree(dependencies, head),
+    readGitV3RepositoryTree(dependencies, map.machine.source.head),
+  ]);
+  if (currentSourceRepositoryTree === null) return refused("source-tree-unreadable", head);
+  if (originalSourceRepositoryTree === null) {
+    return refused("source-tree-unreadable", map.machine.source.head);
+  }
+  return {
+    status: "ready",
+    value: {
+      sourceSnapshot,
+      originalSourceSnapshot,
+      originalBaseSnapshot,
+      currentSourceRepositoryTree,
+      originalSourceRepositoryTree,
+    },
+  };
+}
+
+interface OriginalSourceProof {
+  preflight: V3DecomposePreflight;
+}
+
+type OriginalSourceProofResult =
+  | { status: "ready"; value: OriginalSourceProof }
+  | DestinationProofRefusal;
+
+function preflightSourceBase(
+  map: V3DecomposeCutMap,
+  sourceSnapshot: V3DecomposeTreeSnapshot,
+  baseSnapshot: V3DecomposeTreeSnapshot,
+): V3DecomposeTreeSnapshot {
+  return map.machine.source.ref === map.machine.resultBase.ref ? sourceSnapshot : baseSnapshot;
+}
+
+function validateOriginalSourceProof(
+  map: V3DecomposeCutMap,
+  input: GitV3ExtractionFinishInput,
+  state: ExtractionSourceState,
+): OriginalSourceProofResult {
+  const original = createV3DecomposePreflight({
+    origin: input.origin,
+    sourceBase: preflightSourceBase(map, state.originalSourceSnapshot, state.originalBaseSnapshot),
+    resultBase: map.machine.resultBase,
+    localBranches: map.machine.source.ref === map.machine.resultBase.ref
+      ? []
+      : [state.originalSourceSnapshot],
+  });
+  if (original.status === "rejected") {
+    return refused(`source:${original.reason}`, original.locus, original.evidence);
+  }
+  const binding = revalidateV3DecomposeCutMapBinding(map, original.preflight);
+  if (binding.status === "stale") {
+    return refused(`source:${binding.reason}`, binding.locus, binding.evidence);
+  }
+  const sourceTree = Object.fromEntries(state.originalSourceSnapshot.sourceArtifacts.map((artifact) => [
+    artifact.path,
+    {
+      kind: "object" as const,
+      objectKind: artifact.objectKind,
+      mode: artifact.mode,
+      bytes: artifact.bytes,
+    },
+  ]));
+  const thinning = planV3ExtractionSourceThinning({
+    completedMap: map,
+    currentPreflight: binding.preflight,
+    sourceTree,
+  });
+  if (thinning.status === "refused") {
+    return refused(`source-plan:${thinning.reason}`, thinning.locus, thinning.evidence);
+  }
+  const group = classifyV3ExtractionSourceGroup(
+    map,
+    binding.preflight.sourceOriginPath,
+    state.originalSourceSnapshot.sourceArtifacts,
+    sourceGroupArtifacts(
+      state.currentSourceRepositoryTree,
+      binding.preflight.sourceOriginPath,
+      input.origin,
+    ),
+    thinning.files,
+  );
+  return group.status === "reauthor"
+    ? refused("source:source-units", group.locus, group.evidence)
+    : { status: "ready", value: { preflight: binding.preflight } };
+}
+
+interface SelectedSourceProof {
+  completedMap: V3DecomposeCutMap;
+  preflight: V3DecomposePreflight;
+  sourceHead: string;
+}
+
+type SelectedSourceProofResult =
+  | { status: "ready"; value: SelectedSourceProof }
+  | DestinationProofRefusal;
+
+function selectExtractionSourceProof(
+  map: V3DecomposeCutMap,
+  input: GitV3ExtractionFinishInput,
+  state: ExtractionSourceState,
+  head: string,
+  original: OriginalSourceProof,
+): SelectedSourceProofResult {
+  const refreshed = createV3DecomposePreflight({
+    origin: input.origin,
+    sourceBase: preflightSourceBase(map, state.sourceSnapshot, state.originalBaseSnapshot),
+    resultBase: map.machine.resultBase,
+    localBranches: map.machine.source.ref === map.machine.resultBase.ref ? [] : [state.sourceSnapshot],
+  });
+  if (refreshed.status === "ready") {
+    const binding = refreshV3ExtractionCutMap(map, refreshed.preflight);
+    if (binding.status !== "reauthor") {
+      return {
+        status: "ready",
+        value: {
+          completedMap: binding.completedMap,
+          preflight: binding.preflight,
+          sourceHead: head,
+        },
+      };
+    }
+    if (binding.reason !== "source-units" || binding.locus.endsWith(".contentDigest")) {
+      return refused(`source:${binding.reason}`, binding.locus, binding.evidence);
+    }
+  } else if (refreshed.reason !== "planning-profile" && refreshed.reason !== "source-scan") {
+    return refused(`source:${refreshed.reason}`, refreshed.locus, refreshed.evidence);
+  }
+  return {
+    status: "ready",
+    value: {
+      completedMap: map,
+      preflight: original.preflight,
+      sourceHead: map.machine.source.head,
+    },
+  };
+}
+
+type DestinationBaseProofResult =
+  | { status: "ready"; destinations: V3ExtractionFinishPreparation["proof"]["destinations"] }
+  | DestinationProofRefusal;
+
+async function proveExtractionDestinationBase(
+  dependencies: GitV3RepositoryPlanDependencies,
+  input: GitV3ExtractionFinishInput,
+  map: V3DecomposeCutMap,
+  original: OriginalSourceProof,
+  originalSourceRepositoryTree: V3RepositoryPlanTree,
+  baseHead: string,
+): Promise<DestinationBaseProofResult> {
+  const [originalBaseTree, currentBaseTree] = await Promise.all([
+    readGitV3RepositoryTree(dependencies, map.machine.resultBase.head),
+    readGitV3RepositoryTree(dependencies, baseHead),
+  ]);
+  if (originalBaseTree === null) {
+    return refused("result-base-tree-unreadable", map.machine.resultBase.head);
+  }
+  if (currentBaseTree === null) return refused("base-tree-unreadable", baseHead);
+  const originalRoadmap = roadmapBytes(originalBaseTree);
+  if (originalRoadmap === null) return refused("result-base-roadmap-unreadable", ROADMAP_PATH);
+  const expected = await composeV3ExtractionRepositoryPlan({
+    completedMap: map,
+    currentPreflight: original.preflight,
+    sourceTree: originalSourceRepositoryTree,
+    mergeBaseTree: originalBaseTree,
+    resultBaseTree: originalBaseTree,
+    mergeBases: [map.machine.resultBase.head],
+    cohortTemplate: dependencies.cohortTemplate,
+    renderRoadmap: () => Promise.resolve(new Uint8Array(originalRoadmap)),
+  });
+  if (expected.status === "refused") return planRefusal(expected);
+  const expectedRoadmap = await renderGitV3RepositoryTreeRoadmap(
+    dependencies,
+    input.baseBranch,
+    currentBaseTree,
+    baseHead,
+  );
+  const destinations = validateV3ExtractionDestinationStates(expected.plan, currentBaseTree, {
+    completedMap: map,
+    blobs: expected.blobs,
+    expectedRoadmap,
+  });
+  return destinations.status === "refused"
+    ? destinations
+    : { status: "ready", destinations: destinations.destinations };
+}
+
+async function validateExtractionProofRace(
+  dependencies: GitV3RepositoryPlanDependencies,
+  map: V3DecomposeCutMap,
+  baseRef: string,
+  head: string,
+  baseHead: string,
+): Promise<DestinationProofRefusal | null> {
+  const [sourceAfter, baseAfter, branchAfter, headAfter] = await Promise.all([
+    exactRef(dependencies, map.machine.source.ref),
+    exactRef(dependencies, baseRef),
+    currentBranch(dependencies),
+    exactRef(dependencies, "HEAD"),
+  ]);
+  if (sourceAfter !== head
+    || branchAfter !== map.machine.source.logicalBranch
+    || headAfter !== head) {
+    const evidence = sourceAfter === null || branchAfter === null || headAfter === null
+      ? undefined
+      : {
+          expected: { ref: head, branch: map.machine.source.logicalBranch, head },
+          actual: { ref: sourceAfter, branch: branchAfter, head: headAfter },
+        };
+    return refused("source-raced", map.machine.source.ref, evidence);
+  }
+  return baseAfter === baseHead
+    ? null
+    : refused(
+      "base-raced",
+      baseRef,
+      baseAfter === null ? undefined : { expected: baseHead, actual: baseAfter },
+    );
 }
 
 /**
@@ -428,178 +746,43 @@ export async function proveGitV3ExtractionDestinations(
   dependencies: GitV3RepositoryPlanDependencies,
   input: GitV3ExtractionFinishInput,
 ): Promise<GitV3ExtractionDestinationProofResult> {
-  let rawMap: unknown;
+  const decoded = await readExtractionMapInput(input);
+  if (decoded.status === "refused") return decoded;
+  const { map, baseRef } = decoded.value;
   try {
-    rawMap = JSON.parse(await readFile(resolvePath(input.cwd, input.cutMapPath), "utf8"));
-  } catch {
-    return refused("map:invalid", input.cutMapPath);
-  }
-  const decoded = decodeV3DecomposeCutMap(rawMap);
-  if (decoded.status === "rejected") {
-    return refused(`map:${decoded.issue.code}`, decoded.issue.path);
-  }
-  const map = decoded.value;
-  if (map.authoring.shape !== "extraction") return refused("map:authoring-shape", "authoring.shape");
-  if (map.machine.source.origin !== input.origin) return refused("map:origin", "machine.source.origin");
-  const baseRef = `refs/heads/${input.baseBranch}`;
-  if (map.machine.resultBase.ref !== baseRef) {
-    return refused("base-ref-mismatch", "machine.resultBase.ref");
-  }
-
-  try {
-    const [branch, head, sourceRef, baseHead] = await Promise.all([
-      currentBranch(dependencies),
-      exactRef(dependencies, "HEAD"),
-      exactRef(dependencies, map.machine.source.ref),
-      exactRef(dependencies, baseRef),
-    ]);
-    if (branch === null) return refused("source-detached", "HEAD");
-    if (branch !== map.machine.source.logicalBranch) {
-      return refused("source-branch", "machine.source.logicalBranch");
-    }
-    if (head === null) return refused("source-head", "HEAD");
-    if (sourceRef !== head) return refused("source-ref-moved", map.machine.source.ref);
-    if (baseHead === null) return refused("base-missing", baseRef);
-    try {
-      await dependencies.exec(
-        "git",
-        ["merge-base", "--is-ancestor", map.machine.resultBase.head, baseHead],
-        { cwd: dependencies.cwd },
-      );
-    } catch {
-      return refused("base-not-descendant", baseRef);
-    }
-
-    const [sourceSnapshot, originalSourceSnapshot, originalBaseSnapshot] = await Promise.all([
-      readGitV3DecomposeTreeSnapshot(
-        dependencies,
-        map.machine.source.ref,
-        head,
-        input.origin,
-      ),
-      readGitV3DecomposeTreeSnapshot(
-        dependencies,
-        map.machine.source.ref,
-        map.machine.source.head,
-        input.origin,
-      ),
-      readGitV3DecomposeTreeSnapshot(
-        dependencies,
-        map.machine.resultBase.ref,
-        map.machine.resultBase.head,
-        input.origin,
-      ),
-    ]);
-    const refreshed = createV3DecomposePreflight({
-      origin: input.origin,
-      sourceBase: map.machine.source.ref === map.machine.resultBase.ref
-        ? sourceSnapshot
-        : originalBaseSnapshot,
-      resultBase: map.machine.resultBase,
-      localBranches: map.machine.source.ref === map.machine.resultBase.ref ? [] : [sourceSnapshot],
-    });
-    let selected: {
-      completedMap: V3DecomposeCutMap;
-      preflight: V3DecomposePreflight;
-      sourceHead: string;
-    } | null = null;
-    const original = createV3DecomposePreflight({
-      origin: input.origin,
-      sourceBase: map.machine.source.ref === map.machine.resultBase.ref
-        ? originalSourceSnapshot
-        : originalBaseSnapshot,
-      resultBase: map.machine.resultBase,
-      localBranches: map.machine.source.ref === map.machine.resultBase.ref
-        ? []
-        : [originalSourceSnapshot],
-    });
-    if (original.status === "rejected") {
-      return refused(`source:${original.reason}`, original.locus);
-    }
-    const originalBinding = revalidateV3DecomposeCutMapBinding(map, original.preflight);
-    if (originalBinding.status === "stale") {
-      return refused(`source:${originalBinding.reason}`, originalBinding.locus);
-    }
-    if (refreshed.status === "ready") {
-      const binding = refreshV3ExtractionCutMap(map, refreshed.preflight);
-      if (binding.status !== "reauthor") {
-        selected = {
-          completedMap: binding.completedMap,
-          preflight: binding.preflight,
-          sourceHead: head,
-        };
-      } else if (binding.reason !== "source-units" || binding.locus.endsWith(".contentDigest")) {
-        return refused(`source:${binding.reason}`, binding.locus);
-      }
-    } else if (refreshed.reason !== "planning-profile" && refreshed.reason !== "source-scan") {
-      return refused(`source:${refreshed.reason}`, refreshed.locus);
-    }
-    if (selected === null) {
-      selected = {
-        completedMap: map,
-        preflight: originalBinding.preflight,
-        sourceHead: map.machine.source.head,
-      };
-    }
-    const [sourceTree, originalSourceTree, originalBaseTree, currentBaseTree] = await Promise.all([
-      readGitV3RepositoryTree(dependencies, selected.sourceHead),
-      readGitV3RepositoryTree(dependencies, map.machine.source.head),
-      readGitV3RepositoryTree(dependencies, map.machine.resultBase.head),
-      readGitV3RepositoryTree(dependencies, baseHead),
-    ]);
-    if (sourceTree === null) return refused("source-tree-unreadable", selected.sourceHead);
-    if (originalSourceTree === null) return refused("source-tree-unreadable", map.machine.source.head);
-    if (originalBaseTree === null) return refused("result-base-tree-unreadable", map.machine.resultBase.head);
-    if (currentBaseTree === null) return refused("base-tree-unreadable", baseHead);
-    const originalRoadmap = roadmapBytes(originalBaseTree);
-    if (originalRoadmap === null) return refused("result-base-roadmap-unreadable", ROADMAP_PATH);
-    const expected = await composeV3ExtractionRepositoryPlan({
-      completedMap: map,
-      currentPreflight: originalBinding.preflight,
-      sourceTree: originalSourceTree,
-      mergeBaseTree: originalBaseTree,
-      resultBaseTree: originalBaseTree,
-      mergeBases: [map.machine.resultBase.head],
-      cohortTemplate: dependencies.cohortTemplate,
-      renderRoadmap: () => Promise.resolve(new Uint8Array(originalRoadmap)),
-    });
-    if (expected.status === "refused") return planRefusal(expected);
-    const expectedRoadmap = await renderGitV3RepositoryTreeRoadmap(
+    const refs = await validateExtractionProofRefs(dependencies, map, baseRef);
+    if (refs.status === "refused") return refs;
+    const { head, baseHead } = refs.value;
+    const sourceState = await readExtractionSourceState(dependencies, map, input, head);
+    if (sourceState.status === "refused") return sourceState;
+    const original = validateOriginalSourceProof(map, input, sourceState.value);
+    if (original.status === "refused") return original;
+    const selected = selectExtractionSourceProof(map, input, sourceState.value, head, original.value);
+    if (selected.status === "refused") return selected;
+    const destination = await proveExtractionDestinationBase(
       dependencies,
-      input.baseBranch,
-      currentBaseTree,
+      input,
+      map,
+      original.value,
+      sourceState.value.originalSourceRepositoryTree,
       baseHead,
     );
-    const destinations = validateV3ExtractionDestinationStates(expected.plan, currentBaseTree, {
-      completedMap: map,
-      blobs: expected.blobs,
-      expectedRoadmap,
-    });
-    if (destinations.status === "refused") return destinations;
-
-    const [sourceAfter, baseAfter, branchAfter, headAfter] = await Promise.all([
-      exactRef(dependencies, map.machine.source.ref),
-      exactRef(dependencies, baseRef),
-      currentBranch(dependencies),
-      exactRef(dependencies, "HEAD"),
-    ]);
-    if (sourceAfter !== head
-      || branchAfter !== map.machine.source.logicalBranch
-      || headAfter !== head) {
-      return refused("source-raced", map.machine.source.ref);
-    }
-    if (baseAfter !== baseHead) return refused("base-raced", baseRef);
-
+    if (destination.status === "refused") return destination;
+    const race = await validateExtractionProofRace(dependencies, map, baseRef, head, baseHead);
+    if (race !== null) return race;
+    const sourceTree = selected.value.sourceHead === head
+      ? sourceState.value.currentSourceRepositoryTree
+      : sourceState.value.originalSourceRepositoryTree;
     return {
       status: "proven",
       preparation: {
-        completedMap: selected.completedMap,
-        currentPreflight: selected.preflight,
+        completedMap: selected.value.completedMap,
+        currentPreflight: selected.value.preflight,
         sourceTree,
         proof: {
           baseRef,
           baseHead,
-          destinations: destinations.destinations,
+          destinations: destination.destinations,
         },
       },
     };
@@ -611,6 +794,82 @@ export async function proveGitV3ExtractionDestinations(
   }
 }
 
+type ExtractionSourceDirt = Awaited<ReturnType<typeof sourceDirt>>;
+
+type ExtractionSourceDirtResult =
+  | { status: "ready"; dirt: ExtractionSourceDirt }
+  | Extract<V3ExtractionFinishOperationResult, { status: "refused" }>;
+
+async function validateExtractionSourceDirt(
+  dependencies: GitV3RepositoryPlanDependencies,
+  sourceDir: string,
+  files: readonly V3ExtractionSourceThinningFilePlan[],
+): Promise<ExtractionSourceDirtResult> {
+  let dirt: ExtractionSourceDirt;
+  try {
+    dirt = await sourceDirt(dependencies, sourceDir);
+  } catch {
+    return { status: "refused", reason: "source-dirt-read", locus: sourceDir };
+  }
+  const plannedPaths = new Set(files.map(({ path }) => path));
+  const outsidePlan = [
+    ["source-index-dirty", dirt.index],
+    ["source-worktree-dirty", dirt.worktree],
+    ["source-untracked", dirt.untracked],
+  ] as const;
+  for (const [reason, paths] of outsidePlan) {
+    if (paths.some((path) => !plannedPaths.has(path))) {
+      return { status: "refused", reason, locus: sourceDir };
+    }
+  }
+  return { status: "ready", dirt };
+}
+
+async function validateFinishApplyRefs(
+  dependencies: GitV3RepositoryPlanDependencies,
+  preparation: V3ExtractionFinishPreparation,
+): Promise<
+  | { status: "ready" }
+  | { status: "refused"; reason: string; locus: string; evidence?: V3DecomposeRefusalEvidence }
+> {
+  const [liveBase, liveSource, liveBranch, liveHead] = await Promise.all([
+    exactRef(dependencies, preparation.proof.baseRef),
+    exactRef(dependencies, preparation.completedMap.machine.source.ref),
+    currentBranch(dependencies),
+    exactRef(dependencies, "HEAD"),
+  ]);
+  const expectedSource = preparation.completedMap.machine.source;
+  if (liveSource !== liveHead
+    || liveBranch !== expectedSource.logicalBranch
+    || liveHead !== expectedSource.head) {
+    return {
+      status: "refused",
+      reason: "source-raced",
+      locus: expectedSource.ref,
+      ...(liveSource === null || liveBranch === null || liveHead === null ? {} : {
+        evidence: {
+          expected: {
+            ref: expectedSource.head,
+            branch: expectedSource.logicalBranch,
+            head: expectedSource.head,
+          },
+          actual: { ref: liveSource, branch: liveBranch, head: liveHead },
+        },
+      }),
+    };
+  }
+  return liveBase === preparation.proof.baseHead
+    ? { status: "ready" }
+    : {
+        status: "refused",
+        reason: "base-raced",
+        locus: preparation.proof.baseRef,
+        ...(liveBase === null ? {} : {
+          evidence: { expected: preparation.proof.baseHead, actual: liveBase },
+        }),
+      };
+}
+
 /**
  * Preview a source finish after proving its exact source and landed destinations.
  *
@@ -618,10 +877,10 @@ export async function proveGitV3ExtractionDestinations(
  * @param input - Exact finish invocation operands.
  * @returns A preview, finished application, or typed refusal with bounded recovery.
  */
-export async function finishGitV3Extraction(
+async function finishGitV3ExtractionOperation(
   dependencies: GitV3RepositoryPlanDependencies,
   input: GitV3ExtractionFinishInput,
-): Promise<V3ExtractionFinishResult> {
+): Promise<V3ExtractionFinishOperationResult> {
   const proof = await proveGitV3ExtractionDestinations(dependencies, input);
   if (proof.status === "refused") return proof;
   const thinning = planV3ExtractionSourceThinning({
@@ -634,60 +893,30 @@ export async function finishGitV3Extraction(
       status: "refused",
       reason: `source-plan:${thinning.reason}`,
       ...(thinning.locus === undefined ? {} : { locus: thinning.locus }),
+      ...(thinning.evidence === undefined ? {} : { evidence: thinning.evidence }),
     };
   }
   const sourceDir = posix.dirname(proof.preparation.currentPreflight.sourceOriginPath);
-  let dirt: Awaited<ReturnType<typeof sourceDirt>>;
-  try {
-    dirt = await sourceDirt(dependencies, sourceDir);
-  } catch {
-    return { status: "refused", reason: "source-dirt-read", locus: sourceDir };
-  }
-  const plannedPaths = new Set(thinning.files.map(({ path }) => path));
-  const outsidePlan = [
-    ["source-index-dirty", dirt.index],
-    ["source-worktree-dirty", dirt.worktree],
-    ["source-untracked", dirt.untracked],
-  ] as const;
-  for (const [reason, paths] of outsidePlan) {
-    if (paths.some((path) => !plannedPaths.has(path))) {
-      return { status: "refused", reason, locus: sourceDir };
-    }
-  }
+  const dirtResult = await validateExtractionSourceDirt(dependencies, sourceDir, thinning.files);
+  if (dirtResult.status === "refused") return dirtResult;
+  const { dirt } = dirtResult;
   const result = await executeV3ExtractionSourceFinish(
     thinning.files,
     input.applyAuthority !== null,
     {
       ...createGitV3ExtractionSourceFinishIO(dependencies),
-      authorizeApply: (files) => Promise.resolve(
-        composeFinishPreview(proof.preparation, files).applyAuthority === input.applyAuthority
-          ? { status: "ready" as const }
-          : { status: "refused" as const, reason: "apply-authority", locus: "apply" },
-      ),
-      beforeApply: async () => {
-        const [liveBase, liveSource, liveBranch, liveHead] = await Promise.all([
-          exactRef(dependencies, proof.preparation.proof.baseRef),
-          exactRef(dependencies, proof.preparation.completedMap.machine.source.ref),
-          currentBranch(dependencies),
-          exactRef(dependencies, "HEAD"),
-        ]);
-        if (liveSource !== liveHead
-          || liveBranch !== proof.preparation.completedMap.machine.source.logicalBranch
-          || liveHead !== proof.preparation.completedMap.machine.source.head) {
-          return {
-            status: "refused" as const,
-            reason: "source-raced",
-            locus: proof.preparation.completedMap.machine.source.ref,
-          };
-        }
-        return liveBase === proof.preparation.proof.baseHead
+      authorizeApply: (files) => {
+        const expected = composeFinishPreview(proof.preparation, files).applyAuthority;
+        return Promise.resolve(expected === input.applyAuthority
           ? { status: "ready" as const }
           : {
               status: "refused" as const,
-              reason: "base-raced",
-              locus: proof.preparation.proof.baseRef,
-            };
+              reason: "apply-authority",
+              locus: "apply",
+              evidence: { expected, actual: input.applyAuthority },
+            });
       },
+      beforeApply: () => validateFinishApplyRefs(dependencies, proof.preparation),
     },
   );
   if (result.status === "refused"
@@ -707,4 +936,35 @@ export async function finishGitV3Extraction(
     };
   }
   return result;
+}
+
+/**
+ * Preview or apply source finish and compose every refusal with the selected command remedy.
+ *
+ * @param dependencies - Git, object, and bundled-template boundaries.
+ * @param input - Exact finish invocation operands.
+ * @returns A strict success result or core decompose refusal envelope.
+ */
+export async function finishGitV3Extraction(
+  dependencies: GitV3RepositoryPlanDependencies,
+  input: GitV3ExtractionFinishInput,
+): Promise<V3ExtractionFinishResult> {
+  const result = await finishGitV3ExtractionOperation(dependencies, input);
+  if (result.status !== "refused") return V3ExtractionFinishResultSchema.parse(result);
+  const invocation = input.applyAuthority === null
+    ? { mode: "finish-preview" as const, origin: input.origin, cutMapPath: input.cutMapPath }
+    : {
+        mode: "finish-apply" as const,
+        origin: input.origin,
+        cutMapPath: input.cutMapPath,
+        applyAuthority: input.applyAuthority,
+      };
+  return V3ExtractionFinishResultSchema.parse({
+    ...result,
+    remedy: v3DecomposeRemedy({
+      invocation,
+      reason: result.reason,
+      ...(result.locus === undefined ? {} : { locus: result.locus }),
+    }),
+  });
 }

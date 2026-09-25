@@ -73,7 +73,12 @@ describe("decomposition result occupation", () => {
       expect(await occupyDecomposeResult(
         { protection, configuredBase: "main", origin: "origin", plan: plan() },
         adapter,
-      )).toEqual({ status: "refused", reason: "base-moved" });
+      )).toEqual({
+        status: "refused",
+        reason: "base-moved",
+        locus: "main",
+        evidence: { expected: "base-head", actual: "moved-base" },
+      });
     }
   });
 
@@ -95,6 +100,26 @@ describe("decomposition result occupation", () => {
       { protection: "partial", configuredBase: "main", origin: "origin", plan: plan() },
       dirty.adapter,
     )).toEqual({ status: "refused", reason: "partial-projection-dirty" });
+  });
+
+  it("reports the expected and observed partial projection base", async () => {
+    const state = harness({
+      inspectPartial: async () => ({
+        baseHead: "moved-projection",
+        indexClean: true,
+        worktreeClean: true,
+      }),
+    });
+
+    expect(await occupyDecomposeResult(
+      { protection: "partial", configuredBase: "main", origin: "origin", plan: plan() },
+      state.adapter,
+    )).toEqual({
+      status: "refused",
+      reason: "base-moved",
+      locus: "main",
+      evidence: { expected: "base-head", actual: "moved-projection" },
+    });
   });
 
   it("creates once and resumes only the exact Git-owned candidate projection", async () => {
@@ -199,28 +224,6 @@ describe("decomposition result occupation", () => {
         }],
         reason: "occupied-path",
       },
-      {
-        branchHead: "moved-head",
-        registrations: [{
-          path: "/repo/worktrees/decompose-origin",
-          candidateBranch: "chore/decompose-origin",
-          head: "moved-head",
-          occupied: false,
-          markerOwned: true,
-        }],
-        reason: "candidate-head-mismatch",
-      },
-      {
-        branchHead: "base-head",
-        registrations: [{
-          path: "/repo/worktrees/decompose-origin",
-          candidateBranch: "chore/decompose-origin",
-          head: "base-head",
-          occupied: false,
-          markerOwned: false,
-        }],
-        reason: "marker-mismatch",
-      },
     ];
     for (const candidate of cases) {
       const state = harness();
@@ -230,5 +233,59 @@ describe("decomposition result occupation", () => {
         state.adapter,
       )).toEqual({ status: "refused", reason: candidate.reason });
     }
+  });
+
+  it("reports expected and observed candidate heads", async () => {
+    const state = harness();
+    state.setObservation({
+      branchHead: "moved-branch-head",
+      registrations: [{
+        path: "/repo/worktrees/decompose-origin",
+        candidateBranch: "chore/decompose-origin",
+        head: "moved-registration-head",
+        occupied: false,
+        markerOwned: true,
+      }],
+    });
+
+    expect(await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
+      state.adapter,
+    )).toEqual({
+      status: "refused",
+      reason: "candidate-head-mismatch",
+      locus: "chore/decompose-origin",
+      evidence: {
+        expected: { branchHead: "base-head", registrationHead: "base-head" },
+        actual: {
+          branchHead: "moved-branch-head",
+          registrationHead: "moved-registration-head",
+        },
+      },
+    });
+  });
+
+  it("reports expected and observed candidate marker ownership", async () => {
+    const state = harness();
+    state.setObservation({
+      branchHead: "base-head",
+      registrations: [{
+        path: "/repo/worktrees/decompose-origin",
+        candidateBranch: "chore/decompose-origin",
+        head: "base-head",
+        occupied: false,
+        markerOwned: false,
+      }],
+    });
+
+    expect(await occupyDecomposeResult(
+      { protection: "full", configuredBase: "main", origin: "origin", plan: plan() },
+      state.adapter,
+    )).toEqual({
+      status: "refused",
+      reason: "marker-mismatch",
+      locus: "/repo/worktrees/decompose-origin",
+      evidence: { expected: true, actual: false },
+    });
   });
 });

@@ -28,7 +28,12 @@ import { join } from "node:path";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";
-import { ArchiveQuarterSchema, ArchiveSequenceSchema, resolveArcPath } from "../layout/index.js";
+import {
+  ArchiveQuarterSchema,
+  ArchiveSequenceSchema,
+  identifyWorkUnitArtifactPath,
+  resolveArcPath,
+} from "../layout/index.js";
 
 /** Filesystem adapter — injected for unit testability; production binds `node:fs/promises`. */
 export interface CompletedIndexFs {
@@ -84,6 +89,19 @@ const SEQUENCE_PREFIX_RE = /^(\d+)[a-z]?_/u;
 /** `.arc/completed/` path prefix the ref-tree reader strips to reach `<quarter>/<entry>/...`. */
 const COMPLETED_PATH_PREFIX = ".arc/completed/";
 const COMPLETED_META_READ_CONCURRENCY = 16;
+
+/**
+ * Identify an exact completed metadata path as an external-target slug.
+ *
+ * @param path - Repository-relative path from an already-read tree.
+ * @returns The completed work-unit slug, or `null` when the path is ineligible.
+ */
+export function completedWorkUnitMetaSlug(path: string): string | null {
+  const identified = identifyWorkUnitArtifactPath(path);
+  return identified?.placement.kind === "completed" && identified.artifact === "meta"
+    ? identified.slug
+    : null;
+}
 
 /**
  * The shipped WU-name slug an archive-directory name carries, or `null` when the

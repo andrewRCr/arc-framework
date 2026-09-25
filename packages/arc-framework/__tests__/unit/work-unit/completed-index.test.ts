@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   branchToWorkUnitSlug,
+  completedWorkUnitMetaSlug,
   computeArchiveDestination,
   isShippedWorkUnit,
   readArchivedWorkUnitMetaFromRef,
@@ -63,6 +64,25 @@ function buildReaddirFs(dirs: Record<string, string[]>): CompletedIndexFs {
 }
 
 const completed = "/repo/.arc/completed";
+
+describe("completedWorkUnitMetaSlug", () => {
+  it("admits an exact completed work-unit metadata path", () => {
+    expect(completedWorkUnitMetaSlug(
+      ".arc/completed/2026-q3/49_demo/meta-demo.md",
+    )).toBe("demo");
+  });
+
+  it.each([
+    ".arc/completed/2026-q3/49a_cohort-demo/cohort-demo.md",
+    ".arc/completed/2026-q3/49_demo/tasks-demo.md",
+    ".arc/completed/2026-q5/49_demo/meta-demo.md",
+    ".arc/completed/2026-q3/49_other/meta-demo.md",
+    ".arc/backlog/planned/demo/meta-demo.md",
+    ".arc/active/meta-demo.md",
+  ])("ignores an ineligible path: %s", (path) => {
+    expect(completedWorkUnitMetaSlug(path)).toBeNull();
+  });
+});
 
 describe("readShippedWorkUnits", () => {
   it("collects NN_<slug> dirs across every quarter into a slug set", async () => {

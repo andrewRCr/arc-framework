@@ -200,10 +200,20 @@ describe("materializeV3DecomposePlan", () => {
     });
     expect(missing.applications).toEqual([]);
 
-    const mismatched = harness(states, encoder.encode("wrong\n"));
-    expect(await materializeV3DecomposePlan(plan(), mismatched.io)).toMatchObject({
+    const wrongBytes = encoder.encode("wrong\n");
+    const mismatched = harness(states, wrongBytes);
+    expect(await materializeV3DecomposePlan(plan(), mismatched.io)).toEqual({
       status: "refused",
       reason: "final-blob-mismatch",
+      path: ".arc/active/meta-member.md",
+      appliedPaths: [],
+      evidence: {
+        expected: after.contentDigest,
+        actual: {
+          contentDigest: digestBytes(wrongBytes),
+          byteLength: wrongBytes.byteLength,
+        },
+      },
     });
     expect(mismatched.applications).toEqual([]);
   });

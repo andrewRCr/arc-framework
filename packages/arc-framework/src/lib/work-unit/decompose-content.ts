@@ -316,7 +316,8 @@ function byteOffset(content: string, offset: number): number {
 /**
  * Scan one source artifact into disjoint exhaustive v3 byte units.
  *
- * Markdown recognizes protected H2-H6 boundaries; other artifacts remain whole.
+ * Task-list Markdown recognizes protected H2 phase boundaries; other Markdown
+ * recognizes protected H2-H6 boundaries, and non-Markdown artifacts remain whole.
  */
 export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3DecomposeContentScanResult {
   if (!isArtifactBasename(artifact)) {
@@ -341,7 +342,8 @@ export function scanV3DecomposeContent(artifact: string, bytes: Uint8Array): V3D
     };
   }
   const classificationOffset = content.startsWith("\uFEFF") ? 1 : 0;
-  const boundaries = markdownBoundaries(content.slice(classificationOffset), true)
+  const taskList = /^tasks-.+\.md$/u.test(artifact);
+  const boundaries = markdownBoundaries(content.slice(classificationOffset), !taskList)
     .map((heading) => ({ ...heading, start: heading.start + classificationOffset }));
   const headings = boundaries.filter(({ level }) => level >= 2);
   const units: V3DecomposeContentUnit[] = [];

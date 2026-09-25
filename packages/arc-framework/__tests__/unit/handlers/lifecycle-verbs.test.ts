@@ -13,6 +13,8 @@ import {
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
@@ -178,7 +180,8 @@ vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
 }));
 const mockExecuteGitV3DecomposeCommand = vi.fn();
 const mockExecuteGitV3ExtractionCommand = vi.fn();
-vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/work-unit/git-decompose-v3-operation.js")>(),
   executeGitV3DecomposeCommand: (...args: unknown[]) =>
     mockExecuteGitV3DecomposeCommand(...args),
   executeGitV3ExtractionCommand: (...args: unknown[]) =>
@@ -718,6 +721,7 @@ describe("handleDecompose", () => {
         before: {
           mode: "100644" as const,
           contentDigest: `sha256:${"d".repeat(64)}`,
+          byteLength: 128,
         },
         after: {
           kind: "file" as const,
@@ -748,28 +752,127 @@ describe("handleDecompose", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("surfaces a typed finish refusal", async () => {
+  it.each([
+    ["preview", null],
+    ["apply", `sha256:${"a".repeat(64)}`],
+  ] as const)("emits the same typed finish refusal for %s", async (_mode, authority) => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockFinishGitV3Extraction.mockResolvedValue({
+    const remedy = spineRemedy(
+      "Every extraction destination must be present on the live base.",
+      "Land the reported destination, then retry finish",
+      [
+        "arc",
+        "decompose",
+        "mono",
+        "--finish",
+        "cut-map.json",
+        ...(authority === null ? [] : ["--apply", authority]),
+      ],
+    );
+    const refusal = {
       status: "refused",
       reason: "destination-missing",
       locus: "member",
+      evidence: { expected: "planned", actual: { kind: "absent" } },
+      remedy,
+    };
+    mockFinishGitV3Extraction.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", {
+      finish: "cut-map.json",
+      ...(authority === null ? {} : { apply: authority }),
     });
 
-    await handleDecompose("mono", { finish: "cut-map.json" });
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`destination-missing\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"locus":"member","reason":"destination-missing","status":"refused"}\n',
+  it.each([
+    [
+      "preflight",
+      { preflight: true as const },
+      mockCreateGitV3DecomposePreflight,
+      ["arc", "decompose", "mono", "--preflight"],
+    ],
+    [
+      "execute",
+      { execute: "cut-map.json" },
+      mockExecuteGitV3DecomposeCommand,
+      ["arc", "decompose", "mono", "--execute", "cut-map.json"],
+    ],
+    [
+      "extract",
+      { extract: "cut-map.json" },
+      mockExecuteGitV3ExtractionCommand,
+      ["arc", "decompose", "mono", "--extract", "cut-map.json"],
+    ],
+    [
+      "finish preview",
+      { finish: "cut-map.json" },
+      mockFinishGitV3Extraction,
+      ["arc", "decompose", "mono", "--finish", "cut-map.json"],
+    ],
+    [
+      "finish apply",
+      { finish: "cut-map.json", apply: `sha256:${"a".repeat(64)}` },
+      mockFinishGitV3Extraction,
+      ["arc", "decompose", "mono", "--finish", "cut-map.json", "--apply", `sha256:${"a".repeat(64)}`],
+    ],
+    [
+      "advance base",
+      { advanceBase: "cut-map.json" },
+      mockAdvanceGitDecomposeTransitionBase,
+      ["arc", "decompose", "mono", "--advance-base", "cut-map.json"],
+    ],
+  ] as const)("converts a thrown %s failure to the core refusal", async (mode, options, adapter, argv) => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const locus = `${mode} exploded`;
+    adapter.mockRejectedValue(new Error(locus));
+    const remedy = spineRemedy(
+      "The selected decomposition mode must complete without an unexpected runtime failure.",
+      "Retry the selected mode",
+      argv,
     );
-    expect(stderrWrite).toHaveBeenCalledWith("destination-missing: member\n");
+    const refusal = {
+      status: "refused",
+      reason: "unexpected-error",
+      locus,
+      remedy,
+    };
+
+    await handleDecompose("mono", options);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+
+    stdoutWrite.mockClear();
+    stderrWrite.mockClear();
+    process.exitCode = undefined;
+    adapter.mockRejectedValue(new Error(""));
+
+    await handleDecompose("mono", options);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({
+      status: "refused",
+      reason: "unexpected-error",
+      remedy,
+    })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    const remedy = "ADAPTER-ONLY: retry or clean the owned candidate";
+    const remedy = spineRemedy(
+      "The candidate must be recoverable from its typed operation facts.",
+      "Retry the selected mode",
+      ["arc", "decompose", "mono", "--execute", "cut-map.json"],
+    );
     mockExecuteGitV3DecomposeCommand.mockResolvedValue({
       status: "refused",
       stage: "occupation",
@@ -780,11 +883,38 @@ describe("handleDecompose", () => {
 
     await handleDecompose("mono", { execute: "cut-map.json" });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"reason":"candidate-conflict","recovery":{"kind":"none"},`
-      + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
-    );
-    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({
+      status: "refused",
+      stage: "occupation",
+      reason: "candidate-conflict",
+      recovery: { kind: "none" },
+      remedy,
+    })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits uncovered retirement content through the strict decompose refusal boundary", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused" as const,
+      stage: "repository-plan" as const,
+      reason: "conservation:live-conservation:uncovered-retirement-content",
+      locus: ".arc/active/notes-mono.md",
+      recovery: { kind: "none" as const },
+      remedy: spineRemedy(
+        "Retirement cannot delete nonempty companion content outside the conservation proof.",
+        "Move the content into a scanned artifact or delete the file, then re-run preflight",
+        ["arc", "decompose", "mono", "--preflight"],
+      ),
+    };
+    mockExecuteGitV3DecomposeCommand.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${refusal.remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 
@@ -801,20 +931,87 @@ describe("handleDecompose", () => {
     );
   });
 
-  it("surfaces advance-base refusals without prescribing a successor", async () => {
+  it("keeps unchanged advance-base output free of refusal fields", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
-      status: "refused",
-      reason: "full-protection-required",
-    });
+    const unchanged = {
+      status: "unchanged",
+      candidateBranch: "chore/decompose-mono",
+      candidateHead: "d".repeat(40),
+      currentBaseHead: "c".repeat(40),
+    } as const;
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(unchanged);
 
     await handleDecompose("mono", { advanceBase: "cut-map.json" });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"reason":"full-protection-required","status":"refused"}\n',
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(unchanged)}\n`);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("emits an actionable advance-base comparison refusal", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "base-not-descendant",
+      locus: "main",
+      evidence: { expected: "base-before", actual: "base-now" },
+    } as const;
+    const remedy = spineRemedy(
+      "The live result base must descend from the decomposition plan's authenticated base.",
+      "Land or select a descendant base, then retry base advancement",
+      ["arc", "decompose", "mono", "--advance-base", "cut-map.json"],
     );
-    expect(stderrWrite).toHaveBeenCalledWith("full-protection-required\n");
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits an actionable nested advancement-plan refusal", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "advancement-plan-refused:conservation:uncovered-retirement-content",
+      locus: ".arc/active/notes-mono.md",
+      evidence: { expected: "covered", actual: "uncovered" },
+    } as const;
+    const remedy = spineRemedy(
+      "Retirement cannot delete nonempty companion content outside the conservation proof.",
+      "Move the content at .arc/active/notes-mono.md into a scanned artifact or delete the file, then re-run preflight",
+      ["arc", "decompose", "mono", "--preflight"],
+    );
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits candidate cleanup for a stranded base-advancement result", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "candidate-restore-failed",
+      locus: "/repo/decompose-mono",
+    } as const;
+    const remedy = spineRemedy(
+      "A refused base advancement must restore its candidate to the authenticated head.",
+      "Clean the stranded candidate at /repo/decompose-mono, then retry with arc decompose mono --advance-base cut-map.json",
+      ["arc", "teardown", "--branch", "chore/decompose-mono"],
+    );
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 
@@ -823,16 +1020,36 @@ describe("handleDecompose", () => {
     ["advance-base with another mode", { preflight: true, advanceBase: "cut-map.json" }],
     ["apply without finish", { apply: `sha256:${"a".repeat(64)}` }],
   ])("refuses %s before any production adapter", async (_case, options) => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
     await handleDecompose(
       "mono",
       options as unknown as Parameters<typeof handleDecompose>[1],
     );
 
+    expect(stdoutWrite).not.toHaveBeenCalled();
+    expect(stderrWrite).toHaveBeenCalled();
     expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
     expect(mockExecuteGitV3ExtractionCommand).not.toHaveBeenCalled();
     expect(mockFinishGitV3Extraction).not.toHaveBeenCalled();
     expect(mockAdvanceGitDecomposeTransitionBase).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("keeps a missing-project finish refusal outside the mode envelope", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    mockResolveArcRoot.mockReturnValueOnce(null);
+
+    await handleDecompose("mono", { finish: "cut-map.json" });
+
+    expect(stdoutWrite).not.toHaveBeenCalled();
+    expect(stderrWrite).toHaveBeenCalledWith(
+      "Not inside an ARC project (no .arc/ directory found walking up from cwd).\n",
+    );
+    expect(mockFinishGitV3Extraction).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 

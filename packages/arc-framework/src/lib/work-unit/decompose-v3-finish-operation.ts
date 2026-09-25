@@ -6,6 +6,12 @@ import type {
   V3PartialPathPreimage,
   V3PartialRecoveryIO,
 } from "./decompose-v3-operation.js";
+import {
+  v3DecomposeAbsentEvidence,
+  v3DecomposeByteEvidence,
+  type V3DecomposeEvidenceValue,
+  type V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 import type { V3ExtractionSourceThinningFilePlan } from "./decompose-v3-thinning.js";
 
 /** Internal finish result before the Git adapter adds live-base preview evidence. */
@@ -13,17 +19,32 @@ export type V3ExtractionSourceFinishResult =
   | { status: "previewed"; files: V3ExtractionSourceThinningFilePlan[] }
   | { status: "finished" }
   | { status: "already-finished" }
-  | { status: "refused"; reason: string; locus?: string };
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 /** Mutation seam layered on the shared bounded-preimage recovery contract. */
 export interface V3ExtractionSourceFinishIO extends V3PartialRecoveryIO {
   authorizeApply?(files: readonly V3ExtractionSourceThinningFilePlan[]): Promise<
     | { status: "ready" }
-    | { status: "refused"; reason: string; locus?: string }
+    | {
+        status: "refused";
+        reason: string;
+        locus?: string;
+        evidence?: V3DecomposeRefusalEvidence;
+      }
   >;
   beforeApply?(): Promise<
     | { status: "ready" }
-    | { status: "refused"; reason: string; locus?: string }
+    | {
+        status: "refused";
+        reason: string;
+        locus?: string;
+        evidence?: V3DecomposeRefusalEvidence;
+      }
   >;
   apply(file: V3ExtractionSourceThinningFilePlan): Promise<
     | { status: "applied" }
@@ -62,6 +83,48 @@ function matchesAfter(
     && image.objectKind === "blob"
     && image.mode === file.after.mode
     && Buffer.from(image.bytes).equals(Buffer.from(file.after.bytes));
+}
+
+function imageEvidence(image: V3PartialPathImage): V3DecomposeEvidenceValue {
+  if (image.kind === "absent") return v3DecomposeAbsentEvidence();
+  return {
+    kind: "object",
+    objectKind: image.objectKind,
+    mode: image.mode,
+    ...v3DecomposeByteEvidence(image.bytes),
+  };
+}
+
+function plannedStatesEvidence(
+  file: V3ExtractionSourceThinningFilePlan,
+): V3DecomposeEvidenceValue {
+  return {
+    before: {
+      kind: "object",
+      objectKind: "blob",
+      mode: file.before.mode,
+      contentDigest: file.before.contentDigest,
+      byteLength: file.before.byteLength,
+    },
+    after: file.after.kind === "absent"
+      ? v3DecomposeAbsentEvidence()
+      : {
+          kind: "object",
+          objectKind: "blob",
+          mode: file.after.mode,
+          ...v3DecomposeByteEvidence(file.after.bytes),
+        },
+  };
+}
+
+function preimageEvidence(
+  file: V3ExtractionSourceThinningFilePlan,
+  actual: V3PartialPathImage,
+): V3DecomposeRefusalEvidence {
+  return {
+    expected: plannedStatesEvidence(file),
+    actual: imageEvidence(actual),
+  };
 }
 
 async function restoreMutated(
@@ -140,15 +203,30 @@ export function executeV3ExtractionSourceFinish(
       const indexBefore = matchesBefore(preimage.index, file);
       const indexAfter = matchesAfter(preimage.index, file);
       if (!indexBefore && !indexAfter) {
-        return { status: "refused", reason: "source-index-preimage", locus: file.path };
+        return {
+          status: "refused",
+          reason: "source-index-preimage",
+          locus: file.path,
+          evidence: preimageEvidence(file, preimage.index),
+        };
       }
       const worktreeBefore = matchesBefore(preimage.worktree, file);
       const worktreeAfter = matchesAfter(preimage.worktree, file);
       if (!worktreeBefore && !worktreeAfter) {
-        return { status: "refused", reason: "source-worktree-preimage", locus: file.path };
+        return {
+          status: "refused",
+          reason: "source-worktree-preimage",
+          locus: file.path,
+          evidence: preimageEvidence(file, preimage.worktree),
+        };
       }
       if (indexBefore !== worktreeBefore || indexAfter !== worktreeAfter) {
-        return { status: "refused", reason: "source-worktree-preimage", locus: file.path };
+        return {
+          status: "refused",
+          reason: "source-worktree-preimage",
+          locus: file.path,
+          evidence: preimageEvidence(file, preimage.worktree),
+        };
       }
       if (indexBefore && !indexAfter) pendingPaths.add(file.path);
     }
