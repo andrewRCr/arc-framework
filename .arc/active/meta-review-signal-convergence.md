@@ -11,10 +11,10 @@
 - **Design:** `spec-review-signal-convergence.md`
 - **Task List:** `tasks-review-signal-convergence.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:4ba5f098e1699b9a71a44e39e8303e4f41792182a863ec340c6a2ec7ddd71ff2`
+- **Candidate:** `sha256:d239a3e024dddd7296454f5dd50fc0a5677ebb3339aa446494a7d9970d217b51`
 
 - **Current Workflow:** `prepare-work-unit`
-- **Last Completed:** Task 8.1 — Complete verification
+- **Last Completed:** Task 8.2 — Preserve review budget and frontline phase through Candidate supersession
 - **Next Task:** [none]
 - **Blockers:** [none]
 
