@@ -41,9 +41,10 @@ unit makes existing rules reachable from the decisions they govern.
 It is one cohesive technical-design unit within the `review-protocol-alignment` cohort: verified severity becomes a
 durable input to one convergence rule shared by the adversarial method and every review lane.
 
-Delivery uses one WU with native-stack landing boundaries. Member progression, coverage and logical-pass accounting,
-native finding navigation, and attestation-before-readiness ordering are part of the design. Explicit member-scoped
-Owner acceptance remains distinct from convergence derived from durable results and approved dispositions.
+This work unit lands as one branch under the storage program's 2026-09-24 decision; its former delivery members are
+review chunks. Native-stack member progression, coverage and logical-pass accounting, native finding navigation, and
+attestation-before-readiness ordering remain part of the product design. Explicit member-scoped Owner acceptance
+remains distinct from convergence derived from durable results and approved dispositions.
 
 ## Goals
 

@@ -11,7 +11,7 @@ The former delivery members are review chunks; the unpublished stack plan was dr
 
 ## **Phase 1:** Establish review vocabulary and advisory loop semantics
 
-**Delivery member:** 1 — `review-vocabulary`
+**Review chunk:** 1 — `review-vocabulary`
 
 _Purpose:_ Close the severity graph and advisory attention, completeness, convergence, and cap semantics independently
 of code-review persistence.
@@ -93,7 +93,7 @@ of code-review persistence.
 
 ## **Phase 2:** Admit native producer passes and preserve truthful coverage
 
-**Delivery member:** 2 — `native-review-admission`
+**Review chunk:** 2 — `native-review-admission`
 
 _Purpose:_ Close native admission through execution and progress consumers. Shared lane admission supplies pass
 identity; native bindings preserve exactness without a generic persisted execution object.
@@ -182,7 +182,7 @@ identity; native bindings preserve exactness without a generic persisted executi
 
 ## **Phase 3:** Seal terminal evidence and bind approval to its producer
 
-**Delivery member:** 3 — `sealed-review-evidence`
+**Review chunk:** 3 — `sealed-review-evidence`
 
 _Purpose:_ Close immutable hosted publication and replay with every direct reader, then use native evidence in real
 proposal and approval commands. Existing disposition shapes can acquire stronger source binding before their grade
@@ -247,7 +247,7 @@ migration.
 
 ## **Phase 4:** Unify verified dispositions and recognizable finding reports
 
-**Delivery member:** 4 — `verified-finding-reports`
+**Review chunk:** 4 — `verified-finding-reports`
 
 _Purpose:_ Migrate verified judgment through its complete acceptance graph and join native producer navigation to the
 canonical report. Required fields, capture sites, renderer, and designated callers land with their owning semantic
@@ -352,7 +352,7 @@ changes.
 
 ## **Phase 5:** Activate evidence-derived convergence through every caller
 
-**Delivery member:** 5 — `evidence-driven-convergence`
+**Review chunk:** 5 — `evidence-driven-convergence`
 
 _Purpose:_ Switch terminal evidence, verified materiality, discharge, and response-first continuation as one boundary.
 No local-only activation leaves hosted/member settlement-as-clearance in place.
@@ -504,7 +504,7 @@ No local-only activation leaves hosted/member settlement-as-clearance in place.
 
 ## **Phase 6:** Complete incremental scope evidence and member progression
 
-**Delivery member:** 6 — `incremental-review-convergence`
+**Review chunk:** 6 — `incremental-review-convergence`
 
 _Purpose:_ Use fresh correction evidence with a validated predecessor basis, retaining narrow reviews where supported.
 Coverage labels and contribution applicability cannot substitute for evaluator scope.
@@ -561,7 +561,7 @@ Coverage labels and contribution applicability cannot substitute for evaluator s
 
 ## **Phase 7:** Carry convergence attestation into publication readiness
 
-**Delivery member:** 7 — `publication-continuation`
+**Review chunk:** 7 — `publication-continuation`
 
 _Purpose:_ Close the public-command sequence from reviewed Candidate through staged attestation and publication,
 including interrupted writes and premature-commit refusal, without changing review or merge authority.
