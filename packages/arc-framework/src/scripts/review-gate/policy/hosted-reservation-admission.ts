@@ -75,6 +75,7 @@ type EvidenceBoundHostedReservationPolicyInput = HostedReservationPolicyInput & 
 type HostedReservationEvidenceDependencies = Pick<
   EvidenceBoundReviewPolicyDependencies,
   "resultReader" | "dispositionStore" | "confirmTarget" | "confirmIncrementalApplicability"
+    | "readResponsePerformance"
 >;
 
 /** Project driver-grade progress for one delivery member across exact head movement. */

@@ -132,6 +132,18 @@ function localReceiptMatchesOutcome(
     && receipt.result === outcome;
 }
 
+function localEvidenceMatchesState(
+  receipt: ReturnType<typeof validateReviewReceipt>,
+  outcome: LaneAttempt["outcome"],
+  attempt: LaneAttempt,
+  state: LocalState,
+  source: ReturnType<typeof LocalReviewSourceSchema.parse>,
+): receipt is ReturnType<typeof validateReviewReceipt> & { result: "clean" | "findings" } {
+  return localReceiptMatchesOutcome(receipt, outcome)
+    && localAttemptMatchesState(attempt, state)
+    && localSourceMatchesState(source, state);
+}
+
 function localResultDigest(
   state: LocalState,
   local: NonNullable<LaneAttempt["local"]>,
@@ -189,21 +201,27 @@ function uniqueProducerAttempt(
   records: readonly ReviewOperationStateSnapshotRecord[],
   operationId: string,
   kind: "local" | "frontline",
-): LaneAttempt {
-  const attempts = records.flatMap(({ state }) => state.kind === "lane-progress"
-    ? state.attempts.filter((attempt) => kind === "local"
-      ? attempt.local?.operationId === operationId
-      : attempt.frontline?.admission.operationId === operationId)
-    : []);
-  if (attempts.length === 0) {
+): { lane: LaneProgressState; attempt: LaneAttempt } {
+  const matches: { lane: LaneProgressState; attempt: LaneAttempt }[] = [];
+  for (const { state } of records) {
+    if (state.kind !== "lane-progress") continue;
+    for (const attempt of state.attempts) {
+      if (kind === "local"
+        ? attempt.local?.operationId === operationId
+        : attempt.frontline?.admission.operationId === operationId) {
+        matches.push({ lane: state, attempt });
+      }
+    }
+  }
+  if (matches.length === 0) {
     throw new LocalReviewResultReaderError("missing-result", `${kind} producer admission is unavailable`);
   }
-  if (attempts.length !== 1) {
+  if (matches.length !== 1) {
     throw new LocalReviewResultReaderError("ambiguous-result", `${kind} producer has multiple admissions`);
   }
-  const attempt = attempts[0];
-  if (attempt === undefined) throw new LocalReviewResultReaderError("missing-result");
-  return attempt;
+  const match = matches[0];
+  if (match === undefined) throw new LocalReviewResultReaderError("missing-result");
+  return match;
 }
 
 function terminalProducerAttempt(attempt: LaneAttempt, kind: "local" | "frontline"): boolean {
@@ -214,6 +232,16 @@ function terminalProducerAttempt(attempt: LaneAttempt, kind: "local" | "frontlin
   return coverage !== undefined && coverage !== null
     && attempt.terminalProducer
     && (outcome === "clean" || outcome === "findings");
+}
+
+function producerLaneMatchesOwner(
+  lane: LaneProgressState,
+  producer: LocalState | FrontlineState,
+  expectedLane: "standard" | "frontline",
+): boolean {
+  return lane.lane === expectedLane
+    && lane.repositoryId === producer.repositoryId
+    && laneSubjectOwnerMatches(lane.lineage, producer.lineage);
 }
 
 /** Stable read failure for unavailable, ambiguous, or corrupt producer evidence. */
@@ -287,9 +315,12 @@ export class LocalReviewResultReader implements ReviewResultReader {
     if (state.kind !== "local-review") {
       throw new LocalReviewResultReaderError("corrupt-result", "local producer kind mismatch");
     }
-    const attempt = uniqueProducerAttempt(records, state.operationId, "local");
+    const { lane, attempt } = uniqueProducerAttempt(records, state.operationId, "local");
     const local = attempt.local;
     const originalOutcome = immutableProducerOutcome(attempt);
+    if (!producerLaneMatchesOwner(lane, state, "standard")) {
+      throw new LocalReviewResultReaderError("corrupt-result", "local producer lane owner mismatch");
+    }
     if (local === undefined || !terminalProducerAttempt(attempt, "local")) {
       throw new LocalReviewResultReaderError("corrupt-result", "local producer admission is not terminal");
     }
@@ -317,9 +348,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
       throw new LocalReviewResultReaderError("corrupt-result", "local producer receipt reference mismatch");
     }
     const receipt = validateReviewReceipt(state.target, state.requirement, state.request, entry.receipt);
-    if (!localReceiptMatchesOutcome(receipt, originalOutcome)
-      || !localAttemptMatchesState(attempt, state)
-      || !localSourceMatchesState(canonicalSource, state)) {
+    if (!localEvidenceMatchesState(receipt, originalOutcome, attempt, state, canonicalSource)) {
       throw new LocalReviewResultReaderError("corrupt-result", "local producer admission mismatch");
     }
     const resultDigest = localResultDigest(state, local, receipt);
@@ -361,9 +390,12 @@ export class LocalReviewResultReader implements ReviewResultReader {
     if (state.kind !== "frontline-run") {
       throw new LocalReviewResultReaderError("corrupt-result", "frontline producer kind mismatch");
     }
-    const attempt = uniqueProducerAttempt(records, state.operationId, "frontline");
+    const { lane, attempt } = uniqueProducerAttempt(records, state.operationId, "frontline");
     const frontline = attempt.frontline;
     const originalOutcome = immutableProducerOutcome(attempt);
+    if (!producerLaneMatchesOwner(lane, state, "frontline")) {
+      throw new LocalReviewResultReaderError("corrupt-result", "frontline producer lane owner mismatch");
+    }
     if (frontline === undefined || !terminalProducerAttempt(attempt, "frontline")) {
       throw new LocalReviewResultReaderError("corrupt-result", "frontline producer admission is not terminal");
     }

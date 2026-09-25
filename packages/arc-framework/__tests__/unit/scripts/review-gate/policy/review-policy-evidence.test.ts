@@ -293,7 +293,10 @@ function chunkedLocalAggregateResult(): ReviewResult {
   };
 }
 
-function approvedLocalRecord(result: Extract<ReviewResult, { kind: "attested-local" }>) {
+function approvedLocalRecord(
+  result: Extract<ReviewResult, { kind: "attested-local" }>,
+  disposition: "fix" | "defer" = "fix",
+) {
   const set = createDispositionSet({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -315,7 +318,7 @@ function approvedLocalRecord(result: Extract<ReviewResult, { kind: "attested-loc
       verifiedSeverity: finding.severity,
       rationale: "The complete aggregate established this disposition.",
       recommendation: "Record the approved response.",
-      disposition: "fix" as const,
+      disposition,
       openQuestions: [],
     })),
   });
@@ -376,6 +379,17 @@ function dependencies(
     resultReader,
     dispositionStore,
     confirmTarget: vi.fn(async () => currentTarget),
+  };
+}
+
+function performedFix(result: ReviewResult, record: ReturnType<typeof approvedRecord>) {
+  return {
+    schemaVersion: 1 as const,
+    producerId: result.producerId,
+    dispositionSetId: record.currentDispositionSetId,
+    originatingHeadSha: result.target.headSha,
+    producedHeadSha: result.target.headSha,
+    performedAt: "2026-09-09T21:00:00Z",
   };
 }
 
@@ -533,6 +547,7 @@ describe("evidence-bound review policy", () => {
       ...dependencies(result, record),
       sources: ["codex-pr"],
       maxPasses: 2,
+      readResponsePerformance: vi.fn(async () => null as ReturnType<typeof performedFix> | null),
     };
 
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
@@ -544,10 +559,77 @@ describe("evidence-bound review policy", () => {
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
       terminalResponsePerformed: true,
     }, evidence)).resolves.toMatchObject({
+      state: "findings",
+      nextAction: "respond",
+    });
+    evidence.readResponsePerformance.mockResolvedValue(performedFix(result, record));
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+    }, evidence)).resolves.toMatchObject({
       state: "ready",
       nextAction: "hosted-request",
       payload: { pass: 2, sourceId: "codex-pr" },
     });
+  });
+
+  it("does not spend a pass from a stale nonhosted record-only settlement after a successor fix", async () => {
+    const result = chunkedLocalAggregateResult();
+    if (result.kind !== "attested-local") throw new Error("expected local aggregate");
+    const predecessor = approvedLocalRecord(result, "defer");
+    const fix = approvedLocalRecord(result, "fix");
+    const predecessorNode = predecessor.approvedDispositionLineage[0];
+    const fixNode = fix.approvedDispositionLineage[0];
+    if (predecessorNode === undefined || fixNode === undefined) {
+      throw new Error("expected approved disposition nodes");
+    }
+    const successor = ApprovedDispositionRecordSchema.parse({
+      ...predecessor,
+      currentDispositionSetId: fix.currentDispositionSetId,
+      approvedDispositionLineage: [
+        { ...predecessorNode, successorDispositionSetId: fix.currentDispositionSetId },
+        { ...fixNode, predecessorDispositionSetId: predecessor.currentDispositionSetId },
+      ],
+    });
+    let current = predecessor;
+    let performance = performedFix(result, predecessor);
+    const base = dependencies(result, predecessor);
+    const evidence = {
+      ...base,
+      dispositionStore: {
+        ...base.dispositionStore,
+        readDispositionRecord: async () => current,
+      },
+      readResponsePerformance: async () => performance,
+      sources: ["delegated-agent"],
+      maxPasses: 2,
+    };
+    const request = {
+      schemaVersion: 1 as const,
+      target: policyTarget,
+      lane: "standard" as const,
+      standardReview,
+      completedPasses: 1,
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "findings" as const,
+        reviewOperationId: result.producerId,
+        chunkSeriesComplete: true,
+      }],
+      scopeSelection: { mode: "chunked" as const, target: policyTarget },
+    };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+    }, evidence)).resolves.toMatchObject({ state: "ready", payload: { pass: 2 } });
+
+    current = successor;
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+    }, evidence)).resolves.toMatchObject({ state: "findings", nextAction: "respond" });
+
+    performance = performedFix(result, successor);
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+    }, evidence)).resolves.toMatchObject({ state: "ready", payload: { pass: 2 } });
   });
 
   it("applies a ceiling override only after the terminal response opens the fresh pass", async () => {
@@ -571,6 +653,7 @@ describe("evidence-bound review policy", () => {
       ...dependencies(result, record),
       sources: ["codex-pr"],
       maxPasses: 1,
+      readResponsePerformance: async () => performedFix(result, record),
     })).resolves.toMatchObject({
       state: "ready",
       nextAction: "hosted-request",
@@ -882,6 +965,7 @@ describe("evidence-bound review policy", () => {
       ...dependencies(result, record),
       sources: ["codex-pr"],
       maxPasses: 2,
+      readResponsePerformance: async () => performedFix(result, record),
     };
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
       terminalResponsePerformed: false,

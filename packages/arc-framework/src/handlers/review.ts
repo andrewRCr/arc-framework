@@ -223,9 +223,13 @@ import { CODERABBIT_FRONTLINE_REGISTRATION } from "../scripts/review-gate/provid
 import {
   HostedRequestEnvelopeSchema,
   HostedRequestResultSchema,
+  hostedAdmissionMatchesRequest,
+  hostedAwaitAction,
   projectHostedRequestAdmissionResolution,
   requestHostedReview,
   HostedErrandProgressBindingSchema,
+  type HostedRequestAdmissionResolution,
+  type HostedRequestEnvelope,
   type HostedReviewAdapter,
   type HostedErrandProgressBinding,
   type HostedRequestVehicle,
@@ -244,7 +248,6 @@ import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
   laneContinuationOperationId,
-  readHostedRequestAdmissionReplay,
   readCandidateInheritedLaneProgress,
   readLaneProgressOwner,
   readLaneResponsePerformance,
@@ -254,6 +257,8 @@ import {
   resolveHostedAwaitResult,
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
+import { laneSubjectOwnerMatches } from "../scripts/review-gate/core/lane-admission.js";
+import type { LaneProgressState } from "../scripts/review-gate/core/operation-state-schema.js";
 import {
   assertEvidenceBoundCandidateHostedReservationPolicyAdmission,
   assertHostedErrandAdmission,
@@ -268,6 +273,8 @@ import {
 import { createHostedReservationDischargeReader } from
   "../scripts/review-gate/policy/hosted-reservation-discharge.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
+import { HostedRequestOwnerIndex, type HostedRequestOwnerIndexRecord } from
+  "../scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import {
   resolveRepositoryIdentity,
   withRepositoryReviewOperationLock,
@@ -2911,35 +2918,242 @@ async function hostedCandidateSupersessionAncestors(input: {
   });
 }
 
-function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
-  const { adapters, port } = createHostedAdapters();
-  const root = resolveArcRoot(process.cwd());
-  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
-  return {
-    ...defaultHostedHandlerBoundary(),
-    request: async (input) => {
-      if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
-      const request = HostedRequestEnvelopeSchema.parse(input);
-      const replayContext = await resolveHostedProgressContext({
-        root,
-        publisher,
-        target: request.target,
-        provider: request.provider,
-        ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
-        admitCapacity: false,
-      });
-      const replayAncestors = await hostedCandidateSupersessionAncestors({
-        root,
-        lineage: replayContext.lineage,
-        candidateRecord: replayContext.candidateRecord,
-      });
-      const replay = await readHostedRequestAdmissionReplay(replayContext.store, {
-        repositoryId: replayContext.repositoryId,
-        lineage: replayContext.lineage,
-        supersessionAncestors: replayAncestors,
-        reviewTarget: replayContext.reviewTarget,
+async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string): Promise<boolean> {
+  try {
+    const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
+    const frame = await runDerivedLocusStateProbe({
+      cwd: root,
+      identity: await resolveUserIdentity(gitExec),
+      baseBranch: (await readConfigSettings(root)).settings["branch.base"],
+      exec: gitExec,
+    });
+    return resolveActiveHostedReviewErrand(frame, branch).claimId === expectedClaimId;
+  } catch {
+    return false;
+  }
+}
+
+function projectIndexedHostedAttempt(
+  request: HostedRequestEnvelope,
+  attempt: LaneProgressState["attempts"][number],
+): HostedRequestAdmissionResolution {
+  const hosted = attempt.hosted;
+  if (hosted === undefined) return { state: "ambiguous-delivery" };
+  if (attempt.outcome === "pending") {
+    return hosted.handle === undefined
+      ? { state: "ambiguous-delivery" }
+      : { state: "acknowledged", handle: hosted.handle, action: hostedAwaitAction(hosted.handle) };
+  }
+  if (attempt.outcome === "rate-limited" || attempt.outcome === "transient-unavailable") {
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-request" as const,
+      provider: request.provider,
+      requestedCoverage: request.coverage,
+      attemptedProviders: [request.provider],
+      state: attempt.outcome,
+      nextAction: "try-next-source" as const,
+    };
+    HostedRequestResultSchema.parse(result);
+    return { state: "concluded", result };
+  }
+  if (attempt.outcome === "terminal-failure" && hosted.requestFailureReason !== null) {
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-request" as const,
+      provider: request.provider,
+      requestedCoverage: request.coverage,
+      attemptedProviders: [request.provider],
+      state: "terminal-failure" as const,
+      nextAction: "stop" as const,
+      reason: hosted.requestFailureReason,
+    };
+    HostedRequestResultSchema.parse(result);
+    return { state: "concluded", result };
+  }
+  return { state: "ambiguous-delivery" };
+}
+
+function indexedLaneMatchesOwner(
+  state: LaneProgressState,
+  owner: HostedRequestOwnerIndexRecord,
+): boolean {
+  return state.lane === "standard"
+    && state.repositoryId === owner.repositoryId
+    && state.operationId === owner.operationId
+    && laneSubjectOwnerMatches(state.lineage, owner.lineage);
+}
+
+function indexedAttemptMatches(
+  attempt: LaneProgressState["attempts"][number],
+  owner: HostedRequestOwnerIndexRecord,
+  request: HostedRequestEnvelope,
+): boolean {
+  const hosted = attempt.hosted;
+  return hosted !== undefined
+    && attempt.logicalPass === owner.logicalPass
+    && attempt.headSha === request.target.headSha
+    && hosted.admission.repositoryId === owner.repositoryId
+    && laneSubjectOwnerMatches(hosted.admission.lineage, owner.lineage)
+    && canonicalize(hosted.admission.reviewTarget) === canonicalize(hosted.reviewTarget)
+    && hostedAdmissionMatchesRequest(hosted.admission, request);
+}
+
+function projectIndexedMatches(
+  matches: LaneProgressState["attempts"],
+  owner: HostedRequestOwnerIndexRecord,
+  request: HostedRequestEnvelope,
+): HostedRequestAdmissionResolution | null {
+  if (matches.length === 0) return owner.phase === "reserved" ? null : { state: "ambiguous-delivery" };
+  if (matches.length !== 1) return { state: "ambiguous-delivery" };
+  const attempt = matches[0];
+  if (owner.phase === "reserved"
+    && attempt?.outcome === "pending"
+    && attempt.hosted?.handle === undefined) {
+    return attempt.hosted === undefined
+      ? { state: "ambiguous-delivery" }
+      : { state: "admitted", admission: attempt.hosted.admission };
+  }
+  return attempt === undefined
+    ? { state: "ambiguous-delivery" }
+    : projectIndexedHostedAttempt(request, attempt);
+}
+
+async function readIndexedOwnerAttempts(
+  store: LocalReviewOperationStateStore,
+  owner: HostedRequestOwnerIndexRecord,
+  request: HostedRequestEnvelope,
+): Promise<LaneProgressState["attempts"]> {
+  const { state } = await store.readOperation(owner.operationId);
+  if (state === null) return [];
+  if (state.kind !== "lane-progress" || !indexedLaneMatchesOwner(state, owner)) {
+    throw new Error("Hosted request owner index does not match its durable lane.");
+  }
+  return state.attempts.filter((attempt) => indexedAttemptMatches(attempt, owner, request));
+}
+
+async function indexedOwnerPassCompleted(
+  store: LocalReviewOperationStateStore,
+  owner: HostedRequestOwnerIndexRecord,
+): Promise<boolean> {
+  const { state } = await store.readOperation(owner.operationId);
+  if (state === null) return false;
+  if (state.kind !== "lane-progress" || !indexedLaneMatchesOwner(state, owner)) {
+    throw new Error("Hosted request owner index does not match its durable lane.");
+  }
+  return state.completedPasses > owner.completedPassesAtAdmission;
+}
+
+/** A prior admission owns its replay even when the current branch or Candidate has moved. */
+async function readDurableHostedRequestReplay(input: {
+  store: LocalReviewOperationStateStore;
+  index: HostedRequestOwnerIndex;
+  repositoryId: string;
+  request: HostedRequestEnvelope;
+  root: string;
+}): Promise<HostedRequestAdmissionResolution | null> {
+  const owner = await input.index.read(input.repositoryId, input.request);
+  if (owner === null) return null;
+  if (owner.lineage.kind === "head-bound" && owner.lineage.vehicleKind === "errand"
+    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity)) {
+    return { state: "ambiguous-delivery" };
+  }
+  const { state } = await input.store.readOperation(owner.operationId);
+  if (state === null) return owner.phase === "reserved" ? null : { state: "ambiguous-delivery" };
+  if (state.kind !== "lane-progress" || !indexedLaneMatchesOwner(state, owner)) {
+    return { state: "ambiguous-delivery" };
+  }
+  if (state.completedPasses > owner.completedPassesAtAdmission) return null;
+  const matches = state.attempts.filter((attempt) => indexedAttemptMatches(attempt, owner, input.request));
+  return projectIndexedMatches(matches, owner, input.request);
+}
+
+class HostedRequestOwnerCollision extends Error {}
+
+async function resumeReservedHostedRequest(input: {
+  root: string;
+  publisher: RepositoryGitCommonStatePublisher;
+  index: HostedRequestOwnerIndex;
+  repositoryId: string;
+  request: HostedRequestEnvelope;
+  replay: Extract<HostedRequestAdmissionResolution, { state: "admitted" }>;
+  adapters: readonly HostedReviewAdapter[];
+}): Promise<unknown> {
+  const { root, publisher, index, repositoryId, request, replay, adapters } = input;
+  let current;
+  try {
+    current = await resolveHostedProgressContext({
+      root,
+      publisher,
+      target: request.target,
+      provider: request.provider,
+      ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
+      admitCapacity: false,
+    });
+  } catch {
+    return projectHostedRequestAdmissionResolution(request, { state: "ambiguous-delivery" });
+  }
+  if (current.repositoryId !== repositoryId
+    || canonicalize(current.lineage) !== canonicalize(replay.admission.lineage)
+    || canonicalize(current.reviewTarget) !== canonicalize(replay.admission.reviewTarget)) {
+    return projectHostedRequestAdmissionResolution(request, { state: "ambiguous-delivery" });
+  }
+  const store = new LocalReviewOperationStateStore(publisher);
+  return requestHostedReview(request, {
+    adapters,
+    deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root }),
+    ...(replay.admission.vehicle?.kind === "errand"
+      ? { errandBinding: replay.admission.vehicle }
+      : {}),
+    admitRequest: async () => {
+      await index.markAdmitted({
+        repositoryId,
         request,
+        lineage: replay.admission.lineage,
+        logicalPass: replay.admission.logicalPass,
       });
+      return replay;
+    },
+    acknowledgeRequest: async (admission, handle) => {
+      await acknowledgeHostedRequest(store, { admission, handle, now: new Date().toISOString() });
+    },
+    concludeRequest: async (admission, result) => {
+      await recordHostedRequestConclusion(store, {
+        admission,
+        result,
+        now: new Date().toISOString(),
+      });
+    },
+  });
+}
+
+async function executeDefaultHostedRequest(
+  input: unknown,
+  root: string | null,
+  publisher: RepositoryGitCommonStatePublisher | null,
+  adapters: readonly HostedReviewAdapter[],
+  port: ReturnType<typeof createHostedAdapters>["port"],
+): Promise<unknown> {
+  if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
+  const request = HostedRequestEnvelopeSchema.parse(input);
+  const index = new HostedRequestOwnerIndex(publisher);
+  const repositoryId = await resolveRepositoryIdentity(publisher);
+  return withRepositoryReviewOperationLock(
+    gitExec,
+    root,
+    index.lockId(repositoryId, request),
+    10_000,
+    async () => {
+      const replay = await readDurableHostedRequestReplay({
+        store: new LocalReviewOperationStateStore(publisher),
+        index,
+        repositoryId,
+        request,
+        root,
+      });
+      if (replay?.state === "admitted") {
+        return resumeReservedHostedRequest({ root, publisher, index, repositoryId, request, replay, adapters });
+      }
       if (replay !== null) {
         const result = projectHostedRequestAdmissionResolution(request, replay);
         if (result === null) throw new Error("Hosted request replay unexpectedly admitted fresh dispatch.");
@@ -3031,6 +3245,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             resultReader: createRepositoryReviewResultReader(publisher),
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+            readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
             confirmIncrementalApplicability: (predecessor, current) => (
               dischargeReader.confirmIncrementalApplicability(
                 dischargeInput,
@@ -3109,6 +3324,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
             resultReader: createRepositoryReviewResultReader(publisher),
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
             confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+            readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
             confirmIncrementalApplicability: (predecessor, current) => (
               dischargeReader.confirmIncrementalApplicability(
                 dischargeInput,
@@ -3157,6 +3373,7 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
           resultReader: createRepositoryReviewResultReader(publisher),
           dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+          readResponsePerformance: (predecessor) => readLaneResponsePerformance(context.store, predecessor),
         });
         if (admission.payload.pass !== logicalPass) {
           throw new Error("Hosted review capacity changed before durable admission.");
@@ -3168,34 +3385,63 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
         ...(context.errandBinding === null ? {} : { errandBinding: context.errandBinding }),
         admitRequest: async (admittedRequest, progressVehicle) => {
           const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-          return withRepositoryReviewOperationLock(
-            gitExec,
-            root,
-            laneContinuationOperationId({
-              lane: "standard",
-              repositoryId: context.repositoryId,
-              headSha: admittedRequest.target.headSha,
-              lineage: context.lineage,
-            }),
-            10_000,
-            () => recordHostedRequestAdmission(context.store, {
-              repositoryId: context.repositoryId,
-              lineage: context.lineage,
-              supersessionAncestors,
-              request: admittedRequest,
-              ...(progressVehicle === undefined ? {} : { progressVehicle }),
-              reviewTarget: context.reviewTarget,
-              requirement: context.requirement,
-              actorIdentity,
-              authorizeCapacity,
-              confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
-                dispositionStore,
-                producerId,
-                dispositionSetId,
-              ),
-              now: new Date().toISOString(),
-            }),
-          );
+          try {
+            const admitted = await withRepositoryReviewOperationLock(
+              gitExec,
+              root,
+              laneContinuationOperationId({
+                lane: "standard",
+                repositoryId: context.repositoryId,
+                headSha: admittedRequest.target.headSha,
+                lineage: context.lineage,
+              }),
+              10_000,
+              () => recordHostedRequestAdmission(context.store, {
+                repositoryId: context.repositoryId,
+                lineage: context.lineage,
+                supersessionAncestors,
+                request: admittedRequest,
+                ...(progressVehicle === undefined ? {} : { progressVehicle }),
+                reviewTarget: context.reviewTarget,
+                requirement: context.requirement,
+                actorIdentity,
+                authorizeCapacity: async (capacity) => {
+                  await authorizeCapacity(capacity);
+                  // Reserve after read-only validation, before conditional authority is consumed.
+                  const reservation = await index.reserve({
+                    repositoryId: context.repositoryId,
+                    request: admittedRequest,
+                    lineage: context.lineage,
+                    logicalPass: capacity.logicalPass,
+                    completedPassesAtAdmission: capacity.progress?.completedPasses ?? 0,
+                    oldAdmissionAbsent: async (owner) => (
+                      (await readIndexedOwnerAttempts(context.store, owner, admittedRequest)).length === 0
+                    ),
+                    oldPassCompleted: (owner) => indexedOwnerPassCompleted(context.store, owner),
+                  });
+                  if (reservation === "collision") throw new HostedRequestOwnerCollision();
+                },
+                confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
+                  dispositionStore,
+                  producerId,
+                  dispositionSetId,
+                ),
+                now: new Date().toISOString(),
+              }),
+            );
+            if (admitted.state === "admitted") {
+              await index.markAdmitted({
+                repositoryId: context.repositoryId,
+                request: admittedRequest,
+                lineage: context.lineage,
+                logicalPass: admitted.admission.logicalPass,
+              });
+            }
+            return admitted;
+          } catch (error) {
+            if (error instanceof HostedRequestOwnerCollision) return { state: "ambiguous-delivery" };
+            throw error;
+          }
         },
         acknowledgeRequest: async (admission, handle) => {
           await acknowledgeHostedRequest(context.store, {
@@ -3214,6 +3460,16 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
       });
       return result;
     },
+  );
+}
+
+function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
+  const { adapters, port } = createHostedAdapters();
+  const root = resolveArcRoot(process.cwd());
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
+  return {
+    ...defaultHostedHandlerBoundary(),
+    request: (input) => executeDefaultHostedRequest(input, root, publisher, adapters, port),
   };
 }
 

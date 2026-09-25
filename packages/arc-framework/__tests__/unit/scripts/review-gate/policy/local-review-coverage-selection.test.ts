@@ -3,6 +3,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import type {
+  CandidateManagedRecordV1,
+} from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -22,6 +26,8 @@ import {
   "../../../../../src/scripts/review-gate/policy/local-review-coverage-selection.js";
 import { resolveReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { projectGitReviewContributionApplicability } from
+  "../../../../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
 import { resolveEvidenceBoundReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
 
@@ -36,6 +42,50 @@ const standardReview = {
   retrigger: "full-final" as const,
   count: 1 as const,
 };
+
+function carriedProofExec(mechanical = true): RawGitExec {
+  const trees = new Map([
+    [objectId("1"), objectId("4")],
+    [objectId("a"), objectId("5")],
+    [objectId("2"), objectId("6")],
+    [objectId("b"), objectId("7")],
+    [objectId("3"), objectId("8")],
+    [objectId("c"), objectId("9")],
+  ]);
+  const bytes = (value: string) => ({ stdout: new TextEncoder().encode(value) });
+  return async (args) => {
+    if (args[0] === "rev-parse") {
+      const expression = args.at(-1) ?? "";
+      if (expression === "HEAD^{commit}") return bytes(`${objectId("a")}\n`);
+      const match = /^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(expression);
+      if (match?.[1] !== undefined && trees.has(match[1])) {
+        return bytes(`${match[2] === "commit" ? match[1] : trees.get(match[1])}\n`);
+      }
+    }
+    if (args[0] === "merge-base" && args[1] === "--all") {
+      const left = args[2];
+      const right = args[3];
+      if (left === objectId("a") && (right === objectId("2") || right === objectId("3"))) {
+        return bytes(`${objectId("1")}\n`);
+      }
+      if (left === objectId("b") && right === objectId("3")) return bytes(`${objectId("2")}\n`);
+    }
+    if (args[0] === "merge-tree") {
+      if (!args.includes("--name-only")) return bytes(`${objectId("4")}\n`);
+      const left = args.at(-2);
+      const right = args.at(-1);
+      if (left === objectId("2") && right === objectId("a")) return bytes(`${objectId("d")}\n`);
+      if (left === objectId("3") && right === objectId("a")) return bytes(`${objectId("e")}\n`);
+      if (left === objectId("3") && right === objectId("b")) {
+        return bytes(`${objectId(mechanical ? "9" : "f")}\n`);
+      }
+    }
+    if (args[0] === "diff" && args.includes("--name-only")) {
+      return bytes("src/example.ts\0");
+    }
+    throw new Error(`Unexpected Git proof invocation: ${args.join(" ")}`);
+  };
+}
 
 function target(headSha: string) {
   return createReviewTarget({
@@ -144,6 +194,65 @@ function readyPolicy(headSha: string) {
 }
 
 describe("local review coverage selection", () => {
+  it("carries exact Candidate coverage through a mechanically proved later correction", async () => {
+    const predecessor = completeLocalResult();
+    const selectedTarget = { ...target(objectId("b")), diffBaseSha: objectId("2") };
+    const currentTarget = { ...target(objectId("c")), diffBaseSha: objectId("3") };
+    const exec = carriedProofExec();
+    const selector = {
+      schemaVersion: 1 as const,
+      repositoryId: currentTarget.repositoryId,
+      repository: "local/repo-1",
+      pullRequest: 42,
+      lane: "standard" as const,
+      sourceId: predecessor.sourceIdentity,
+      priorAttemptId: predecessor.producerId,
+      priorHead: predecessor.target.headSha,
+      currentHead: selectedTarget.headSha,
+      priorBase: predecessor.target.diffBaseSha,
+      currentBase: selectedTarget.diffBaseSha,
+    };
+    const selected = await projectGitReviewContributionApplicability({
+      selector, exec,
+      observeEndpoints: async () => ({ head: selectedTarget.headSha, base: selectedTarget.diffBaseSha }),
+    });
+    expect(selected.state).toBe("decision-required");
+    if (selected.state !== "decision-required") return;
+    const candidate = (choice: "covered" | "review-required") => ({
+      attestation: { candidateId: lineage.candidateId },
+      transitions: [{
+        transitionKind: "review-applicability-selection",
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        candidateId: lineage.candidateId,
+        selector,
+        projectionDigest: selected.projectionDigest,
+        residualDigest: selected.residualDigest,
+        selectedBy: "andrew",
+        selectedAt: "2026-09-25T12:00:00.000Z",
+        choice,
+      }],
+    }) as CandidateManagedRecordV1;
+    const common = {
+      predecessor, currentTarget, currentLineage: lineage,
+      repository: "local/repo-1", pullRequest: 42,
+      exec, observeTarget: async () => currentTarget,
+    };
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      ...common, candidate: candidate("covered"),
+    })).resolves.toBe("applicable");
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      ...common, candidate: candidate("review-required"),
+    })).resolves.toBe("review-required");
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      ...common,
+      candidate: candidate("covered"),
+      observeTarget: async () => ({ ...currentTarget, targetId: digest("moved") }),
+    })).resolves.toBe("unavailable");
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      ...common, candidate: candidate("covered"), exec: carriedProofExec(false),
+    })).resolves.toBe("unavailable");
+  });
   it("does not equate same Errand lineage with changed-base contribution proof", async () => {
     const earlierLineage = {
       kind: "head-bound" as const,

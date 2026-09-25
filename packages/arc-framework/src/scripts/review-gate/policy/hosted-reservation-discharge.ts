@@ -42,9 +42,7 @@ import {
   resolveIncrementalCorrectionScope as resolveVerifiedIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
 } from "./incremental-coverage-basis.js";
-import {
-  ReviewCoverageSelectionActionSchema,
-} from "./review-coverage-selection.js";
+import { ReviewCoverageSelectionActionSchema } from "./review-coverage-selection.js";
 
 import {
   ProjectedLaneAttempt,
@@ -201,30 +199,35 @@ export async function projectHostedReservationDischarge(input: {
       awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
     };
   }
-  const selectedClean = selectedOwnerCleanAttempt(currentAttempts, reservation);
-  const latestCurrentTerminalPass = currentAttempts.reduce<number | null>((latest, attempt) => (
+  const latestTerminal = currentAttempts.reduce<ProjectedLaneAttempt | undefined>((latest, attempt) => (
     reservation.sources.includes(attempt.sourceId)
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
-      && (latest === null || attempt.logicalPass > latest)
-      ? attempt.logicalPass
+      && (latest === undefined || attempt.logicalPass >= latest.logicalPass)
+      ? attempt
       : latest
-  ), null);
+  ), undefined);
+  const selectedClean = latestTerminal && selectedOwnerCleanAttempt([latestTerminal], reservation);
+  let selectedCleanValidated = false;
   let latestCurrentCorrectionCandidate: IncrementalCorrectionScopeCandidate | null = null;
-  if (latestCurrentTerminalPass !== null && selectedClean === undefined) {
+  if (latestTerminal !== undefined) {
     const admittedLocalTerminal = [...currentAttemptHistory].reverse().find((attempt) => (
-      attempt.logicalPass === latestCurrentTerminalPass
+      attempt.logicalPass === latestTerminal.logicalPass
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
       && attempt.local?.deliveryAdmission !== undefined
     ));
-    for (const sourceId of reservation.sources) {
+    for (const sourceId of selectedClean === undefined ? reservation.sources : [selectedClean.sourceId]) {
       const sourceAttempts = currentAttemptHistory.filter((attempt) => (
-        attempt.sourceId === sourceId && attempt.logicalPass === latestCurrentTerminalPass
+        attempt.sourceId === sourceId && attempt.logicalPass === latestTerminal.logicalPass
       ));
       const currentTerminal = [...sourceAttempts].reverse().find((attempt) => (
         attempt.outcome === "clean" || attempt.outcome === "settled-findings"
       ));
       if (currentTerminal !== undefined) {
         const policy = await input.resolveTerminalPolicy(currentTerminal);
+        if (policy.state === "pass-complete" && selectedClean !== undefined) {
+          selectedCleanValidated = true;
+          break;
+        }
         if (policy.state === "pass-complete") {
           return {
             discharged: true,
@@ -384,7 +387,7 @@ export async function projectHostedReservationDischarge(input: {
     }
     return projectPendingFindings(routes, "retained");
   };
-  if (selectedClean !== undefined) {
+  if (selectedClean !== undefined && selectedCleanValidated) {
     return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
   }
   const currentTerminalLogicalPass = reservation.sources.flatMap((sourceId) => (

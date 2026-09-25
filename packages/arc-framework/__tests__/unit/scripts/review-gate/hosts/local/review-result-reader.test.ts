@@ -31,6 +31,7 @@ import {
   LaneProgressStateSchema,
   LocalReviewStateSchema,
   FrontlineRunStateSchema,
+  type LaneProgressState,
 } from "../../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type {
   ForwardReviewReceiptIndex,
@@ -216,6 +217,7 @@ function readerForLocalFixture(options: {
   findingSourceLabel?: string;
   scopeMode?: "whole-target" | "chunked";
   settled?: boolean;
+  laneMutation?: (lane: LaneProgressState) => LaneProgressState;
 } = {}) {
   const fixture = localFixture({
     ...(options.findings === undefined ? {} : { findings: options.findings }),
@@ -224,12 +226,15 @@ function readerForLocalFixture(options: {
       : { findingSourceLabel: options.findingSourceLabel }),
     ...(options.scopeMode === undefined ? {} : { scopeMode: options.scopeMode }),
   });
-  const lane = options.settled === true
+  const settledLane = options.settled === true
     ? LaneProgressStateSchema.parse({
         ...fixture.lane,
         attempts: fixture.lane.attempts.map((attempt) => ({ ...attempt, outcome: "settled-findings" })),
       })
     : fixture.lane;
+  const lane = options.laneMutation === undefined
+    ? settledLane
+    : LaneProgressStateSchema.parse(options.laneMutation(settledLane));
   const operationIndex: ReviewOperationStateSnapshotIndex = {
     readOperationSnapshot: async () => ({
       status: "complete",
@@ -559,6 +564,19 @@ describe("local review result reader", () => {
       kind: "attested-local",
       originalOutcome: "findings",
       findings: fixture.receipt.findings,
+    });
+  });
+
+  it.each([
+    ["repository", (lane: LaneProgressState) => ({ ...lane, repositoryId: "other-repo" })],
+    ["owner lineage", (lane: LaneProgressState) => ({
+      ...lane, lineage: { kind: "candidate" as const, candidateId: digest("other-candidate") },
+    })],
+  ])("rejects a schema-valid local attempt under another %s", async (_label, laneMutation) => {
+    const { fixture, reader } = readerForLocalFixture({ laneMutation });
+
+    await expect(reader.readResult(fixture.state.operationId)).rejects.toMatchObject({
+      code: "corrupt-result",
     });
   });
 

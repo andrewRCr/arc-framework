@@ -1750,6 +1750,98 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("requires immutable producer policy validation before discharging an Owner-selected clean result", async () => {
+    const headSha = oid("a");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: headSha,
+    });
+    const pending = attempt(headSha, "codex-pr", "pending", vehicle);
+    const clean = attempt(headSha, "codex-pr", "clean", vehicle);
+    const selected = {
+      ...clean,
+      hosted: {
+        ...clean.hosted,
+        handle: {
+          ...pending.hosted.handle!,
+          invocation: { mode: "force" as const, sourceId: "codex-pr" },
+        },
+      },
+    };
+    let resolvedAttemptId: string | null = null;
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: 1, attempts: [selected] },
+      }),
+      resolveTerminalPolicy: async (terminal) => {
+        resolvedAttemptId = terminal.attemptId;
+        throw new Error("review producer policy or rubric does not match the policy request");
+      },
+    })).rejects.toThrow("review producer policy or rubric does not match the policy request");
+    expect(resolvedAttemptId).toBe(selected.attemptId);
+  });
+
+  it.each([1, 2] as const)(
+    "lets a later settled material result on pass %i govern an earlier Owner-selected clean result",
+    async (laterPass) => {
+    const headSha = oid("a");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: headSha,
+    });
+    const pending = attempt(headSha, "codex-pr", "pending", vehicle);
+    const clean = attempt(headSha, "codex-pr", "clean", vehicle);
+    const selected = {
+      ...clean,
+      hosted: {
+        ...clean.hosted,
+        handle: {
+          ...pending.hosted.handle!,
+          invocation: { mode: "force" as const, sourceId: "codex-pr" },
+        },
+      },
+    };
+    const settled = {
+      ...attempt(headSha, "coderabbit-pr", "settled-findings", vehicle),
+      logicalPass: laterPass,
+    };
+    const resolvedAttempts: string[] = [];
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: laterPass, attempts: [selected, settled] },
+      }),
+      resolveTerminalPolicy: async (terminal) => {
+        resolvedAttempts.push(terminal.attemptId);
+        return defaultTerminalPolicy(terminal);
+      },
+    });
+
+    expect(resolvedAttempts).toEqual([settled.attemptId]);
+    expect(result).toMatchObject({ discharged: false, nextSource: "coderabbit-pr" });
+  });
+
   it("advances work-unit review status to the next member after a selected-source discharge", async () => {
     const reserved = reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
       kind: "delivery",

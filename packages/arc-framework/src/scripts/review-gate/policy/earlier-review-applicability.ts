@@ -15,6 +15,8 @@ import {
 } from "./earlier-review-attempts.js";
 import { projectGitReviewContributionApplicability } from
   "./git-review-contribution-applicability.js";
+import { projectMechanicalReviewApplicabilityCarry } from
+  "./mechanical-review-applicability-carry.js";
 import {
   reduceReviewApplicabilityAuthority,
   reduceReviewApplicabilityAuthorityWithMechanicalCarry,
@@ -210,43 +212,25 @@ export async function projectEarlierReviewApplicability(
       ? projectGitReviewContributionApplicability({
           selector: value,
           exec: input.exec,
-          observeEndpoints: () => input.observeEndpoints(value),
+          observeEndpoints: async () => {
+            const observed = await input.observeEndpoints(selector);
+            // The A→B decision is historical. Check live C for movement before and
+            // after each Git read, then prove the pinned historical endpoint.
+            if (observed.head !== selector.currentHead || observed.base !== selector.currentBase) {
+              throw new Error("The hosted review target moved during historical contribution proof.");
+            }
+            return { head: value.currentHead, base: value.currentBase };
+          },
         })
       : input.projectApplicability(value);
     const carried = projection?.state !== "decision-required"
       ? []
-      : (await Promise.all(selections.map(async (selection) => {
-          const selected = selection.selector;
-          if (selection.candidateId !== input.candidate.attestation.candidateId
-            || selected.repositoryId !== selector.repositoryId
-            || selected.repository !== selector.repository
-            || selected.pullRequest !== selector.pullRequest
-            || selected.sourceId !== selector.sourceId
-            || selected.priorAttemptId !== selector.priorAttemptId
-            || selected.priorHead !== selector.priorHead
-            || selected.priorBase !== selector.priorBase
-            || selected.currentHead === selector.currentHead) return null;
-          const selectedVehicle = selected.currentVehicle;
-          const currentVehicle = selector.currentVehicle;
-          if ((selectedVehicle === undefined) !== (currentVehicle === undefined)
-            || (selectedVehicle !== undefined && currentVehicle !== undefined
-              && (selectedVehicle.planId !== currentVehicle.planId
-                || selectedVehicle.deliverableId !== currentVehicle.deliverableId
-                || selectedVehicle.workUnitId !== currentVehicle.workUnitId))) return null;
-          const selectedProjection = await projectSelector(selected);
-          const mechanicalProjection = await projectSelector({
-            ...selector,
-            priorHead: selected.currentHead,
-            priorBase: selected.currentBase,
-            ...(selectedVehicle === undefined || currentVehicle === undefined
-              ? {}
-              : { priorVehicle: selectedVehicle, currentVehicle }),
-          });
-          return selectedProjection.state === "decision-required"
-            && mechanicalProjection.state === "applicable"
-            ? { selection, selectedProjection, mechanicalProjection }
-            : null;
-        }))).filter((value) => value !== null);
+      : await projectMechanicalReviewApplicabilityCarry({
+          candidateId: input.candidate.attestation.candidateId,
+          projection,
+          selections,
+          projectSelector,
+        });
     const authority = projection === undefined
       ? null
       : carried.length === 0

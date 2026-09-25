@@ -342,11 +342,37 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
   const terminalRequest = request.attempts.at(-1)?.outcome === "findings"
     ? ReviewPolicyCommandRequestSchema.parse({ ...request, ceilingOverride: undefined })
     : request;
-  const terminal = await resolveEvidenceBoundReviewPolicy(terminalRequest, dependencies);
-  const findingsResponseComplete = response.terminalResponsePerformed && terminal.state === "findings";
+  const terminalAttempt = terminalRequest.attempts.at(-1);
+  const terminalOperationId = terminalAttempt?.outcome === "findings"
+    ? terminalAttempt.reviewOperationId
+    : undefined;
+  let terminalResult: Promise<ReviewResult> | undefined;
+  const resultReader: ReviewResultReader = {
+    readResult: (producerId) => {
+      if (producerId !== terminalOperationId) {
+        return dependencies.resultReader.readResult(producerId);
+      }
+      terminalResult ??= dependencies.resultReader.readResult(producerId);
+      return terminalResult;
+    },
+  };
+  const terminal = await resolveEvidenceBoundReviewPolicy(terminalRequest, {
+    ...dependencies,
+    resultReader,
+  });
+  // A lane can retain a prior record-only settlement after a successor disposition
+  // approves a fix. Its settled outcome alone does not perform the current fix.
+  const currentResponsePerformed = response.terminalResponsePerformed
+    && terminalAttempt?.outcome === "findings"
+    && (await readIncrementalPredecessorResponseEvidence(
+      await resultReader.readResult(terminalAttempt.reviewOperationId),
+      dependencies.dispositionStore,
+      dependencies.readResponsePerformance,
+    )).status === "performed";
+  const findingsResponseComplete = currentResponsePerformed && terminal.state === "findings";
   const coverageSelectionComplete = response.coverageSelected === true
     && terminal.state === "coverage-required"
-    && (!terminal.payload.responseRequired || response.terminalResponsePerformed);
+    && (!terminal.payload.responseRequired || currentResponsePerformed);
   if (!findingsResponseComplete && !coverageSelectionComplete) return terminal;
   return resolveReviewPolicy({
     ...request,

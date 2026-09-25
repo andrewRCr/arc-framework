@@ -64,6 +64,7 @@ import { LocalApprovedDispositionRecordStore } from
   "./hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from
   "./hosts/local/review-result-reader-composition.js";
+import { readLaneResponsePerformance } from "./lane-progress.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
 import {
   HostedProviderIdSchema,
@@ -724,6 +725,7 @@ export async function readRoutedObligation(
         }, {
           resultReader,
           dispositionStore,
+          readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
           confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
           confirmIncrementalApplicability: (predecessor, current) => (
             readDischarge.confirmIncrementalApplicability({

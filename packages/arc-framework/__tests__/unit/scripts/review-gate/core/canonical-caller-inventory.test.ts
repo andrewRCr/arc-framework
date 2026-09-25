@@ -60,6 +60,7 @@ describe("review-gate canonical serializer inventory", () => {
       "hosted/request.ts",
       "hosts/local/disposition-record-store.ts",
       "hosts/local/frontline-outcome-store.ts",
+      "hosts/local/hosted-request-owner-index.ts",
       "hosts/local/operation-state-store.ts",
       "hosts/local/receipt-store.ts",
       "hosts/local/review-result-reader.ts",

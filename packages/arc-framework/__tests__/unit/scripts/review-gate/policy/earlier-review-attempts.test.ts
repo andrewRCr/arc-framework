@@ -7,6 +7,7 @@ import { responsePolicyRequestFixture } from "../../../../fixtures/review-respon
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
+import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -763,6 +764,88 @@ describe("earlier review attempt query", () => {
         applicability: "stop",
         projection: { state: "rerun-checkpoint", reason: "head-moved" },
       }],
+    });
+  });
+
+  it("does not carry a historical selection when live C briefly moves to selected B", async () => {
+    const state = laneState();
+    const selectedProjection = applicabilityDecision({
+      schemaVersion: 1,
+      repositoryId: "repository-1",
+      repository: "owner/repository",
+      pullRequest: 42,
+      lane: "standard",
+      sourceId: "codex-pr",
+      priorAttemptId: state.attempts[0]!.attemptId,
+      priorHead: oid("a"),
+      currentHead: oid("b"),
+      priorBase: oid("1"),
+      currentBase: oid("2"),
+    });
+    if (selectedProjection.state !== "decision-required") throw new Error("expected selected decision");
+    const selection: CandidateLineageTransitionV1 = {
+      transitionKind: "review-applicability-selection",
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      candidateId: candidateRecord().attestation.candidateId,
+      selector: selectedProjection.selector,
+      projectionDigest: selectedProjection.projectionDigest,
+      residualDigest: selectedProjection.residualDigest,
+      selectedBy: "andrew",
+      selectedAt: "2026-08-23T12:00:00.000Z",
+      choice: "covered",
+    };
+    const trees = new Map([
+      [oid("1"), oid("3")], [oid("a"), oid("4")],
+      [oid("2"), oid("5")], [oid("b"), oid("6")],
+      [oid("7"), oid("8")], [oid("c"), oid("9")],
+    ]);
+    const bytes = (value: string) => ({ stdout: new TextEncoder().encode(value) });
+    const exec: RawGitExec = async (args) => {
+      if (args[0] === "rev-parse") {
+        const expression = args.at(-1) ?? "";
+        if (expression === "HEAD^{commit}") return bytes(`${oid("a")}\n`);
+        const match = /^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(expression);
+        if (match?.[1] !== undefined && trees.has(match[1])) {
+          return bytes(`${match[2] === "commit" ? match[1] : trees.get(match[1])}\n`);
+        }
+      }
+      if (args[0] === "merge-base" && args[1] === "--all") {
+        if (args[2] === oid("a") && (args[3] === oid("2") || args[3] === oid("7"))) {
+          return bytes(`${oid("1")}\n`);
+        }
+        if (args[2] === oid("b") && args[3] === oid("7")) return bytes(`${oid("2")}\n`);
+      }
+      if (args[0] === "merge-tree") {
+        if (!args.includes("--name-only")) return bytes(`${oid("3")}\n`);
+        const left = args.at(-2);
+        const right = args.at(-1);
+        if (left === oid("2") && right === oid("a")) return bytes(`${oid("d")}\n`);
+        if (left === oid("7") && right === oid("a")) return bytes(`${oid("e")}\n`);
+        if (left === oid("7") && right === oid("b")) return bytes(`${oid("9")}\n`);
+      }
+      if (args[0] === "diff" && args.includes("--name-only")) return bytes("src/example.ts\0");
+      throw new Error(`Unexpected Git proof invocation: ${args.join(" ")}`);
+    };
+    let observations = 0;
+    const result = await projectEarlierReviewApplicability({
+      query: selector(),
+      currentBase: oid("7"),
+      snapshot: { status: "complete", records: [{ version: 1, state }] },
+      candidate: candidateRecord([selection]),
+      exec,
+      observeEndpoints: async () => {
+        observations += 1;
+        // The overall A→C read is stable; C moves to B for the A→B read only.
+        return observations === 3 || observations === 4
+          ? { head: oid("b"), base: oid("2") }
+          : { head: oid("c"), base: oid("7") };
+      },
+    });
+    expect(observations).toBeGreaterThanOrEqual(3);
+    expect(result).toMatchObject({
+      status: "complete",
+      attempts: [{ applicability: "stop", authorityState: "decision-required" }],
     });
   });
 

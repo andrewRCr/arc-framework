@@ -27,7 +27,11 @@ import type { LaneResponsePerformance } from "../core/operation-state-schema.js"
 import type { ReviewResult } from "../core/review-result.js";
 import { projectGitReviewContributionApplicability } from
   "./git-review-contribution-applicability.js";
-import { reduceReviewApplicabilityAuthority } from "./review-applicability-authority.js";
+import {
+  reduceReviewApplicabilityAuthorityWithMechanicalCarry,
+} from "./review-applicability-authority.js";
+import { projectMechanicalReviewApplicabilityCarry } from
+  "./mechanical-review-applicability-carry.js";
 import {
   resolveIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
@@ -148,22 +152,38 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
     priorBase: predecessor.target.diffBaseSha,
     currentBase: currentTarget.diffBaseSha,
   };
-  const projection = await projectGitReviewContributionApplicability({
-    selector,
+  const projectSelector = (value: typeof selector) => projectGitReviewContributionApplicability({
+    selector: value,
     exec: input.exec,
     observeEndpoints: async () => {
-      const target = await input.observeTarget();
-      return { head: target.headSha, base: target.diffBaseSha };
+      const observed = await input.observeTarget();
+      if (observed.targetId !== currentTarget.targetId) {
+        throw new Error("The local review target moved during contribution proof.");
+      }
+      // A selected A→B leg is historical; its endpoints are pinned by the Candidate.
+      // Check the live C target on every read, then prove the immutable B endpoint.
+      return { head: value.currentHead, base: value.currentBase };
     },
   });
+  const projection = await projectSelector(selector);
   if (currentLineage.kind !== "candidate") {
     return projection.state === "applicable" ? "applicable" : "unavailable";
   }
   if (input.candidate === null) return "unavailable";
-  const authority = reduceReviewApplicabilityAuthority(
+  const selections = candidateReviewApplicabilitySelections(input.candidate);
+  const carried = projection.state !== "decision-required"
+    ? []
+    : await projectMechanicalReviewApplicabilityCarry({
+        candidateId: currentLineage.candidateId,
+        projection,
+        selections,
+        projectSelector,
+      });
+  const authority = reduceReviewApplicabilityAuthorityWithMechanicalCarry(
     currentLineage.candidateId,
     projection,
-    candidateReviewApplicabilitySelections(input.candidate),
+    selections,
+    carried,
   );
   return authority.state === "applicable"
     ? "applicable"

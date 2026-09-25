@@ -1,7 +1,7 @@
 /** Exact Errand review-status composition from identity and durable lane progress. */
 
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -13,6 +13,7 @@ import {
   TransientIdentityRecordV3Schema,
 } from "../../src/lib/errand/identity-record.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { handleReviewHostedRequest } from "../../src/handlers/review.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { createHostedAdmission, type HostedRequestHandle } from "../../src/scripts/review-gate/hosted/request.js";
 import {
@@ -21,6 +22,8 @@ import {
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { HostedRequestOwnerIndex } from
+  "../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import { resolveRepositoryIdentity } from
   "../../src/scripts/review-gate/hosts/local/git-common-state.js";
 import {
@@ -488,6 +491,41 @@ describe("Errand review status", () => {
       state: "blocked",
       detail: "Recorded review progress does not match the exact Errand identity and change request.",
     });
+
+    await mkdir(join(root, ".arc", "system"), { recursive: true });
+    await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: main\n", "utf8");
+    const oldClaimRequest = {
+      schemaVersion: 1 as const,
+      target: hostedTarget,
+      provider: "codex-pr" as const,
+      coverage: "complete" as const,
+      vehicle: { kind: "errand" as const, standardReview },
+    };
+    const ownerIndex = new HostedRequestOwnerIndex(publisher);
+    await ownerIndex.reserve({
+      repositoryId,
+      request: oldClaimRequest,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha },
+      logicalPass: 1,
+      completedPassesAtAdmission: 0,
+      oldAdmissionAbsent: async () => true,
+      oldPassCompleted: async () => false,
+    });
+    const output: string[] = [];
+    const exitCodes: number[] = [];
+    const previousCwd = process.cwd();
+    process.chdir(root);
+    try {
+      await handleReviewHostedRequest("-", {
+        readText: async () => JSON.stringify(oldClaimRequest),
+        write: (text) => output.push(text),
+        setExitCode: (code) => exitCodes.push(code),
+      });
+    } finally {
+      process.chdir(previousCwd);
+    }
+    expect(exitCodes).toEqual([]);
+    expect(JSON.parse(output.join(""))).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
 
     const nextHandle = makeHandle({
       ...handle,
