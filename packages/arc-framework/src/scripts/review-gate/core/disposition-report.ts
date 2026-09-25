@@ -30,6 +30,10 @@ function renderAssessment(item: DispositionReportItem): string {
     return `**Assessment:** NOT SUPPORTED · no ARC severity (ARC) · ${reviewer} (reviewer)`;
   }
   const verified = displaySeverity(item.verifiedSeverity, item.verifiedNit);
+  if (item.verifiedSeverity === item.reportedSeverity
+    && item.verifiedNit === item.reportedNit) {
+    return `**Assessment:** CONFIRMED · ${verified}`;
+  }
   return `**Assessment:** CONFIRMED · ${verified} (ARC) · ${reviewer} (reviewer)`;
 }
 

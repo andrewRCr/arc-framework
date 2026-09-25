@@ -1127,7 +1127,7 @@ describe("review response command", () => {
           "**Rationale:** The selected source supports this disposition\\.",
           "**Locus:** src/index\\.ts:7",
           "**Source:** source #1 · review:finding\\-1",
-          "**Assessment:** CONFIRMED · 🟠 major (ARC) · 🟠 major (reviewer)",
+          "**Assessment:** CONFIRMED · 🟠 major",
           "**Recommendation:** FIX [blocking] — Apply the fix\\.",
         ].join("\n"),
       },

@@ -84,10 +84,29 @@ describe("disposition report", () => {
         + "**Locus:** src/z\\.ts:9\n"
         + "**Source:** &lt;unsafe \\*title\\*&gt; · source #1 · review:finding\\-z",
     );
-    expect(report).toContain("**Assessment:** CONFIRMED · 🟡 minor nit (ARC) · 🟡 minor nit (reviewer)");
-    expect(report).toContain("**Assessment:** CONFIRMED · 🟠 major (ARC) · 🟠 major (reviewer)");
+    expect(report).toContain("**Assessment:** CONFIRMED · 🟡 minor nit");
+    expect(report).toContain("**Assessment:** CONFIRMED · 🟠 major");
     expect(report.match(/^---$/gmu)).toHaveLength(1);
     expect(report).not.toMatch(/^---|---$/u);
+  });
+
+  it("shows both grades when only the nit classification differs", () => {
+    const { dispositionSet: originalSet, producerFindings } = fixture();
+    const { dispositionSetId: _originalId, findings, ...setFields } = originalSet;
+    void _originalId;
+    const dispositionSet = createDispositionSet({
+      ...setFields,
+      findings: findings.map((item) => {
+        if (item.findingId !== "finding-a" || item.sourceVerification !== "verified") return item;
+        const { verifiedNit: _verifiedNit, ...withoutVerifiedNit } = item;
+        void _verifiedNit;
+        return withoutVerifiedNit;
+      }),
+    });
+
+    const report = renderDispositionReport({ dispositionSet, producerFindings });
+
+    expect(report).toContain("**Assessment:** CONFIRMED · 🟡 minor (ARC) · 🟡 minor nit (reviewer)");
   });
 
   it("renders multiline Markdown evidence references as inert source text", () => {

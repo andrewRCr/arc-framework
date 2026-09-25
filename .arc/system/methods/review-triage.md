@@ -78,13 +78,16 @@ Verification: <targeted | focused | full>
 
 Finding F{ordinal}: <standalone account of the claim, stable locus, source evidence, and consequence>
 Source: <native label when available> · source #{sourceOrdinal} · <originating reference>
-Assessment: <CONFIRMED | NOT SUPPORTED> · <verified severity | no ARC severity> (ARC) · <reported severity> (reviewer)
+Assessment: CONFIRMED · <shared severity and nit when both agree>
+Assessment: CONFIRMED · <verified severity and nit> (ARC) · <reported severity and nit> (reviewer) [when different]
+Assessment: NOT SUPPORTED · no ARC severity (ARC) · <reported severity and nit> (reviewer)
 Recommendation: <FIX | DEFER | REJECT> [<blocking | record-only>] — <complete proposed action and boundaries>
 Open questions: <questions, when present>
 ```
 
 Separate adjacent findings with `---`. The command assigns report-local `F` labels from canonical order while
-retaining producer-native labels, capture ordinals, and references. ARC assessment appears before reviewer severity;
+retaining producer-native labels, capture ordinals, and references. When ARC and reviewer grades or nit markers
+differ, ARC assessment appears before reviewer severity;
 the author-owned rationale and recommendation must make each account understandable without the raw review.
 
 For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
