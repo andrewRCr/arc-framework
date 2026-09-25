@@ -11,14 +11,14 @@
 - **Design:** `spec-review-signal-convergence.md`
 - **Task List:** `tasks-review-signal-convergence.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:abc1708f007a79c4d337d43e26914610cb45f601fe7681393a1bf230fc43bf3b`
+- **Candidate:** `sha256:2aefaeef1ae8faaa5685bcb2e895ff505c3e4b9fcab01800a49bf13bed9ccb8b`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Candidate review pending — run pre-publication review
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
