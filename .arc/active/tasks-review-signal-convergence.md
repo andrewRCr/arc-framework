@@ -615,7 +615,7 @@ including interrupted writes and premature-commit refusal, without changing revi
 - _Success criteria:_ 30 criteria met; none superseded or unresolved. The terminal report in
   `notes-review-signal-convergence.md` carries all seven member groups and five cross-member seams.
 
-### `[ ]` **8.2 Preserve review budget and frontline phase through Candidate supersession**
+### `[x]` **8.2 Preserve review budget and frontline phase through Candidate supersession**
 
 - _Goal:_ A verified new Candidate root retains the previous root's consumed standard passes and singleton
   frontline phase without treating old-target evidence as current-target clearance.
@@ -624,7 +624,10 @@ including interrupted writes and premature-commit refusal, without changing revi
   third pass requires the existing one-pass authorization. A completed standard admission or accepted initial
   frontline skip closes frontline through restart and re-root. Unrelated roots remain isolated, and missing expected
   predecessor evidence yields an actionable refusal instead of silently resetting the allowance.
-- _Verification:_ Focused public-path and unit scenarios, full Tier 3, and a fresh review of the changed target.
+- _Verification:_ Three real-CLI public-path scenarios, focused unit/handler tests, full Tier 3, and independent
+  source review all passed. Fresh exact-target pre-publication review follows Candidate attestation.
+- _Outcome:_ Validated supersession retains the two settled standard passes and closes singleton frontline for this
+  work unit. A third standard pass remains subject to the typed one-pass ceiling decision.
 
 ---
 
