@@ -232,6 +232,7 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",
       "system/workflows/arc/generate-tasks.template.md",
+      "system/workflows/arc/supplemental/amend-design.md",
     ];
 
     for (const path of workflowPaths) {
@@ -265,12 +266,14 @@ describe("framework sync (self-hosting drift check)", () => {
       readFile(join(ARC_DIR, "reference/strategies/project/strategy-package-project-sync.md"), "utf8"),
     ]);
     const triggerRow = /\| assess-evidence-applicability\s+\| integrate \/ deliver \/ errand\s+\|[^\n]+\|/u;
+    const installedPaths = resolveFileList(recipe, conditionals);
+    const configurableCount = installedPaths.filter((path) => classifyFile(path) === "Configurable").length;
     expect(packagedSessionOps).toMatch(triggerRow);
     expect(projectSessionOps).toMatch(triggerRow);
-    expect(inventory).toContain("### Configurable files (project sections expected to differ) — 44");
+    expect(inventory).toContain(`### Configurable files (project sections expected to differ) — ${configurableCount}`);
     expect(inventory).toContain(`- \`${methodPath}\``);
-    expect(inventory).toContain("| Configurable   | 44");
-    expect(inventory).toContain("**Self-hosting installed files:** 149.");
+    expect(inventory).toContain(`| Configurable   | ${configurableCount}`);
+    expect(inventory).toContain(`**Self-hosting installed files:** ${installedPaths.length}.`);
   });
 
   it("keeps the self-hosting manifest aligned with recipe-derived membership and classification", async () => {

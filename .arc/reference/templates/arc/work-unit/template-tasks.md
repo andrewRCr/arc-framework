@@ -54,6 +54,12 @@ _Exit criterion:_ {specific scenario that proves the segment's capability}
 
 - _Goal:_ {one-line outcome — protected across completion}
 
+<!-- When an amendment changes what this task recorded, append the bullet below at the Goal-child
+     depth `_Retired in:_` takes. Preserved verbatim across completion, and outside the Goal's
+     descriptor extent, so the digest a bound delivery plan compares does not move. -->
+
+    - _Amended in:_ {corrective-parent-id} ({amendment-id})
+
     - `[ ]` **1.2.a {Subtask description}**
         - {detail bullet — plan now, outcome at `[x]`}
 

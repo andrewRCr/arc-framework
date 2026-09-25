@@ -218,7 +218,7 @@ describe("handleReviewChecksAwait", () => {
       headSha: "not-an-oid",
       timeoutMs: "2000",
       pollIntervalMs: "500",
-      
+
     }, { awaitChecks, write, setExitCode });
 
     expect(awaitChecks).not.toHaveBeenCalled();
@@ -239,7 +239,7 @@ describe("handleReviewChecksAwait", () => {
       headSha: "a".repeat(40),
       timeoutMs: "2000",
       pollIntervalMs: "500",
-      
+
     }, {
       awaitChecks: async () => ({
         schemaVersion: 1,
