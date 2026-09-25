@@ -9,7 +9,8 @@ import {
 } from "./finding-records.js";
 
 function displaySeverity(severity: "critical" | "major" | "minor", nit: true | undefined): string {
-  return nit === true ? `${severity} nit` : severity;
+  const symbol = { critical: "🔴", major: "🟠", minor: "🟡" }[severity];
+  return `${symbol} ${severity}${nit === true ? " nit" : ""}`;
 }
 
 function renderSource(finding: NormalizedReviewFinding): string {
@@ -20,16 +21,16 @@ function renderSource(finding: NormalizedReviewFinding): string {
   const label = escapedLabel === undefined
     ? ""
     : `${escapedLabel}${finding.sourceLabelTruncated === true ? "…" : ""} · `;
-  return `Source: ${label}source #${finding.sourceOrdinal} · ${escapedReference}`;
+  return `**Source:** ${label}source #${finding.sourceOrdinal} · ${escapedReference}`;
 }
 
 function renderAssessment(item: DispositionReportItem): string {
   const reviewer = displaySeverity(item.reportedSeverity, item.reportedNit);
   if (item.sourceVerification === "not-supported") {
-    return `Assessment: NOT SUPPORTED · no ARC severity (ARC) · ${reviewer} (reviewer)`;
+    return `**Assessment:** NOT SUPPORTED · no ARC severity (ARC) · ${reviewer} (reviewer)`;
   }
   const verified = displaySeverity(item.verifiedSeverity, item.verifiedNit);
-  return `Assessment: CONFIRMED · ${verified} (ARC) · ${reviewer} (reviewer)`;
+  return `**Assessment:** CONFIRMED · ${verified} (ARC) · ${reviewer} (reviewer)`;
 }
 
 function validateCorrespondence(item: DispositionReportItem, finding: NormalizedReviewFinding): void {
@@ -46,13 +47,17 @@ function renderFinding(
   reportOrdinal: number,
 ): string {
   const lines = [
-    `Finding F${reportOrdinal}: ${item.rationale} · Locus: ${escapeReviewFindingDisplayText(finding.locus)}`,
+    `### Finding F${reportOrdinal}`,
+    `**Rationale:** ${escapeReviewFindingDisplayText(item.rationale)}`,
+    `**Locus:** ${escapeReviewFindingDisplayText(finding.locus)}`,
     renderSource(finding),
     renderAssessment(item),
-    `Recommendation: ${item.disposition.toUpperCase()} [${item.gating}] — ${item.recommendation}`,
+    `**Recommendation:** ${item.disposition.toUpperCase()} [${item.gating}] — `
+      + escapeReviewFindingDisplayText(item.recommendation),
   ];
   if (item.openQuestions.length > 0) {
-    lines.push(`Open questions: ${item.openQuestions.join(" · ")}`);
+    lines.push(`**Open questions:** ${item.openQuestions
+      .map(escapeReviewFindingDisplayText).join(" · ")}`);
   }
   return lines.join("\n");
 }
@@ -84,5 +89,5 @@ export function renderDispositionReport(input: {
     validateCorrespondence(item, finding);
     return renderFinding(item, finding, index + 1);
   });
-  return [`Verification: ${dispositionSet.proposedVerification}`, "", rendered.join("\n\n---\n\n")].join("\n");
+  return [`**Verification:** ${dispositionSet.proposedVerification}`, "", rendered.join("\n\n---\n\n")].join("\n");
 }

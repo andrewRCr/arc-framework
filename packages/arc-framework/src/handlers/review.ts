@@ -151,8 +151,9 @@ import {
 } from "../scripts/review-gate/policy/frontline-command.js";
 import {
   LaneSubjectLineageSchema,
-  laneSubjectOwnerMatches,
 } from "../scripts/review-gate/core/lane-admission.js";
+import { confirmNonDeliveryIncrementalApplicability } from
+  "../scripts/review-gate/policy/local-review-coverage-selection.js";
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import {
@@ -1509,12 +1510,33 @@ async function resolveConfiguredReviewPolicy(
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(operationStore, predecessor),
-    confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
-      predecessor.repositoryId === current.repositoryId
-        && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
-        ? "applicable" as const
-        : "unavailable" as const,
-    ),
+    confirmIncrementalApplicability: async (predecessor, current) => {
+      const active = await resolveActiveWu({ cwd: root });
+      const candidate = current.admission.lineage.kind === "candidate"
+        && active.status === "resolved" && active.name !== ""
+        ? await readCandidateRecord(root, active.name)
+        : null;
+      return confirmNonDeliveryIncrementalApplicability({
+        predecessor,
+        currentTarget: current.target,
+        currentLineage: current.admission.lineage,
+        repository: request.target.repository,
+        pullRequest: request.target.pullRequest,
+        candidate,
+        exec: createRawGitExec(root),
+        observeTarget: async () => {
+          const confirmation = await confirmLocalReviewTarget({
+            exec: gitExec,
+            cwd: root,
+            attemptedTarget: current.target,
+          });
+          if (confirmation.state !== "current") {
+            throw new Error("review producer target no longer matches the current exact target");
+          }
+          return confirmation.target;
+        },
+      });
+    },
     confirmTarget: async (attemptedTarget) => {
       const confirmation = await confirmLocalReviewTarget({
         exec: gitExec,
@@ -2020,29 +2042,39 @@ async function resolveHostedProgressContext(input: {
           target: input.target,
         })
       : [];
-    const configuredSources = (await resolveConfiguredLanePolicy({
-      lane: "standard",
-      settings,
-      preferences: createLocalFrontlineSourcePreferenceReader({
-        cwd: input.root,
-        exec: gitExec,
-        readFile: (path) => readFile(path, "utf8"),
-      }),
-    })).sources;
+    const configuredSources = input.admitCapacity
+      ? (await resolveConfiguredLanePolicy({
+          lane: "standard",
+          settings,
+          preferences: createLocalFrontlineSourcePreferenceReader({
+            cwd: input.root,
+            exec: gitExec,
+            readFile: (path) => readFile(path, "utf8"),
+          }),
+        })).sources
+      : null;
     const errandBinding = "key" in input.vehicle
       ? HostedErrandProgressBindingSchema.parse(input.vehicle)
       : HostedErrandProgressBindingSchema.parse({
           kind: "errand",
           ...current,
-          sources: configuredSourceSuffix(configuredSources, input.provider),
+          sources: configuredSources === null
+            ? [input.provider]
+            : configuredSourceSuffix(configuredSources, input.provider),
           standardReview: input.vehicle.standardReview,
         });
-    assertHostedErrandBindingAuthority({
-      binding: errandBinding,
-      configuredSources,
-      rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
-    });
+    if (errandBinding.key !== current.key
+      || errandBinding.claimId !== current.claimId
+      || errandBinding.branch !== current.branch) {
+      throw new Error("Hosted review progress does not match the current Errand.");
+    }
     if (input.admitCapacity) {
+      if (configuredSources === null) throw new Error("Hosted Errand source policy is unavailable.");
+      assertHostedErrandBindingAuthority({
+        binding: errandBinding,
+        configuredSources,
+        rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY,
+      });
       assertHostedErrandAdmission({
         binding: errandBinding,
         current,
@@ -2833,9 +2865,18 @@ function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependenc
     request: async (input) => {
       if (root === null || publisher === null) throw new Error("Hosted review requires an ARC project.");
       const request = HostedRequestEnvelopeSchema.parse(input);
-      const replayStore = new LocalReviewOperationStateStore(publisher);
-      const replay = await readHostedRequestAdmissionReplay(replayStore, {
-        repositoryId: await resolveRepositoryIdentity(publisher),
+      const replayContext = await resolveHostedProgressContext({
+        root,
+        publisher,
+        target: request.target,
+        provider: request.provider,
+        ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
+        admitCapacity: false,
+      });
+      const replay = await readHostedRequestAdmissionReplay(replayContext.store, {
+        repositoryId: replayContext.repositoryId,
+        lineage: replayContext.lineage,
+        reviewTarget: replayContext.reviewTarget,
         request,
       });
       if (replay !== null) {
@@ -3364,6 +3405,7 @@ function replayTokenFromAction(command: string, workUnit: string): string {
 export interface ReviewPrePublicationHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
+  readRootGitHead(root: string): Promise<string>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
   compose(
     root: string,
@@ -3418,6 +3460,9 @@ function defaultPrePublicationDependencies(
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
     readText: (source) => boundary.readText(source),
+    readRootGitHead: async (root) => GitObjectIdSchema.parse(
+      (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim(),
+    ),
     readBoundary: async (root, workUnit) => {
       const snapshot = await readSubmissionBoundaryVersioned(root, workUnit);
       boundarySnapshots.set(workUnit, snapshot);
@@ -3595,14 +3640,46 @@ export async function handleReviewPrePublication(
     return;
   }
 
+  const emitOrderingConflict = (
+    pendingBoundary: z.infer<typeof CandidateReviewResumeBoundarySchema>,
+    version: string | null,
+    currentHead: string,
+  ): void => {
+    const pending = pendingBoundary.postAttestContinuation;
+    if (pending === undefined || version === null) {
+      throw new Error("The pending post-attest continuation has no durable boundary version.");
+    }
+    const replay = decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name));
+    const recoveryResume = Buffer.from(canonicalize({
+      ...replay,
+      attestationOrderingRecovery: {
+        candidateId: pendingBoundary.candidateId,
+        candidateSubjectDigest: pendingBoundary.candidateSubjectDigest,
+        reviewedHead: pending.reviewedHead,
+        currentHead,
+        expectedBoundaryVersion: version,
+      },
+    }), "utf8").toString("base64url");
+    const message = `Pre-publication reviewed ${pending.reviewedHead}, but the current head is ${currentHead} before readiness.`;
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "attestation-ordering-conflict", message }],
+      error: { code: "attestation-ordering-conflict", message },
+      remedy: spineRemedy(
+        "Pre-publication review cannot cross an unacknowledged post-attestation head change.",
+        "Establish the Candidate at the current root head, then explicitly recover",
+        ["arc", "review", "pre-publication", input.data.name, "--resume", recoveryResume],
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
   let envelope: PrePublicationReviewEnvelope;
   try {
     const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
-    const composition = await dependencies.compose(root, input.data, judgment);
-    if (composition.status === "refused") {
-      emitFailure(new Error(composition.reason), "execution", composition.code);
-      return;
-    }
+    const currentRootHead = GitObjectIdSchema.parse(await dependencies.readRootGitHead(root));
     const orderingRecovery = replayInput?.attestationOrderingRecovery;
     const parsedPendingBoundary = CandidateReviewResumeBoundarySchema.safeParse(boundarySnapshot.boundary);
     const pendingBoundary = parsedPendingBoundary.success
@@ -3610,7 +3687,31 @@ export async function handleReviewPrePublication(
       ? parsedPendingBoundary.data
       : null;
     const pending = pendingBoundary?.postAttestContinuation;
-    const currentHead = composition.request.frontline.target.headSha;
+    if (orderingRecovery === undefined
+      && pendingBoundary !== null
+      && pending !== undefined
+      && currentRootHead !== pending.reviewedHead) {
+      emitOrderingConflict(pendingBoundary, boundarySnapshot.version, currentRootHead);
+      return;
+    }
+    const composition = await dependencies.compose(root, input.data, judgment);
+    if (composition.status === "refused") {
+      emitFailure(new Error(orderingRecovery !== undefined
+        ? "The current Candidate must be established at the root Git head before attestation-ordering recovery."
+        : composition.reason), "execution", orderingRecovery !== undefined
+        ? "attestation-ordering-conflict"
+        : composition.code);
+      return;
+    }
+    const candidateRootHead = composition.request.responseBinding?.candidate.head
+      ?? (composition.request.reservationTarget.kind === "pinned-head"
+        ? composition.request.reservationTarget.headSha
+        : null);
+    if (candidateRootHead === null || candidateRootHead !== currentRootHead) {
+      emitFailure(new Error("The root Candidate and Git heads disagree before publication readiness."),
+        "execution", "attestation-ordering-conflict");
+      return;
+    }
     if (orderingRecovery !== undefined) {
       if (pendingBoundary === null
         || pending === undefined
@@ -3621,8 +3722,8 @@ export async function handleReviewPrePublication(
         || pendingBoundary.candidateId !== orderingRecovery.candidateId
         || pendingBoundary.candidateSubjectDigest !== orderingRecovery.candidateSubjectDigest
         || pending.reviewedHead !== orderingRecovery.reviewedHead
-        || currentHead !== orderingRecovery.currentHead
-        || currentHead === pending.reviewedHead) {
+        || currentRootHead !== orderingRecovery.currentHead
+        || currentRootHead === pending.reviewedHead) {
         emitFailure(new Error("The attestation-ordering recovery input is stale or no longer matches the pending boundary."),
           "execution", "attestation-ordering-conflict");
         return;
@@ -3640,45 +3741,11 @@ export async function handleReviewPrePublication(
         emitFailure(error, "execution", "attestation-ordering-conflict");
         return;
       }
-    } else if (pendingBoundary !== null
-      && pending !== undefined
-      && pendingBoundary.candidateId === composition.request.candidateId
-      && pendingBoundary.candidateSubjectDigest === composition.request.candidate.subjectDigest
-      && currentHead !== pending.reviewedHead) {
-      if (boundarySnapshot.version === null) {
-        throw new Error("The pending post-attest continuation has no durable boundary version.");
-      }
-      const replay = decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name));
-      const recoveryResume = Buffer.from(canonicalize({
-        ...replay,
-        attestationOrderingRecovery: {
-          candidateId: composition.request.candidateId,
-          candidateSubjectDigest: composition.request.candidate.subjectDigest,
-          reviewedHead: pending.reviewedHead,
-          currentHead,
-          expectedBoundaryVersion: boundarySnapshot.version,
-        },
-      }), "utf8").toString("base64url");
-      const message = `Pre-publication reviewed ${pending.reviewedHead}, but the current head is ${currentHead} before readiness.`;
-      const refusal = ReviewCommandErrorEnvelopeSchema.parse({
-        schemaVersion: 1,
-        mode: "review-pre-publication",
-        diagnostics: [{ code: "attestation-ordering-conflict", message }],
-        error: { code: "attestation-ordering-conflict", message },
-        remedy: spineRemedy(
-          "Pre-publication review cannot cross an unacknowledged post-attestation head change.",
-          "Explicitly recover at the current head",
-          ["arc", "review", "pre-publication", input.data.name, "--resume", recoveryResume],
-        ),
-      });
-      dependencies.write(`${JSON.stringify(refusal)}\n`);
-      dependencies.setExitCode(1);
-      return;
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
     const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
     const postAttestContinuation: PostAttestContinuation = {
-      reviewedHead: currentFrontlineHeadSha,
+      reviewedHead: currentRootHead,
       nextAction: {
         kind: "continue-pre-publication-review",
         command: buildPrePublicationResumeCommand({

@@ -553,6 +553,22 @@ Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
     });
   });
 
+  it("does not attribute a late review to a current command while an earlier generation is unresolved", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review()]),
+      readIssueComments: () => Promise.resolve([
+        earlierRequestComment(),
+        requestComment("incremental"),
+        summaryComment(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
+  });
+
   it("retains clean completion when the reply carries multiple invocation markers", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
@@ -593,7 +609,7 @@ Review finished.`,
     });
   });
 
-  it("keeps a delayed refusal for an unresolved earlier request uncorrelated", async () => {
+  it("refuses attribution while an earlier request remains unresolved", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve([
         earlierRequestComment(),
@@ -602,7 +618,10 @@ Review finished.`,
       ]),
     }));
 
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
   });
 
   it("recognizes the current refusal after an earlier request received an authenticated reply", async () => {
@@ -646,7 +665,7 @@ Review finished.`,
   it.each([
     { name: "untrusted actor", overrides: { actorIdentity: "999" } },
     { name: "untrusted app", overrides: { appId: "999" } },
-  ])("keeps an earlier request unresolved after an invocation reply from an $name", async ({ overrides }: {
+  ])("refuses attribution after an invocation reply from an $name", async ({ overrides }: {
     overrides: Partial<HostedGitHubIssueComment>;
   }) => {
     const adapter = new CodeRabbitHostedAdapter(port({
@@ -658,7 +677,10 @@ Review finished.`,
       ]),
     }));
 
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
   });
 
   it.each([
@@ -1335,6 +1357,7 @@ This finding has no inline review thread.
         severity: "major",
         locus: "src/legacy.ts:12",
         fingerprint: "1234567890abcdef12345678",
+        sourceLabel: "Preserve the boundary",
       }],
     });
   });

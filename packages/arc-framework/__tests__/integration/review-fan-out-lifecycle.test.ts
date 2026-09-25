@@ -1337,6 +1337,7 @@ async function advanceSecondTarget(harness: FanOutHarness): Promise<{ head: stri
 async function selectReviewRequiredUntilRouted(
   harness: FanOutHarness,
   target: { repository: string; headRef: string; headSha: string },
+  choice: "covered" | "review-required" = "review-required",
 ) {
   for (let index = 0; index < 4; index += 1) {
     const status = await statusThroughHandler(harness, target);
@@ -1355,14 +1356,14 @@ async function selectReviewRequiredUntilRouted(
         selection: {
           selectedBy: "andrew",
           selectedAt: `2026-08-24T04:1${String(index)}:00.000Z`,
-          choice: "review-required",
+          choice,
         },
       }),
       write: (text) => output.push(text),
       setExitCode: (code) => exitCodes.push(code),
     });
     expect(exitCodes, output.join("")).toEqual([]);
-    expect(JSON.parse(output.join(""))).toMatchObject({ state: "resolved", choice: "review-required" });
+    expect(JSON.parse(output.join(""))).toMatchObject({ state: "resolved", choice });
   }
   throw new Error("review applicability selections did not reach a routed status");
 }
@@ -3200,18 +3201,25 @@ describe("hosted review fan-out lifecycle", () => {
   it("blocks unscoped CodeRabbit incremental coverage before the production request boundary", async () => {
     const harness = await createHarness();
     const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness);
-    const status = await statusThroughHandler(harness, {
+    const statusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
       headSha: harness.oldFirst,
-    }, undefined, "incremental");
+    };
+    const status = await statusThroughHandler(harness, statusTarget, undefined, "incremental");
     expect(status).toMatchObject({
       state: "blocked",
       nextAction: "stop",
       reason: "coverage-unsupported",
+      remedy: { argv: [
+        "arc", "review", "status", "--work-unit", harness.plan.workUnitId,
+        "--coverage", "complete",
+      ] },
     });
     await expect(access(providerCalled)).rejects.toThrow();
     await expect(access(fakeBin)).resolves.toBeUndefined();
+    await expect(statusThroughHandler(harness, statusTarget, undefined, "complete"))
+      .resolves.toMatchObject({ state: "review-required", nextAction: "review-hosted-request" });
   });
 
   it("requires a predecessor scope before Codex can upgrade incremental coverage", async () => {
@@ -3822,7 +3830,7 @@ describe("hosted review fan-out lifecycle", () => {
       headRef: "delivery/delivery-plan-record/correction-first",
       headSha: correctionHead,
     };
-    await selectReviewRequiredUntilRouted(harness, correctionStatusTarget);
+    await selectReviewRequiredUntilRouted(harness, correctionStatusTarget, "covered");
 
     const completeCorrectionStatus = await statusThroughHandler(
       harness,

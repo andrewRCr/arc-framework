@@ -38,6 +38,7 @@ import type {
 } from "./integration-boundary-locus.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
+import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 
 /** Per-lane scope, invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
@@ -172,6 +173,12 @@ export interface PrePublicationCompositionDependencies {
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
   readResponsePerformance(predecessor: ReviewResult): Promise<LaneResponsePerformance | null>;
+  confirmIncrementalApplicability(
+    workUnit: string,
+    predecessor: ReviewResult,
+    current: ReviewResult,
+    policyTarget: ReviewPolicyTarget,
+  ): Promise<IncrementalPredecessorApplicability>;
 }
 
 export interface PrePublicationCompositionInput {
@@ -499,12 +506,15 @@ export async function composePrePublicationReviewRequest(
       resultReader: dependencies.resultReader,
       dispositionStore: dependencies.dispositionStore,
       readResponsePerformance: (predecessor) => dependencies.readResponsePerformance(predecessor),
-      confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
-        predecessor.repositoryId === current.repositoryId
-          && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
-          ? "applicable" as const
-          : "unavailable" as const,
-      ),
+      confirmIncrementalApplicability: (predecessor, current) =>
+        current.admission.lineage.kind === "delivery-member"
+          ? Promise.resolve(predecessor.repositoryId === current.repositoryId
+            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+              ? "applicable" as const
+              : "unavailable" as const)
+          : dependencies.confirmIncrementalApplicability(
+            input.workUnit, predecessor, current, policyTarget,
+          ),
       confirmTarget: () => exactTarget === null
         ? Promise.reject(new Error("terminal review progress requires a current exact review target"))
         : Promise.resolve(exactTarget),

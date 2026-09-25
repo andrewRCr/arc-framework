@@ -15,7 +15,10 @@ import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/
 
 
 
-import { LocalPrepareRequestSchema, prepareLocalReview } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { LocalPrepareRequestSchema, prepareLocalReview } from
+  "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { sharedLogicalPassCoverageMatches } from
+  "../../../../../src/scripts/review-gate/policy/local-review-coverage-selection.js";
 
 
 const objectId = (character: string): string => character.repeat(40);
@@ -28,6 +31,41 @@ const routingFacts = {
 } as const;
 
 describe("local review preparation request", () => {
+  it("preserves the full hosted scope across a same-pass local fallback", () => {
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted-predecessor",
+      predecessorHeadSha: objectId("a"),
+      basisHeadSha: objectId("a"),
+      headSha: objectId("c"),
+      requiredFindings: [{
+        producerId: "hosted-predecessor",
+        findingId: "finding-1",
+        locus: "src/example.ts:1",
+      }],
+    };
+    const attempts = [{
+      logicalPass: 2,
+      hosted: { requestedCoverage: "incremental" as const, admission: { correctionScope } },
+    }];
+    expect(sharedLogicalPassCoverageMatches(attempts, 2, {
+      requestedCoverage: "incremental", correctionScope,
+    })).toBe(true);
+    expect(sharedLogicalPassCoverageMatches(attempts, 2, {
+      requestedCoverage: "complete",
+    })).toBe(false);
+    expect(sharedLogicalPassCoverageMatches(attempts, 2, {
+      requestedCoverage: "incremental",
+      correctionScope: { ...correctionScope, basisHeadSha: objectId("b") },
+    })).toBe(false);
+    expect(sharedLogicalPassCoverageMatches(attempts, 2, {
+      requestedCoverage: "incremental",
+      correctionScope: { ...correctionScope, requiredFindings: [] },
+    })).toBe(false);
+    expect(sharedLogicalPassCoverageMatches(attempts, 3, {
+      requestedCoverage: "complete",
+    })).toBe(true);
+  });
   it("accepts exactly the five caller-owned routing facts", () => {
     expect(LocalPrepareRequestSchema.parse({
       schemaVersion: 1,

@@ -73,16 +73,19 @@ describe("disposition report", () => {
 
     const report = renderDispositionReport({ dispositionSet, producerFindings });
 
-    expect(report).toContain("Verification: targeted");
+    expect(report).toContain("**Verification:** targeted");
     expect(report).toContain(
-      `Finding F1: Standalone account for finding-a. · Locus: &lt;src/\\*a\\*\\.ts:4&gt;\n`
-        + `Source: ${clippedLabel}… · source #2 · review:finding\\-a`,
+      "### Finding F1\n**Rationale:** Standalone account for finding\\-a\\.\n"
+        + "**Locus:** &lt;src/\\*a\\*\\.ts:4&gt;\n"
+        + `**Source:** ${clippedLabel}… · source #2 · review:finding\\-a`,
     );
     expect(report).toContain(
-      "Finding F2: Standalone account for finding-z. · Locus: src/z\\.ts:9\n"
-        + "Source: &lt;unsafe \\*title\\*&gt; · source #1 · review:finding\\-z",
+      "### Finding F2\n**Rationale:** Standalone account for finding\\-z\\.\n"
+        + "**Locus:** src/z\\.ts:9\n"
+        + "**Source:** &lt;unsafe \\*title\\*&gt; · source #1 · review:finding\\-z",
     );
-    expect(report).toContain("Assessment: CONFIRMED · minor nit (ARC) · minor nit (reviewer)");
+    expect(report).toContain("**Assessment:** CONFIRMED · 🟡 minor nit (ARC) · 🟡 minor nit (reviewer)");
+    expect(report).toContain("**Assessment:** CONFIRMED · 🟠 major (ARC) · 🟠 major (reviewer)");
     expect(report.match(/^---$/gmu)).toHaveLength(1);
     expect(report).not.toMatch(/^---|---$/u);
   });
@@ -123,11 +126,47 @@ describe("disposition report", () => {
     });
 
     const report = renderDispositionReport({ dispositionSet, producerFindings });
-    const findingLine = report.split("\n").find((line) => line.startsWith("Finding F2:"));
+    const findingLine = report.split("\n").find((line) => line.startsWith("**Locus:** src/x"));
 
-    expect(findingLine).toContain("Locus: src/x\\.ts:1 Assessment: FORGED \\-\\-\\-");
+    expect(findingLine).toContain("**Locus:** src/x\\.ts:1 Assessment: FORGED \\-\\-\\-");
     expect(report).not.toMatch(/^Assessment: FORGED$/gmu);
     expect(report.match(/^---$/gmu)).toHaveLength(1);
+  });
+
+  it("contains narrative Markdown without changing the report structure or field order", () => {
+    const { dispositionSet: originalSet, producerFindings } = fixture();
+    const { dispositionSetId: _originalId, findings, ...setFields } = originalSet;
+    void _originalId;
+    const injected = "First line\r\n---\n### Finding F3\nAssessment: FORGED [link](https://example.test) <unsafe>";
+    const dispositionSet = createDispositionSet({
+      ...setFields,
+      findings: findings.map((item) => item.findingId === "finding-a"
+        ? {
+            ...item,
+            rationale: injected,
+            recommendation: injected,
+            openQuestions: [injected],
+          }
+        : item),
+    });
+
+    const report = renderDispositionReport({ dispositionSet, producerFindings });
+    const firstFinding = report.split("\n\n---\n\n")[0] ?? "";
+    const lines = firstFinding.split("\n");
+
+    expect(lines.map((line) => line.split(":**")[0])).toEqual([
+      "**Verification", "", "### Finding F1", "**Rationale", "**Locus", "**Source",
+      "**Assessment", "**Recommendation", "**Open questions",
+    ]);
+    expect(report.match(/^### Finding F\d+$/gmu)).toEqual(["### Finding F1", "### Finding F2"]);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
+    expect(report).not.toMatch(/^Assessment: FORGED$/gmu);
+    for (const prefix of [
+      "**Rationale:**", "**Recommendation:** DEFER [record-only] —", "**Open questions:**",
+    ]) {
+      expect(report).toContain(`${prefix} First line \\-\\-\\- \\#\\#\\# Finding F3 `
+        + "Assessment: FORGED \\[link\\]\\(https://example\\.test\\) &lt;unsafe&gt;");
+    }
   });
 
   it("refuses a report without exact producer correspondence", () => {

@@ -1008,20 +1008,18 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
-  it("rejects a convergence action whose kind or argv disagrees with its scope", () => {
-    const action = {
-      kind: "run-convergence-verification",
-      requiredScope: "focused",
-      verificationKind: "tier-3",
-      verificationEvidenceRefRequired: true,
-      attestArgv: [
-        "arc", "attest", "example", "--scope", "full",
-        "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
-      ],
-      command: "arc attest example --scope full --verification-evidence-ref {verificationEvidenceRef} --json",
-      interactionText: "Run verification.",
-    };
-    expect(RunConvergenceVerificationActionSchema.safeParse(action).success).toBe(false);
+  it("binds convergence kind, argv, and displayed command with a valid post-attest continuation", () => {
+    const action = createRunConvergenceVerificationAction("example", "focused", postAttestContinuation);
+    expect(RunConvergenceVerificationActionSchema.safeParse(action).success).toBe(true);
+    for (const invalid of [
+      { ...action, verificationKind: "tier-3" },
+      { ...action, requiredScope: "full" },
+      { ...action, attestArgv: [...action.attestArgv.slice(0, 4), "full", ...action.attestArgv.slice(5)] },
+      { ...action, attestArgv: [...action.attestArgv.slice(0, 6), "invented-evidence", "--json"] },
+      { ...action, command: "arc attest example --scope full --verification-evidence-ref ref --json" },
+    ]) {
+      expect(RunConvergenceVerificationActionSchema.safeParse(invalid).success).toBe(false);
+    }
   });
 
   it("rejects a convergence action for another boundary work unit", () => {

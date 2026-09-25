@@ -66,9 +66,11 @@ export function incrementalApplicabilityFromEarlierRead(input: {
   ));
   if (exact.length !== 1) return "unavailable";
   const applicability = exact[0]?.applicability;
-  return applicability === "retain-prior-attempt" || applicability === "request-review"
+  return applicability === "retain-prior-attempt"
     ? "applicable"
-    : "unavailable";
+    : applicability === "request-review"
+      ? "review-required"
+      : "unavailable";
 }
 
 /** Confirm one predecessor against the current target's fresh applicability projection. */

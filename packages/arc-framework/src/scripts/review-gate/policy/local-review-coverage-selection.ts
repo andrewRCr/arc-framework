@@ -1,13 +1,20 @@
 /** Typed local coverage recovery derived from immutable predecessor evidence. */
 
 import { canonicalize } from "../../../lib/kernel/index.js";
+import type { RawGitExec } from "../../../lib/change-facts.js";
+import {
+  candidateReviewApplicabilitySelections,
+  type CandidateManagedRecordV1,
+} from "../../../lib/work-unit/candidate-attestation.js";
 
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { ReviewScopeMode } from "../core/review-primitives.js";
 import {
   laneSubjectOwnerMatches,
   type LaneSubjectLineage,
 } from "../core/lane-admission.js";
 import {
+  LocalReviewCoverageAdmissionSchema,
   LocalReviewCoverageSelectionActionSchema,
   type LocalReviewCoverageAdmission,
   type LocalReviewCoverageSelectionAction,
@@ -18,6 +25,9 @@ import type {
 } from "../core/ports.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
+import { projectGitReviewContributionApplicability } from
+  "./git-review-contribution-applicability.js";
+import { reduceReviewApplicabilityAuthority } from "./review-applicability-authority.js";
 import {
   resolveIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
@@ -35,6 +45,132 @@ export type LocalReviewCoverageSelectionResolution =
       readonly state: "coverage-required";
       readonly action: LocalReviewCoverageSelectionAction;
     };
+
+export function localAttemptCoverageAdmission(input: {
+  readonly requestedCoverage: "incremental" | "complete";
+  readonly correctionScope?: LocalReviewCoverageAdmission["correctionScope"];
+}): LocalReviewCoverageAdmission {
+  return LocalReviewCoverageAdmissionSchema.parse({
+    requestedCoverage: input.requestedCoverage,
+    ...(input.correctionScope === undefined ? {} : { correctionScope: input.correctionScope }),
+  });
+}
+
+/** One logical pass has one exact requested scope across hosted and local evaluators. */
+export function sharedLogicalPassCoverageMatches(
+  attempts: readonly {
+    readonly logicalPass: number;
+    readonly hosted?: {
+      readonly requestedCoverage: "incremental" | "complete";
+      readonly admission: {
+        readonly correctionScope?: LocalReviewCoverageAdmission["correctionScope"];
+      };
+    };
+    readonly local?: {
+      readonly requestedCoverage: "incremental" | "complete";
+      readonly correctionScope?: LocalReviewCoverageAdmission["correctionScope"];
+    };
+  }[],
+  logicalPass: number,
+  coverageAdmission: LocalReviewCoverageAdmission,
+): boolean {
+  return attempts.every((attempt) => {
+    if (attempt.logicalPass !== logicalPass) return true;
+    const scope = attempt.hosted === undefined
+      ? attempt.local === undefined ? null : localAttemptCoverageAdmission(attempt.local)
+      : localAttemptCoverageAdmission({
+          requestedCoverage: attempt.hosted.requestedCoverage,
+          correctionScope: attempt.hosted.admission.correctionScope,
+        });
+    return scope === null || canonicalize(scope) === canonicalize(coverageAdmission);
+  });
+}
+
+/** Select one matching local replay without obscuring a conflicting pending operation. */
+export function selectPendingLocalReplayAttempt<Attempt extends {
+  readonly outcome: string;
+  readonly local?: {
+    readonly scopeMode: ReviewScopeMode;
+    readonly requestedCoverage: "incremental" | "complete";
+    readonly correctionScope?: LocalReviewCoverageAdmission["correctionScope"];
+  };
+}>(
+  attempts: readonly Attempt[],
+  scopeMode: ReviewScopeMode,
+  coverageAdmission: LocalReviewCoverageAdmission,
+): { readonly attempt: Attempt | null; readonly error: string | null } {
+  const pending = attempts.filter((attempt) => attempt.outcome === "pending"
+    && attempt.local !== undefined);
+  if (pending.length > 1) {
+    return { attempt: null, error: "local lane has multiple pending admissions" };
+  }
+  const local = pending[0]?.local;
+  if (local?.scopeMode !== undefined && local.scopeMode !== scopeMode) {
+    return { attempt: null, error: "local pending admission has a different review scope" };
+  }
+  if (local !== undefined
+    && canonicalize(localAttemptCoverageAdmission(local)) !== canonicalize(coverageAdmission)) {
+    return { attempt: null, error: "local pending admission has different review coverage" };
+  }
+  return { attempt: pending[0] ?? null, error: null };
+}
+
+/** Prove a non-delivery predecessor against current contribution and exact Candidate authority. */
+export async function confirmNonDeliveryIncrementalApplicability(input: {
+  readonly predecessor: ReviewResult;
+  readonly currentTarget: ReviewTarget;
+  readonly currentLineage: LaneSubjectLineage;
+  readonly repository: string;
+  readonly pullRequest: number | null;
+  readonly candidate: CandidateManagedRecordV1 | null;
+  readonly exec: RawGitExec;
+  readonly observeTarget: () => Promise<ReviewTarget>;
+}): Promise<IncrementalPredecessorApplicability> {
+  const { predecessor, currentTarget, currentLineage } = input;
+  if (predecessor.kind === "frontline"
+    || predecessor.repositoryId !== currentTarget.repositoryId
+    || !laneSubjectOwnerMatches(predecessor.admission.lineage, currentLineage)
+    || input.pullRequest === null
+    || (currentLineage.kind === "candidate"
+      && input.candidate?.attestation.candidateId !== currentLineage.candidateId)) {
+    return "unavailable";
+  }
+  const selector = {
+    schemaVersion: 1 as const,
+    repositoryId: currentTarget.repositoryId,
+    repository: input.repository,
+    pullRequest: input.pullRequest,
+    lane: "standard" as const,
+    sourceId: predecessor.sourceIdentity,
+    priorAttemptId: predecessor.producerId,
+    priorHead: predecessor.target.headSha,
+    currentHead: currentTarget.headSha,
+    priorBase: predecessor.target.diffBaseSha,
+    currentBase: currentTarget.diffBaseSha,
+  };
+  const projection = await projectGitReviewContributionApplicability({
+    selector,
+    exec: input.exec,
+    observeEndpoints: async () => {
+      const target = await input.observeTarget();
+      return { head: target.headSha, base: target.diffBaseSha };
+    },
+  });
+  if (currentLineage.kind !== "candidate") {
+    return projection.state === "applicable" ? "applicable" : "unavailable";
+  }
+  if (input.candidate === null) return "unavailable";
+  const authority = reduceReviewApplicabilityAuthority(
+    currentLineage.candidateId,
+    projection,
+    candidateReviewApplicabilitySelections(input.candidate),
+  );
+  return authority.state === "applicable"
+    ? "applicable"
+    : authority.state === "review-required"
+      ? "review-required"
+      : "unavailable";
+}
 
 async function resolveOfferedCorrectionScope(
   input: Parameters<typeof resolveLocalReviewCoverageSelection>[0],
@@ -74,13 +210,11 @@ async function resolveOfferedCorrectionScope(
           ? "applicable"
           : "unavailable",
       )),
-    confirmCurrentApplicability: (candidate, currentHeadSha) => Promise.resolve(
-      currentHeadSha === input.target.headSha
-        && candidate.repositoryId === input.target.repositoryId
-        && laneSubjectOwnerMatches(candidate.admission.lineage, input.lineage)
-        ? "applicable"
-        : "unavailable",
-    ),
+    confirmCurrentApplicability: (candidate, currentHeadSha) =>
+      currentHeadSha !== input.target.headSha
+        ? Promise.resolve("unavailable" as const)
+        : dependencies.confirmCurrentApplicability?.(candidate, input.target)
+          ?? Promise.resolve("unavailable" as const),
   });
 }
 
@@ -108,6 +242,10 @@ export async function resolveLocalReviewCoverageSelection(input: {
   readonly confirmIncrementalApplicability?: (
     predecessor: ReviewResult,
     current: ReviewResult,
+  ) => Promise<IncrementalPredecessorApplicability>;
+  readonly confirmCurrentApplicability?: (
+    predecessor: ReviewResult,
+    currentTarget: ReviewTarget,
   ) => Promise<IncrementalPredecessorApplicability>;
 }): Promise<LocalReviewCoverageSelectionResolution> {
   if (input.policy.state !== "coverage-required" && input.policy.state !== "ready") {

@@ -1429,10 +1429,10 @@ export async function resolveReviewStatus(
         detail: base.routedObligation.detail,
         remedy: spineRemedy(
           "The selected review carrier cannot preserve the admitted correction scope.",
-          "Select a capable source or complete coverage, then re-run",
+          "Re-run with complete coverage",
           [
             "arc", "review", "status", "--work-unit", currentMember.vehicle.workUnitId,
-            "--coverage", "incremental",
+            "--coverage", "complete",
           ],
         ),
       });

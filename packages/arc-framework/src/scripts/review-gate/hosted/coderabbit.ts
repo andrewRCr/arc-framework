@@ -308,6 +308,9 @@ function nextRequestBoundary(
   if (commandComments.some((comment) => (
     comment.id !== request.id && comment.createdAt === request.createdAt
   ))) return { status: "overlap" };
+  if (!earlierRequestGenerationsSettled(comments, request.id)) {
+    return { status: "overlap" };
+  }
   const next = commandComments
     .filter((comment) => comment.id !== request.id && comment.createdAt > request.createdAt)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt)

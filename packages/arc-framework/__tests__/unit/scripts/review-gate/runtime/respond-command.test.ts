@@ -1076,22 +1076,56 @@ describe("review response command", () => {
           },
         },
         dispositionReportText: [
-          "Verification: focused",
+          "**Verification:** focused",
           "",
-          "Finding F1: The selected source supports this disposition. · Locus: src/earlier\\.ts:3",
-          "Source: source #2 · review:finding\\-0",
-          "Assessment: CONFIRMED · minor (ARC) · major (reviewer)",
-          "Recommendation: FIX [record-only] — Apply the fix.",
+          "### Finding F1",
+          "**Rationale:** The selected source supports this disposition\\.",
+          "**Locus:** src/earlier\\.ts:3",
+          "**Source:** source #2 · review:finding\\-0",
+          "**Assessment:** CONFIRMED · 🟡 minor (ARC) · 🟠 major (reviewer)",
+          "**Recommendation:** FIX [record-only] — Apply the fix\\.",
           "",
           "---",
           "",
-          "Finding F2: The selected source supports this disposition. · Locus: src/index\\.ts:7",
-          "Source: source #1 · review:finding\\-1",
-          "Assessment: CONFIRMED · major (ARC) · major (reviewer)",
-          "Recommendation: FIX [blocking] — Apply the fix.",
+          "### Finding F2",
+          "**Rationale:** The selected source supports this disposition\\.",
+          "**Locus:** src/index\\.ts:7",
+          "**Source:** source #1 · review:finding\\-1",
+          "**Assessment:** CONFIRMED · 🟠 major (ARC) · 🟠 major (reviewer)",
+          "**Recommendation:** FIX [blocking] — Apply the fix\\.",
         ].join("\n"),
       },
     });
+  });
+
+  it("returns a contained canonical report with its native source label", async () => {
+    const records = fixture(workUnitVehicle, "Native **title**");
+    const injected = "First line\n---\n### Finding F2\n**Assessment:** FORGED";
+    const proposal = await respondToReviewCommand({
+      schemaVersion: 1,
+      source: { kind: "attested-local", receiptRef: records.receiptRef },
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
+          disposition: "fix",
+          rationale: injected,
+          recommendation: injected,
+          openQuestions: [injected],
+        }],
+      },
+    }, dependencies(records));
+    if (proposal.state !== "awaiting-approval") throw new Error("expected proposal report");
+
+    const report = proposal.payload.dispositionReportText;
+    expect(report).toContain("**Source:** Native \\*\\*title\\*\\* · source #1");
+    expect(report).toContain("**Rationale:** First line \\-\\-\\- \\#\\#\\# Finding F2 \\*\\*Assessment:\\*\\* FORGED");
+    expect(report.match(/^### Finding F\d+$/gmu)).toEqual(["### Finding F1"]);
+    expect(report).not.toMatch(/^---$/gmu);
   });
 
   it("materializes a complete successor proposal beside only the expected authorized fix paths", async () => {
@@ -1679,7 +1713,7 @@ describe("review response command", () => {
     if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
     const expectedReport = proposed.payload.dispositionReportText;
     expect(expectedReport).toContain(
-      "Assessment: NOT SUPPORTED · no ARC severity (ARC) · major (reviewer)",
+      "**Assessment:** NOT SUPPORTED · no ARC severity (ARC) · 🟠 major (reviewer)",
     );
     const dispositions = approveDispositionState({
       proposed: proposed.payload.proposal,
@@ -2293,7 +2327,7 @@ describe("review response command", () => {
       },
     });
     expect(proposal.payload.dispositionReportText).toContain(
-      "Assessment: CONFIRMED · major (ARC) · minor nit (reviewer)",
+      "**Assessment:** CONFIRMED · 🟠 major (ARC) · 🟡 minor nit (reviewer)",
     );
   });
 
@@ -3037,41 +3071,56 @@ describe("verified-fix Candidate settlement", () => {
     });
   });
 
-  it("carries a captured conditional pass through changed-target response continuation", async () => {
+  it("keeps the durable captured pass through verified fix and exact replay despite fresh policy input", async () => {
     const records = fixture();
-    const { deps } = lineageDependencies(records, {
+    const current = {
       revision: objectId("e"),
       subject: candidateSubject("fixed"),
-    });
+    };
+    const { deps, appends } = lineageDependencies(records, current);
     const request = verifiedFixRequest(records);
     const authorizationId = digest("approved-next-pass");
-    const withAuthorization = {
-      ...request,
-      policyRequest: {
-        ...request.policyRequest,
-        ceilingOverride: {
-          target: request.policyRequest.target,
-          lane: "standard" as const,
-          exhaustedPassCount: 1,
-          nextPass: 2,
-          conditionalPassAuthorizationId: authorizationId,
-        },
-      },
-      conditionalNextPassAuthorization: {
-        authorizedBy: records.authority.authorIdentity,
+    const durable = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    if (durable === null) throw new Error("expected approved response fixture");
+    const approvedPolicyRequest = {
+      ...request.policyRequest,
+      ceilingOverride: {
+        target: request.policyRequest.target,
+        lane: "standard" as const,
         exhaustedPassCount: 1,
         nextPass: 2,
+        conditionalPassAuthorizationId: authorizationId,
       },
     };
+    const approvedRecord = ApprovedDispositionRecordSchema.parse({
+      ...durable,
+      approvedDispositionLineage: durable.approvedDispositionLineage.map((node) => ({
+        ...node,
+        responsePolicyRequest: approvedPolicyRequest,
+      })),
+    });
+    deps.dispositionStore.readDispositionRecord = async () => approvedRecord;
 
-    await expect(respondToReviewCommand(withAuthorization, deps)).resolves.toMatchObject({
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
       state: "candidate-advanced",
       nextAction: "continue-review",
       payload: {
         conditionalPassAuthorizationId: authorizationId,
-        policyRequest: {
-          ceilingOverride: { conditionalPassAuthorizationId: authorizationId },
-        },
+        policyRequest: approvedPolicyRequest,
+      },
+    });
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected advanced Candidate fixture");
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, current);
+
+    await expect(respondToReviewCommand({
+      ...request,
+      policyRequest: { ...request.policyRequest, frontlineActive: true },
+    }, deps)).resolves.toMatchObject({
+      state: "candidate-current",
+      payload: {
+        conditionalPassAuthorizationId: authorizationId,
+        policyRequest: approvedPolicyRequest,
       },
     });
   });
@@ -3478,7 +3527,7 @@ describe("verified-fix Candidate settlement", () => {
     expect(appends).toHaveLength(0);
   });
 
-  it("refuses a verified fix over dispositions that authorized no fix", async () => {
+  it("refuses a verified fix whose dispositions differ from the durable approval", async () => {
     const records = fixture();
     const { deps, appends } = lineageDependencies(records, {
       revision: objectId("e"),
@@ -3486,7 +3535,7 @@ describe("verified-fix Candidate settlement", () => {
     });
 
     await expect(respondToReviewCommand(verifiedFixRequest(records, "defer"), deps))
-      .rejects.toThrow("unsupported state 'ready-to-close'");
+      .rejects.toThrow("requires its exact approved response record");
     expect(appends).toHaveLength(0);
   });
 });

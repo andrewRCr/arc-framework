@@ -384,22 +384,31 @@ function replayHostedDispositionSuccessor(
   carriedFindingIds: readonly string[],
   reopenedFindingIds: readonly string[],
 ): HostedDispositionSupersessionResult {
-    const predecessorNode = hosted.dispositionSetLineage.find(({ dispositionSetId }) =>
-      dispositionSetId === input.predecessorDispositionSetId);
-    const successorNode = hosted.dispositionSetLineage.at(-1);
-    const currentEvidence = hosted.settlementEvidence.filter(({ dispositionSetId }) =>
-      dispositionSetId === input.successorDispositionSetId);
-    if (predecessorNode?.successorDispositionSetId !== input.successorDispositionSetId
-      || successorNode?.predecessorDispositionSetId !== input.predecessorDispositionSetId
-      || canonicalize(successorNode.findingActions) !== canonicalize(input.findingDispositions)
-      || canonicalize(currentEvidence) !== canonicalize(carriedEvidence)
-      || canonicalize([...hosted.settledFindingIds].sort()) !== canonicalize(carriedFindingIds)) {
-      throw new HostedDispositionSupersessionError(
-        "conflicting-successor",
-        "hosted disposition successor replay conflicts with recorded progress",
-      );
-    }
-    return { progress: state, carriedFindingIds, reopenedFindingIds };
+  const predecessorNode = hosted.dispositionSetLineage.find(({ dispositionSetId }) =>
+    dispositionSetId === input.predecessorDispositionSetId);
+  const successorNode = hosted.dispositionSetLineage.at(-1);
+  const currentEvidence = hosted.settlementEvidence.filter(({ dispositionSetId }) =>
+    dispositionSetId === input.successorDispositionSetId);
+  const evidenceByFindingId = new Map(currentEvidence.map((evidence) => [evidence.findingId, evidence]));
+  const carriedStillPresent = carriedEvidence.every((evidence) =>
+    canonicalize(evidenceByFindingId.get(evidence.findingId)) === canonicalize(evidence));
+  if (predecessorNode?.successorDispositionSetId !== input.successorDispositionSetId
+    || successorNode?.dispositionSetId !== input.successorDispositionSetId
+    || successorNode.predecessorDispositionSetId !== input.predecessorDispositionSetId
+    || canonicalize(successorNode.findingActions) !== canonicalize(input.findingDispositions)
+    || !carriedStillPresent
+    || carriedFindingIds.some((findingId) => !hosted.settledFindingIds.includes(findingId))) {
+    throw new HostedDispositionSupersessionError(
+      "conflicting-successor",
+      "hosted disposition successor replay conflicts with recorded progress",
+    );
+  }
+  return {
+    progress: state,
+    carriedFindingIds,
+    reopenedFindingIds: reopenedFindingIds.filter((findingId) =>
+      !hosted.settledFindingIds.includes(findingId)),
+  };
 }
 
 function requireHostedSuccessorAttempt(
@@ -432,7 +441,7 @@ export async function supersedeHostedAttemptDisposition(
   if (state === null || state.kind !== "lane-progress" || state.lane !== "standard") {
     throw new Error("hosted lane findings attempt is unavailable");
   }
-  const { index, attempt, hosted, recordedFindingIds } = requireHostedSuccessorAttempt(state, input);
+  const { index, attempt, hosted } = requireHostedSuccessorAttempt(state, input);
   const { carriedEvidence, carriedFindingIds, reopenedFindingIds } = projectSuccessorCarry(hosted, input);
   if (hosted.dispositionSetId === input.successorDispositionSetId) {
     return replayHostedDispositionSuccessor(
@@ -464,11 +473,9 @@ export async function supersedeHostedAttemptDisposition(
     },
   ];
   const attempts = [...state.attempts];
-  attempts[index] = {
+  attempts[index] = completeHostedAttemptIfReady({
     ...attempt,
-    outcome: carriedFindingIds.length === recordedFindingIds.length
-      ? "settled-findings"
-      : "findings",
+    outcome: "findings",
     hosted: {
       ...hosted,
       dispositionSetId: input.successorDispositionSetId,
@@ -476,7 +483,7 @@ export async function supersedeHostedAttemptDisposition(
       settledFindingIds: carriedFindingIds,
       settlementEvidence: [...hosted.settlementEvidence, ...carriedEvidence],
     },
-  };
+  }, input.now);
   const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(progress, version);
   return { progress, carriedFindingIds, reopenedFindingIds };

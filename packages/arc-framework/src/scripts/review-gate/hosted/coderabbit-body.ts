@@ -341,6 +341,15 @@ function malformedWithContext(
   return malformed(diagnostic(reason, context));
 }
 
+function calloutSourceLabel(summaryText: string, body: string): ReturnType<typeof captureReviewFindingSourceLabel> {
+  const summary = /<summary>([^\r\n]*?)<\/summary>/iu.exec(summaryText);
+  const summaryParts = summary?.[1]?.split(" · ");
+  const title = summaryParts !== undefined && summaryParts.length >= 3
+    ? summaryParts.slice(1, -1).join(" · ").trim()
+    : undefined;
+  return captureReviewFindingSourceLabel({ title, body });
+}
+
 function parseCalloutSection(
   review: HostedGitHubReview,
   body: string,
@@ -394,6 +403,7 @@ function parseCalloutSection(
       locus: locus[1],
       url: review.url,
       body: body.slice(item.openEnd + locus.index, item.openEnd + marker.index).trim(),
+      ...calloutSourceLabel(content.slice(0, locus.index), substantiveBody),
     });
   }
   return { kind: "parsed", findings };

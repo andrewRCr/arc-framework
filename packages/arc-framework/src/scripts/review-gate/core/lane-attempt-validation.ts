@@ -113,17 +113,24 @@ function validateResponsePerformance(attempt: LaneAttempt, context: z.Refinement
     context.addIssue({
       code: "custom",
       path: ["responsePerformanceHistory"],
-      message: "lane response performance history must be unique, retained, and non-hosted",
+      message: "lane response performance history must be unique and follow disposition successors",
     });
   }
 }
 
 function responseHistoryValid(attempt: LaneAttempt, dispositionSetIds: readonly string[]): boolean {
+  const hostedLineage = attempt.hosted?.dispositionSetLineage;
+  const hostedHistoryValid = hostedLineage === undefined || dispositionSetIds.every((id, index) => {
+    const node = hostedLineage.find(({ dispositionSetId }) => dispositionSetId === id);
+    const nextId = dispositionSetIds[index + 1];
+    return node !== undefined
+      && (nextId === undefined || node.successorDispositionSetId === nextId);
+  });
   return new Set(dispositionSetIds).size === dispositionSetIds.length
     && !(attempt.responsePerformanceHistory !== undefined
       && attempt.responsePerformanceHistory.length > 0
       && attempt.responsePerformance === undefined)
-    && !(attempt.hosted !== undefined && (attempt.responsePerformanceHistory?.length ?? 0) > 0);
+    && hostedHistoryValid;
 }
 
 function validateHostedAdmission(attempt: LaneAttempt, context: z.RefinementCtx): void {

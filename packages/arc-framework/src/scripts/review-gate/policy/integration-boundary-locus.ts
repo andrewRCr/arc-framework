@@ -123,6 +123,34 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
   attestArgv: z.array(z.string().trim().min(1)).length(8),
   ...ActionFields,
   postAttestContinuation: PostAttestContinuationSchema,
+}).superRefine((action, context) => {
+  const expectedKind = action.requiredScope === "focused" ? "focused" : "tier-3";
+  if (action.verificationKind !== expectedKind) {
+    context.addIssue({
+      code: "custom",
+      path: ["verificationKind"],
+      message: "convergence verification kind must match the required scope",
+    });
+  }
+  const expectedArgv = attestConvergenceArgv(
+    action.attestArgv[2] ?? "",
+    action.requiredScope,
+    CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  );
+  if (canonicalize(action.attestArgv) !== canonicalize(expectedArgv)) {
+    context.addIssue({
+      code: "custom",
+      path: ["attestArgv"],
+      message: "convergence attest argv must match its required scope and evidence placeholder",
+    });
+  }
+  if (action.command !== expectedArgv.join(" ")) {
+    context.addIssue({
+      code: "custom",
+      path: ["command"],
+      message: "convergence attest command must display the exact required argv",
+    });
+  }
 });
 
 /**

@@ -2334,6 +2334,7 @@ describe("handleReviewPrePublication", () => {
   function boundary(overrides: Record<string, unknown> = {}) {
     return {
       resolveRoot: () => "/repo",
+      readRootGitHead: async () => target.headSha,
       readBoundary: async () => ({ boundary: null, version: null }),
       recoverAttestationOrdering: vi.fn(),
       persistBoundary: vi.fn(),
@@ -2542,6 +2543,7 @@ describe("handleReviewPrePublication", () => {
     }));
     const readBoundary = async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` });
     const dependencies = boundary({
+      readRootGitHead: async () => currentHead,
       readBoundary,
       compose,
     });
@@ -2569,6 +2571,7 @@ describe("handleReviewPrePublication", () => {
     expect(dependencies.persistBoundary).not.toHaveBeenCalled();
 
     const tokenReentry = boundary({
+      readRootGitHead: async () => currentHead,
       readBoundary,
       compose,
     });
@@ -2576,6 +2579,127 @@ describe("handleReviewPrePublication", () => {
     expect(JSON.parse(String(tokenReentry.write.mock.calls[0]?.[0]))).toMatchObject({
       error: { code: "attestation-ordering-conflict" },
     });
+  });
+
+  it("tracks the root Candidate head through delivery-member post-attest recovery", async () => {
+    const rootReviewedHead = target.headSha;
+    const rootCurrentHead = "f".repeat(40);
+    const memberHead = "d".repeat(40);
+    const memberTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: "a".repeat(40),
+      diffBaseTree: "b".repeat(40),
+      headSha: memberHead,
+      headTree: "e".repeat(40),
+    });
+    const vehicle = {
+      kind: "delivery-member" as const,
+      planId: "123e4567-e89b-42d3-a456-426614174000",
+      deliverableId: `sha256:${"9".repeat(64)}`,
+      workUnitId: "example",
+      head: memberHead,
+    };
+    const deliveryRequest = {
+      ...request,
+      target: memberTarget,
+      reservationTarget: {
+        kind: "delivery" as const,
+        repository: request.reservationTarget.repository,
+        workUnitId: "example",
+        planId: vehicle.planId,
+      },
+      responseBinding: {
+        candidate: { workUnit: "example", candidateId: request.candidateId, head: rootReviewedHead },
+        deliveryMember: vehicle,
+      },
+      frontline: { ...request.frontline, target: { ...request.frontline.target, headSha: memberHead } },
+      standard: { ...request.standard, target: { ...request.standard.target, headSha: memberHead } },
+      candidate: {
+        subjectDigest: request.candidate.subjectDigest,
+        implementationChanged: true,
+        convergenceVerification: "pending" as const,
+        convergenceScope: "full" as const,
+      },
+    };
+    const first = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request: deliveryRequest, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", {}, first);
+    const firstEnvelope = JSON.parse(String(first.write.mock.calls[0]?.[0]));
+    const pendingContinuation = firstEnvelope.nextAction.postAttestContinuation;
+    expect(pendingContinuation.reviewedHead).toBe(rootReviewedHead);
+    const pending = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      reservation: null,
+      postAttestContinuation: pendingContinuation,
+    });
+    const boundaryVersion = `sha256:${"8".repeat(64)}`;
+    const composeBeforeRepair = vi.fn(async () => ({
+      status: "refused" as const,
+      reason: "The Candidate record still names the reviewed root head.",
+    }));
+    const gitOnly = boundary({
+      readRootGitHead: async () => rootCurrentHead,
+      readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
+      compose: composeBeforeRepair,
+    });
+    await handleReviewPrePublication("example", {}, gitOnly);
+    const gitOnlyRefusal = JSON.parse(String(gitOnly.write.mock.calls[0]?.[0]));
+    expect(gitOnlyRefusal.error.code).toBe("attestation-ordering-conflict");
+    expect(composeBeforeRepair).not.toHaveBeenCalled();
+    const gitOnlyRecoveryToken = gitOnlyRefusal.remedy.argv[5];
+    const unestablishedCandidate = boundary({
+      readRootGitHead: async () => rootCurrentHead,
+      readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
+      compose: vi.fn(async () => ({
+        status: "refused" as const,
+        reason: "The Candidate record still names the reviewed root head.",
+      })),
+    });
+    await handleReviewPrePublication("example", { resume: gitOnlyRecoveryToken }, unestablishedCandidate);
+    expect(JSON.parse(String(unestablishedCandidate.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "attestation-ordering-conflict" },
+    });
+    expect(unestablishedCandidate.recoverAttestationOrdering).not.toHaveBeenCalled();
+
+    const movedRequest = {
+      ...deliveryRequest,
+      responseBinding: {
+        ...deliveryRequest.responseBinding,
+        candidate: { ...deliveryRequest.responseBinding.candidate, head: rootCurrentHead },
+      },
+    };
+    const moved = boundary({
+      readRootGitHead: async () => rootCurrentHead,
+      readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
+      compose: vi.fn(async () => ({ status: "composed", request: movedRequest, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", {}, moved);
+    const refusal = JSON.parse(String(moved.write.mock.calls[0]?.[0]));
+    expect(refusal.error.code).toBe("attestation-ordering-conflict");
+    expect(moved.persistBoundary).not.toHaveBeenCalled();
+    const recoveryToken = refusal.remedy.argv[5];
+    const recovery = JSON.parse(Buffer.from(recoveryToken, "base64url").toString("utf8"));
+    expect(recovery.attestationOrderingRecovery).toMatchObject({
+      reviewedHead: rootReviewedHead,
+      currentHead: rootCurrentHead,
+      expectedBoundaryVersion: boundaryVersion,
+    });
+
+    const recovered = boundary({
+      readRootGitHead: async () => rootCurrentHead,
+      readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
+      compose: vi.fn(async () => ({ status: "composed", request: movedRequest, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", { resume: recoveryToken }, recovered);
+    expect(recovered.recoverAttestationOrdering).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(recovered.write.mock.calls[0]?.[0]))).not.toHaveProperty("error");
   });
 
   it("applies only the matching recovery and cannot replace a newer boundary version", async () => {
@@ -2606,6 +2730,7 @@ describe("handleReviewPrePublication", () => {
       standard: { ...request.standard, target: { ...request.standard.target, headSha: currentHead } },
     };
     const conflict = boundary({
+      readRootGitHead: async () => currentHead,
       readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
       compose: vi.fn(async () => ({ status: "composed", request: currentRequest, advisories: [] })),
     });
@@ -2616,6 +2741,7 @@ describe("handleReviewPrePublication", () => {
 
     let durableBoundary: unknown = pending;
     const recovered = boundary({
+      readRootGitHead: async () => currentHead,
       readBoundary: async () => ({ boundary: pending, version: boundaryVersion }),
       compose: vi.fn(async () => ({ status: "composed", request: currentRequest, advisories: [] })),
       recoverAttestationOrdering: vi.fn(async (_root, value) => {
@@ -2635,6 +2761,7 @@ describe("handleReviewPrePublication", () => {
 
     durableBoundary = pending;
     const stale = boundary({
+      readRootGitHead: async () => currentHead,
       readBoundary: async () => ({ boundary: pending, version: `sha256:${"8".repeat(64)}` }),
       compose: vi.fn(async () => ({ status: "composed", request: currentRequest, advisories: [] })),
       recoverAttestationOrdering: vi.fn(async (_root, value) => {

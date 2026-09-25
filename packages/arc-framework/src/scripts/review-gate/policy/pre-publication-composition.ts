@@ -61,6 +61,7 @@ import {
 } from "../lane-progress.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
+import { confirmNonDeliveryIncrementalApplicability } from "./local-review-coverage-selection.js";
 import {
   composePreBindingDeliveryReviewTargets,
   type PreBindingDeliveryReviewTargetDependencies,
@@ -325,6 +326,39 @@ export function createPrePublicationCompositionDependencies(input: {
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
+    confirmIncrementalApplicability: async (workUnit, predecessor, current, policyTarget) => {
+      const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit));
+      return confirmNonDeliveryIncrementalApplicability({
+        predecessor,
+        currentTarget: current.target,
+        currentLineage: current.admission.lineage,
+        repository: policyTarget.repository,
+        pullRequest: policyTarget.pullRequest,
+        candidate,
+        exec: rawGit,
+        observeTarget: async () => {
+          const baseRef = (await settings())["branch.base"].trim();
+          const headSha = (await input.exec(
+            "git", ["rev-parse", "HEAD"], { cwd: input.cwd },
+          )).stdout.trim();
+          const diffBaseSha = (await input.exec(
+            "git", ["merge-base", `refs/heads/${baseRef}`, headSha],
+            { cwd: input.cwd },
+          )).stdout.trim();
+          return deriveLocalReviewTargetFromCoordinates({
+            exec: input.exec,
+            cwd: input.cwd,
+            repositoryId: await repositoryId(),
+            coordinates: {
+              kind: "change-set",
+              baseRef,
+              diffBaseSha,
+              headSha,
+            },
+          });
+        },
+      });
+    },
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);
       const record = await readCandidateRecord(input.cwd, name);

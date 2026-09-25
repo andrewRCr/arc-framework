@@ -296,7 +296,14 @@ function parsePorcelainPaths(stdout: string): string[] {
     if (record === undefined || record.length < 4) continue;
     const status = record.slice(0, 2);
     paths.push(record.slice(3));
-    if (status.includes("R") || status.includes("C")) index += 1;
+    if (status.includes("R") || status.includes("C")) {
+      const source = records[index + 1];
+      if (source === undefined) {
+        throw new LocalTargetDerivationError("dirty-worktree", "rename/copy status lacks its source path");
+      }
+      paths.push(source);
+      index += 1;
+    }
   }
   return [...new Set(paths)].sort();
 }

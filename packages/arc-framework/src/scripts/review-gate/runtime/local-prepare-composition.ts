@@ -65,9 +65,10 @@ import type { LocalPrepareDependencies } from "./local-prepare.js";
 import { resolveReviewStatus } from "../status.js";
 import { createReviewStatusPort } from "../status-composition.js";
 import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
+import { readCandidateRecord } from "../../../lib/work-unit/candidate-record-store.js";
+import { createRawGitExec } from "../../../lib/io-context.js";
 import {
   LaneSubjectLineageSchema,
-  laneSubjectOwnerMatches,
 } from "../core/lane-admission.js";
 import { createLocalFrontlineSourcePreferenceReader } from
   "../hosts/local/frontline-source-preferences.js";
@@ -78,7 +79,10 @@ import {
   assertEvidenceBoundReviewExecutionAdmission,
   resolveEvidenceBoundReviewPolicyContinuation,
 } from "../policy/review-policy-evidence.js";
-import { resolveLocalReviewCoverageSelection } from
+import {
+  confirmNonDeliveryIncrementalApplicability,
+  resolveLocalReviewCoverageSelection,
+} from
   "../policy/local-review-coverage-selection.js";
 import {
   laneContinuationOperationId,
@@ -171,7 +175,7 @@ async function validateLocalPolicyAdmission(
   },
 ): ReturnType<LocalPrepareDependencies["validatePolicyAdmission"]> {
   const {
-    repositoryId, target, lineage, standardReview,
+    repositoryId, target, lineage, standardReview, workUnitId,
     terminalResponsePerformed, predecessorOperationId, coverageAdmission,
   } = request;
 
@@ -189,6 +193,28 @@ async function validateLocalPolicyAdmission(
         context.input, repositoryId, target, settings["branch.base"],
       );
       const policyRequest = createLocalPolicyRequest(request, policyTarget);
+      const candidate = lineage.kind === "candidate" && workUnitId !== undefined
+        ? await readCandidateRecord(context.input.cwd, workUnitId)
+        : null;
+      const confirmContribution = (
+        predecessor: ReviewResult,
+        currentTarget: ReviewTarget,
+        currentLineage: typeof lineage,
+      ) => confirmNonDeliveryIncrementalApplicability({
+        predecessor,
+        currentTarget,
+        currentLineage,
+        repository: policyTarget.repository,
+        pullRequest: policyTarget.pullRequest,
+        candidate,
+        exec: createRawGitExec(context.input.cwd),
+        observeTarget: () => deriveLocalReviewTarget({
+          exec: context.input.exec,
+          cwd: context.input.cwd,
+          baseRef: settings["branch.base"],
+          repositoryId,
+        }),
+      });
       const policyDependencies = {
         sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
         maxPasses: policy.maxPasses,
@@ -198,12 +224,8 @@ async function validateLocalPolicyAdmission(
           context.operationStore,
           predecessor,
         ),
-        confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) => Promise.resolve(
-          predecessor.repositoryId === current.repositoryId
-            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
-            ? "applicable" as const
-            : "unavailable" as const,
-        ),
+        confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) =>
+          confirmContribution(predecessor, current.target, current.admission.lineage),
         confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
       };
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
@@ -224,12 +246,10 @@ async function validateLocalPolicyAdmission(
           context.operationStore,
           predecessor,
         ),
-        confirmIncrementalApplicability: (predecessor, current) => Promise.resolve(
-          predecessor.repositoryId === current.repositoryId
-            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
-            ? "applicable" as const
-            : "unavailable" as const,
-        ),
+        confirmIncrementalApplicability: (predecessor, current) =>
+          confirmContribution(predecessor, current.target, current.admission.lineage),
+        confirmCurrentApplicability: (predecessor, currentTarget) =>
+          confirmContribution(predecessor, currentTarget, lineage),
       });
       if (coverage.state === "coverage-required") return coverage;
       const resolution = await assertEvidenceBoundReviewExecutionAdmission(policyRequest, {

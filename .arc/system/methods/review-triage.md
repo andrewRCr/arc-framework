@@ -39,7 +39,7 @@ invented ARC grade.
 Then record:
 
 - disposition: `fix | defer | reject`
-- optional code-review-only `nit: true` for pure-polish findings
+- optional code-review-only `verifiedNit: true` for pure-polish findings
 
 Severity measures materiality:
 

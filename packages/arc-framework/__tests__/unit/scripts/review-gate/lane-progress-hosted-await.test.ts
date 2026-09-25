@@ -5,7 +5,7 @@ import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/
 import { type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createReviewRequirement, createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
-import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, hostedLaneAttemptId, laneProgressOperationId, acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, readHostedAwaitReplay, recordLaneAttempt, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding, supersedeHostedAttemptDisposition } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, hostedLaneAttemptId, invalidateConditionalNextPassAuthorization, laneProgressOperationId, acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission, recordHostedRequestConclusion, readHostedAwaitReplay, readHostedRequestAdmissionReplay, recordLaneAttempt, recordLaneResponsePerformance, settleLaneAttempt, settleHostedAttemptFinding, supersedeHostedAttemptDisposition } from "../../../../src/scripts/review-gate/lane-progress.js";
 import { createHostedAdmission, type HostedRequestEnvelope, type HostedRequestHandle } from "../../../../src/scripts/review-gate/hosted/request.js";
 
 
@@ -244,6 +244,94 @@ async function seedAcknowledgedRequest(
 }
 
 describe("hosted await lane recording", () => {
+  it("replays only the current Candidate lineage and exact target through a keyed read", async () => {
+    const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
+    const request: HostedRequestEnvelope = {
+      schemaVersion: 1,
+      target: handle.target,
+      provider: handle.provider,
+      coverage: handle.requestedCoverage,
+    };
+    const readOperation = async (operationId: string) => store.readOperation(operationId);
+    const current = {
+      repositoryId: "repo-1",
+      lineage: hostedAdmission.lineage,
+      reviewTarget: hostedReviewTarget,
+      request,
+    };
+
+    expect(await readHostedRequestAdmissionReplay({ readOperation }, current)).toEqual({
+      state: "acknowledged",
+      handle,
+      action: { schemaVersion: 1, handle },
+    });
+    expect(await readHostedRequestAdmissionReplay({ readOperation }, {
+      ...current,
+      lineage: { kind: "candidate", candidateId: `sha256:${"7".repeat(64)}` },
+    })).toBeNull();
+    expect(await readHostedRequestAdmissionReplay({ readOperation }, {
+      ...current,
+      reviewTarget: { ...hostedReviewTarget, diffBaseSha: objectId("9") },
+    })).toBeNull();
+  });
+
+  it("does not replay a concluded request from a different active Errand claim", async () => {
+    const store = createStore();
+    const oldClaim = { kind: "head-bound" as const, vehicleKind: "errand", vehicleIdentity: "claim-old", headSha: handle.target.headSha };
+    const errandVehicle = {
+      kind: "errand" as const,
+      key: "errand-one",
+      claimId: "claim-old",
+      branch: "feature",
+      sources: [handle.provider],
+      standardReview: {
+        obligation: "required" as const,
+        reasons: ["sensitive-change-set" as const],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final" as const,
+        count: 1 as const,
+      },
+    };
+    const request: HostedRequestEnvelope = {
+      schemaVersion: 1,
+      target: handle.target,
+      provider: handle.provider,
+      coverage: handle.requestedCoverage,
+      vehicle: { kind: "errand", standardReview: errandVehicle.standardReview },
+    };
+    const decision = await recordHostedRequestAdmission(store, {
+      repositoryId: "repo-1",
+      lineage: oldClaim,
+      request,
+      progressVehicle: errandVehicle,
+      ...hostedContext,
+      now: "2026-08-15T11:59:00Z",
+    });
+    if (decision.state !== "admitted") throw new Error("expected hosted admission");
+    await recordHostedRequestConclusion(store, {
+      admission: decision.admission,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "rate-limited",
+        nextAction: "try-next-source",
+        provider: handle.provider,
+        requestedCoverage: handle.requestedCoverage,
+        attemptedProviders: [handle.provider],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+
+    const replayInput = { repositoryId: "repo-1", lineage: oldClaim, reviewTarget: hostedReviewTarget, request };
+    expect((await readHostedRequestAdmissionReplay(store, replayInput))?.state).toBe("concluded");
+    expect(await readHostedRequestAdmissionReplay(store, {
+      ...replayInput,
+      lineage: { ...oldClaim, vehicleIdentity: "claim-new" },
+    })).toBeNull();
+  });
+
   it("consumes a bound authorization before returning its named hosted admission", async () => {
     const store = createStore();
     const lineage = hostedAdmission.lineage;
@@ -1223,6 +1311,16 @@ describe("hosted await lane recording", () => {
     })).resolves.toEqual(settled);
 
     const successorSetId = `sha256:${"2".repeat(64)}`;
+    await invalidateConditionalNextPassAuthorization(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: handle.target.headSha,
+      lineage: hostedAdmission.lineage,
+      producerId: attemptId,
+      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      successorDispositionSetId: successorSetId,
+      now: "2026-08-15T12:03:30Z",
+    });
     const superseded = await supersedeHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
@@ -1280,6 +1378,41 @@ describe("hosted await lane recording", () => {
       }],
       now: "2026-08-15T12:05:00Z",
     })).resolves.toEqual(superseded);
+    const successorSettled = await settleHostedAttemptFinding(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId: successorSetId,
+      findingId: "thread-1",
+      disposition: "reject",
+      actorIdentity: hostedContext.actorIdentity,
+      target: handle.target,
+      fixTarget: null,
+      commentId: "comment-1",
+      threadId: "thread-1",
+      replyDigest: `sha256:${"4".repeat(64)}`,
+      replyId: "reply-2",
+      now: "2026-08-15T12:05:30Z",
+    });
+    await expect(supersedeHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      successorDispositionSetId: successorSetId,
+      findingDispositions: [{
+        findingId: "thread-1",
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+      }, {
+        findingId: "body-1",
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:05:45Z",
+    })).resolves.toEqual({
+      progress: successorSettled,
+      carriedFindingIds: ["body-1"],
+      reopenedFindingIds: [],
+    });
     await expect(supersedeHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
@@ -1298,190 +1431,4 @@ describe("hosted await lane recording", () => {
     })).rejects.toThrow("does not advance the current predecessor");
   });
 
-  it("joins record-only fix performance with hosted settlement in either order", async () => {
-    for (const withAuthorization of [false, true]) {
-      for (const settlementFirst of [false, true]) {
-        const store = createStore();
-        await seedAcknowledgedRequest(store, handle);
-        const progress = await recordHostedAwaitAttempt(store, {
-          repositoryId: "repo-1",
-          ...hostedContext,
-          result: {
-            schemaVersion: 1,
-            mode: "review-hosted-await",
-            handle,
-            state: "findings",
-            nextAction: "triage",
-            reviewUrl: "https://example.invalid/review",
-            findings: [{
-              findingId: "thread-1",
-              origin: "review-thread",
-              commentId: "comment-1",
-              threadId: "thread-1",
-              settlement: "reply-and-resolve",
-              severity: "minor",
-              locus: "src/index.ts:7",
-              url: "https://example.invalid/thread-1",
-              sourceOrdinal: 1,
-              sourceLabel: "Thread native label",
-            }, {
-              findingId: "body-1",
-              origin: "review-body",
-              reviewId: "review-1",
-              fingerprint: "body-fingerprint",
-              settlement: "not-applicable",
-              severity: "major",
-              locus: "pull-request review body",
-              url: "https://example.invalid/review-1",
-              body: "Body finding",
-              sourceOrdinal: 2,
-              sourceLabel: "Body native label",
-            }],
-          },
-          now: "2026-08-15T12:00:00Z",
-        });
-        if (progress === null) throw new Error("expected hosted lane progress");
-        const attemptId = hostedLaneAttemptId(handle);
-        const dispositionSetId = `sha256:${"f".repeat(64)}`;
-        if (withAuthorization) {
-          await captureConditionalNextPassAuthorization(store, {
-            lane: "standard",
-            repositoryId: "repo-1",
-            headSha: handle.target.headSha,
-            lineage: hostedAdmission.lineage,
-            producerId: attemptId,
-            dispositionSetId,
-            authorizedBy: hostedContext.actorIdentity,
-            exhaustedPassCount: 1,
-            nextPass: 2,
-            now: "2026-08-15T12:00:15Z",
-          });
-        }
-        await bindHostedAttemptDisposition(store, {
-          operationId: progress.operationId,
-          attemptId,
-          dispositionSetId,
-          findingDispositions: [{
-            findingId: "thread-1",
-            disposition: "defer",
-            channelAction: "reply-and-resolve",
-          }, {
-            findingId: "body-1",
-            disposition: "fix",
-            channelAction: "record-only",
-          }],
-          now: "2026-08-15T12:00:30Z",
-        });
-        const perform = () => recordLaneResponsePerformance(store, {
-          lane: "standard" as const,
-          repositoryId: "repo-1",
-          headSha: handle.target.headSha,
-          lineage: hostedAdmission.lineage,
-          attemptId,
-          dispositionSetId,
-          producedHeadSha: objectId("d"),
-          now: "2026-08-15T12:01:00Z",
-        });
-        const settle = () => settleHostedAttemptFinding(store, {
-          operationId: progress.operationId,
-          attemptId,
-          dispositionSetId,
-          findingId: "thread-1",
-          disposition: "defer" as const,
-          actorIdentity: hostedContext.actorIdentity,
-          target: handle.target,
-          fixTarget: null,
-          commentId: "comment-1",
-          threadId: "thread-1",
-          replyDigest: `sha256:${"1".repeat(64)}`,
-          replyId: "reply-1",
-          now: "2026-08-15T12:02:00Z",
-        });
-
-        const partial = settlementFirst ? await settle() : await perform();
-        expect(partial.attempts[0]).toMatchObject({ outcome: "findings" });
-        const completed = settlementFirst ? await perform() : await settle();
-        expect(completed.attempts[0]).toMatchObject({
-          outcome: "settled-findings",
-          responsePerformance: {
-            dispositionSetId,
-            producedHeadSha: objectId("d"),
-          },
-          hosted: { settledFindingIds: ["body-1", "thread-1"] },
-        });
-        expect(currentAuthorization(completed.attempts[0])?.status)
-          .toBe(withAuthorization ? "bound" : undefined);
-      }
-    }
-  });
-
-  it("refuses a host-addressable fix settled at a different response head", async () => {
-    const store = createStore();
-    await seedAcknowledgedRequest(store, handle);
-    const progress = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle,
-        state: "findings",
-        nextAction: "triage",
-        reviewUrl: "https://example.invalid/review",
-        findings: [{
-          findingId: "thread-1",
-          origin: "review-thread",
-          commentId: "comment-1",
-          threadId: "thread-1",
-          settlement: "reply-and-resolve",
-          severity: "major",
-          locus: "src/index.ts:7",
-          url: "https://example.invalid/thread-1",
-          sourceOrdinal: 1,
-          sourceLabel: "Thread native label",
-        }],
-      },
-      now: "2026-08-15T12:00:00Z",
-    });
-    if (progress === null) throw new Error("expected hosted lane progress");
-    const attemptId = hostedLaneAttemptId(handle);
-    const dispositionSetId = `sha256:${"f".repeat(64)}`;
-    await bindHostedAttemptDisposition(store, {
-      operationId: progress.operationId,
-      attemptId,
-      dispositionSetId,
-      findingDispositions: [{
-        findingId: "thread-1",
-        disposition: "fix",
-        channelAction: "reply-and-resolve",
-      }],
-      now: "2026-08-15T12:00:30Z",
-    });
-    await recordLaneResponsePerformance(store, {
-      lane: "standard",
-      repositoryId: "repo-1",
-      headSha: handle.target.headSha,
-      lineage: hostedAdmission.lineage,
-      attemptId,
-      dispositionSetId,
-      producedHeadSha: objectId("d"),
-      now: "2026-08-15T12:01:00Z",
-    });
-
-    await expect(settleHostedAttemptFinding(store, {
-      operationId: progress.operationId,
-      attemptId,
-      dispositionSetId,
-      findingId: "thread-1",
-      disposition: "fix",
-      actorIdentity: hostedContext.actorIdentity,
-      target: handle.target,
-      fixTarget: { ...handle.target, headSha: objectId("e") },
-      commentId: "comment-1",
-      threadId: "thread-1",
-      replyDigest: `sha256:${"1".repeat(64)}`,
-      replyId: "reply-1",
-      now: "2026-08-15T12:02:00Z",
-    })).rejects.toThrow("does not match durable response-head evidence");
-  });
 });

@@ -63,8 +63,11 @@ function recordResponsePerformanceOnAttempt(
       }
       return attempt;
     }
-    if (attempt.hosted !== undefined
-      || input.predecessorDispositionSetId !== current.dispositionSetId) {
+    const hostedSuccessor = attempt.hosted === undefined
+      || attempt.hosted.dispositionSetLineage.some((node) =>
+        node.dispositionSetId === current.dispositionSetId
+        && node.successorDispositionSetId === input.dispositionSetId);
+    if (!hostedSuccessor || input.predecessorDispositionSetId !== current.dispositionSetId) {
       throw new Error("lane response performance replay conflicts");
     }
     return {

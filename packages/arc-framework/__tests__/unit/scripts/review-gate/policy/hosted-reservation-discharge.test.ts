@@ -25,7 +25,11 @@ import {
   projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
-import { buildIncrementalCorrectionScope } from
+import {
+  buildIncrementalCorrectionScope,
+  resolveIncrementalCorrectionScope,
+  resolveIncrementalCoverageBasis,
+} from
   "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
@@ -2619,7 +2623,58 @@ describe("hosted reservation discharge", () => {
           applicability: "request-review",
         })],
       }),
-    })).resolves.toBe("applicable");
+    })).resolves.toBe("review-required");
+  });
+
+  it("withholds a correction offer and rejects reduction after an exact Owner request-review", async () => {
+    const complete = hostedReviewResult({
+      producerId: "hosted/complete-a",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const current = hostedReviewResult({
+      producerId: "hosted/incremental-c",
+      headSha: oid("c"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: complete.producerId,
+        predecessorHeadSha: complete.target.headSha,
+        basisHeadSha: complete.target.headSha,
+        requiredFindings: [],
+      },
+    });
+    const applicability = (predecessor: ReviewResult, result: ReviewResult) =>
+      confirmIncrementalPredecessorApplicability({
+        predecessor,
+        current: result,
+        readEarlierAttemptApplicability: async () => ({
+          status: "complete",
+          attempts: [earlierAttempt({
+            attemptId: complete.producerId,
+            sourceId: "codex-pr",
+            outcome: "clean",
+            requestedCoverage: "complete",
+            effectiveCoverage: "complete",
+            producerTarget: complete.target,
+            applicability: "request-review",
+          })],
+        }),
+      });
+    const dependencies = {
+      resultReader: { readResult: async () => complete },
+      confirmApplicability: applicability,
+      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+    };
+    await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
+      status: "inadequate", reason: "applicability-required",
+    });
+    await expect(resolveIncrementalCorrectionScope({
+      predecessor: complete,
+      currentHeadSha: current.target.headSha,
+    }, {
+      ...dependencies,
+      confirmCurrentApplicability: async () => applicability(complete, current),
+    })).resolves.toBeNull();
   });
 
   it("recognizes an exact predecessor after retained or requested current-head review", () => {
@@ -2652,7 +2707,7 @@ describe("hosted reservation discharge", () => {
         producerId: "hosted/prior-complete",
         producerTarget,
         earlier: projected(applicability),
-      })).toBe("applicable");
+      })).toBe(applicability === "request-review" ? "review-required" : "applicable");
     }
     expect(incrementalApplicabilityFromEarlierRead({
       producerId: "hosted/prior-complete",

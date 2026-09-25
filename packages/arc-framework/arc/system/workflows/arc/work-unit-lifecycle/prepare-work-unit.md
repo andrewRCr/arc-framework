@@ -157,10 +157,8 @@ arc review respond -
 ```
 
 Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes
-presentation. Present one unqualified severity when the reviewer and ARC grades agree, label both only when they
-differ, and include the source locus plus a discrete `Recommended disposition:` line. Obtain complete-set approval
-over that exact report and canonical set before any mutation or commitment; the approver need not repeat its
-canonical digest. Submit the exact approved set through a second call:
+presentation. Obtain complete-set approval over that exact report and canonical set before any mutation or
+commitment; the approver need not repeat its canonical digest. Submit the exact approved set through a second call:
 
 ```bash
 arc review respond -

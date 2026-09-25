@@ -81,6 +81,11 @@ import {
   projectLocalReviewCoverageAdmission,
   type LocalReviewCoverageAdmission,
 } from "../core/local-review-coverage.js";
+import {
+  localAttemptCoverageAdmission,
+  selectPendingLocalReplayAttempt,
+  sharedLogicalPassCoverageMatches,
+} from "../policy/local-review-coverage-selection.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
 
@@ -179,6 +184,7 @@ export interface LocalPrepareDependencies {
     repositoryId: string;
     target: ReviewTarget;
     lineage: LaneSubjectLineage;
+    workUnitId?: string;
     standardReview: StandardReviewObligationProjection;
     completedPasses: number;
     attempts: ReviewPolicyCommandRequest["attempts"];
@@ -223,16 +229,6 @@ function cleanupExpired(state: LocalReviewState, nowInput: string): boolean {
     throw new Error("invalid local review cleanup clock");
   }
   return now >= admittedAt + state.cleanupTtlMs;
-}
-
-function localAttemptCoverageAdmission(input: {
-  readonly requestedCoverage: "incremental" | "complete";
-  readonly correctionScope?: LocalReviewCoverageAdmission["correctionScope"];
-}): LocalReviewCoverageAdmission {
-  return LocalReviewCoverageAdmissionSchema.parse({
-    requestedCoverage: input.requestedCoverage,
-    ...(input.correctionScope === undefined ? {} : { correctionScope: input.correctionScope }),
-  });
 }
 
 async function retryLaneOwnerConflicts<T>(
@@ -282,6 +278,17 @@ function completedReplayAttemptMatches(
       || attempt.logicalPass === input.request.deliveryAdmission.pass);
 }
 
+function requireSharedLogicalPassCoverage(
+  attempts: readonly LocalLaneAttempt[],
+  logicalPass: number | undefined,
+  coverageAdmission: LocalReviewCoverageAdmission,
+): void {
+  if (logicalPass !== undefined
+    && !sharedLogicalPassCoverageMatches(attempts, logicalPass, coverageAdmission)) {
+    throw new LocalPrepareCommandError("local review coverage differs from the shared logical pass");
+  }
+}
+
 async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
   const owner = await readLaneProgressOwner(input.dependencies.operationStore, {
     lane: "standard",
@@ -289,24 +296,18 @@ async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
     headSha: input.target.headSha,
     lineage: input.lineage,
   });
-  const pending = owner?.attempts.filter((attempt) => attempt.outcome === "pending"
-    && attempt.local !== undefined) ?? [];
-  if (pending.length > 1) {
-    throw new LocalPrepareCommandError("local lane has multiple pending admissions");
-  }
-  if (pending[0]?.local?.scopeMode !== undefined
-    && pending[0].local.scopeMode !== input.scopeMode) {
-    throw new LocalPrepareCommandError("local pending admission has a different review scope");
-  }
-  if (pending[0]?.local !== undefined
-    && canonicalize(localAttemptCoverageAdmission(pending[0].local))
-      !== canonicalize(input.coverageAdmission)) {
-    throw new LocalPrepareCommandError("local pending admission has different review coverage");
-  }
+  const pending = selectPendingLocalReplayAttempt(
+    owner?.attempts ?? [], input.scopeMode, input.coverageAdmission,
+  );
+  if (pending.error !== null) throw new LocalPrepareCommandError(pending.error);
   const completed = owner?.attempts
     .filter((attempt) => completedReplayAttemptMatches(attempt, input))
     .sort((left, right) => right.logicalPass - left.logicalPass) ?? [];
-  return pending[0] ?? completed[0] ?? null;
+  const selected = pending.attempt ?? completed[0] ?? null;
+  requireSharedLogicalPassCoverage(
+    owner?.attempts ?? [], selected?.logicalPass, input.coverageAdmission,
+  );
+  return selected;
 }
 
 type LocalReplayAttempt = NonNullable<Awaited<ReturnType<typeof selectLocalReplayAttempt>>>;
@@ -549,6 +550,9 @@ async function resolveSettlementPolicyAdmission(
     repositoryId,
     target,
     lineage,
+    ...(input.authority.vehicle.kind === "work-unit"
+      ? { workUnitId: input.authority.vehicle.identity }
+      : {}),
     standardReview: projection,
     completedPasses: owner?.completedPasses ?? 0,
     attempts: policyAttempts,
@@ -798,6 +802,7 @@ async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
       return { state: "coverage-required" as const, action: policyAdmission.action };
     }
     const logicalPass = policyAdmission.pass;
+    requireSharedLogicalPassCoverage(owner?.attempts ?? [], logicalPass, coverageAdmission);
     if (retryingLocalFailure !== undefined
       && logicalPass !== retryingLocalFailure.logicalPass) {
       throw new LocalPrepareCommandError("local review retry changed its admitted logical pass");

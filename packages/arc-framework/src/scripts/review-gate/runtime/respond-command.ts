@@ -765,7 +765,7 @@ async function recordPerformedResponse(
     lineage: source.result.admission.lineage,
     attemptId: source.hostedAttempt?.attemptId ?? source.operationId,
     dispositionSetId: dispositions.dispositionSet.dispositionSetId,
-    ...(source.hostedAttempt !== undefined || predecessorDispositionSetId === null
+    ...(predecessorDispositionSetId === null
       ? {}
       : { predecessorDispositionSetId }),
     producedHeadSha,
@@ -1577,7 +1577,6 @@ async function prepareResponseProposal(
 }
 
 async function persistVerifiedReviewFix(
-  request: z.infer<typeof RespondApprovedRequestSchema>,
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
   verifiedFix: z.infer<typeof RespondVerifiedFixSchema>,
@@ -1587,10 +1586,18 @@ async function persistVerifiedReviewFix(
   dispositionReportText: string,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
-    const conditionalPassAuthorizationId = request.policyRequest.ceilingOverride
+    if (recordedFix === null) {
+      throw new RespondCommandError("invalid-input", "a verified fix requires its exact approved response record");
+    }
+    const approvedNode = currentApprovedDispositionNode(recordedFix);
+    if (canonicalize(approvedNode.approvedDisposition) !== canonicalize(dispositions)) {
+      throw new RespondCommandError("invalid-input", "a verified fix requires its exact approved response record");
+    }
+    const policyRequest = approvedNode.responsePolicyRequest;
+    const conditionalPassAuthorizationId = policyRequest.ceilingOverride
       ?.conditionalPassAuthorizationId;
     const performedResponseContinuation: PerformedResponseContinuation = {
-      policyRequest: request.policyRequest,
+      policyRequest,
       ...(conditionalPassAuthorizationId === undefined
         ? {}
         : { conditionalPassAuthorizationId }),
@@ -1617,7 +1624,7 @@ async function persistVerifiedReviewFix(
         dependencies,
       );
     }
-    if (recordedFix?.candidate === null || recordedFix?.candidate === undefined) {
+    if (recordedFix.candidate === null) {
       return persistErrandResponse(
         source,
         dispositions,
@@ -2305,7 +2312,7 @@ async function respondToResolvedReviewCommand(
   });
   if (verifiedFix !== undefined && changedTarget !== null) {
     return persistVerifiedReviewFix(
-      request, source, dispositions, verifiedFix, changedTarget,
+      source, dispositions, verifiedFix, changedTarget,
       deliveryMemberFixTarget, recordedFix, dispositionReportText, dependencies,
     );
   }

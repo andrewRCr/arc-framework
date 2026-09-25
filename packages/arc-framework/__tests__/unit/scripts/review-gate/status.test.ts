@@ -1551,7 +1551,7 @@ describe("review status", () => {
       deliveryCursor: { currentMember: { target: hostedAction.target } },
       remedy: {
         argv: [
-          "arc", "review", "status", "--work-unit", "example", "--coverage", "incremental",
+          "arc", "review", "status", "--work-unit", "example", "--coverage", "complete",
         ],
       },
     });
@@ -1634,7 +1634,11 @@ describe("review status", () => {
       reason: "coverage-unsupported",
       remedy: {
         invariant: "The selected review carrier cannot preserve the admitted correction scope.",
-        text: expect.stringContaining("Select a capable source or complete coverage, then re-run"),
+        text: expect.stringContaining("Re-run with complete coverage"),
+        argv: [
+          "arc", "review", "status", "--work-unit", "example",
+          "--coverage", "complete",
+        ],
       },
     });
 

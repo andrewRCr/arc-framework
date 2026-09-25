@@ -1,6 +1,6 @@
 /** Unit coverage for typed non-delivery local review coverage recovery. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -15,7 +15,10 @@ import type { LaneSubjectLineage } from
   "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
-import { resolveLocalReviewCoverageSelection } from
+import {
+  confirmNonDeliveryIncrementalApplicability,
+  resolveLocalReviewCoverageSelection,
+} from
   "../../../../../src/scripts/review-gate/policy/local-review-coverage-selection.js";
 import { resolveReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
@@ -108,6 +111,7 @@ function incrementalLocalResult(): ReviewResult {
 function dependencies(predecessor: ReviewResult): {
   resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
+  confirmCurrentApplicability: () => Promise<"applicable">;
 } {
   return {
     resultReader: {
@@ -120,6 +124,7 @@ function dependencies(predecessor: ReviewResult): {
       readDispositionRecord: async () => null,
       appendDispositionRecord: async () => ({ dispositionRecordRef: "unused" }),
     },
+    confirmCurrentApplicability: async () => "applicable",
   };
 }
 
@@ -139,6 +144,84 @@ function readyPolicy(headSha: string) {
 }
 
 describe("local review coverage selection", () => {
+  it("does not equate same Errand lineage with changed-base contribution proof", async () => {
+    const earlierLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const predecessor = completeLocalResult(earlierLineage);
+    const currentTarget = { ...target(objectId("c")), diffBaseSha: objectId("b") };
+    const exec = vi.fn(async () => { throw new Error("contribution proof unavailable"); });
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      predecessor,
+      currentTarget,
+      currentLineage: { ...earlierLineage, headSha: currentTarget.headSha },
+      repository: "local/repo-1",
+      pullRequest: 42,
+      candidate: null,
+      exec,
+      observeTarget: async () => currentTarget,
+    })).resolves.toBe("unavailable");
+    expect(exec).toHaveBeenCalledWith(
+      ["merge-base", "--all", predecessor.target.headSha, currentTarget.diffBaseSha],
+      { objectAccess: "local-only" },
+    );
+  });
+
+  it("requires a real pull request coordinate before applying contribution authority", async () => {
+    const earlierLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const predecessor = completeLocalResult(earlierLineage);
+    const exec = vi.fn(async () => { throw new Error("unchanged head needs no Git query"); });
+    const common = {
+      predecessor,
+      currentTarget: predecessor.target,
+      currentLineage: earlierLineage,
+      repository: "arc-framework/example",
+      candidate: null,
+      exec,
+      observeTarget: async () => predecessor.target,
+    };
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      ...common, pullRequest: null,
+    })).resolves.toBe("unavailable");
+    expect(exec).not.toHaveBeenCalled();
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      ...common, pullRequest: 42,
+    })).resolves.toBe("applicable");
+  });
+  it("withholds incremental coverage when current contribution proof requires review", async () => {
+    const predecessor = completeLocalResult();
+    const currentTarget = target(objectId("c"));
+    const common = {
+      policy: readyPolicy(currentTarget.headSha),
+      target: currentTarget,
+      sourceId: "delegated-agent",
+      lineage,
+      standardReview,
+      predecessorOperationId: predecessor.producerId,
+    };
+    for (const decision of ["review-required", "unavailable"] as const) {
+      const proof = { ...dependencies(predecessor), confirmCurrentApplicability: async () => decision };
+      await expect(resolveLocalReviewCoverageSelection(common, proof)).resolves.toMatchObject({
+        state: "coverage-required",
+        action: { choices: [{ requestedCoverage: "complete" }] },
+      });
+    }
+    await expect(resolveLocalReviewCoverageSelection(common, {
+      resultReader: dependencies(predecessor).resultReader,
+      dispositionStore: dependencies(predecessor).dispositionStore,
+    })).resolves.toMatchObject({
+      state: "coverage-required",
+      action: { choices: [{ requestedCoverage: "complete" }] },
+    });
+  });
   it("offers an exact predecessor-backed incremental choice after the target head changes", async () => {
     const predecessor = completeLocalResult();
     const currentTarget = target(objectId("c"));

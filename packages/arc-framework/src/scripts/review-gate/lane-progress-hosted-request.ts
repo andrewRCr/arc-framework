@@ -3,8 +3,8 @@
 import { canonicalize } from "../../lib/kernel/index.js";
 import { createHostedSealedResult, LaneProgressStateSchema, type LaneProgressState } from "./core/operation-state-schema.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "./core/version-conflict.js";
-import type { LaneSubjectLineage } from "./core/lane-admission.js";
-import type { ReviewOperationStateSnapshotIndex, ReviewOperationStateStore } from "./core/ports.js";
+import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "./core/lane-admission.js";
+import type { ReviewOperationStateStore } from "./core/ports.js";
 import { HostedAwaitResultSchema, type HostedAwaitResult } from "./hosted/await.js";
 import { createHostedAdmission, hostedAdmissionMatchesRequest, hostedAwaitAction, hostedLaneAttemptId, HostedRequestEnvelopeSchema, type HostedAdmission, type HostedProgressVehicle, type HostedRequestEnvelope, type HostedRequestHandle, type HostedRequestAdmissionResolution } from "./hosted/request.js";
 import { hostedAwaitLaneOutcome, laneProgressOperationId, recordLaneAttempt } from "./lane-progress.js";
@@ -54,32 +54,45 @@ function replayHostedRequestResult(
 }
 
 /**
- * Resolve an admitted hosted request before current policy, actor, or member selection.
+ * Resolve an admitted hosted request for the current authoritative owner and target.
  *
- * @param store - Complete operation-snapshot reader for the current repository.
- * @param input - Repository identity and caller-visible hosted request.
- * @returns The one replayable admission decision, `null` when none exists, or a conservative ambiguous stop.
+ * @param store - Keyed operation reader for the current repository.
+ * @param input - Current repository, lineage, exact target, and caller-visible request.
+ * @returns The replayable admission decision, `null` when none exists, or a conservative ambiguous stop.
  */
 export async function readHostedRequestAdmissionReplay(
-  store: ReviewOperationStateSnapshotIndex,
-  input: { repositoryId: string; request: HostedRequestEnvelope },
+  store: Pick<ReviewOperationStateStore, "readOperation">,
+  input: {
+    repositoryId: string;
+    lineage: LaneSubjectLineage;
+    reviewTarget: NonNullable<LaneAttempt["hosted"]>["reviewTarget"];
+    request: HostedRequestEnvelope;
+  },
 ): Promise<HostedRequestAdmissionDecision | null> {
   const request = HostedRequestEnvelopeSchema.parse(input.request);
-  const snapshot = await store.readOperationSnapshot();
-  if (snapshot.status !== "complete") return { state: "ambiguous-delivery" };
-  const matchingAttempts: LaneAttempt[] = [];
-  for (const record of snapshot.records) {
-    if (record.state.kind !== "lane-progress"
-      || record.state.lane !== "standard"
-      || record.state.repositoryId !== input.repositoryId) continue;
-    const progress = LaneProgressStateSchema.parse(record.state);
-    const activeLogicalPass = progress.completedPasses + 1;
-    matchingAttempts.push(...progress.attempts.filter((attempt) => (
-      attempt.logicalPass === activeLogicalPass
-      && attempt.hosted !== undefined
-      && hostedAdmissionMatchesRequest(attempt.hosted.admission, request)
-    )));
+  const operationId = laneProgressOperationId({
+    lane: "standard",
+    repositoryId: input.repositoryId,
+    headSha: request.target.headSha,
+    lineage: input.lineage,
+  });
+  const { state } = await store.readOperation(operationId);
+  if (state === null) return null;
+  if (state.kind !== "lane-progress") return { state: "ambiguous-delivery" };
+  const progress = LaneProgressStateSchema.parse(state);
+  if (progress.operationId !== operationId
+    || progress.lane !== "standard"
+    || progress.repositoryId !== input.repositoryId
+    || !laneSubjectOwnerMatches(progress.lineage, input.lineage)) {
+    return { state: "ambiguous-delivery" };
   }
+  const activeLogicalPass = progress.completedPasses + 1;
+  const matchingAttempts = progress.attempts.filter((attempt) => (
+    attempt.logicalPass === activeLogicalPass
+    && attempt.hosted !== undefined
+    && canonicalize(attempt.hosted.admission.reviewTarget) === canonicalize(input.reviewTarget)
+    && hostedAdmissionMatchesRequest(attempt.hosted.admission, request)
+  ));
   if (matchingAttempts.length === 0) return null;
   if (matchingAttempts.length !== 1) return { state: "ambiguous-delivery" };
   const matchingAttempt = matchingAttempts[0];
@@ -104,6 +117,7 @@ function admittedHostedReplay(
     && canonicalize(attempt.hosted.admission.correctionScope ?? null)
       === canonicalize(input.request.correctionScope ?? null)
     && canonicalize(attempt.hosted.admission.target) === canonicalize(input.request.target)
+    && canonicalize(attempt.hosted.admission.reviewTarget) === canonicalize(input.reviewTarget)
     && canonicalize(attempt.hosted.admission.vehicle ?? null)
       === canonicalize(input.progressVehicle ?? null)
   ));

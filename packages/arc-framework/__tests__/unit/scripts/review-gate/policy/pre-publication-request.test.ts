@@ -365,6 +365,7 @@ function dependencies(
       }),
     },
     readResponsePerformance: vi.fn(async () => null),
+    confirmIncrementalApplicability: vi.fn(async () => "applicable" as const),
     readCandidate: vi.fn(async () => currentCandidate),
     readAssurance: vi.fn(async () => resolvedAssurance),
     resolveTarget: vi.fn(async () => resolvedTarget),
