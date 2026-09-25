@@ -13,15 +13,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                      | Cohort                    |
-| ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------------------- |
-| `Active`   | decompose-conservation-coverage | P1       | andrew | —                               | decompose-core-hardening  |
-| `Active`   | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                               | —                         |
-| `Planning` | decomposition-doctrine          | P1       | andrew | decompose-conservation-coverage | —                         |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                               | —                         |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —                         |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                               | —                         |
+| State         | Work unit                       | Priority | Owner  | Depends on                      | Cohort                    |
+| ------------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------------------- |
+| `Integrating` | decompose-conservation-coverage | P1       | andrew | —                               | decompose-core-hardening  |
+| `Active`      | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                               | —                         |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | decompose-conservation-coverage | —                         |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                               | —                         |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                               | —                         |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                               | —                         |
 
 ## Ready
 
@@ -37,7 +37,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-correction-convergence     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
-| plan-amendment                      | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
 | review-operation-state-isolation    | P1       | andrew | —          | —                          |
