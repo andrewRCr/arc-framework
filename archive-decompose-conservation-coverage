@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "archive-decompose-conservation-coverage",
+  "claimId": "a99af65e920c893ea3e7035d636dfd0c",
+  "createdAt": "2026-09-25T02:09:37.106Z",
+  "updatedAt": "2026-09-25T02:09:37.106Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Archive merged decompose-conservation-coverage (PR #712) under manual cadence and refresh ROADMAP",
+  "branch": "chore/archive-decompose-conservation-coverage",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
