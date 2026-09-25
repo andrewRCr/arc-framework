@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "archive-plan-amendment",
+  "claimId": "17bf7eef166bb0e472396903063c6c21",
+  "createdAt": "2026-09-25T00:14:09.633Z",
+  "updatedAt": "2026-09-25T00:14:09.633Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Archive merged plan-amendment in a separate manual-cadence PR",
+  "branch": "chore/archive-plan-amendment",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
